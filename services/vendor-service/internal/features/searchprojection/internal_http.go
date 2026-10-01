@@ -28,6 +28,7 @@ package searchprojection
 import (
 	"bytes"
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/publictrust"
 	"encoding/json"
 	"errors"
 	"io"
@@ -98,11 +99,12 @@ type ProjectionHealthReader interface {
 
 // InternalHandler serves the internal search and administration surface.
 type InternalHandler struct {
-	food    FoodSearchAPI
-	shop    ShopSearchAPI
-	ranking RankingAdminAPI
-	admin   *SearchProjectionAdminService
-	health  ProjectionHealthReader
+	publicTrust publictrust.Reader
+	food        FoodSearchAPI
+	shop        ShopSearchAPI
+	ranking     RankingAdminAPI
+	admin       *SearchProjectionAdminService
+	health      ProjectionHealthReader
 
 	allowed map[string]bool
 	nonces  NonceStore

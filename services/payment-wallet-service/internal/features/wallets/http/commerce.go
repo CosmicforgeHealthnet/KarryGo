@@ -56,6 +56,7 @@ type allocationRefundRequest struct {
 	EscrowRecoveryMinor             int64  `json:"escrow_recovery_minor"`
 	VendorRecoveryMinor             int64  `json:"vendor_recovery_minor"`
 	ProviderRecoveryMinor           int64  `json:"provider_recovery_minor"`
+	OrganizationRecoveryMinor       int64  `json:"organization_recovery_minor"`
 	PlatformRecoveryMinor           int64  `json:"platform_recovery_minor"`
 	PlatformLossFundingMinor        int64  `json:"platform_loss_funding_minor"`
 	VendorMerchandiseReductionMinor int64  `json:"vendor_merchandise_reduction_minor"`
@@ -185,6 +186,74 @@ func (h *Handler) ReleaseCommerceDelivery(c *gin.Context) {
 	respondOK(c, value)
 }
 
+// ReverseCommerceAllocationForDispute reverses delivery money because a
+// dispute was decided, not because the customer asked for a refund (WAL-030).
+//
+// It moves money exactly as a refund does and draws on the same recovery pool,
+// which is deliberate: a dispute after a refund, or a refund after a dispute,
+// can never between them take back more than was paid out.
+func (h *Handler) ReverseCommerceAllocationForDispute(c *gin.Context) {
+	if !requireCaller(c, "vendor-service", "support-dispute-service") {
+		return
+	}
+	var request allocationRefundRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	value, err := h.service.RefundCommerceAllocation(c, walletrepositories.RefundCommerceAllocationInput{
+		VendorOrderID: c.Param("vendorOrderId"), ItemReference: request.ItemReference,
+		Kind:                            walletrepositories.RefundKindDispute,
+		CustomerRefundMinor:             request.CustomerRefundMinor,
+		PlatformFundingReversalMinor:    request.PlatformFundingReversalMinor,
+		OtherFundingReversalMinor:       request.OtherFundingReversalMinor,
+		EscrowRecoveryMinor:             request.EscrowRecoveryMinor,
+		VendorRecoveryMinor:             request.VendorRecoveryMinor,
+		ProviderRecoveryMinor:           request.ProviderRecoveryMinor,
+		OrganizationRecoveryMinor:       request.OrganizationRecoveryMinor,
+		PlatformRecoveryMinor:           request.PlatformRecoveryMinor,
+		PlatformLossFundingMinor:        request.PlatformLossFundingMinor,
+		VendorMerchandiseReductionMinor: request.VendorMerchandiseReductionMinor,
+		VendorDeliveryReductionMinor:    request.VendorDeliveryReductionMinor,
+		ProviderDeliveryReductionMinor:  request.ProviderDeliveryReductionMinor,
+		PlatformRevenueReductionMinor:   request.PlatformRevenueReductionMinor,
+		AuthorizationReleaseMinor:       request.AuthorizationReleaseMinor,
+		ExpectedSnapshotFingerprint:     request.ExpectedSnapshotFingerprint,
+		IdempotencyKey:                  request.IdempotencyKey,
+	})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, value)
+}
+
+// PlanCommerceDeliveryRecovery answers who gives back what, without moving
+// anything.
+//
+// A refunding service cannot work the split out for itself: it is Fleet's
+// decision, recorded when the delivery settled, and re-deriving it from
+// today's compensation policy would apply a plan the provider was never paid
+// under.
+func (h *Handler) PlanCommerceDeliveryRecovery(c *gin.Context) {
+	if !requireCaller(c, "vendor-service", "support-dispute-service", "fleet-partner-service") {
+		return
+	}
+	var request struct {
+		RecoverMinor int64 `json:"recover_minor"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
+		return
+	}
+	split, err := h.service.PlanDeliveryRecovery(c, c.Param("vendorOrderId"), request.RecoverMinor)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, split)
+}
+
 func (h *Handler) RefundCommerceAllocation(c *gin.Context) {
 	if !requireCaller(c, "vendor-service") {
 		return
@@ -194,7 +263,7 @@ func (h *Handler) RefundCommerceAllocation(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Request body is invalid.", err))
 		return
 	}
-	value, err := h.service.RefundCommerceAllocation(c, walletrepositories.RefundCommerceAllocationInput{VendorOrderID: c.Param("vendorOrderId"), ItemReference: request.ItemReference, CustomerRefundMinor: request.CustomerRefundMinor, PlatformFundingReversalMinor: request.PlatformFundingReversalMinor, OtherFundingReversalMinor: request.OtherFundingReversalMinor, EscrowRecoveryMinor: request.EscrowRecoveryMinor, VendorRecoveryMinor: request.VendorRecoveryMinor, ProviderRecoveryMinor: request.ProviderRecoveryMinor, PlatformRecoveryMinor: request.PlatformRecoveryMinor, PlatformLossFundingMinor: request.PlatformLossFundingMinor, VendorMerchandiseReductionMinor: request.VendorMerchandiseReductionMinor, VendorDeliveryReductionMinor: request.VendorDeliveryReductionMinor, ProviderDeliveryReductionMinor: request.ProviderDeliveryReductionMinor, PlatformRevenueReductionMinor: request.PlatformRevenueReductionMinor, AuthorizationReleaseMinor: request.AuthorizationReleaseMinor, ExpectedSnapshotFingerprint: request.ExpectedSnapshotFingerprint, IdempotencyKey: request.IdempotencyKey})
+	value, err := h.service.RefundCommerceAllocation(c, walletrepositories.RefundCommerceAllocationInput{VendorOrderID: c.Param("vendorOrderId"), ItemReference: request.ItemReference, CustomerRefundMinor: request.CustomerRefundMinor, PlatformFundingReversalMinor: request.PlatformFundingReversalMinor, OtherFundingReversalMinor: request.OtherFundingReversalMinor, EscrowRecoveryMinor: request.EscrowRecoveryMinor, VendorRecoveryMinor: request.VendorRecoveryMinor, ProviderRecoveryMinor: request.ProviderRecoveryMinor, OrganizationRecoveryMinor: request.OrganizationRecoveryMinor, PlatformRecoveryMinor: request.PlatformRecoveryMinor, PlatformLossFundingMinor: request.PlatformLossFundingMinor, VendorMerchandiseReductionMinor: request.VendorMerchandiseReductionMinor, VendorDeliveryReductionMinor: request.VendorDeliveryReductionMinor, ProviderDeliveryReductionMinor: request.ProviderDeliveryReductionMinor, PlatformRevenueReductionMinor: request.PlatformRevenueReductionMinor, AuthorizationReleaseMinor: request.AuthorizationReleaseMinor, ExpectedSnapshotFingerprint: request.ExpectedSnapshotFingerprint, IdempotencyKey: request.IdempotencyKey})
 	if err != nil {
 		httpx.Abort(c, err)
 		return

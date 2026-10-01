@@ -37,7 +37,8 @@ const objectColumns = `
 	original_mime_type, original_size_bytes, integrity_hash,
 	upload_status, safety_status, safety_reason, scanned_at, validation_failure_code,
 	storage_bucket, storage_object_key, deletion_state, deletion_requested_at, deleted_at,
-	deletion_failure_code, retention_class, retention_until, legal_hold, version,
+	deletion_failure_code, retention_class, retention_until, legal_hold,
+	binding_type, binding_id, evidence_state, revoked_at, revocation_reason, version,
 	correlation_id, causation_id, created_at, updated_at`
 
 // Repository reads and writes authoritative media state.
@@ -71,7 +72,9 @@ func scanObject(row scannable) (*models.Object, error) {
 		&object.ValidationFailureCode, &object.StorageBucket, &object.StorageObjectKey,
 		&object.DeletionState, &object.DeletionRequestedAt, &object.DeletedAt,
 		&object.DeletionFailureCode, &object.RetentionClass, &object.RetentionUntil,
-		&object.LegalHold, &object.Version, &object.CorrelationID, &object.CausationID,
+		&object.LegalHold, &object.BindingType, &object.BindingID, &object.EvidenceState,
+		&object.RevokedAt, &object.RevocationReason,
+		&object.Version, &object.CorrelationID, &object.CausationID,
 		&object.CreatedAt, &object.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -90,14 +93,17 @@ func (r *Repository) CreateObject(ctx context.Context, q database.Querier, objec
 			(id, organization_id, owner_service, owner_type, owner_reference, upload_purpose,
 			 visibility, file_name, declared_mime, upload_status, safety_status,
 			 storage_bucket, storage_object_key,
-			 retention_class, retention_until, correlation_id, causation_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+			 retention_class, retention_until, correlation_id, causation_id,
+			 binding_type, binding_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+			$18, $19)
 		RETURNING `+objectColumns,
 		object.ID, object.OrganizationID, object.OwnerService, object.OwnerType,
 		object.OwnerReference, object.UploadPurpose, object.Visibility, object.FileName,
 		object.DeclaredMIME, object.UploadStatus,
 		object.SafetyStatus, object.StorageBucket, object.StorageObjectKey,
-		object.RetentionClass, object.RetentionUntil, object.CorrelationID, object.CausationID)
+		object.RetentionClass, object.RetentionUntil, object.CorrelationID, object.CausationID,
+		object.BindingType, object.BindingID)
 
 	created, err := scanObject(row)
 	if err != nil {
@@ -278,6 +284,13 @@ func (r *Repository) LockAuthorization(ctx context.Context, q database.Querier,
 	id string) (*models.UploadAuthorization, error) {
 	return scanAuthorization(r.querier(q).QueryRow(ctx,
 		`SELECT `+authorizationColumns+` FROM media_upload_authorizations WHERE id = $1 FOR UPDATE`, id))
+}
+
+// AuthorizationByID is used only to select the owner context for a public
+// token redemption. CompleteUpload re-locks and verifies the grant and token.
+func (r *Repository) AuthorizationByID(ctx context.Context, id string) (*models.UploadAuthorization, error) {
+	return scanAuthorization(r.db.QueryRow(ctx,
+		`SELECT `+authorizationColumns+` FROM media_upload_authorizations WHERE id = $1`, id))
 }
 
 // AuthorizationByIdempotencyKey resolves a replayed authorization request.
@@ -564,4 +577,69 @@ func isUniqueViolation(err error) bool {
 		return pgErr.Code == "23505"
 	}
 	return strings.Contains(err.Error(), "SQLSTATE 23505")
+}
+
+// AddSecondaryBindings records the further things one file is evidence for.
+//
+// It is called inside the authorisation transaction, immediately after the
+// object is created, so the full set of bindings exists before any byte is
+// accepted. ON CONFLICT DO NOTHING makes a replayed authorisation harmless;
+// the immutability trigger makes a later rewrite impossible.
+func (r *Repository) AddSecondaryBindings(ctx context.Context, q database.Querier,
+	objectID string, bindings []models.Binding) error {
+	for _, binding := range bindings {
+		if _, err := r.querier(q).Exec(ctx, `
+			INSERT INTO media_object_secondary_bindings (media_object_id, binding_type, binding_id)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (media_object_id, binding_type, binding_id) DO NOTHING`,
+			objectID, binding.Type, binding.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SecondaryBindings reads an object's secondary bindings in a stable order.
+func (r *Repository) SecondaryBindings(ctx context.Context, q database.Querier,
+	objectID string) ([]models.Binding, error) {
+	rows, err := r.querier(q).Query(ctx, `
+		SELECT binding_type, binding_id FROM media_object_secondary_bindings
+		 WHERE media_object_id = $1 ORDER BY binding_type, binding_id`, objectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Binding{}
+	for rows.Next() {
+		var binding models.Binding
+		if err = rows.Scan(&binding.Type, &binding.ID); err != nil {
+			return nil, err
+		}
+		out = append(out, binding)
+	}
+	return out, rows.Err()
+}
+
+// RevokeObject withdraws an object as evidence without deleting its bytes.
+//
+// The version guard is what makes a revocation safe to retry: a second attempt
+// against a version that has moved is refused rather than applied twice, and a
+// revocation of something already revoked is reported by the caller as the
+// no-op it is.
+func (r *Repository) RevokeObject(ctx context.Context, q database.Querier,
+	id string, expectedVersion int64, reason string) (*models.Object, error) {
+	row := r.querier(q).QueryRow(ctx, `
+		UPDATE media_objects SET
+			evidence_state = 'REVOKED',
+			revoked_at = now(),
+			revocation_reason = $3,
+			version = version + 1,
+			updated_at = now()
+		WHERE id = $1 AND version = $2 AND evidence_state = 'ACTIVE'
+		RETURNING `+objectColumns, id, expectedVersion, reason)
+	updated, err := scanObject(row)
+	if errors.Is(err, ErrNotFound) {
+		return nil, ErrVersionMismatch
+	}
+	return updated, err
 }

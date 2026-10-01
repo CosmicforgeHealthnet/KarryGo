@@ -10,13 +10,23 @@ import (
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/authctx"
+	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
 )
 
-type Handler struct{ service *Service }
+type Handler struct {
+	service     *Service
+	idempotency *idempotency.Store
+}
 
-func NewHandler(service *Service) *Handler { return &Handler{service: service} }
+func NewHandler(service *Service, stores ...*idempotency.Store) *Handler {
+	handler := &Handler{service: service}
+	if len(stores) != 0 {
+		handler.idempotency = stores[0]
+	}
+	return handler
+}
 
 func promotionActor(c *gin.Context) (production.Actor, bool) {
 	staff, ok := authctx.FromContext(c)
@@ -183,6 +193,9 @@ func RegisterRoutes(root *gin.RouterGroup, handler *Handler, enabled bool) {
 		return
 	}
 	group := root.Group("/promotions")
+	if handler.idempotency != nil {
+		group.Use(idempotency.CommandMiddleware(handler.idempotency))
+	}
 	group.GET("", handler.list)
 	group.POST("", handler.create)
 	group.GET("/:promotionId", handler.get)

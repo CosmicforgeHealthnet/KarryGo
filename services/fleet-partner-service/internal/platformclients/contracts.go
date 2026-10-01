@@ -101,12 +101,17 @@ type FileMetadata struct {
 
 // Ready reports whether the file may be attached to a business record.
 func (f FileMetadata) Ready() bool {
-	return f.UploadState == "COMPLETE" && (f.ScanState == "CLEAN" || f.ScanState == "NOT_REQUIRED")
+	return f.UploadState == "COMPLETED" &&
+		(f.ScanState == "PENDING" || f.ScanState == "CLEAN" || f.ScanState == "NOT_REQUIRED")
 }
 
 // MediaContract is the file metadata and ownership capability.
+// MediaContract is the file metadata and ownership capability.
 type MediaContract interface {
 	GetFile(ctx context.Context, meta CallMeta, fileID string) (FileMetadata, error)
+	AuthorizeUpload(ctx context.Context, meta CallMeta, request MediaUploadRequest) (MediaUploadGrant, error)
+	CompleteUpload(ctx context.Context, meta CallMeta, grant MediaUploadGrant,
+		declaredMIME string, checksum string, content []byte) (MediaObjectState, error)
 	Configured() bool
 }
 
@@ -284,10 +289,17 @@ func (u UnconfiguredWallet) DisableForClosure(context.Context, CallMeta, string,
 func (u UnconfiguredWallet) Configured() bool { return false }
 
 // UnconfiguredMedia fails closed for every media call.
+// UnconfiguredMedia fails closed for every media call.
 type UnconfiguredMedia struct{ Service string }
 
 func (u UnconfiguredMedia) GetFile(context.Context, CallMeta, string) (FileMetadata, error) {
 	return FileMetadata{}, notConfigured(u.Service)
+}
+func (u UnconfiguredMedia) AuthorizeUpload(context.Context, CallMeta, MediaUploadRequest) (MediaUploadGrant, error) {
+	return MediaUploadGrant{}, notConfigured(u.Service)
+}
+func (u UnconfiguredMedia) CompleteUpload(context.Context, CallMeta, MediaUploadGrant, string, string, []byte) (MediaObjectState, error) {
+	return MediaObjectState{}, notConfigured(u.Service)
 }
 func (u UnconfiguredMedia) Configured() bool { return false }
 

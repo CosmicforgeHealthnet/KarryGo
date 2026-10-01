@@ -414,6 +414,19 @@ func (r *PostgresWalletRepository) CompleteJob(ctx context.Context, sourceServic
 		if intent.Status != walletmodels.PaymentStatusHeld {
 			return apperrors.Conflict("Payment is not held for settlement.", nil)
 		}
+		// Section 12 (WAL-010). This path credits the provider the whole
+		// amount minus the platform fee. For organization-managed work that is
+		// the wrong answer -- a salaried provider would be paid per job on top
+		// of their salary -- and the right answer is Fleet's, arriving through
+		// the managed-settlement contract. So this path refuses rather than
+		// paying a figure it is not entitled to decide.
+		managed, managedErr := r.jobIsOrganizationManaged(ctx, tx, intent)
+		if managedErr != nil {
+			return managedErr
+		}
+		if managed {
+			return apperrors.Conflict("This job settles through managed settlement, not direct provider payout.", nil)
+		}
 		if intent.ProviderID == "" || intent.ProviderType == "" {
 			return apperrors.BadRequest("Provider details are required before settlement.", nil)
 		}
@@ -1679,4 +1692,48 @@ func Reference(prefix string) string {
 
 func Now() time.Time {
 	return time.Now()
+}
+
+// jobIsOrganizationManaged reports whether this job's money belongs to Fleet's
+// managed-settlement path.
+//
+// Two signals, because each covers the other's blind spot: the intent's own
+// marker, set when the managed executor was assigned, and an existing managed
+// settlement row, which covers an intent that was never marked. Either one is
+// enough to refuse the legacy payout.
+func (r *PostgresWalletRepository) jobIsOrganizationManaged(
+	ctx context.Context, tx pgx.Tx, intent walletmodels.PaymentIntent,
+) (bool, error) {
+	var mode string
+	if err := tx.QueryRow(ctx,
+		`SELECT settlement_mode FROM payment_intents WHERE id = $1`, intent.ID,
+	).Scan(&mode); err != nil {
+		return false, err
+	}
+	if mode == walletmodels.SettlementModeManaged {
+		return true, nil
+	}
+	var settlements int
+	if err := tx.QueryRow(ctx,
+		`SELECT count(*) FROM managed_settlements WHERE source_service = $1 AND source_job_id = $2`,
+		intent.SourceService, intent.SourceReference,
+	).Scan(&settlements); err != nil {
+		return false, err
+	}
+	return settlements > 0, nil
+}
+
+// MarkPaymentIntentManaged records that a job settles through Fleet.
+//
+// It is idempotent and one-way: a job that has been identified as managed
+// never silently reverts to the direct-payout path.
+func (r *PostgresWalletRepository) MarkPaymentIntentManaged(
+	ctx context.Context, sourceService, sourceReference string,
+) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE payment_intents
+		SET settlement_mode = $3, updated_at = now()
+		WHERE source_service = $1 AND source_reference = $2 AND settlement_mode <> $3`,
+		sourceService, sourceReference, walletmodels.SettlementModeManaged)
+	return err
 }

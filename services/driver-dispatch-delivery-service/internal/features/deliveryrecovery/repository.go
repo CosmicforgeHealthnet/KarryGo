@@ -665,13 +665,19 @@ func createReturnWorkflow(ctx context.Context, tx pgx.Tx, recovery RecoveryResul
 		paymentState = "held"
 	}
 	distanceKM := float64(route.DistanceMeters) / 1000
-	_, err = tx.Exec(ctx, `INSERT INTO dispatch_bookings(id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,
-		distance_km,fare_amount,currency,payment_method,payment_status,payment_ref,receiver_name,receiver_phone,package_desc,package_type,package_size,service_tier)
-		VALUES($1::uuid,$2::uuid,'searching',$3,$4,$5,$6,$7,$8,$9,$10,$11,'wallet',$12,$13,'Original sender','',$14,'return_manifest','large','standard')`,
+	insertBooking, err := tx.Exec(ctx, `INSERT INTO dispatch_bookings(id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,
+		distance_km,fare_amount,currency,payment_method,payment_status,payment_ref,receiver_name,receiver_phone,package_desc,package_type,package_size,service_tier,
+		rollout_protection_mode,rollout_policy_version,handover_required,pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
+		SELECT $1::uuid,$2::uuid,'searching',$3,$4,$5,$6,$7,$8,$9,$10,$11,'wallet',$12,$13,'Original sender','',$14,'return_manifest','large','standard',
+			b.rollout_protection_mode,b.rollout_policy_version,b.handover_required,b.pickup_evidence_required,b.delivery_evidence_required,b.provider_transfer_required
+		FROM dispatch_bookings b WHERE b.id=$15::uuid`,
 		returnBooking, trip.CustomerID, trip.DropoffAddress, trip.DropoffLat, trip.DropoffLng, trip.PickupAddress, trip.PickupLat, trip.PickupLng,
-		distanceKM, command.AdditionalFeeKobo, trip.Currency, paymentState, command.FinancialAuthorizationRef, "Return parcels "+strings.Join(parcelIDs, ","))
+		distanceKM, command.AdditionalFeeKobo, trip.Currency, paymentState, command.FinancialAuthorizationRef, "Return parcels "+strings.Join(parcelIDs, ","), trip.BookingID)
 	if err != nil {
 		return "", "", "", err
+	}
+	if insertBooking.RowsAffected() != 1 {
+		return "", "", "", errors.New("original booking protection snapshot unavailable")
 	}
 	payload, _ := json.Marshal(map[string]any{"booking_id": returnBooking, "customer_id": trip.CustomerID, "pickup_lat": trip.DropoffLat,
 		"pickup_lng": trip.DropoffLng, "dropoff_lat": trip.PickupLat, "dropoff_lng": trip.PickupLng, "pickup_address": trip.DropoffAddress,

@@ -9,9 +9,9 @@ package fulfilmentgroup
 //
 // The record exists because a plan version alone cannot answer the question
 // people actually ask. A plan says a van was used. It does not say that a
-// motorcycle was refused for weight, that a car would have been the smallest
-// suitable class, and that the car was unavailable because driver-taxi-service
-// has no goods mode. Those three facts are the answer, and they have to be
+// motorcycle was refused for weight, that a car was the smallest suitable
+// class, and whether the gated Taxi Goods authority was available. Those facts
+// are the answer, and they have to be
 // stored at the moment the decision is taken because the thresholds and the
 // integrations they refer to will both have moved by the time anyone asks.
 //
@@ -132,10 +132,10 @@ func (d RequirementDecision) Validate() error {
 		return ErrInvalid
 	}
 
-	// The structural taxi gate, restated where a plan is written. The database
-	// refuses it too; refusing here as well means a bug is caught by a clear
-	// error rather than a constraint violation.
-	if d.SelectedVehicleClass == "CAR" {
+	// A car is executed only by Taxi Goods (Section 29 made it a commerce
+	// executor and migration 000111 lifted the old database refusal). A car
+	// claimed by any other authority is a delivery nobody would perform.
+	if d.SelectedVehicleClass == "CAR" && d.SelectedService != "TAXI" {
 		return ErrConflict
 	}
 

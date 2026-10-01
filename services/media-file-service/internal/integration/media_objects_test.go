@@ -177,8 +177,50 @@ func newMediaFixture(t *testing.T, opts fixtureOptions) *mediaFixture {
 		mediahttp.NewHandler(fixture.service, pool),
 		serviceauth.NewVerifier(serviceauth.Secrets{testCaller: []byte(testSecret)}, 5*time.Minute),
 		[]string{testCaller}, routeMax)
+	mediahttp.RegisterCustomerUploadRoute(engine.Group("/api/v1/media-files"), fixture.service, routeMax)
 	fixture.router = engine
 	return fixture
+}
+
+func TestCustomerGrantRedeemsWithoutServiceCredentialAndCannotReplay(t *testing.T) {
+	f := newMediaFixture(t, fixtureOptions{scanner: cleanScanner{}})
+	grant, err := f.service.AuthorizeUpload(context.Background(), mediausecases.AuthorizeUploadInput{
+		Caller:    mediausecases.Caller{Service: "customer-service", OrganizationID: "customer_customer-1"},
+		OwnerType: "CUSTOMER", OwnerReference: "customer-1",
+		UploadPurpose: mediamodels.PurposeDisputeAttachment,
+		BindingType:   "COMPLAINT", BindingID: "complaint-1",
+		AllowedMIMETypes: []string{"application/pdf"}, MaxSizeBytes: 1 << 20,
+		IdempotencyKey: "customer-test-1", RequestFingerprint: "fp-customer-test-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := pdfFile(8)
+	upload := func(token string) int {
+		request := httptest.NewRequest(http.MethodPost,
+			"/api/v1/media-files/customer-uploads/"+grant.MediaObjectID+"/content", bytes.NewReader(content))
+		request.Header.Set("X-Upload-Authorization-ID", grant.AuthorizationID)
+		request.Header.Set("X-Upload-Token", token)
+		request.Header.Set("X-Declared-Size", fmt.Sprint(len(content)))
+		request.Header.Set("Content-Type", "application/pdf")
+		recorder := httptest.NewRecorder()
+		f.router.ServeHTTP(recorder, request)
+		return recorder.Code
+	}
+	if got := upload("wrong-token"); got != http.StatusNotFound {
+		t.Fatalf("wrong token: %d", got)
+	}
+	if got := upload(grant.UploadToken); got != http.StatusOK {
+		t.Fatalf("valid token: %d", got)
+	}
+	if got := upload(grant.UploadToken); got != http.StatusConflict {
+		t.Fatalf("replay: %d", got)
+	}
+	object, err := f.service.GetObject(context.Background(), mediausecases.Caller{
+		Service: "customer-service", OrganizationID: "customer_customer-1"}, grant.MediaObjectID)
+	if err != nil || object.UploadStatus != mediamodels.UploadCompleted {
+		t.Fatalf("object %+v: %v", object, err)
+	}
 }
 
 // call performs one signed private request.

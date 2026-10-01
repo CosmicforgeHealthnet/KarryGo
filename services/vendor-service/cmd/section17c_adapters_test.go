@@ -436,9 +436,14 @@ func TestSection17CLogistics_CountSellUnitScalesVariant(t *testing.T) {
 	}
 }
 
-// Section 12 forbids treating a calibration as exact, so an approximate
-// conversion must never surface as a measured weight.
-func TestSection17CLogistics_CalibratedApproximateIsNotMeasured(t *testing.T) {
+// A calibrated (variable-measurement) sell unit is planned on the calibration's
+// tolerance-inflated UPPER bound (Karryam V4 §14.6: variable goods need a safe
+// pre-pick planning estimate, and missing packed weight fails closed). The
+// approximation can therefore only size the vehicle up; the actual measured
+// weight later drives post-pick re-evaluation. Without a calibrated weight the
+// line keeps only size-class fallback evidence and is refused for platform
+// planning rather than guessed.
+func TestSection17CLogistics_CalibratedApproximatePlansOnUpperBound(t *testing.T) {
 	env := newSection17CEnv(t)
 	ctx := context.Background()
 
@@ -454,8 +459,8 @@ func TestSection17CLogistics_CalibratedApproximateIsNotMeasured(t *testing.T) {
 	env.exec(ctx,
 		`INSERT INTO shop_measure_calibrations(
 			id,business_id,product_id,variant_id,measure_definition_id,
-			measure_owner_key,approximate_weight_grams,calibration_source,status)
-		 VALUES($1,$2,$3,$4,$5,'PLATFORM',2400,'VENDOR_MEASURED','ACTIVE')`,
+			measure_owner_key,approximate_weight_grams,tolerance_bps,calibration_source,status)
+		 VALUES($1,$2,$3,$4,$5,'PLATFORM',2400,1000,'VENDOR_MEASURED','ACTIVE')`,
 		calibrationID, env.businessA, env.productA, variantID, env.measureID)
 
 	sellUnitID := env.seedSellUnit(
@@ -473,29 +478,20 @@ func TestSection17CLogistics_CalibratedApproximateIsNotMeasured(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// 2,400 g calibrated with a 10% tolerance plans as 2,640 g - never the
+	// 50 kg variant weight and never the unscaled estimate.
 	profile := profiles["l1"]
-
-	if profile.WeightGrams != nil {
-		t.Fatalf("weight = %v, want nil — a calibration is not a measurement",
-			profile.WeightGrams)
-	}
-
-	if profile.PackageSizeClass == "" {
-		t.Fatal("expected the approximation to travel as a size class")
+	if profile.WeightGrams == nil || *profile.WeightGrams != 2640 {
+		t.Fatalf("weight = %v, want the 2640 g tolerance upper bound", profile.WeightGrams)
 	}
 
 	requirement := fulfilment.Aggregate(
 		env.businessA, env.branchA,
-		[]fulfilment.LineLogistics{shopLine("l1", listingID, "", sellUnitID, 1)},
+		[]fulfilment.LineLogistics{shopLine("l1", listingID, "", sellUnitID, 2)},
 		profiles,
 	)
-
-	if requirement.WeightEvidence == fulfilment.EvidenceComplete {
-		t.Fatal("an approximate conversion must never report COMPLETE weight evidence")
-	}
-
-	if requirement.TotalWeightGrams == 0 {
-		t.Fatal("the approximation should still contribute a lower-bound weight")
+	if requirement.TotalWeightGrams != 5280 || requirement.WeightEvidence != fulfilment.EvidenceComplete {
+		t.Fatalf("requirement = %d g / %s, want 5280 g COMPLETE", requirement.TotalWeightGrams, requirement.WeightEvidence)
 	}
 }
 

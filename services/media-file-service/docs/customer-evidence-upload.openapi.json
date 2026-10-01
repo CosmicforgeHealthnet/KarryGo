@@ -1,0 +1,21 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Media customer upload grant redemption", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/media-files/customer-uploads/{id}/content": {
+      "post": {
+        "summary": "Redeem a customer-scoped Media upload grant once",
+        "description": "The short-lived upload token is issued through Customer Service. Media verifies the grant belongs to customer-service and a CUSTOMER owner, then enforces object, purpose, expiry, MIME, size, checksum, and single-use state. The response contains an opaque MediaRef; owning domains must read Media metadata back before attachment.",
+        "parameters": [
+          {"in": "path", "name": "id", "required": true, "schema": {"type": "string"}},
+          {"in": "header", "name": "X-Upload-Authorization-ID", "required": true, "schema": {"type": "string"}},
+          {"in": "header", "name": "X-Upload-Token", "required": true, "schema": {"type": "string"}},
+          {"in": "header", "name": "X-Declared-Size", "required": true, "schema": {"type": "integer"}},
+          {"in": "header", "name": "X-Declared-Checksum-SHA256", "schema": {"type": "string"}}
+        ],
+        "requestBody": {"required": true, "content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}, "image/jpeg": {"schema": {"type": "string", "format": "binary"}}, "image/png": {"schema": {"type": "string", "format": "binary"}}, "image/webp": {"schema": {"type": "string", "format": "binary"}}}},
+        "responses": {"200": {"description": "Media object metadata"}, "404": {"description": "Unknown or wrong-scoped grant"}, "409": {"description": "Grant already consumed"}, "410": {"description": "Grant expired"}, "422": {"description": "Content invalid"}}
+      }
+    }
+  }
+}

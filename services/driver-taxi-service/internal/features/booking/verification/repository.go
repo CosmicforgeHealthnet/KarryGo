@@ -65,6 +65,11 @@ func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
 const recordColumns = `booking_id::text, step, pin_hash, plaintext_pin, expires_at, attempts, resend_count, last_sent_at, verified_at`
 
 func (r *PostgresRepository) Upsert(ctx context.Context, exec dbtx.Executor, rec Record) error {
+	// Existing passenger callers predate the explicit two-stage column; their
+	// zero value is the original pickup verification operation.
+	if rec.Step == "" {
+		rec.Step = handover.StepPickup
+	}
 	if exec == nil {
 		exec = r.db
 	}

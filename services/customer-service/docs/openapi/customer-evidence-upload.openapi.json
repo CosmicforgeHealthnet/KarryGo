@@ -1,0 +1,44 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Customer scoped evidence upload", "version": "1.0.0"},
+  "paths": {
+    "/api/v1/customer/media-upload-sessions": {
+      "post": {
+        "summary": "Authorize one support-case evidence upload",
+        "description": "Customer Service verifies case ownership with Support Service and obtains a short-lived, one-use grant from Media Service. Only DISPUTE_ATTACHMENT bound to an owned COMPLAINT is supported.",
+        "security": [{"customerBearer": []}],
+        "parameters": [
+          {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["purpose", "source_authority", "source_ref", "mime_type", "byte_size"],
+                "properties": {
+                  "purpose": {"type": "string", "enum": ["DISPUTE_ATTACHMENT"]},
+                  "source_authority": {"type": "string", "enum": ["SUPPORT_DISPUTE"]},
+                  "source_ref": {"type": "string", "maxLength": 128},
+                  "mime_type": {"type": "string", "enum": ["image/jpeg", "image/png", "image/webp", "application/pdf"]},
+                  "byte_size": {"type": "integer", "minimum": 1, "maximum": 10485760}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "One-use Media grant and opaque MediaRef"},
+          "400": {"description": "Invalid scope"},
+          "401": {"description": "Authentication required"},
+          "403": {"description": "Case not owned by customer"},
+          "503": {"description": "Support or Media unavailable"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"customerBearer": {"type": "http", "scheme": "bearer"}}
+  }
+}

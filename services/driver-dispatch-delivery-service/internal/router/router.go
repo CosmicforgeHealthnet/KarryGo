@@ -2,9 +2,13 @@ package router
 
 import (
 	"context"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/customershare"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +23,7 @@ import (
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/bikecapability"
 	bookingfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking"
 	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
 	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
@@ -32,30 +37,62 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/profile"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/restrictions"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/routeintegrity"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/supportcontext"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vehicle"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vendorownedhandover"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
+	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/dispatchcommerce"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supportcase"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
+
+// certificationCaller is the only service permitted to certify a bike for a
+// service product. Certification is an external judgement by design: a service
+// that could certify its own assets would not be certified at all.
+const certificationCaller = "verification-compliance-service"
 
 // dispatchSessionRevokerAdapter bridges the auth session repository to the
 // profile.SessionRevoker interface. In this service, provider_id == dispatch_rider_id.
 type dispatchSessionRevokerAdapter struct {
 	repo *authrepositories.PostgresSessionRepository
+}
+
+type bookingServiceabilityObserver struct {
+	service *serviceability.Service
+}
+
+func (o bookingServiceabilityObserver) ObserveBooking(ctx context.Context, customerID, operationKey string, in bookingfeature.CreateBookingInput) (string, string, error) {
+	quote, err := o.service.Evaluate(ctx, customerID, operationKey, serviceability.Request{
+		SourceRef: operationKey, SourceVersion: 1,
+		Pickup:       serviceability.Point{Latitude: in.Pickup.Lat, Longitude: in.Pickup.Lng},
+		Dropoff:      serviceability.Point{Latitude: in.Dropoff.Lat, Longitude: in.Dropoff.Lng},
+		VehicleClass: "MOTORCYCLE", ServiceTier: in.ServiceTier,
+		Package: serviceability.PackageDeclaration{
+			PackageType: in.PackageType, SizeCategory: in.PackageSize,
+			DeclaredWeightGrams: int64(math.Round(in.PackageWeight * 1000)), ItemCount: 1,
+			Fragile: in.IsFragile,
+		},
+	})
+	observability.ServiceabilityObserve(string(quote.Decision), string(quote.Admission.Result), in.ServiceTier, err)
+	return string(quote.Decision), string(quote.Admission.Result), err
 }
 
 func (a *dispatchSessionRevokerAdapter) RevokeAllByProviderID(ctx context.Context, providerID string) (int64, error) {
@@ -68,10 +105,10 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	}
 
 	engine := gin.New()
-	engine.Use(httpx.RequestID())
-	engine.Use(middleware.RequestLogger())
-	engine.Use(httpx.Recovery())
-	engine.Use(httpx.ErrorHandler())
+	engine.Use(httpx.RequestID(), middleware.RequestLogger(), httpx.Recovery(), httpx.ErrorHandler())
+	shareService := &customershare.Service{DB: db, Points: journeyshare.BoundPointStore{Client: redisClient, Namespace: "DISPATCH"}}
+	shareVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	customershare.Register(engine, shareService, authority.ServiceBoundary(shareVerifier, authority.NewPostgresNonceClaimer(db), []string{"customer-service"}), authority.ServiceBoundary(serviceauth.NewVerifier(serviceauth.Secrets{"vendor-service": cfg.VendorServiceSecret}, 5*time.Minute), authority.NewPostgresNonceClaimer(db), []string{"vendor-service"}))
 	if cfg.ProviderOrganizationModeEnabled {
 		engine.Use(apiresponse.ProviderPrivacy(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
 	}
@@ -122,7 +159,55 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		panic(fmt.Errorf("configure vehicle storage: %w", err))
 	}
 	vehicleHandler := vehicle.NewHandler(db, vehicleUploader, vehicle.NewRedisEventPublisher(redisClient))
-	vehicle.RegisterRoutes(engine, authService.TokenUsecase(), vehicleHandler)
+
+	// Section 8 capability matching. Built unconditionally: the rider
+	// capability endpoints are how a fleet gets surveyed, and a deployment
+	// that could not record capability until matching was enabled could never
+	// reach the completeness needed to enable it.
+	capability := bikecapability.Build(db,
+		bikecapability.NearbyAdapter{Live: availability.NewRedisLiveStore(redisClient)},
+		bikecapability.Config{
+			MatchingEnabled:               cfg.CapabilityMatchingEnabled,
+			MatchingEnforce:               cfg.CapabilityMatchingEnforce,
+			SupplyPreviewEnabled:          cfg.SupplyPreviewEnabled,
+			CertificationRequiredProducts: cfg.CertificationRequiredProducts,
+			PreviewRadiusKM:               cfg.AvailabilityRadiusKM,
+		})
+	policyIngest := bikecapability.NewPolicyIngest(bikecapability.PolicyIngestOptions{
+		DB:                db,
+		CallerName:        cfg.AdminServiceCaller,
+		AdminSecret:       cfg.AdminServiceSecret,
+		AdminHosts:        bikecapability.AdminHostsFrom(cfg.AdminAllowedHosts),
+		ReconcileInterval: cfg.PolicyReconcileInterval,
+	})
+	if cfg.PolicyIngestEnabled {
+		// The control-plane publication sink, behind the same HMAC verifier,
+		// caller allowlist and durable nonce store as the commerce surfaces.
+		// policyingest.IngressPath carries its own /internal prefix, so it is
+		// mounted from the api base rather than an /internal group.
+		dispatchcommercequote.RegisterInternalCapability(
+			engine.Group("/api/v1"),
+			func(group *gin.RouterGroup) { policyingest.RegisterRoutes(group, policyIngest.Ingestor()) },
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+				cfg.AdminServiceCaller:        cfg.AdminServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller, cfg.AdminServiceCaller},
+		)
+	}
+
+	if cfg.CapabilityMatchingEnforce && !cfg.CapabilityMatchingEnabled {
+		// A flag that silently does nothing is worse than a refusal: an
+		// operator would believe unfit riders were being rejected while they
+		// were still being assigned.
+		logging.Notice("dispatch-capability",
+			"DISPATCH_CAPABILITY_MATCHING_ENFORCE is set but DISPATCH_CAPABILITY_MATCHING_ENABLED is not; hard parcel fit stays off")
+	}
+
+	// Mounted through the vehicle group's extra hook so the capability
+	// endpoints inherit that group's rider-auth and role gate.
+	vehicle.RegisterRoutes(engine, authService.TokenUsecase(), vehicleHandler, capability.RiderRoutes())
 	vehicle.StartSubscribers(context.Background(), redisClient, vehicle.NewPostgresRepository(db))
 
 	availabilityRepository := availability.NewPostgresRepository(db)
@@ -133,6 +218,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			availabilityRepository,
 			availabilityLiveStore,
 			availability.WithEventPublisher(availability.NewRedisEventPublisher(redisClient)),
+			availability.WithJourneyRecorder(shareService.Record),
 			availability.WithRestrictionGate(restrictionService),
 		),
 		authService.TokenUsecase(),
@@ -140,6 +226,19 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	)
 	availability.RegisterRoutes(engine, authService.TokenUsecase(), cfg.InternalServiceKey, availabilityHandler)
 	availability.StartSubscribers(context.Background(), redisClient, availabilityRepository, availabilityLiveStore)
+	rolloutPolicy := rollout.Policy{
+		Selector: rollout.NewSelector(
+			cfg.HandoverRolloutCustomerIDs,
+			cfg.HandoverRolloutSourceTypes,
+			cfg.HandoverRolloutSourceRefs,
+			cfg.HandoverRolloutServiceTiers,
+		),
+		HandoverAvailable:         cfg.HandoverChallengeEnabled,
+		PickupEvidenceAvailable:   cfg.PickupEvidenceGateEnabled,
+		DeliveryEvidenceAvailable: cfg.DeliveryEvidenceGateEnabled,
+		ProviderTransferAvailable: cfg.ReplacementHandoverEnabled,
+		Version:                   cfg.RolloutPolicyVersion,
+	}
 
 	// The internal commerce delivery-quote contract (Vendor Service Section
 	// 17C). It answers serviceability and price for a route; it creates no
@@ -186,6 +285,66 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
 			authority.NewPostgresNonceClaimer(db), []string{dispatchcommerce.SignatureCaller},
 		)
+		// The shared cross-authority capability contract Vendor reads before
+		// selecting Dispatch (VND-006). It is mounted from the api base
+		// because the shared path already carries its own /internal/commerce
+		// prefix, and behind the same one-caller verifier as the quotes above.
+		dispatchcommercequote.RegisterLogisticsCapability(
+			engine.Group("/api/v1"),
+			dispatchcommercequote.LogisticsCapabilityProvider{
+				Options: dispatchcommercequote.LogisticsCapabilityOptions{Enabled: true},
+			},
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+		)
+		// The read-only planning surface Vendor's just-in-time orchestration
+		// reads before it commits. It creates nothing: no mission, no booking,
+		// no offer, no reservation, and it names no provider or bike.
+		dispatchcommercequote.RegisterSupplyPreview(
+			engine.Group("/api/v1"),
+			capability.Previewer,
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+			cfg.SupplyPreviewEnabled,
+		)
+		// The authoritative internal capability read, for Vendor's planner.
+		dispatchcommercequote.RegisterInternalCapability(
+			engine.Group("/api/v1/internal"),
+			func(group *gin.RouterGroup) { bikecapability.RegisterInternal(group, capability.Handler) },
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				commercequote.SignatureCaller: cfg.VendorServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{commercequote.SignatureCaller},
+		)
+	}
+
+	// The certification callback from verification-compliance-service.
+	//
+	// It is mounted outside the Vendor block on purpose. Certification decides
+	// which bikes may serve which products; Vendor quotes deliveries. Tying the
+	// two together meant a deployment without a Vendor secret had no
+	// certification ingress at all, so every product requiring certification
+	// would fail closed forever with nothing able to change it -- and a
+	// deployment with one gave Vendor's key the power to certify.
+	if capability.Handler != nil && len(cfg.VerificationServiceSecret) > 0 {
+		dispatchcommercequote.RegisterInternalCapability(
+			engine.Group("/api/v1/internal"),
+			func(group *gin.RouterGroup) {
+				bikecapability.RegisterCertificationIngress(group, capability.Handler)
+			},
+			serviceauth.NewVerifier(serviceauth.Secrets{
+				certificationCaller: cfg.VerificationServiceSecret,
+			}, 5*time.Minute),
+			authority.NewPostgresNonceClaimer(db),
+			[]string{certificationCaller},
+		)
 	}
 
 	// The internal commerce mission contract (Vendor Service Section 17F).
@@ -195,7 +354,14 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	// without it rather than accepting missions nothing would ever match.
 	if len(cfg.VendorServiceSecret) > 0 && requestService != nil {
 		commerceEvents := marketplace.NewLegacyEventEmitter(marketplace.NewRepository(db), true)
-		missionRepository := dispatchcommercemission.NewRepository(db).WithTargetEventEmitter(commerceEvents)
+		missionRepository := dispatchcommercemission.NewRepository(db).
+			WithTargetEventEmitter(commerceEvents).
+			WithRolloutPolicy(rolloutPolicy).
+			// Shared multi-manifest custody: the same model Taxi and Hauling
+			// use, so "who holds this vendor's consignment" has one answer
+			// platform-wide.
+			WithCustody(custodyops.NewRepository(db, "DISPATCH"),
+				custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"driver-dispatch-delivery-service": {}, "vendor-service": {}}})
 		requestService.WithProviderAcceptanceGate(missionRepository).WithCommerceJobCards(missionRepository)
 		dispatchcommercemission.Register(
 			engine.Group("/api/v1/internal"),
@@ -246,7 +412,9 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			cfg.ServiceabilityDegradedMode,
 		)
 		missionplanning.Register(engine.Group("/api/v1/internal"),
-			missionplanning.NewHandler(missionplanning.New(missionplanning.NewRepository(db), missionplanning.NewPlannerWithCapacity(cfg.PlanningMaxWeightGrams, cfg.PlanningMaxVolumeML, cfg.PlanningCapacityPolicyVersion), true).WithRouteAuthority(planningRoutes)),
+			missionplanning.NewHandler(missionplanning.New(missionplanning.NewRepository(db), missionplanning.NewPlannerWithCapacity(cfg.PlanningMaxWeightGrams, cfg.PlanningMaxVolumeML, cfg.PlanningCapacityPolicyVersion), true).
+				WithRouteAuthority(planningRoutes).
+				WithRolloutPolicy(rolloutPolicy)),
 			serviceauth.NewVerifier(serviceauth.Secrets{dispatchcommerce.SignatureCaller: cfg.VendorServiceSecret}, 5*time.Minute),
 			db, []string{dispatchcommerce.SignatureCaller})
 	}
@@ -260,7 +428,9 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			QueueRetryInterval: cfg.AssignmentQueueRetryInterval, InitialRadiusKM: cfg.AvailabilityRadiusKM, MaxRadiusKM: 50,
 			ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
 			ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
-		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
+			RolloutServiceTiers: cfg.AssignmentRolloutServiceTiers,
+		}).WithCandidateFinder(assignment.NewCandidateAuthority(db, availabilityLiveStore, cfg.AvailabilityRadiusKM).
+			WithCapabilityGate(capability.Gate.WithEvents(assignment.NewCapabilityEventSink(db, cfg.CommerceEventDeliveryEnabled, nil)))).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookingService))
 		assignmentRuntime = service
 		if cfg.OrganizationAssignmentEnabled && cfg.FleetServiceURL != "" && len(cfg.FleetServiceSecret) > 0 {
 			service.WithOrganizationAuthority(assignment.NewFleetOrganizationAuthority(providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)))
@@ -288,11 +458,45 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		}
 	}
 
-	// Sections 9-10 are a separate, disabled-by-default security authority.
-	// It binds the existing Trip to the Sections 7-8 mission/manifest/custody
-	// model and replaces no legacy route while disabled.
+	// The handover authority is always wired into Trip so an already-protected
+	// Booking remains fail-closed after admission flags are disabled. New
+	// handover routes remain disabled by default; the maintenance worker still
+	// drains existing durable challenges.
 	var handoverRuntime *securehandover.Service
-	if cfg.HandoverChallengeEnabled && tripService != nil {
+	if cfg.VendorOwnedHandoverEnabled && len(cfg.VendorServiceSecret) > 0 {
+		vendorRepo, vendorErr := vendorownedhandover.NewRepository(db, cfg.HandoverSecret, vendorownedhandover.Policy{
+			Enabled: true, TTL: cfg.HandoverChallengeTTL, Cooldown: cfg.HandoverResendCooldown,
+			MaxAttempts: cfg.HandoverMaxAttempts, MaxResends: cfg.HandoverMaxResends,
+		})
+		if vendorErr != nil {
+			panic(fmt.Errorf("configure vendor-owned handover repository: %w", vendorErr))
+		}
+		vendorHandover := vendorownedhandover.NewService(vendorRepo, vendorownedhandover.Policy{
+			Enabled: true, TTL: cfg.HandoverChallengeTTL, Cooldown: cfg.HandoverResendCooldown,
+			MaxAttempts: cfg.HandoverMaxAttempts, MaxResends: cfg.HandoverMaxResends,
+		}).WithRateLimiter(securehandover.NewRedisRateLimiter(redisClient))
+		if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+			vendorHandover.WithNotifier(notifications.Client{BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout}})
+		}
+		vendorHandler := vendorownedhandover.NewHandler(vendorHandover)
+		vendorownedhandover.Register(engine.Group("/api/v1/internal"), vendorHandler,
+			serviceauth.NewVerifier(serviceauth.Secrets{"vendor-service": cfg.VendorServiceSecret}, 5*time.Minute), db)
+		vendorownedhandover.RegisterReceiverCredentialRead(engine, vendorHandler, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret))
+	}
+	custodySecrets := serviceauth.Secrets{}
+	if len(cfg.VendorServiceSecret) > 0 {
+		custodySecrets["vendor-service"] = cfg.VendorServiceSecret
+	}
+	if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["operations-service"]; ok {
+		custodySecrets["operations-service"] = secret
+	}
+	if len(custodySecrets) > 0 {
+		custodyops.RegisterInternal(engine.Group("/api/v1"), custodyops.NewRepository(db, "DISPATCH"),
+			serviceauth.NewVerifier(custodySecrets, 5*time.Minute),
+			custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"driver-dispatch-delivery-service": {}, "vendor-service": {}}},
+			custodyops.Policy{}, []string{"vendor-service", "operations-service"})
+	}
+	if tripService != nil {
 		handoverRepository, handoverErr := securehandover.NewRepository(db, cfg.HandoverSecret)
 		if handoverErr != nil {
 			panic(fmt.Errorf("configure secure handover repository: %w", handoverErr))
@@ -320,23 +524,25 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		}
 		tripService.WithSecureHandover(handoverService)
 		handoverRuntime = handoverService
-		handoverHandler := securehandover.NewHandler(handoverService)
-		securehandover.RegisterProvider(engine, authService.TokenUsecase(), handoverHandler)
-		securehandover.RegisterCustomer(engine, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret), handoverHandler)
-		internalSecrets := serviceauth.Secrets{}
-		if len(cfg.VendorServiceSecret) > 0 {
-			internalSecrets[dispatchcommerce.SignatureCaller] = cfg.VendorServiceSecret
-		}
-		if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["api-gateway"]; ok {
-			internalSecrets["api-gateway"] = secret
-		}
-		if len(internalSecrets) > 0 {
-			allowed := make([]string, 0, len(internalSecrets))
-			for caller := range internalSecrets {
-				allowed = append(allowed, caller)
+		if cfg.HandoverChallengeEnabled {
+			handoverHandler := securehandover.NewHandler(handoverService)
+			securehandover.RegisterProvider(engine, authService.TokenUsecase(), handoverHandler)
+			securehandover.RegisterCustomer(engine, sharedauth.NewTokenSigner(cfg.CustomerTokenSecret), handoverHandler)
+			internalSecrets := serviceauth.Secrets{}
+			if len(cfg.VendorServiceSecret) > 0 {
+				internalSecrets[dispatchcommerce.SignatureCaller] = cfg.VendorServiceSecret
 			}
-			securehandover.RegisterInternal(engine.Group("/api/v1/internal"), handoverHandler,
-				serviceauth.NewVerifier(internalSecrets, 5*time.Minute), db, allowed)
+			if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["api-gateway"]; ok {
+				internalSecrets["api-gateway"] = secret
+			}
+			if len(internalSecrets) > 0 {
+				allowed := make([]string, 0, len(internalSecrets))
+				for caller := range internalSecrets {
+					allowed = append(allowed, caller)
+				}
+				securehandover.RegisterInternal(engine.Group("/api/v1/internal"), handoverHandler,
+					serviceauth.NewVerifier(internalSecrets, 5*time.Minute), db, allowed)
+			}
 		}
 	}
 
@@ -390,12 +596,35 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	if tripService != nil {
 		tripfeature.RegisterRoutes(engine, authService.TokenUsecase(), tripfeature.NewHandler(tripService))
 	}
+	var serviceabilityRuntime *serviceability.Service
+	if cfg.RouteServiceabilityEnabled || cfg.PackagePolicyEnabled {
+		serviceabilityRuntime = serviceability.New(serviceability.Options{
+			Store: serviceability.NewRepository(db),
+			Routes: serviceability.NewRoutePlannerAdapter(
+				dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout),
+			),
+			Zones: serviceability.NewCircularZone(
+				serviceability.Point{Latitude: cfg.ServiceZoneCenterLat, Longitude: cfg.ServiceZoneCenterLng},
+				cfg.ServiceZoneRadiusKM,
+				cfg.ServiceRestrictedZones,
+			),
+			TTL: cfg.ServiceabilityTTL, MaxRouteKM: cfg.ServiceabilityMaxRouteKM,
+			DegradedMode: cfg.ServiceabilityDegradedMode,
+		})
+	}
 	if bookingService != nil {
 		customerSigner := sharedauth.NewTokenSigner(cfg.CustomerTokenSecret)
+		bookingService.WithRolloutPolicy(rolloutPolicy)
+		// Customer tracking reuses the Share Journey trip-bound reader: only the
+		// current assignment's point, never the rider's global position.
+		bookingService.WithTripLocation(shareService)
 		bookingService.WithServiceabilityQuoteAuthority(
 			serviceability.NewRepository(db),
 			cfg.RouteServiceabilityEnabled && cfg.PackagePolicyEnabled,
 		)
+		if serviceabilityRuntime != nil && !(cfg.RouteServiceabilityEnabled && cfg.PackagePolicyEnabled) {
+			bookingService.WithServiceabilityObserver(bookingServiceabilityObserver{service: serviceabilityRuntime})
+		}
 		bookingfeature.RegisterRoutes(
 			engine,
 			customerSigner,
@@ -419,20 +648,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		serviceability.RegisterRoutes(
 			engine,
 			sharedauth.NewTokenSigner(cfg.CustomerTokenSecret),
-			serviceability.NewHandler(serviceability.New(serviceability.Options{
-				Store: serviceability.NewRepository(db),
-				Routes: serviceability.NewRoutePlannerAdapter(
-					dispatchcommercequote.NewHTTPRoutePlanner(cfg.RouteServiceURL, cfg.RouteServiceTimeout),
-				),
-				Zones: serviceability.NewCircularZone(
-					serviceability.Point{Latitude: cfg.ServiceZoneCenterLat, Longitude: cfg.ServiceZoneCenterLng},
-					cfg.ServiceZoneRadiusKM,
-					cfg.ServiceRestrictedZones,
-				),
-				TTL:          cfg.ServiceabilityTTL,
-				MaxRouteKM:   cfg.ServiceabilityMaxRouteKM,
-				DegradedMode: cfg.ServiceabilityDegradedMode,
-			})),
+			serviceability.NewHandler(serviceabilityRuntime),
 		)
 	}
 
@@ -444,6 +660,12 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			profileRepository,
 			serviceauth.NewVerifier(secrets, 5*time.Minute),
 		)
+		// Section 15: Support's minimized read of a delivery, under the same
+		// /api/v1/dispatch base Support already uses for identity. It
+		// verifies its own caller and answers only about a delivery the
+		// named complainant is party to.
+		supportcase.RegisterContextRoute(engine.Group("/api/v1/dispatch"),
+			serviceauth.NewVerifier(secrets, 5*time.Minute), supportcontext.NewProjector(db))
 	}
 
 	// Notification proxy (feed / realtime token / device registration) for the
@@ -469,7 +691,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 // Every cross-service client is built from configuration and falls back to its
 // fail-closed variant when that configuration is incomplete. A deployment
 // missing the fleet secret therefore refuses provider actions and reads rather
-// than half-working — it never fabricates success or an empty list.
+// than half-working â€” it never fabricates success or an empty list.
 func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpool.Pool,
 	authService *authusecases.AuthUsecase, tripService *tripfeature.Service) {
 	flags := marketplace.Flags{
@@ -513,6 +735,30 @@ func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpoo
 	service.WithRestrictionGate(restrictionService)
 	marketplace.RegisterInternalRoutes(engine.Group("/api/v1/internal/marketplace"),
 		marketplace.NewHandler(service, flags), internalVerifier, []string{"fleet-partner-service"})
+
+	// The operator repair surface over the Fleet delivery outbox (EVT-010,
+	// EVT-011). Taxi and Hauling have had one since Sections 8 and 10; until
+	// now, repairing a dead-lettered Dispatch event meant editing the table
+	// by hand.
+	//
+	// Fleet is trusted here because it is already the destination of every
+	// row this surface lists, and an operator console is trusted when one is
+	// configured. The verifier is built from whichever of those secrets
+	// exists, so a deployment with neither mounts nothing rather than an
+	// unauthenticated repair endpoint.
+	outboxSecrets := serviceauth.Secrets{"fleet-partner-service": cfg.FleetServiceSecret}
+	if secret, ok := serviceauth.ParseSecrets(cfg.ServiceSecrets)["admin-backoffice-service"]; ok {
+		outboxSecrets["admin-backoffice-service"] = secret
+	}
+	outboxCallers := make([]string, 0, len(outboxSecrets))
+	for caller := range outboxSecrets {
+		outboxCallers = append(outboxCallers, caller)
+	}
+	sort.Strings(outboxCallers)
+	marketplace.RegisterOperatorOutboxRoutes(engine.Group("/api/v1"),
+		marketplace.NewOperatorOutboxHandler(
+			&marketplace.OperatorOutboxStore{DB: db}, outboxCallers),
+		serviceauth.NewVerifier(outboxSecrets, 5*time.Minute))
 
 	// The private vehicle authority contract. Mounted unconditionally under the
 	// same verified identity as the marketplace surface: this service owns
@@ -558,12 +804,16 @@ func startMarketplaceWorkers(ctx context.Context, cfg config.Config, db *pgxpool
 	stopTelemetry := observability.StartCollector(ctx, db, cfg.MetricsInterval)
 	stopOutbox := startOutboxWorker(ctx, cfg, db)
 	stopCommerceOutbox := startCommerceOutboxWorker(ctx, cfg, db)
-	stopAnalytics := startAnalyticsOutboxWorker(ctx, cfg, db)
+	stopAnalytics := startAnalyticsOutboxWorker(ctx, cfg, db, live)
 	stopAssignment := startAssignmentWorker(ctx, cfg, db, live, bookings, trips...)
 	stopHandover := startSecureHandoverWorker(ctx, cfg, db)
 	stopRecovery := startDeliveryRecoveryWorker(ctx, cfg, db, live, bookings, trips...)
 	stopRecoveryNotifications := startRecoveryNotificationWorker(ctx, cfg, db)
+	stopCapabilityMaintenance := startCapabilityMaintenanceWorker(ctx, cfg, db)
+	stopPolicyReconcile := startPolicyReconcileWorker(ctx, cfg, db)
 	stopEventWorkers := func() {
+		stopPolicyReconcile()
+		stopCapabilityMaintenance()
 		stopTelemetry()
 		stopAnalytics()
 		stopRecoveryNotifications()
@@ -654,7 +904,9 @@ func startRecoveryNotificationWorker(ctx context.Context, cfg config.Config, db 
 	notifier := notifications.Client{
 		BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
 	}
-	deliverer := bookingfeature.LifecycleNotificationDeliverer{Notifier: notifier, Other: deliveryrecovery.NewRecoveryNotificationDeliverer(deliveryrecovery.NewRepository(db), notifier)}
+	// Section 14: safety declines reach operations; every other row falls
+	// through to the lifecycle and recovery deliverers exactly as before.
+	deliverer := assignment.SafetyDeclineNotifier{Notifier: notifier, Next: bookingfeature.LifecycleNotificationDeliverer{Notifier: notifier, Other: deliveryrecovery.NewRecoveryNotificationDeliverer(deliveryrecovery.NewRepository(db), notifier)}}
 	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer, marketplace.OutboxWorkerConfig{
 		Owner: cfg.ServiceName + "-recovery-notifications", SourceService: "driver-dispatch-delivery-service", Target: "notification-service",
 		Lease: cfg.EventDeliveryLease, BatchSize: cfg.EventDeliveryBatchSize, MaxAttempts: cfg.EventDeliveryRetryLimit,
@@ -667,7 +919,7 @@ func startRecoveryNotificationWorker(ctx context.Context, cfg config.Config, db 
 }
 
 func startSecureHandoverWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
-	if !cfg.HandoverChallengeEnabled || db == nil {
+	if db == nil {
 		return func() {}
 	}
 	repository, err := securehandover.NewRepository(db, cfg.HandoverSecret)
@@ -676,7 +928,9 @@ func startSecureHandoverWorker(ctx context.Context, cfg config.Config, db *pgxpo
 		return func() {}
 	}
 	service, err := securehandover.NewService(repository, cfg.HandoverSecret, securehandover.Policy{
-		Enabled: true, EmailAllowed: cfg.HandoverEmailAllowed, InAppAllowed: cfg.HandoverInAppAllowed,
+		Enabled: cfg.HandoverChallengeEnabled, PickupEvidenceEnabled: cfg.PickupEvidenceGateEnabled,
+		DeliveryEvidenceEnabled: cfg.DeliveryEvidenceGateEnabled, QREnabled: cfg.HandoverQREnabled,
+		EmailAllowed: cfg.HandoverEmailAllowed, InAppAllowed: cfg.HandoverInAppAllowed,
 		PushAllowed: cfg.HandoverPushAllowed, SMSAllowed: cfg.HandoverSMSAllowed,
 		ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
 		ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
@@ -700,7 +954,7 @@ func startSecureHandoverWorker(ctx context.Context, cfg config.Config, db *pgxpo
 }
 
 func startAssignmentWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool, live availability.LiveStore, bookings *bookingfeature.Service, trips ...*tripfeature.Service) func() {
-	if (!cfg.SequentialAssignmentEnabled && !cfg.OrganizationAssignmentEnabled && !cfg.AdminAssistedAssignmentEnabled) || cfg.AssignmentKillSwitch || db == nil {
+	if db == nil {
 		return func() {}
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
@@ -716,8 +970,17 @@ func startAssignmentWorker(ctx context.Context, cfg config.Config, db *pgxpool.P
 		OfferWindow: cfg.AssignmentOfferWindow, QueueRetryInterval: cfg.AssignmentQueueRetryInterval,
 		ReconciliationLease: cfg.ExternalOperationLease, ReconciliationMaxAttempts: cfg.ExternalOperationRetryLimit,
 		ReconciliationBackoffBase: cfg.ExternalOperationBackoffBase, ReconciliationBackoffMax: cfg.ExternalOperationBackoffMax,
+		RolloutServiceTiers: cfg.AssignmentRolloutServiceTiers,
 	}).WithCandidateFinder(assignment.NewCandidateAuthority(db, live, cfg.AvailabilityRadiusKM)).WithQueueFinancialAuthority(assignment.NewBookingFinancialAdapter(db, bookings))
-	go func() { defer close(done); service.RunWorker(workerCtx, cfg.AssignmentWorkerInterval) }()
+	active := (cfg.SequentialAssignmentEnabled || cfg.OrganizationAssignmentEnabled || cfg.AdminAssistedAssignmentEnabled) && !cfg.AssignmentKillSwitch
+	go func() {
+		defer close(done)
+		if active {
+			service.RunWorker(workerCtx, cfg.AssignmentWorkerInterval)
+			return
+		}
+		service.RunDrainWorker(workerCtx, cfg.AssignmentWorkerInterval)
+	}()
 	return func() { cancel(); <-done }
 }
 
@@ -773,7 +1036,24 @@ func startOutboxWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool)
 		return func() {}
 	}
 
-	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), deliverer,
+	// Section 9 DSP-008/DSP-009: canonical completed-work rows ride THIS
+	// worker. Only the destination endpoint differs, so the router wraps the
+	// generic deliverer rather than standing up a second outbox -- every row
+	// keeps the same leasing, bounded backoff, delivery-attempt records,
+	// dead-lettering and ambiguous-response handling.
+	//
+	// A nil Fleet client leaves completed-work rows queued (retryable) rather
+	// than dead-lettering an authoritative completion, which is why it is
+	// safe for the flag to default off.
+	var completedWorkClient marketplace.CompletedWorkSubmitter
+	if cfg.DispatchFleetCompletedWorkEnabled {
+		completedWorkClient = providercompat.NewClient(cfg.FleetServiceURL,
+			cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		log.Printf("marketplace: canonical Fleet completed-work delivery enabled")
+	}
+	routed := marketplace.CompletedWorkDeliverer{Events: deliverer, Fleet: completedWorkClient}
+
+	worker := marketplace.NewOutboxWorker(marketplace.NewRepository(db), routed,
 		marketplace.OutboxWorkerConfig{
 			Owner:         cfg.ServiceName,
 			SourceService: cfg.ServiceName,
@@ -825,4 +1105,58 @@ func registerHealthRoutes(engine *gin.Engine, cfg config.Config, ready func(cont
 			},
 		})
 	})
+}
+
+// startCapabilityMaintenanceWorker expires lapsed bike certifications,
+// publishes the rollout metrics and enforces match-evidence retention.
+//
+// It runs regardless of the capability flags. Certifications expire whether or
+// not matching reads them, and a stored ELIGIBLE row that lapsed weeks ago is a
+// lie an operator will act on; leaving the sweeper off until enforcement is
+// enabled would mean the table is already wrong on the day it starts to matter.
+func startCapabilityMaintenanceWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	service := bikecapability.New(bikecapability.Options{
+		Repository:                    bikecapability.NewRepository(db),
+		CertificationRequiredProducts: cfg.CertificationRequiredProducts,
+	})
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		service.RunMaintenanceWorker(workerCtx,
+			cfg.CapabilityMaintenanceInterval, cfg.MatchDecisionRetention)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+// startPolicyReconcileWorker retries control-plane publications whose
+// read-back outcome was unknown, and publishes the pending-backlog gauge.
+//
+// It only runs when ingestion is enabled: with no sink mounted there is
+// nothing to reconcile, and a worker polling an empty table every two minutes
+// is noise rather than safety.
+func startPolicyReconcileWorker(ctx context.Context, cfg config.Config, db *pgxpool.Pool) func() {
+	if !cfg.PolicyIngestEnabled {
+		return func() {}
+	}
+	ingest := bikecapability.NewPolicyIngest(bikecapability.PolicyIngestOptions{
+		DB:                db,
+		CallerName:        cfg.AdminServiceCaller,
+		AdminSecret:       cfg.AdminServiceSecret,
+		AdminHosts:        bikecapability.AdminHostsFrom(cfg.AdminAllowedHosts),
+		ReconcileInterval: cfg.PolicyReconcileInterval,
+	})
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ingest.RunReconcileWorker(workerCtx)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }

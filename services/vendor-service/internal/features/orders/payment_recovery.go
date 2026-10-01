@@ -198,7 +198,11 @@ func (s *Service) resumeActivation(
 		if activateErr != nil {
 			continue
 		}
-		if outcome.InventoryConfirmed > 0 || outcome.MissionsCreated > 0 {
+		// A planned slot counts as progress. Under just-in-time planning no
+		// mission is created during activation, and treating that as "nothing
+		// happened" would make recovery re-activate the same order forever.
+		if outcome.InventoryConfirmed > 0 || outcome.MissionsCreated > 0 ||
+			outcome.MissionsPlanned > 0 {
 			activated++
 		}
 	}

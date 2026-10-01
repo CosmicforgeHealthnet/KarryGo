@@ -1,340 +1,378 @@
-﻿// src/app/(dashboard)/warehouse/[warehouseId]/outbound/page.tsx
+﻿'use client';
 
-"use client";
-
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import {
+  ArrowLeft,
+  ArrowRight,
   Package,
   Search,
-  RefreshCw,
-  Filter,
   SlidersHorizontal,
   X,
-  ChevronDown,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  ArrowRight,
-  Sparkles,
-  TrendingUp,
-  ArrowUpRight,
-  Truck,
-  CalendarDays,
-  MoreHorizontal,
-  Plus,
-  User,
-  MapPin,
-} from "lucide-react";
+} from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
+import { warehouseService } from '@/lib/services/warehouseService';
+import {
+  formatDateTime,
+  fulfilmentStatusLabel,
+  fulfilmentStatusTone,
+  priorityLabel,
+  priorityTone,
+} from '@/lib/utils/warehouseLabels';
+import type { FulfilmentOrder } from '@/lib/types/warehouse';
 
-type FulfilmentOrder = {
-  id: string;
-  reference: string;
-  customer: string;
-  priority: "High" | "Medium" | "Low";
-  status: "Pending" | "Picking" | "Packing" | "Ready" | "Dispatched";
-  items: number;
-  picked: number;
-  packed: number;
-  orderDate: string;
-  dispatchDate: string | null;
-  warehouse: string;
-  branch: string;
-};
+const STATUS_FILTERS = [
+  'ALL',
+  'DRAFT',
+  'RELEASED',
+  'PICKING',
+  'PICKED',
+  'PACKING',
+  'PACKED',
+  'DISPATCHED',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
 
-// Mock data
-const ORDERS: FulfilmentOrder[] = [
-  { id: "OR-129", reference: "OR-129", customer: "Charitos Hospital", priority: "High", status: "Picking", items: 156, picked: 80, packed: 0, orderDate: "2026-08-21", dispatchDate: null, warehouse: "Ikeja Central", branch: "Ikeja" },
-  { id: "OR-128", reference: "OR-128", customer: "Oakfield Stores", priority: "Medium", status: "Pending", items: 220, picked: 0, packed: 0, orderDate: "2026-08-21", dispatchDate: null, warehouse: "Ikeja Central", branch: "Ikeja" },
-  { id: "OR-127", reference: "OR-127", customer: "Solaris Construction", priority: "High", status: "Packing", items: 180, picked: 180, packed: 120, orderDate: "2026-08-20", dispatchDate: null, warehouse: "Lekki Distribution", branch: "Lekki" },
-  { id: "OR-126", reference: "OR-126", customer: "Greenline Foods", priority: "Low", status: "Ready", items: 340, picked: 340, packed: 340, orderDate: "2026-08-20", dispatchDate: "2026-08-21 10:00", warehouse: "Ikeja Central", branch: "Ikeja" },
-  { id: "OR-125", reference: "OR-125", customer: "BlueMarket Retail", priority: "Medium", status: "Dispatched", items: 280, picked: 280, packed: 280, orderDate: "2026-08-19", dispatchDate: "2026-08-20 14:00", warehouse: "Ikeja Central", branch: "Ikeja" },
-];
+const PRIORITY_FILTERS = ['ALL', 'NORMAL', 'HIGH', 'URGENT'] as const;
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
-  Pending: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue", icon: <Clock className="h-3.5 w-3.5" /> },
-  Picking: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber", icon: <User className="h-3.5 w-3.5" /> },
-  Packing: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple", icon: <Package className="h-3.5 w-3.5" /> },
-  Ready: { bg: "bg-green-bg", text: "text-green", dot: "bg-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Dispatched: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400", icon: <Truck className="h-3.5 w-3.5" /> },
-};
-
-const PRIORITY_STYLES: Record<string, { bg: string; text: string }> = {
-  High: { bg: "bg-red-bg", text: "text-red" },
-  Medium: { bg: "bg-amber-bg", text: "text-amber" },
-  Low: { bg: "bg-green-bg", text: "text-green" },
-};
-
-const STATUS_FILTERS = ["All", "Pending", "Picking", "Packing", "Ready", "Dispatched"];
-const PRIORITY_FILTERS = ["All", "High", "Medium", "Low"];
-
-export default function OutboundOrdersPage() {
-  const router = useRouter();
+export default function OutboundPage() {
   const params = useParams();
   const warehouseId = params.warehouseId as string;
 
-  const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedPriority, setSelectedPriority] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
+  const [rows, setRows] = useState<FulfilmentOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<FulfilmentOrder[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>('ALL');
+  const [priority, setPriority] =
+    useState<(typeof PRIORITY_FILTERS)[number]>('ALL');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(ORDERS);
-      setLoading(false);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    warehouseService
+      .listFulfilmentOrders()
+      .then((data) => {
+        if (!cancelled) setRows(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(
+          err?.response?.data?.error?.message ??
+            err?.message ??
+            'Failed to load fulfilment orders.',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    loadData();
   }, []);
 
-  const filteredData = data.filter((item) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      item.reference.toLowerCase().includes(search.toLowerCase()) ||
-      item.customer.toLowerCase().includes(search.toLowerCase());
+  const warehouseRows = useMemo(
+    () => rows.filter((r) => r.warehouseId === warehouseId),
+    [rows, warehouseId],
+  );
 
-    const matchesStatus = selectedStatus === "All" || item.status === selectedStatus;
-    const matchesPriority = selectedPriority === "All" || item.priority === selectedPriority;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return warehouseRows.filter((row) => {
+      if (status !== 'ALL' && row.status !== status) return false;
+      if (priority !== 'ALL' && row.priority !== priority) return false;
+      if (q === '') return true;
+      const haystack = [
+        row.id,
+        row.customerReference,
+        row.sourceOrderId,
+        row.shipmentReference,
+        row.manifestReference,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [warehouseRows, search, status, priority]);
 
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
+  const hasActiveFilters =
+    status !== 'ALL' || priority !== 'ALL' || search.trim() !== '';
 
-  if (loading) {
-    return (
-      <div className="py-12 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        <p className="mt-3 text-sm text-ink-600">Loading outbound orders...</p>
-      </div>
-    );
-  }
-
-  const hasActiveFilters = selectedStatus !== "All" || selectedPriority !== "All" || search !== "";
   const clearFilters = () => {
-    setSearch("");
-    setSelectedStatus("All");
-    setSelectedPriority("All");
-  };
-
-  const goToOrderDetail = (orderId: string) => {
-    router.push(`/warehouse/${warehouseId}/outbound/${orderId}`);
+    setSearch('');
+    setStatus('ALL');
+    setPriority('ALL');
   };
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-center gap-3">
+        <Link
+          href={`/warehouse/${warehouseId}`}
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink-500 transition-colors hover:bg-surface-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">
-            Outbound Fulfilment
-          </h1>
-          <p className="mt-1 text-sm text-ink-600">
-            Manage picking, packing, and dispatch of customer orders.
+          <h1>Outbound Fulfilment</h1>
+          <p className="mt-0.5 text-sm text-ink-500">
+            Orders being picked, packed and dispatched from this warehouse.
           </p>
         </div>
-        <button className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90">
-          <Plus className="h-3.5 w-3.5" />
-          New Order
-        </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex h-11 flex-1 min-w-[200px] items-center gap-2.5 rounded-xl border border-line bg-white/70 px-4 shadow-sm">
-          <Search className="h-4 w-4 text-ink-400" />
+      {error && (
+        <div className="rounded-lg border border-red/30 bg-red-bg px-4 py-2 text-sm text-red">
+          {error}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:max-w-xs">
+          <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by reference or customer..."
-            className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-400"
+            placeholder="Search by customer or reference..."
+            className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-500"
           />
         </div>
 
         <button
-          onClick={() => {
-            const statuses = ["All", "Pending", "Picking", "Packing", "Ready", "Dispatched"];
-            const currentIndex = statuses.indexOf(selectedStatus);
-            const nextIndex = (currentIndex + 1) % statuses.length;
-            setSelectedStatus(statuses[nextIndex]);
-          }}
-          className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
-        >
-          <Filter className="h-4 w-4 text-ink-400" />
-          {selectedStatus}
-          <ChevronDown className="h-4 w-4 text-ink-400" />
-        </button>
-
-        <button
-          onClick={() => {
-            const priorities = ["All", "High", "Medium", "Low"];
-            const currentIndex = priorities.indexOf(selectedPriority);
-            const nextIndex = (currentIndex + 1) % priorities.length;
-            setSelectedPriority(priorities[nextIndex]);
-          }}
-          className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-sm font-medium text-ink-600 shadow-sm transition hover:bg-white"
-        >
-          <AlertCircle className="h-4 w-4 text-ink-400" />
-          {selectedPriority}
-          <ChevronDown className="h-4 w-4 text-ink-400" />
-        </button>
-
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-11 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-medium transition ${
+          onClick={() => setShowFilters((v) => !v)}
+          className={`flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors whitespace-nowrap ${
             showFilters || hasActiveFilters
-              ? "border-primary bg-primary-bg text-primary"
-              : "border-line bg-white/70 text-ink-600 shadow-sm hover:bg-white"
+              ? 'border-primary bg-primary-bg text-primary'
+              : 'border-line bg-surface text-ink-700 hover:bg-surface-2'
           }`}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="h-3.5 w-3.5" />
           Filters
-          {hasActiveFilters && (
-            <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(selectedStatus !== "All" ? 1 : 0) + (selectedPriority !== "All" ? 1 : 0)}
-            </span>
-          )}
         </button>
 
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex h-11 items-center gap-1 rounded-xl border border-line bg-white/70 px-3 text-sm font-medium text-ink-500 shadow-sm transition hover:bg-white"
+            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-500 transition-colors hover:bg-surface-2 whitespace-nowrap"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
             Clear
           </button>
         )}
+
+        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">
+          {filtered.length} of {warehouseRows.length}
+        </span>
       </div>
 
-      {/* Filter Drawer */}
       {showFilters && (
-        <div className="rounded-xl border border-line bg-white/70 p-3.5 shadow-sm">
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Status</div>
-              <div className="flex gap-1.5">
-                {STATUS_FILTERS.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setSelectedStatus(status)}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                      selectedStatus === status
-                        ? "bg-primary-bg text-primary ring-2 ring-primary/30"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Priority</div>
-              <div className="flex gap-1.5">
-                {PRIORITY_FILTERS.map((priority) => (
-                  <button
-                    key={priority}
-                    onClick={() => setSelectedPriority(priority)}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                      selectedPriority === priority
-                        ? "bg-primary-bg text-primary ring-2 ring-primary/30"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {priority}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={clearFilters}
-              className="rounded-lg border border-line px-3.5 py-1.5 text-[11px] font-medium text-ink-600 hover:bg-white transition-colors"
-            >
-              Clear all
-            </button>
-          </div>
+        <div className="space-y-4 rounded-lg border border-line bg-surface p-4">
+          <FilterGroup
+            label="Status"
+            value={status}
+            options={STATUS_FILTERS.map((s) => ({
+              value: s,
+              label: s === 'ALL' ? 'All' : fulfilmentStatusLabel(s),
+            }))}
+            onChange={(v) => setStatus(v as (typeof STATUS_FILTERS)[number])}
+          />
+          <FilterGroup
+            label="Priority"
+            value={priority}
+            options={PRIORITY_FILTERS.map((p) => ({
+              value: p,
+              label: p === 'ALL' ? 'All' : priorityLabel(p),
+            }))}
+            onChange={(v) => setPriority(v as (typeof PRIORITY_FILTERS)[number])}
+          />
         </div>
       )}
 
-      {/* Table */}
-      {filteredData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
-          <div className="rounded-full bg-surface-2 p-4">
-            <Package className="h-8 w-8 text-ink-400" />
-          </div>
-          <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No orders found</h3>
-          <p className="mt-1 text-sm text-ink-500">No outbound orders match your current filters.</p>
-          <button onClick={clearFilters} className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90">
-            Clear filters
-          </button>
+      {loading ? (
+        <div className="rounded-lg border border-line bg-surface px-4 py-16 text-center text-sm text-ink-500">
+          Loading orders…
         </div>
+      ) : warehouseRows.length === 0 ? (
+        <EmptyState
+          image="/images/vehicles-empty.png"
+          title="No outbound orders yet"
+          description="Fulfilment orders for this warehouse will appear here."
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          image="/images/trips-empty.png"
+          title="No orders match your filters"
+          description="Try adjusting your search or clearing the filters."
+          action={
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center justify-center rounded-lg bg-primary-bg px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              Clear filters
+            </button>
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm min-w-[800px]">
-              <thead>
-                <tr className="bg-surface-2/70">
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Order</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Customer</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Priority</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Progress</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Status</th>
-                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((item) => {
-                  const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
-                  const priorityStyle = PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.Medium;
-                  const progress = item.items > 0 ? Math.round(((item.picked + item.packed) / (item.items * 2)) * 100) : 0;
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => goToOrderDetail(item.id)}
-                      className="border-b border-line hover:bg-surface-2 transition-colors cursor-pointer group"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-ink-950 font-mono text-[12px]">{item.reference}</div>
-                        <div className="text-[11px] text-ink-500">{item.orderDate}</div>
-                      </td>
-                      <td className="px-4 py-3 text-ink-600">{item.customer}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${priorityStyle.bg} ${priorityStyle.text}`}>
-                          {item.priority}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-ink-950 font-medium">{progress}%</span>
-                          <div className="w-16 h-1.5 rounded-full bg-surface-3 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-primary"
-                              style={{ width: `${progress}%` }}
-                            />
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+          <table className="w-full min-w-[900px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-line bg-surface-2">
+                <Th>Order</Th>
+                <Th>Customer</Th>
+                <Th>Priority</Th>
+                <Th>Requested dispatch</Th>
+                <Th>Shipment / manifest</Th>
+                <Th>Status</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((order) => {
+                const statusTone = fulfilmentStatusTone(order.status);
+                const priorityToneCls = priorityTone(order.priority);
+                return (
+                  <tr
+                    key={order.id}
+                    className="border-b border-line last:border-0 hover:bg-surface-2"
+                  >
+                    <Td>
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-primary-bg text-primary">
+                          <Package className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-mono text-sm font-medium text-ink-950 truncate">
+                            {order.sourceOrderId || order.id}
+                          </div>
+                          <div className="font-mono text-[10px] text-ink-400 truncate">
+                            {order.id}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
-                          {statusStyle.icon}
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-ink-400 group-hover:text-primary transition-colors">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </Td>
+                    <Td>
+                      <span className="text-xs text-ink-600 truncate inline-block max-w-[180px]">
+                        {order.customerReference || '—'}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${priorityToneCls.bg} ${priorityToneCls.text}`}
+                      >
+                        <span className={`h-1 w-1 rounded-full ${priorityToneCls.dot}`} />
+                        {priorityLabel(order.priority)}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className="text-xs text-ink-500">
+                        {order.requestedDispatchAt
+                          ? formatDateTime(order.requestedDispatchAt)
+                          : '—'}
+                      </span>
+                    </Td>
+                    <Td>
+                      <div className="font-mono text-[10px] text-ink-500 truncate">
+                        {order.shipmentReference || '—'}
+                      </div>
+                      <div className="font-mono text-[10px] text-ink-400 truncate">
+                        {order.manifestReference || '—'}
+                      </div>
+                    </Td>
+                    <Td>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusTone.bg} ${statusTone.text}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusTone.dot}`} />
+                        {fulfilmentStatusLabel(order.status)}
+                      </span>
+                    </Td>
+                    <Td className="text-right">
+                      <Link
+                        href={`/warehouse/${warehouseId}/outbound/${order.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors hover:text-primary"
+                      >
+                        View <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function Th({
+  children,
+  className = '',
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <th
+      className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500 whitespace-nowrap ${className}`}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <td className={`px-4 py-3.5 text-sm text-ink-700 ${className}`}>
+      {children}
+    </td>
+  );
+}
+
+function FilterGroup({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
+              value === o.value
+                ? 'bg-primary text-white'
+                : 'bg-surface-2 text-ink-600 hover:bg-surface-3'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

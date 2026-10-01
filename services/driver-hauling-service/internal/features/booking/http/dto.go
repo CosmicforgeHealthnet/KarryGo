@@ -26,6 +26,8 @@ type createBookingRequest struct {
 	WeightCategory     string     `json:"weight_category"`
 	ReceiverName       string     `json:"receiver_name"`
 	ReceiverPhone      string     `json:"receiver_phone"`
+	ReceiverEmail      string     `json:"receiver_email,omitempty"`
+	ReceiverCustomerID string     `json:"receiver_customer_id,omitempty"`
 	PackageContent     string     `json:"package_content"`
 	PackageSize        string     `json:"package_size"`
 	IsFragile          bool       `json:"is_fragile"`
@@ -54,6 +56,7 @@ type cancelBookingRequest struct {
 // media-file-service by the provider app before confirming.
 type confirmDeliveryRequest struct {
 	Code          string `json:"code"`
+	QRToken       string `json:"qr_token"`
 	ProofPhotoURL string `json:"proof_photo_url"`
 	SignatureURL  string `json:"signature_url"`
 }
@@ -61,5 +64,6 @@ type confirmDeliveryRequest struct {
 // verifyDriverRequest carries the driver's pickup credential as entered or
 // scanned by the customer.
 type verifyDriverRequest struct {
-	Code string `json:"code"`
+	Code    string `json:"code"`
+	QRToken string `json:"qr_token"`
 }

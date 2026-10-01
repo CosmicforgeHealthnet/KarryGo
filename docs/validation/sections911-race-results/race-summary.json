@@ -1,0 +1,137 @@
+[
+  {
+    "Package": "./services/customer-service/internal/features/journey_sharing/...",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "1.log"
+  },
+  {
+    "Package": "./services/customer-service/internal/features/movement_history/...",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "2.log"
+  },
+  {
+    "Package": "./services/driver-taxi-service/internal/features/customertracking",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "3.log"
+  },
+  {
+    "Package": "./services/driver-taxi-service/internal/features/goods",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 57,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "4.log"
+  },
+  {
+    "Package": "./services/driver-dispatch-delivery-service/internal/features/customershare",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "5.log"
+  },
+  {
+    "Package": "./services/driver-dispatch-delivery-service/internal/features/availability",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 122,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "6.log"
+  },
+  {
+    "Package": "./services/driver-dispatch-delivery-service/internal/features/movement",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "7.log"
+  },
+  {
+    "Package": "./services/vendor-service/internal/features/customershare",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "8.log"
+  },
+  {
+    "Package": "./services/vendor-service/internal/features/fulfilmentgroup",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 124,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "9.log"
+  },
+  {
+    "Package": "./services/vendor-service/cmd",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 267,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "10.log"
+  },
+  {
+    "Package": "./services/driver-hauling-service/internal/features/customershare",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "11.log"
+  },
+  {
+    "Package": "./services/driver-hauling-service/internal/features/provider_availability/usecases",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "12.log"
+  },
+  {
+    "Package": "./services/driver-hauling-service/internal/features/movement",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "13.log"
+  },
+  {
+    "Package": "./shared/go/journeyshare/...",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 10,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "14.log"
+  },
+  {
+    "Package": "./shared/go/events",
+    "Exit": 0,
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Evidence": "15.log"
+  }
+]

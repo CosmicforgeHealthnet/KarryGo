@@ -77,6 +77,10 @@ type PostgresRepository struct {
 	// publication, which is the behaviour every caller had before the
 	// marketplace outbox existed.
 	emitter EventEmitter
+	// completedWork is optional the same way. When nil no canonical Fleet
+	// completed-work delivery is enqueued, which is exactly the behaviour
+	// every caller had before Section 9.
+	completedWork CompletedWorkEnqueuer
 }
 
 func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
@@ -389,6 +393,19 @@ func (r *PostgresRepository) CompleteTripTx(ctx context.Context, input CompleteT
 		"completedAt": input.Now,
 		"proofStatus": "VERIFIED",
 	}); err != nil {
+		return nil, nil, err
+	}
+	// Section 9 DSP-008/DSP-009: the canonical Fleet completed-work delivery
+	// is enqueued in THIS transaction, the one that makes the mission
+	// authoritatively complete.
+	//
+	// Placed after emitTripEvent so the trip's source_version has already
+	// been bumped: the completed-work record then carries the same version
+	// consumers see, which is what makes DSP-010's idempotency identity line
+	// up with the authoritative completion rather than the state before it.
+	//
+	// An independent mission enqueues nothing (see enqueueCompletedWorkIfManaged).
+	if err := enqueueCompletedWorkIfManaged(ctx, tx, r.completedWork, input.TripID, input.Now); err != nil {
 		return nil, nil, err
 	}
 	return trip, proof, tx.Commit(ctx)

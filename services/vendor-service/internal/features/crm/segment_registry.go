@@ -360,7 +360,7 @@ var (
 	tagOperators        = []string{OperatorHasTag, OperatorNotHasTag}
 	booleanOperators    = []string{OperatorEQ, OperatorNEQ}
 	referenceOperators  = []string{OperatorEQ, OperatorIN}
-	capabilityTypeValue = []string{"RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE"}
+	capabilityTypeValue = []string{"RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE", "CATERING", "MANUFACTURER"}
 )
 
 func profileFields() []*SegmentField {

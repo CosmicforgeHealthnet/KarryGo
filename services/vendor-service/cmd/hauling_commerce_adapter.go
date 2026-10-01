@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
+	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
 	"cosmicforge/logistics/shared/go/commercemission"
 )
 
@@ -41,17 +42,48 @@ func (a *section17FMissionAuthority) cancelHaulingMission(
 	ctx context.Context,
 	operationRef, reasonCode string,
 ) error {
-	if a == nil || a.hauling == nil || !a.hauling.Configured() {
+	if a == nil {
 		return commercemission.ErrNotConfigured
 	}
-	mission, err := a.hauling.ReadMission(ctx, operationRef)
+	return cancelCommerceMission(ctx, a.hauling, operationRef, reasonCode)
+}
+
+func (a *section17FMissionAuthority) cancelLegacyMission(ctx context.Context, operationRef, reasonCode string) error {
+	if a == nil {
+		return commercemission.ErrNotConfigured
+	}
+	configured := false
+	for _, client := range []*commercemission.Client{a.taxi, a.hauling} {
+		if client == nil || !client.Configured() {
+			continue
+		}
+		configured = true
+		err := cancelCommerceMission(ctx, client, operationRef, reasonCode)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, commercemission.ErrInvalidRequest) {
+			return err
+		}
+	}
+	if !configured {
+		return commercemission.ErrNotConfigured
+	}
+	return nil
+}
+
+func cancelCommerceMission(ctx context.Context, client *commercemission.Client, operationRef, reasonCode string) error {
+	if client == nil || !client.Configured() {
+		return commercemission.ErrNotConfigured
+	}
+	mission, err := client.ReadMission(ctx, operationRef)
 	if err != nil {
 		if errors.Is(err, commercemission.ErrInvalidRequest) {
 			return nil
 		}
 		return err
 	}
-	_, err = a.hauling.CancelMission(ctx, commercemission.CancelRequest{
+	_, err = client.CancelMission(ctx, commercemission.CancelRequest{
 		OperationRef:    operationRef,
 		MissionRef:      mission.MissionRef,
 		ReasonCode:      strings.TrimSpace(reasonCode),
@@ -63,7 +95,7 @@ func (a *section17FMissionAuthority) cancelHaulingMission(
 	if !errors.Is(err, commercemission.ErrAuthorityUnavailable) {
 		return err
 	}
-	recovered, readErr := a.hauling.ReadMission(ctx, operationRef)
+	recovered, readErr := client.ReadMission(ctx, operationRef)
 	if readErr == nil && recovered.Status == commercemission.StatusCancelled {
 		return nil
 	}
@@ -72,14 +104,20 @@ func (a *section17FMissionAuthority) cancelHaulingMission(
 
 func haulingMissionRequest(request orders.MissionRequest) (commercemission.Request, error) {
 	payload := commercemission.Request{
-		MissionRef:      request.MissionRef,
-		OperationRef:    request.MissionRef,
-		ParentOrderRef:  request.ParentOrderID,
-		VendorOrderRefs: request.VendorOrderIDs,
-		CustomerRef:     request.CustomerID,
-		Service:         commercemission.Service(request.Service),
-		VehicleClass:    commercemission.VehicleClass(request.VehicleClass),
-		QuoteReference:  request.MissionRef + "-route-v1",
+		MissionRef:          request.MissionRef,
+		OperationRef:        request.MissionRef,
+		ParentOrderRef:      request.ParentOrderID,
+		VendorOrderRefs:     request.VendorOrderIDs,
+		CustomerRef:         request.CustomerID,
+		ReceiverCustomerRef: receiverAccountRef(request),
+		// The canonical spelling goes on the wire. A plan row carrying the
+		// product name TAXI_GOODS names the same authority as one carrying
+		// TAXI, and the shared contract only accepts the latter -- normalizing
+		// here is what stops an accepted internal spelling becoming an invalid
+		// outbound request.
+		Service:        commercemission.Service(logistics.Normalize(string(request.Service))),
+		VehicleClass:   commercemission.VehicleClass(request.VehicleClass),
+		QuoteReference: request.MissionRef + "-route-v1",
 		Dropoff: commercemission.Point{
 			Ref:       request.DeliveryAddress.SourceAddressRef,
 			Address:   request.DeliveryAddress.Address,
@@ -97,17 +135,24 @@ func haulingMissionRequest(request orders.MissionRequest) (commercemission.Reque
 		AgreedFeeMinor: request.AgreedFeeMinor,
 		RequestedAt:    time.Now().UTC(),
 	}
+
 	if request.Execution == nil {
-		payload.Pickup = commercemission.Point{
-			Ref:       request.PickupBranch,
-			Address:   "Vendor branch " + request.PickupBranch,
-			Latitude:  request.DeliveryAddress.Latitude,
-			Longitude: request.DeliveryAddress.Longitude,
-		}
-		return payload, nil
+		// Without the frozen execution evidence there is no authoritative
+		// branch pickup location. The old fallback put the pickup at the
+		// customer's own coordinates, which sends a driver to the wrong place;
+		// refuse instead, exactly as the Dispatch adapter does.
+		return commercemission.Request{}, fmt.Errorf("%w: immutable fulfilment execution is unavailable", commercemission.ErrInvalidRequest)
 	}
 
 	execution := request.Execution
+	payload.QuoteID = strings.TrimSpace(execution.AuthorityQuoteID)
+	if reference := strings.TrimSpace(execution.AuthorityQuoteReference); reference != "" {
+		payload.QuoteReference = reference
+	}
+	if request.Service == orders.LogisticsTaxi && (payload.QuoteID == "" || payload.QuoteReference == "") {
+		return commercemission.Request{}, fmt.Errorf("%w: taxi mission requires the frozen authority quote", commercemission.ErrInvalidRequest)
+	}
+	payload.Load.LoadingDurationSeconds = execution.LoadingDurationSeconds
 	payload.Plan = &commercemission.PlanBinding{
 		PlanRef: execution.PlanRef, PlanVersion: execution.PlanVersion,
 		PlanFingerprint: execution.PlanFingerprint, MissionSlotRef: request.PlanMissionRef,
@@ -168,6 +213,13 @@ func haulingMissionRequest(request orders.MissionRequest) (commercemission.Reque
 	return payload, nil
 }
 
+func receiverAccountRef(request orders.MissionRequest) string {
+	if request.Receiver.ReceiverName == "" && request.Receiver.ReceiverPhone == "" {
+		return request.CustomerID
+	}
+	return request.Receiver.ReceiverCustomerID
+}
+
 func haulingMissionResult(mission commercemission.Mission) orders.MissionResult {
 	result := orders.MissionResult{
 		ExternalRef:      mission.ExternalRef,
@@ -183,7 +235,10 @@ func haulingMissionResult(mission commercemission.Mission) orders.MissionResult 
 }
 
 func haulingParcelHandling(parcel orders.MissionParcel) commercemission.Handling {
-	handling := commercemission.Handling{Fragile: parcel.Fragile}
+	handling := commercemission.Handling{
+		Fragile: parcel.Fragile, Upright: parcel.Upright,
+		StackRestricted: parcel.StackRestricted,
+	}
 	switch strings.ToUpper(strings.TrimSpace(parcel.TemperatureControl)) {
 	case "HOT":
 		handling.Hot = true
@@ -198,6 +253,7 @@ func haulingParcelHandling(parcel orders.MissionParcel) commercemission.Handling
 func mergeHaulingHandling(left, right commercemission.Handling) commercemission.Handling {
 	left.Fragile = left.Fragile || right.Fragile
 	left.Upright = left.Upright || right.Upright
+	left.StackRestricted = left.StackRestricted || right.StackRestricted
 	left.SpillLiquid = left.SpillLiquid || right.SpillLiquid
 	left.Hot = left.Hot || right.Hot
 	left.Chilled = left.Chilled || right.Chilled

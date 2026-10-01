@@ -1,0 +1,12 @@
+{"Time":"2026-09-27T16:00:40.6571316+02:00","Action":"start","Package":"cosmicforge/logistics/services/taxi-service/internal"}
+{"Time":"2026-09-27T16:00:40.8317994+02:00","Action":"run","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestSection7IntroducesNoPricingLogic"}
+{"Time":"2026-09-27T16:00:40.8317994+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestSection7IntroducesNoPricingLogic","Output":"=== RUN   TestSection7IntroducesNoPricingLogic\n"}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestSection7IntroducesNoPricingLogic","Output":"--- PASS: TestSection7IntroducesNoPricingLogic (0.05s)\n"}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestSection7IntroducesNoPricingLogic","Elapsed":0.05}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"run","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestCommerceContractsCarryNoProviderIdentity"}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestCommerceContractsCarryNoProviderIdentity","Output":"=== RUN   TestCommerceContractsCarryNoProviderIdentity\n"}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestCommerceContractsCarryNoProviderIdentity","Output":"--- PASS: TestCommerceContractsCarryNoProviderIdentity (0.00s)\n"}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal","Test":"TestCommerceContractsCarryNoProviderIdentity","Elapsed":0}
+{"Time":"2026-09-27T16:00:40.88084+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal","Output":"PASS\n"}
+{"Time":"2026-09-27T16:00:40.8844492+02:00","Action":"output","Package":"cosmicforge/logistics/services/taxi-service/internal","Output":"ok  \tcosmicforge/logistics/services/taxi-service/internal\t0.227s\n"}
+{"Time":"2026-09-27T16:00:40.8844492+02:00","Action":"pass","Package":"cosmicforge/logistics/services/taxi-service/internal","Elapsed":0.227}

@@ -25,7 +25,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"cosmicforge/logistics/shared/go/serviceauth"
 
 	vendorauthhttp "cosmicforge/logistics/services/vendor-service/internal/features/auth/http"
@@ -58,6 +60,7 @@ import (
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
 	"cosmicforge/logistics/services/vendor-service/internal/features/vendors"
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 )
 
@@ -128,7 +131,7 @@ import (
 // command surface.
 //
 // The figure is measured from production route registration, never targeted.
-const ExpectedRouteCount = 855
+const ExpectedRouteCount = 867
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.
@@ -154,6 +157,8 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	shareService := &customershare.Service{}
+	journeyshare.RegisterRead(router, "/internal/vendor/v1/customer-share/missions/:sourceRef", shareService.Read)
 
 	flags := allFlagsOn()
 	crmService := crm.NewService(crm.Options{Flags: flags})
@@ -246,12 +251,14 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 		delivery.NewHandler(delivery.NewService(nil, nil, true)),
 		true,
 	)
-	promotions.RegisterRoutes(protected, promotions.NewHandler(promotions.NewService(nil, nil, nil, true)), true)
+	promotions.RegisterRoutes(protected, promotions.NewHandler(promotions.NewService(nil, nil, nil, true), store), true)
 
 	// Section 17E: the vendor order queue and its lifecycle commands. Like the
 	// delivery policy above it belongs to the vendor staff base, because it is
 	// driven by vendor staff IAM rather than by a customer token.
-	orders.RegisterVendorRoutes(protected, &orders.Service{}, true)
+	orderService := &orders.Service{}
+	orderService.SetHandoverAuthorities(handoverintegration.Router{"TAXI": handoverintegration.Unavailable{}})
+	orders.RegisterVendorRoutes(protected, orderService, true, store)
 	orders.RegisterSection21VendorRoutes(protected, orders.NewSection21Service(orders.Section21Options{Enabled: true}), true)
 
 	// The post-order fulfilment aggregate: groups, pickup obligations, parcels,
@@ -277,6 +284,9 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	customerSigner := sharedauth.NewTokenSigner([]byte("inventory-only"))
 
 	cart.RegisterCustomerRoutes(customerCommerce, &cart.Service{}, customerSigner, store)
+	cart.RegisterDeliveryPreviewRoute(customerCommerce, customerSigner, func(c *gin.Context) {})
+	food.RegisterCustomerDiscoveryRoutes(customerCommerce, foodInternalHandler)
+	shop.RegisterCustomerDiscoveryRoutes(customerCommerce, shop.NewInventoryInternalHandler(shop.NewService(shop.Options{Flags: shopFlags}), nil))
 	checkout.RegisterCustomerRoutes(customerCommerce, &checkout.Service{}, customerSigner, store, true)
 	fulfilment.RegisterCustomerRoutes(
 		customerCommerce,
@@ -320,6 +330,7 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	orders.RegisterDispatchCommerceEventRoutes(router, &orders.Service{}, verifier)
 	orders.RegisterSupportResolutionRoutes(router, &orders.Service{}, verifier)
 	searchFlags := searchprojection.Flags{SearchEnabled: true, AdminEnabled: true}
+	searchprojection.RegisterCustomerSearchRoutes(customerCommerce, searchprojection.NewInternalHandler(searchprojection.InternalHandlerOptions{Flags: searchFlags}), searchFlags, nil, nil)
 	searchprojection.RegisterInternalSearchRoutes(router, searchprojection.NewInternalHandler(searchprojection.InternalHandlerOptions{
 		Callers: []string{"order-service"}, Flags: searchFlags,
 	}), verifier, searchFlags)
@@ -540,7 +551,7 @@ func documentedOperations(t *testing.T) map[string]bool {
 // rather than which decade a row was written in. The parse is otherwise
 // deliberately loose — it asks only whether each live route is mentioned
 // somewhere, because a stricter parse would fail on table formatting.
-var registerPathPattern = regexp.MustCompile(`(/(?:api/v1/vendor|api/v1/internal|internal|auth|staff|roles|permissions|businesses|onboarding|assignments|crm)[A-Za-z0-9_\-/{}:\.]*)`)
+var registerPathPattern = regexp.MustCompile(`(/(?:api/v1/vendor|api/v1/commerce|api/v1/internal|internal|auth|staff|roles|permissions|businesses|onboarding|assignments|crm)[A-Za-z0-9_\-/{}:\.]*)`)
 
 func normalizeRegisterPath(path string) string {
 	segments := strings.Split(path, "/")

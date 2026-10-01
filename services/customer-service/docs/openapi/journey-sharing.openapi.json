@@ -1,0 +1,841 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Customer backend Sections 9–11",
+    "version": "1.0.0",
+    "description": "Disabled features return 503. Internal paths must never be publicly proxied. HMAC v2 requires signed URI, timestamp, version=2, nonce and exact caller allowlist. Share create/rotation idempotent replay returns metadata only; recover lost capability with explicit rotation."
+  },
+  "paths": {
+    "/api/v1/customer/journey-shares": {
+      "get": {
+        "parameters": [
+          {
+            "name": "authority",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_ref",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ShareSession"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Caller or policy denied"
+          },
+          "404": {
+            "description": "Enumeration-safe inaccessible source/share"
+          },
+          "409": {
+            "description": "Version, idempotency or nonce conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Feature or dependency unavailable"
+          }
+        },
+        "operationId": "customer_service_get__api_v1_customer_journey_shares"
+      },
+      "post": {
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CommandResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Caller or policy denied"
+          },
+          "404": {
+            "description": "Enumeration-safe inaccessible source/share"
+          },
+          "409": {
+            "description": "Version, idempotency or nonce conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Feature or dependency unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "authority": {
+                    "type": "string"
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "product_code": {
+                    "type": "string"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "route",
+                        "provider",
+                        "location",
+                        "eta"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "authority",
+                  "source_ref",
+                  "product_code"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "customer_service_post__api_v1_customer_journey_shares"
+      }
+    },
+    "/api/v1/customer/journey-shares/{shareId}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ShareSession"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Caller or policy denied"
+          },
+          "404": {
+            "description": "Enumeration-safe inaccessible source/share"
+          },
+          "409": {
+            "description": "Version, idempotency or nonce conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Feature or dependency unavailable"
+          }
+        },
+        "operationId": "customer_service_get__api_v1_customer_journey_shares__shareId_"
+      }
+    },
+    "/api/v1/customer/journey-shares/{shareId}/revoke": {
+      "post": {
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CommandResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Caller or policy denied"
+          },
+          "404": {
+            "description": "Enumeration-safe inaccessible source/share"
+          },
+          "409": {
+            "description": "Version, idempotency or nonce conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Feature or dependency unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "expected_version"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "customer_service_post__api_v1_customer_journey_shares__shareId__revoke"
+      }
+    },
+    "/api/v1/customer/journey-shares/{shareId}/rotate": {
+      "post": {
+        "parameters": [
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CommandResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Caller or policy denied"
+          },
+          "404": {
+            "description": "Enumeration-safe inaccessible source/share"
+          },
+          "409": {
+            "description": "Version, idempotency or nonce conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Feature or dependency unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expected_version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "expected_version"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "customer_service_post__api_v1_customer_journey_shares__shareId__rotate"
+      }
+    },
+    "/api/v1/customer/public/journey-shares/{token}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PublicSnapshot"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "X-Robots-Tag": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "noindex, nofollow"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Caller or policy denied"
+          },
+          "404": {
+            "description": "Enumeration-safe inaccessible source/share"
+          },
+          "409": {
+            "description": "Version, idempotency or nonce conflict"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Feature or dependency unavailable"
+          }
+        },
+        "operationId": "customer_service_get__api_v1_customer_public_journey_shares__token_"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Location": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "FRESH",
+              "STALE",
+              "UNAVAILABLE"
+            ]
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          },
+          "heading": {
+            "type": "number"
+          },
+          "accuracy_m": {
+            "type": "number"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Place": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          }
+        }
+      },
+      "Vehicle": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "make": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "plate": {
+            "type": "string"
+          },
+          "display": {
+            "type": "string"
+          }
+        }
+      },
+      "Provider": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/Vehicle"
+          }
+        }
+      },
+      "ShareSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authority": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "product_code": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "route",
+                "provider",
+                "location",
+                "eta"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "REVOKED",
+              "EXPIRED",
+              "COMPLETED"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source_completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_access_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PublicSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_code": {
+            "type": "string"
+          },
+          "public_status": {
+            "type": "string"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "dropoff": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/Provider"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "progress": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stage": {
+                "type": "string"
+              }
+            }
+          },
+          "eta": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "terminal": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Projection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "product_code": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "public_status": {
+            "type": "string"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "dropoff": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/Provider"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "progress": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stage": {
+                "type": "string"
+              }
+            }
+          },
+          "eta": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "source_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "terminal": {
+            "type": "boolean"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CommandResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/ShareSession"
+          },
+          "token": {
+            "type": "string",
+            "description": "One-time token, present only on initial successful creation or rotation. Never persisted or returned on replay."
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CustomerLocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "booking_ref": {
+            "type": "string"
+          },
+          "booking_status": {
+            "type": "string"
+          },
+          "location_available": {
+            "type": "boolean"
+          },
+          "location_state": {
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/Provider",
+            "nullable": true
+          },
+          "eta": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "HMACv2": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "Required X-Service-Name, X-Service-Timestamp, X-Service-Nonce, X-Service-Signature-Version=2. Customer-share caller: customer-service only. Commerce-share caller: vendor-service only."
+      }
+    }
+  }
+}

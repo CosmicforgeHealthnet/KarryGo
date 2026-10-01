@@ -14,6 +14,18 @@ const (
 	OrganizationStatusArchived      = "ARCHIVED"
 )
 
+// Operating modes control how an organization participates in corporate work.
+const (
+	OperatingModeCentralized = "CENTRALIZED"
+	OperatingModeDelegated   = "DELEGATED"
+	OperatingModeHybrid      = "HYBRID"
+)
+
+// ValidOperatingMode reports whether mode is one of the persisted values.
+func ValidOperatingMode(mode string) bool {
+	return mode == OperatingModeCentralized || mode == OperatingModeDelegated || mode == OperatingModeHybrid
+}
+
 // Branch and department statuses.
 const (
 	BranchStatusActive   = "ACTIVE"
@@ -79,15 +91,17 @@ type Department struct {
 
 // Settings is the single current settings record of an organization.
 type Settings struct {
-	OrganizationID           string
-	AssignmentTimeoutSeconds int
-	ApprovalThresholds       map[string]any
-	ProviderVisibility       string
-	RetentionSettings        map[string]any
-	FeatureFlags             map[string]bool
-	Version                  int64
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
+	OrganizationID            string
+	AssignmentTimeoutSeconds  int
+	OperatingMode             string
+	ApprovalThresholds        map[string]any
+	ProviderVisibility        string
+	FinancialVisibilityPolicy map[string]bool
+	RetentionSettings         map[string]any
+	FeatureFlags              map[string]bool
+	Version                   int64
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
 }
 
 // StatusChange is one append-only organization status transition.

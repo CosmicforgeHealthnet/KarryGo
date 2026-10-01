@@ -72,6 +72,23 @@ func decodeEnvelope(t *testing.T, resp *httptest.ResponseRecorder) map[string]an
 	return envelope
 }
 
+// findCookie returns the named cookie from the response, or fails the test
+// with the names of the cookies that were actually set.
+func findCookie(t *testing.T, cookies []*http.Cookie, name string) *http.Cookie {
+	t.Helper()
+	for _, c := range cookies {
+		if c.Name == name {
+			return c
+		}
+	}
+	names := make([]string, 0, len(cookies))
+	for _, c := range cookies {
+		names = append(names, c.Name)
+	}
+	t.Fatalf("cookie %q not found among %d cookies: %v", name, len(cookies), names)
+	return nil
+}
+
 func TestAuthStartHTTPNeverReturnsOTP(t *testing.T) {
 	router, h := buildAuthRouter(t)
 
@@ -153,11 +170,10 @@ func TestAuthVerifyHTTPIssuesSessionAndEnvelope(t *testing.T) {
 	if !ok || tokens["accessToken"] == "" || tokens["refreshToken"] != nil {
 		t.Fatalf("tokens missing: %v", data)
 	}
-	cookies := resp.Result().Cookies()
-	if len(cookies) != 1 || cookies[0].Value == "" || !cookies[0].HttpOnly || !cookies[0].Secure || cookies[0].Path != "/fleet-partner/v1/auth" || cookies[0].SameSite != http.SameSiteLaxMode {
-		t.Fatal("invalid refresh cookie")
+	refresh := findCookie(t, resp.Result().Cookies(), "karrygo_fleet_refresh")
+	if refresh.Value == "" || !refresh.HttpOnly || !refresh.Secure || refresh.Path != "/fleet-partner/v1/auth" || refresh.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("invalid refresh cookie: %+v", refresh)
 	}
-
 	// Wrong code returns the canonical error envelope.
 	bad := postJSON(router, "/fleet-partner/v1/auth/verify", map[string]string{
 		"challengeId": challengeID, "code": "000000",
@@ -243,8 +259,13 @@ func TestLogoutHTTPIsIdempotent(t *testing.T) {
 			t.Fatalf("logout attempt %d = %d; body=%s", attempt, resp.Code, resp.Body.String())
 		}
 		cookies := resp.Result().Cookies()
-		if len(cookies) != 1 || cookies[0].MaxAge >= 0 {
-			t.Fatal("logout must expire cookie")
+		if len(cookies) != 2 {
+			t.Fatalf("logout must expire 2 cookies (refresh + marker), got %d", len(cookies))
+		}
+		for _, c := range cookies {
+			if c.MaxAge >= 0 {
+				t.Fatalf("logout cookie %q not expired: MaxAge=%d", c.Name, c.MaxAge)
+			}
 		}
 	}
 	resp := postJSON(router, "/fleet-partner/v1/auth/refresh", nil, map[string]string{"Cookie": "karrygo_fleet_refresh=" + result.Tokens.RefreshToken})

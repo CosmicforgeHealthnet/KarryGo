@@ -122,7 +122,7 @@ func (s *FirebasePushSender) sendOne(ctx context.Context, accessToken string, to
 		}
 	}
 
-	return "", false, fmt.Errorf("firebase send failed: status=%d body=%s", response.StatusCode, string(responseBody))
+	return "", false, fmt.Errorf("firebase send failed: status=%d", response.StatusCode)
 }
 
 func (s *FirebasePushSender) token(ctx context.Context) (string, error) {
@@ -154,8 +154,7 @@ func (s *FirebasePushSender) token(ctx context.Context) (string, error) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(response.Body)
-		return "", fmt.Errorf("firebase token request failed: status=%d body=%s", response.StatusCode, string(body))
+		return "", fmt.Errorf("firebase token request failed: status=%d", response.StatusCode)
 	}
 
 	var parsed struct {

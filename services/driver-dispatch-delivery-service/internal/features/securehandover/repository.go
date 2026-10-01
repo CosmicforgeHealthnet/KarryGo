@@ -42,12 +42,12 @@ func (r *Repository) ResolveByTrip(ctx context.Context, tripID string, stage Sta
 	var result Context
 	var receiverPhone string
 	err := r.db.QueryRow(ctx, `SELECT t.id::text,t.booking_id::text,t.provider_id::text,t.customer_id::text,
-		b.receiver_phone,COALESCE(dm.id::text,''),COALESCE(dm.delivery_group_id::text,''),
+		b.receiver_phone,b.receiver_email,COALESCE(b.receiver_customer_id::text,''),COALESCE(dm.id::text,''),COALESCE(dm.delivery_group_id::text,''),
 		COALESCE(dm.source_type,'CUSTOMER'),COALESCE(dm.source_ref,t.id::text),COALESCE(dm.source_version,1)
 		FROM trips t JOIN dispatch_bookings b ON b.id=t.booking_id
 		LEFT JOIN dispatch_delivery_missions dm ON dm.trip_id=t.id WHERE t.id=$1::uuid`, tripID).
 		Scan(&result.TripID, &result.BookingID, &result.ProviderID, &result.CustomerID,
-			&receiverPhone, &result.MissionID, &result.DeliveryGroupID, &result.SourceType, &result.SourceRef, &result.SourceVersion)
+			&receiverPhone, &result.ReceiverEmail, &result.ReceiverRef, &result.MissionID, &result.DeliveryGroupID, &result.SourceType, &result.SourceRef, &result.SourceVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Context{}, ErrNotFound
 	}
@@ -96,6 +96,36 @@ func (r *Repository) ResolveByTrip(ctx context.Context, tripID string, stage Sta
 		return Context{}, ErrNotFound
 	}
 	return result, err
+}
+
+// ProtectionByTrip reads the immutable Booking rollout policy. Existing
+// challenge rows also keep the Trip protected so work admitted before the
+// policy-pinning migration cannot be downgraded by a flag change.
+func (r *Repository) ProtectionByTrip(ctx context.Context, tripID string) (ProtectionSnapshot, error) {
+	var result ProtectionSnapshot
+	err := r.db.QueryRow(ctx, `SELECT b.rollout_protection_mode,b.rollout_policy_version,
+		b.handover_required,b.pickup_evidence_required,b.delivery_evidence_required,b.provider_transfer_required,
+		EXISTS(SELECT 1 FROM dispatch_handover_challenges h WHERE h.trip_id=t.id)
+		FROM trips t JOIN dispatch_bookings b ON b.id=t.booking_id WHERE t.id=$1::uuid`, tripID).Scan(
+		&result.Mode, &result.PolicyVersion, &result.HandoverRequired,
+		&result.PickupEvidenceRequired, &result.DeliveryEvidenceRequired,
+		&result.ProviderTransferRequired, &result.ExistingChallenge,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProtectionSnapshot{}, ErrNotFound
+	}
+	return result, err
+}
+
+func (r *Repository) StageEvidenceRequired(ctx context.Context, tripID string, stage Stage) (bool, error) {
+	context, err := r.ResolveByTrip(ctx, tripID, stage, "")
+	if err != nil {
+		return false, err
+	}
+	var required bool
+	err = r.db.QueryRow(ctx, `SELECT COALESCE(bool_or(photo_required OR signature_required OR gps_required OR min_evidence_count>0),false)
+		FROM dispatch_evidence_requirements WHERE context_key=$1 AND stage=$2`, context.ContextKey(stage), stage).Scan(&required)
+	return required, err
 }
 
 func (r *Repository) ResolveCustomerBooking(ctx context.Context, bookingID, customerID string, stage Stage) (Context, error) {

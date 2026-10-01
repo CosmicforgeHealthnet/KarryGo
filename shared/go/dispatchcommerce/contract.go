@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/shared/go/custodychain"
 )
 
 const (
@@ -206,20 +208,21 @@ type QuoteBinding struct {
 }
 
 type MissionCreateRequest struct {
-	OperationRef     string             `json:"operation_ref"`
-	ParentOrderRef   string             `json:"parent_order_ref"`
-	CustomerRef      string             `json:"customer_ref"`
-	Plan             PlanBinding        `json:"plan"`
-	Quote            QuoteBinding       `json:"quote"`
-	Mode             Mode               `json:"mode"`
-	ServiceClass     string             `json:"service_class"`
-	PickupStops      []PickupStop       `json:"pickup_stops"`
-	Receiver         Point              `json:"receiver"`
-	Parcels          []Parcel           `json:"parcels"`
-	Vehicle          VehicleRequirement `json:"vehicle_requirement"`
-	PromisedBy       time.Time          `json:"promised_by"`
-	FundingReference string             `json:"funding_reference"`
-	CorrelationID    string             `json:"correlation_id,omitempty"`
+	OperationRef        string             `json:"operation_ref"`
+	ParentOrderRef      string             `json:"parent_order_ref"`
+	CustomerRef         string             `json:"customer_ref"`
+	ReceiverCustomerRef string             `json:"receiver_customer_ref,omitempty"`
+	Plan                PlanBinding        `json:"plan"`
+	Quote               QuoteBinding       `json:"quote"`
+	Mode                Mode               `json:"mode"`
+	ServiceClass        string             `json:"service_class"`
+	PickupStops         []PickupStop       `json:"pickup_stops"`
+	Receiver            Point              `json:"receiver"`
+	Parcels             []Parcel           `json:"parcels"`
+	Vehicle             VehicleRequirement `json:"vehicle_requirement"`
+	PromisedBy          time.Time          `json:"promised_by"`
+	FundingReference    string             `json:"funding_reference"`
+	CorrelationID       string             `json:"correlation_id,omitempty"`
 }
 
 type StopView struct {
@@ -292,6 +295,24 @@ type PickupCredential struct {
 	Code              string    `json:"code"`
 	ExpiresAt         time.Time `json:"expires_at"`
 	AttemptsRemaining int       `json:"attempts_remaining"`
+
+	// Direction says who holds this credential and who may verify it, so the
+	// answer does not depend on which route the caller happened to use.
+	// Commerce pickup is provider-held and vendor-verified.
+	Direction custodychain.Direction `json:"direction"`
+}
+
+// WithDirection stamps the canonical Commerce-pickup direction onto the
+// credential. Kept as a method so every site that builds one gets the same
+// description rather than filling the struct in by hand.
+func (c PickupCredential) WithDirection() PickupCredential {
+	direction, ok := custodychain.DirectionFor(
+		custodychain.PurposeCommercePickup, "DISPATCH",
+		c.MissionRef, &c.ExpiresAt)
+	if ok {
+		c.Direction = direction
+	}
+	return c
 }
 
 type StopActionRequest struct {

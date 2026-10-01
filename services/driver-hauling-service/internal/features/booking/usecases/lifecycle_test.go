@@ -29,7 +29,7 @@ func TestTripLifecycle_AdvancesThroughAllStages(t *testing.T) {
 	const provider = "p1"
 	const customer = "c1"
 	repo := newTrackingRepo(bookingmodels.Booking{
-		ID: "b1", CustomerID: customer, ProviderID: ptr(provider),
+		ID: "b1", CustomerID: customer, ReceiverCustomerID: customer, ProviderID: ptr(provider),
 		Status: bookingmodels.StatusAccepted,
 	})
 	svc := lifecycleService(repo)
@@ -80,8 +80,14 @@ func TestTripLifecycle_AdvancesThroughAllStages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVerificationCode() error = %v", err)
 	}
-	if deliveryView.Code == "" {
-		t.Fatalf("expected a delivery code to be generated for the customer")
+	if deliveryView.Code != "" {
+		t.Fatalf("generic read must not redisplay the delivery code")
+	}
+	repo.mu.Lock()
+	deliveryCode := repo.bookings["b1"].DeliveryCode // simulates the one-time notification boundary
+	repo.mu.Unlock()
+	if deliveryCode == "" {
+		t.Fatal("expected the issue path to generate a delivery code")
 	}
 
 	// The driver cannot confirm delivery with a wrong code.
@@ -89,7 +95,7 @@ func TestTripLifecycle_AdvancesThroughAllStages(t *testing.T) {
 		t.Fatalf("expected ConfirmDelivery() to fail with an incorrect code")
 	}
 
-	if _, err := svc.ConfirmDelivery(ctx, "b1", provider, deliveryView.Code, "https://media/proof.jpg", "https://media/sig.png"); err != nil {
+	if _, err := svc.ConfirmDelivery(ctx, "b1", provider, deliveryCode, "https://media/proof.jpg", "https://media/sig.png"); err != nil {
 		t.Fatalf("ConfirmDelivery() error = %v", err)
 	}
 	if got := repo.statusOf("b1"); got != bookingmodels.StatusDelivered {

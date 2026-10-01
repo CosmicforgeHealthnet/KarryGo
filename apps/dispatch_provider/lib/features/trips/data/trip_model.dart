@@ -1,30 +1,49 @@
 enum TripStatusCode {
   assigned,
+  enRoutePickup,
   arrivedPickup,
   inProgress,
   proofSubmitted,
   completed,
-  cancelled;
+  cancelled,
+  failed;
 
   static TripStatusCode fromString(String s) => switch (s) {
     'assigned' => TripStatusCode.assigned,
+    'en_route_pickup' => TripStatusCode.enRoutePickup,
     'arrived_pickup' => TripStatusCode.arrivedPickup,
     'in_progress' => TripStatusCode.inProgress,
     'proof_submitted' => TripStatusCode.proofSubmitted,
     'completed' => TripStatusCode.completed,
     'cancelled' => TripStatusCode.cancelled,
+    'failed' => TripStatusCode.failed,
     _ => TripStatusCode.assigned,
   };
 
   bool get isActive =>
       this == assigned ||
+      this == enRoutePickup ||
       this == arrivedPickup ||
       this == inProgress ||
       this == proofSubmitted;
+
+  bool get isCompleted => this == completed;
+  bool get isCancelled => this == cancelled;
+  bool get isFailed => this == failed;
+
+  /// Short label shown on card chips.
+  String get shortLabel => switch (this) {
+    assigned => 'Assigned',
+    enRoutePickup => 'En route',
+    arrivedPickup => 'At pickup',
+    inProgress => 'In transit',
+    proofSubmitted => 'Proof sent',
+    completed => 'Delivered',
+    cancelled => 'Cancelled',
+    failed => 'Failed',
+  };
 }
 
-/// The rider's own pickup handover credential — displayed on this app and
-/// verified by the customer. Never visible to the customer through the API.
 class PickupCredential {
   const PickupCredential({
     required this.code,
@@ -48,9 +67,6 @@ class PickupCredential {
   static const empty = PickupCredential(code: '');
 }
 
-/// Trip cancel reason codes accepted by the backend
-/// (`internal/features/trip/model.go` `ValidCancelReasons`). A cancel request
-/// without one of these codes is rejected with a 400.
 const Map<String, String> tripCancelReasons = {
   'rider_unavailable': 'I am no longer able to complete this trip',
   'package_not_ready': 'Package was not ready at pickup',
@@ -80,6 +96,24 @@ class TripModel {
     this.completedAt,
     this.proofUrl,
     this.proofStatus,
+    // Extended fields (all optional — tolerate missing values from live backend)
+    this.earningsKobo,
+    this.itemSummary,
+    this.customerRating,
+    this.customerFeedback,
+    this.cancelReason,
+    this.failReason,
+    this.refundStatus,
+    this.proofPhotos = const [],
+    this.proofSignatureUrl,
+    this.proofReceiptUrl,
+    this.pickupLat,
+    this.pickupLng,
+    this.dropoffLat,
+    this.dropoffLng,
+    this.startedAt,
+    this.cancelledAt,
+    this.failedAt,
   });
 
   final String id;
@@ -101,9 +135,60 @@ class TripModel {
   final String? proofUrl;
   final String? proofStatus;
 
+  // Extended
+  final int? earningsKobo;
+  final String? itemSummary;
+  final double? customerRating;
+  final String? customerFeedback;
+  final String? cancelReason;
+  final String? failReason;
+  final String? refundStatus;
+  final List<String> proofPhotos;
+  final String? proofSignatureUrl;
+  final String? proofReceiptUrl;
+  final double? pickupLat;
+  final double? pickupLng;
+  final double? dropoffLat;
+  final double? dropoffLng;
+  final DateTime? startedAt;
+  final DateTime? cancelledAt;
+  final DateTime? failedAt;
+
+  // ── Derived ──────────────────────────────────────────────────────
+
   double get estimatedFareNgn => estimatedFareKobo / 100.0;
   String get fareDisplay => '₦${estimatedFareNgn.toStringAsFixed(2)}';
+
+  double get _earningsNgn =>
+      (earningsKobo ?? estimatedFareKobo) / 100.0;
+
+  String get earningsDisplay =>
+      '₦${_groupThousands(_earningsNgn.round().toString())}';
+
   String get distanceDisplay => '${distanceKm.toStringAsFixed(1)} km';
+
+  String get etaDisplay => '${(distanceKm * 2.5).round()} min';
+
+  bool get hasMap =>
+      pickupLat != null &&
+      pickupLng != null &&
+      dropoffLat != null &&
+      dropoffLng != null;
+
+  bool get hasProof =>
+      proofPhotos.isNotEmpty ||
+      proofSignatureUrl != null ||
+      proofReceiptUrl != null ||
+      proofUrl != null;
+
+  static String _groupThousands(String whole) {
+    final buffer = StringBuffer();
+    for (int i = 0; i < whole.length; i++) {
+      if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(whole[i]);
+    }
+    return buffer.toString();
+  }
 
   factory TripModel.fromJson(Map<String, dynamic> json) {
     final rawStatus = (json['status'] as String?) ?? '';
@@ -120,8 +205,6 @@ class TripModel {
       receiverName: (json['receiver_name'] as String?) ?? '',
       receiverPhone: (json['receiver_phone'] as String?) ?? '',
       distanceKm: ((json['distance_km'] as num?) ?? 0).toDouble(),
-      // Backend `Trip` DTO emits the fare as `fare_amount`; keep the legacy
-      // `estimated_fare_kobo` as a fallback.
       estimatedFareKobo: (json['fare_amount'] as num?)?.toInt() ??
           (json['estimated_fare_kobo'] as num?)?.toInt() ??
           0,
@@ -134,6 +217,32 @@ class TripModel {
           : null,
       proofUrl: json['proof_url'] as String?,
       proofStatus: json['proof_status'] as String?,
+      earningsKobo: (json['earnings_kobo'] as num?)?.toInt(),
+      itemSummary: json['item_summary'] as String?,
+      customerRating: (json['customer_rating'] as num?)?.toDouble(),
+      customerFeedback: json['customer_feedback'] as String?,
+      cancelReason: json['cancel_reason'] as String?,
+      failReason: json['fail_reason'] as String?,
+      refundStatus: json['refund_status'] as String?,
+      proofPhotos: (json['proof_photos'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      proofSignatureUrl: json['proof_signature_url'] as String?,
+      proofReceiptUrl: json['proof_receipt_url'] as String?,
+      pickupLat: (json['pickup_lat'] as num?)?.toDouble(),
+      pickupLng: (json['pickup_lng'] as num?)?.toDouble(),
+      dropoffLat: (json['dropoff_lat'] as num?)?.toDouble(),
+      dropoffLng: (json['dropoff_lng'] as num?)?.toDouble(),
+      startedAt: json['started_at'] != null
+          ? DateTime.tryParse(json['started_at'] as String)
+          : null,
+      cancelledAt: json['cancelled_at'] != null
+          ? DateTime.tryParse(json['cancelled_at'] as String)
+          : null,
+      failedAt: json['failed_at'] != null
+          ? DateTime.tryParse(json['failed_at'] as String)
+          : null,
     );
   }
 }

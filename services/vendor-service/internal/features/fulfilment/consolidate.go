@@ -208,6 +208,7 @@ func (p *Planner) vendorOwnMission(
 		CustodyState:                "NOT_TRANSFERRED",
 		TotalWeightGrams:            anchor.requirement.TotalWeightGrams,
 		PackageCount:                anchor.requirement.PackageCount,
+		LoadingDurationSeconds:      loadingDurationSeconds(group),
 		GroupIDs:                    groupIDs(group),
 	}
 }
@@ -248,13 +249,14 @@ func (p *Planner) platformMission(
 			Address:   request.Destination.Address,
 		},
 		Load: commercequote.Load{
-			PackageCount:       combined.PackageCount,
-			TotalWeightGrams:   combined.TotalWeightGrams,
-			WeightEvidence:     string(combined.WeightEvidence),
-			TotalVolumeMl:      combined.TotalVolumeMl,
-			LongestDimensionMm: combined.LongestDimensionMm,
-			LargeLoad:          combined.LargeLoad,
-			Capabilities:       capabilityStrings(combined.Capabilities),
+			PackageCount:           combined.PackageCount,
+			TotalWeightGrams:       combined.TotalWeightGrams,
+			WeightEvidence:         string(combined.WeightEvidence),
+			TotalVolumeMl:          combined.TotalVolumeMl,
+			LongestDimensionMm:     combined.LongestDimensionMm,
+			LargeLoad:              combined.LargeLoad,
+			LoadingDurationSeconds: loadingDurationSeconds(group),
+			Capabilities:           capabilityStrings(combined.Capabilities),
 		},
 		Urgency:       commercequote.Urgency(combined.Urgency),
 		Currency:      strings.ToUpper(strings.TrimSpace(request.Currency)),
@@ -342,6 +344,7 @@ func (p *Planner) platformMission(
 		CustodyState:                "NOT_TRANSFERRED",
 		TotalWeightGrams:            combined.TotalWeightGrams,
 		PackageCount:                combined.PackageCount,
+		LoadingDurationSeconds:      loadingDurationSeconds(group),
 		GroupIDs:                    groupIDs(group),
 	}
 
@@ -351,6 +354,14 @@ func (p *Planner) platformMission(
 		MissionID: mission.ID,
 		Detail:    quote.QuoteID,
 	}), nil
+}
+
+func loadingDurationSeconds(group cluster) int64 {
+	var total int64
+	for _, member := range group.members {
+		total += member.group.Timing.LoadingDurationSeconds
+	}
+	return total
 }
 
 func haulingQuotePickupStops(group cluster) []commercequote.PickupStop {

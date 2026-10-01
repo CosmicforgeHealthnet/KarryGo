@@ -137,6 +137,7 @@ type Options struct {
 	Branches     BranchAuthority
 	VendorOwn    VendorDeliveryAuthority
 	Dispatch     QuoteAuthority
+	Taxi         QuoteAuthority
 	Hauling      QuoteAuthority
 	Capabilities []Capability
 
@@ -162,6 +163,12 @@ type Options struct {
 	// hardcoded so a runtime that gains the capability opens the gate without
 	// a code change in this package.
 	MultiPickup map[Service]bool
+
+	// CapabilityAuthorities read each logistics authority's live execution
+	// envelope. An authority wired here overrides MultiPickup for its own
+	// service, including when it refuses or cannot be reached: an unread
+	// capability is never an assumed capability.
+	CapabilityAuthorities map[Service]CapabilityAuthority
 
 	// ConsolidationRadiusMeters is how close two vendor pickups must be before
 	// one mission may cover both.
@@ -192,6 +199,7 @@ type Planner struct {
 	branches     BranchAuthority
 	vendorOwn    VendorDeliveryAuthority
 	dispatch     QuoteAuthority
+	taxi         QuoteAuthority
 	hauling      QuoteAuthority
 	capabilities []Capability
 	policy       CapabilityPolicy
@@ -201,6 +209,8 @@ type Planner struct {
 
 	optimization OptimizationPolicy
 	multiPickup  map[Service]bool
+
+	capabilityAuthorities map[Service]CapabilityAuthority
 
 	now func() time.Time
 }
@@ -250,6 +260,11 @@ func NewPlanner(options Options) (*Planner, error) {
 		multiPickup[service] = supported
 	}
 
+	authorities := make(map[Service]CapabilityAuthority, len(options.CapabilityAuthorities))
+	for service, authority := range options.CapabilityAuthorities {
+		authorities[service] = authority
+	}
+
 	now := options.Now
 	if now == nil {
 		now = time.Now
@@ -260,6 +275,7 @@ func NewPlanner(options Options) (*Planner, error) {
 		branches:                  options.Branches,
 		vendorOwn:                 options.VendorOwn,
 		dispatch:                  options.Dispatch,
+		taxi:                      options.Taxi,
 		hauling:                   options.Hauling,
 		capabilities:              capabilities,
 		policy:                    policy,
@@ -267,6 +283,7 @@ func NewPlanner(options Options) (*Planner, error) {
 		planTTL:                   ttl,
 		optimization:              optimization,
 		multiPickup:               multiPickup,
+		capabilityAuthorities:     authorities,
 		now:                       now,
 	}, nil
 }
@@ -276,6 +293,7 @@ func NewPlanner(options Options) (*Planner, error) {
 func (p *Planner) availableServices() map[Service]bool {
 	return map[Service]bool{
 		ServiceDispatch: p.dispatch != nil && p.dispatch.Available(),
+		ServiceTaxi:     p.taxi != nil && p.taxi.Available(),
 		ServiceHauling:  p.hauling != nil && p.hauling.Available(),
 	}
 }
@@ -284,6 +302,8 @@ func (p *Planner) authorityFor(service Service) QuoteAuthority {
 	switch service {
 	case ServiceDispatch:
 		return p.dispatch
+	case ServiceTaxi:
+		return p.taxi
 	case ServiceHauling:
 		return p.hauling
 	default:
@@ -897,8 +917,10 @@ func (p *Planner) selectClustering(
 	candidates := []PlanCandidate{splitCandidate}
 	clusterings := []clustering{split}
 
+	capabilities := p.serviceCapabilities(ctx)
+
 	consolidated, mergeEvents, refusals := p.consolidatedClustering(
-		eligible, mode,
+		eligible, mode, capabilities,
 	)
 
 	switch {
@@ -939,7 +961,7 @@ func (p *Planner) selectClustering(
 			Status:              StatusCandidateIneligible,
 			ReasonCode:          refusals[0],
 			PolicyVersion:       p.optimization.Version,
-			ServiceCapabilities: p.multiPickupCapabilities(),
+			ServiceCapabilities: multiPickupEvidence(capabilities),
 		}
 
 		ineligible.Aggregate(baseline)

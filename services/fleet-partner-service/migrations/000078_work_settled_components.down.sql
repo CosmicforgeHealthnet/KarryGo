@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS fleet_partner_work_settled_components;

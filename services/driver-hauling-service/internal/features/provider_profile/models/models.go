@@ -66,23 +66,9 @@ func (t Truck) Public() PublicTruck {
 	}
 }
 
-// ValidTruckTypes is a superset: the original seeded slugs plus the truck-type
-// options shown in the provider Truck Information form (Figma "Select Truck Type").
-var ValidTruckTypes = map[string]bool{
-	"flatbed":      true,
-	"container":    true,
-	"tipper":       true,
-	"van":          true,
-	"refrigerated": true,
-	"pickup":       true,
-	"box":          true,
-	"tanker":       true,
-	"trailer":      true,
-	"dump":         true,
-	"lowbed":       true,
-	"crane":        true,
-	"other":        true,
-}
+// Truck types are no longer listed here. internal/truckcatalog is the one
+// source of truth for the taxonomy, shared with booking validation and the
+// matcher; this file previously carried a second copy of the same 13 slugs.
 
 var ValidTruckStatuses = map[string]bool{
 	"active":   true,

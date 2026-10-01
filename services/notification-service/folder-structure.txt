@@ -1,0 +1,93 @@
+﻿├── cmd
+│   ├── seed
+│   │   └── main.go
+│   └── main.go
+├── docs
+│   ├── notification.postman_collection.json
+│   ├── notification.postman_environment.json
+│   └── README.md
+├── internal
+│   ├── config
+│   │   └── config.go
+│   ├── database
+│   │   ├── .gitkeep
+│   │   ├── migrate.go
+│   │   └── postgres.go
+│   └── features
+│       ├── delivery_attempts
+│       │   ├── clients
+│       │   │   └── .gitkeep
+│       │   ├── http
+│       │   │   └── .gitkeep
+│       │   ├── models
+│       │   │   └── .gitkeep
+│       │   ├── repositories
+│       │   │   └── .gitkeep
+│       │   ├── usecases
+│       │   │   └── .gitkeep
+│       │   └── README.md
+│       ├── messages
+│       │   ├── clients
+│       │   │   ├── .gitkeep
+│       │   │   ├── firebase_push_sender.go
+│       │   │   ├── interfaces.go
+│       │   │   ├── logging_senders.go
+│       │   │   ├── redis_queue.go
+│       │   │   ├── smtp_email_sender.go
+│       │   │   └── websocket_hub.go
+│       │   ├── http
+│       │   │   ├── .gitkeep
+│       │   │   ├── dto.go
+│       │   │   ├── handler.go
+│       │   │   ├── handler_test.go
+│       │   │   ├── response.go
+│       │   │   └── routes.go
+│       │   ├── models
+│       │   │   ├── .gitkeep
+│       │   │   └── message.go
+│       │   ├── repositories
+│       │   │   ├── .gitkeep
+│       │   │   └── postgres_notification_repository.go
+│       │   ├── usecases
+│       │   │   ├── .gitkeep
+│       │   │   ├── notification_service.go
+│       │   │   ├── notification_service_test.go
+│       │   │   └── realtime_token.go
+│       │   └── README.md
+│       ├── preferences
+│       │   ├── clients
+│       │   │   └── .gitkeep
+│       │   ├── http
+│       │   │   └── .gitkeep
+│       │   ├── models
+│       │   │   └── .gitkeep
+│       │   ├── repositories
+│       │   │   └── .gitkeep
+│       │   ├── usecases
+│       │   │   └── .gitkeep
+│       │   └── README.md
+│       ├── templates
+│       │   ├── clients
+│       │   │   └── .gitkeep
+│       │   ├── http
+│       │   │   └── .gitkeep
+│       │   ├── models
+│       │   │   └── .gitkeep
+│       │   ├── repositories
+│       │   │   └── .gitkeep
+│       │   ├── usecases
+│       │   │   └── .gitkeep
+│       │   └── README.md
+│       └── README.md
+├── migrations
+│   ├── 001_notifications.sql
+│   └── migrations_test.go
+├── seeds
+│   └── dev_templates.sql
+├── .air.toml
+├── .env.example
+├── devtoken
+├── folder-structure.txt
+├── go.mod
+├── go.sum
+└── README.md

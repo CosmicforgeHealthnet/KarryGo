@@ -179,6 +179,32 @@ func TestValidateRejectsNegativeScheduleLeadMinutes(t *testing.T) {
 	}
 }
 
+func TestValidateTaxiGoodsEnabledRequiresEveryAuthorityDependency(t *testing.T) {
+	cfg := validCfg()
+	cfg.TaxiGoodsDeliveryEnabled = true
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("enabled Taxi Goods without dependencies validated")
+	}
+	for _, name := range []string{"TAXI_GOODS_PRICING", "TAXI_GOODS_HANDOVER_SECRET", "TAXI_MEDIA_URL", "TAXI_PAYMENT_URL", "TAXI_SERVICE_SECRETS", "TAXI_VENDOR_URL"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("validation did not name %s: %v", name, err)
+		}
+	}
+
+	cfg.TaxiGoodsPricingJSON = `{"base_minor":1000,"minimum_minor":1000,"currency":"NGN","version":"goods-v1"}`
+	cfg.TaxiGoodsHandoverSecret = []byte("01234567890123456789012345678901")
+	cfg.TaxiGoodsQuoteTTL = 15 * time.Minute
+	cfg.VendorURL = "http://vendor-service:8080"
+	cfg.VendorSecret = []byte("vendor-outbound-secret")
+	cfg.MediaURL, cfg.MediaToken = "http://media", "token"
+	cfg.PaymentURL, cfg.PaymentSecret = "http://wallet", []byte("secret")
+	cfg.ServiceSecrets = "vendor-service=vendor-secret"
+	if err = cfg.Validate(); err != nil {
+		t.Fatalf("fully configured Taxi Goods rejected: %v", err)
+	}
+}
+
 func TestValidateAllowsZeroScheduleLeadMinutes(t *testing.T) {
 	cfg := validCfg()
 	cfg.ScheduleLeadMinutes = 0
@@ -243,5 +269,8 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.OTPDebug {
 		t.Fatal("OTPDebug must default to false so debug_otp never leaks by omission")
+	}
+	if cfg.TaxiGoodsDeliveryEnabled {
+		t.Fatal("TAXI_GOODS_DELIVERY_ENABLED must default to false")
 	}
 }

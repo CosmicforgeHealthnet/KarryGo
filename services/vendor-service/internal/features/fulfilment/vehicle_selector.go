@@ -219,13 +219,17 @@ func Evaluate(request SelectionRequest) (VehicleDecision, error) {
 	// decide at all.
 	weak := measurement.WeaklyEvidenced() || !measurement.Measured()
 	unrecognized := len(requirement.Handling.UnrecognizedHandling) > 0
+	// Packed weight is the one measurement every platform-delivered line
+	// must state; anything short of COMPLETE is a lower bound.
+	weightIncomplete := measurement.WeightEvidence != EvidenceComplete ||
+		measurement.TotalWeightGrams <= 0
 
 	if refusal, refuse := metadataRefusal(
-		policy.MissingMetadata, weak, unrecognized,
+		policy.MissingMetadata, weak, unrecognized, weightIncomplete,
 	); refuse {
 		decision.PrimaryReason = refusal
 
-		if weak {
+		if weak || weightIncomplete {
 			decision.SupportingReasons = append(
 				decision.SupportingReasons, ReasonWeakEvidence,
 			)
@@ -368,8 +372,13 @@ func Evaluate(request SelectionRequest) (VehicleDecision, error) {
 // is chosen rather than whether one is.
 func metadataRefusal(
 	policy MissingMetadataPolicy,
-	weak, unrecognized bool,
+	weak, unrecognized, weightIncomplete bool,
 ) (string, bool) {
+	if policy == MissingMetadataRequirePackedWeight &&
+		(weightIncomplete || unrecognized) {
+		return ReasonMetadataIncomplete, true
+	}
+
 	if !weak && !unrecognized {
 		return "", false
 	}

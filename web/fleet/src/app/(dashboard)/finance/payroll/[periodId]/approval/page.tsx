@@ -1,390 +1,216 @@
-﻿// src/app/(dashboard)/finance/payroll/[periodId]/approval/page.tsx
+﻿"use client";
 
-"use client";
-
-import { useState, useEffect } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   RefreshCw,
-  Clock,
-  CheckCircle2,
   AlertCircle,
+  CheckCircle2,
   Send,
+  RotateCcw,
   FileCheck,
-  Wallet,
 } from "lucide-react";
-
-type PayrollItem = {
-  id: string;
-  providerId: string;
-  providerName: string;
-  providerInitials: string;
-  role: string;
-  branch: string;
-  baseAmount: number;
-  adjustments: number;
-  bonuses: number;
-  deductions: number;
-  netAmount: number;
-  currency: string;
-  status: "Pending" | "Approved" | "Posted" | "Reconciling" | "Failed";
-  ruleVersion: string;
-  source: string;
-  explanation: string;
-  walletRef?: string;
-  walletStatus?: "Pending" | "Completed" | "Reconciling" | "Failed";
-};
-
-type PayrollPeriod = {
-  id: string;
-  reference: string;
-  period: string;
-  startDate: string;
-  endDate: string;
-  totalAmount: number;
-  currency: string;
-  providerCount: number;
-  status: "Draft" | "Calculated" | "Approved" | "Posted" | "Reconciling" | "Failed";
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  approvedBy: string | null;
-  approvedAt: string | null;
-  postedAt: string | null;
-  branch: string;
-  notes: string | null;
-  items: PayrollItem[];
-  approvalSummary: {
-    totalApproved: number;
-    totalPending: number;
-    totalFailed: number;
-    totalReconciling: number;
-    approvalProgress: number;
-  };
-  postingSummary: {
-    postedCount: number;
-    pendingPosting: number;
-    failedPosting: number;
-    reconcilingPosting: number;
-    postingProgress: number;
-  };
-};
-
-// Mock data
-const MOCK_PERIOD: PayrollPeriod = {
-  id: "PP-001",
-  reference: "PP-2026-008",
-  period: "August 2026",
-  startDate: "2026-08-01",
-  endDate: "2026-08-31",
-  totalAmount: 2800000,
-  currency: "NGN",
-  providerCount: 12,
-  status: "Approved",
-  createdAt: "2026-08-20",
-  updatedAt: "2026-08-21",
-  createdBy: "F. Daniel",
-  approvedBy: "O. Adebayo",
-  approvedAt: "2026-08-21",
-  postedAt: null,
-  branch: "All branches",
-  notes: "August 2026 payroll. Approved by finance.",
-  items: [
-    {
-      id: "PI-001",
-      providerId: "P-044",
-      providerName: "Peter Okafor",
-      providerInitials: "PO",
-      role: "Dispatch Rider",
-      branch: "Ikeja",
-      baseAmount: 240000,
-      adjustments: 0,
-      bonuses: 44000,
-      deductions: 0,
-      netAmount: 284000,
-      currency: "NGN",
-      status: "Approved",
-      ruleVersion: "v3.2",
-      source: "Provider Response",
-      explanation: "Base: 240,000 + Bonus: 44,000",
-      walletRef: "WAL-001",
-      walletStatus: "Completed",
-    },
-    {
-      id: "PI-002",
-      providerId: "P-038",
-      providerName: "Musa Bello",
-      providerInitials: "MB",
-      role: "Hauling Driver",
-      branch: "Apapa",
-      baseAmount: 140000,
-      adjustments: 0,
-      bonuses: 16000,
-      deductions: 0,
-      netAmount: 156000,
-      currency: "NGN",
-      status: "Approved",
-      ruleVersion: "v2.1",
-      source: "Provider Response",
-      explanation: "Base: 140,000 + Bonus: 16,000",
-      walletRef: "WAL-002",
-      walletStatus: "Completed",
-    },
-    {
-      id: "PI-003",
-      providerId: "P-052",
-      providerName: "Amina Yusuf",
-      providerInitials: "AY",
-      role: "Dispatch Supervisor",
-      branch: "Yaba",
-      baseAmount: 35000,
-      adjustments: 0,
-      bonuses: 7000,
-      deductions: 0,
-      netAmount: 42000,
-      currency: "NGN",
-      status: "Approved",
-      ruleVersion: "v3.2",
-      source: "Provider Response",
-      explanation: "Base: 35,000 + Bonus: 7,000",
-      walletRef: "WAL-003",
-      walletStatus: "Completed",
-    },
-    {
-      id: "PI-004",
-      providerId: "P-061",
-      providerName: "Chinedu Uche",
-      providerInitials: "CU",
-      role: "Dispatch Rider",
-      branch: "Lekki",
-      baseAmount: 200000,
-      adjustments: 0,
-      bonuses: 38000,
-      deductions: 0,
-      netAmount: 238000,
-      currency: "NGN",
-      status: "Approved",
-      ruleVersion: "v3.2",
-      source: "Provider Response",
-      explanation: "Base: 200,000 + Bonus: 38,000",
-      walletRef: "WAL-004",
-      walletStatus: "Completed",
-    },
-    {
-      id: "PI-005",
-      providerId: "P-029",
-      providerName: "Kabiru Ahmed",
-      providerInitials: "KA",
-      role: "Hauling Driver",
-      branch: "Lekki",
-      baseAmount: 80000,
-      adjustments: 0,
-      bonuses: 9000,
-      deductions: 0,
-      netAmount: 89000,
-      currency: "NGN",
-      status: "Reconciling",
-      ruleVersion: "v2.1",
-      source: "Provider Response",
-      explanation: "Base: 80,000 + Bonus: 9,000",
-      walletRef: "WAL-005",
-      walletStatus: "Reconciling",
-    },
-    {
-      id: "PI-006",
-      providerId: "P-073",
-      providerName: "Esther Obi",
-      providerInitials: "EO",
-      role: "Fleet Manager",
-      branch: "Ikeja",
-      baseAmount: 200000,
-      adjustments: 0,
-      bonuses: 10000,
-      deductions: 0,
-      netAmount: 210000,
-      currency: "NGN",
-      status: "Pending",
-      ruleVersion: "v1.5",
-      source: "Workforce Service",
-      explanation: "Base: 200,000 + Bonus: 10,000",
-      walletRef: "WAL-006",
-      walletStatus: "Pending",
-    },
-  ],
-  approvalSummary: {
-    totalApproved: 3,
-    totalPending: 1,
-    totalFailed: 0,
-    totalReconciling: 1,
-    approvalProgress: 83,
-  },
-  postingSummary: {
-    postedCount: 4,
-    pendingPosting: 1,
-    failedPosting: 0,
-    reconcilingPosting: 1,
-    postingProgress: 67,
-  },
-};
-
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; icon: React.ReactNode }> = {
-  Pending: {
-    bg: "bg-amber-bg",
-    text: "text-amber",
-    dot: "bg-amber",
-    icon: <Clock className="h-3.5 w-3.5" />,
-  },
-  Approved: {
-    bg: "bg-green-bg",
-    text: "text-green",
-    dot: "bg-green",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-  },
-  Posted: {
-    bg: "bg-green-bg",
-    text: "text-green",
-    dot: "bg-green",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-  },
-  Reconciling: {
-    bg: "bg-purple-bg",
-    text: "text-purple",
-    dot: "bg-purple",
-    icon: <RefreshCw className="h-3.5 w-3.5" />,
-  },
-  Failed: {
-    bg: "bg-red-bg",
-    text: "text-red",
-    dot: "bg-red",
-    icon: <AlertCircle className="h-3.5 w-3.5" />,
-  },
-};
-
-const PERIOD_STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-  Draft: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue" },
-  Calculated: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
-  Approved: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Posted: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Reconciling: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple" },
-  Failed: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
-};
-
-const WALLET_STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-  Pending: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
-  Completed: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Reconciling: { bg: "bg-purple-bg", text: "text-purple", dot: "bg-purple" },
-  Failed: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
-};
+import { financeService } from "@/lib/services/financeService";
+import type { PayrollPeriodView } from "@/lib/types/finance";
+import {
+  compensationItemSourceLabel,
+  compensationItemStatusLabel,
+  compensationItemStatusTone,
+  formatDate,
+  formatDateTime,
+  formatMinor,
+  payrollStatusLabel,
+  payrollStatusTone,
+} from "@/lib/utils/financeLabels";
 
 export default function PayrollApprovalPage() {
   const router = useRouter();
   const params = useParams();
   const periodId = params.periodId as string;
 
+  const [period, setPeriod] = useState<PayrollPeriodView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<PayrollPeriod | null>(null);
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [approving, setApproving] = useState(false);
   const [posting, setPosting] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [reversing, setReversing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData({ ...MOCK_PERIOD, id: periodId });
+  const [showReverse, setShowReverse] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const fetchPeriod = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await financeService.payrollPeriods.get(periodId);
+      setPeriod(result);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        (err as Error)?.message ??
+        "Failed to load payroll period.";
+      setError(message);
+    } finally {
       setLoading(false);
-    };
-    loadData();
+    }
   }, [periodId]);
 
   useEffect(() => {
-    const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (periodId) fetchPeriod();
+  }, [periodId, fetchPeriod]);
 
-  if (loading) {
+  const handleApprove = async () => {
+    if (!period || approving) return;
+    setApproving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await financeService.payrollPeriods.approve(
+        period.id,
+        period.version
+      );
+      setPeriod(updated);
+      setSuccess("Payroll approved.");
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        (err as Error)?.message ??
+        "Failed to approve payroll.";
+      setError(message);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handlePost = async () => {
+    if (!period || posting) return;
+    setPosting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await financeService.payrollPeriods.post(
+        period.id,
+        period.version
+      );
+      setPeriod(updated);
+      setSuccess("Payroll posted to provider sub-wallets.");
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        (err as Error)?.message ??
+        "Failed to post payroll.";
+      setError(message);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleReverse = async () => {
+    if (!period || reversing || !reason.trim()) return;
+    setReversing(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await financeService.payrollPeriods.reverse(
+        period.id,
+        period.version,
+        reason.trim()
+      );
+      setPeriod(updated);
+      setSuccess("Payroll reversed.");
+      setShowReverse(false);
+      setReason("");
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        (err as Error)?.message ??
+        "Failed to reverse payroll.";
+      setError(message);
+    } finally {
+      setReversing(false);
+    }
+  };
+
+  const summary = useMemo(() => {
+    if (!period) {
+      return {
+        totalApproved: 0,
+        totalPending: 0,
+        totalPosted: 0,
+        totalAmount: 0,
+      };
+    }
+    let approved = 0;
+    let pending = 0;
+    let posted = 0;
+    let amount = 0;
+    for (const item of period.items) {
+      amount += item.amount_minor;
+      if (item.status === "POSTED") posted++;
+      else if (item.status === "APPROVED") approved++;
+      else pending++;
+    }
+    return {
+      totalApproved: approved,
+      totalPending: pending,
+      totalPosted: posted,
+      totalAmount: amount,
+    };
+  }, [period]);
+
+  if (loading && !period) {
     return (
       <div className="py-12 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        <p className="mt-3 text-sm text-ink-600">Loading payroll approval...</p>
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="mt-3 text-sm text-ink-600">Loading payroll period…</p>
       </div>
     );
   }
 
-  if (!data) {
+  if (error && !period) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
-        <div className="rounded-full bg-surface-2 p-4">
-          <FileCheck className="h-8 w-8 text-ink-400" />
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-surface py-14">
+        <div className="rounded-full bg-red-bg p-4">
+          <AlertCircle className="h-8 w-8 text-red" />
         </div>
-        <h3 className="mt-3 text-[15px] font-semibold text-ink-950">Payroll period not found</h3>
-        <p className="mt-1 text-sm text-ink-500">The payroll period you're looking for doesn't exist.</p>
+        <h3 className="mt-3 text-[15px] font-semibold text-ink-950">
+          Could not load period
+        </h3>
+        <p className="mt-1 max-w-sm px-4 text-center text-sm text-ink-500">
+          {error}
+        </p>
         <button
-          onClick={() => router.push("/finance/payroll")}
+          onClick={fetchPeriod}
           className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90"
         >
-          ← Back to payroll
+          Retry
         </button>
       </div>
     );
   }
 
-  const periodStatusStyle = PERIOD_STATUS_STYLES[data.status] || PERIOD_STATUS_STYLES.Draft;
-  const formattedTotal = new Intl.NumberFormat("en-NG", {
-    style: "currency",
-    currency: "NGN",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(data.totalAmount);
+  if (!period) return null;
 
-  const isApproved = data.status === "Approved";
-  const isPosted = data.status === "Posted";
-  const isReconciling = data.status === "Reconciling";
-  const isCalculated = data.status === "Calculated";
-
-  const handlePost = () => {
-    setShowConfirm(true);
-  };
-
-  const confirmPost = () => {
-    setShowConfirm(false);
-    setPosting(true);
-    setTimeout(() => {
-      setPosting(false);
-      toast("Payroll posted successfully");
-      router.push("/finance/payroll");
-    }, 2000);
-  };
-
-  const handleReconcile = () => {
-    setReconciling(true);
-    setTimeout(() => {
-      setReconciling(false);
-      toast("Reconciliation requested");
-    }, 1500);
-  };
-
-  const handleRetry = (itemId: string) => {
-    toast(`Retrying item ${itemId}...`);
-  };
-
-  const toast = (message: string) => {
-    const t = document.createElement("div");
-    t.className = "fixed bottom-6 right-6 z-50 rounded-xl bg-ink-950 px-5 py-3 text-sm text-white shadow-xl";
-    t.textContent = message;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2500);
-  };
+  const statusTone = payrollStatusTone(period.status);
+  const canApprove =
+    period.status === "CALCULATED" || period.status === "PENDING_APPROVAL";
+  const canPost = period.status === "APPROVED";
+  const canReverse = period.status === "POSTED";
 
   return (
     <div className="space-y-5">
-      {/* ===== HEADER ===== */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <button
-            onClick={() => router.push("/finance/payroll")}
-            className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-line bg-white text-ink-500 transition hover:bg-surface-2 hover:text-ink-700"
+            onClick={() => router.push(`/finance/payroll/${period.id}`)}
+            className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-500 transition hover:bg-surface-2 hover:text-ink-700"
+            aria-label="Back to period"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -393,239 +219,279 @@ export default function PayrollApprovalPage() {
               <h1 className="text-xl font-semibold tracking-tight text-ink-950 sm:text-2xl">
                 Payroll Approval
               </h1>
-              <span className="text-sm text-ink-400">{data.reference}</span>
               <span
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${periodStatusStyle.bg} ${periodStatusStyle.text}`}
+                className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusTone.bg} ${statusTone.text}`}
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${periodStatusStyle.dot}`} />
-                {data.status}
+                <span className={`h-1.5 w-1.5 rounded-full ${statusTone.dot}`} />
+                {payrollStatusLabel(period.status)}
               </span>
+              <span className="text-sm text-ink-400">v{period.version}</span>
             </div>
-            <p className="mt-0.5 text-sm text-ink-500">{data.period} · {data.branch}</p>
+            <p className="mt-0.5 text-sm text-ink-500">
+              {formatDate(period.period_start)} –{" "}
+              {formatDate(period.period_end)} ·{" "}
+              {period.branch_id ?? "All branches"}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setSecondsAgo(0)}
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3 text-[11.5px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
+            onClick={fetchPeriod}
+            disabled={loading}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-ink-500 transition hover:bg-surface-2 disabled:opacity-50"
+            aria-label="Reload"
           >
-            <RefreshCw className="h-3 w-3" />
-            {secondsAgo}s
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
-          {isApproved && (
+          {canApprove && (
+            <button
+              onClick={handleApprove}
+              disabled={approving}
+              className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+            >
+              {approving ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+              Approve
+            </button>
+          )}
+          {canPost && (
             <button
               onClick={handlePost}
               disabled={posting}
-              className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90"
+              className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
             >
-              {posting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Post to Wallet
+              {posting ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Post to wallets
             </button>
           )}
-          {isReconciling && (
+          {canReverse && (
             <button
-              onClick={handleReconcile}
-              disabled={reconciling}
-              className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90"
+              onClick={() => {
+                setReason("");
+                setShowReverse(true);
+              }}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-red/30 bg-red-bg/50 px-3.5 text-[11.5px] font-medium text-red transition hover:bg-red-bg"
             >
-              {reconciling ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Reconcile
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reverse
             </button>
           )}
         </div>
       </div>
 
-      {/* ===== CONFIRM MODAL ===== */}
-      {showConfirm && (
+      {success && (
+        <div className="rounded-lg border border-green/20 bg-green-bg px-4 py-2.5 text-sm text-green">
+          {success}
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-red/30 bg-red-bg px-4 py-2.5 text-sm text-red">
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="whitespace-nowrap text-xs font-semibold underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="rounded-xl border border-line bg-surface p-3.5">
+          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">
+            Posted
+          </div>
+          <div className="text-lg font-bold text-green">
+            {summary.totalPosted}
+          </div>
+        </div>
+        <div className="rounded-xl border border-line bg-surface p-3.5">
+          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">
+            Approved
+          </div>
+          <div className="text-lg font-bold text-ink-950">
+            {summary.totalApproved}
+          </div>
+        </div>
+        <div className="rounded-xl border border-line bg-surface p-3.5">
+          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">
+            Pending
+          </div>
+          <div className="text-lg font-bold text-amber">
+            {summary.totalPending}
+          </div>
+        </div>
+        <div className="rounded-xl border border-line bg-surface p-3.5">
+          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">
+            Total amount
+          </div>
+          <div className="text-lg font-bold text-ink-950">
+            {formatMinor(summary.totalAmount, period.currency)}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-line bg-surface p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold text-ink-950">
+            Items by posting state
+          </h3>
+          <span className="text-xs text-ink-400">
+            {period.items.length} item{period.items.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        {period.items.length === 0 ? (
+          <div className="py-8 text-center text-sm text-ink-500">
+            <FileCheck className="mx-auto h-8 w-8 text-ink-400" />
+            <p className="mt-2">No items to approve.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-sm">
+              <thead>
+                <tr className="bg-surface-2/70">
+                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">
+                    Membership
+                  </th>
+                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">
+                    Source
+                  </th>
+                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">
+                    Amount
+                  </th>
+                  <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {period.items.map((item) => {
+                  const itemTone = compensationItemStatusTone(item.status);
+                  const negative = item.amount_minor < 0;
+                  return (
+                    <tr
+                      key={item.id}
+                      className="border-b border-line transition-colors hover:bg-surface-2"
+                    >
+                      <td className="px-4 py-3 font-mono text-[12px] text-ink-600">
+                        {item.membership_id}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-ink-950">
+                          {compensationItemSourceLabel(item.source_type)}
+                        </div>
+                        <div className="font-mono text-[11px] text-ink-500">
+                          {item.source_reference}
+                        </div>
+                      </td>
+                      <td
+                        className={`px-4 py-3 font-semibold ${
+                          negative ? "text-red" : "text-ink-950"
+                        }`}
+                      >
+                        {negative ? "− " : ""}
+                        {formatMinor(Math.abs(item.amount_minor), item.currency)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${itemTone.bg} ${itemTone.text}`}
+                        >
+                          <span
+                            className={`h-1 w-1 rounded-full ${itemTone.dot}`}
+                          />
+                          {compensationItemStatusLabel(item.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {period.posted_at && (
+        <div className="rounded-2xl border border-line bg-surface p-5">
+          <h3 className="mb-3 text-[15px] font-semibold text-ink-950">
+            Posting details
+          </h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between border-b border-line pb-2">
+              <span className="text-ink-500">Posted at</span>
+              <span className="text-green">
+                {formatDateTime(period.posted_at)}
+              </span>
+            </div>
+            {period.wallet_operation_reference && (
+              <div className="flex items-center justify-between">
+                <span className="text-ink-500">Wallet operation</span>
+                <span className="font-mono text-ink-950">
+                  {period.wallet_operation_reference}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showReverse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-2xl">
             <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold text-ink-950">Post to Wallet?</h3>
+              <RotateCcw className="h-5 w-5 text-red" />
+              <h3 className="text-lg font-semibold text-ink-950">
+                Reverse payroll
+              </h3>
             </div>
             <p className="mt-2 text-sm text-ink-600">
-              Are you sure you want to post this payroll period to provider sub-wallets? This will allocate funds to all approved providers.
+              This posts compensating entries to reverse the posted payroll. A
+              reason is required and will be audited.
             </p>
+            <div className="mt-4">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-[0.06em] text-ink-400">
+                Reason
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                className="w-full resize-none rounded-xl border border-line bg-surface px-4 py-2.5 text-sm text-ink-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
             <div className="mt-5 flex gap-2.5">
               <button
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 rounded-lg border border-line bg-white/70 px-4 py-2 text-sm font-medium text-ink-600 transition hover:bg-white"
+                onClick={() => {
+                  setShowReverse(false);
+                  setReason("");
+                }}
+                className="flex-1 rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-600 transition hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
-                onClick={confirmPost}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
+                onClick={handleReverse}
+                disabled={reversing || !reason.trim()}
+                className="flex-1 rounded-lg bg-red px-4 py-2 text-sm font-medium text-white transition hover:bg-red/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Post
+                {reversing ? (
+                  <RefreshCw className="mr-1 inline h-4 w-4 animate-spin" />
+                ) : null}
+                Reverse
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* ===== STATS ===== */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Providers</div>
-          <div className="text-lg font-bold text-ink-950">{data.providerCount}</div>
-        </div>
-        <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Total Amount</div>
-          <div className="text-lg font-bold text-ink-950">{formattedTotal}</div>
-        </div>
-        <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Approval Progress</div>
-          <div className="text-lg font-bold text-green">{data.approvalSummary.approvalProgress}%</div>
-          <div className="mt-1 h-1.5 w-full rounded-full bg-surface-3 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-green"
-              style={{ width: `${data.approvalSummary.approvalProgress}%` }}
-            />
-          </div>
-        </div>
-        <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">Posting Progress</div>
-          <div className="text-lg font-bold text-blue">{data.postingSummary.postingProgress}%</div>
-          <div className="mt-1 h-1.5 w-full rounded-full bg-surface-3 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-blue"
-              style={{ width: `${data.postingSummary.postingProgress}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ===== APPROVAL SUMMARY ===== */}
-      <div className="rounded-xl border border-line bg-white p-3.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-6 text-sm">
-          <div>
-            <span className="text-ink-500">Approved:</span>
-            <span className="ml-1 font-semibold text-green">{data.approvalSummary.totalApproved}</span>
-          </div>
-          <div>
-            <span className="text-ink-500">Pending:</span>
-            <span className="ml-1 font-semibold text-amber">{data.approvalSummary.totalPending}</span>
-          </div>
-          <div>
-            <span className="text-ink-500">Reconciling:</span>
-            <span className="ml-1 font-semibold text-purple">{data.approvalSummary.totalReconciling}</span>
-          </div>
-          <div>
-            <span className="text-ink-500">Failed:</span>
-            <span className="ml-1 font-semibold text-red">{data.approvalSummary.totalFailed}</span>
-          </div>
-          <div className="ml-auto text-ink-400">
-            <span>Posted: {data.postingSummary.postedCount}</span>
-            <span className="ml-3">Pending: {data.postingSummary.pendingPosting}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== PAYROLL ITEMS TABLE ===== */}
-      <div className="rounded-2xl border border-line bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm min-w-[1000px]">
-            <thead>
-              <tr className="bg-surface-2/70">
-                <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Provider</th>
-                <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Amount</th>
-                <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Status</th>
-                <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Wallet Ref</th>
-                <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500">Wallet Status</th>
-                <th className="border-b border-line px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-ink-500"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item) => {
-                const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
-                const walletStyle = item.walletStatus ? WALLET_STATUS_STYLES[item.walletStatus] : WALLET_STATUS_STYLES.Pending;
-                const formattedAmount = new Intl.NumberFormat("en-NG", {
-                  style: "currency",
-                  currency: "NGN",
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 0,
-                }).format(item.netAmount);
-
-                const isFailed = item.walletStatus === "Failed";
-                const isReconcilingItem = item.walletStatus === "Reconciling";
-
-                return (
-                  <tr key={item.id} className="border-b border-line hover:bg-surface-2 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-                          {item.providerInitials}
-                        </div>
-                        <div>
-                          <div className="font-medium text-ink-950">{item.providerName}</div>
-                          <div className="text-[11px] text-ink-500 font-mono">{item.providerId}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-ink-950">{formattedAmount}</td>
-                    <td className="px-4 py-3">
-                      <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
-                        {statusStyle.icon}
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-[12px] text-ink-600">{item.walletRef || "—"}</td>
-                    <td className="px-4 py-3">
-                      {item.walletStatus ? (
-                        <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${walletStyle.bg} ${walletStyle.text}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${walletStyle.dot}`} />
-                          {item.walletStatus}
-                        </span>
-                      ) : (
-                        <span className="text-ink-400 text-[11px]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {isFailed && (
-                        <button
-                          onClick={() => handleRetry(item.id)}
-                          className="rounded-lg bg-primary px-2.5 py-1 text-[10px] font-medium text-white transition hover:bg-primary/90"
-                        >
-                          Retry
-                        </button>
-                      )}
-                      {isReconcilingItem && (
-                        <button
-                          onClick={() => handleRetry(item.id)}
-                          className="rounded-lg bg-purple px-2.5 py-1 text-[10px] font-medium text-white transition hover:bg-purple/90"
-                        >
-                          Replay
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ===== NOTES ===== */}
-      {data.notes && (
-        <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
-          <h3 className="text-[15px] font-semibold text-ink-950 mb-2">Notes</h3>
-          <p className="text-sm text-ink-600">{data.notes}</p>
-        </div>
-      )}
-
-      {/* ===== FOOTER ===== */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
-        <span className="flex items-center gap-2">
-          <FileCheck className="h-4 w-4" />
-          FIN-12 · Payroll Approval
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Clock className="h-4 w-4" />
-          Updated {secondsAgo}s ago · {data.items.length} items
-        </span>
-      </div>
     </div>
   );
 }

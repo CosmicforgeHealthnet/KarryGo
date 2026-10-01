@@ -2,9 +2,66 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { ASSIGNMENT_DETAIL } from "@/lib/mock-marketplace-data";
+import { marketplaceService } from "@/lib/services/marketplaceService";
+import type { Assignment } from "@/lib/types/marketplace";
+
+// ---------------------------------------------------------------------------
+// Status → human label + visual pill
+// ---------------------------------------------------------------------------
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "CREATED":
+      return "Created";
+    case "PENDING_PROVIDER_RESPONSE":
+      return "Pending response";
+    case "ACCEPTED":
+      return "Accepted";
+    case "READY_FOR_EXECUTION":
+      return "Ready";
+    case "EXECUTION_START_PENDING":
+      return "Starting";
+    case "IN_PROGRESS":
+      return "In progress";
+    case "COMPLETED":
+      return "Completed";
+    case "DECLINED":
+      return "Declined";
+    case "EXPIRED":
+      return "Expired";
+    case "CANCELLED":
+      return "Cancelled";
+    case "RECONCILIATION_REQUIRED":
+      return "Needs reconciliation";
+    default:
+      return status || "—";
+  }
+}
+
+function statusPillClass(status: string): string {
+  switch (status) {
+    case "ACCEPTED":
+    case "READY_FOR_EXECUTION":
+    case "COMPLETED":
+      return "bg-green-bg text-green";
+    case "PENDING_PROVIDER_RESPONSE":
+    case "CREATED":
+      return "bg-amber-bg text-amber";
+    case "DECLINED":
+    case "CANCELLED":
+      return "bg-red-bg text-red";
+    case "EXECUTION_START_PENDING":
+    case "IN_PROGRESS":
+      return "bg-primary-bg text-primary";
+    case "RECONCILIATION_REQUIRED":
+      return "bg-amber-bg text-amber";
+    default:
+      return "bg-surface-2 text-ink-600";
+  }
+}
 
 const TABS = [
   { label: "Overview", segment: "" },
@@ -12,14 +69,9 @@ const TABS = [
   { label: "History", segment: "history" },
 ];
 
-const STATUS_STYLE: Record<string, string> = {
-  "Pending response": "bg-amber-bg text-amber",
-  Accepted: "bg-green-bg text-green",
-  Declined: "bg-red-bg text-red",
-  Expired: "bg-surface-2 text-ink-600",
-  "In Progress": "bg-primary-bg text-primary",
-  Completed: "bg-green-bg text-green",
-};
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
 
 export default function AssignmentDetailLayout({
   children,
@@ -28,8 +80,46 @@ export default function AssignmentDetailLayout({
 }) {
   const pathname = usePathname();
   const params = useParams();
-  const assignmentId = params.assignmentId as string;
-  const assignment = ASSIGNMENT_DETAIL;
+  const assignmentId =
+    typeof params.assignmentId === "string" ? params.assignmentId : "";
+
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!assignmentId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    marketplaceService
+      .getAssignment(assignmentId)
+      .then((data) => {
+        if (!cancelled) setAssignment(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 404) {
+          setError("Assignment not found.");
+        } else {
+          const message =
+            err?.response?.data?.error?.message ??
+            err?.message ??
+            "Failed to load assignment.";
+          setError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignmentId]);
+
   const basePath = `/operations/assignments/${assignmentId}`;
 
   return (
@@ -39,15 +129,40 @@ export default function AssignmentDetailLayout({
         <div>
           <div className="flex items-center gap-2.5">
             <h1>{assignmentId}</h1>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[assignment.status]}`}
-            >
-              {assignment.status}
-            </span>
+            {loading ? (
+              <span className="h-6 w-24 rounded-full bg-surface-2" />
+            ) : assignment ? (
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusPillClass(assignment.Status)}`}
+              >
+                {statusLabel(assignment.Status)}
+              </span>
+            ) : error ? (
+              <span className="rounded-full bg-red-bg px-2.5 py-1 text-xs font-semibold text-red">
+                Unavailable
+              </span>
+            ) : null}
           </div>
-          <p className="mt-0.5 text-sm text-ink-500">
-            Offer {assignment.offerId} · {assignment.provider} · {assignment.branch}
-          </p>
+          {assignment && (
+            <p className="mt-0.5 text-sm text-ink-500">
+              {assignment.OfferID ? (
+                <>
+                  Offer{" "}
+                  <span className="font-mono text-ink-700">
+                    {assignment.OfferID}
+                  </span>
+                  {" · "}
+                </>
+              ) : null}
+              Provider{" "}
+              <span className="font-mono text-ink-700">
+                {assignment.MembershipID}
+              </span>
+            </p>
+          )}
+          {!assignment && !loading && error && (
+            <p className="mt-0.5 text-sm text-ink-500">{error}</p>
+          )}
         </div>
         <Link
           href="/operations/assignments"

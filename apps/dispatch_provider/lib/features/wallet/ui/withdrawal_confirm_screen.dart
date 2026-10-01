@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/app_mode.dart';
+import '../../../core/theme/theme_extensions.dart';
+import '../mock/wallet_tab_mock.dart';
 import '../state/wallet_controller.dart';
 import 'add_bank_account_screen.dart';
 import 'transaction_auth_screen.dart';
@@ -21,16 +25,38 @@ class WithdrawalConfirmScreen extends StatefulWidget {
 class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
   WalletController get _controller => widget.walletController;
 
-  static String _formatAmount(double value) {
-    final s = value.toStringAsFixed(2);
-    final parts = s.split('.');
-    final whole = parts[0];
-    final buffer = StringBuffer();
-    for (int i = 0; i < whole.length; i++) {
-      if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(whole[i]);
+  double get _fee => 0.0;
+
+  double get _netAmount => widget.amount - _fee;
+
+  _BankRowData? get _bank {
+    if (AppModeConfig.instance.isMock) {
+      final list = WalletTabMock.bankAccounts;
+      if (list.isEmpty) return null;
+      final b = list.firstWhere(
+        (a) => a.isDefault,
+        orElse: () => list.first,
+      );
+      return _BankRowData(
+        bankName: b.bankName,
+        accountNumber: b.accountNumber,
+        accountId: b.id,
+      );
     }
-    return '₦ $buffer.${parts[1]}';
+
+    final real = _controller.bankAccount;
+    if (real == null) return null;
+    return _BankRowData(
+      bankName: real.bankName,
+      accountNumber: _maskAccount(real.accountNumber),
+      accountId: real.id,
+    );
+  }
+
+  static String _maskAccount(String raw) {
+    final trimmed = raw.replaceAll(' ', '');
+    if (trimmed.length <= 4) return trimmed;
+    return '**** ${trimmed.substring(trimmed.length - 4)}';
   }
 
   Future<void> _goToAddBankAccount() async {
@@ -43,14 +69,14 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
   }
 
   void _onConfirm() {
-    final bankAccount = _controller.bankAccount;
-    if (bankAccount == null) return;
+    final bank = _bank;
+    if (bank == null) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TransactionAuthScreen(
           walletController: _controller,
           amount: widget.amount,
-          bankAccountId: bankAccount.id,
+          bankAccountId: bank.accountId,
         ),
       ),
     );
@@ -58,274 +84,390 @@ class _WithdrawalConfirmScreenState extends State<WithdrawalConfirmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.palette;
+
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, _) {
-        final bankAccount = _controller.bankAccount;
-        final hasBankAccount = bankAccount != null;
+        final bank = _bank;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: colors.background,
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        behavior: HitTestBehavior.opaque,
-                        child: const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Icon(
-                            Icons.arrow_back_ios_new,
-                            size: 18,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Withdrawal',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF05124D),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+            child: Column(
+              children: [
+                _buildTopBar(context),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Amount to pay',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w500,
+                        _buildAmountBlock(),
+                        const SizedBox(height: 32),
+                        if (bank == null)
+                          _AddBankPrompt(onTap: _goToAddBankAccount)
+                        else
+                          _DetailsCard(
+                            bank: bank,
+                            fee: _fee,
+                            net: _netAmount,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Total',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatAmount(widget.amount),
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Your withdrawal will be processed into your account',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: const Color(0xFF05124D),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (!hasBankAccount)
-                    GestureDetector(
-                      onTap: _goToAddBankAccount,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 20,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: const Color(0xFF05124D),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.add_circle_outline,
-                              color: Color(0xFF05124D),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Add Bank Account',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF05124D),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFEEEEEE)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  bankAccount.accountName,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1A1A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  bankAccount.bankName,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1A1A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  bankAccount.accountNumber,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF888888),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 20,
-                            height: 20,
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFF05124D),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF05124D),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _goToAddBankAccount,
-                      child: Text(
-                        hasBankAccount
-                            ? 'Change account'
-                            : 'Add a bank account to withdraw',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF05124D),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF888888),
-                        height: 1.5,
-                      ),
-                      children: [
-                        const TextSpan(
-                          text: 'By completing payment, you agree to the ',
-                        ),
-                        TextSpan(
-                          text: 'terms and conditions',
-                          style: TextStyle(
-                            color: const Color(0xFF05124D),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const TextSpan(text: ' and acknowledge the '),
-                        TextSpan(
-                          text: 'privacy policy',
-                          style: TextStyle(
-                            color: const Color(0xFF05124D),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: hasBankAccount ? _onConfirm : null,
-                    child: Container(
-                      width: double.infinity,
-                      height: 52,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: hasBankAccount
-                            ? const Color(0xFF05124D)
-                            : const Color(0xFFC1C5D4),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'Confirm',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                _buildConfirmButton(enabled: bank != null),
+              ],
             ),
           ),
         );
       },
     );
   }
+
+  // ── Top bar ───────────────────────────────────────────────────────
+
+  Widget _buildTopBar(BuildContext context) {
+    final colors = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  size: 22,
+                  color: colors.text,
+                ),
+              ),
+            ),
+          ),
+          Text(
+            'Review withdrawal',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: colors.text,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  // ── Amount block ─────────────────────────────────────────────────
+
+  Widget _buildAmountBlock() {
+    final colors = context.palette;
+    return Column(
+      children: [
+        Text(
+          'You are withdrawing',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 12),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            _formatNaira(widget.amount),
+            style: TextStyle(
+              fontSize: 44,
+              fontWeight: FontWeight.w800,
+              color: colors.brandTeal500,
+              letterSpacing: -1.4,
+              height: 1.0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Bottom button ─────────────────────────────────────────────────
+
+  Widget _buildConfirmButton({required bool enabled}) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: FilledButton(
+            onPressed: enabled ? _onConfirm : null,
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            child: const Text('Confirm withdrawal'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatNaira(double value) {
+    final parts = value.toStringAsFixed(2).split('.');
+    final whole = parts[0];
+    final buffer = StringBuffer();
+    for (int i = 0; i < whole.length; i++) {
+      if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(whole[i]);
+    }
+    return '₦$buffer.${parts[1]}';
+  }
+}
+
+// ── Details card ───────────────────────────────────────────────────
+
+class _DetailsCard extends StatelessWidget {
+  const _DetailsCard({
+    required this.bank,
+    required this.fee,
+    required this.net,
+  });
+
+  final _BankRowData bank;
+  final double fee;
+  final double net;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.divider, width: 1),
+      ),
+      child: Column(
+        children: [
+          _BankRow(bank: bank),
+          const _CardDivider(),
+          _ValueRow(
+            label: 'Fee',
+            value: _formatNaira(fee),
+            valueColor: colors.text,
+          ),
+          const _CardDivider(),
+          _ValueRow(
+            label: 'You will receive',
+            value: _formatNaira(net),
+            valueColor: colors.brandTeal500,
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatNaira(double value) {
+    final parts = value.toStringAsFixed(2).split('.');
+    final whole = parts[0];
+    final buffer = StringBuffer();
+    for (int i = 0; i < whole.length; i++) {
+      if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(whole[i]);
+    }
+    return '₦$buffer.${parts[1]}';
+  }
+}
+
+class _CardDivider extends StatelessWidget {
+  const _CardDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: colors.divider,
+      indent: 16,
+      endIndent: 16,
+    );
+  }
+}
+
+// ── Bank row ───────────────────────────────────────────────────────
+
+class _BankRow extends StatelessWidget {
+  const _BankRow({required this.bank});
+  final _BankRowData bank;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: colors.navy10,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Icon(
+                Icons.account_balance_rounded,
+                size: 20,
+                color: colors.text,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  bank.bankName,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  bank.accountNumber,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textMuted,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Value row ─────────────────────────────────────────────────────
+
+class _ValueRow extends StatelessWidget {
+  const _ValueRow({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: colors.textMuted,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Add-bank prompt ───────────────────────────────────────────────
+
+class _AddBankPrompt extends StatelessWidget {
+  const _AddBankPrompt({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.palette;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.teal10,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.brandTeal500, width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.add_circle_outline_rounded,
+              size: 22,
+              color: colors.brandTeal500,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Add a bank account to receive this withdrawal',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Internal row data ─────────────────────────────────────────────
+
+class _BankRowData {
+  const _BankRowData({
+    required this.bankName,
+    required this.accountNumber,
+    required this.accountId,
+  });
+
+  final String bankName;
+  final String accountNumber;
+  final String accountId;
 }

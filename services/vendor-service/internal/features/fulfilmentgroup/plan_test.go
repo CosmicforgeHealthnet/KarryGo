@@ -121,9 +121,9 @@ func TestPlanInput_ReplanMustNameAReason(t *testing.T) {
 	}
 }
 
-// Taxi is modelled in the vocabulary but is not an active commerce authority.
-// Planning against it is refused rather than attempted.
-func TestPlanInput_RejectsInactiveAuthority(t *testing.T) {
+// Taxi Goods is a real commerce authority; runtime selection remains gated by
+// Vendor's feature flag and configured quote/mission clients.
+func TestPlanInput_AcceptsTaxiGoodsAuthority(t *testing.T) {
 	mission := platformMission("slot-1", 1, "u1")
 	mission.Authority = AuthorityTaxi
 
@@ -134,23 +134,23 @@ func TestPlanInput_RejectsInactiveAuthority(t *testing.T) {
 		IdempotencyKey:  "key-3",
 		Missions:        []PlanMission{mission},
 	}
-	if err := in.Validate(); err != ErrConflict {
-		t.Fatalf("err = %v; want ErrConflict for an inactive authority", err)
+	if err := in.Validate(); err != nil {
+		t.Fatalf("Taxi Goods plan rejected: %v", err)
 	}
 }
 
-func TestAuthority_TaxiIsModelledButNotActive(t *testing.T) {
+func TestAuthority_TaxiGoodsIsActiveCommerceVocabulary(t *testing.T) {
 	if !AuthorityTaxi.Valid() {
 		t.Fatal("taxi must be a known authority in the vocabulary")
 	}
 	if !AuthorityTaxi.Platform() {
 		t.Fatal("taxi is a platform authority")
 	}
-	if AuthorityTaxi.ActiveForCommerce() {
-		t.Fatal("taxi has no commerce mission ingress and must not be selectable")
+	if !AuthorityTaxi.ActiveForCommerce() {
+		t.Fatal("Taxi Goods has a commerce mission ingress")
 	}
-	if !AuthorityDispatch.ActiveForCommerce() || !AuthorityHauling.ActiveForCommerce() {
-		t.Fatal("dispatch and hauling are active commerce authorities")
+	if !AuthorityDispatch.ActiveForCommerce() || !AuthorityHauling.ActiveForCommerce() || !AuthorityVendor.ActiveForCommerce() {
+		t.Fatal("all implemented authorities must be active in the vocabulary")
 	}
 }
 

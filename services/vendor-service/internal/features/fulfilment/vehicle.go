@@ -7,13 +7,9 @@ package fulfilment
 // need to be carried in", never "what does it cost" — the fee belongs to the
 // logistics authority's own quote and is never derived here.
 //
-// TAXI. driver-taxi-service has no production goods-delivery capability: it
-// is a passenger service with no goods concept in code. VehicleCar therefore
-// exists as a named future class but is EXCLUDED from selection by
-// selectableClasses below, and ServiceFor refuses it. That is a structural
-// exclusion, not a comment: Section 17C must work without taxi, and a car
-// class that could be selected would eventually reach a taxi route that is
-// not production-ready.
+// TAXI. VehicleCar maps only to the distinct Taxi Goods internal authority.
+// Runtime selection remains fail-closed because the planner reports Taxi
+// available only when TAXI_GOODS_DELIVERY_ENABLED and credentials are set.
 
 import (
 	"errors"
@@ -26,8 +22,6 @@ type VehicleClass string
 const (
 	VehicleMotorcycle VehicleClass = "MOTORCYCLE"
 
-	// VehicleCar is reserved for a future driver-taxi-service GOODS_DELIVERY
-	// capability. It is never selected today. See the package note above.
 	VehicleCar VehicleClass = "CAR"
 
 	VehicleVan   VehicleClass = "VAN"
@@ -46,13 +40,8 @@ const (
 	// van missions anywhere else.
 	ServiceHauling Service = "HAULING"
 
-	// ServiceTaxi is driver-taxi-service. It is modelled so the car class has
-	// a named owner and a future goods mode is a configuration change rather
-	// than a redesign. It has NO production goods capability today:
-	// driver-taxi-service is a passenger service with no goods concept in
-	// code, so ServiceFor still refuses the car class and the capability
-	// policy marks it not executable. Naming the owner is honest; routing a
-	// mission to it would not be.
+	// ServiceTaxi is driver-taxi-service's internal GOODS_DELIVERY product,
+	// never its passenger booking surface.
 	ServiceTaxi Service = "TAXI"
 
 	// ServiceVendorOwn is internal/features/delivery. It is not a platform
@@ -169,16 +158,17 @@ func DefaultCapabilities() []Capability {
 	return capabilities
 }
 
-// classRank orders classes from smallest to largest. VehicleCar deliberately
-// has no rank: it is not selectable.
+// classRank orders classes from smallest to largest.
 func classRank(class VehicleClass) (int, bool) {
 	switch class {
 	case VehicleMotorcycle:
 		return 1, true
-	case VehicleVan:
+	case VehicleCar:
 		return 2, true
-	case VehicleTruck:
+	case VehicleVan:
 		return 3, true
+	case VehicleTruck:
+		return 4, true
 	default:
 		return 0, false
 	}
@@ -208,18 +198,24 @@ func hintFloor(hints []string) (int, bool) {
 				floor = 1
 			}
 
-		case VehicleCar, VehicleVan:
+		case VehicleCar:
 			sawKnown = true
 
 			if floor < 2 {
 				floor = 2
 			}
 
+		case VehicleVan:
+			sawKnown = true
+			if floor < 3 {
+				floor = 3
+			}
+
 		case VehicleTruck:
 			sawKnown = true
 
-			if floor < 3 {
-				floor = 3
+			if floor < 4 {
+				floor = 4
 			}
 		}
 	}
@@ -315,15 +311,12 @@ func SelectVehicle(
 }
 
 // ServiceFor maps a class to the logistics authority that executes it.
-//
-// VehicleCar returns an error rather than a service. This is the single point
-// where a car class would have to become a taxi call, and it refuses — so no
-// amount of upstream change can quietly start calling a taxi route that is
-// not production-ready.
 func ServiceFor(class VehicleClass) (Service, error) {
 	switch class {
 	case VehicleMotorcycle:
 		return ServiceDispatch, nil
+	case VehicleCar:
+		return ServiceTaxi, nil
 
 	case VehicleVan, VehicleTruck:
 		return ServiceHauling, nil

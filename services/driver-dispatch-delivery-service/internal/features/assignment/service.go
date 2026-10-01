@@ -87,6 +87,9 @@ func (s *Service) Start(ctx context.Context, in StartRequest, adminAuthorized bo
 	if err != nil {
 		return Assignment{}, err
 	}
+	if strategy == SequentialNearest && !s.policy.SequentialSelected(in.ServiceTier) {
+		strategy = BroadcastFirstAccept
+	}
 	if strategy == BroadcastFirstAccept {
 		return s.store.Start(ctx, in, strategy, nil, s.policy.OfferWindow, PolicyVersion, s.policy.QueueEnabled)
 	}
@@ -337,6 +340,57 @@ func (s *Service) RunMaintenance(ctx context.Context) (runErr error) {
 	return nil
 }
 
+// RunDrainMaintenance performs only safety/reconciliation work. It creates no
+// new offers and advances no Queue entry, so it is safe while assignment is
+// disabled or the kill switch is active. Accepted winners still receive their
+// canonical Trip and previously requested Wallet outcomes are reconciled.
+func (s *Service) RunDrainMaintenance(ctx context.Context) (runErr error) {
+	started := time.Now()
+	defer func() { observability.Worker("assignment", started, runErr) }()
+	reconciler, durable := s.store.(queueFinancialReconciler)
+	leaseOwner := s.workerOwner + ":" + uuid.NewString()
+	var pending []PendingQueueFinancial
+	var err error
+	if durable {
+		pending, err = reconciler.ClaimPendingQueueFinancial(ctx, s.now(), leaseOwner, s.policy.ReconciliationLease, s.policy.ReconciliationMaxAttempts, 100)
+	} else {
+		pending, err = s.store.ListPendingQueueFinancial(ctx, 100)
+	}
+	if err != nil {
+		return err
+	}
+	for _, item := range pending {
+		state, code := "UNKNOWN", "WALLET_AUTHORITY_UNAVAILABLE"
+		if s.financial != nil {
+			var releaseErr error
+			state, releaseErr = s.financial.ReleaseForNoProvider(ctx, item.BookingID, item.OperationRef)
+			code = ""
+			if releaseErr != nil {
+				state, code = "UNKNOWN", "WALLET_OUTCOME_UNKNOWN"
+			}
+		}
+		if durable {
+			if err = reconciler.CompleteQueueFinancial(ctx, item.QueueID, state, code, s.now(), s.reconciliationBackoff(item.AttemptCount+1), s.policy.ReconciliationMaxAttempts, leaseOwner); err != nil {
+				return err
+			}
+		} else if err = s.store.MarkQueueFinancial(ctx, item.QueueID, state, code); err != nil {
+			return err
+		}
+	}
+	if s.trips != nil {
+		winners, listErr := s.store.ListAcceptedWithoutTrip(ctx, 100)
+		if listErr != nil {
+			return listErr
+		}
+		for _, winner := range winners {
+			if _, err = s.trips.EnsureTrip(ctx, winner.MissionID, winner.ProviderID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Service) RunWorker(ctx context.Context, interval time.Duration) {
 	defer observability.WorkerRunning("assignment")()
 	if interval <= 0 {
@@ -351,6 +405,25 @@ func (s *Service) RunWorker(ctx context.Context, interval time.Duration) {
 		case <-ticker.C:
 			if err := s.RunMaintenance(ctx); err != nil && ctx.Err() == nil {
 				log.Printf("assignment reliability worker failed")
+			}
+		}
+	}
+}
+
+func (s *Service) RunDrainWorker(ctx context.Context, interval time.Duration) {
+	defer observability.WorkerRunning("assignment")()
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.RunDrainMaintenance(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("assignment drain worker failed")
 			}
 		}
 	}

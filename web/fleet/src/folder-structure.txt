@@ -142,22 +142,6 @@
 │   │   │   └── work-orders
 │   │   │       ├── [workOrderId]
 │   │   │       └── page.tsx
-│   │   ├── onboarding
-│   │   │   ├── capabilities
-│   │   │   │   └── page.tsx
-│   │   │   ├── create-company
-│   │   │   │   └── page.tsx
-│   │   │   ├── documents
-│   │   │   │   └── page.tsx
-│   │   │   ├── profile
-│   │   │   │   └── page.tsx
-│   │   │   ├── submit
-│   │   │   │   └── page.tsx
-│   │   │   ├── verification
-│   │   │   │   └── page.tsx
-│   │   │   ├── wallet-provisioning
-│   │   │   │   └── page.tsx
-│   │   │   └── page.tsx
 │   │   ├── operations
 │   │   │   ├── alerts
 │   │   │   │   ├── [alertId]
@@ -233,8 +217,9 @@
 │   │   │   ├── library
 │   │   │   │   ├── [reportId]
 │   │   │   │   └── page.tsx
-│   │   │   └── workforce
-│   │   │       └── page.tsx
+│   │   │   ├── workforce
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
 │   │   ├── settings
 │   │   │   ├── access-history
 │   │   │   │   └── page.tsx
@@ -363,6 +348,24 @@
 │   ├── (public)
 │   │   └── quotations
 │   │       └── [token]
+│   ├── (setup)
+│   │   └── setup
+│   │       ├── business-docs
+│   │       │   └── page.tsx
+│   │       ├── capabilities
+│   │       │   └── page.tsx
+│   │       ├── create-company
+│   │       │   └── page.tsx
+│   │       ├── profile
+│   │       │   └── page.tsx
+│   │       ├── submit
+│   │       │   └── page.tsx
+│   │       ├── verification
+│   │       │   └── page.tsx
+│   │       ├── wallet-provisioning
+│   │       │   └── page.tsx
+│   │       ├── layout.tsx
+│   │       └── page.tsx
 │   ├── favicon.ico
 │   ├── globals.css
 │   └── layout.tsx

@@ -207,16 +207,63 @@ func TestRedisRequiredNeedsAddr(t *testing.T) {
 	assertInvalid(t, cfg, "REDIS_ADDR")
 }
 
-func TestTaxiCannotBeEnabledWithoutProductionContract(t *testing.T) {
+// TestTaxiEnablementRequiresCompleteClient replaces the former
+// "Taxi can never be enabled" rule.
+//
+// That rule was correct while driver-taxi-service published no contract. It
+// now publishes both the marketplace contract and, since Section 10, the
+// private execution contract, so a blanket refusal would keep a working
+// integration permanently unreachable. What remains refused is the dangerous
+// half: a flag switched on against a Taxi nobody configured, which would fail
+// closed on every call and be indistinguishable from an outage.
+func TestTaxiEnablementRequiresCompleteClient(t *testing.T) {
 	cfg := validConfig()
 	cfg.TaxiIntegrationEnabled = true
-	assertInvalid(t, cfg, "FLEET_TAXI_INTEGRATION_ENABLED cannot be enabled")
+	assertInvalid(t, cfg, "FLEET_PARTNER_TAXI_SERVICE_BASE_URL")
+
+	cfg.Clients["driver-taxi-service"] = ClientConfig{
+		BaseURL: "https://taxi.internal", Secret: []byte("secret")}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("a complete taxi configuration was rejected: %v", err)
+	}
 }
 
-func TestPrivateTaxiCannotBeEnabledWithoutProductionContract(t *testing.T) {
+// TestPrivateTaxiExecutionRequiresClientAndLinkSupport pins both halves of the
+// private-execution gate.
+//
+// The second half is the one worth stating: a private taxi job is assigned to
+// an organization MEMBER, and a member is only a coherent thing once Fleet can
+// hold one person's several provider identities together. Enabling execution
+// without link support would dispatch taxi work through a model that cannot
+// represent the taxi identity it just used.
+func TestPrivateTaxiExecutionRequiresClientAndLinkSupport(t *testing.T) {
 	cfg := validConfig()
 	cfg.PrivateTaxiExecutionEnabled = true
-	assertInvalid(t, cfg, "PRIVATE_TAXI_EXECUTION_ENABLED cannot be enabled")
+	assertInvalid(t, cfg, "driver-taxi-service URL, secret and a positive timeout")
+
+	cfg.Clients["driver-taxi-service"] = ClientConfig{
+		BaseURL: "https://taxi.internal", Secret: []byte("secret")}
+	assertInvalid(t, cfg, "FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED")
+
+	cfg.MultiServiceProviderLinksEnabled = true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("a complete private taxi configuration was rejected: %v", err)
+	}
+}
+
+// TestPrivateTaxiExecutionIsOffByDefault keeps the rollout gate honest: the
+// contract existing is not the same as a deployment having certified it.
+func TestPrivateTaxiExecutionIsOffByDefault(t *testing.T) {
+	cfg := validConfig()
+	if cfg.PrivateTaxiExecutionEnabled {
+		t.Fatal("private taxi execution must default to off")
+	}
+	if cfg.MultiServiceProviderLinksEnabled {
+		t.Fatal("multi-service provider links must default to off")
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("the default configuration must validate: %v", err)
+	}
 }
 
 func TestHaulingEnablementRequiresCompleteClient(t *testing.T) {

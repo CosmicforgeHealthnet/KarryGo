@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -16,10 +17,12 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/routing"
 )
@@ -76,6 +79,10 @@ type serviceabilityQuoteAuthority interface {
 	AuthorizeBooking(context.Context, string, string, serviceability.BookingBinding, time.Time) (serviceability.Quote, error)
 }
 
+type serviceabilityObserver interface {
+	ObserveBooking(context.Context, string, string, CreateBookingInput) (string, string, error)
+}
+
 type idempotentBookingCreator interface {
 	InsertIdempotent(context.Context, Booking, string, string, string, int64, string) (Booking, bool, error)
 }
@@ -94,12 +101,32 @@ type Service struct {
 	notifier           LifecycleNotifier
 	commerceSettlement CommerceDeliverySettlementAuthority
 	serviceability     serviceabilityQuoteAuthority
+	observer           serviceabilityObserver
 	protectedCreate    bool
+	rolloutPolicy      rollout.Policy
 	radiusKM           float64
 	now                func() time.Time
 	// routes fetches road geometry for the live map and the progress bar.
 	// nil disables route fetching; consumers then fall back to straight lines.
 	routes routing.Fetcher
+	// tripLocation is the trip-bound point projection (the same reader the
+	// Share Journey adapter uses). Customer tracking reads only through it.
+	tripLocation TripLocationReader
+}
+
+// TripLocationReader returns the customer-safe projection of one trip,
+// including a location point bound to that trip's CURRENT provider, and
+// terminal state. Satisfied by *customershare.Service.
+type TripLocationReader interface {
+	Read(ctx context.Context, tripRef, customerID string) (journeyshare.Projection, error)
+}
+
+// WithTripLocation wires trip-bound customer tracking. Without it the
+// customer location route fails closed rather than exposing the rider's
+// global position.
+func (s *Service) WithTripLocation(reader TripLocationReader) *Service {
+	s.tripLocation = reader
+	return s
 }
 
 func NewService(repository Repository, broadcast BroadcastControl, trips TripControl, live LiveStore, payments PaymentClient, events EventPublisher, radiusKM float64) *Service {
@@ -150,6 +177,19 @@ func (s *Service) WithCommerceSettlement(authority CommerceDeliverySettlementAut
 func (s *Service) WithServiceabilityQuoteAuthority(authority serviceabilityQuoteAuthority, required bool) *Service {
 	s.serviceability = authority
 	s.protectedCreate = required
+	return s
+}
+
+func (s *Service) WithServiceabilityObserver(observer serviceabilityObserver) *Service {
+	s.observer = observer
+	return s
+}
+
+// WithRolloutPolicy configures server-owned cohort selection. The resulting
+// protection snapshot is persisted with the Booking and is therefore not
+// weakened by a later environment flag change.
+func (s *Service) WithRolloutPolicy(policy rollout.Policy) *Service {
+	s.rolloutPolicy = policy
 	return s
 }
 
@@ -212,6 +252,13 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 	}
 	in.ReceiverPhone = normalizedReceiverPhone
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if s.observer != nil && !s.protectedCreate {
+		observationKey := idempotencyKey
+		if observationKey == "" {
+			observationKey = "observe:" + bookingCreateFingerprint(in)
+		}
+		_, _, _ = s.observer.ObserveBooking(ctx, customerID, observationKey, in)
+	}
 	quoteRef := strings.TrimSpace(in.ServiceabilityQuoteRef)
 	if s.protectedCreate && (idempotencyKey == "" || quoteRef == "") {
 		return BookingView{}, apperrors.Validation("Please check your details.", []apperrors.FieldViolation{{Field: "serviceability_quote_ref", Message: "A serviceability quote and Idempotency-Key are required."}})
@@ -266,6 +313,8 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 		PaymentStatus:              PaymentUnpaid,
 		ReceiverName:               strings.TrimSpace(in.ReceiverName),
 		ReceiverPhone:              normalizedReceiverPhone,
+		ReceiverEmail:              strings.ToLower(strings.TrimSpace(in.ReceiverEmail)),
+		ReceiverCustomerID:         strings.TrimSpace(in.ReceiverCustomerID),
 		PackageDesc:                strings.TrimSpace(in.PackageDesc),
 		PackageType:                strings.TrimSpace(in.PackageType),
 		PackageSize:                NormalizePackageSize(in.PackageSize),
@@ -274,6 +323,18 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 		ServiceabilityQuoteRef:     quoteRef,
 		ServiceabilityQuoteVersion: quoteVersion,
 	}
+	protection := s.rolloutPolicy.Protect(rollout.Context{
+		CustomerID:  customerID,
+		SourceType:  "CUSTOMER",
+		SourceRef:   customerID,
+		ServiceTier: booking.ServiceTier,
+	})
+	booking.RolloutProtectionMode = protection.Mode
+	booking.RolloutPolicyVersion = protection.PolicyVersion
+	booking.HandoverRequired = protection.HandoverRequired
+	booking.PickupEvidenceRequired = protection.PickupEvidenceRequired
+	booking.DeliveryEvidenceRequired = protection.DeliveryEvidenceRequired
+	booking.ProviderTransferRequired = protection.ProviderTransferRequired
 	if in.PackageWeight > 0 {
 		weight := in.PackageWeight
 		booking.PackageWeight = &weight
@@ -413,6 +474,8 @@ func bookingCreateFingerprint(in CreateBookingInput) string {
 	in.Dropoff.Address = strings.TrimSpace(in.Dropoff.Address)
 	in.ReceiverName = strings.TrimSpace(in.ReceiverName)
 	in.ReceiverPhone = strings.TrimSpace(in.ReceiverPhone)
+	in.ReceiverEmail = strings.ToLower(strings.TrimSpace(in.ReceiverEmail))
+	in.ReceiverCustomerID = strings.TrimSpace(in.ReceiverCustomerID)
 	in.PackageDesc = strings.TrimSpace(in.PackageDesc)
 	in.PackageType = strings.ToLower(strings.TrimSpace(in.PackageType))
 	in.PackageSize = NormalizePackageSize(in.PackageSize)
@@ -582,32 +645,37 @@ func (s *Service) GetLiveLocation(ctx context.Context, customerID, id string) (L
 	if err != nil {
 		return LocationResponse{}, err
 	}
-	providerID := state.TripProviderID
-	if providerID == "" {
-		providerID = state.Booking.ProviderID
-	}
-	if providerID == "" {
+	// Only the rider CURRENTLY assigned to this booking's trip is ever
+	// tracked. The booking's own provider_id is historical and is never a
+	// fallback: after reassignment it names somebody else's rider.
+	if state.TripID == "" || state.TripProviderID == "" {
 		return LocationResponse{}, apperrors.NotFound("No rider has been assigned yet.", nil)
 	}
-	if s.live == nil {
+	if s.tripLocation == nil {
 		return LocationResponse{}, apperrors.Unavailable("Live tracking is temporarily unavailable.", nil)
 	}
-	location, ok, err := s.live.GetLocation(ctx, providerID)
+	projection, err := s.tripLocation.Read(ctx, state.TripID, customerID)
 	if err != nil {
 		return LocationResponse{}, err
 	}
-	if !ok {
+	// A finished trip stops exposing where the rider is, and a point that is
+	// not bound to this trip's current assignment is never returned.
+	if projection.Terminal || !projection.Location.Available || projection.Location.Lat == nil || projection.Location.Lng == nil || projection.Location.UpdatedAt == nil {
 		return LocationResponse{}, apperrors.NotFound("The rider's location is not available right now.", nil)
 	}
-	return LocationResponse{
-		ProviderID: providerID,
-		Lat:        location.Lat,
-		Lng:        location.Lng,
-		Heading:    location.Heading,
-		Speed:      location.Speed,
-		Accuracy:   location.Accuracy,
-		UpdatedAt:  location.UpdatedAt,
-	}, nil
+	response := LocationResponse{
+		Lat:       *projection.Location.Lat,
+		Lng:       *projection.Location.Lng,
+		UpdatedAt: *projection.Location.UpdatedAt,
+		State:     projection.Location.State,
+	}
+	if projection.Location.Heading != nil {
+		response.Heading = *projection.Location.Heading
+	}
+	if projection.Location.AccuracyM != nil {
+		response.Accuracy = *projection.Location.AccuracyM
+	}
+	return response, nil
 }
 
 // ResolveTrackTarget authorises a customer to stream their rider's live
@@ -619,14 +687,19 @@ func (s *Service) ResolveTrackTarget(ctx context.Context, customerID, id string)
 	if err != nil {
 		return "", err
 	}
-	providerID := state.TripProviderID
-	if providerID == "" {
-		providerID = state.Booking.ProviderID
+	// The stream is the rider's own channel, so it is authorised only while
+	// that rider is the CURRENT provider of an ACTIVE trip for this booking.
+	// A finished or reassigned trip must not keep streaming the rider.
+	if state.TripProviderID == "" || !activeTripStatuses[state.TripStatus] {
+		return "", apperrors.NotFound("No rider is currently assigned.", nil)
 	}
-	if providerID == "" {
-		return "", apperrors.NotFound("No rider has been assigned yet.", nil)
-	}
-	return providerID, nil
+	return state.TripProviderID, nil
+}
+
+// activeTripStatuses are the trip states in which the assigned rider is on
+// the customer's job and may be tracked.
+var activeTripStatuses = map[string]bool{
+	"assigned": true, "en_route_pickup": true, "arrived_pickup": true, "in_progress": true,
 }
 
 // VerifyDriverAtPickup lets the customer confirm the rider's identity using
@@ -954,6 +1027,17 @@ func validateCreateInput(in CreateBookingInput) (string, error) {
 		fields = append(fields, apperrors.FieldViolation{Field: "receiver_phone", Message: "Enter a valid Nigerian phone number."})
 	} else {
 		normalizedPhone = normalized
+	}
+	if email := strings.TrimSpace(in.ReceiverEmail); email != "" {
+		parsed, err := mail.ParseAddress(email)
+		if err != nil || parsed.Address != email || len(email) > 254 {
+			fields = append(fields, apperrors.FieldViolation{Field: "receiver_email", Message: "Enter a valid receiver email."})
+		}
+	}
+	if account := strings.TrimSpace(in.ReceiverCustomerID); account != "" {
+		if _, err := uuid.Parse(account); err != nil {
+			fields = append(fields, apperrors.FieldViolation{Field: "receiver_customer_id", Message: "Enter a valid receiver account reference."})
+		}
 	}
 	if strings.TrimSpace(in.PackageDesc) == "" {
 		fields = append(fields, apperrors.FieldViolation{Field: "package_desc", Message: "Describe the package you are sending."})

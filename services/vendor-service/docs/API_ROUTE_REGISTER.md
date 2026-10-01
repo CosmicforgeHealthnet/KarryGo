@@ -1837,3 +1837,135 @@ Hauling commerce internal routes:
 
 Contract: `services/driver-hauling-service/docs/openapi/commerce-hauling-missions.openapi.json`.
 Traceability: `services/vendor-service/docs/SECTION30_TRACEABILITY.md`.
+
+## Taxi Goods Commerce integration
+
+Vendor adds no public route. With both feature flags enabled and dependencies
+configured, a frozen CAR plan is quoted and executed by Taxi Goods—not by the
+passenger booking or direct-customer parcel APIs.
+
+| Method | Path | Operation | Authority |
+|---|---|---|---|
+| POST | /api/v1/taxi/internal/commerce/quotes | Persist authoritative CAR Goods quote | HMAC v2; exact `vendor-service` allowlist; durable nonce |
+| POST | /api/v1/taxi/internal/commerce/missions | Create an already-paid Taxi Goods mission bound to its quote | HMAC v2; idempotent operation/fingerprint |
+| GET | /api/v1/taxi/internal/commerce/missions/operations/{operationRef} | Unknown-outcome read-back | HMAC v2; source-scoped |
+| GET | /api/v1/taxi/internal/commerce/missions/{missionRef} | Read source-owned mission | HMAC v2; source-scoped |
+| POST | /api/v1/taxi/internal/commerce/missions/{missionRef}/cancel | Pre-custody cancellation | HMAC v2; optimistic version |
+| POST | /api/v1/taxi/internal/commerce/missions/{missionRef}/pickup/verify | Vendor verifies provider-held pickup credential | HMAC v2; one-use challenge |
+| POST | /api/v1/taxi/internal/commerce/missions/{missionRef}/receiver | Change the receiver before terminal custody and rotate delivery credentials when needed | HMAC v2; Vendor source scope; versioned idempotent operation |
+| POST | /api/v1/taxi/internal/operations/goods/missions/{missionRef}/reassign | Reassign an eligible provider before unsafe custody states | HMAC v2; exact operations-service allowlist; versioned idempotent operation |
+
+Provider Goods routes are bearer-protected under
+`/api/v1/taxi/provider/goods`. Contract:
+`services/driver-taxi-service/docs/openapi/taxi-goods.openapi.json`.
+Traceability: `services/vendor-service/docs/SECTION29_TRACEABILITY.md`.
+
+## Section 32 — authoritative handover read-back
+
+| Method | Path | Service / caller | Authentication | Idempotency | Purpose / gate / authority |
+|---|---|---|---|---|---|
+| GET | `/api/v1/taxi/internal/commerce/missions/{missionRef}/handover/{stage}` | Taxi Goods / Vendor | Existing HMAC, exact Vendor caller, durable nonce | Read-only | Opaque PICKUP/DELIVERY observation; existing Taxi Goods composition; Taxi owns challenges |
+| GET | `/api/v1/internal/commerce/dispatch/missions/{missionRef}/stops/{stopRef}/handover/{stage}` | Dispatch / Vendor | HMAC v2, caller allowlist, durable nonce | Read-only | Opaque pickup observation scoped to the frozen stop; Dispatch owns challenges |
+| GET | `/api/v1/internal/commerce/dispatch/missions/{missionRef}/handover/{stage}` | Dispatch / Vendor | HMAC v2, caller allowlist, durable nonce | Read-only | Opaque delivery observation; Dispatch owns receiver challenge |
+| POST | `/api/v1/internal/commerce/dispatch/missions/{missionRef}/stops/{stopRef}/pickup/verify` | Dispatch / Vendor | HMAC v2, caller allowlist, durable nonce | Required header; canonical operation store | Transient pickup credential relay; Dispatch commits custody |
+| GET | `/api/v1/hauling/internal/commerce/missions/{missionRef}/handover/{stage}` | Hauling / Vendor | HMAC v2, caller allowlist, durable nonce | Read-only | Opaque pickup/delivery observation; Hauling owns challenges |
+| POST | `/api/v1/hauling/internal/commerce/missions/{missionRef}/handover/PICKUP/confirm` | Hauling / Vendor | HMAC v2, caller allowlist, durable nonce | Required header; canonical consumed-state reconciliation | Transient pickup credential relay; Hauling commits verification |
+| GET | `/api/v1/vendor/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/{stage}` | Vendor / authenticated vendor staff | Vendor bearer + business/branch scope | Read-only | Authority chosen from frozen mission; returns only opaque canonical observation; per-authority relay gate |
+| POST | `/api/v1/vendor/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/pickup/confirm` | Vendor / authenticated vendor staff | Vendor bearer + `vendor.orders.manage` + business/branch scope | Required `Idempotency-Key`; namespaced by mission/staff | Relays OTP/QR in memory and never echoes or persists it |
+
+Vendor-owned missions use the same two Vendor routes above. The normalized
+adapter binds and calls Dispatch's distinct VendorMission custody authority;
+canonical internal routes are documented in the Dispatch route register.
+`PENDING_EXTERNAL_DEPENDENCY = NONE`.
+
+## Sections 33–35 — authority-local custody routes
+
+Vendor registers no custody route. It calls/projects the canonical authority
+selected by the frozen Commerce mission. Each internal route below is HMAC v2,
+exact-caller-allowlisted, nonce-replay-protected and idempotent.
+
+| Authority | Base path | Operations |
+|---|---|---|
+| Dispatch MOTORCYCLE and Vendor-owned | `/api/v1/internal/custody/v1` | `POST /manifests/freeze`, `/manifests/confirm`, `/evidence`, `/exceptions`, `/returns`, `/returns/complete`, `/incidents`, `/replacements`, `/transfers`, `/earning-allocations` |
+| Hauling VAN/TRUCK | `/api/v1/hauling/internal/custody/v1` | Same ten internal operations; provider incident at `POST /api/v1/hauling/provider/custody/missions/{missionRef}/incidents` |
+| Taxi Goods CAR | `/api/v1/taxi/internal/custody/v1` | Same ten internal operations; provider incident at `POST /api/v1/taxi/provider/custody/missions/{missionRef}/incidents` |
+
+Dispatch provider incident reporting continues through its existing
+bearer-protected delivery-recovery route; it is not duplicated here. Machine
+contracts live under each execution service's `docs/openapi` directory.
+
+## Sections 40-42 closure
+
+No public, Vendor-authenticated, provider, or internal HTTP route is added.
+The change hardens the existing command middleware/event repositories and adds
+an internal database worker controlled by `VENDOR_PRIVACY_RETENTION_ENABLED`.
+Existing route counts and OpenAPI contracts are unchanged.
+
+## Section 43 — API contract family index
+
+The canonical fully enabled Vendor router contains **857 routes before and 857
+routes after Section 43**. Routes added/changed/deprecated/removed: none. The
+existing `ready_for_pickup` compatibility alias remains active beside
+`ready-for-pickup`; Section 43 adds no alias. The exact method/path inventory,
+including its authoritative OpenAPI source and the bidirectional zero-gap
+comparison, is `SECTION43_ROUTE_PARITY.json`. Existing detailed route tables in
+this register remain the human route catalogue and are exercised by the global
+route-register test.
+
+| Family | Actual surface | Caller/authentication | Authorization | Retry/concurrency | Authority | OpenAPI authority | Status / notes |
+|---|---|---|---|---|---|---|---|
+| Vendor Authentication | `/api/v1/vendor/auth` | Anonymous challenge or Vendor refresh token, per operation | Session/challenge binding; rate limited | Challenge/session semantics; no business identity trusted from body | Vendor authentication | `section5-auth-staff-iam.openapi.json` | ACTIVE |
+| Vendor Business | Mature `/api/v1/vendor` business, brand, branch, staff, role, permission and settings paths | Vendor bearer | Membership, business, branch and permission policy | Idempotency-Key and expectedVersion where the registered command requires them | Vendor | Section 5–7 contracts | ACTIVE |
+| Vendor CRM | `/api/v1/vendor/crm` | Vendor bearer | Tenant-scoped CRM permission; privacy-safe projection | Command idempotency and expectedVersion per operation | Vendor CRM projection; Customer retains reusable preference truth | Section 8 contracts | ACTIVE |
+| Vendor Catalogue | Existing `/api/v1/vendor/food`, `/shop`, `/pastry`, taxonomy and production catalogue paths | Vendor bearer | Business/branch/catalogue ownership | Command idempotency; version contract where mutable | Vendor catalogue | Sections 9–13 and 16 contracts | ACTIVE; pharmacy excluded |
+| Vendor Inventory | Existing inventory, stocktake, reservation, transfer, lot and reorder paths | Vendor bearer | Business/branch inventory policy | Idempotency-Key plus optimistic version on stock mutations | Vendor inventory | Section 12B/14 contracts | ACTIVE |
+| Vendor Purchasing | `/api/v1/vendor/purchasing` plus mature supplier/receipt paths | Vendor bearer | Vendor and branch purchasing policy | Idempotency-Key + If-Match on stateful commands | Vendor purchasing; Wallet refs only | `section15-vendor-purchasing.openapi.json` | ACTIVE |
+| Vendor Orders | `/api/v1/vendor/commerce/orders` | Vendor bearer | Vendor/branch/order object policy | Idempotency-Key on writes; If-Match on order/line transitions | Vendor order orchestration | Sections 17E/18 and focused Shop contract | ACTIVE; underscore alias retained |
+| Vendor Delivery | Existing `/api/v1/vendor/delivery` and `/fulfilment` paths | Vendor bearer | Vendor/mission projection policy | Idempotency-Key + If-Match where command-capable | Dispatch/Hauling/Taxi Goods/VendorMission execution; Vendor projection only | Delivery, fulfilment and Section 32 contracts | ACTIVE / DEPENDENCY_GATED |
+| Customer Food | Existing Food discovery adapter plus `/api/v1/commerce` selection | Customer bearer where customer-owned; bounded discovery otherwise | Customer subject and sellability policy | No duplicate write surface | Food catalogue projection | Sections 9C and 17 contracts | ACTIVE; repository-compatible path retained |
+| Customer Shop | Existing Shop discovery adapter plus `/api/v1/commerce` selection | Customer bearer where customer-owned; bounded discovery otherwise | Customer subject, restricted-goods and sellability policy | No duplicate write surface | Shop catalogue projection | Section 12 and commerce contracts | ACTIVE; medicine rejected |
+| Commerce Cart/Checkout/Order | `/api/v1/commerce` | Customer bearer | Customer subject from token; object ownership | Idempotency-Key/fingerprint replay; If-Match/quote version where stateful | Vendor orchestration; Wallet retains money truth | Sections 17A–18 | ACTIVE / payment dependency-gated |
+| Internal Integrations | `/internal/vendor/v1`, `/api/v1/internal`, and mature root internal paths | HMAC v2 service identity | Exact caller allowlist and resource/source scope | Nonce replay protection; operation/event idempotency; source version | Named source authority | Per-section internal OpenAPI operations | ACTIVE; never public bearer |
+| Advanced Commerce | Existing basket, fulfilment optimizer, RFQ, group and recurring paths | Customer or Vendor bearer by operation | Subject/business scope | Typed operation idempotency and immutable quote/cart versions | Existing pricing, Inventory and Wallet boundaries | Basket, fulfilment and Section 21 contracts | ACTIVE / DEPENDENCY_GATED |
+| Order Guarantee | none | none | none | none | Future only | none | FUTURE_DISABLED |
+
+Section 43 contract-only corrections changed no route path or method. OpenAPI
+metadata was completed for operation IDs, path parameters, responses, security,
+idempotency and concurrency; the Section 16D cost command group now uses its
+already-injected idempotency store consistently with adjacent Section 16
+families. See `SECTION43_TRACEABILITY.md` for the family matrix, approved
+duplicate declarations, gateway result, authority statements and test evidence.
+
+## Sections 44–45 — event and worker contracts
+
+No HTTP route was added, changed, aliased, deprecated or removed. Event
+publication, consumption, replay and worker recovery remain code-level/internal
+operational contracts; no public replay endpoint was introduced. The Section
+43 inventory therefore remains 857 production routes and 867 OpenAPI
+declarations without regeneration. Event and worker authority is recorded in
+`SECTION44_EVENT_PARITY.json`, `SECTION45_WORKER_CATALOGUE.json` and
+`SECTION44_45_TRACEABILITY.md`.
+
+## Customer journey sharing (Sections 9–11)
+
+| Method | Route | Boundary | Contract |
+|---|---|---|---|
+| GET | /internal/vendor/v1/customer-share/missions/{sourceRef} | HMAC v2; customer-service only; nonce replay guard | customer-share-mission-projection.openapi.json |
+
+Current inventory: 858 mounted routes; 868 OpenAPI declarations.
+
+## Karryam V4 §14 customer discovery and preview
+
+Customer access bearer only. CUSTOMER_FOOD_ENABLED/CUSTOMER_SHOP_ENABLED and matching COMMERCE flags are required; the global kill switch closes both. Shared per-customer Redis read budgets fail closed.
+
+| Method | Path | Authority |
+| --- | --- | --- |
+| GET | `/api/v1/commerce/food/branches/{branchId}/catalogue` | Customer bearer |
+| GET | `/api/v1/commerce/food/branches/{branchId}/items/{itemId}/sellability` | Customer bearer |
+| GET | `/api/v1/commerce/shop/branches/{branchId}/catalogue` | Customer bearer |
+| GET | `/api/v1/commerce/shop/branches/{branchId}/products/{productId}` | Customer bearer |
+| POST | `/api/v1/commerce/food/search` | Customer bearer |
+| GET | `/api/v1/commerce/food/search/suggestions` | Customer bearer |
+| POST | `/api/v1/commerce/shop/search` | Customer bearer |
+| GET | `/api/v1/commerce/shop/search/suggestions` | Customer bearer |
+| GET | `/api/v1/commerce/carts/{cartId}/delivery-preview` | Customer bearer |

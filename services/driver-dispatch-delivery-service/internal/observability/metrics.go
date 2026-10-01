@@ -66,6 +66,18 @@ func Handover(operation, stage, method string, err error) {
 	Metrics.IncCounter("dispatch_handover_"+Bounded(operation, "verification", "resend", "issue")+"_total", labels, 1)
 }
 
+func ServiceabilityObserve(decision, admission, serviceTier string, err error) {
+	if err != nil {
+		decision, admission = "UNAVAILABLE", "UNAVAILABLE"
+	}
+	Metrics.IncCounter("dispatch_serviceability_observe_total", map[string]string{
+		"legacy_result":  "accepted",
+		"new_result":     Bounded(decision, "SERVICEABLE", "SERVICEABLE_WITH_CONDITIONS", "OUTSIDE_SERVICE_AREA", "OPERATIONAL_REVIEW", "UNAVAILABLE"),
+		"package_result": Bounded(admission, "ACCEPTED", "ACCEPTED_WITH_CONDITIONS", "REQUIRES_REPACK", "REQUIRES_REPRICE", "REFUSED_PROHIBITED", "REFUSED_UNSAFE", "OPERATIONAL_REVIEW", "UNAVAILABLE"),
+		"service_tier":   Bounded(strings.ToLower(strings.TrimSpace(serviceTier)), "standard", "express"),
+	}, 1)
+}
+
 func Worker(name string, started time.Time, err error) {
 	name = Bounded(name, "assignment", "handover", "recovery", "route", "outbox", "relay", "wallet_hold", "wallet_settlement", "collector")
 	labels := map[string]string{"worker": name, "outcome": Outcome(err)}

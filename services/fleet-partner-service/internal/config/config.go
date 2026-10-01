@@ -35,7 +35,13 @@ type ClientConfig struct {
 }
 
 // ExecutionCapabilities is the single validated source gate used by HTTP
-// use cases and workers. Taxi intentionally has no configurable true state.
+// use cases and workers.
+//
+// Taxi is true only when the deployment has BOTH enabled the Taxi integration
+// flag and supplied Taxi's URL and secret. Section 8 TAX-028 requires the Taxi
+// source to stay dark until the whole corporate chain is certified, so the
+// default remains false and configuring Taxi's client alone does not turn it
+// on.
 type ExecutionCapabilities struct{ Dispatch, Taxi, Hauling bool }
 
 func (c Config) ExecutionCapabilities() ExecutionCapabilities {
@@ -44,14 +50,15 @@ func (c Config) ExecutionCapabilities() ExecutionCapabilities {
 	}
 	dispatchConfigured := c.DispatchServiceURL != "" && len(c.DispatchServiceSecret) > 0
 	hauling := c.Clients["driver-hauling-service"]
+	taxi := c.Clients["driver-taxi-service"]
 	return ExecutionCapabilities{
 		Dispatch: c.DispatchExecutionStartEnabled && dispatchConfigured,
-		Taxi:     false,
+		Taxi:     c.TaxiIntegrationEnabled && taxi.Configured(),
 		Hauling:  c.HaulingIntegrationEnabled && hauling.Configured(),
 	}
 }
 
-func (c ExecutionCapabilities) Any() bool { return c.Dispatch || c.Hauling }
+func (c ExecutionCapabilities) Any() bool { return c.Dispatch || c.Hauling || c.Taxi }
 
 // Configured reports whether the client can make live calls.
 func (c ClientConfig) Configured() bool {
@@ -118,7 +125,12 @@ type Config struct {
 	// every category flag and is intended for incident response.
 	IntegrationsKillSwitch    bool
 	HaulingIntegrationEnabled bool
-	TaxiIntegrationEnabled    bool
+	// TaxiIntegrationEnabled switches the TAXI execution source on. Default
+	// false: Section 8 TAX-028 gates activation behind full certification of
+	// corporate context, assignments, offers, reservation, private execution,
+	// execution start, the completed-work outbox, Fleet ingestion,
+	// reconciliation and the financial projection.
+	TaxiIntegrationEnabled bool
 
 	// Marketplace event ingestion and projection reconciliation.
 	MarketplaceEventIngestionEnabled bool
@@ -321,8 +333,18 @@ type Config struct {
 	PrivateHaulingExecutionEnabled  bool
 	PrivateTaxiExecutionEnabled     bool
 	PrivateOperationsKillSwitch     bool
-	PrivateAssignmentResponseTTL    time.Duration
-	PrivateExecutionWorkerEnabled   bool
+
+	// MultiServiceProviderLinksEnabled turns on the organization-member layer:
+	// one logical person who may hold a Dispatch, a Taxi and a Hauling provider
+	// identity at once, each owned by its own service.
+	//
+	// Without it, memberships remain what they have always been -- independent
+	// per-service rows with no link between them -- which is why private Taxi
+	// execution requires it: a taxi job assigned to "the same driver" is only
+	// meaningful if Fleet can say which dispatch rider that same driver is.
+	MultiServiceProviderLinksEnabled bool
+	PrivateAssignmentResponseTTL     time.Duration
+	PrivateExecutionWorkerEnabled    bool
 
 	// Section 16 planning and live-control capabilities. Every write and every
 	// worker defaults closed; the Fleet integration kill switch overrides all.
@@ -383,6 +405,20 @@ type Config struct {
 	CommunicationsEnabled, NotificationRulesEnabled, SupportProjectionsEnabled bool
 	QualityCasesEnabled, SLAMeasurementsEnabled, EscalationsEnabled            bool
 	Section22WorkersEnabled, Section23WorkersEnabled                           bool
+
+	// Sections 6-7 Fleet partner foundations. Security and membership
+	// verification do not have rollout bypasses; these flags only gate new
+	// behavior-changing projections/resolution/instruction flows.
+	FleetOperatingModeEnforcementEnabled bool
+	FleetCompensationResolverEnabled     bool
+
+	// FleetCompensationResolverMode is OFF, SHADOW or ON (CMP-001/019).
+	// Unset falls back to the boolean above, so an existing deployment keeps
+	// behaving exactly as it did until it opts in.
+	FleetCompensationResolverMode        string
+	FleetCompletedWorkProjectionEnabled  bool
+	FleetSettlementInstructionEnabled    bool
+	FleetTypedFinancialVisibilityEnabled bool
 
 	// Section 25 (partial slice): search projection. Read-only surface;
 	// indexing is a Go-level API other features call directly, not yet a
@@ -588,8 +624,13 @@ func Load() (Config, error) {
 			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service"),
 		DocumentsCustomerAllowedCallers: getEnv("FLEET_DOCUMENTS_CUSTOMER_ALLOWED_CALLERS", ""),
 
+		// support-dispute-service reads corporate context to label a
+		// provider-raised safety case with the organization it happened
+		// under. It is a read of the same contract the execution services
+		// already use -- no new shape, no write access, and Support holds no
+		// Fleet credentials beyond this one allowlist entry.
 		ProviderMembershipAllowedCallers: getEnv("PROVIDER_MEMBERSHIP_ALLOWED_CALLERS",
-			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service"),
+			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service,support-dispute-service"),
 
 		DocumentReconcileEnabled:     getEnvBool("FLEET_DOCUMENTS_RECONCILIATION_ENABLED", false),
 		DocumentReconcileInterval:    time.Duration(getEnvInt("FLEET_DOCUMENTS_RECONCILE_INTERVAL_SECONDS", 30)) * time.Second,
@@ -688,11 +729,17 @@ func Load() (Config, error) {
 		PrivateAssignmentsWorkerEnabled: getEnvBool("PRIVATE_ASSIGNMENTS_WORKER_ENABLED", false),
 		PrivateDispatchExecutionEnabled: getEnvBool("PRIVATE_DISPATCH_EXECUTION_ENABLED", false),
 		PrivateHaulingExecutionEnabled:  getEnvBool("PRIVATE_HAULING_EXECUTION_ENABLED", false),
-		// Taxi has no production authority contract. Configuration cannot turn it on.
-		PrivateTaxiExecutionEnabled:   false,
-		PrivateOperationsKillSwitch:   getEnvBool("FLEET_PRIVATE_OPERATIONS_KILL_SWITCH", false),
-		PrivateAssignmentResponseTTL:  time.Duration(getEnvInt("FLEET_PRIVATE_ASSIGNMENT_RESPONSE_TTL_SECONDS", 1800)) * time.Second,
-		PrivateExecutionWorkerEnabled: getEnvBool("PRIVATE_EXECUTION_WORKER_ENABLED", false),
+		// Taxi now has a production private-execution contract
+		// (driver-taxi-service's privateexecution feature, Section 10), so the
+		// flag is configuration again rather than a hardcoded false. It still
+		// defaults off and is still validated against a reachable Taxi client
+		// below: a flag that turns on an integration nobody configured is
+		// worse than one that cannot be turned on at all.
+		PrivateTaxiExecutionEnabled:      getEnvBool("PRIVATE_TAXI_EXECUTION_ENABLED", false),
+		PrivateOperationsKillSwitch:      getEnvBool("FLEET_PRIVATE_OPERATIONS_KILL_SWITCH", false),
+		MultiServiceProviderLinksEnabled: getEnvBool("FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED", false),
+		PrivateAssignmentResponseTTL:     time.Duration(getEnvInt("FLEET_PRIVATE_ASSIGNMENT_RESPONSE_TTL_SECONDS", 1800)) * time.Second,
+		PrivateExecutionWorkerEnabled:    getEnvBool("PRIVATE_EXECUTION_WORKER_ENABLED", false),
 
 		DispatchPlanningEnabled:     getEnvBool("DISPATCH_PLANNING_ENABLED", false),
 		RoutePlanningEnabled:        getEnvBool("ROUTE_PLANNING_ENABLED", false),
@@ -755,41 +802,47 @@ func Load() (Config, error) {
 		Section21WorkersEnabled:   getEnvBool("SECTION21_WORKERS_ENABLED", false),
 		ProofHMACSecret:           secret("FLEET_PROOF_HMAC_SECRET"),
 
-		InvoicesEnabled:                    getEnvBool("INVOICES_ENABLED", false),
-		ReceivablesEnabled:                 getEnvBool("RECEIVABLES_ENABLED", false),
-		ExpensesEnabled:                    getEnvBool("EXPENSES_ENABLED", false),
-		BudgetsEnabled:                     getEnvBool("BUDGETS_ENABLED", false),
-		CompensationEnabled:                getEnvBool("COMPENSATION_ENABLED", false),
-		PayrollEnabled:                     getEnvBool("PAYROLL_ENABLED", false),
-		SubcontractorSettlementsEnabled:    getEnvBool("SUBCONTRACTOR_SETTLEMENTS_ENABLED", false),
-		ClaimsEnabled:                      getEnvBool("CLAIMS_ENABLED", false),
-		FinancePostingEnabled:              getEnvBool("FINANCE_POSTING_ENABLED", false),
-		CommunicationsEnabled:              getEnvBool("COMMUNICATIONS_ENABLED", false),
-		NotificationRulesEnabled:           getEnvBool("NOTIFICATION_RULES_ENABLED", false),
-		SupportProjectionsEnabled:          getEnvBool("SUPPORT_PROJECTIONS_ENABLED", false),
-		QualityCasesEnabled:                getEnvBool("QUALITY_CASES_ENABLED", false),
-		SLAMeasurementsEnabled:             getEnvBool("SLA_MEASUREMENTS_ENABLED", false),
-		EscalationsEnabled:                 getEnvBool("ESCALATIONS_ENABLED", false),
-		Section22WorkersEnabled:            getEnvBool("SECTION22_WORKERS_ENABLED", false),
-		Section23WorkersEnabled:            getEnvBool("SECTION23_WORKERS_ENABLED", false),
-		SearchEnabled:                      getEnvBool("SEARCH_ENABLED", false),
-		SynchronizationEnabled:             getEnvBool("FLEET_SYNCHRONIZATION_ENABLED", false),
-		SynchronizationWorkerEnabled:       getEnvBool("FLEET_SYNCHRONIZATION_WORKER_ENABLED", false),
-		SynchronizationKillSwitch:          getEnvBool("FLEET_SYNCHRONIZATION_KILL_SWITCH", false),
-		OrganizationAPIClientsEnabled:      getEnvBool("FLEET_PARTNER_ORGANIZATION_API_CLIENTS_ENABLED", false),
-		WebhooksEnabled:                    getEnvBool("FLEET_PARTNER_WEBHOOKS_ENABLED", false),
-		WebhookDeliveryWorkerEnabled:       getEnvBool("FLEET_PARTNER_WEBHOOK_DELIVERY_WORKER_ENABLED", false),
-		APIClientHashKey:                   secret("FLEET_PARTNER_API_CLIENT_HASH_KEY"),
-		WebhookSecretEncryptionKey:         secret("FLEET_PARTNER_WEBHOOK_SECRET_ENCRYPTION_KEY"),
-		WebhookAllowHTTP:                   getEnvBool("FLEET_PARTNER_WEBHOOK_ALLOW_HTTP", false),
-		WebhookPrivateDestinationAllowlist: getEnvList("FLEET_PARTNER_WEBHOOK_PRIVATE_DESTINATION_ALLOWLIST"),
-		WebhookDeliveryTimeout:             getEnvDuration("FLEET_PARTNER_WEBHOOK_DELIVERY_TIMEOUT", 15*time.Second),
-		WebhookReplayWindow:                getEnvDuration("FLEET_PARTNER_WEBHOOK_REPLAY_WINDOW", 5*time.Minute),
-		WebhookRotationOverlapMax:          getEnvDuration("FLEET_PARTNER_WEBHOOK_ROTATION_OVERLAP_MAX", time.Hour),
-		WebhookDisableAfterFailures:        getEnvInt("FLEET_PARTNER_WEBHOOK_DISABLE_AFTER_FAILURES", 5),
-		WebhookDeliveryMaxAttempts:         getEnvInt("FLEET_PARTNER_WEBHOOK_DELIVERY_MAX_ATTEMPTS", 12),
-		WebhookFanoutInterval:              getEnvDuration("FLEET_PARTNER_WEBHOOK_FANOUT_INTERVAL", 2*time.Second),
-		WebhookFanoutBatchSize:             getEnvInt("FLEET_PARTNER_WEBHOOK_FANOUT_BATCH_SIZE", 50),
+		InvoicesEnabled:                      getEnvBool("INVOICES_ENABLED", false),
+		ReceivablesEnabled:                   getEnvBool("RECEIVABLES_ENABLED", false),
+		ExpensesEnabled:                      getEnvBool("EXPENSES_ENABLED", false),
+		BudgetsEnabled:                       getEnvBool("BUDGETS_ENABLED", false),
+		CompensationEnabled:                  getEnvBool("COMPENSATION_ENABLED", false),
+		PayrollEnabled:                       getEnvBool("PAYROLL_ENABLED", false),
+		SubcontractorSettlementsEnabled:      getEnvBool("SUBCONTRACTOR_SETTLEMENTS_ENABLED", false),
+		ClaimsEnabled:                        getEnvBool("CLAIMS_ENABLED", false),
+		FinancePostingEnabled:                getEnvBool("FINANCE_POSTING_ENABLED", false),
+		CommunicationsEnabled:                getEnvBool("COMMUNICATIONS_ENABLED", false),
+		NotificationRulesEnabled:             getEnvBool("NOTIFICATION_RULES_ENABLED", false),
+		SupportProjectionsEnabled:            getEnvBool("SUPPORT_PROJECTIONS_ENABLED", false),
+		QualityCasesEnabled:                  getEnvBool("QUALITY_CASES_ENABLED", false),
+		SLAMeasurementsEnabled:               getEnvBool("SLA_MEASUREMENTS_ENABLED", false),
+		EscalationsEnabled:                   getEnvBool("ESCALATIONS_ENABLED", false),
+		Section22WorkersEnabled:              getEnvBool("SECTION22_WORKERS_ENABLED", false),
+		Section23WorkersEnabled:              getEnvBool("SECTION23_WORKERS_ENABLED", false),
+		FleetOperatingModeEnforcementEnabled: getEnvBool("FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED", true),
+		FleetCompensationResolverEnabled:     getEnvBool("FLEET_COMPENSATION_RESOLVER_ENABLED", false),
+		FleetCompensationResolverMode:        getEnv("FLEET_COMPENSATION_RESOLVER_MODE", ""),
+		FleetCompletedWorkProjectionEnabled:  getEnvBool("FLEET_COMPLETED_WORK_PROJECTION_ENABLED", false),
+		FleetSettlementInstructionEnabled:    getEnvBool("FLEET_SETTLEMENT_INSTRUCTION_ENABLED", false),
+		FleetTypedFinancialVisibilityEnabled: getEnvBool("FLEET_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
+		SearchEnabled:                        getEnvBool("SEARCH_ENABLED", false),
+		SynchronizationEnabled:               getEnvBool("FLEET_SYNCHRONIZATION_ENABLED", false),
+		SynchronizationWorkerEnabled:         getEnvBool("FLEET_SYNCHRONIZATION_WORKER_ENABLED", false),
+		SynchronizationKillSwitch:            getEnvBool("FLEET_SYNCHRONIZATION_KILL_SWITCH", false),
+		OrganizationAPIClientsEnabled:        getEnvBool("FLEET_PARTNER_ORGANIZATION_API_CLIENTS_ENABLED", false),
+		WebhooksEnabled:                      getEnvBool("FLEET_PARTNER_WEBHOOKS_ENABLED", false),
+		WebhookDeliveryWorkerEnabled:         getEnvBool("FLEET_PARTNER_WEBHOOK_DELIVERY_WORKER_ENABLED", false),
+		APIClientHashKey:                     secret("FLEET_PARTNER_API_CLIENT_HASH_KEY"),
+		WebhookSecretEncryptionKey:           secret("FLEET_PARTNER_WEBHOOK_SECRET_ENCRYPTION_KEY"),
+		WebhookAllowHTTP:                     getEnvBool("FLEET_PARTNER_WEBHOOK_ALLOW_HTTP", false),
+		WebhookPrivateDestinationAllowlist:   getEnvList("FLEET_PARTNER_WEBHOOK_PRIVATE_DESTINATION_ALLOWLIST"),
+		WebhookDeliveryTimeout:               getEnvDuration("FLEET_PARTNER_WEBHOOK_DELIVERY_TIMEOUT", 15*time.Second),
+		WebhookReplayWindow:                  getEnvDuration("FLEET_PARTNER_WEBHOOK_REPLAY_WINDOW", 5*time.Minute),
+		WebhookRotationOverlapMax:            getEnvDuration("FLEET_PARTNER_WEBHOOK_ROTATION_OVERLAP_MAX", time.Hour),
+		WebhookDisableAfterFailures:          getEnvInt("FLEET_PARTNER_WEBHOOK_DISABLE_AFTER_FAILURES", 5),
+		WebhookDeliveryMaxAttempts:           getEnvInt("FLEET_PARTNER_WEBHOOK_DELIVERY_MAX_ATTEMPTS", 12),
+		WebhookFanoutInterval:                getEnvDuration("FLEET_PARTNER_WEBHOOK_FANOUT_INTERVAL", 2*time.Second),
+		WebhookFanoutBatchSize:               getEnvInt("FLEET_PARTNER_WEBHOOK_FANOUT_BATCH_SIZE", 50),
 
 		MetricsEnabled:   getEnvBool("FLEET_PARTNER_METRICS_ENABLED", true),
 		MetricsAuthToken: getEnv("FLEET_PARTNER_METRICS_AUTH_TOKEN", ""),
@@ -964,14 +1017,30 @@ func (c Config) Validate() error {
 	if c.RedisRequired && c.Redis.Addr == "" {
 		problems = append(problems, "FLEET_PARTNER_REDIS_ADDR is required when FLEET_PARTNER_REDIS_REQUIRED=true")
 	}
-	// Taxi is intentionally unavailable until driver-taxi-service publishes a
-	// production contract. Rejecting the flag is safer than accepting config
-	// that can only fail later or silently fall back locally.
-	if c.TaxiIntegrationEnabled {
-		problems = append(problems, "FLEET_TAXI_INTEGRATION_ENABLED cannot be enabled: driver-taxi-service has no production contract")
+	// Taxi is no longer blanket-rejected: driver-taxi-service publishes both
+	// the marketplace contract (its managedexec feature) and, since Section 10,
+	// the private execution contract. What replaces the blanket rejection is a
+	// real check that the deployment can actually reach it -- an enabled
+	// integration with no URL or secret would fail closed on every call and
+	// look identical to a Taxi outage.
+	if c.TaxiIntegrationEnabled && !c.IntegrationsKillSwitch {
+		if taxi := c.Clients["driver-taxi-service"]; !taxi.Configured() {
+			problems = append(problems, "FLEET_PARTNER_TAXI_SERVICE_BASE_URL and FLEET_PARTNER_TAXI_SERVICE_SECRET are required when FLEET_TAXI_INTEGRATION_ENABLED is true")
+		}
 	}
-	if c.PrivateTaxiExecutionEnabled {
-		problems = append(problems, "PRIVATE_TAXI_EXECUTION_ENABLED cannot be enabled: driver-taxi-service has no production private execution contract")
+	if c.PrivateTaxiExecutionEnabled && !c.IntegrationsKillSwitch && !c.PrivateOperationsKillSwitch {
+		taxi := c.Clients["driver-taxi-service"]
+		if !taxi.Configured() || c.HTTPClientTimeout <= 0 {
+			problems = append(problems, "driver-taxi-service URL, secret and a positive timeout are required when private Taxi execution is enabled")
+		}
+		// Private Taxi execution is a MULTI-SERVICE link: one organization
+		// member holding a taxi provider identity alongside their dispatch or
+		// hauling one. Enabling execution without link support would let Fleet
+		// dispatch a taxi job through a member model that cannot represent the
+		// taxi identity it just used.
+		if !c.MultiServiceProviderLinksEnabled {
+			problems = append(problems, "PRIVATE_TAXI_EXECUTION_ENABLED requires FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED")
+		}
 	}
 	if c.PrivateDispatchExecutionEnabled && !c.IntegrationsKillSwitch && !c.PrivateOperationsKillSwitch {
 		if strings.TrimSpace(c.DispatchServiceURL) == "" || len(c.DispatchServiceSecret) == 0 || c.DispatchServiceTimeout <= 0 {

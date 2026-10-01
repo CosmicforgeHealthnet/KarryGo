@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -59,10 +60,18 @@ func main() {
 		DispatchSecret: []byte(cfg.DispatchServiceSecret),
 	})
 
+	// Nil when Fleet is unconfigured, which is a working configuration: the
+	// organization snapshot is a reporting dimension, not a prerequisite for
+	// opening a case.
+	corporate := supportclients.NewFleetOrganizationResolver(
+		cfg.FleetPartnerServiceURL, []byte(cfg.FleetPartnerServiceSecret), 3*time.Second)
+
 	service := supportusecases.NewSupportService(repo, supportusecases.Options{
 		Notifier:            notifier,
 		Identity:            identity,
+		Corporate:           corporate,
 		ResolutionPublisher: supportclients.NewCommerceResolutionClient(cfg.VendorServiceURL, cfg.VendorServiceSecret),
+		Media:               supportclients.NewMediaEvidenceValidator(cfg.MediaFileURL, cfg.MediaFileSecret, 5*time.Second),
 	})
 
 	customerSecret := []byte(cfg.CustomerAccessTokenSecret)
@@ -71,6 +80,49 @@ func main() {
 		{Prefix: "/provider", Secret: []byte(cfg.HaulingProviderTokenSecret), Role: "truck_provider", Service: "hauling"},
 		{Prefix: "/taxi-provider", Secret: []byte(cfg.TaxiProviderTokenSecret), Role: "taxi_provider", Service: "taxi"},
 		{Prefix: "/dispatch-provider", Secret: []byte(cfg.DispatchProviderTokenSecret), Role: "dispatch_provider", Service: "dispatch"},
+	}
+
+	// Section 15: owner context reads and action routing. Each owner base is
+	// origin plus that owner's own API base -- the services do not share one.
+	var networkHandler *supporthttp.NetworkContextHandler
+	workers := []func(context.Context) error{service.RunCaseOutbox}
+	if cfg.NetworkContextEnabled {
+		registry := supportclients.NewContextRegistryFromConfig(
+			joinBase(cfg.TaxiServiceURL, "/api/v1/taxi"), cfg.TaxiServiceSecret,
+			joinBase(cfg.DispatchServiceURL, "/api/v1/dispatch"), cfg.DispatchServiceSecret,
+			joinBase(cfg.HaulingServiceURL, "/api/v1/hauling"), cfg.HaulingServiceSecret,
+			3*time.Second)
+		options := supportusecases.NetworkContextOptions{
+			Support: service, Store: supportrepositories.NewNetworkContextStore(db), Contexts: registry,
+			Notifier: notifier.Transport(),
+		}
+		if media := supportclients.NewMediaEvidenceValidator(cfg.MediaFileURL, cfg.MediaFileSecret,
+			5*time.Second); media.Configured() {
+			options.Media = media
+		}
+		if escalation := supportclients.NewHaulingRecoveryEscalation(
+			joinBase(cfg.HaulingServiceURL, "/api/v1/hauling"), cfg.HaulingServiceSecret,
+			5*time.Second); escalation.Configured() {
+			options.HaulingRecovery = escalation
+		}
+		network := supportusecases.NewNetworkContextService(options)
+		networkHandler = supporthttp.NewNetworkContextHandler(network)
+		workers = append(workers, func(runCtx context.Context) error {
+			// Re-sends action requests whose earlier attempt was ambiguous.
+			// Each retry is the same operation to the owner, so it replays.
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-runCtx.Done():
+					return nil
+				case <-ticker.C:
+					if _, err := network.DeliverPending(runCtx, 20); err != nil {
+						logging.Error("support-actions", "deliver pending: %v", err)
+					}
+				}
+			}
+		})
 	}
 
 	// notificationClient brokers app realtime/feed/device access to
@@ -98,10 +150,23 @@ func main() {
 		ReadyChecks: []func(context.Context) error{
 			db.Ping,
 		},
-		Workers: []func(context.Context) error{service.RunCaseOutbox},
+		Workers: workers,
 		Register: func(group *gin.RouterGroup) {
 			supporthttp.RegisterRoutes(group, service, customerSecret, providerGroups, serviceSecrets)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, customerSecret, providerGroups)
+			supporthttp.RegisterNetworkContextRoutes(group, networkHandler, customerSecret,
+				providerGroups, serviceSecrets)
 		},
 	})
+}
+
+// joinBase appends an API base to a bare origin, and yields "" when the origin
+// is unset so an unconfigured owner stays unconfigured rather than becoming a
+// relative path.
+func joinBase(origin, apiBase string) string {
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	if origin == "" {
+		return ""
+	}
+	return origin + apiBase
 }

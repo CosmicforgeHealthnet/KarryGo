@@ -1,0 +1,795 @@
+{
+  "section": "45 — DURABLE WORKERS AND SCHEDULED JOBS",
+  "workerCount": 27,
+  "statusCounts": {
+    "ACTIVE": 17,
+    "DEPENDENCY_GATED": 7,
+    "FUTURE_DISABLED": 1,
+    "NOT_APPLICABLE": 2
+  },
+  "workers": [
+    {
+      "name": "checkout reservation expiry",
+      "implementations": [
+        "commerce-checkout-recovery",
+        "inventory-reservation-expiry"
+      ],
+      "package": "internal/features/checkout; internal/features/inventory",
+      "status": "ACTIVE",
+      "trigger": "expiry timestamp",
+      "jobType": "stock and checkout reservations",
+      "authorityDependency": "Vendor Inventory",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "COMMERCE_CHECKOUT_RECOVERY_ENABLED and COMMERCE_FULFILMENT_WORKERS_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "checkout recovery integration",
+        "durable Postgres coordinator"
+      ]
+    },
+    {
+      "name": "menu/product scheduler",
+      "implementations": null,
+      "package": "internal/features/food; internal/features/shop",
+      "status": "NOT_APPLICABLE",
+      "trigger": "N/A",
+      "jobType": "synchronous/query-time invariant",
+      "authorityDependency": "existing domain",
+      "durable": false,
+      "lease": "N/A",
+      "heartbeat": "N/A",
+      "maxAttempts": "N/A",
+      "backoff": "N/A",
+      "deadLetter": "N/A",
+      "replay": "deterministic re-read",
+      "killSwitch": "feature flag",
+      "readinessSignal": "domain readiness",
+      "metrics": [],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "Availability is evaluated from versioned schedules at read time; no mutation worker is required."
+    },
+    {
+      "name": "stock alerts",
+      "implementations": [
+        "inventory-stock-alerts",
+        "shop-inventory-alerts-compat"
+      ],
+      "package": "internal/features/inventory; internal/features/shop",
+      "status": "ACTIVE",
+      "trigger": "periodic bounded sweep",
+      "jobType": "convergent LOW_STOCK/OUT_OF_STOCK/EXPIRY/REORDER alerts",
+      "authorityDependency": "Vendor Inventory",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "VENDOR_INVENTORY_ENABLED and COMMERCE_FULFILMENT_WORKERS_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "durable Postgres coordinator",
+        "inventory alerts integration"
+      ]
+    },
+    {
+      "name": "inventory expiry",
+      "implementations": [
+        "inventory-lot-expiry",
+        "shop-inventory-expiry-compat"
+      ],
+      "package": "internal/features/inventory; internal/features/shop",
+      "status": "ACTIVE",
+      "trigger": "lot/reservation expiry timestamp",
+      "jobType": "lot quarantine/expiry and immutable movement",
+      "authorityDependency": "Vendor Inventory",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "VENDOR_INVENTORY_ENABLED and COMMERCE_FULFILMENT_WORKERS_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "inventory commit/release concurrency",
+        "inventory expiry integration"
+      ]
+    },
+    {
+      "name": "scheduled order activation",
+      "implementations": [
+        "cloud-kitchen-corporate-materializer",
+        "commerce-recurring-feeding"
+      ],
+      "package": "internal/features/orders; internal/features/cloud_kitchen",
+      "status": "ACTIVE",
+      "trigger": "scheduled occurrence/window",
+      "jobType": "version-guarded occurrence materialization",
+      "authorityDependency": "Vendor commerce and production",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "COMMERCE_BULK_RFQ_ENABLED or VENDOR_PRODUCTION_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "cloud-kitchen occurrence recovery",
+        "recurring feeding"
+      ]
+    },
+    {
+      "name": "capacity release",
+      "implementations": [
+        "pastry-quote-expiry"
+      ],
+      "package": "internal/features/pastry; internal/features/production",
+      "status": "ACTIVE",
+      "trigger": "quote/capacity expiry timestamp",
+      "jobType": "capacity hold release",
+      "authorityDependency": "Vendor Production",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_PRODUCTION_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "pastry quote expiry",
+        "production capacity concurrency"
+      ]
+    },
+    {
+      "name": "RFQ expiry",
+      "implementations": [
+        "commerce-rfq-expiry"
+      ],
+      "package": "internal/features/orders",
+      "status": "ACTIVE",
+      "trigger": "RFQ expiry timestamp",
+      "jobType": "RFQ lifecycle close",
+      "authorityDependency": "Vendor commerce",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "COMMERCE_BULK_RFQ_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "RFQ acceptance race",
+        "Section 21 RFQ expiry"
+      ]
+    },
+    {
+      "name": "order acceptance timeout",
+      "implementations": null,
+      "package": "internal/features/orders",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "Vendor timeout/replan/refund policy has no enabled canonical policy; no rejection is fabricated."
+    },
+    {
+      "name": "substitution timeout",
+      "implementations": null,
+      "package": "internal/features/orders",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "No universal fallback exists; the stored customer-policy path remains authoritative."
+    },
+    {
+      "name": "fulfilment planner worker",
+      "implementations": null,
+      "package": "internal/features/fulfilment; internal/features/orders",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "Planning is synchronous and idempotent; no separate readiness-triggered planner queue is configured."
+    },
+    {
+      "name": "platform mission reconciliation",
+      "implementations": null,
+      "package": "internal/features/fulfilmentgroup; internal/features/orders",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "Authority-specific mission operations retain stable identities, but no generic cross-authority polling consumer is configured."
+    },
+    {
+      "name": "handover integration reconciliation",
+      "implementations": null,
+      "package": "internal/integrations/handover; internal/features/orders",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "Authority adapters perform immediate canonical read-back; no standalone polling worker is configured."
+    },
+    {
+      "name": "settlement reconciliation",
+      "implementations": [
+        "commerce-payment-recovery"
+      ],
+      "package": "internal/features/orders",
+      "status": "ACTIVE",
+      "trigger": "unresolved Wallet operation",
+      "jobType": "Wallet status read-back and Vendor projection",
+      "authorityDependency": "Payment Wallet",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "PAYMENT_WALLET_COMMERCE_ENABLED and COMMERCE_FULFILMENT_WORKERS_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "Section 17F recovery",
+        "refund recovery"
+      ]
+    },
+    {
+      "name": "CRM segment refresh",
+      "implementations": [
+        "crm-segment-materializer"
+      ],
+      "package": "internal/features/crm",
+      "status": "ACTIVE",
+      "trigger": "durable dependency-scoped invalidation",
+      "jobType": "generation build and atomic swap",
+      "authorityDependency": "Vendor CRM projection",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_CRM_SEGMENT_MATERIALIZATION_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "CRM materialization concurrency",
+        "privacy merge fence"
+      ]
+    },
+    {
+      "name": "reliability aggregation",
+      "implementations": [
+        "crm-intelligence-materializer"
+      ],
+      "package": "internal/features/crm",
+      "status": "ACTIVE",
+      "trigger": "durable evaluation row",
+      "jobType": "versioned reliability/intelligence generation",
+      "authorityDependency": "Vendor projection",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "CRM intelligence generation",
+        "privacy-safe metrics"
+      ]
+    },
+    {
+      "name": "search index update",
+      "implementations": [
+        "search-projection-rebuild",
+        "search-projection-validate-activate"
+      ],
+      "package": "internal/features/searchprojection; internal/searchrebuild",
+      "status": "ACTIVE",
+      "trigger": "durable projection job",
+      "jobType": "build-beside-live and atomic generation activation",
+      "authorityDependency": "Search projection only",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_SEARCH_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "activation race",
+        "search generation recovery"
+      ]
+    },
+    {
+      "name": "quote expiry / price-lock release",
+      "implementations": [
+        "commerce-basket-proposal-expiry",
+        "commerce-fulfilment-plan-expiry",
+        "pastry-quote-expiry"
+      ],
+      "package": "internal/features/fulfilment; internal/features/basket; internal/features/pastry",
+      "status": "ACTIVE",
+      "trigger": "immutable expiry timestamp",
+      "jobType": "expire without deleting historical evidence",
+      "authorityDependency": "Vendor commerce; Wallet only for Wallet holds",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "COMMERCE_FULFILMENT_WORKERS_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "basket proposal expiry",
+        "pastry quote expiry",
+        "plan expiry"
+      ]
+    },
+    {
+      "name": "payment reconciliation",
+      "implementations": [
+        "commerce-payment-recovery",
+        "commerce-rfq-payment-recovery"
+      ],
+      "package": "internal/features/orders",
+      "status": "ACTIVE",
+      "trigger": "UNKNOWN/unresolved Wallet operation",
+      "jobType": "same-operation authority read-back",
+      "authorityDependency": "Payment Wallet",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "PAYMENT_WALLET_COMMERCE_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "RFQ payment recovery",
+        "Section 17F recovery"
+      ]
+    },
+    {
+      "name": "hybrid delivery fallback",
+      "implementations": null,
+      "package": "internal/features/fulfilmentgroup",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "The policy-backed command exists, but no automatic SLA-triggered worker is enabled."
+    },
+    {
+      "name": "confidence ETA updater",
+      "implementations": null,
+      "package": "internal/features/orders",
+      "status": "NOT_APPLICABLE",
+      "trigger": "N/A",
+      "jobType": "synchronous/query-time invariant",
+      "authorityDependency": "existing domain",
+      "durable": false,
+      "lease": "N/A",
+      "heartbeat": "N/A",
+      "maxAttempts": "N/A",
+      "backoff": "N/A",
+      "deadLetter": "N/A",
+      "replay": "deterministic re-read",
+      "killSwitch": "feature flag",
+      "readinessSignal": "domain readiness",
+      "metrics": [],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "ETA updates are event-driven from authoritative logistics revisions and preserve versioned history; a polling scheduler would duplicate that path."
+    },
+    {
+      "name": "verification expiry/recheck",
+      "implementations": [
+        "verification-expiry",
+        "verification-reconciliation"
+      ],
+      "package": "internal/features/vendors",
+      "status": "ACTIVE",
+      "trigger": "projection expiry or unresolved authority operation",
+      "jobType": "expiry enforcement and authoritative recheck",
+      "authorityDependency": "Verification Compliance",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_VERIFICATION_INTEGRATION_ENABLED for recheck",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "Section 7 expiry",
+        "verification unknown-outcome recovery"
+      ]
+    },
+    {
+      "name": "variable-weight timeout",
+      "implementations": null,
+      "package": "internal/features/orders",
+      "status": "DEPENDENCY_GATED",
+      "trigger": "not enabled",
+      "jobType": "reserved compatibility boundary",
+      "authorityDependency": "existing domain/foreign authority policy",
+      "durable": false,
+      "lease": "N/A while disabled",
+      "heartbeat": "N/A while disabled",
+      "maxAttempts": "N/A while disabled",
+      "backoff": "N/A while disabled",
+      "deadLetter": "N/A while disabled",
+      "replay": "N/A while disabled",
+      "killSwitch": "disabled because no canonical policy/consumer is configured",
+      "readinessSignal": "DISABLED",
+      "metrics": [
+        "vendor_worker_blocked_total"
+      ],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "No enabled canonical timeout/fallback policy exists; financial caps remain synchronously enforced."
+    },
+    {
+      "name": "recurring basket generator",
+      "implementations": [
+        "commerce-recurring-basket-generation",
+        "commerce-recurring-feeding"
+      ],
+      "package": "internal/features/basket; internal/features/orders",
+      "status": "ACTIVE",
+      "trigger": "scheduled occurrence",
+      "jobType": "unique template/occurrence proposal generation",
+      "authorityDependency": "Vendor commerce",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "COMMERCE_RECURRING_BASKET_ENABLED or COMMERCE_BULK_RFQ_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "recurring basket idempotency",
+        "recurring feeding"
+      ]
+    },
+    {
+      "name": "vendor intelligence aggregation",
+      "implementations": [
+        "crm-intelligence-materializer"
+      ],
+      "package": "internal/features/crm",
+      "status": "ACTIVE",
+      "trigger": "durable evaluation row",
+      "jobType": "privacy-safe versioned aggregate generation",
+      "authorityDependency": "Analytics/intelligence projection only",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "CRM intelligence generation",
+        "privacy fences"
+      ]
+    },
+    {
+      "name": "search projection rebuild",
+      "implementations": [
+        "search-projection-rebuild",
+        "search-projection-validate-activate"
+      ],
+      "package": "internal/features/searchprojection; internal/searchrebuild",
+      "status": "ACTIVE",
+      "trigger": "operator/invalidation projection job",
+      "jobType": "checkpointed rebuild and atomic activation",
+      "authorityDependency": "Search projection only",
+      "durable": true,
+      "lease": "domain-row lease or FOR UPDATE SKIP LOCKED",
+      "heartbeat": "renewed for long generation work; short row transactions do not require renewal",
+      "maxAttempts": "bounded by domain row policy where remote/rebuild work occurs",
+      "backoff": "bounded domain retry schedule",
+      "deadLetter": "domain DEAD_LETTER/FAILED state where retryable work exists",
+      "replay": "domain code-level replay or unchanged due-row recovery",
+      "killSwitch": "VENDOR_SEARCH_ENABLED",
+      "readinessSignal": "domain backlog/staleness/failure state",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "failed generation retains live generation",
+        "search projection PostgreSQL tests"
+      ]
+    },
+    {
+      "name": "budget/optimization proposal expiry",
+      "implementations": [
+        "commerce-basket-proposal-expiry"
+      ],
+      "package": "internal/features/basket",
+      "status": "ACTIVE",
+      "trigger": "proposal expiry timestamp",
+      "jobType": "stale proposal invalidation",
+      "authorityDependency": "Vendor commerce",
+      "durable": true,
+      "lease": "vendor_job_controls owner lease with expired-lease recovery",
+      "heartbeat": "renewed every lease/3 by DurableJob",
+      "maxAttempts": "5 (bounded; hard cap 25)",
+      "backoff": "bounded exponential, maximum 5 minutes",
+      "deadLetter": "vendor_job_controls DEAD_LETTER",
+      "replay": "DurableCoordinator.Replay retains job identity",
+      "killSwitch": "COMMERCE_BASKET_OPTIMIZATION_ENABLED",
+      "readinessSignal": "DurableCoordinator.Health: READY/DEGRADED/BLOCKED/DISABLED/BACKLOGGED",
+      "metrics": [
+        "vendor_worker_dead_letter_total",
+        "vendor_worker_lease_starvation_total",
+        "vendor_worker_oldest_pending_seconds",
+        "vendor_worker_pending_total",
+        "vendor_worker_retry_total"
+      ],
+      "tests": [
+        "basket proposal expiry",
+        "stale acceptance rejection"
+      ]
+    },
+    {
+      "name": "order guarantee evaluator",
+      "implementations": null,
+      "package": "none",
+      "status": "FUTURE_DISABLED",
+      "trigger": "none",
+      "jobType": "reserved only",
+      "authorityDependency": "future Order Guarantee authority",
+      "durable": false,
+      "lease": "N/A",
+      "heartbeat": "N/A",
+      "maxAttempts": "N/A",
+      "backoff": "N/A",
+      "deadLetter": "N/A",
+      "replay": "N/A",
+      "killSwitch": "permanently disabled",
+      "readinessSignal": "FUTURE_DISABLED",
+      "metrics": [],
+      "tests": [
+        "catalogue validation"
+      ],
+      "notes": "No scan, compensation, Wallet call, table, route, or production worker."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_customer_movement_outbox_reconcile;

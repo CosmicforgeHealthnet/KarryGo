@@ -9,7 +9,7 @@
 -- default.
 
 INSERT INTO notification_templates (key, locale, title, body, default_channels) VALUES
-    -- ── Hauling booking lifecycle ──────────────────────────────────────────
+    -- Hauling booking lifecycle
     ('booking.matched', 'en-NG',
      'New haulage request',
      'You have a new haulage booking to accept. Open the app to review and respond.',
@@ -35,10 +35,6 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your driver has arrived at the pickup location.',
      '["push", "websocket", "in_app"]'),
 
-    -- Pickup handover verification: the driver's app displays a credential;
-    -- this notification tells the customer to open the app and verify it
-    -- before handing the package over. Deliberately carries no code — only
-    -- the driver's own app ever displays it.
     ('booking.pickup_verification_required', 'en-NG',
      'Verify your driver',
      'Your driver has arrived. Open the app to verify their identity before handing over your package.',
@@ -49,11 +45,9 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your cargo is on its way to the destination.',
      '["push", "websocket", "in_app"]'),
 
-    -- Delivery handover verification: the customer's app displays this code;
-    -- the driver enters/scans it to confirm delivery.
     ('booking.delivery_code_ready', 'en-NG',
      'Delivery verification code',
-     'Share this code with your driver to confirm delivery: {{code}}. It expires shortly.',
+     'A delivery credential is ready. Open the secure receiver view to retrieve it.',
      '["push", "websocket", "in_app"]'),
 
     ('cargo.picked_up', 'en-NG',
@@ -81,11 +75,7 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your driver had to cancel this booking. Please book again to find another driver.',
      '["push", "websocket", "in_app"]'),
 
-    -- ── Dispatch bike-delivery lifecycle ────────────────────────────────────
-    -- Kept as separate keys/copy from the hauling block above — they used to
-    -- share event_type strings with hauling, so bike-delivery customers and
-    -- riders got haulage-flavoured copy ("cargo delivered", "new haulage
-    -- request") for a package delivery.
+    -- Dispatch bike-delivery lifecycle
     ('delivery.matched', 'en-NG',
      'New delivery request',
      'You have a new delivery request to accept. Open the app to review and respond.',
@@ -111,10 +101,6 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your rider has arrived at the pickup location.',
      '["push", "websocket", "in_app"]'),
 
-    -- Pickup handover verification: the rider's app displays a credential;
-    -- this notification tells the customer to open the app and verify it
-    -- before handing the package over. Deliberately carries no code — only
-    -- the rider's own app ever displays it.
     ('delivery.pickup_verification_required', 'en-NG',
      'Verify your rider',
      'Your rider has arrived. Open the app to verify their identity before handing over your package.',
@@ -125,11 +111,9 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your package has been picked up and is on its way to the destination.',
      '["push", "websocket", "in_app"]'),
 
-    -- Delivery handover verification: the customer's app displays this code;
-    -- the rider enters/scans it to confirm delivery.
     ('package.delivery_code_ready', 'en-NG',
      'Delivery verification code',
-     'Share this code with your rider to confirm delivery: {{code}}. It expires shortly.',
+     'A delivery credential is ready. Open the secure receiver view to retrieve it.',
      '["push", "websocket", "in_app"]'),
 
     ('package.delivered', 'en-NG',
@@ -152,7 +136,7 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
      'Your rider had to cancel this delivery. Please book again to find another rider.',
      '["push", "websocket", "in_app"]'),
 
-    -- ── Payments & wallet ──────────────────────────────────────────────────
+    -- Payments & wallet
     ('payment.topup_success', 'en-NG',
      'Wallet funded',
      'Your wallet top-up was successful.',
@@ -241,7 +225,13 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
     ('ride.delivery_code_ready', 'en-NG',
      'Delivery code ready',
      'Your package is on its way. Share the delivery code with whoever receives it.',
-     '["push", "websocket", "in_app"]')
+     '["push", "websocket", "in_app"]'),
+
+    -- Corporate auth OTP
+    ('corporate.auth.otp', 'en-NG',
+     'Your KarryGo verification code',
+     'Your verification code is: {{code}}. It expires in {{expires_in_minutes}} minutes.',
+     '["email"]')
 ON CONFLICT (key, locale) DO UPDATE SET
     title = EXCLUDED.title,
     body = EXCLUDED.body,

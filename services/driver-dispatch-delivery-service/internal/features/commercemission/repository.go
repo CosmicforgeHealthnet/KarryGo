@@ -8,7 +8,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/shared/go/commercemission"
+	"cosmicforge/logistics/shared/go/custodyops"
 )
 
 // Record is one persisted mission.
@@ -64,8 +66,13 @@ type RefusalInput struct {
 
 // Repository is the PostgreSQL store.
 type Repository struct {
-	db     *pgxpool.Pool
-	events TargetEventEmitter
+	db            *pgxpool.Pool
+	events        TargetEventEmitter
+	rolloutPolicy rollout.Policy
+	// custody is the shared multi-manifest custody model. nil keeps the
+	// pre-custody behaviour.
+	custody      *custodyops.Repository
+	custodyMedia custodyops.MediaAuthorizer
 }
 
 // NewRepository builds the store.
@@ -74,6 +81,21 @@ func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
 func (r *Repository) WithTargetEventEmitter(events TargetEventEmitter) *Repository {
 	r.events = events
 	return r
+}
+
+// WithRolloutPolicy supplies the same server-owned cohort policy used by
+// direct bookings and delivery planning. Commerce callers provide selectors,
+// never the effective protection mode.
+func (r *Repository) WithRolloutPolicy(policy rollout.Policy) *Repository {
+	r.rolloutPolicy = policy
+	return r
+}
+
+func (r *Repository) protection(customerID, sourceRef, serviceTier string) rollout.Protection {
+	return r.rolloutPolicy.Protect(rollout.Context{
+		CustomerID: customerID, SourceType: "VENDOR_COMMERCE",
+		SourceRef: sourceRef, ServiceTier: serviceTier,
+	})
 }
 
 const missionColumns = `
@@ -114,6 +136,7 @@ func (r *Repository) CreateMissionWithBooking(
 		return Record{}, ErrMissionNotFound
 	}
 	request := input.Request
+	protection := r.protection(request.CustomerRef, request.MissionRef, "standard")
 
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -127,9 +150,11 @@ func (r *Repository) CreateMissionWithBooking(
 			customer_id,status,pickup_address,pickup_lat,pickup_lng,
 			dropoff_address,dropoff_lat,dropoff_lng,fare_amount,currency,
 			payment_method,payment_status,payment_ref,
-			receiver_name,receiver_phone,package_desc,package_size,is_fragile,service_tier)
+			receiver_name,receiver_phone,receiver_customer_id,package_desc,package_size,is_fragile,service_tier,
+			rollout_protection_mode,rollout_policy_version,handover_required,
+			pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
 		VALUES($1::uuid,'searching',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,
-		       $11,$12,$13,$14,$15,'standard')
+		       $11,$12,NULLIF($22,'')::uuid,$13,$14,$15,'standard',$16,$17,$18,$19,$20,$21)
 		RETURNING id::text`,
 		request.CustomerRef,
 		request.Pickup.Address, request.Pickup.Latitude, request.Pickup.Longitude,
@@ -138,15 +163,17 @@ func (r *Repository) CreateMissionWithBooking(
 		request.ParentOrderRef,
 		receiverName(request), request.Dropoff.Phone,
 		request.Load.Description, packageSize(request.Load.WeightGrams),
-		request.Load.Fragile).Scan(&bookingID); err != nil {
+		request.Load.Fragile, protection.Mode, protection.PolicyVersion,
+		protection.HandoverRequired, protection.PickupEvidenceRequired,
+		protection.DeliveryEvidenceRequired, protection.ProviderTransferRequired, request.ReceiverCustomerRef).Scan(&bookingID); err != nil {
 		return Record{}, err
 	}
 
 	record, err := scanRecord(tx.QueryRow(ctx, `
 		INSERT INTO commerce_missions(
-			mission_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
+			mission_ref,operation_ref,canonical_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
 			agreed_fee_minor,currency,quote_id,quote_reference,status,created_at)
-		VALUES($1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'accepted',$10)
+		VALUES($1,$1,'dcm_'||replace(gen_random_uuid()::text,'-',''),$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'accepted',$10)
 		RETURNING `+missionColumns,
 		request.MissionRef, request.ParentOrderRef, request.VendorOrderRefs,
 		request.CustomerRef, bookingID, request.AgreedFeeMinor, request.Currency,
@@ -170,6 +197,7 @@ func (r *Repository) MarkRefused(
 		return Record{}, ErrMissionNotFound
 	}
 	request := input.Request
+	protection := r.protection(request.CustomerRef, request.MissionRef, "standard")
 
 	// A refused mission still needs a booking column value, and the schema
 	// requires a real booking row, so a refusal is stored as a cancelled
@@ -187,10 +215,12 @@ func (r *Repository) MarkRefused(
 			customer_id,status,pickup_address,pickup_lat,pickup_lng,
 			dropoff_address,dropoff_lat,dropoff_lng,fare_amount,currency,
 			payment_method,payment_status,payment_ref,
-			receiver_name,receiver_phone,package_desc,package_size,is_fragile,
-			service_tier,cancel_reason,cancelled_at)
+			receiver_name,receiver_phone,receiver_customer_id,package_desc,package_size,is_fragile,
+			service_tier,cancel_reason,cancelled_at,
+			rollout_protection_mode,rollout_policy_version,handover_required,
+			pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
 		VALUES($1::uuid,'cancelled',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,
-		       $11,$12,$13,$14,$15,'standard',$16,$17)
+		       $11,$12,NULLIF($24,'')::uuid,$13,$14,$15,'standard',$16,$17,$18,$19,$20,$21,$22,$23)
 		RETURNING id::text`,
 		request.CustomerRef,
 		request.Pickup.Address, request.Pickup.Latitude, request.Pickup.Longitude,
@@ -200,15 +230,17 @@ func (r *Repository) MarkRefused(
 		receiverName(request), request.Dropoff.Phone,
 		request.Load.Description, packageSize(request.Load.WeightGrams),
 		request.Load.Fragile,
-		input.RefusalCode, input.CreatedAt).Scan(&bookingID); err != nil {
+		input.RefusalCode, input.CreatedAt, protection.Mode, protection.PolicyVersion,
+		protection.HandoverRequired, protection.PickupEvidenceRequired,
+		protection.DeliveryEvidenceRequired, protection.ProviderTransferRequired, request.ReceiverCustomerRef).Scan(&bookingID); err != nil {
 		return Record{}, err
 	}
 
 	record, err := scanRecord(tx.QueryRow(ctx, `
 		INSERT INTO commerce_missions(
-			mission_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
+			mission_ref,operation_ref,canonical_ref,parent_order_ref,vendor_order_refs,customer_id,booking_id,
 			agreed_fee_minor,currency,quote_id,quote_reference,status,refusal_code,created_at)
-		VALUES($1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'refused',$10,$11)
+		VALUES($1,$1,'dcm_'||replace(gen_random_uuid()::text,'-',''),$2,$3,$4::uuid,$5::uuid,$6,$7,$8,$9,'refused',$10,$11)
 		RETURNING `+missionColumns,
 		request.MissionRef, request.ParentOrderRef, request.VendorOrderRefs,
 		request.CustomerRef, bookingID, request.AgreedFeeMinor, request.Currency,

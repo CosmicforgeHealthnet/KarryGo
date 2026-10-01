@@ -281,18 +281,18 @@ func TestSection17CRoutesMatchTheRegister(t *testing.T) {
 	}
 }
 
-// Section 17C must work without taxi. This asserts it structurally rather than
-// trusting the prose: no route, no spec path and no class-to-service mapping
-// may reach a taxi.
-func TestSection17CNeverReachesTaxi(t *testing.T) {
+// Section 17C exposes no Taxi-specific public route, but CAR is now a valid
+// server-selected class backed only by the gated Taxi Goods authority.
+func TestSection17CCarMapsOnlyToTaxiGoods(t *testing.T) {
 	for key := range section17CRoutes(t) {
 		if strings.Contains(strings.ToLower(key), "taxi") {
 			t.Errorf("a Section 17C route names taxi: %s", key)
 		}
 	}
 
-	if _, err := fulfilment.ServiceFor(fulfilment.VehicleCar); err == nil {
-		t.Error("the CAR class maps to a service; taxi is not production-ready")
+	service, err := fulfilment.ServiceFor(fulfilment.VehicleCar)
+	if err != nil || service != fulfilment.ServiceTaxi {
+		t.Fatalf("CAR mapping = %q, %v; want TAXI", service, err)
 	}
 
 	for _, specName := range []string{customerSpecName, vendorSpecName} {
@@ -301,10 +301,8 @@ func TestSection17CNeverReachesTaxi(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// The word may appear in prose explaining WHY taxi is unused; a CAR
-		// vehicle class in the schema would be the real violation.
-		if strings.Contains(string(raw), "\"CAR\"") {
-			t.Errorf("%s declares a CAR vehicle class", specName)
+		if !strings.Contains(string(raw), "\"CAR\"") {
+			t.Errorf("%s does not declare the gated CAR class", specName)
 		}
 	}
 }

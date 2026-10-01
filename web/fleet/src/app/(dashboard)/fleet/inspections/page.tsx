@@ -1,524 +1,383 @@
-﻿// src/app/(dashboard)/fleet/inspections/page.tsx
+﻿'use client';
 
-"use client";
-
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
+  FileText,
   Search,
-  Plus,
-  ClipboardCheck,
-  RefreshCw,
   SlidersHorizontal,
   X,
-  ChevronDown,
-  MapPin,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Eye,
-  MoreVertical,
-  Filter,
   ArrowRight,
-  Calendar,
-  Wrench,
-  Shield,
-  User,
-  Truck,
-  FileText,
-  Award,
-  TrendingUp,
-  TrendingDown,
-  Sparkles,
-} from "lucide-react";
+} from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
+import { inspectionService } from '@/lib/services/inspectionService';
+import {
+  formatDateTime,
+  inspectionStatusLabel,
+  inspectionStatusTone,
+  overallResultLabel,
+  overallResultTone,
+} from '@/lib/utils/inspectionLabels';
+import type { Inspection } from '@/lib/types/inspection';
 
-type Inspection = {
-  id: string;
-  assetId: string;
-  assetName: string;
-  template: string;
-  inspector: string;
-  branch: string;
-  date: string;
-  result: "Passed" | "Failed" | "Pending" | "Scheduled";
-  criticalIssues: number;
-  nextDue: string;
-};
+const STATUS_FILTERS = [
+  'ALL',
+  'DRAFT',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
 
-const INSPECTIONS: Inspection[] = [
-  {
-    id: "INSP-001",
-    assetId: "BR-204",
-    assetName: "Honda ACE 110",
-    template: "Motorcycle Safety Check",
-    inspector: "T. Adeyemi",
-    branch: "Ikeja",
-    date: "Today",
-    result: "Failed",
-    criticalIssues: 3,
-    nextDue: "Immediate",
-  },
-  {
-    id: "INSP-002",
-    assetId: "VN-041",
-    assetName: "Mercedes Sprinter",
-    template: "Van Comprehensive",
-    inspector: "F. Daniel",
-    branch: "Lekki",
-    date: "2 days ago",
-    result: "Passed",
-    criticalIssues: 0,
-    nextDue: "In 90 days",
-  },
-  {
-    id: "INSP-003",
-    assetId: "TR-112",
-    assetName: "Scania R500",
-    template: "Truck Safety Inspection",
-    inspector: "M. Bello",
-    branch: "Apapa",
-    date: "1 week ago",
-    result: "Passed",
-    criticalIssues: 0,
-    nextDue: "In 60 days",
-  },
-  {
-    id: "INSP-004",
-    assetId: "BR-188",
-    assetName: "Yamaha FZ",
-    template: "Motorcycle Safety Check",
-    inspector: "A. Yusuf",
-    branch: "Yaba",
-    date: "3 days ago",
-    result: "Passed",
-    criticalIssues: 0,
-    nextDue: "In 90 days",
-  },
-  {
-    id: "INSP-005",
-    assetId: "VN-029",
-    assetName: "Ford Transit",
-    template: "Van Comprehensive",
-    inspector: "K. Ahmed",
-    branch: "Ikeja",
-    date: "5 days ago",
-    result: "Failed",
-    criticalIssues: 2,
-    nextDue: "Immediate",
-  },
-  {
-    id: "INSP-006",
-    assetId: "BR-171",
-    assetName: "Honda CB150X",
-    template: "Motorcycle Safety Check",
-    inspector: "C. Uche",
-    branch: "Lekki",
-    date: "1 day ago",
-    result: "Passed",
-    criticalIssues: 0,
-    nextDue: "In 90 days",
-  },
-];
-
-const RESULT_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Passed: {
-    bg: "bg-green-bg",
-    text: "text-green",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-  },
-  Failed: {
-    bg: "bg-red-bg",
-    text: "text-red",
-    icon: <XCircle className="h-3.5 w-3.5" />,
-  },
-  Pending: {
-    bg: "bg-amber-bg",
-    text: "text-amber",
-    icon: <Clock className="h-3.5 w-3.5" />,
-  },
-  Scheduled: {
-    bg: "bg-blue-bg",
-    text: "text-blue",
-    icon: <Calendar className="h-3.5 w-3.5" />,
-  },
-};
-
-const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
-const RESULT_FILTERS = ["All", "Passed", "Failed", "Pending", "Scheduled"];
+const RESULT_FILTERS = [
+  'ALL',
+  'PASS',
+  'PASS_WITH_ADVISORY',
+  'FAIL',
+  'CRITICAL_FAIL',
+] as const;
 
 export default function InspectionsPage() {
-  const [search, setSearch] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [selectedResult, setSelectedResult] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
-  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [rows, setRows] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Inspection[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>('ALL');
+  const [result, setResult] = useState<(typeof RESULT_FILTERS)[number]>('ALL');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(INSPECTIONS);
-      setLoading(false);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    inspectionService
+      .listInspections()
+      .then((data) => {
+        if (!cancelled) setRows(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(
+          err?.response?.data?.error?.message ??
+            err?.message ??
+            'Failed to load inspections.',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    loadData();
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const stats = useMemo(() => {
+    let passed = 0;
+    let failed = 0;
+    let open = 0;
+    for (const r of rows) {
+      if (r.overallResult === 'PASS' || r.overallResult === 'PASS_WITH_ADVISORY')
+        passed++;
+      if (r.overallResult === 'FAIL' || r.overallResult === 'CRITICAL_FAIL')
+        failed++;
+      if (r.status === 'DRAFT' || r.status === 'IN_PROGRESS') open++;
+    }
+    return { passed, failed, open };
+  }, [rows]);
 
-  const filteredData = data.filter((item) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      item.id.toLowerCase().includes(search.toLowerCase()) ||
-      item.assetId.toLowerCase().includes(search.toLowerCase()) ||
-      item.assetName.toLowerCase().includes(search.toLowerCase()) ||
-      item.inspector.toLowerCase().includes(search.toLowerCase());
-
-    const matchesBranch =
-      selectedBranch === "All branches" || item.branch === selectedBranch;
-    const matchesResult = selectedResult === "All" || item.result === selectedResult;
-
-    return matchesSearch && matchesBranch && matchesResult;
-  });
-
-  const failedCount = data.filter((d) => d.result === "Failed").length;
-  const passedCount = data.filter((d) => d.result === "Passed").length;
-  const pendingCount = data.filter((d) => d.result === "Pending" || d.result === "Scheduled").length;
-
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-[1400px] py-12">
-        <div className="flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          <span className="ml-3 text-[13px] text-ink-600">Loading inspections...</span>
-        </div>
-      </div>
-    );
-  }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (status !== 'ALL' && row.status !== status) return false;
+      if (result !== 'ALL' && row.overallResult !== result) return false;
+      if (q === '') return true;
+      const haystack = [
+        row.id,
+        row.assetId,
+        row.templateId,
+        row.inspectorMembershipId,
+        row.tripReference,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [rows, search, status, result]);
 
   const hasActiveFilters =
-    selectedBranch !== "All branches" ||
-    selectedResult !== "All" ||
-    search !== "";
+    status !== 'ALL' || result !== 'ALL' || search.trim() !== '';
 
   const clearFilters = () => {
-    setSearch("");
-    setSelectedBranch("All branches");
-    setSelectedResult("All");
+    setSearch('');
+    setStatus('ALL');
+    setResult('ALL');
   };
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-5">
-      {/* ===== HEADER ===== */}
+    <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="absolute -top-1 -right-1">
-                <Sparkles className="h-4 w-4 text-amber animate-pulse" />
-              </div>
-              <h1 className="font-display text-[22px] font-semibold tracking-[-0.015em] text-ink-950">
-                Inspections
-              </h1>
-            </div>
-            <span className="rounded-full bg-primary-bg px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-              {data.length}
-            </span>
-            <div className="flex items-center gap-1 rounded-full bg-red-bg px-2.5 py-0.5 text-[10px] font-semibold text-red">
-              <AlertCircle className="h-3 w-3" />
-              {failedCount} failed
-            </div>
-          </div>
-          <p className="mt-1 text-[13.5px] text-ink-600">
-            Asset inspections, results, defects, and generated work orders.
+          <h1>Inspections</h1>
+          <p className="mt-1.5">
+            Asset inspections with results, defects and evidence.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSecondsAgo(0)}
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3 text-[11.5px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
-          >
-            <RefreshCw className="h-3 w-3" />
-            {secondsAgo}s
-          </button>
-          <Link
-            href="/fleet/inspections/templates"
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Templates
-          </Link>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90">
-            <Plus className="h-3.5 w-3.5" />
-            New Inspection
-          </button>
-        </div>
+        <Link
+          href="/fleet/inspections/templates"
+          className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Templates
+        </Link>
       </div>
 
-      {/* ===== STATS ===== */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-green-bg p-1.5 group-hover:scale-110 transition-transform">
-              <CheckCircle2 className="h-4 w-4 text-green" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Passed</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">{passedCount}</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-green">
-            <TrendingUp className="h-3 w-3" />
-            <span>+2 this week</span>
-          </div>
+      {error && (
+        <div className="rounded-lg border border-red/30 bg-red-bg px-4 py-2 text-sm text-red">
+          {error}
         </div>
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-red-bg p-1.5 group-hover:scale-110 transition-transform">
-              <XCircle className="h-4 w-4 text-red" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Failed</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">{failedCount}</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-red">
-            <AlertCircle className="h-3 w-3" />
-            <span>Requires action</span>
-          </div>
-        </div>
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-amber-bg p-1.5 group-hover:scale-110 transition-transform">
-              <Clock className="h-4 w-4 text-amber" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Pending</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">{pendingCount}</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-amber">
-            <Calendar className="h-3 w-3" />
-            <span>Scheduled</span>
-          </div>
-        </div>
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-primary-bg p-1.5 group-hover:scale-110 transition-transform">
-              <Award className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Compliance Rate</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">88%</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-green">
-            <TrendingUp className="h-3 w-3" />
-            <span>+5% vs last month</span>
-          </div>
-        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3.5">
+        <StatCard label="Open" value={stats.open} tone="amber" />
+        <StatCard label="Passed" value={stats.passed} tone="green" />
+        <StatCard label="Failed" value={stats.failed} tone="red" />
       </div>
 
-      {/* ===== FILTERS ===== */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex h-11 flex-1 min-w-[240px] items-center gap-2.5 rounded-xl border border-line bg-white/70 px-4 shadow-sm">
-          <Search className="h-4 w-4 flex-shrink-0 text-ink-500" />
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:max-w-xs">
+          <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by ID, asset, or inspector..."
-            className="w-full bg-transparent text-[13px] text-ink-950 outline-none placeholder:text-ink-400 py-2"
+            placeholder="Search by ID, asset, inspector..."
+            className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-500"
           />
         </div>
 
         <button
-          onClick={() => {
-            const branches = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
-            const currentIndex = branches.indexOf(selectedBranch);
-            const nextIndex = (currentIndex + 1) % branches.length;
-            setSelectedBranch(branches[nextIndex]);
-          }}
-          className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[12px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
-        >
-          <MapPin className="h-4 w-4 text-ink-400" />
-          {selectedBranch}
-          <ChevronDown className="h-4 w-4 text-ink-400" />
-        </button>
-
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-11 items-center gap-1.5 rounded-xl border px-3.5 text-[12px] font-medium transition ${
+          onClick={() => setShowFilters((v) => !v)}
+          className={`flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors whitespace-nowrap ${
             showFilters || hasActiveFilters
-              ? "border-primary bg-primary-bg text-primary"
-              : "border-line bg-white/70 text-ink-600 shadow-sm hover:bg-white"
+              ? 'border-primary bg-primary-bg text-primary'
+              : 'border-line bg-surface text-ink-700 hover:bg-surface-2'
           }`}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="h-3.5 w-3.5" />
           Filters
-          {hasActiveFilters && (
-            <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(selectedBranch !== "All branches" ? 1 : 0) +
-                (selectedResult !== "All" ? 1 : 0)}
-            </span>
-          )}
         </button>
 
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex h-11 items-center gap-1 rounded-xl border border-line bg-white/70 px-3 text-[12px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
+            className="flex h-10 items-center gap-1 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-500 transition-colors hover:bg-surface-2 whitespace-nowrap"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
             Clear
           </button>
         )}
+
+        <span className="ml-auto text-sm text-ink-500 whitespace-nowrap">
+          {filtered.length} of {rows.length}
+        </span>
       </div>
 
-      {/* ===== FILTER DRAWER ===== */}
       {showFilters && (
-        <div className="rounded-xl border border-line bg-white/70 p-3.5 shadow-sm backdrop-blur-xl">
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Result</div>
-              <div className="flex gap-1.5">
-                {RESULT_FILTERS.map((result) => (
-                  <button
-                    key={result}
-                    onClick={() => setSelectedResult(result)}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                      selectedResult === result
-                        ? "bg-primary-bg text-primary ring-2 ring-primary/30"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {result}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={clearFilters}
-              className="rounded-lg border border-line px-3.5 py-1.5 text-[11px] font-medium text-ink-600 hover:bg-white transition-colors"
-            >
-              Clear all
-            </button>
-          </div>
+        <div className="space-y-4 rounded-lg border border-line bg-surface p-4">
+          <FilterGroup
+            label="Status"
+            value={status}
+            options={STATUS_FILTERS.map((s) => ({
+              value: s,
+              label: s === 'ALL' ? 'All' : inspectionStatusLabel(s),
+            }))}
+            onChange={(v) => setStatus(v as (typeof STATUS_FILTERS)[number])}
+          />
+          <FilterGroup
+            label="Result"
+            value={result}
+            options={RESULT_FILTERS.map((r) => ({
+              value: r,
+              label: r === 'ALL' ? 'All' : overallResultLabel(r),
+            }))}
+            onChange={(v) => setResult(v as (typeof RESULT_FILTERS)[number])}
+          />
         </div>
       )}
 
-      {/* ===== INSPECTION GRID ===== */}
-      {filteredData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
-          <div className="rounded-full bg-surface-2 p-4">
-            <ClipboardCheck className="h-8 w-8 text-ink-400" />
-          </div>
-          <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No inspections found</h3>
-          <p className="mt-1 max-w-sm text-center text-[13px] text-ink-500">
-            No inspections match your current filters. Create a new inspection to get started.
-          </p>
-          <button className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90">
-            <Plus className="inline h-3.5 w-3.5 mr-1" />
-            New Inspection
-          </button>
+      {loading ? (
+        <div className="rounded-lg border border-line bg-surface px-4 py-16 text-center text-sm text-ink-500">
+          Loading inspections…
         </div>
+      ) : rows.length === 0 ? (
+        <EmptyState
+          image="/images/vehicles-empty.png"
+          title="No inspections yet"
+          description="Inspections appear here once they are created from an asset or a schedule."
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          image="/images/trips-empty.png"
+          title="No inspections match your filters"
+          description="Try adjusting your search or clearing the filters."
+          action={
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center justify-center rounded-lg bg-primary-bg px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              Clear filters
+            </button>
+          }
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredData.map((item) => {
-            const resultStyle = RESULT_STYLES[item.result] || RESULT_STYLES.Pending;
-            const isFailed = item.result === "Failed";
-            const isPassed = item.result === "Passed";
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((row) => {
+            const statusTone = inspectionStatusTone(row.status);
+            const resultTone = overallResultTone(row.overallResult);
+            const isFailed =
+              row.overallResult === 'FAIL' ||
+              row.overallResult === 'CRITICAL_FAIL';
+            const isOpen = row.status === 'DRAFT' || row.status === 'IN_PROGRESS';
+
+            const href = isOpen
+              ? `/fleet/inspections/${row.id}/perform`
+              : `/fleet/inspections/${row.id}/result`;
 
             return (
               <Link
-                key={item.id}
-                href={`/fleet/inspections/${item.id}`}
-                className={`group relative rounded-xl border p-4 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                key={row.id}
+                href={href}
+                className={`group rounded-lg border p-4 transition-colors ${
                   isFailed
-                    ? "border-red/30 bg-red-bg/10 hover:border-red/50"
-                    : isPassed
-                    ? "border-green/20 bg-white hover:border-green/40"
-                    : "border-amber/20 bg-white/70 hover:border-amber/40"
+                    ? 'border-red/30 bg-red-bg/10 hover:border-red/50 hover:bg-red-bg/20'
+                    : isOpen
+                    ? 'border-amber/30 bg-amber-bg/10 hover:border-amber/50 hover:bg-amber-bg/20'
+                    : 'border-line bg-surface hover:border-ink-400 hover:bg-surface-2'
                 }`}
               >
-                {/* Glow effect */}
-                <div className={`absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-                  isFailed ? "bg-red-500/5" : isPassed ? "bg-green-500/5" : "bg-amber-500/5"
-                }`} />
-
-                <div className="relative z-10 flex items-start justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                        isFailed
-                          ? "bg-red-bg text-red"
-                          : isPassed
-                          ? "bg-green-bg text-green"
-                          : "bg-amber-bg text-amber"
-                      }`}
-                    >
-                      {resultStyle.icon}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[14px] font-semibold text-ink-950">
-                          {item.id}
-                        </span>
-                        <span className="font-mono text-[10px] text-ink-400">
-                          {item.assetId}
-                        </span>
-                      </div>
-                      <div className="text-[12px] text-ink-500">{item.assetName}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span
-                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${resultStyle.bg} ${resultStyle.text}`}
-                    >
-                      {resultStyle.icon}
-                      {item.result}
-                    </span>
-                    {item.criticalIssues > 0 && (
-                      <span className="rounded-full bg-red-bg px-2 py-0.5 text-[9px] font-semibold text-red">
-                        {item.criticalIssues} critical
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-ink-950">
+                        {row.id}
                       </span>
-                    )}
+                      <span
+                        className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusTone.bg} ${statusTone.text}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusTone.dot}`} />
+                        {inspectionStatusLabel(row.status)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 font-mono text-[11px] text-ink-400 truncate">
+                      {row.assetId}
+                    </div>
                   </div>
+                  {row.overallResult && (
+                    <span
+                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${resultTone.bg} ${resultTone.text}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${resultTone.dot}`} />
+                      {overallResultLabel(row.overallResult)}
+                    </span>
+                  )}
                 </div>
 
-                <div className="relative z-10 mt-3 grid grid-cols-2 gap-1.5">
-                  <div className="flex items-center gap-1.5 text-[11px] text-ink-500">
-                    <User className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="truncate">{item.inspector}</span>
+                <div className="mt-3 space-y-1 text-xs text-ink-500">
+                  <div className="truncate">
+                    <span className="text-ink-400">Template:</span>{' '}
+                    <span className="font-mono">{row.templateId}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-ink-500">
-                    <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.branch}</span>
+                  <div className="truncate">
+                    <span className="text-ink-400">Inspector:</span>{' '}
+                    <span className="font-mono">{row.inspectorMembershipId}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-ink-500 col-span-2">
-                    <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.date}</span>
-                    <span className="text-ink-300">·</span>
-                    <span className="text-ink-400">Next: {item.nextDue}</span>
-                  </div>
+                  {row.tripReference && (
+                    <div className="truncate">
+                      <span className="text-ink-400">Trip:</span>{' '}
+                      {row.tripReference}
+                    </div>
+                  )}
                 </div>
 
-                <div className="relative z-10 mt-3 flex items-center justify-between border-t border-line pt-2.5">
-                  <div className="text-[10px] text-ink-400 truncate max-w-[180px]">
-                    {item.template}
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-ink-400 group-hover:text-primary transition-colors">
-                    View <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
+                <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
+                  <span className="text-[10px] text-ink-400">
+                    {row.completedAt
+                      ? formatDateTime(row.completedAt)
+                      : formatDateTime(row.createdAt)}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors group-hover:text-primary">
+                    {isOpen ? 'Perform' : 'View'}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
                 </div>
               </Link>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'green' | 'amber' | 'red';
+}) {
+  const cls = {
+    green: 'bg-green-bg text-green',
+    amber: 'bg-amber-bg text-amber',
+    red: 'bg-red-bg text-red',
+  }[tone];
+
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <div className="flex items-center gap-2.5">
+        <div className={`flex h-8 w-8 items-center justify-center rounded-md ${cls}`}>
+          <span className="text-sm font-bold">{value}</span>
+        </div>
+        <span className="text-xs font-semibold text-ink-600">{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function FilterGroup({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
+              value === o.value
+                ? 'bg-primary text-white'
+                : 'bg-surface-2 text-ink-600 hover:bg-surface-3'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

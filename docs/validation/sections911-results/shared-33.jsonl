@@ -1,0 +1,12 @@
+{"Time":"2026-09-27T16:55:55.4275516+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/phonenumber"}
+{"Time":"2026-09-27T16:55:55.5750878+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumber"}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumber","Output":"=== RUN   TestNormalizeNigerianPhoneNumber\n"}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumber","Output":"--- PASS: TestNormalizeNigerianPhoneNumber (0.00s)\n"}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumber","Elapsed":0}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumberRejectsInvalidPhone"}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumberRejectsInvalidPhone","Output":"=== RUN   TestNormalizeNigerianPhoneNumberRejectsInvalidPhone\n"}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumberRejectsInvalidPhone","Output":"--- PASS: TestNormalizeNigerianPhoneNumberRejectsInvalidPhone (0.00s)\n"}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/phonenumber","Test":"TestNormalizeNigerianPhoneNumberRejectsInvalidPhone","Elapsed":0}
+{"Time":"2026-09-27T16:55:55.5756001+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/phonenumber","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:55.5782918+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/phonenumber","Output":"ok  \tcosmicforge/logistics/shared/go/phonenumber\t0.151s\n"}
+{"Time":"2026-09-27T16:55:55.5782918+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/phonenumber","Elapsed":0.151}

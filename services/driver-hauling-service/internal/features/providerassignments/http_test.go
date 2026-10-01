@@ -51,7 +51,7 @@ func TestProviderBearerIngressRelaysSelectedProviderWithHMAC(t *testing.T) {
 	}
 	body := `{"clientResponseId":"response-1","expectedVersion":2,"providerId":"provider-attacker"}`
 	req := httptest.NewRequest(http.MethodPost,
-		"/api/v1/hauling/provider/company-assignments/pas_private_1/accept", strings.NewReader(body))
+		"/api/v1/hauling/provider/private-assignments/pas_private_1/accept", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()

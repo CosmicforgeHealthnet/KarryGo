@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -394,6 +395,14 @@ func (r *Repository) Decline(ctx context.Context, offerID, providerID string, d 
 	}
 	if err = emit(ctx, tx, "dispatch.offer.declined.v1", missionID, version+1, map[string]any{"offer_id": offerID, "provider_id": providerID, "reason": d.Reason}); err != nil {
 		return Assignment{}, err
+	}
+	// Section 14: a decline FOR safety needs operations to look at the vehicle
+	// or route before it is offered again. Queued in the decline's own
+	// transaction; delivered after commit by the notification worker.
+	if networkanalytics.IsSafetyDecline(d.Reason) {
+		if err = emitSafetyDecline(ctx, tx, offerID, missionID, providerID, d.Reason); err != nil {
+			return Assignment{}, err
+		}
 	}
 	next, err := createNextOffer(ctx, tx, missionID, now, window)
 	if err != nil {

@@ -168,6 +168,10 @@ type harness struct {
 	// the future behaviour sets it explicitly rather than the planner
 	// guessing.
 	multiPickup map[Service]bool
+
+	// capabilityAuthorities are authorities that publish a live capability
+	// contract. An entry here overrides multiPickup for its service.
+	capabilityAuthorities map[Service]CapabilityAuthority
 }
 
 func newHarness() *harness {
@@ -192,12 +196,13 @@ func (h *harness) planner(t *testing.T) *Planner {
 	t.Helper()
 
 	planner, err := NewPlanner(Options{
-		Logistics:   h.logistics,
-		Branches:    h.branches,
-		VendorOwn:   h.vendorOwn,
-		Dispatch:    h.dispatch,
-		Hauling:     h.hauling,
-		MultiPickup: h.multiPickup,
+		Logistics:             h.logistics,
+		Branches:              h.branches,
+		VendorOwn:             h.vendorOwn,
+		Dispatch:              h.dispatch,
+		Hauling:               h.hauling,
+		MultiPickup:           h.multiPickup,
+		CapabilityAuthorities: h.capabilityAuthorities,
 	})
 	if err != nil {
 		t.Fatal(err)

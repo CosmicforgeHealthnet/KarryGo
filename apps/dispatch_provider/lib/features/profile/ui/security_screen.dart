@@ -1,71 +1,135 @@
 import 'package:flutter/material.dart';
-import 'password_screen.dart';
-import 'transaction_pin_screen.dart';
-import 'two_step_verification_screen.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import '../../wallet/state/wallet_controller.dart';
+import 'new_phone_number_screen.dart';
+import 'session_guidance_screen.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Figma 19 — Security & Privacy hub
+// 4 rows matching Figma exactly:
+//   Phone number · Login sessions · Privacy settings · Security tips
+// ═══════════════════════════════════════════════════════════════════════════
 
 class SecurityScreen extends StatelessWidget {
-  const SecurityScreen({super.key, required this.walletController});
+  const SecurityScreen({super.key, this.walletController});
 
-  final WalletController walletController;
+  // Kept for API compatibility — not used after TransactionPin removal.
+  final WalletController? walletController;
+
+  void _openPhoneNumber(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const NewPhoneNumberScreen(
+          countryFlag: '🇳🇬',
+          countryCode: '+234',
+        ),
+      ),
+    );
+  }
+
+  void _openLoginSessions(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Login sessions coming soon.')),
+    );
+  }
+
+  void _openPrivacy(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Privacy settings coming soon.')),
+    );
+  }
+
+  void _openSecurityTips(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SessionGuidanceScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: c.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
           children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(),
-              child: const Align(
-                alignment: Alignment.centerLeft,
-                child: Icon(Icons.arrow_back_ios_new,
-                    size: 20, color: Color(0xFF1A1A1A)),
+            // ── Header ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 22,
+                        color: c.text,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Security',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  Text(
+                    'Security & Privacy',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: c.text,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Keep your account safe and in your control.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: c.textMuted,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  _Row(
+                    icon: Icons.phone_outlined,
+                    label: 'Phone number',
+                    subtitle: '+234 803 555 1234',
+                    onTap: () => _openPhoneNumber(context),
+                  ),
+                  _Row(
+                    icon: Icons.devices_outlined,
+                    label: 'Login sessions',
+                    subtitle: 'Manage your active sessions',
+                    onTap: () => _openLoginSessions(context),
+                  ),
+                  _Row(
+                    icon: Icons.lock_outline_rounded,
+                    label: 'Privacy settings',
+                    subtitle: 'Control your data',
+                    onTap: () => _openPrivacy(context),
+                  ),
+                  _Row(
+                    icon: Icons.shield_outlined,
+                    label: 'Security tips',
+                    subtitle: 'Learn how to stay safe',
+                    onTap: () => _openSecurityTips(context),
+                    isLast: true,
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              'We try our best to keep you safe.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF888888)),
-            ),
-            const SizedBox(height: 24),
-            _MenuItem(
-              label: 'Passwords',
-              subtitle: 'Manage passwords and access to your account',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PasswordScreen()),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _MenuItem(
-              label: 'Transaction Pin',
-              subtitle: 'Manage Transaction Pin and access to your earnings',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      TransactionPinScreen(walletController: walletController),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _MenuItem(
-              label: 'Two-step Verification',
-              subtitle: 'This adds extra security through email verification',
-              onTap: () => Navigator.of(context).push(
-  MaterialPageRoute(builder: (_) => const TwoStepVerificationScreen()),
-),
             ),
           ],
         ),
@@ -74,61 +138,72 @@ class SecurityScreen extends StatelessWidget {
   }
 }
 
-class _MenuItem extends StatelessWidget {
-  const _MenuItem({
+class _Row extends StatelessWidget {
+  const _Row({
+    required this.icon,
     required this.label,
     required this.subtitle,
     required this.onTap,
+    this.isLast = false,
   });
 
+  final IconData icon;
   final String label;
   final String subtitle;
   final VoidCallback onTap;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFEEEEEE)),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
+    final c = context.palette;
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              children: [
+                Icon(icon, size: 22, color: c.text),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: c.text,
+                          letterSpacing: -0.1,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF888888),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: c.textMuted,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, size: 20, color: Color(0xFF888888)),
-            ],
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 22,
+                  color: c.textMuted,
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+        if (!isLast) Divider(height: 1, color: c.divider),
+      ],
     );
   }
 }

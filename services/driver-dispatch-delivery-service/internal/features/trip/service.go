@@ -60,10 +60,22 @@ type CustomerNotifier interface {
 // the versioned challenge/evidence domain.
 type SecureHandoverGate interface {
 	Enabled() bool
+	Required(ctx context.Context, tripID string) (bool, error)
 	PickupReady(ctx context.Context, tripID string) (bool, error)
 	DeliveryReady(ctx context.Context, tripID string) (bool, error)
 	EnsureDelivery(ctx context.Context, tripID, operationRef string) error
 	MarkInTransit(ctx context.Context, tripID string) error
+}
+
+func (s *Service) secureHandoverRequired(ctx context.Context, tripID string) (bool, error) {
+	if s.secureHandover == nil {
+		return false, nil
+	}
+	required, err := s.secureHandover.Required(ctx, tripID)
+	if err != nil {
+		return false, apperrors.Unavailable("Secure handover policy is temporarily unavailable.", err)
+	}
+	return required, nil
 }
 
 // ProofSubmitInput carries parsed multipart form data for the SubmitProof service method.
@@ -95,6 +107,14 @@ type Service struct {
 	secureHandover   SecureHandoverGate
 	now              func() time.Time
 	handoverSecret   []byte
+
+	// managedSettlement and managedHandoff are the Section 12 boundary --
+	// see managed_settlement.go. They decide whether a completed corporate
+	// mission takes the legacy direct-to-rider wallet path or the Fleet
+	// managed path, and that decision is never made by a live Fleet lookup
+	// at completion time.
+	managedSettlement ManagedSettlementConfig
+	managedHandoff    ManagedSettlementHandoff
 }
 
 func NewService(repository Repository, storage ProofStorage) *Service {
@@ -417,7 +437,11 @@ func (s *Service) MarkArrived(ctx context.Context, tripID, providerID string) (A
 	}
 	now := s.now()
 	var pickup handover.CodeRecord
-	if s.secureHandover == nil || !s.secureHandover.Enabled() {
+	protected, err := s.secureHandoverRequired(ctx, tripID)
+	if err != nil {
+		return ArrivedResponse{}, err
+	}
+	if !protected {
 		pickup, err = securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, tripID), now)
 		if err != nil {
 			return ArrivedResponse{}, apperrors.Internal("Could not generate a pickup code.", err)
@@ -471,7 +495,10 @@ func (s *Service) StartTrip(ctx context.Context, tripID, providerID string) (Sta
 	if trip == nil {
 		return StartTripResponse{}, apperrors.NotFound("Trip not found.", nil)
 	}
-	protected := s.secureHandover != nil && s.secureHandover.Enabled()
+	protected, err := s.secureHandoverRequired(ctx, tripID)
+	if err != nil {
+		return StartTripResponse{}, err
+	}
 	if protected && trip.Status == StatusInProgress {
 		if err = s.secureHandover.EnsureDelivery(ctx, tripID, "trip-start-delivery:"+tripID); err != nil {
 			return StartTripResponse{}, err
@@ -567,7 +594,11 @@ func (s *Service) SubmitProof(ctx context.Context, input ProofSubmitInput) (*Pro
 	if trip == nil {
 		return nil, apperrors.NotFound("Trip not found.", nil)
 	}
-	if s.secureHandover != nil && s.secureHandover.Enabled() {
+	protected, err := s.secureHandoverRequired(ctx, input.TripID)
+	if err != nil {
+		return nil, err
+	}
+	if protected {
 		return nil, apperrors.New(409, "SECURE_EVIDENCE_ROUTE_REQUIRED", "Use the protected capture-session and evidence routes for this trip.", nil)
 	}
 	if err := ValidateTransition(trip.Status, StatusProofSubmitted); err != nil {
@@ -698,7 +729,10 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 	if trip == nil {
 		return CompleteResponse{}, apperrors.NotFound("Trip not found.", nil)
 	}
-	protected := s.secureHandover != nil && s.secureHandover.Enabled()
+	protected, err := s.secureHandoverRequired(ctx, tripID)
+	if err != nil {
+		return CompleteResponse{}, err
+	}
 	if protected {
 		ready, gateErr := s.secureHandover.DeliveryReady(ctx, tripID)
 		if gateErr != nil {
@@ -741,17 +775,11 @@ func (s *Service) CompleteTrip(ctx context.Context, tripID, providerID string) (
 	if updatedTrip.CompletedAt != nil {
 		completedAt = *updatedTrip.CompletedAt
 	}
-	if s.settlement != nil {
-		if err := s.settlement.HandleTripCompleted(ctx, trip.BookingID, completedAt); err != nil {
-			log.Printf("trip settlement confirmation pending trip_id=%s", trip.ID)
-		}
-	} else if s.wallet != nil {
-		if _, err := s.wallet.CompleteJobAt(ctx, "dispatch-delivery-service", trip.BookingID, completedAt); err != nil {
-			log.Printf("wallet settlement failed trip_id=%s booking_id=%s provider_id=%s",
-				trip.ID, trip.BookingID, trip.ProviderID)
-			// Trip is already completed in the DB. Do not roll back.
-		}
-	}
+	// Which settlement path runs is decided by settleCompletedTrip, not by
+	// this call site: an independent mission settles exactly as before, while
+	// a corporate mission is routed to the Fleet managed path and is
+	// deliberately NOT paid directly to the rider (Section 9 DSP-014).
+	s.settleCompletedTrip(ctx, trip.ID, trip.BookingID, completedAt)
 	if s.events != nil {
 		_ = s.events.PublishTripCompleted(ctx, TripCompletedEvent{
 			Event: TopicTripCompleted, TripID: trip.ID, BookingID: trip.BookingID,

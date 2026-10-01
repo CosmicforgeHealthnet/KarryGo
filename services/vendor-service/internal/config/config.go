@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	"cosmicforge/logistics/shared/go/redisx"
 )
 
@@ -22,6 +23,11 @@ import (
 type Config struct {
 	AppEnv   string
 	HTTPAddr string
+	// ProcessMode controls deployment topology. "api" serves HTTP without
+	// claiming jobs, "worker" claims jobs without a public listener, and
+	// "all" preserves the legacy combined development mode.
+	ProcessMode string
+	LoadErrors  []string
 
 	Migration bool
 
@@ -147,6 +153,10 @@ type FulfilmentConfig struct {
 	// capability by accident.
 	DispatchMultiPickupSupported bool
 	HaulingMultiPickupSupported  bool
+	// HaulingSecureHandoverRequired marks deployments/cohorts whose Commerce
+	// activation depends on the Section 30 secure OTP+QR contract. It defaults
+	// true and fails closed while the audited dependency is PARTIAL.
+	HaulingSecureHandoverRequired bool
 
 	// ExpiryInterval is the background sweep period for lapsed plans.
 	ExpiryInterval time.Duration
@@ -276,10 +286,13 @@ type FeatureFlags struct {
 	VendorCRMIntelligenceEnabled       bool
 	VendorCRMIntelligenceWorkerEnabled bool
 	VendorCRMExportsEnabled            bool
-	VendorInventoryEnabled             bool
-	VendorInventoryWritesEnabled       bool
-	VendorPurchasingEnabled            bool
-	VendorRecipesEnabled               bool
+	// VendorPrivacyRetentionEnabled is a kill switch for new worker claims.
+	// Disabling it leaves every pending job and retained evidence untouched.
+	VendorPrivacyRetentionEnabled bool
+	VendorInventoryEnabled        bool
+	VendorInventoryWritesEnabled  bool
+	VendorPurchasingEnabled       bool
+	VendorRecipesEnabled          bool
 	// VendorCostEnabled is Section 16D's master switch. It is separate from
 	// VendorRecipesEnabled on purpose: a vendor can run recipes and production
 	// without exposing what its inputs cost, which is the same separation the
@@ -296,15 +309,33 @@ type FeatureFlags struct {
 
 	CommerceShopEnabled              bool
 	VendorShopCatalogueWritesEnabled bool
-	CommerceMultiVendorEnabled       bool
-	CommerceVariableWeightEnabled    bool
-	CommerceBulkRFQEnabled           bool
+
+	// CustomerFoodEnabled / CustomerShopEnabled are the Karryam V4 §24 public
+	// customer contract gates. They sit ON TOP of the domain switches above:
+	// the domain may be live for vendors (catalogue, inventory) while the
+	// customer surface stays dark until its contract E2E passes. The server
+	// refuses a disabled domain even for an outdated or malicious client.
+	CustomerFoodEnabled bool
+	CustomerShopEnabled bool
+
+	// ExternalReferenceRepricingEnabled is the cutover to the external
+	// Reference System / Repricing Engine (V4 §8). No approved adapter exists
+	// in this service, so turning it on is refused at boot rather than
+	// silently leaving the current quote path in place.
+	ExternalReferenceRepricingEnabled bool
+	CommerceMultiVendorEnabled        bool
+	CommerceVariableWeightEnabled     bool
+	CommerceBulkRFQEnabled            bool
 
 	VendorOwnDeliveryEnabled bool
 
 	DispatchCommerceIntegrationEnabled bool
 	TaxiGoodsDeliveryEnabled           bool
-	HaulingCommerceIntegrationEnabled  bool
+	// CustomerMovementGroupingEnabled publishes the commercial grouping of a
+	// purchase to customer-service. Grouping only: never execution state.
+	CustomerMovementGroupingEnabled   bool
+	CustomerGroupingBackfillEnabled   bool
+	HaulingCommerceIntegrationEnabled bool
 
 	PaymentWalletCommerceEnabled         bool
 	VendorVerificationIntegrationEnabled bool
@@ -321,6 +352,26 @@ type FeatureFlags struct {
 	// Planning depends on checkout, so it may not be enabled without it.
 	CommerceFulfilmentPlanningEnabled bool
 	CommerceFulfilmentWorkersEnabled  bool
+
+	// Section 11's three-stage rollout. They are separate switches because
+	// each stage is independently useful and independently reversible.
+	//
+	// VendorReadinessOrchestrationEnabled makes readiness authoritative: staff
+	// declare state, the predictor produces a window, and history records who
+	// said what. On its own it changes nothing about fulfilment -- it is the
+	// observe-then-trust stage.
+	//
+	// VendorJITPickupEnabled defers mission creation until the readiness
+	// prediction says a provider should come. It needs readiness, because
+	// deferring against no prediction is just delaying.
+	//
+	// VendorAutoAuthoritySelectionEnabled lets Vendor choose the execution
+	// authority from the authorities' own answers instead of a stored plan
+	// decision. It needs JIT, because selecting at commit time is the whole
+	// point of selecting automatically at all.
+	VendorReadinessOrchestrationEnabled bool
+	VendorJITPickupEnabled              bool
+	VendorAutoAuthoritySelectionEnabled bool
 
 	// CommerceBasketOptimizationEnabled is the master switch for Optimize My
 	// Cart and budget shopping.
@@ -362,9 +413,23 @@ type FeatureFlags struct {
 // Load reads configuration from the environment. It never panics; call
 // Validate to reject an unsafe configuration explicitly.
 func Load() Config {
-	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8112"),
+	var loadErrors []string
+	boolValue := func(key string, fallback bool) bool {
+		raw := os.Getenv(key)
+		if raw == "" {
+			return fallback
+		}
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			loadErrors = append(loadErrors, key+" must be a boolean")
+			return fallback
+		}
+		return value
+	}
+	cfg := Config{
+		AppEnv:      getEnv("APP_ENV", "development"),
+		HTTPAddr:    getEnv("HTTP_ADDR", ":8112"),
+		ProcessMode: strings.ToLower(strings.TrimSpace(getEnv("VENDOR_PROCESS_MODE", "all"))),
 
 		Migration: getEnvBool("VENDOR_MIGRATION", false),
 
@@ -406,6 +471,7 @@ func Load() Config {
 			VendorCRMIntelligenceEnabled:       getEnvBool("VENDOR_CRM_INTELLIGENCE_ENABLED", false),
 			VendorCRMIntelligenceWorkerEnabled: getEnvBool("VENDOR_CRM_INTELLIGENCE_WORKER_ENABLED", false),
 			VendorCRMExportsEnabled:            getEnvBool("VENDOR_CRM_EXPORTS_ENABLED", false),
+			VendorPrivacyRetentionEnabled:      getEnvBool("VENDOR_PRIVACY_RETENTION_ENABLED", false),
 
 			VendorInventoryEnabled:       getEnvBool("VENDOR_INVENTORY_ENABLED", false),
 			VendorInventoryWritesEnabled: getEnvBool("VENDOR_INVENTORY_WRITES_ENABLED", false),
@@ -426,6 +492,8 @@ func Load() Config {
 
 			DispatchCommerceIntegrationEnabled: getEnvBool("DISPATCH_COMMERCE_INTEGRATION_ENABLED", false),
 			TaxiGoodsDeliveryEnabled:           getEnvBool("TAXI_GOODS_DELIVERY_ENABLED", false),
+			CustomerMovementGroupingEnabled:    getEnvBool("VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED", false),
+			CustomerGroupingBackfillEnabled:    getEnvBool("VENDOR_CUSTOMER_GROUPING_BACKFILL_ENABLED", false),
 			HaulingCommerceIntegrationEnabled:  getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
 
 			PaymentWalletCommerceEnabled:         getEnvBool("PAYMENT_WALLET_COMMERCE_ENABLED", false),
@@ -436,11 +504,15 @@ func Load() Config {
 
 			CommerceFulfilmentPlanningEnabled: getEnvBool("COMMERCE_FULFILMENT_PLANNING_ENABLED", false),
 			CommerceFulfilmentWorkersEnabled:  getEnvBool("COMMERCE_FULFILMENT_WORKERS_ENABLED", false),
-			CommerceBasketOptimizationEnabled: getEnvBool("COMMERCE_BASKET_OPTIMIZATION_ENABLED", false),
-			CommerceRecurringBasketEnabled:    getEnvBool("COMMERCE_RECURRING_BASKET_ENABLED", false),
-			CommerceQuoteLockEnabled:          getEnvBool("COMMERCE_QUOTE_LOCK_ENABLED", false),
-			CommerceOrdersEnabled:             getEnvBool("COMMERCE_ORDERS_ENABLED", false),
-			CommerceGlobalKillSwitch:          getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
+
+			VendorReadinessOrchestrationEnabled: getEnvBool("VENDOR_READINESS_ORCHESTRATION_ENABLED", false),
+			VendorJITPickupEnabled:              getEnvBool("VENDOR_JIT_PICKUP_ENABLED", false),
+			VendorAutoAuthoritySelectionEnabled: getEnvBool("VENDOR_AUTO_AUTHORITY_SELECTION_ENABLED", false),
+			CommerceBasketOptimizationEnabled:   getEnvBool("COMMERCE_BASKET_OPTIMIZATION_ENABLED", false),
+			CommerceRecurringBasketEnabled:      getEnvBool("COMMERCE_RECURRING_BASKET_ENABLED", false),
+			CommerceQuoteLockEnabled:            getEnvBool("COMMERCE_QUOTE_LOCK_ENABLED", false),
+			CommerceOrdersEnabled:               getEnvBool("COMMERCE_ORDERS_ENABLED", false),
+			CommerceGlobalKillSwitch:            getEnvBool("COMMERCE_GLOBAL_KILL_SWITCH", false),
 
 			VendorTaxonomyEnabled:       getEnvBool("VENDOR_TAXONOMY_ENABLED", false),
 			VendorTaxonomyWritesEnabled: getEnvBool("VENDOR_TAXONOMY_WRITES_ENABLED", false),
@@ -478,6 +550,9 @@ func Load() Config {
 			),
 			HaulingMultiPickupSupported: getEnvBool(
 				"HAULING_MULTI_PICKUP_SUPPORTED", false,
+			),
+			HaulingSecureHandoverRequired: getEnvBool(
+				"HAULING_SECURE_HANDOVER_REQUIRED", true,
 			),
 			ExpiryInterval: time.Duration(getEnvInt("COMMERCE_FULFILMENT_EXPIRY_INTERVAL_SECONDS", 60)) * time.Second,
 		},
@@ -525,13 +600,28 @@ func Load() Config {
 			SupportMax: getEnvInt("VENDOR_SUPPORT_RATE_MAX", 10), SupportWindowSeconds: getEnvInt("VENDOR_SUPPORT_RATE_WINDOW_SECONDS", 3600),
 		},
 	}
+	// Re-parse the operational controls strictly. Existing feature parsing is
+	// retained for compatibility; these controls are release gates and a typo
+	// must be a boot error rather than silently selecting a fallback.
+	cfg.Migration = boolValue("VENDOR_MIGRATION", false)
+	cfg.Flags.VendorServiceEnabled = boolValue("VENDOR_SERVICE_ENABLED", false)
+	cfg.Flags.CommerceFulfilmentWorkersEnabled = boolValue("COMMERCE_FULFILMENT_WORKERS_ENABLED", false)
+	cfg.Flags.CommerceGlobalKillSwitch = boolValue("COMMERCE_GLOBAL_KILL_SWITCH", false)
+	cfg.Flags.CustomerFoodEnabled = boolValue("CUSTOMER_FOOD_ENABLED", false)
+	cfg.Flags.CustomerShopEnabled = boolValue("CUSTOMER_SHOP_ENABLED", false)
+	cfg.Flags.ExternalReferenceRepricingEnabled = boolValue("EXTERNAL_REFERENCE_REPRICING_ENABLED", false)
+	cfg.LoadErrors = loadErrors
+	return cfg
 }
 
 // Validate rejects unsafe partial configuration. A feature flag being on
 // without its required downstream credentials is refused rather than
 // silently degrading to an insecure or no-op integration.
 func (c Config) Validate() error {
-	var problems []string
+	problems := append([]string(nil), c.LoadErrors...)
+	if c.ProcessMode != "all" && c.ProcessMode != "api" && c.ProcessMode != "worker" {
+		problems = append(problems, "VENDOR_PROCESS_MODE must be one of all, api, worker")
+	}
 
 	if strings.TrimSpace(c.DatabaseURL) == "" {
 		problems = append(problems, "VENDOR_DATABASE_URL is required")
@@ -549,11 +639,28 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if c.Flags.CustomerFoodEnabled && !c.Flags.CommerceFoodEnabled {
+		problems = append(problems, "CUSTOMER_FOOD_ENABLED requires COMMERCE_FOOD_ENABLED")
+	}
+	if c.Flags.CustomerShopEnabled && !c.Flags.CommerceShopEnabled {
+		problems = append(problems, "CUSTOMER_SHOP_ENABLED requires COMMERCE_SHOP_ENABLED")
+	}
+	if c.Flags.ExternalReferenceRepricingEnabled {
+		problems = append(problems, "EXTERNAL_REFERENCE_REPRICING_ENABLED has no approved Reference System/Repricing adapter in this build")
+	}
+
 	requireCreds(c.Flags.PaymentWalletCommerceEnabled, "PAYMENT_WALLET_COMMERCE_ENABLED", c.WalletURL, c.WalletSecret, "VENDOR_WALLET_URL", "VENDOR_WALLET_SECRET")
 	requireCreds(c.Flags.VendorVerificationIntegrationEnabled, "VENDOR_VERIFICATION_INTEGRATION_ENABLED", c.VerificationURL, c.VerificationSecret, "VENDOR_VERIFICATION_URL", "VENDOR_VERIFICATION_SECRET")
 	requireCreds(c.Flags.DispatchCommerceIntegrationEnabled, "DISPATCH_COMMERCE_INTEGRATION_ENABLED", c.DispatchURL, c.DispatchSecret, "VENDOR_DISPATCH_URL", "VENDOR_DISPATCH_SECRET")
 	requireCreds(c.Flags.TaxiGoodsDeliveryEnabled, "TAXI_GOODS_DELIVERY_ENABLED", c.TaxiURL, c.TaxiSecret, "VENDOR_TAXI_URL", "VENDOR_TAXI_SECRET")
+	requireCreds(c.Flags.CustomerMovementGroupingEnabled, "VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED", c.CustomerURL, c.CustomerSecret, "VENDOR_CUSTOMER_URL", "VENDOR_CUSTOMER_SECRET")
 	requireCreds(c.Flags.HaulingCommerceIntegrationEnabled, "HAULING_COMMERCE_INTEGRATION_ENABLED", c.HaulingURL, c.HaulingSecret, "VENDOR_HAULING_URL", "VENDOR_HAULING_SECRET")
+	if c.Flags.HaulingCommerceIntegrationEnabled &&
+		c.Fulfilment.HaulingSecureHandoverRequired &&
+		!handoverintegration.HaulingSecureHandover().Available() {
+		problems = append(problems,
+			"HAULING_COMMERCE_INTEGRATION_ENABLED is blocked: HAULING_SECURE_HANDOVER is not AVAILABLE")
+	}
 	for _, integration := range []struct{ name, urlValue, secret string }{{"Vendor Wallet onboarding", c.WalletURL, c.WalletSecret}, {"Vendor Media validation", c.MediaURL, c.MediaSecret}} {
 		if (strings.TrimSpace(integration.urlValue) == "") != (strings.TrimSpace(integration.secret) == "") {
 			problems = append(problems, integration.name+" requires both URL and secret or neither")
@@ -594,6 +701,7 @@ func (c Config) Validate() error {
 			c.Flags.VendorCRMCorporateEnabled ||
 			c.Flags.VendorCRMIntelligenceEnabled ||
 			c.Flags.VendorCRMExportsEnabled ||
+			c.Flags.VendorPrivacyRetentionEnabled ||
 			c.Flags.VendorInventoryEnabled || c.Flags.VendorPurchasingEnabled || c.Flags.VendorRecipesEnabled ||
 			c.Flags.VendorCostEnabled ||
 			c.Flags.CommerceFoodEnabled || c.Flags.VendorFoodCatalogueWritesEnabled ||
@@ -602,7 +710,9 @@ func (c Config) Validate() error {
 			c.Flags.VendorTaxonomyEnabled || c.Flags.VendorSearchEnabled ||
 			c.Flags.CommerceCheckoutEnabled || c.Flags.CommerceCheckoutRecoveryEnabled ||
 			c.Flags.CommerceFulfilmentPlanningEnabled || c.Flags.CommerceFulfilmentWorkersEnabled ||
-			c.Flags.CommerceQuoteLockEnabled || c.Flags.CommerceOrdersEnabled
+			c.Flags.CommerceQuoteLockEnabled || c.Flags.CommerceOrdersEnabled ||
+			c.Flags.VendorReadinessOrchestrationEnabled || c.Flags.VendorJITPickupEnabled ||
+			c.Flags.VendorAutoAuthoritySelectionEnabled
 		if anyFeature {
 			problems = append(problems, "VENDOR_SERVICE_ENABLED must be true when any VENDOR_* or COMMERCE_* feature flag is enabled")
 		}
@@ -613,6 +723,53 @@ func (c Config) Validate() error {
 	// Materialization in turn needs the segmentation surface that owns its
 	// definitions. A flag enabled without its prerequisite is a configuration
 	// mistake, not a partially-enabled state.
+	// Section 11's stages depend on each other in one direction only, and each
+	// refusal below prevents a specific silent failure.
+	//
+	// JIT without readiness would defer commitment against no prediction,
+	// which is not just-in-time -- it is late.
+	if c.Flags.VendorJITPickupEnabled && !c.Flags.VendorReadinessOrchestrationEnabled {
+		problems = append(problems,
+			"VENDOR_READINESS_ORCHESTRATION_ENABLED must be true when VENDOR_JIT_PICKUP_ENABLED=true")
+	}
+	// Just-in-time commitment replaces the synchronous dispatch that happens
+	// during order activation. That makes Section 17E orders a hard
+	// prerequisite rather than a nicety: with orders off there is no activation
+	// to defer, so every planned orchestration would sit at COMMIT_DUE with
+	// nothing behind it.
+	if c.Flags.VendorJITPickupEnabled && !c.Flags.CommerceOrdersEnabled {
+		problems = append(problems,
+			"COMMERCE_ORDERS_ENABLED must be true when VENDOR_JIT_PICKUP_ENABLED=true")
+	}
+	// And it needs an authority that can actually be asked. A deployment that
+	// defers every mission to an authority it has no credentials for would
+	// plan every order and dispatch none, which looks healthy from the outside
+	// and delivers nothing.
+	if c.Flags.VendorJITPickupEnabled && !c.anyLogisticsAuthorityConfigured() {
+		problems = append(problems,
+			"VENDOR_JIT_PICKUP_ENABLED requires at least one configured logistics authority "+
+				"(DISPATCH_COMMERCE_INTEGRATION_ENABLED, TAXI_GOODS_DELIVERY_ENABLED or "+
+				"HAULING_COMMERCE_INTEGRATION_ENABLED with its URL and secret)")
+	}
+	// Automatic selection without JIT would choose an authority at order time
+	// from supply that will have changed by the time anyone collects.
+	if c.Flags.VendorAutoAuthoritySelectionEnabled && !c.Flags.VendorJITPickupEnabled {
+		problems = append(problems,
+			"VENDOR_JIT_PICKUP_ENABLED must be true when VENDOR_AUTO_AUTHORITY_SELECTION_ENABLED=true")
+	}
+	// And automatic selection needs somebody to ask. With no logistics
+	// authority integration enabled there is nothing to choose between, and
+	// every order would fail selection while looking like a planning bug.
+	if c.Flags.VendorAutoAuthoritySelectionEnabled &&
+		!c.Flags.DispatchCommerceIntegrationEnabled &&
+		!c.Flags.TaxiGoodsDeliveryEnabled &&
+		!c.Flags.HaulingCommerceIntegrationEnabled {
+		problems = append(problems,
+			"VENDOR_AUTO_AUTHORITY_SELECTION_ENABLED requires at least one of "+
+				"DISPATCH_COMMERCE_INTEGRATION_ENABLED, TAXI_GOODS_DELIVERY_ENABLED or "+
+				"HAULING_COMMERCE_INTEGRATION_ENABLED")
+	}
+
 	if c.Flags.VendorCRMSegmentationEnabled && !c.Flags.VendorCRMEnabled {
 		problems = append(problems, "VENDOR_CRM_ENABLED must be true when VENDOR_CRM_SEGMENTATION_ENABLED=true")
 	}
@@ -927,4 +1084,28 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// anyLogisticsAuthorityConfigured reports whether at least one execution
+// authority is both enabled and credentialled.
+//
+// It checks the credentials, not just the flag. An authority switched on
+// without a URL or a secret cannot be called, and treating it as available is
+// how a deployment passes validation and then fails every commit.
+func (c Config) anyLogisticsAuthorityConfigured() bool {
+	type binding struct {
+		enabled bool
+		url     string
+		secret  string
+	}
+	for _, item := range []binding{
+		{c.Flags.DispatchCommerceIntegrationEnabled, c.DispatchURL, c.DispatchSecret},
+		{c.Flags.TaxiGoodsDeliveryEnabled, c.TaxiURL, c.TaxiSecret},
+		{c.Flags.HaulingCommerceIntegrationEnabled, c.HaulingURL, c.HaulingSecret},
+	} {
+		if item.enabled && strings.TrimSpace(item.url) != "" && strings.TrimSpace(item.secret) != "" {
+			return true
+		}
+	}
+	return false
 }

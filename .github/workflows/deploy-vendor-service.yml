@@ -1,0 +1,94 @@
+name: Deploy vendor-service
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [staging]
+    paths:
+      - 'services/vendor-service/**'
+      - 'shared/go/**'
+      - 'deploy/vendor-service/**'
+      - '.github/workflows/deploy-vendor-service.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-vendor-service-staging
+  cancel-in-progress: false
+
+env:
+  VENDOR_IMAGE: ghcr.io/cosmicforgehealthnet/vendor-service:${{ github.sha }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build immutable Vendor image
+        # The commit is stamped into the binary as well as the tag: the tag
+        # identifies the image, the stamp lets a running container answer
+        # "which commit are you?" without anyone trusting the tag (OPS-002).
+        run: |
+          docker build -f services/vendor-service/Dockerfile \
+            --build-arg BUILD_COMMIT_SHA="${{ github.sha }}" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg BUILD_VERSION="${{ github.ref_name }}-${{ github.run_number }}" \
+            -t "$VENDOR_IMAGE" .
+
+      - name: Push immutable Vendor image
+        run: docker push "$VENDOR_IMAGE"
+
+      - name: Install staging Compose definition
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: deploy/vendor-service/docker-compose.staging.yml
+          target: /opt/karrygo/vendor-service
+          strip_components: 2
+
+      - name: Migrate, roll out API, then roll out Worker
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -eu
+            cd /opt/karrygo/vendor-service
+            if [ ! -f vendor.env ]; then
+              echo "ERROR: /opt/karrygo/vendor-service/vendor.env is missing"
+              exit 1
+            fi
+            mode="$(stat -c '%a' vendor.env)"
+            if [ "$mode" != "600" ]; then
+              echo "ERROR: vendor.env must have mode 600; actual mode=$mode"
+              exit 1
+            fi
+            export VENDOR_IMAGE='${{ env.VENDOR_IMAGE }}'
+            export VENDOR_ENV_FILE=/opt/karrygo/vendor-service/vendor.env
+            docker compose -f docker-compose.staging.yml config --quiet
+            docker compose -f docker-compose.staging.yml pull
+            docker compose -f docker-compose.staging.yml --profile operations run --rm vendor-migrate
+            docker compose -f docker-compose.staging.yml up -d vendor-api
+            i=0
+            until test "$(docker inspect -f '{{.State.Health.Status}}' karrygo-vendor-api-staging)" = healthy; do
+              i=$((i + 1))
+              test "$i" -le 24
+              sleep 5
+            done
+            docker compose -f docker-compose.staging.yml up -d vendor-worker
+            test "$(docker inspect -f '{{.State.Running}}' karrygo-vendor-worker-staging)" = true
+            test -z "$(docker port karrygo-vendor-worker-staging)"

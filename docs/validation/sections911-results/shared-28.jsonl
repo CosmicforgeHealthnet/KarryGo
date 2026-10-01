@@ -1,0 +1,72 @@
+{"Time":"2026-09-27T16:55:40.6052041+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/networkanalytics"}
+{"Time":"2026-09-27T16:55:40.7546992+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNoOperationalPathDependsOnAnalyticsAvailability"}
+{"Time":"2026-09-27T16:55:40.7550692+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNoOperationalPathDependsOnAnalyticsAvailability","Output":"=== RUN   TestNoOperationalPathDependsOnAnalyticsAvailability\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNoOperationalPathDependsOnAnalyticsAvailability","Output":"--- PASS: TestNoOperationalPathDependsOnAnalyticsAvailability (0.90s)\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNoOperationalPathDependsOnAnalyticsAvailability","Elapsed":0.9}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAdvisoryReadPatternRecognisesEveryRead"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAdvisoryReadPatternRecognisesEveryRead","Output":"=== RUN   TestAdvisoryReadPatternRecognisesEveryRead\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAdvisoryReadPatternRecognisesEveryRead","Output":"--- PASS: TestAdvisoryReadPatternRecognisesEveryRead (0.00s)\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAdvisoryReadPatternRecognisesEveryRead","Elapsed":0}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestClassifyMapsEveryProducerSpelling"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestClassifyMapsEveryProducerSpelling","Output":"=== RUN   TestClassifyMapsEveryProducerSpelling\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestClassifyMapsEveryProducerSpelling","Output":"--- PASS: TestClassifyMapsEveryProducerSpelling (0.00s)\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestClassifyMapsEveryProducerSpelling","Elapsed":0}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSnapshotAuthorityComesFromThePayload"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSnapshotAuthorityComesFromThePayload","Output":"=== RUN   TestSnapshotAuthorityComesFromThePayload\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSnapshotAuthorityComesFromThePayload","Output":"--- PASS: TestSnapshotAuthorityComesFromThePayload (0.00s)\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSnapshotAuthorityComesFromThePayload","Elapsed":0}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestMinimizeKeepsMetricsAndDropsPeopleAndMoney"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestMinimizeKeepsMetricsAndDropsPeopleAndMoney","Output":"=== RUN   TestMinimizeKeepsMetricsAndDropsPeopleAndMoney\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestMinimizeKeepsMetricsAndDropsPeopleAndMoney","Output":"--- PASS: TestMinimizeKeepsMetricsAndDropsPeopleAndMoney (0.00s)\n"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestMinimizeKeepsMetricsAndDropsPeopleAndMoney","Elapsed":0}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestEveryFailureIsANeutralAnswer"}
+{"Time":"2026-09-27T16:55:41.6578213+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestEveryFailureIsANeutralAnswer","Output":"=== RUN   TestEveryFailureIsANeutralAnswer\n"}
+{"Time":"2026-09-27T16:55:43.0658558+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestEveryFailureIsANeutralAnswer","Output":"--- PASS: TestEveryFailureIsANeutralAnswer (1.41s)\n"}
+{"Time":"2026-09-27T16:55:43.0658558+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestEveryFailureIsANeutralAnswer","Elapsed":1.41}
+{"Time":"2026-09-27T16:55:43.0665811+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAHealthyAnswerIsPassedThrough"}
+{"Time":"2026-09-27T16:55:43.0665811+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAHealthyAnswerIsPassedThrough","Output":"=== RUN   TestAHealthyAnswerIsPassedThrough\n"}
+{"Time":"2026-09-27T16:55:43.0680133+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAHealthyAnswerIsPassedThrough","Output":"--- PASS: TestAHealthyAnswerIsPassedThrough (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.068539+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAHealthyAnswerIsPassedThrough","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.068539+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestInvalidQuestionsAreNotAsked"}
+{"Time":"2026-09-27T16:55:43.068539+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestInvalidQuestionsAreNotAsked","Output":"=== RUN   TestInvalidQuestionsAreNotAsked\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestInvalidQuestionsAreNotAsked","Output":"--- PASS: TestInvalidQuestionsAreNotAsked (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestInvalidQuestionsAreNotAsked","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestKeyTokensHandleEveryConvention"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestKeyTokensHandleEveryConvention","Output":"=== RUN   TestKeyTokensHandleEveryConvention\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestKeyTokensHandleEveryConvention","Output":"--- PASS: TestKeyTokensHandleEveryConvention (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestKeyTokensHandleEveryConvention","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNormalizeKeysMakesOneSpelling"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNormalizeKeysMakesOneSpelling","Output":"=== RUN   TestNormalizeKeysMakesOneSpelling\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNormalizeKeysMakesOneSpelling","Output":"--- PASS: TestNormalizeKeysMakesOneSpelling (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestNormalizeKeysMakesOneSpelling","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSafetyDeclinesAreRecognised"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSafetyDeclinesAreRecognised","Output":"=== RUN   TestSafetyDeclinesAreRecognised\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSafetyDeclinesAreRecognised","Output":"--- PASS: TestSafetyDeclinesAreRecognised (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSafetyDeclinesAreRecognised","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestUnknownIsNotZero"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestUnknownIsNotZero","Output":"=== RUN   TestUnknownIsNotZero\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestUnknownIsNotZero","Output":"--- PASS: TestUnknownIsNotZero (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestUnknownIsNotZero","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSupplyFactsCarryNoIdentityOrCoordinates"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSupplyFactsCarryNoIdentityOrCoordinates","Output":"=== RUN   TestSupplyFactsCarryNoIdentityOrCoordinates\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSupplyFactsCarryNoIdentityOrCoordinates","Output":"--- PASS: TestSupplyFactsCarryNoIdentityOrCoordinates (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestSupplyFactsCarryNoIdentityOrCoordinates","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestReplicasPublishTheSameFact"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestReplicasPublishTheSameFact","Output":"=== RUN   TestReplicasPublishTheSameFact\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestReplicasPublishTheSameFact","Output":"--- PASS: TestReplicasPublishTheSameFact (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestReplicasPublishTheSameFact","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAVanishedZoneIsAnObservedZero"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAVanishedZoneIsAnObservedZero","Output":"=== RUN   TestAVanishedZoneIsAnObservedZero\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAVanishedZoneIsAnObservedZero","Output":"--- PASS: TestAVanishedZoneIsAnObservedZero (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestAVanishedZoneIsAnObservedZero","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestDemandBucketsCountAndSupersede"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestDemandBucketsCountAndSupersede","Output":"=== RUN   TestDemandBucketsCountAndSupersede\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestDemandBucketsCountAndSupersede","Output":"--- PASS: TestDemandBucketsCountAndSupersede (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestDemandBucketsCountAndSupersede","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestLifecycleProductsStayDistinguishable"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestLifecycleProductsStayDistinguishable","Output":"=== RUN   TestLifecycleProductsStayDistinguishable\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestLifecycleProductsStayDistinguishable","Output":"--- PASS: TestLifecycleProductsStayDistinguishable (0.00s)\n"}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Test":"TestLifecycleProductsStayDistinguishable","Elapsed":0}
+{"Time":"2026-09-27T16:55:43.0690619+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:43.0728031+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/networkanalytics","Output":"ok  \tcosmicforge/logistics/shared/go/networkanalytics\t2.468s\n"}
+{"Time":"2026-09-27T16:55:43.0728031+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/networkanalytics","Elapsed":2.468}

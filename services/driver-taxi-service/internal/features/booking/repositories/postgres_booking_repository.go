@@ -2,6 +2,7 @@ package bookingrepositories
 
 import (
 	"context"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,9 +46,14 @@ const bookingColumns = `
 	delivery_verification_status,
 	scheduled_at, dispatch_start_at, reservation_status, reserved_provider_id::text,
 	backup_dispatch_at, provider_confirmed_at, customer_ready_window, matching_started_at,
+	is_corporate_managed, organization_id, membership_id,
+	fleet_assignment_id, fleet_assignment_version, source_context,
+	settlement_mode, source_version, fleet_correlation_id,
 	cancel_reason, cancelled_by,
 	matched_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at,
-	created_at, updated_at`
+	created_at, updated_at,
+	service_product_code, service_product_version, eligibility_policy_version,
+	guarantee_profile_version, requirement_snapshot_json`
 
 const stopColumns = `id::text, booking_id::text, sequence, type, address, lat, lng,
 	status, arrived_at, departed_at, wait_seconds, notes`
@@ -194,7 +200,15 @@ type BookingRepository interface {
 }
 
 type PostgresBookingRepository struct {
-	db *pgxpool.Pool
+	db       *pgxpool.Pool
+	movement *movement.Writer
+}
+
+// WithMovementEvents makes Create also publish the initial customer movement
+// summary inside the same transaction. A nil or disabled writer is a no-op.
+func (r *PostgresBookingRepository) WithMovementEvents(writer *movement.Writer) *PostgresBookingRepository {
+	r.movement = writer
+	return r
 }
 
 func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
@@ -202,6 +216,11 @@ func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
 }
 
 func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking bookingmodels.Booking, stops []bookingmodels.Stop) (bookingmodels.Booking, error) {
+	// Preserve the pre-parcel API contract: callers compiled before
+	// ride_purpose existed send the zero value, which is passenger travel.
+	if booking.RidePurpose == "" {
+		booking.RidePurpose = bookingmodels.RidePurposePassenger
+	}
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return bookingmodels.Booking{}, err
@@ -217,7 +236,9 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 			payment_method, payment_status, status,
 			scheduled_at, dispatch_start_at, matching_started_at,
 			ride_purpose, receiver_name, receiver_phone,
-			package_desc, package_type, package_size, is_fragile
+			package_desc, package_type, package_size, is_fragile,
+			service_product_code, service_product_version, eligibility_policy_version,
+			guarantee_profile_version, requirement_snapshot_json
 		) VALUES (
 			$1, $2, $3, $4,
 			$5, $6, $7, $8, $9,
@@ -225,7 +246,9 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 			$15, $16, $17,
 			$18, $19, $20,
 			$21, $22, $23,
-			$24, $25, $26, $27
+			$24, $25, $26, $27,
+			$28, $29, $30,
+			$31, $32
 		)
 		RETURNING `+bookingColumns,
 		id, booking.CustomerID, booking.MarketID, booking.OperatingZoneID,
@@ -235,6 +258,8 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 		booking.ScheduledAt, booking.DispatchStartAt, booking.MatchingStartedAt,
 		string(booking.RidePurpose), booking.ReceiverName, booking.ReceiverPhone,
 		booking.PackageDesc, booking.PackageType, booking.PackageSize, booking.IsFragile,
+		booking.ServiceProductCode, booking.ServiceProductVersion, booking.EligibilityPolicyVersion,
+		booking.GuaranteeProfileVersion, nullableJSON(booking.RequirementSnapshot),
 	)
 	created, err := scanBooking(row)
 	if err != nil {
@@ -269,6 +294,9 @@ func (r *PostgresBookingRepository) CreateBooking(ctx context.Context, booking b
 		return bookingmodels.Booking{}, err
 	}
 	if err := outbox.Write(ctx, tx, "booking", created.ID, outbox.EventBookingCreated, payload); err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	if err := r.movement.WriteBooking(ctx, tx, created, created.ID); err != nil {
 		return bookingmodels.Booking{}, err
 	}
 
@@ -1003,9 +1031,14 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&deliveryVerificationStatus,
 		&b.ScheduledAt, &b.DispatchStartAt, &b.ReservationStatus, &b.ReservedProviderID,
 		&b.BackupDispatchAt, &b.ProviderConfirmedAt, &b.CustomerReadyWindow, &b.MatchingStartedAt,
+		&b.IsCorporateManaged, &b.OrganizationID, &b.MembershipID,
+		&b.FleetAssignmentID, &b.FleetAssignmentVersion, &b.SourceContext,
+		&b.SettlementMode, &b.SourceVersion, &b.FleetCorrelationID,
 		&b.CancelReason, &b.CancelledBy,
 		&b.MatchedAt, &b.AcceptedAt, &b.ArrivedAt, &b.StartedAt, &b.CompletedAt, &b.CancelledAt,
 		&b.CreatedAt, &b.UpdatedAt,
+		&b.ServiceProductCode, &b.ServiceProductVersion, &b.EligibilityPolicyVersion,
+		&b.GuaranteeProfileVersion, &b.RequirementSnapshot,
 	)
 	b.BookingMode = bookingmodels.BookingMode(bookingMode)
 	b.Status = bookingmodels.Status(status)
@@ -1013,6 +1046,15 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 	b.RidePurpose = bookingmodels.RidePurpose(ridePurpose)
 	b.DeliveryVerificationStatus = bookingmodels.DeliveryVerificationStatus(deliveryVerificationStatus)
 	return b, err
+}
+
+// nullableJSON stores an absent snapshot as SQL NULL rather than an empty,
+// invalid JSONB value.
+func nullableJSON(raw []byte) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	return string(raw)
 }
 
 func scanStop(row scannable) (bookingmodels.Stop, error) {

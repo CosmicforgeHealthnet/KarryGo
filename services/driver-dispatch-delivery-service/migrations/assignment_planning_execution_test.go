@@ -7,10 +7,15 @@ import (
 	"time"
 
 	planning "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/missionplanning"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"github.com/google/uuid"
 )
 
 type routeAuthorityStub struct{}
+
+func executionTestRollout() rollout.Policy {
+	return rollout.Policy{Selector: rollout.NewSelector("", "VENDOR_COMMERCE", "", ""), HandoverAvailable: true}
+}
 
 func (routeAuthorityStub) Evaluate(context.Context, planning.PlanRequest) (planning.RouteEvidence, error) {
 	return planning.RouteEvidence{Reference: "route:test:v1", Serviceable: true, DistanceKM: 12, DurationSeconds: 1200}, nil
@@ -26,7 +31,7 @@ func TestPlannedMissionCanonicalExecutionManifestVersionAndCustody(t *testing.T)
 	defer cleanup()
 	ctx := context.Background()
 	repo := planning.NewRepository(pool)
-	service := planning.New(repo, planning.NewPlanner(), true).WithRouteAuthority(routeAuthorityStub{})
+	service := planning.New(repo, planning.NewPlanner(), true).WithRouteAuthority(routeAuthorityStub{}).WithRolloutPolicy(executionTestRollout())
 	in := executionPlanRequest()
 	first, err := service.Create(ctx, in)
 	if err != nil {

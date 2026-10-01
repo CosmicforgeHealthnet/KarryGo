@@ -53,14 +53,26 @@ type ReleaseVendorPayableInput struct {
 }
 
 type RefundCommerceAllocationInput struct {
-	VendorOrderID                   string
-	ItemReference                   string
-	CustomerRefundMinor             int64
-	PlatformFundingReversalMinor    int64
-	OtherFundingReversalMinor       int64
-	EscrowRecoveryMinor             int64
-	VendorRecoveryMinor             int64
-	ProviderRecoveryMinor           int64
+	VendorOrderID string
+	ItemReference string
+
+	// Kind distinguishes an ordinary refund from a dispute reversal
+	// (WAL-030). Both move money the same way and draw on the same recovery
+	// pool -- which is the point: in either order they can never between them
+	// take back more than was paid out.
+	Kind                         string
+	CustomerRefundMinor          int64
+	PlatformFundingReversalMinor int64
+	OtherFundingReversalMinor    int64
+	EscrowRecoveryMinor          int64
+	VendorRecoveryMinor          int64
+	ProviderRecoveryMinor        int64
+
+	// OrganizationRecoveryMinor is what the organization gives back on a
+	// corporate delivery. Without it a refund would recover the provider's and
+	// the organization's money alike from the provider -- who, if salaried,
+	// never received any of it.
+	OrganizationRecoveryMinor       int64
 	PlatformRecoveryMinor           int64
 	PlatformLossFundingMinor        int64
 	VendorMerchandiseReductionMinor int64
@@ -252,6 +264,9 @@ const commerceAllocationColumns = `id,payment_intent_id::text,allocation_referen
 	refund_vendor_recovery_minor,refund_provider_recovery_minor,refund_platform_recovery_minor,refund_platform_loss_funding_minor,
 	refund_vendor_merchandise_reduction_minor,refund_vendor_delivery_reduction_minor,refund_provider_delivery_reduction_minor,
 	refund_platform_revenue_reduction_minor,refund_authorization_release_minor,
+	refund_organization_recovery_minor,
+	delivery_executor_mode,managed_organization_id,managed_membership_id,
+	provider_delivery_released_minor,organization_delivery_released_minor,
 	status,snapshot,snapshot_fingerprint,version,created_at,updated_at`
 
 func scanCommerceAllocation(row commerceScanner) (walletmodels.CommerceAllocation, error) {
@@ -266,6 +281,9 @@ func scanCommerceAllocation(row commerceScanner) (walletmodels.CommerceAllocatio
 		&value.RefundVendorRecoveryMinor, &value.RefundProviderRecoveryMinor, &value.RefundPlatformRecoveryMinor, &value.RefundPlatformLossFundingMinor,
 		&value.RefundVendorMerchandiseReductionMinor, &value.RefundVendorDeliveryReductionMinor, &value.RefundProviderDeliveryReductionMinor,
 		&value.RefundPlatformRevenueReductionMinor, &value.RefundAuthorizationReleaseMinor,
+		&value.RefundOrganizationRecoveryMinor,
+		&value.DeliveryExecutorMode, &value.ManagedOrganizationID, &value.ManagedMembershipID,
+		&value.ProviderDeliveryReleasedMinor, &value.OrganizationDeliveryReleasedMinor,
 		&value.Status, &value.Snapshot, &value.SnapshotFingerprint,
 		&value.Version, &value.CreatedAt, &value.UpdatedAt)
 	return value, err
@@ -490,6 +508,24 @@ func (r *PostgresWalletRepository) releaseCommerceComponent(ctx context.Context,
 				if strings.TrimSpace(providerType) == "" || strings.TrimSpace(providerID) == "" || allocation.VendorDeliveryPayableMinor != 0 {
 					return apperrors.Validation("Authoritative provider identity is required for platform delivery settlement.", nil)
 				}
+				// WAL-022. A rider employed by an organization did not earn
+				// the customer's delivery fee: what they are entitled to is
+				// their compensation plan's answer, which Fleet resolves and
+				// which is frequently zero. Crediting it here would pay a
+				// salaried rider per delivery and never pay the organization
+				// what it is owed, and neither is recoverable once posted.
+				//
+				// UNKNOWN is refused for the same reason rather than treated
+				// as independent: a refused release can be retried once the
+				// executor is known, a wrong payment cannot be taken back.
+				if allocation.DeliveryExecutorMode == walletmodels.ExecutorManaged {
+					return apperrors.Conflict(
+						"Organization-managed delivery is settled through Fleet, not paid directly to the provider.", nil)
+				}
+				if allocation.DeliveryExecutorMode == walletmodels.ExecutorUnknown {
+					return apperrors.Conflict(
+						"Delivery executor is not yet known; the direct payout path is closed until it is.", nil)
+				}
 				provider, e := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeProvider, providerOwnerID(providerType, providerID), walletmodels.AccountProviderPayable, allocation.Currency, walletmodels.NormalCredit)
 				if e != nil {
 					return e
@@ -517,7 +553,11 @@ func (r *PostgresWalletRepository) releaseCommerceComponent(ctx context.Context,
 		if operationType == "VENDOR_RELEASE" {
 			_, loadErr = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET vendor_released_minor=vendor_released_minor+$2,status=CASE WHEN delivery_released_minor=vendor_delivery_payable_minor-refund_vendor_delivery_reduction_minor+provider_delivery_payable_minor-refund_provider_delivery_reduction_minor THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,version=version+1,updated_at=now() WHERE id=$1`, allocation.ID, amount)
 		} else {
-			_, loadErr = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET delivery_released_minor=delivery_released_minor+$2,assigned_provider_type=$3,assigned_provider_id=$4,status=CASE WHEN vendor_released_minor=vendor_merchandise_payable_minor-refund_vendor_merchandise_reduction_minor+platform_revenue_minor-refund_platform_revenue_reduction_minor THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,version=version+1,updated_at=now() WHERE id=$1`, allocation.ID, amount, providerType, providerID)
+			// An independent provider earned the whole frozen amount, so the
+			// provider column carries all of it and the organization column
+			// none. Recording the split even here keeps "what did each party
+			// get?" answerable without knowing which path settled it.
+			_, loadErr = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET delivery_released_minor=delivery_released_minor+$2,provider_delivery_released_minor=provider_delivery_released_minor+$5,assigned_provider_type=$3,assigned_provider_id=$4,status=CASE WHEN vendor_released_minor=vendor_merchandise_payable_minor-refund_vendor_merchandise_reduction_minor+platform_revenue_minor-refund_platform_revenue_reduction_minor THEN 'RELEASED' ELSE 'PARTIALLY_RELEASED' END,version=version+1,updated_at=now() WHERE id=$1`, allocation.ID, amount, providerType, providerID, independentProviderShare(allocation, amount))
 		}
 		if loadErr != nil {
 			return loadErr
@@ -542,14 +582,18 @@ func (r *PostgresWalletRepository) releaseCommerceComponent(ctx context.Context,
 }
 
 func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context, input RefundCommerceAllocationInput) (walletmodels.CommerceFinancialOperation, error) {
-	values := []int64{input.CustomerRefundMinor, input.PlatformFundingReversalMinor, input.OtherFundingReversalMinor, input.EscrowRecoveryMinor, input.VendorRecoveryMinor, input.ProviderRecoveryMinor, input.PlatformRecoveryMinor, input.PlatformLossFundingMinor, input.VendorMerchandiseReductionMinor, input.VendorDeliveryReductionMinor, input.ProviderDeliveryReductionMinor, input.PlatformRevenueReductionMinor, input.AuthorizationReleaseMinor}
+	operationType, typeErr := refundOperationType(input.Kind)
+	if typeErr != nil {
+		return walletmodels.CommerceFinancialOperation{}, typeErr
+	}
+	values := []int64{input.CustomerRefundMinor, input.PlatformFundingReversalMinor, input.OtherFundingReversalMinor, input.EscrowRecoveryMinor, input.VendorRecoveryMinor, input.ProviderRecoveryMinor, input.OrganizationRecoveryMinor, input.PlatformRecoveryMinor, input.PlatformLossFundingMinor, input.VendorMerchandiseReductionMinor, input.VendorDeliveryReductionMinor, input.ProviderDeliveryReductionMinor, input.PlatformRevenueReductionMinor, input.AuthorizationReleaseMinor}
 	for _, value := range values {
 		if value < 0 {
 			return walletmodels.CommerceFinancialOperation{}, apperrors.Validation("Refund amounts cannot be negative.", nil)
 		}
 	}
 	output, outputOK := checkedNonnegativeSum(input.CustomerRefundMinor, input.PlatformFundingReversalMinor, input.OtherFundingReversalMinor)
-	inputTotal, inputOK := checkedNonnegativeSum(input.EscrowRecoveryMinor, input.VendorRecoveryMinor, input.ProviderRecoveryMinor, input.PlatformRecoveryMinor, input.PlatformLossFundingMinor)
+	inputTotal, inputOK := checkedNonnegativeSum(input.EscrowRecoveryMinor, input.VendorRecoveryMinor, input.ProviderRecoveryMinor, input.OrganizationRecoveryMinor, input.PlatformRecoveryMinor, input.PlatformLossFundingMinor)
 	allocationReduction, reductionOK := checkedNonnegativeSum(input.VendorMerchandiseReductionMinor, input.VendorDeliveryReductionMinor, input.ProviderDeliveryReductionMinor, input.PlatformRevenueReductionMinor, input.AuthorizationReleaseMinor)
 	if strings.TrimSpace(input.VendorOrderID) == "" || strings.TrimSpace(input.ItemReference) == "" || strings.TrimSpace(input.ExpectedSnapshotFingerprint) == "" || strings.TrimSpace(input.IdempotencyKey) == "" || output <= 0 || output != inputTotal || allocationReduction != output-input.PlatformLossFundingMinor {
 		return walletmodels.CommerceFinancialOperation{}, apperrors.Validation("Refund breakdown is incomplete or unbalanced.", nil)
@@ -560,7 +604,7 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 	requestFingerprint, _ := stableFingerprint(input)
 	var result walletmodels.CommerceFinancialOperation
 	err := r.withTx(ctx, func(tx pgx.Tx) error {
-		if existing, e := r.findCommerceOperationTx(ctx, tx, "PARTIAL_REFUND", input.IdempotencyKey); e == nil {
+		if existing, e := r.findCommerceOperationTx(ctx, tx, operationType, input.IdempotencyKey); e == nil {
 			if existing.RequestFingerprint != requestFingerprint {
 				return apperrors.Conflict("Refund idempotency key was reused with a different allocation adjustment.", nil)
 			}
@@ -576,7 +620,7 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 				return deleteErr
 			}
 			if tag.RowsAffected() == 0 {
-				result, e = r.findCommerceOperationTx(ctx, tx, "PARTIAL_REFUND", input.IdempotencyKey)
+				result, e = r.findCommerceOperationTx(ctx, tx, operationType, input.IdempotencyKey)
 				return e
 			}
 		} else if !errors.Is(e, pgx.ErrNoRows) {
@@ -587,7 +631,7 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 			return e
 		}
 		var priorFingerprint string
-		if e = tx.QueryRow(ctx, `SELECT request_fingerprint FROM commerce_financial_operations WHERE allocation_id=$1 AND operation_type='PARTIAL_REFUND' AND item_reference=$2`, allocation.ID, input.ItemReference).Scan(&priorFingerprint); e == nil {
+		if e = tx.QueryRow(ctx, `SELECT request_fingerprint FROM commerce_financial_operations WHERE allocation_id=$1 AND operation_type=$3 AND item_reference=$2`, allocation.ID, input.ItemReference, operationType).Scan(&priorFingerprint); e == nil {
 			return apperrors.Conflict("This allocation item already has an authoritative refund operation.", nil)
 		} else if !errors.Is(e, pgx.ErrNoRows) {
 			return e
@@ -611,7 +655,11 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 			authorizationTotal > allocation.MaxAuthorizedMinor-allocation.CustomerPayableMinor {
 			return apperrors.Conflict("Refund exceeds or does not match the immutable allocation.", nil)
 		}
-		if e = validateRefundRecoverySources(allocation, input); e != nil {
+		recoveryPool, e := r.deliveryRecoveryPool(ctx, tx, allocation)
+		if e != nil {
+			return e
+		}
+		if e = validateRefundRecoverySources(allocation, input, recoveryPool); e != nil {
 			return e
 		}
 		escrow, e := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeJob, commerceEscrowOwner(parentReference), walletmodels.AccountCommerceEscrow, allocation.Currency, walletmodels.NormalCredit)
@@ -667,6 +715,22 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 				}
 			}
 		}
+		// WAL-029. On a corporate delivery the organization received part of
+		// the money -- all of it, when the rider is salaried -- so it is the
+		// organization that gives that part back. Recovering it from the rider
+		// instead would take money they never had.
+		if input.OrganizationRecoveryMinor > 0 {
+			if !recoveryPool.Managed || allocation.ManagedOrganizationID == "" {
+				return apperrors.Conflict("Only an organization-managed delivery can recover from an organization.", nil)
+			}
+			account, x := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeOrganization, allocation.ManagedOrganizationID, walletmodels.AccountOrganizationPayable, allocation.Currency, walletmodels.NormalCredit)
+			if x != nil {
+				return x
+			}
+			if e = addDebit(account, input.OrganizationRecoveryMinor, "Recover organization delivery entitlement"); e != nil {
+				return e
+			}
+		}
 		if input.PlatformRecoveryMinor > 0 {
 			account, x := r.ensureAccount(ctx, tx, walletmodels.OwnerTypePlatform, "karry-go", walletmodels.AccountPlatformRevenue, allocation.Currency, walletmodels.NormalCredit)
 			if x != nil {
@@ -718,8 +782,25 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 				credits = append(credits, walletmodels.LedgerEntry{AccountID: funding.ID, Side: walletmodels.SideCredit, AmountKobo: input.OtherFundingReversalMinor, Currency: allocation.Currency, Memo: "Reverse other approved commerce funding"})
 			}
 			ledgerRef = "commerce-refund-" + input.IdempotencyKey
-			if e = r.postLedgerTransaction(ctx, tx, walletmodels.LedgerTransaction{ID: uuid.NewString(), Reference: ledgerRef, TransactionType: "commerce_partial_refund", Status: postedStatus, SourceService: "vendor-service", SourceReference: input.VendorOrderID, IdempotencyKey: input.IdempotencyKey, Metadata: map[string]any{"item_reference": input.ItemReference}}, append(debits, credits...)); e != nil {
+			// The ledger holds one journal per source operation. Keyed on the
+			// order alone, a SECOND partial refund of the same order collided
+			// with the first and failed outright -- so partial refunds were
+			// only ever possible once. The operation's own identity is the
+			// order, the item and the kind, which is what makes repeated
+			// partial refunds work and still keeps one journal per operation.
+			transactionType := "commerce_partial_refund"
+			if operationType == commerceDisputeReversalOperation {
+				transactionType = "commerce_dispute_reversal"
+			}
+			if e = r.postLedgerTransaction(ctx, tx, walletmodels.LedgerTransaction{ID: uuid.NewString(), Reference: ledgerRef, TransactionType: transactionType, Status: postedStatus, SourceService: "vendor-service", SourceReference: input.VendorOrderID + ":" + input.ItemReference, IdempotencyKey: input.IdempotencyKey, Metadata: map[string]any{"item_reference": input.ItemReference, "vendor_order_id": input.VendorOrderID}}, append(debits, credits...)); e != nil {
 				return e
+			}
+			if recoveryPool.Managed && (input.ProviderRecoveryMinor > 0 || input.OrganizationRecoveryMinor > 0) {
+				if e = r.applyDeliveryRecovery(ctx, tx, recoveryPool, walletmodels.DeliveryRecoverySplit{
+					ProviderMinor: input.ProviderRecoveryMinor, OrganizationMinor: input.OrganizationRecoveryMinor,
+				}); e != nil {
+					return e
+				}
 			}
 			_, e = tx.Exec(ctx, `UPDATE commerce_payment_allocations SET
 				refunded_minor=refunded_minor+$2,
@@ -730,6 +811,7 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 				refund_vendor_recovery_minor=refund_vendor_recovery_minor+$7,
 				refund_provider_recovery_minor=refund_provider_recovery_minor+$8,
 				refund_platform_recovery_minor=refund_platform_recovery_minor+$9,
+				refund_organization_recovery_minor=refund_organization_recovery_minor+$16,
 				refund_platform_loss_funding_minor=refund_platform_loss_funding_minor+$10,
 				refund_vendor_merchandise_reduction_minor=refund_vendor_merchandise_reduction_minor+$11,
 				refund_vendor_delivery_reduction_minor=refund_vendor_delivery_reduction_minor+$12,
@@ -741,7 +823,8 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 				input.CustomerRefundMinor, input.PlatformFundingReversalMinor, input.OtherFundingReversalMinor,
 				input.EscrowRecoveryMinor, input.VendorRecoveryMinor, input.ProviderRecoveryMinor, input.PlatformRecoveryMinor,
 				input.PlatformLossFundingMinor, input.VendorMerchandiseReductionMinor, input.VendorDeliveryReductionMinor,
-				input.ProviderDeliveryReductionMinor, input.PlatformRevenueReductionMinor, input.AuthorizationReleaseMinor)
+				input.ProviderDeliveryReductionMinor, input.PlatformRevenueReductionMinor, input.AuthorizationReleaseMinor,
+				input.OrganizationRecoveryMinor)
 			if e != nil {
 				return e
 			}
@@ -749,19 +832,57 @@ func (r *PostgresWalletRepository) RefundCommerceAllocation(ctx context.Context,
 				return e
 			}
 		}
-		if e = r.insertCommerceOperation(ctx, tx, allocation.PaymentIntentID, allocation.ID, "PARTIAL_REFUND", input.VendorOrderID, input.ItemReference, input.IdempotencyKey, requestFingerprint, status, output, ledgerRef); e != nil {
+		if e = r.insertCommerceOperation(ctx, tx, allocation.PaymentIntentID, allocation.ID, operationType, input.VendorOrderID, input.ItemReference, input.IdempotencyKey, requestFingerprint, status, output, ledgerRef); e != nil {
 			return e
 		}
-		if e = recordFinancialEvidence(ctx, tx, "commerce.refund.created.v1", "commerce.refund.created", "commerce_allocation", allocation.ID, "vendor-service", allocation.Version+1, map[string]any{"vendor_order_id": input.VendorOrderID, "item_reference": input.ItemReference, "amount_minor": output, "status": status, "currency": allocation.Currency}); e != nil {
+		eventType, action := "commerce.refund.created.v1", "commerce.refund.created"
+		if operationType == commerceDisputeReversalOperation {
+			eventType, action = "commerce.dispute_reversal.created.v1", "commerce.dispute_reversal.created"
+		}
+		if e = recordFinancialEvidence(ctx, tx, eventType, action, "commerce_allocation", allocation.ID, "vendor-service", allocation.Version+1, map[string]any{
+			"vendor_order_id":           input.VendorOrderID,
+			"item_reference":            input.ItemReference,
+			"amount_minor":              output,
+			"status":                    status,
+			"currency":                  allocation.Currency,
+			"provider_recovery_minor":   input.ProviderRecoveryMinor,
+			"organization_recovery_min": input.OrganizationRecoveryMinor,
+		}); e != nil {
 			return e
 		}
-		result, e = r.findCommerceOperationTx(ctx, tx, "PARTIAL_REFUND", input.IdempotencyKey)
+		result, e = r.findCommerceOperationTx(ctx, tx, operationType, input.IdempotencyKey)
 		return e
 	})
 	return result, err
 }
 
-func validateRefundRecoverySources(allocation walletmodels.CommerceAllocation, input RefundCommerceAllocationInput) error {
+// commerceDisputeReversalOperation is a dispute-driven reversal.
+const (
+	commercePartialRefundOperation   = "PARTIAL_REFUND"
+	commerceDisputeReversalOperation = "DISPUTE_REVERSAL"
+)
+
+// RefundKindRefund and RefundKindDispute name the two ways delivery money comes
+// back. They move money identically and draw on one pool, so a dispute after a
+// refund -- or a refund after a dispute -- can never between them take back
+// more than was paid out.
+const (
+	RefundKindRefund  = "REFUND"
+	RefundKindDispute = "DISPUTE"
+)
+
+func refundOperationType(kind string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(kind)) {
+	case "", RefundKindRefund:
+		return commercePartialRefundOperation, nil
+	case RefundKindDispute:
+		return commerceDisputeReversalOperation, nil
+	default:
+		return "", apperrors.Validation("Refund kind is not recognised.", nil)
+	}
+}
+
+func validateRefundRecoverySources(allocation walletmodels.CommerceAllocation, input RefundCommerceAllocationInput, pool DeliveryRecoveryPool) error {
 	vendorReleasedGross := int64(0)
 	platformReleasedGross := int64(0)
 	providerReleasedGross := int64(0)
@@ -779,6 +900,24 @@ func validateRefundRecoverySources(allocation walletmodels.CommerceAllocation, i
 		} else {
 			providerReleasedGross = allocation.ProviderDeliveryPayableMinor
 		}
+	}
+	// WAL-029. A corporate delivery's caps come from what was actually paid,
+	// recorded per mission at settlement time -- not from the customer-facing
+	// delivery payable, which is what the CUSTOMER paid and not what the
+	// provider received. Using the payable would let a refund claw the
+	// organization's share out of a salaried rider who received nothing.
+	//
+	// Independent deliveries keep the legacy cap untouched.
+	if pool.Managed {
+		if input.ProviderRecoveryMinor > pool.ProviderRecoverableMinor ||
+			input.OrganizationRecoveryMinor > pool.OrganizationRecoverableMinor {
+			return apperrors.Conflict("Refund recovery source exceeds this allocation's authoritative balance.", nil)
+		}
+		// The legacy provider cap is computed from the payable and would be
+		// wrong here, so the evidence-derived one replaces it outright.
+		providerReleasedGross = pool.ProviderRecoverableMinor + allocation.RefundProviderRecoveryMinor
+	} else if input.OrganizationRecoveryMinor > 0 {
+		return apperrors.Conflict("An independent delivery has no organization to recover from.", nil)
 	}
 	held, heldOK := checkedNonnegativeSum(allocation.MaxAuthorizedMinor, allocation.PlatformProductDiscountMinor, allocation.PlatformDeliverySubsidyMinor, allocation.OtherFundingMinor)
 	releasedAndRecovered, releasedOK := checkedNonnegativeSum(allocation.VendorReleasedMinor, allocation.DeliveryReleasedMinor, allocation.RefundEscrowRecoveryMinor)
@@ -911,4 +1050,17 @@ func (r *PostgresWalletRepository) GetVendorWithdrawal(ctx context.Context, vend
 		return value, mapNotFound(err, "Vendor withdrawal could not be found.")
 	}
 	return value, nil
+}
+
+// independentProviderShare is what an independent provider is credited by a
+// direct release.
+//
+// A vendor-owned delivery credits the vendor, not a provider, so the provider
+// column must stay at zero there -- otherwise the split columns would claim a
+// provider was paid when none was involved.
+func independentProviderShare(allocation walletmodels.CommerceAllocation, amount int64) int64 {
+	if allocation.DeliveryResponsibility != walletmodels.DeliveryResponsibilityPlatform {
+		return 0
+	}
+	return amount
 }

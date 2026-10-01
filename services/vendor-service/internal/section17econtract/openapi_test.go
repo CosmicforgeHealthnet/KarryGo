@@ -311,15 +311,28 @@ func TestSection17EParentOrderDeclaresImmutableSnapshotEvidence(t *testing.T) {
 // The order line must repeat Section 17D's own online-price disclosure and must
 // never be able to claim parity with a vendor's physical-store price.
 func TestSection17EOrderLineKeepsOnlinePriceDisclosure(t *testing.T) {
-	raw, err := os.ReadFile(specPath)
-	if err != nil {
+	doc := load(t)
+	line, ok := doc.Components.Schemas["OrderLine"]
+	if !ok {
+		t.Fatal("OrderLine schema is missing")
+	}
+	var disclosure struct {
+		Enum []string `json:"enum"`
+	}
+	if err := json.Unmarshal(line.Properties["online_price_disclosure"], &disclosure); err != nil {
 		t.Fatal(err)
 	}
-	text := string(raw)
-	if !strings.Contains(text, `"enum": ["VENDOR_ONLINE_PRICE"]`) {
+	if len(disclosure.Enum) != 1 || disclosure.Enum[0] != "VENDOR_ONLINE_PRICE" {
 		t.Error("order line does not pin the online price disclosure")
 	}
-	if !strings.Contains(text, `"store_price_parity_claimed": { "type": "boolean", "enum": [false] }`) {
+	var parity struct {
+		Type string `json:"type"`
+		Enum []bool `json:"enum"`
+	}
+	if err := json.Unmarshal(line.Properties["store_price_parity_claimed"], &parity); err != nil {
+		t.Fatal(err)
+	}
+	if parity.Type != "boolean" || len(parity.Enum) != 1 || parity.Enum[0] {
 		t.Error("order line does not forbid a physical-store parity claim")
 	}
 }

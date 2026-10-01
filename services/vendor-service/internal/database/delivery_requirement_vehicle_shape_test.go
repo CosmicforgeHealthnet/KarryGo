@@ -67,8 +67,6 @@ func TestDeliveryRequirementInvariantsAreConstraints(t *testing.T) {
 	}{
 		{"unique (plan_id, slot_ref)",
 			"one decision per mission slot per plan version, never an overwrite"},
-		{"selected_vehicle_class <> 'car'",
-			"taxi has no goods mode, so no row may claim a car executed a delivery"},
 		{"commerce_delivery_requirement_snapshots_executable_chk",
 			"an executable decision names both class and service, a refused one names neither"},
 		{"commerce_delivery_requirement_snapshots_value_currency_chk",
@@ -92,6 +90,20 @@ func TestDeliveryRequirementInvariantsAreConstraints(t *testing.T) {
 	} {
 		if !strings.Contains(sql, reason) {
 			t.Errorf("primary_reason check is missing %s", reason)
+		}
+	}
+}
+
+func TestTaxiGoodsMigrationMakesCarTaxiPersistable(t *testing.T) {
+	path := filepath.Join("..", "..", "migrations", "000111_section29_taxi_goods_integration.up.sql")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read Taxi Goods migration: %v", err)
+	}
+	sql := strings.ToLower(string(raw))
+	for _, fragment := range []string{"'taxi'", "'car'", "drop constraint commerce_delivery_requirement_snapshots_no_car_execution_chk"} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("Taxi Goods migration missing %q", fragment)
 		}
 	}
 }

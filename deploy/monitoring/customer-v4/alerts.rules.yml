@@ -1,0 +1,279 @@
+# Customer V4 backend alert rules (Prometheus rule-file format).
+#
+# Every threshold here is an INITIAL OPERATIONAL DEFAULT PENDING SRE TUNING.
+# None is a production SLO commitment; no SLO has been agreed for this
+# programme. Each rule carries `threshold_status: initial_default` so a
+# dashboard or on-call tool can tell a tuned rule from an untuned one.
+#
+# Series come from the §27 private scrapes (HMAC-verified, admin-backoffice
+# and analytics callers only):
+#   customer  GET /internal/customer/v1/metrics
+#   taxi      GET /api/v1/taxi/internal/metrics
+#   hauling   GET /api/v1/hauling/internal/metrics
+#   vendor    GET /internal/vendor/v1/metrics
+#   media     GET /api/v1/media-files/internal/metrics
+#   notify    GET /api/v1/notifications/internal/metrics
+# Labels are bounded vocabularies only (authority, outcome, family, service,
+# channel, status, state, purpose, wallet_status). No customer, booking,
+# source, share, token or provider identifier is ever a label.
+#
+# Ratios use `or vector(0)` / clamp_min so an absent counter (no traffic yet)
+# evaluates to "no alert" instead of an error. Validate with
+#   python scripts/customer-v4/monitoring_check.py
+# and, where promtool is installed (CI), `promtool check rules <this file>`.
+groups:
+  - name: customer-v4-share-journey
+    rules:
+      - alert: ShareJourneyInvalidTokenRateHigh
+        expr: |
+          (sum(rate(karry_journeyshare_invalid_or_inaccessible_share_total[10m])) or vector(0))
+            / clamp_min(sum(rate(karry_journeyshare_public_read_total[10m])) or vector(0), 0.001) > 0.25
+          and (sum(rate(karry_journeyshare_public_read_total[10m])) or vector(0)) > 0.05
+        for: 15m
+        labels: {severity: warning, component: share_journey, threshold_status: initial_default}
+        annotations:
+          summary: More than 25% of public Share reads present an invalid or inaccessible token.
+          description: Possible token guessing or a broken share link generator. Default 25% over 15m at >3 reads/min; pending SRE tuning.
+      - alert: ShareJourneyAuthorityReadErrors
+        expr: |
+          ((sum(rate(karry_journeyshare_authority_read_error_total[10m])) or vector(0))
+            + (sum(rate(karry_journeyshare_authority_transport_error_total[10m])) or vector(0))
+            + (sum(rate(karry_journeyshare_authority_request_error_total[10m])) or vector(0)))
+            / clamp_min(sum(rate(karry_journeyshare_authority_read_total[10m])) or vector(0), 0.001) > 0.05
+        for: 10m
+        labels: {severity: warning, component: share_journey, threshold_status: initial_default}
+        annotations:
+          summary: More than 5% of Share authority reads (Taxi/Dispatch/Hauling/Vendor) fail.
+          description: Viewers see a typed unavailable state; no data leaks. Default 5% over 10m; pending SRE tuning.
+      - alert: ShareJourneyExpirySweepStalled
+        expr: max(karry_journeyshare_overdue_sessions) > 0
+        for: 20m
+        labels: {severity: warning, component: share_journey, threshold_status: initial_default}
+        annotations:
+          summary: Share sessions past expiry are still ACTIVE/COMPLETED; the expiry worker is not converging.
+          description: Public reads still refuse expired tokens (defence in depth), so this is an operations signal. Default any overdue session for 20m; pending SRE tuning.
+      - alert: ShareJourneyNotificationDeadLetters
+        expr: max(karry_journeyshare_notification_dead_letters) > 0
+        for: 5m
+        labels: {severity: warning, component: share_journey, threshold_status: initial_default}
+        annotations:
+          summary: Share notifications reached the dead-letter state.
+          description: Default any dead letter; pending SRE tuning.
+      - alert: ShareJourneyRateLimitSaturation
+        expr: |
+          ((sum(rate(karry_journeyshare_per_token_rate_limit_total[10m])) or vector(0))
+            + (sum(rate(karry_journeyshare_per_ip_rate_limit_total[10m])) or vector(0)))
+            / clamp_min(sum(rate(karry_journeyshare_public_read_total[10m])) or vector(0), 0.001) > 0.5
+        for: 15m
+        labels: {severity: info, component: share_journey, threshold_status: initial_default}
+        annotations:
+          summary: Over half of public Share reads are being rate limited.
+          description: Either abusive polling or a client polling faster than 60 reads/min per token. Default 50% over 15m; pending SRE tuning.
+
+  - name: customer-v4-taxi-location
+    rules:
+      - alert: TaxiLocationStaleOrUnavailableRatioHigh
+        expr: |
+          ((sum(rate(karry_journeyshare_taxi_location_STALE_total[15m])) or vector(0))
+            + (sum(rate(karry_journeyshare_taxi_location_UNAVAILABLE_total[15m])) or vector(0)))
+            / clamp_min(sum(rate(karry_journeyshare_taxi_safe_location_read_total[15m])) or vector(0), 0.001) > 0.5
+          and (sum(rate(karry_journeyshare_taxi_safe_location_read_total[15m])) or vector(0)) > 0.05
+        for: 15m
+        labels: {severity: warning, component: taxi_location, threshold_status: initial_default}
+        annotations:
+          summary: Over half of customer live-location reads return STALE or UNAVAILABLE.
+          description: Provider telemetry is not reaching Taxi. Default 50% over 15m; pending SRE tuning.
+      - alert: TaxiLocationIngestLagHigh
+        expr: |
+          (sum(rate(karry_journeyshare_taxi_location_ingest_lag_duration_seconds_sum[10m])) or vector(0))
+            / clamp_min(sum(rate(karry_journeyshare_taxi_location_ingest_lag_total[10m])) or vector(0), 0.001) > 30
+        for: 10m
+        labels: {severity: warning, component: taxi_location, threshold_status: initial_default}
+        annotations:
+          summary: Mean provider-fix to customer-read lag exceeds 30s.
+          description: Matches the FRESH window (30s). Default mean over 10m; pending SRE tuning.
+      - alert: TaxiLocationAuthorizationFailureSpike
+        expr: |
+          (sum(rate(karry_journeyshare_taxi_authorization_or_missing_total[10m])) or vector(0))
+            / clamp_min(sum(rate(karry_journeyshare_taxi_safe_location_read_total[10m])) or vector(0), 0.001) > 0.2
+          and (sum(rate(karry_journeyshare_taxi_safe_location_read_total[10m])) or vector(0)) > 0.05
+        for: 10m
+        labels: {severity: warning, component: taxi_location, threshold_status: initial_default}
+        annotations:
+          summary: Over 20% of live-location reads are for rides the caller does not own or that do not exist.
+          description: Possible IDOR probing or a client bug. Default 20% over 10m; pending SRE tuning.
+
+  - name: customer-v4-movement
+    rules:
+      - alert: MovementProjectionAgeHigh
+        expr: max by (authority) (karry_movement_projection_age_seconds) > 3600
+        for: 30m
+        labels: {severity: warning, component: movement, threshold_status: initial_default}
+        annotations:
+          summary: No movement event from an authority has reached Customer Activity for over an hour.
+          description: Measured as time since the newest projected event, so quiet off-peak periods can trip it; tune per authority traffic. Default 1h for 30m; pending SRE tuning.
+      - alert: MovementReconciliationFailing
+        expr: sum by (service) (increase(karry_movement_reconciliation_runs_total{outcome="dependency_error"}[30m])) > 2
+        for: 5m
+        labels: {severity: warning, component: movement, threshold_status: initial_default}
+        annotations:
+          summary: Movement reconciliation sweeps are failing.
+          description: Divergence between authority and Customer Activity will not self-heal. Default >2 failed sweeps in 30m; pending SRE tuning.
+      - alert: MovementReconciliationMismatchHigh
+        expr: sum by (service) (increase(karry_movement_reconciliation_republished_total[1h])) > 50
+        for: 5m
+        labels: {severity: info, component: movement, threshold_status: initial_default}
+        annotations:
+          summary: Reconciliation is repairing many projections; the primary publisher path is losing events.
+          description: Default >50 republished per hour; pending SRE tuning.
+      - alert: MovementStaleEventSpike
+        expr: |
+          sum by (authority) (rate(karry_movement_ingest_total{outcome="stale"}[15m]))
+            / clamp_min(sum by (authority) (rate(karry_movement_ingest_total[15m])), 0.001) > 0.2
+        for: 15m
+        labels: {severity: info, component: movement, threshold_status: initial_default}
+        annotations:
+          summary: Over 20% of movement events arrive older than the projected version.
+          description: Out-of-order delivery or duplicate publishers. Default 20% over 15m; pending SRE tuning.
+      - alert: MovementIngestLagHigh
+        expr: |
+          sum by (authority) (rate(karry_movement_ingest_lag_seconds_sum[10m]))
+            / clamp_min(sum by (authority) (rate(karry_movement_ingest_lag_seconds_count[10m])), 0.001) > 120
+        for: 15m
+        labels: {severity: warning, component: movement, threshold_status: initial_default}
+        annotations:
+          summary: Mean authority-occurrence to projection lag exceeds 2 minutes.
+          description: Default mean over 10m; pending SRE tuning.
+      - alert: MovementRejectionsHigh
+        expr: max(karry_movement_rejections_24h) > 20
+        for: 15m
+        labels: {severity: warning, component: movement, threshold_status: initial_default}
+        annotations:
+          summary: Customer rejected more than 20 movement events in 24h.
+          description: Rejections are caller, envelope or ownership failures; they need investigation, not retry. Default 20/24h; pending SRE tuning.
+
+  - name: customer-v4-commerce
+    rules:
+      - alert: CommerceCheckoutOrderPaymentErrorRate
+        expr: |
+          sum by (family) (rate(karry_commerce_requests_total{family=~"checkout|order|payment",outcome=~"dependency_unavailable|unknown_outcome"}[10m]))
+            / clamp_min(sum by (family) (rate(karry_commerce_requests_total{family=~"checkout|order|payment"}[10m])), 0.001) > 0.05
+        for: 10m
+        labels: {severity: critical, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: Over 5% of checkout/order/payment requests fail with a dependency or unknown outcome.
+          description: Client errors (validation, conflict, not found) are excluded. Default 5% over 10m; pending SRE tuning.
+      - alert: CommercePaymentUnresolved
+        expr: max(karry_commerce_payment_legs_unresolved) > 0
+        for: 30m
+        labels: {severity: critical, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: Payment legs have stayed PENDING (unknown outcome) for over 35 minutes.
+          description: The gauge only counts legs already PENDING for 5 minutes; read-back should resolve them. Reconcile before any manual compensation (V4 §31.2). Default any, for 30m; pending SRE tuning.
+      - alert: CommerceMissionUnresolved
+        expr: max by (service) (karry_commerce_mission_unresolved) > 0
+        for: 15m
+        labels: {severity: warning, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: Logistics missions have stayed PENDING for over 20 minutes.
+          description: Read back by deterministic operation before re-creating anything. Default any, for 15m; pending SRE tuning.
+      - alert: CommerceRefundAgeHigh
+        expr: max(karry_commerce_refund_oldest_open_age_seconds) > 3600
+        for: 10m
+        labels: {severity: warning, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: A refund has been open (PENDING/REQUESTED/UNKNOWN) for over an hour.
+          description: Default 1h; pending SRE tuning.
+      - alert: CommerceStockConflictSpike
+        expr: delta(karry_commerce_stock_conflicts_24h[1h]) > 25
+        for: 5m
+        labels: {severity: info, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: More than 25 new stock-reservation conflicts in the last hour.
+          description: Catalogue availability is drifting from inventory. Default 25/h; pending SRE tuning.
+      - alert: CommerceSubstitutionDecisionOverdue
+        expr: max(karry_commerce_substitution_oldest_pending_age_seconds) > 1800
+        for: 5m
+        labels: {severity: info, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: A substitution proposal has waited over 30 minutes for a customer decision.
+          description: The timeout fallback should resolve it. Default 30m; pending SRE tuning.
+      - alert: VendorOutboxBacklogAge
+        expr: max(karry_vendor_outbox_oldest_pending_age_seconds) > 300
+        for: 10m
+        labels: {severity: warning, component: commerce, threshold_status: initial_default}
+        annotations:
+          summary: Vendor outbox has events pending for over 5 minutes.
+          description: Movement, grouping and notification delivery are delayed. Default 5m; pending SRE tuning.
+
+  - name: customer-v4-media
+    rules:
+      - alert: MediaUploadFailureRatioHigh
+        expr: |
+          (sum(karry_media_upload_failures_24h) or vector(0))
+            / clamp_min(sum(karry_media_upload_sessions_24h) or vector(0), 1) > 0.1
+          and (sum(karry_media_upload_sessions_24h) or vector(0)) > 20
+        for: 30m
+        labels: {severity: warning, component: media, threshold_status: initial_default}
+        annotations:
+          summary: Over 10% of customer upload sessions failed in the last 24h.
+          description: Default 10% with at least 20 sessions; pending SRE tuning.
+      - alert: MediaValidationFailuresHigh
+        expr: sum(karry_media_validation_failures_24h) > 25
+        for: 30m
+        labels: {severity: info, component: media, threshold_status: initial_default}
+        annotations:
+          summary: More than 25 uploads failed signature/metadata validation in 24h.
+          description: Wrong MIME/size/checksum or forged uploads. Default 25/24h; pending SRE tuning.
+      - alert: MediaOrphanBacklog
+        expr: sum(karry_media_orphans) > 100
+        for: 1h
+        labels: {severity: info, component: media, threshold_status: initial_default}
+        annotations:
+          summary: More than 100 never-completed uploads older than 1h await cleanup.
+          description: The media maintenance sweep is behind. Default 100 for 1h; pending SRE tuning.
+
+  - name: customer-v4-notification
+    rules:
+      - alert: NotificationQueueAgeHigh
+        expr: max by (channel) (karry_notification_queue_oldest_age_seconds) > 300
+        for: 10m
+        labels: {severity: warning, component: notification, threshold_status: initial_default}
+        annotations:
+          summary: A notification has been queued or retrying for over 5 minutes.
+          description: Business state already committed; only the hint is late. Default 5m; pending SRE tuning.
+      - alert: NotificationDeliveryFailureRatioHigh
+        expr: |
+          sum by (channel) (karry_notification_deliveries_24h{status=~"failed|dead_lettered"})
+            / clamp_min(sum by (channel) (karry_notification_deliveries_24h), 1) > 0.1
+        for: 30m
+        labels: {severity: warning, component: notification, threshold_status: initial_default}
+        annotations:
+          summary: Over 10% of deliveries on a channel failed in the last 24h.
+          description: Default 10%; pending SRE tuning.
+      - alert: NotificationDeadLettersGrowing
+        expr: sum by (channel) (delta(karry_notification_dead_letters[1h])) > 5
+        for: 5m
+        labels: {severity: warning, component: notification, threshold_status: initial_default}
+        annotations:
+          summary: More than 5 notifications dead-lettered on a channel in the last hour.
+          description: Default 5/h; pending SRE tuning.
+      - alert: NotificationWebsocketSessionsCollapsed
+        expr: |
+          sum(karry_notification_websocket_sessions) < 0.3 * sum(karry_notification_websocket_sessions offset 1h)
+          and sum(karry_notification_websocket_sessions offset 1h) > 50
+        for: 10m
+        labels: {severity: info, component: notification, threshold_status: initial_default}
+        annotations:
+          summary: Live websocket sessions dropped by over 70% within an hour.
+          description: Clients fall back to polling, so state stays correct; possible ingress or node issue. Default 70% drop from >50 sessions; pending SRE tuning.
+
+  - name: customer-v4-platform
+    rules:
+      - alert: MetricsGaugeCollectionFailing
+        expr: sum(increase(karry_metrics_collection_errors_total[15m])) > 0
+        for: 15m
+        labels: {severity: warning, component: observability, threshold_status: initial_default}
+        annotations:
+          summary: A §27 gauge family failed to collect; its panel may be blank or stale.
+          description: Other families keep reporting. Default any failure for 15m; pending SRE tuning.

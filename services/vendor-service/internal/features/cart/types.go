@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Domain string
@@ -53,6 +55,7 @@ const (
 
 var (
 	ErrInvalidDomain        = errors.New("commerce cart domain must be FOOD or SHOP")
+	ErrDomainDisabled       = errors.New("commerce cart domain is not enabled for customers")
 	ErrCartNotFound         = errors.New("commerce cart not found")
 	ErrCartNotMutable       = errors.New("commerce cart is not mutable")
 	ErrVersionConflict      = errors.New("commerce cart version conflict")
@@ -63,7 +66,39 @@ var (
 	ErrInvalidAddress       = errors.New("invalid delivery address snapshot")
 	ErrInvalidCatalogueItem = errors.New("invalid authoritative catalogue result")
 	ErrDependencyMissing    = errors.New("required authoritative dependency is not connected")
+
+	ErrInvalidSubstitutionPolicy = errors.New("invalid substitution policy for this cart line")
 )
+
+// Customer-selectable substitution rules. Only rules that need no extra
+// parameters are offered; Food lines are always EXACT_ONLY.
+const (
+	SubstitutionExactOnly               = "EXACT_ONLY"
+	SubstitutionAutoRefund              = "AUTO_REFUND"
+	SubstitutionContactFirst            = "CONTACT_FIRST"
+	SubstitutionVendorSuggestAndApprove = "VENDOR_SUGGEST_AND_APPROVE"
+)
+
+// NormalizeSubstitutionPolicy resolves the customer's stated rule for a line.
+// An empty rule is EXACT_ONLY: a vendor may never replace what the customer
+// did not allow.
+func NormalizeSubstitutionPolicy(domain Domain, value string) (string, error) {
+	policy := strings.ToUpper(strings.TrimSpace(value))
+	if policy == "" {
+		return SubstitutionExactOnly, nil
+	}
+	switch policy {
+	case SubstitutionExactOnly:
+		return policy, nil
+	case SubstitutionAutoRefund, SubstitutionContactFirst, SubstitutionVendorSuggestAndApprove:
+		if domain != DomainShop {
+			return "", ErrInvalidSubstitutionPolicy
+		}
+		return policy, nil
+	default:
+		return "", ErrInvalidSubstitutionPolicy
+	}
+}
 
 type VersionConflictError struct {
 	Expected int64
@@ -94,8 +129,9 @@ type AddressSnapshot struct {
 }
 
 type Receiver struct {
-	Name  string `json:"name"`
-	Phone string `json:"phone"`
+	Name       string `json:"name"`
+	Phone      string `json:"phone"`
+	CustomerID string `json:"customer_id,omitempty"`
 }
 
 type RequestedOption struct {
@@ -116,6 +152,9 @@ type AddItemInput struct {
 	RequestedMeasureRef     string
 	ExpectedMeasureQuantity int64
 	PricingBasis            string
+
+	// SubstitutionPolicy is the customer's rule for this Shop line.
+	SubstitutionPolicy string
 
 	Options []RequestedOption
 }
@@ -212,6 +251,8 @@ type CartItem struct {
 	EstimatedWeightGrams *int64 `json:"estimated_weight_grams,omitempty"`
 	TemperatureZone      string `json:"temperature_zone,omitempty"`
 
+	SubstitutionPolicy string `json:"substitution_policy"`
+
 	Version   int64     `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -306,12 +347,18 @@ func GroupShopCart(cart Cart) ([]ShopGroup, error) {
 func ValidateReceiver(receiver Receiver) (Receiver, error) {
 	receiver.Name = strings.TrimSpace(receiver.Name)
 	receiver.Phone = strings.TrimSpace(receiver.Phone)
+	receiver.CustomerID = strings.TrimSpace(receiver.CustomerID)
 
 	if receiver.Name == "" ||
 		len(receiver.Name) > MaxReceiverNameLen ||
 		len(receiver.Phone) < 3 ||
 		len(receiver.Phone) > MaxReceiverPhoneLen {
 		return Receiver{}, ErrInvalidReceiver
+	}
+	if receiver.CustomerID != "" {
+		if _, err := uuid.Parse(receiver.CustomerID); err != nil {
+			return Receiver{}, ErrInvalidReceiver
+		}
 	}
 
 	return receiver, nil

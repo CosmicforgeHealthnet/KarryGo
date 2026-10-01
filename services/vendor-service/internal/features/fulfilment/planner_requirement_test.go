@@ -285,7 +285,7 @@ func TestRequiredVehicleClass_ReportsThePhysicalMinimum(t *testing.T) {
 			got)
 	}
 
-	if snapshot.Decision.SelectedClass == VehicleCar {
-		t.Fatal("the executable answer must not be a car")
+	if snapshot.Decision.SelectedClass != VehicleCar || snapshot.Decision.SelectedService != ServiceTaxi {
+		t.Fatalf("executable answer = %s/%s, want CAR/TAXI", snapshot.Decision.SelectedClass, snapshot.Decision.SelectedService)
 	}
 }

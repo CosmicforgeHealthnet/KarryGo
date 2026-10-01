@@ -1,0 +1,3 @@
+# Worker dead-letter
+
+Trigger: dead-letter count is nonzero or oldest pending work exceeds SLO. Inspect worker name, low-cardinality error code, attempts, lease age, dependency readiness, and correlation/operation IDs. Disable new claims for the affected capability, preserve the row, fix the dependency or deterministic data defect, then invoke the repository-supported idempotent replay. Never delete queue rows, reset attempts blindly, or change economic operation IDs. Escalate when the authority result is ambiguous or replay repeats the same terminal defect. Verify the row reaches its intended terminal state, backlog drains, and no duplicate event/money/mission exists.

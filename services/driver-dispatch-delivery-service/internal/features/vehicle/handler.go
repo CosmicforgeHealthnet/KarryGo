@@ -32,7 +32,14 @@ func NewHandlerWithService(svc *Service) *Handler {
 	return &Handler{service: svc}
 }
 
-func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handler *Handler) {
+// RegisterRoutes mounts the vehicle surface.
+//
+// extra lets a neighbouring feature mount routes on the SAME authenticated
+// provider group. Section 8's capability endpoints use it so they inherit this
+// group's rider-auth and role gate instead of installing a second, weaker one
+// of their own -- and so they sit under the existing /:id wildcard rather than
+// colliding with it.
+func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handler *Handler, extra ...func(*gin.RouterGroup)) {
 	provider := engine.Group("/api/v1/provider/vehicle")
 	provider.Use(authhttp.DispatchRiderAuthRequired(tokens), requireDispatchProviderRole())
 	provider.POST("", handler.RegisterBike)
@@ -41,6 +48,12 @@ func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handl
 	provider.PATCH("/:id", handler.UpdateBike)
 	provider.POST("/:id/documents", handler.UploadDocument)
 	provider.GET("/:id/documents", handler.GetDocuments)
+
+	for _, register := range extra {
+		if register != nil {
+			register(provider)
+		}
+	}
 
 	admin := engine.Group("/api/v1/admin/vehicle")
 	admin.Use(authhttp.DispatchRiderAuthRequired(tokens), requirePlatformAdminRole())

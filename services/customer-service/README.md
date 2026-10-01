@@ -165,3 +165,20 @@ responses come from `shared/go/httpx` and `shared/go/apperrors`, for example:
   }
 }
 ```
+
+## V4 Section 16/18 customer integration (local)
+
+Authenticated customers can request a scoped support-evidence upload via
+`POST /api/v1/customer/media-upload-sessions`. Customer Service verifies the
+Support complaint owner, purpose, MIME and size, then uses backend HMAC to mint
+a short-lived, single-use Media capability. The phone receives only that
+capability; profile photos use the customer bearer proxy and the mobile app no
+longer embeds a Media service token. Media owns bytes and metadata. Configure
+the Support URL, private/public Media URLs and Media HMAC secret on trusted
+backend services before enabling this path in staging.
+
+Journey Share create/revoke/expiry now write reference-only notification
+intents atomically with share state in migration `011_journey_share_notifications.sql`.
+The worker retries and dead-letters Notification outages; no share token enters
+the outbox. PostgreSQL concurrency and outage/retry tests pass locally. The
+consumer must read current Share state after following a route intent.

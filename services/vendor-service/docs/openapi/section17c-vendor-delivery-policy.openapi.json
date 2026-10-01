@@ -239,7 +239,7 @@
           },
           "supported_vehicle_classes": {
             "type": "array",
-            "items": { "type": "string", "enum": ["MOTORCYCLE", "VAN", "TRUCK"] }
+            "items": { "type": "string", "enum": ["MOTORCYCLE", "CAR", "VAN", "TRUCK"] }
           },
           "fallback_triggers": {
             "type": "array",

@@ -1,0 +1,3 @@
+# Stock reservation leak
+
+Trigger: a reservation remains active after its expiry/grace window or sellable stock disagrees with authoritative ledger math. Inspect reservation, checkout, SKU/branch scope, expiry worker health, and audit/outbox rows. Freeze affected checkout writes, run the bounded expiry/recovery pass, and recompute from Vendor PostgreSQL. Never edit stock totals directly or use Redis as evidence. Escalate if a committed order owns the reservation or ledger invariants fail. Verify reservation terminal state, unchanged committed allocations, restored sellable quantity, audit evidence, and no oversell.

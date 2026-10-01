@@ -116,6 +116,7 @@ func (p *Planner) splitClustering(eligible []planned) clustering {
 func (p *Planner) consolidatedClustering(
 	eligible []planned,
 	mode Mode,
+	capabilities map[Service]ServiceCapability,
 ) (clustering, []PlanEvent, []string) {
 	var (
 		clusters []cluster
@@ -142,7 +143,7 @@ func (p *Planner) consolidatedClustering(
 		var firstRefusal string
 
 		for index := range clusters {
-			check := p.canMerge(clusters[index], outcome, mode)
+			check := p.canMerge(clusters[index], outcome, mode, capabilities)
 
 			if !check.ok {
 				// Only the first real refusal is worth recording. The second
@@ -222,14 +223,14 @@ func (p *Planner) evaluateClustering(
 	splitBaselineMinutes int,
 	now time.Time,
 ) (PlanCandidate, []PlanEvent, map[string]quoteResult, error) {
-	capabilities := p.multiPickupCapabilities()
+	capabilities := p.serviceCapabilities(ctx)
 
 	candidate := PlanCandidate{
 		Kind:                target.kind,
 		Mode:                mode,
 		Status:              StatusCandidateSelected,
 		PolicyVersion:       p.optimization.Version,
-		ServiceCapabilities: capabilities,
+		ServiceCapabilities: multiPickupEvidence(capabilities),
 	}
 
 	var (
@@ -255,7 +256,8 @@ func (p *Planner) evaluateClustering(
 			PickupStopCount: pickupStopCount(
 				group, p.optimization.ColocationRadiusMeters,
 			),
-			ReadyAt: clusterReadyAt(group),
+			SecureHandoverRequired: requiresSecureHandover(group.members),
+			ReadyAt:                clusterReadyAt(group),
 		}
 
 		// The execution gate runs BEFORE the quote. Asking an authority to
@@ -365,28 +367,6 @@ func clusterReadyAt(group cluster) *time.Time {
 	}
 
 	return &latest
-}
-
-// multiPickupCapabilities reads which authorities can drive a multi-stop
-// collection right now.
-//
-// It is the ONLY place the answer is decided, and it is read rather than
-// assumed. Today neither dispatch nor hauling models a multi-pickup mission,
-// so both are false and every multi-stop candidate is refused with a reason.
-// When a runtime gains the capability, this map changes and consolidated
-// multi-stop candidates start passing the gate with no other edit anywhere.
-func (p *Planner) multiPickupCapabilities() map[Service]bool {
-	capabilities := map[Service]bool{
-		ServiceDispatch: false,
-		ServiceHauling:  false,
-		ServiceTaxi:     false,
-	}
-
-	for service, supported := range p.multiPickup {
-		capabilities[service] = supported
-	}
-
-	return capabilities
 }
 
 // slowestLeg is the split baseline the detour is measured against.

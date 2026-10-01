@@ -24,11 +24,18 @@ const (
 	CapabilityShopGrocery  CapabilityType = "SHOP_GROCERY"
 	CapabilityMarket       CapabilityType = "MARKET"
 	CapabilityWholesale    CapabilityType = "WHOLESALE"
+	// Catering (bulk food) and Manufacturer produce to order rather than
+	// serving a menu or a shelf. Section 11 specifies both, the readiness
+	// engine has carried their substates since 000117, and migration 000121
+	// admits them to the capability vocabulary.
+	CapabilityCatering     CapabilityType = "CATERING"
+	CapabilityManufacturer CapabilityType = "MANUFACTURER"
 )
 
 var SupportedCapabilityTypes = []CapabilityType{
 	CapabilityRestaurant, CapabilityFastFood, CapabilityCloudKitchen,
 	CapabilityPastryBakery, CapabilityShopGrocery, CapabilityMarket, CapabilityWholesale,
+	CapabilityCatering, CapabilityManufacturer,
 }
 
 type CapabilityStatus string
@@ -198,6 +205,14 @@ func CapabilityFamily(t CapabilityType) string {
 		return "FOOD"
 	case CapabilityShopGrocery, CapabilityMarket, CapabilityWholesale:
 		return "SHOP"
+	// Produced to order: neither a menu nor a shelf. The family is coarse --
+	// it describes what the business does, not which catalogue module admits
+	// it, which is why CLOUD_KITCHEN is FOOD without being a food-menu
+	// capability.
+	case CapabilityCatering:
+		return "FOOD"
+	case CapabilityManufacturer:
+		return "GOODS"
 	default:
 		return "UNKNOWN"
 	}

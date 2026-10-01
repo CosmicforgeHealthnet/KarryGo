@@ -2,6 +2,7 @@ package bookingrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -52,6 +54,9 @@ type BookingEvent = bookingmodels.BookingEvent
 
 type PostgresBookingRepository struct {
 	db *pgxpool.Pool
+	// custody is the shared multi-manifest ledger. nil keeps the
+	// pre-custody behaviour for every booking.
+	custody *custodyops.Repository
 }
 
 func NewPostgresBookingRepository(db *pgxpool.Pool) *PostgresBookingRepository {
@@ -66,6 +71,42 @@ func (r *PostgresBookingRepository) CommerceMissionScope(ctx context.Context, bo
 		return "", nil, false, nil
 	}
 	return parentID, vendorIDs, err == nil, err
+}
+
+func (r *PostgresBookingRepository) CommerceProviderMetadata(ctx context.Context, bookingID string) (*bookingmodels.CommerceOperations, error) {
+	var (
+		metadata                   bookingmodels.CommerceOperations
+		pickups, parcels, handling []byte
+	)
+	err := r.db.QueryRow(ctx, `
+		SELECT operation_ref,vehicle_class,pickup_stops,parcels,manifest_ref,
+		       manifest_version,handling_requirements,pickup_window_start,
+		       pickup_window_end,pickup_timezone,loading_duration_seconds
+		  FROM commerce_missions
+		 WHERE booking_id=$1 AND status IN ('accepted','cancelled')`, bookingID).Scan(
+		&metadata.OperationRef, &metadata.VehicleClass, &pickups, &parcels,
+		&metadata.ManifestRef, &metadata.ManifestVersion, &handling,
+		&metadata.PickupWindowStart, &metadata.PickupWindowEnd,
+		&metadata.PickupTimezone, &metadata.LoadingDurationSeconds,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	metadata.SourceType = "VENDOR_COMMERCE"
+	if err = json.Unmarshal(pickups, &metadata.PickupStops); err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(handling, &metadata.Handling); err != nil {
+		return nil, err
+	}
+	metadata.Parcels, err = bookingmodels.SanitizeCommerceParcels(parcels)
+	if err != nil {
+		return nil, err
+	}
+	return &metadata, nil
 }
 
 func (r *PostgresBookingRepository) ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error) {
@@ -96,8 +137,9 @@ func (r *PostgresBookingRepository) Create(ctx context.Context, b bookingmodels.
 			cargo_type, preferred_truck_type, cargo_weight_kg, cargo_description,
 			requires_helpers, helper_count,
 			weight_category, receiver_name, receiver_phone, package_content, package_size, is_fragile,
-			distance_km, fare_estimate_kobo, payment_method, payment_status, status, scheduled_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+			distance_km, fare_estimate_kobo, payment_method, payment_status, status, scheduled_at,
+			receiver_email, receiver_customer_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,NULLIF($28,'')::uuid)
 		RETURNING `+bookingSelectCols,
 		b.ID, b.CustomerID,
 		b.PickupAddress, b.PickupLat, b.PickupLng,
@@ -106,6 +148,7 @@ func (r *PostgresBookingRepository) Create(ctx context.Context, b bookingmodels.
 		b.RequiresHelpers, b.HelperCount,
 		b.WeightCategory, b.ReceiverName, b.ReceiverPhone, b.PackageContent, b.PackageSize, b.IsFragile,
 		b.DistanceKm, b.FareEstimateKobo, b.PaymentMethod, b.PaymentStatus, b.Status, b.ScheduledAt,
+		b.ReceiverEmail, b.ReceiverCustomerID,
 	)
 	return scanBooking(row)
 }
@@ -220,6 +263,31 @@ func (r *PostgresBookingRepository) MarkEnRoutePickup(ctx context.Context, id st
 // freshly generated pickup credential (the driver's own code, later verified
 // by the customer), resetting its attempt/resend counters.
 func (r *PostgresBookingRepository) MarkArrivedAtPickup(ctx context.Context, id string, pickup handover.CodeRecord) (bookingmodels.Booking, error) {
+	if pickup.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		row := tx.QueryRow(ctx, `
+			UPDATE haulage_bookings
+			SET status=$2,updated_at=now(),pickup_code='',pickup_code_hash='',
+			    pickup_code_expires_at=NULL,pickup_code_attempts=0,
+			    pickup_code_resend_count=0,pickup_code_last_sent_at=now(),pickup_code_verified_at=NULL
+			WHERE id=$1 AND status=$3 AND provider_id=$4 RETURNING `+bookingSelectCols,
+			id, bookingmodels.StatusArrivedAtPickup, bookingmodels.StatusEnRoutePickup, pickup.ProviderID)
+		updated, err := scanBookingNotFound(row)
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = insertIssuedSecureChallenge(ctx, tx, pickup); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		return updated, nil
+	}
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, updated_at=now(),
@@ -233,18 +301,65 @@ func (r *PostgresBookingRepository) MarkArrivedAtPickup(ctx context.Context, id 
 }
 
 func (r *PostgresBookingRepository) MarkPickedUp(ctx context.Context, id string) (bookingmodels.Booking, error) {
-	row := r.db.QueryRow(ctx, `
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	row := tx.QueryRow(ctx, `
 		UPDATE haulage_bookings SET status=$2, picked_up_at=now(), updated_at=now()
 		WHERE id=$1 AND status IN ($3,$4,$5) RETURNING `+bookingSelectCols,
 		id, bookingmodels.StatusPickedUp, bookingmodels.StatusAccepted,
 		bookingmodels.StatusEnRoutePickup, bookingmodels.StatusArrivedAtPickup)
-	return scanBookingNotFound(row)
+	booking, err := scanBookingNotFound(row)
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	// Custody of any vendor manifests moves with the cargo, in this same
+	// transaction.
+	if err = r.collectCustodyTx(ctx, tx, booking.ID, providerRef(booking), time.Now().UTC()); err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	return booking, tx.Commit(ctx)
+}
+
+// providerRef is the provider currently carrying the booking, or empty.
+func providerRef(booking bookingmodels.Booking) string {
+	if booking.ProviderID == nil {
+		return ""
+	}
+	return *booking.ProviderID
 }
 
 // MarkEnRouteDelivery moves the booking to en_route_delivery and stores a
 // freshly generated delivery credential (the customer's own code, later
 // verified by the driver), resetting its attempt/resend counters.
 func (r *PostgresBookingRepository) MarkEnRouteDelivery(ctx context.Context, id string, delivery handover.CodeRecord) (bookingmodels.Booking, error) {
+	if delivery.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		row := tx.QueryRow(ctx, `
+			UPDATE haulage_bookings
+			SET status=$2,updated_at=now(),delivery_code='',delivery_code_hash='',
+			    delivery_code_expires_at=NULL,delivery_code_attempts=0,
+			    delivery_code_resend_count=0,delivery_code_last_sent_at=now(),delivery_code_verified_at=NULL
+			WHERE id=$1 AND status=$3 AND provider_id=$4 RETURNING `+bookingSelectCols,
+			id, bookingmodels.StatusEnRouteDelivery, bookingmodels.StatusPickedUp, delivery.ProviderID)
+		updated, err := scanBookingNotFound(row)
+		if err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = insertIssuedSecureChallenge(ctx, tx, delivery); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return bookingmodels.Booking{}, err
+		}
+		return updated, nil
+	}
 	row := r.db.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, updated_at=now(),
@@ -281,6 +396,20 @@ func (r *PostgresBookingRepository) MarkPickupVerified(ctx context.Context, id s
 // ResendPickupCode regenerates the driver's pickup credential (called by the
 // provider when their displayed code expired or was lost).
 func (r *PostgresBookingRepository) ResendPickupCode(ctx context.Context, id string, rec handover.CodeRecord) error {
+	if rec.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if err = supersedeAndInsertSecureChallenge(ctx, tx, rec); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE haulage_bookings SET pickup_code='',pickup_code_hash='',pickup_code_expires_at=NULL,pickup_code_attempts=0,pickup_code_resend_count=$2,pickup_code_last_sent_at=now(),pickup_code_verified_at=NULL,updated_at=now() WHERE id=$1 AND provider_id=$3`, id, rec.ResendCount, rec.ProviderID); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE haulage_bookings
 		SET pickup_code=$2, pickup_code_hash=$3, pickup_code_expires_at=$4,
@@ -294,6 +423,20 @@ func (r *PostgresBookingRepository) ResendPickupCode(ctx context.Context, id str
 // ResendDeliveryCode regenerates the customer's delivery credential (called
 // by the customer when their displayed code expired or was lost).
 func (r *PostgresBookingRepository) ResendDeliveryCode(ctx context.Context, id string, rec handover.CodeRecord) error {
+	if rec.Version > 0 {
+		tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if err = supersedeAndInsertSecureChallenge(ctx, tx, rec); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE haulage_bookings SET delivery_code='',delivery_code_hash='',delivery_code_expires_at=NULL,delivery_code_attempts=0,delivery_code_resend_count=$2,delivery_code_last_sent_at=now(),delivery_code_verified_at=NULL,updated_at=now() WHERE id=$1 AND customer_id=$3`, id, rec.ResendCount, rec.OwnerID); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE haulage_bookings
 		SET delivery_code=$2, delivery_code_hash=$3, delivery_code_expires_at=$4,
@@ -333,13 +476,27 @@ func (r *PostgresBookingRepository) SavePickupRoute(ctx context.Context, id, pol
 // photo and receiver-signature URLs captured by the provider (either may be
 // empty when the provider skipped them or the upload failed).
 func (r *PostgresBookingRepository) MarkDelivered(ctx context.Context, id, proofPhotoURL, signatureURL string) (bookingmodels.Booking, error) {
-	row := r.db.QueryRow(ctx, `
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	row := tx.QueryRow(ctx, `
 		UPDATE haulage_bookings
 		SET status=$2, delivered_at=now(), proof_photo_url=$5, signature_url=$6, updated_at=now()
 		WHERE id=$1 AND status IN ($3,$4) RETURNING `+bookingSelectCols,
 		id, bookingmodels.StatusDelivered, bookingmodels.StatusPickedUp, bookingmodels.StatusEnRouteDelivery,
 		proofPhotoURL, signatureURL)
-	return scanBookingNotFound(row)
+	booking, err := scanBookingNotFound(row)
+	if err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	// Every required manifest must be accounted for before a commerce
+	// haulage may be recorded as delivered.
+	if err = r.deliverCustodyTx(ctx, tx, booking.ID, providerRef(booking), time.Now().UTC()); err != nil {
+		return bookingmodels.Booking{}, err
+	}
+	return booking, tx.Commit(ctx)
 }
 
 func (r *PostgresBookingRepository) MarkCompleted(ctx context.Context, id string) (bookingmodels.Booking, error) {
@@ -463,7 +620,8 @@ const bookingSelectCols = `
 	delivery_code, delivery_code_hash, delivery_code_expires_at, delivery_code_attempts,
 	delivery_code_resend_count, delivery_code_last_sent_at, delivery_code_verified_at,
 	matched_at, accepted_at, picked_up_at, delivered_at, completed_at, cancelled_at,
-	scheduled_at, created_at, updated_at
+	scheduled_at, created_at, updated_at,
+	receiver_email, COALESCE(receiver_customer_id::text,'')
 `
 
 type scannable interface {
@@ -489,6 +647,7 @@ func scanBooking(row scannable) (bookingmodels.Booking, error) {
 		&b.DeliveryCodeResendCount, &b.DeliveryCodeLastSentAt, &b.DeliveryCodeVerifiedAt,
 		&b.MatchedAt, &b.AcceptedAt, &b.PickedUpAt, &b.DeliveredAt, &b.CompletedAt, &b.CancelledAt,
 		&b.ScheduledAt, &b.CreatedAt, &b.UpdatedAt,
+		&b.ReceiverEmail, &b.ReceiverCustomerID,
 	)
 	return b, err
 }

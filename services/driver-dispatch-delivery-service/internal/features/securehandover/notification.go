@@ -41,8 +41,8 @@ func (n *NotificationTransport) Deliver(ctx context.Context, intent SecretDelive
 	if intent.Resend {
 		eventType = eventHandoverResend
 	}
-	recipient := notifications.Recipient{Type: notifications.RecipientCustomer, ID: intent.Context.CustomerID,
-		Email: strings.TrimSpace(intent.Context.ReceiverEmail), Phone: strings.TrimSpace(intent.Context.ReceiverPhone)}
+	recipient := notifications.Recipient{Type: notifications.RecipientCustomer, ID: intent.Context.ReceiverRef,
+		Email: strings.TrimSpace(intent.Context.ReceiverEmail)}
 	if recipient.ID == "" {
 		recipient.Type = "receiver"
 		recipient.ID = intent.Challenge.IntendedRecipientRef
@@ -57,9 +57,9 @@ func (n *NotificationTransport) Deliver(ctx context.Context, intent SecretDelive
 		Recipient:           recipient,
 		Channels:            intent.Channels,
 		TemplateKey:         templateDeliveryCode,
+		Data:                map[string]any{"mission_ref": intent.Challenge.MissionRef, "challenge_ref": intent.Challenge.ChallengeRef},
 		TemplateData: map[string]any{
-			"code":              intent.OTP,
-			"qr_token":          intent.QRToken,
+			"challenge_ref":     intent.Challenge.ChallengeRef,
 			"expires_at":        intent.Challenge.ExpiresAt,
 			"masked_receiver":   intent.Challenge.MaskedDestination,
 			"challenge_version": intent.Challenge.Version,

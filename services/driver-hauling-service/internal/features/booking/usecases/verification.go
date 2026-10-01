@@ -2,12 +2,17 @@ package bookingusecases
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
+	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/custodychain"
 	"cosmicforge/logistics/shared/go/handover"
 )
 
@@ -22,18 +27,120 @@ type ArrivedAtPickupResult struct {
 // PickupCredentialView is the provider-facing view of the driver's own
 // pickup credential — never exposed to the customer.
 type PickupCredentialView struct {
-	Code      string     `json:"code,omitempty"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	Verified  bool       `json:"verified"`
+	Code         string     `json:"code,omitempty"`
+	QRToken      string     `json:"qr_token,omitempty"`
+	ChallengeRef string     `json:"challenge_ref,omitempty"`
+	Version      int64      `json:"version,omitempty"`
+	Status       string     `json:"status,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Verified     bool       `json:"verified"`
+
+	// Direction names the credential's purpose, holder and verifier. The
+	// driver always holds a Hauling pickup credential; who verifies it
+	// depends on whether this is a Commerce mission or a direct booking.
+	Direction custodychain.Direction `json:"direction,omitempty"`
 }
 
 // VerificationCodeView is the customer-facing view of the delivery
 // credential — never exposed to the driver directly (the driver only
 // submits an attempt via ConfirmDelivery).
 type VerificationCodeView struct {
+	QRToken           string     `json:"qr_token,omitempty"`
+	ChallengeRef      string     `json:"challenge_ref,omitempty"`
+	Version           int64      `json:"version,omitempty"`
+	Status            string     `json:"status,omitempty"`
 	Code              string     `json:"code,omitempty"`
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
 	AttemptsRemaining int        `json:"attempts_remaining"`
+
+	// Direction names the credential's purpose, holder and verifier. A
+	// delivery credential has one direction on every flow: the receiver holds
+	// it and the driver verifies it.
+	Direction custodychain.Direction `json:"direction,omitempty"`
+}
+
+// CommerceHandoverObservation is intentionally credential-free. The version
+// combines immutable challenge generation with terminal status so resend and
+// consumption are both monotonic to downstream projections.
+type CommerceHandoverObservation struct {
+	MissionRef    string `json:"mission_ref"`
+	HandoverRef   string `json:"handover_ref"`
+	Stage         string `json:"stage"`
+	Status        string `json:"status"`
+	SourceVersion int64  `json:"source_version"`
+}
+
+type commerceHandoverBindingReader interface {
+	CommerceHandoverBinding(context.Context, string) (bookingrepo.CommerceHandoverBinding, error)
+}
+
+func commerceObservation(binding bookingrepo.CommerceHandoverBinding, rec handover.CodeRecord, status string) CommerceHandoverObservation {
+	projected := strings.ToUpper(strings.TrimSpace(status))
+	rank := int64(1)
+	switch projected {
+	case "CONSUMED":
+		rank = 9
+	case "SUPERSEDED", "INVALIDATED":
+		projected, rank = "INVALIDATED", 8
+	case "EXPIRED", "LOCKED":
+		rank = 8
+	}
+	return CommerceHandoverObservation{MissionRef: binding.MissionRef, HandoverRef: rec.ChallengeRef, Stage: strings.ToUpper(string(rec.Stage)), Status: projected, SourceVersion: rec.Version*10 + rank}
+}
+
+// ReadCommerceHandover is the canonical status/read-back path used after an
+// unknown network outcome. It never returns Code, QRToken, hashes or attempts.
+func (s *BookingService) ReadCommerceHandover(ctx context.Context, missionRef, stage string) (CommerceHandoverObservation, error) {
+	reader, ok := s.bookings.(commerceHandoverBindingReader)
+	if !ok || s.secureHandover == nil {
+		return CommerceHandoverObservation{}, apperrors.Unavailable("Secure handover is unavailable.", nil)
+	}
+	step := handover.Step(strings.ToLower(strings.TrimSpace(stage)))
+	if step != handover.StepPickup && step != handover.StepDelivery {
+		return CommerceHandoverObservation{}, apperrors.BadRequest("Invalid handover stage.", nil)
+	}
+	binding, err := reader.CommerceHandoverBinding(ctx, missionRef)
+	if err != nil {
+		return CommerceHandoverObservation{}, apperrors.NotFound("Commerce handover was not found.", err)
+	}
+	rec, status, err := s.secureHandover.GetHandoverChallenge(ctx, binding.BookingID, step)
+	if err != nil {
+		return CommerceHandoverObservation{}, apperrors.NotFound("Commerce handover was not found.", err)
+	}
+	return commerceObservation(binding, rec, status), nil
+}
+
+// ConfirmCommercePickup relays a transient credential into the existing
+// serialized booking authority. A duplicate/unknown request reconciles from
+// canonical state and never performs a second custody transition.
+func (s *BookingService) ConfirmCommercePickup(ctx context.Context, missionRef, challengeRef, method, credential, operationRef string) (CommerceHandoverObservation, error) {
+	if strings.TrimSpace(operationRef) == "" || strings.TrimSpace(challengeRef) == "" || strings.TrimSpace(credential) == "" || (method != "OTP" && method != "QR") {
+		return CommerceHandoverObservation{}, apperrors.BadRequest("Handover confirmation is invalid.", nil)
+	}
+	reader, ok := s.bookings.(commerceHandoverBindingReader)
+	if !ok || s.secureHandover == nil {
+		return CommerceHandoverObservation{}, apperrors.Unavailable("Secure handover is unavailable.", nil)
+	}
+	binding, err := reader.CommerceHandoverBinding(ctx, missionRef)
+	if err != nil {
+		return CommerceHandoverObservation{}, apperrors.NotFound("Commerce handover was not found.", err)
+	}
+	current, status, err := s.secureHandover.GetHandoverChallenge(ctx, binding.BookingID, handover.StepPickup)
+	if err != nil || current.ChallengeRef != strings.TrimSpace(challengeRef) {
+		return CommerceHandoverObservation{}, apperrors.NotFound("Commerce handover was not found.", err)
+	}
+	if status == "CONSUMED" {
+		return commerceObservation(binding, current, status), nil
+	}
+	_, _, consumeErr := s.secureHandover.ConsumeHandoverChallenge(ctx, binding.BookingID, handover.StepPickup, binding.CustomerID, strings.TrimSpace(credential), s.handoverSecret, "", "")
+	latest, latestStatus, readErr := s.secureHandover.GetHandoverChallenge(ctx, binding.BookingID, handover.StepPickup)
+	if readErr == nil && latest.ChallengeRef == current.ChallengeRef && latestStatus == "CONSUMED" {
+		return commerceObservation(binding, latest, latestStatus), nil
+	}
+	if consumeErr != nil {
+		return CommerceHandoverObservation{}, consumeErr
+	}
+	return CommerceHandoverObservation{}, readErr
 }
 
 func pickupCredentialViewFrom(b bookingmodels.Booking) PickupCredentialView {
@@ -54,12 +161,29 @@ func verificationCodeViewFrom(rec handover.CodeRecord) VerificationCodeView {
 	}
 	view := VerificationCodeView{
 		Code:              rec.Code,
+		QRToken:           rec.QRToken,
+		ChallengeRef:      rec.ChallengeRef,
+		Version:           rec.Version,
 		AttemptsRemaining: remaining,
 	}
 	if !rec.ExpiresAt.IsZero() {
 		expires := rec.ExpiresAt
 		view.ExpiresAt = &expires
 	}
+	return view
+}
+
+func securePickupCredentialView(rec handover.CodeRecord, status string) PickupCredentialView {
+	expires := rec.ExpiresAt
+	return PickupCredentialView{
+		Code: rec.Code, QRToken: rec.QRToken, ChallengeRef: rec.ChallengeRef,
+		Version: rec.Version, Status: status, ExpiresAt: &expires, Verified: status == "CONSUMED",
+	}
+}
+
+func secureVerificationCodeView(rec handover.CodeRecord, status string) VerificationCodeView {
+	view := verificationCodeViewFrom(rec)
+	view.Status = status
 	return view
 }
 
@@ -99,8 +223,24 @@ func (s *BookingService) VerifyDriverAtPickup(ctx context.Context, customerID, i
 		return bookingmodels.PublicBooking{}, err
 	}
 
+	if s.secureHandover != nil {
+		updated, consumed, consumeErr := s.secureHandover.ConsumeHandoverChallenge(ctx, id, handover.StepPickup, customerID, strings.TrimSpace(code), s.handoverSecret, "", "")
+		if consumeErr != nil && !errors.Is(consumeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return bookingmodels.PublicBooking{}, consumeErr
+		}
+		if consumeErr == nil && consumed {
+			_ = s.addEvent(ctx, id, "pickup_verified_by_customer", bookingmodels.ActorCustomer, customerID)
+			if b.ProviderID != nil {
+				s.notifier.NotifyProviderPickupVerified(ctx, *b.ProviderID, id, map[string]interface{}{"booking_id": id})
+			}
+		}
+		if consumeErr == nil {
+			return updated.Public(), nil
+		}
+	}
 	if b.PickupCodeVerifiedAt != nil {
-		// Already verified — idempotent success rather than an error.
+		// Legacy version-zero credentials retain their former idempotency during
+		// the bounded drain window. Versioned credentials reject replay above.
 		return b.Public(), nil
 	}
 
@@ -136,8 +276,8 @@ func (s *BookingService) VerifyDriverAtPickup(ctx context.Context, customerID, i
 	return updated.Public(), nil
 }
 
-// GetPickupCredential returns the driver's own pickup credential for
-// redisplay (e.g. after navigating away from the arrived-at-pickup screen).
+// GetPickupCredential returns status only. Plain credentials are available
+// once at issue/resend and are never persisted for redisplay.
 func (s *BookingService) GetPickupCredential(ctx context.Context, providerID, id string) (PickupCredentialView, error) {
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
@@ -146,10 +286,23 @@ func (s *BookingService) GetPickupCredential(ctx context.Context, providerID, id
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return PickupCredentialView{}, apperrors.NotFound("Booking could not be found.", nil)
 	}
+	if s.secureHandover != nil {
+		rec, status, challengeErr := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepPickup)
+		if challengeErr != nil && !errors.Is(challengeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return PickupCredentialView{}, challengeErr
+		}
+		if challengeErr == nil {
+			view := securePickupCredentialView(rec, status)
+			view.Code, view.QRToken = "", ""
+			return s.withPickupDirection(ctx, id, view), nil
+		}
+	}
 	if b.PickupCodeHash == "" {
 		return PickupCredentialView{}, apperrors.NotFound("No pickup credential has been generated yet.", nil)
 	}
-	return pickupCredentialViewFrom(b), nil
+	view := pickupCredentialViewFrom(b)
+	view.Code = ""
+	return s.withPickupDirection(ctx, id, view), nil
 }
 
 // ResendPickupCredential regenerates the driver's pickup credential (e.g.
@@ -164,6 +317,33 @@ func (s *BookingService) ResendPickupCredential(ctx context.Context, providerID,
 	}
 
 	now := time.Now()
+	if s.secureHandover != nil {
+		current, status, challengeErr := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepPickup)
+		if challengeErr != nil && !errors.Is(challengeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return PickupCredentialView{}, challengeErr
+		}
+		if challengeErr == nil && status == "CONSUMED" {
+			return PickupCredentialView{}, apperrors.Conflict("This handover is already verified.", nil)
+		}
+		if challengeErr != nil {
+			current = b.PickupCodeRecord()
+		}
+		if ok, wait := current.CanResend(now); !ok {
+			return PickupCredentialView{}, resendWaitError(wait)
+		}
+		nextVersion := current.Version + 1
+		if nextVersion < 1 {
+			nextVersion = 1
+		}
+		rec, issueErr := handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepPickup, uuid.NewString(), nextVersion, id, providerID, b.CustomerID, current.ResendCount+1, now)
+		if issueErr != nil {
+			return PickupCredentialView{}, apperrors.Internal("Could not generate a pickup credential.", issueErr)
+		}
+		if issueErr = s.bookings.ResendPickupCode(ctx, id, rec); issueErr != nil {
+			return PickupCredentialView{}, issueErr
+		}
+		return s.withPickupDirection(ctx, id, securePickupCredentialView(rec, "ACTIVE")), nil
+	}
 	if ok, wait := b.PickupCodeRecord().CanResend(now); !ok {
 		return PickupCredentialView{}, resendWaitError(wait)
 	}
@@ -176,12 +356,34 @@ func (s *BookingService) ResendPickupCredential(ctx context.Context, providerID,
 		return PickupCredentialView{}, err
 	}
 	expires := rec.ExpiresAt
-	return PickupCredentialView{Code: rec.Code, ExpiresAt: &expires, Verified: false}, nil
+	return s.withPickupDirection(ctx, id,
+		PickupCredentialView{Code: rec.Code, ExpiresAt: &expires, Verified: false}), nil
 }
 
-// GetVerificationCode returns the customer's own delivery credential for
-// redisplay. Only the delivery step is readable by the customer — the
-// pickup credential belongs to the driver and is never exposed here.
+// ReadReceiverCredential reconstructs a live hash-only challenge only for the
+// account frozen as receiver. Booking ownership by the sender grants no read.
+func (s *BookingService) ReadReceiverCredential(ctx context.Context, receiverID, id, challengeRef string) (VerificationCodeView, error) {
+	b, err := s.bookings.GetByID(ctx, id)
+	if err != nil || b.ReceiverCustomerID == "" || receiverID != b.ReceiverCustomerID || b.ProviderID == nil {
+		return VerificationCodeView{}, apperrors.NotFound("Receiver credential was not found.", err)
+	}
+	if s.secureHandover == nil {
+		return VerificationCodeView{}, apperrors.Unavailable("Secure receiver credential read is unavailable.", nil)
+	}
+	rec, status, err := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepDelivery)
+	if err != nil || status != "ACTIVE" || rec.ChallengeRef != strings.TrimSpace(challengeRef) ||
+		rec.OwnerID != receiverID || rec.ProviderID != *b.ProviderID || !rec.ExpiresAt.After(time.Now()) {
+		return VerificationCodeView{}, apperrors.NotFound("Receiver credential was not found.", err)
+	}
+	recovered, ok := handover.RecoverSecureCredentials(s.handoverSecret, rec)
+	if !ok {
+		return VerificationCodeView{}, apperrors.Unavailable("Receiver credential requires secure rotation.", nil)
+	}
+	return withDeliveryDirection(id, secureVerificationCodeView(recovered, status)), nil
+}
+
+// GetVerificationCode returns delivery challenge status only. It cannot
+// redisplay an OTP or QR bearer token.
 func (s *BookingService) GetVerificationCode(ctx context.Context, customerID, id, step string) (VerificationCodeView, error) {
 	if step == string(handover.StepPickup) {
 		return VerificationCodeView{}, apperrors.Forbidden("You cannot view this code.", nil)
@@ -194,11 +396,27 @@ func (s *BookingService) GetVerificationCode(ctx context.Context, customerID, id
 	if err != nil {
 		return VerificationCodeView{}, err
 	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return VerificationCodeView{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
+	if s.secureHandover != nil {
+		rec, status, challengeErr := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepDelivery)
+		if challengeErr != nil && !errors.Is(challengeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return VerificationCodeView{}, challengeErr
+		}
+		if challengeErr == nil {
+			view := secureVerificationCodeView(rec, status)
+			view.Code, view.QRToken = "", ""
+			return withDeliveryDirection(id, view), nil
+		}
+	}
 	rec := b.DeliveryCodeRecord()
 	if rec.Hash == "" {
 		return VerificationCodeView{}, apperrors.NotFound("No delivery code has been generated yet.", nil)
 	}
-	return verificationCodeViewFrom(rec), nil
+	view := verificationCodeViewFrom(rec)
+	view.Code, view.QRToken = "", ""
+	return withDeliveryDirection(id, view), nil
 }
 
 // ResendVerificationCode regenerates the customer's delivery credential.
@@ -215,8 +433,42 @@ func (s *BookingService) ResendVerificationCode(ctx context.Context, customerID,
 	if err != nil {
 		return VerificationCodeView{}, err
 	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return VerificationCodeView{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
 
 	now := time.Now()
+	if s.secureHandover != nil {
+		current, status, challengeErr := s.secureHandover.GetHandoverChallenge(ctx, id, handover.StepDelivery)
+		if challengeErr != nil && !errors.Is(challengeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return VerificationCodeView{}, challengeErr
+		}
+		if challengeErr == nil && status == "CONSUMED" {
+			return VerificationCodeView{}, apperrors.Conflict("This handover is already verified.", nil)
+		}
+		if challengeErr != nil {
+			current = b.DeliveryCodeRecord()
+		}
+		if ok, wait := current.CanResend(now); !ok {
+			return VerificationCodeView{}, resendWaitError(wait)
+		}
+		if b.ProviderID == nil {
+			return VerificationCodeView{}, apperrors.Conflict("No provider is assigned to this booking.", nil)
+		}
+		nextVersion := current.Version + 1
+		if nextVersion < 1 {
+			nextVersion = 1
+		}
+		rec, issueErr := handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), nextVersion, id, *b.ProviderID, b.ReceiverCustomerID, current.ResendCount+1, now)
+		if issueErr != nil {
+			return VerificationCodeView{}, apperrors.Internal("Could not generate a delivery credential.", issueErr)
+		}
+		if issueErr = s.bookings.ResendDeliveryCode(ctx, id, rec); issueErr != nil {
+			return VerificationCodeView{}, issueErr
+		}
+		s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.ReceiverCustomerID, id, map[string]interface{}{"booking_id": id, "challenge_ref": rec.ChallengeRef, "version": rec.Version})
+		return withDeliveryDirection(id, secureVerificationCodeView(rec, "ACTIVE")), nil
+	}
 	if ok, wait := b.DeliveryCodeRecord().CanResend(now); !ok {
 		return VerificationCodeView{}, resendWaitError(wait)
 	}
@@ -228,5 +480,5 @@ func (s *BookingService) ResendVerificationCode(ctx context.Context, customerID,
 	if err := s.bookings.ResendDeliveryCode(ctx, id, rec); err != nil {
 		return VerificationCodeView{}, err
 	}
-	return verificationCodeViewFrom(rec), nil
+	return withDeliveryDirection(id, verificationCodeViewFrom(rec)), nil
 }

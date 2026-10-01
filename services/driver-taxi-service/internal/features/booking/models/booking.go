@@ -5,7 +5,10 @@
 // the shape every later phase builds on.
 package bookingmodels
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Status is the ride lifecycle. Every transition between these is a guarded
 // compare-and-set in SQL (invariant §4 in the build plan) -- read-then-write
@@ -214,6 +217,28 @@ type Booking struct {
 	// searching begins.
 	MatchingStartedAt *time.Time
 
+	// Corporate execution binding (Section 8). An independent ride leaves
+	// every field here at its zero value and behaves exactly as before;
+	// nothing in the taxi lifecycle branches on these, which is deliberate --
+	// corporate work runs on the SAME trip engine, with corporate identity
+	// attached as metadata rather than a parallel lifecycle.
+	IsCorporateManaged     bool
+	OrganizationID         *string
+	MembershipID           *string
+	FleetAssignmentID      *string
+	FleetAssignmentVersion int64
+	// SourceContext records how this execution was acquired: INDEPENDENT,
+	// FLEET_ASSIGNMENT, FLEET_OFFER or FLEET_PRIVATE_EXECUTION.
+	SourceContext string
+	// SettlementMode is the Section 12 routing decision, decided once at
+	// execution start rather than re-derived at completion time (which would
+	// let a Fleet outage silently pick the independent path).
+	SettlementMode string
+	// SourceVersion is this booking's monotonic version as seen by Fleet. It
+	// is the completed-work contract's sourceVersion.
+	SourceVersion      int64
+	FleetCorrelationID *string
+
 	CancelReason *string
 	CancelledBy  *string
 
@@ -225,6 +250,14 @@ type Booking struct {
 	CancelledAt *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+
+	// Section 7 product snapshot, frozen at creation. Nil on bookings created
+	// while service products were disabled (legacy class mapping applies).
+	ServiceProductCode       *string
+	ServiceProductVersion    *int64
+	EligibilityPolicyVersion *string
+	GuaranteeProfileVersion  *string
+	RequirementSnapshot      []byte
 
 	// Stops is populated by repository reads that fetch the full route; a
 	// read that only needs the booking row itself may leave this nil.
@@ -311,7 +344,22 @@ type PublicBooking struct {
 	CancelledAt *time.Time `json:"cancelled_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 
+	ServiceProductCode *string             `json:"service_product_code,omitempty"`
+	Requirements       *PublicRequirements `json:"requirements,omitempty"`
+
 	Stops []PublicStop `json:"stops,omitempty"`
+}
+
+// PublicRequirements is the frozen hard-requirement and preference view of a
+// booking. Hard requirements gate matching; preferences never do.
+type PublicRequirements struct {
+	WheelchairRequired bool            `json:"wheelchair_required"`
+	ChildSeatRequired  bool            `json:"child_seat_required"`
+	PetTravel          bool            `json:"pet_travel"`
+	Preferences        json.RawMessage `json:"preferences,omitempty"`
+	// Traveller is the frozen guest the ride was booked for; absent when the
+	// booking customer is travelling.
+	Traveller json.RawMessage `json:"traveller,omitempty"`
 }
 
 func (b Booking) Public() PublicBooking {
@@ -349,6 +397,13 @@ func (b Booking) Public() PublicBooking {
 		CompletedAt:                b.CompletedAt,
 		CancelledAt:                b.CancelledAt,
 		CreatedAt:                  b.CreatedAt,
+	}
+	pub.ServiceProductCode = b.ServiceProductCode
+	if len(b.RequirementSnapshot) > 0 {
+		var requirements PublicRequirements
+		if json.Unmarshal(b.RequirementSnapshot, &requirements) == nil {
+			pub.Requirements = &requirements
+		}
 	}
 	if b.Stops != nil {
 		pub.Stops = make([]PublicStop, len(b.Stops))
@@ -395,4 +450,50 @@ type BookingEvent struct {
 	ActorID   string
 	Metadata  []byte
 	CreatedAt time.Time
+}
+
+// Settlement modes (Section 8 TAX-020 / Section 9 DSP-014). The boundary
+// between the legacy independent provider payment path and the Fleet managed
+// settlement path is decided by this value on the booking, never by whether
+// Fleet happened to be reachable at completion time.
+const (
+	SettlementIndependent         = "INDEPENDENT"
+	SettlementOrganizationManaged = "ORGANIZATION_MANAGED"
+)
+
+// Source contexts recording how an execution was acquired.
+const (
+	SourceContextIndependent      = "INDEPENDENT"
+	SourceContextFleetAssignment  = "FLEET_ASSIGNMENT"
+	SourceContextFleetOffer       = "FLEET_OFFER"
+	SourceContextPrivateExecution = "FLEET_PRIVATE_EXECUTION"
+)
+
+// IsManagedSettlement reports whether this booking settles through the Fleet
+// managed path rather than the legacy direct-to-provider wallet path.
+//
+// It requires the persisted settlement mode AND a complete corporate binding:
+// a booking that merely claims to be managed but names no organization or
+// membership cannot be settled by anyone, so it must not be routed away from
+// the independent path on that claim alone.
+func (b Booking) IsManagedSettlement() bool {
+	return b.SettlementMode == SettlementOrganizationManaged &&
+		b.IsCorporateManaged &&
+		b.OrganizationID != nil && *b.OrganizationID != "" &&
+		b.MembershipID != nil && *b.MembershipID != ""
+}
+
+// CorporateBinding returns the organization, membership and Fleet assignment
+// identifiers, with empty strings when the booking is independent.
+func (b Booking) CorporateBinding() (organizationID, membershipID, fleetAssignmentID string) {
+	if b.OrganizationID != nil {
+		organizationID = *b.OrganizationID
+	}
+	if b.MembershipID != nil {
+		membershipID = *b.MembershipID
+	}
+	if b.FleetAssignmentID != nil {
+		fleetAssignmentID = *b.FleetAssignmentID
+	}
+	return organizationID, membershipID, fleetAssignmentID
 }

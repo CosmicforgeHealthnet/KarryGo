@@ -8,11 +8,13 @@ package orders
 
 import (
 	"context"
+	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
 	"fmt"
 	"strings"
 	"time"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/taxonomy"
+	"cosmicforge/logistics/shared/go/events"
 )
 
 // Options configures the order service.
@@ -57,11 +59,12 @@ func (snapshotRestrictedGoodsAuthority) ValidateOrderForFulfilment(_ context.Con
 
 // Service owns Section 17E order orchestration.
 type Service struct {
-	store   *Store
-	quotes  QuoteAuthority
-	scopes  ScopeResolver
-	enabled bool
-	now     func() time.Time
+	handover handoverintegration.Router
+	store    *Store
+	quotes   QuoteAuthority
+	scopes   ScopeResolver
+	enabled  bool
+	now      func() time.Time
 
 	// payments is the Section 17F money authority. It is nil until
 	// SetPaymentAuthority wires one, so a deployment without Wallet
@@ -84,10 +87,23 @@ type Service struct {
 	// nil means an order activates exactly as it did before the aggregate
 	// existed, rather than failing because traceability is unavailable.
 	fulfilmentProjection FulfilmentProjection
-	restrictedGoods      RestrictedGoodsAuthority
-	abuseLimiter         AbuseLimiter
-	supportLimitMax      int
-	supportLimitWindow   time.Duration
+	// logisticsPlanner defers dispatch to the just-in-time orchestration.
+	// Optional: nil is the legacy deployment, which dispatches synchronously
+	// during activation exactly as it always has. Whether it is nil is the
+	// single thing that decides which path owns mission creation for a
+	// fulfilment, so there is never a moment when both do.
+	logisticsPlanner LogisticsPlanner
+	// customerGrouping publishes the commercial grouping of a purchase to the
+	// customer context owner. Optional: nil publishes nothing and changes no
+	// fulfilment behaviour.
+	customerGrouping CustomerGroupingPublisher
+	// physical re-answers a platform mission's vehicle class from the packed
+	// load before custody (Karryam V4 §14.6). Nil disables re-evaluation.
+	physical           PhysicalLoadEvaluator
+	restrictedGoods    RestrictedGoodsAuthority
+	abuseLimiter       AbuseLimiter
+	supportLimitMax    int
+	supportLimitWindow time.Duration
 }
 
 type AbuseLimiter interface {
@@ -96,6 +112,18 @@ type AbuseLimiter interface {
 
 func (s *Service) SetSupportCaseRateLimiter(limiter AbuseLimiter, max int, window time.Duration) {
 	s.abuseLimiter, s.supportLimitMax, s.supportLimitWindow = limiter, max, window
+}
+
+// CustomerGroupingPublisher hands commerce grouping to the customer context
+// owner. It carries grouping only - never execution state, a provider or a
+// vehicle - and a publish failure never fails fulfilment.
+type CustomerGroupingPublisher interface {
+	PublishGrouping(ctx context.Context, parentOrderID string, grouping events.MovementGrouping) error
+}
+
+// SetCustomerGroupingPublisher wires the commerce grouping publisher.
+func (s *Service) SetCustomerGroupingPublisher(publisher CustomerGroupingPublisher) {
+	s.customerGrouping = publisher
 }
 
 func (s *Service) SetProductionActivator(activator ProductionActivator) { s.production = activator }
@@ -231,10 +259,30 @@ func (s *Service) CancelByCustomer(
 			}
 		}
 		if activeOnMission == 1 {
-			if cancellation, ok := s.missions.(MissionCancellationAuthority); ok {
-				operationRef := "vfm_" + current.ParentOrderID + "_" + current.LogisticsMissionRef
-				if err = cancellation.CancelMission(ctx, operationRef, strings.TrimSpace(reasonCode)); err != nil {
+			operationRef := "vfm_" + current.ParentOrderID + "_" + current.LogisticsMissionRef
+			// Withdraw the plan first, when there is one.
+			//
+			// A slot the orchestration still holds has no vehicle behind it,
+			// so cancelling it costs nothing and must not be reported to an
+			// authority that was never asked. Only if the plan is already
+			// committed -- or there never was one -- does the authority's own
+			// cancellation contract apply. Doing these in the other order
+			// would ask an authority to cancel a mission it has never heard
+			// of, and a refusal there would block a cancellation the customer
+			// is entitled to.
+			withdrawn := false
+			if s.JITPlanningEnabled() {
+				withdrawn, err = s.logisticsPlanner.CancelMissionPlan(
+					ctx, operationRef, strings.TrimSpace(reasonCode))
+				if err != nil {
 					return VendorOrder{}, ParentOrder{}, err
+				}
+			}
+			if !withdrawn {
+				if cancellation, ok := s.missions.(MissionCancellationAuthority); ok {
+					if err = cancellation.CancelMission(ctx, operationRef, strings.TrimSpace(reasonCode)); err != nil {
+						return VendorOrder{}, ParentOrder{}, err
+					}
 				}
 			}
 		}
@@ -384,6 +432,23 @@ func (s *Service) Advance(
 	}
 	if transition == TransitionCancel {
 		request.CancelledBy = CancelByVendor
+	}
+	if transition == TransitionPack {
+		proposals, readErr := s.store.approvedSubstitutionsForOrder(ctx, current.ID)
+		if readErr != nil {
+			return VendorOrder{}, ParentOrder{}, readErr
+		}
+		for _, proposal := range proposals {
+			if stockErr := s.applySubstitutionInventory(ctx, proposal); stockErr != nil {
+				return VendorOrder{}, ParentOrder{}, stockErr
+			}
+		}
+		// The packed/measured/substituted load is re-answered BEFORE the pack
+		// transition releases it for pickup: an unsafe vehicle class is never
+		// handed the goods (Karryam V4 §14.6).
+		if _, err = s.ReevaluatePhysicalLoad(ctx, current.ParentOrderID, current.ID); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
 	}
 
 	moved, parent, err := s.store.Transition(ctx, request, s.now().UTC())

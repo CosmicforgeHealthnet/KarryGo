@@ -25,12 +25,13 @@ type FieldViolation struct {
 }
 
 type Error struct {
-	Code    Code                   `json:"code"`
-	Message string                 `json:"message"`
-	Status  int                    `json:"-"`
-	Fields  []FieldViolation       `json:"fields,omitempty"`
-	Details map[string]interface{} `json:"details,omitempty"`
-	Cause   error                  `json:"-"`
+	Code      Code                   `json:"code"`
+	Message   string                 `json:"message"`
+	Retryable bool                   `json:"retryable"`
+	Status    int                    `json:"-"`
+	Fields    []FieldViolation       `json:"fields,omitempty"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+	Cause     error                  `json:"-"`
 }
 
 func (e *Error) Error() string {
@@ -101,7 +102,9 @@ func RateLimited(message string, cause error) *Error {
 }
 
 func Unavailable(message string, cause error) *Error {
-	return New(http.StatusServiceUnavailable, CodeUnavailable, message, cause)
+	err := New(http.StatusServiceUnavailable, CodeUnavailable, message, cause)
+	err.Retryable = true
+	return err
 }
 
 func Internal(message string, cause error) *Error {

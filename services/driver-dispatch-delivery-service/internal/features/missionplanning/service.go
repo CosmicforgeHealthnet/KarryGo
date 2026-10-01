@@ -2,12 +2,14 @@ package missionplanning
 
 import (
 	"context"
-	"cosmicforge/logistics/shared/go/phonenumber"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
+	"cosmicforge/logistics/shared/go/phonenumber"
 )
 
 var (
@@ -29,12 +31,14 @@ type Service struct {
 	store   Store
 	enabled bool
 	routes  RouteAuthority
+	rollout rollout.Policy
 }
 
 func New(store Store, planner Planner, enabled bool) *Service {
 	return &Service{store: store, planner: planner, enabled: enabled}
 }
 func (s *Service) WithRouteAuthority(routes RouteAuthority) *Service { s.routes = routes; return s }
+func (s *Service) WithRolloutPolicy(policy rollout.Policy) *Service  { s.rollout = policy; return s }
 func requestFingerprint(in PlanRequest) string {
 	in.CorrelationID = ""
 	in.RouteEvidence = nil
@@ -59,6 +63,10 @@ func (s *Service) Create(ctx context.Context, in PlanRequest) (Plan, error) {
 		return Plan{}, errors.New("receiver phone is invalid")
 	}
 	in.ReceiverPhone = normalizedPhone
+	in.Protection = s.rollout.Protect(rollout.Context{CustomerID: in.CustomerID, SourceType: "VENDOR_COMMERCE", SourceRef: in.SourceRef, ServiceTier: in.ServiceClass})
+	if in.Protection.Mode != rollout.ModeProtected {
+		return Plan{}, errors.New("multi-vendor planning is not selected for the protected rollout cohort")
+	}
 	if s.routes == nil {
 		return Plan{}, errors.New("route authority unavailable")
 	}
@@ -89,6 +97,10 @@ func (s *Service) Replan(ctx context.Context, groupRef string, in PlanRequest) (
 		return Plan{}, errors.New("receiver phone is invalid")
 	}
 	in.ReceiverPhone = normalizedPhone
+	in.Protection = s.rollout.Protect(rollout.Context{CustomerID: in.CustomerID, SourceType: "VENDOR_COMMERCE", SourceRef: in.SourceRef, ServiceTier: in.ServiceClass})
+	if in.Protection.Mode != rollout.ModeProtected {
+		return Plan{}, errors.New("multi-vendor replanning is not selected for the protected rollout cohort")
+	}
 	if strings.TrimSpace(in.OperationRef) == "" || in.ExpectedPlanVersion < 1 {
 		return Plan{}, errors.New("operation and expected plan version are required")
 	}

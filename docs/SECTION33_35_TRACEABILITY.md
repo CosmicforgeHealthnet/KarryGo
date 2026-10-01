@@ -1,70 +1,106 @@
-# Sections 33–35 traceability — operational evidence, recovery and transfer
+# Sections 33–35 — custody, recovery, and transfer closure
 
-## Authority map
+## Authority and pre-implementation gap matrix
 
-| Capability | Canonical authority | Implementation status |
-|---|---|---|
-| Commercial Parcel identity and manifest source | Vendor fulfilment-group Parcel | Reused; identity is never recreated |
-| Dispatch manifest freeze and custody evidence | Dispatch Commerce mission/stop/parcel runtime | Implemented in migration `000043` and `commercemission` |
-| Evidence metadata | Canonical mission authority | Implemented as append-only Dispatch evidence; Vendor stores an authenticated projection |
-| Media bytes and access | Media File Service | Reused; mission databases store opaque references only |
-| Pickup/delivery/provider-transfer challenge | Existing `shared/go/handover` HMAC challenge authority | Reused; transfer has a separate provider-bound challenge step |
-| Delivery exceptions and recovery | Dispatch Commerce mission | Implemented with closed reason/action vocabularies |
-| Prepared Food vs Shop return policy | Vendor commercial product class; enforced by Dispatch return contract | Implemented; prepared Food cannot enter Shop inspection/restock |
-| Provider replacement and transfer | Dispatch marketplace + canonical Dispatch mission | Implemented for Dispatch provider-to-provider custody |
-| Provider earnings and settlement | Payment Wallet Service | Reused unchanged; old trip completion is frozen during replacement so no second full earning is created |
+| Authority | Section 33 | Section 34 | Section 35 | Gap closed here |
+|---|---|---|---|---|
+| Dispatch MOTORCYCLE | AVAILABLE | AVAILABLE | AVAILABLE | Normalized immutable custody contract and retained mature Dispatch handover/recovery |
+| Dispatch Vendor-owned | PARTIAL | PARTIAL | PARTIAL | Added authoritative return handover and shared Dispatch custody/recovery/transfer operations |
+| Hauling VAN/TRUCK | PARTIAL | PARTIAL | NOT_PRESENT | Added authority-local manifest, evidence, return, incident, replacement, transfer and allocation records |
+| Taxi Goods CAR | PARTIAL | PARTIAL | PARTIAL | Extended Section 29 with the same authority-local safety guarantees |
+| Vendor Commerce | orchestration only | projection only | orchestration only | No custody, credential, physical mission, or provider-transfer authority added |
 
-## Evidence and custody chain
+## Section 33 — exact custody and evidence
 
-Each logical pickup stop retains its own manifest reference/version, exact
-Parcel set, package count and pickup challenge. Successful pickup is the freeze
-boundary: the stop and Parcel manifest bindings become immutable, pickup
-evidence is appended, and custody history opens for the assigned provider in
-the same transaction. Damage, discrepancy, failed-attempt, return and transfer
-evidence use controlled types, UTC-aware capture times, bounded coordinates and
-opaque media references. Corrections append evidence; update/delete is blocked
-by the database.
+`shared/go/custodyops` is a shared contract and repository implementation used
+inside each execution authority's own database. It freezes a versioned manifest
+against mission, tenant, business, branch, pickup stop, exact Parcel IDs and
+package count. PostgreSQL immutability triggers reject update/delete after
+freeze. Exact stop confirmation rejects cross-mission, cross-tenant,
+cross-business, cross-branch, wrong-stop, stale-version, wrong-Parcel and wrong
+package-count requests.
 
-Post-custody replacement preserves the old provider as custodian until the
-assigned replacement completes a two-provider challenge bound to the mission,
-old and new provider, exact Parcel set, package count, manifest fingerprint and
-location. Completion closes old custody, opens replacement custody, invalidates
-the old trip handover, regenerates the receiver challenge and keeps the same
-mission and Parcel identities. A direct post-custody provider reassignment is
-not supported.
+The current receiver challenge reference is frozen into the initial custody
+state. Replacement must present that exact reference before the transaction
+invalidates it; transfer then installs a distinct new receiver challenge.
 
-## Integration boundaries
+Evidence is append-only and typed as `PICKUP`, `DELIVERY`, `DAMAGE`,
+`DISCREPANCY`, `FAILED_ATTEMPT`, `RETURN`, or `PROVIDER_TRANSFER`. Only opaque
+Media File Service references and relationship metadata are stored. Before a
+record is accepted, Media read-back verifies active status, allowed owner,
+mission, tenant, upload intent, and owner relationship. No media bytes are
+stored in Dispatch, Hauling, Taxi, or Vendor.
 
-- Vendor's `PlatformMissionRef` remains projection-only. Migration `000105`
-  adds an append-only authenticated operational-event projection, not mission
-  authority.
-- Dispatch sends evidence, exception, return and transfer facts through its
-  existing targeted transactional outbox. Vendor binds every event to its own
-  reserved mission operation and Parcel scope before storing the projection.
-- Hauling retains its existing single-pickup proof model. No safe multi-Parcel
-  provider-transfer authority was fabricated in this work.
-- Wallet remains the sole ledger. Dispatch and Vendor do not calculate or move
-  provider earnings.
-- Section 31 Vendor secure handover remains `PARTIAL / DEPENDENCY_GATED`.
-  Vendor Rider to platform-provider post-custody transfer remains
-  `NOT_PRESENT`; Dispatch provider-to-provider transfer does not change that.
+## Section 34 — lifecycle, exceptions, and returns
 
-## Schema and HTTP surface
+The mature service-specific state machines remain authoritative; the custody
+state is their normalized Commerce safety layer. It provides closed reason and
+action vocabularies, state-safe policy validation, durable operations, and a
+transactional outbox. `CONTROLLED_HOLDING` fails closed because no holding
+facility is configured. Fee-bearing recovery requires both quote and approval
+references and never mutates the frozen original quote.
 
-- Dispatch: `000042` before, `000043` after.
-- Vendor: `000104` before, `000105` after.
-- Hauling remains at `000013`; Wallet remains at `000012`.
-- Dispatch adds six provider commands and one HMAC-v2 evidence read. Vendor,
-  Hauling and Wallet add no routes.
-- Fully enabled Vendor route inventory remains 849. Dispatch production route
-  registrations change from 149 to 156. Hauling remains 99.
-- OpenAPI: `services/driver-dispatch-delivery-service/docs/openapi/commerce-dispatch-delivery.openapi.json`.
+Returns bind the original manifest/version, explicit return manifest, exact
+Parcel subset, condition, destination, receiving actor, reason, category
+policy, and RETURN evidence. Prepared food policies (`NO_RESTOCK` or
+`DISPOSAL`) are distinct from retail return/inspection/quarantine policies.
+Dispatch `vendorownedhandover` now creates and verifies a dedicated RETURN
+challenge; Vendor merely relays the transient credential and reads the
+canonical Dispatch result.
 
-## Certification boundary
+Alternative-receiver recovery requires an explicit new receiver plus distinct
+old/new receiver challenge references. Reschedule records the requested time
+and, when credential rotation is needed, requires its replacement reference.
 
-Migration shape, policy, routing/OpenAPI, package tests, build, vet, formatting
-and diff checks run without PostgreSQL. Migration replay and race tests use only
-`DISPATCH_TEST_DATABASE_URL`, create an isolated schema and skip truthfully when
-that canonical environment variable is absent.
+## Section 35 — incidents, replacement, and transfer
 
-Sections 32 and 36 were not implemented.
+Authenticated providers can report `BREAKDOWN`, `ILLNESS`, and
+`SAFETY_INCIDENT` in Hauling and Taxi; Dispatch retains its mature provider
+incident endpoint. A per-mission transaction lock moves custody to
+`REPLACEMENT_REQUIRED`, and database completion guards block normal terminal
+completion. Replacement assignment validates distinct providers, vehicle
+class, capacity against the frozen package count, handling capability,
+compliance, availability, manifest/version, and a replacement receiver
+challenge.
+
+Transfer requires a dedicated transfer reference, both provider confirmations,
+exact location, manifest/version, exact Parcel set/package count, separately
+typed transfer evidence, and a new receiver challenge. Completion atomically
+closes the old provider and makes the replacement current. Cross-authority
+requests additionally require old/new authority mission references, financial
+allocation reference, and source event/version; Vendor never updates an
+execution-service column or writes another authority's database.
+
+Provider earning allocation is a policy-backed record only after operational
+outcome. Allocations are unique per provider, cannot exceed approved earning,
+carry one Wallet operation reference, and represent `APPLIED` or `UNKNOWN`
+read-back state. The custody layer cannot debit a customer and cannot invent a
+percentage when no policy exists.
+
+## Security and event delivery
+
+Internal routes use existing HMAC v2 method/path/body binding, exact caller
+allowlists, freshness checks, correlation/idempotency, and a durable nonce
+table. Every canonical mutation and the additional
+`RETURN_HANDOVER_REQUIRED`/`PROVIDER_TRANSFER_REQUIRED` facts are written to a
+transactional outbox before commit. Payloads contain references, never raw OTP,
+QR credentials, authentication secrets, or media bytes.
+
+## Migrations and contracts
+
+- Dispatch: `000056_sections33_35_custody_recovery.up.sql` / `.down.sql`.
+- Hauling: `017_sections33_35_custody_recovery.up.sql` / `.down.sql`.
+- Taxi: `011_sections33_35_custody_recovery.up.sql` / `.down.sql`.
+- Vendor: no migration; it remains relay/projection-only.
+- OpenAPI contracts live with Dispatch, Hauling, and Taxi. Vendor deliberately
+  has no custody OpenAPI operations.
+
+## Frontend and scope boundary
+
+No Provider, Customer, Vendor, or Admin frontend code changed. Future clients
+must provide controlled camera/scan, exception selection, return proof, and
+two-provider transfer screens against these backend policies.
+
+**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE**
+
+No Section 41+ work was started.

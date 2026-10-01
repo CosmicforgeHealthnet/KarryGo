@@ -431,3 +431,26 @@ func TestNewServiceRefusesAnUnconfiguredOrAbsurdTTL(t *testing.T) {
 		}
 	}
 }
+
+// The customer's substitution rule travels from the cart line into the
+// checkout line unchanged, and an unset rule is EXACT_ONLY.
+func TestBuildLineOutcomeCarriesTheCustomerSubstitutionRule(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ stated, want string }{
+		{"CONTACT_FIRST", "CONTACT_FIRST"},
+		{"", "EXACT_ONLY"},
+	} {
+		outcome, err := buildLineOutcome(
+			cart.CartItem{ID: "citem-1", Domain: cart.DomainShop, BusinessID: "vendor-a", BranchID: "branch-1",
+				ItemRef: "product-1", Quantity: 1, PricingBasis: cart.PricingBasisFixedUnit, SubstitutionPolicy: tc.stated},
+			LineDecision{Sellable: false},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if outcome.line.SubstitutionPolicy != tc.want {
+			t.Fatalf("stated %q: checkout line policy=%q, want %q", tc.stated, outcome.line.SubstitutionPolicy, tc.want)
+		}
+	}
+}

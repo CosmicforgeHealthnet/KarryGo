@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"cosmicforge/logistics/services/vendor-service/internal/events"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -104,28 +106,12 @@ func (j DurableJob) settings() durableSettings {
 func redactedWorkerError(
 	err error,
 ) string {
-	if err == nil {
-		return ""
-	}
-
-	value :=
-		strings.TrimSpace(
-			strings.ReplaceAll(
-				strings.ReplaceAll(
-					err.Error(),
-					"\r",
-					" ",
-				),
-				"\n",
-				" ",
-			),
-		)
-
-	if len(value) > 1000 {
-		value = value[:1000]
-	}
-
-	return value
+	return strings.TrimSpace(
+		strings.ReplaceAll(
+			strings.ReplaceAll(events.RedactError(err), "\r", " "),
+			"\n", " ",
+		),
+	)
 }
 
 func boundedRetryDelay(

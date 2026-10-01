@@ -14,7 +14,9 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/logisticscapability"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supplypreview"
 )
 
 const maxMissionBody = 32 << 10
@@ -140,4 +142,52 @@ func (h *Handler) cancel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": mission})
+}
+
+// RegisterCapability mounts Hauling's shared-vocabulary capability and
+// serviceability reads (HLG-031, VND-008).
+//
+// It reuses the SAME internal-commerce boundary the mission routes use --
+// HMAC v2, caller allowlist and durable nonce replay protection -- rather
+// than installing its own: a capability read is still an internal contract,
+// and a second hand-rolled boundary is how one surface ends up weaker than
+// its neighbours.
+func RegisterCapability(
+	group *gin.RouterGroup,
+	provider logisticscapability.Provider,
+	db *pgxpool.Pool,
+	verifier *serviceauth.Verifier,
+	allowedCallers []string,
+) {
+	if provider == nil || verifier == nil || db == nil {
+		return
+	}
+	capabilities := group.Group("")
+	capabilities.Use(fleetauthority.BoundaryWithDB(db, verifier, allowedCallers)...)
+	logisticscapability.RegisterRoutes(capabilities, provider)
+}
+
+// RegisterSupplyPreview mounts the read-only supply preview on the SAME
+// internal-commerce boundary the mission and capability routes use.
+//
+// Sharing the boundary rather than building a second one is deliberate: the
+// preview is an internal contract, and a surface that quietly installed its
+// own auth would be the one that ends up weaker than its neighbours. The
+// `enabled` flag is checked here rather than inside the previewer so a
+// disabled deployment has no route at all, instead of a route that always
+// answers UNKNOWN.
+func RegisterSupplyPreview(
+	group *gin.RouterGroup,
+	previewer supplypreview.Previewer,
+	db *pgxpool.Pool,
+	verifier *serviceauth.Verifier,
+	allowedCallers []string,
+	enabled bool,
+) {
+	if !enabled || previewer == nil || verifier == nil || db == nil {
+		return
+	}
+	preview := group.Group("")
+	preview.Use(fleetauthority.BoundaryWithDB(db, verifier, allowedCallers)...)
+	supplypreview.RegisterRoutes(preview, previewer)
 }

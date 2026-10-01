@@ -22,6 +22,10 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/services/vendor-service/internal/integrations/logistics"
+	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/logging"
 )
 
 // InventoryState is where one allocation's stock stands.
@@ -49,13 +53,11 @@ const (
 )
 
 // LogisticsService names the executing authority.
-//
-// Taxi is deliberately absent. It is not required for commerce, and a mission
-// must never be created against an integration that is not ready.
 type LogisticsService string
 
 const (
 	LogisticsDispatch LogisticsService = "DISPATCH"
+	LogisticsTaxi     LogisticsService = "TAXI"
 	LogisticsHauling  LogisticsService = "HAULING"
 )
 
@@ -152,20 +154,103 @@ type MissionRequest struct {
 	WeightGrams      int64
 	PackageCount     int64
 	Execution        *MissionExecution
+
+	// SecurePickupRequired and SecureDeliveryRequired state the protected
+	// handovers commerce needs (VND-015, VND-016). Commerce states the
+	// requirement; the executing authority owns the credential and its
+	// verification. A requirement an authority cannot meet is refused before
+	// the mission is created, never quietly downgraded to an unverified
+	// completion.
+	SecurePickupRequired   bool
+	SecureDeliveryRequired bool
+
+	// CorrelationID threads this mission back to its parent order across
+	// Vendor, the execution service and Fleet (VND-025).
+	CorrelationID string
+
+	// AuthoritySelectedBy records whether the authority came from the frozen
+	// checkout plan or an explicit replan, so a later change of authority is
+	// always a deliberate operation rather than a runtime heuristic (VND-004).
+	AuthoritySelectedBy string
+
+	// SourceVersion is the plan version this mission was cut from. With the
+	// mission ref and the authority it forms the deterministic execution
+	// identity a retry reuses and a replan does not (VND-012).
+	SourceVersion int64
 }
+
+// Intent projects the request onto the canonical conceptual mission model, so
+// the capability gate and the execution identity are derived from one place
+// rather than recomputed per adapter.
+func (r MissionRequest) Intent() logistics.MissionIntent {
+	authority, err := logistics.Parse(string(r.Service))
+	if err != nil {
+		authority = logistics.Authority(r.Service)
+	}
+	selectedBy := logistics.SelectionSource(r.AuthoritySelectedBy)
+	if !selectedBy.Valid() {
+		// An unrecorded selection is treated as the checkout decision, which
+		// is what every mission created before this field existed was.
+		selectedBy = logistics.SelectedAtCheckout
+	}
+	intent := logistics.MissionIntent{
+		CommerceOrderRef: r.ParentOrderID, MissionRef: r.MissionRef,
+		Authority: authority, SelectedBy: selectedBy, SourceVersion: r.SourceVersion,
+		Delivery: logistics.Location{
+			Ref: r.DeliveryAddress.SourceAddressRef, Address: r.DeliveryAddress.Address,
+			Latitude: r.DeliveryAddress.Latitude, Longitude: r.DeliveryAddress.Longitude,
+		},
+		Cargo: logistics.CargoMetadata{
+			WeightGrams: r.WeightGrams, PackageCount: r.PackageCount,
+			VehicleClass: r.VehicleClass,
+		},
+		SecurePickupRequired:   r.SecurePickupRequired,
+		SecureDeliveryRequired: r.SecureDeliveryRequired,
+		CorrelationID:          r.correlation(),
+	}
+	if r.Execution != nil && len(r.Execution.Stops) > 0 {
+		for _, stop := range r.Execution.Stops {
+			intent.Pickups = append(intent.Pickups, logistics.Location{
+				Ref: stop.StopRef, Address: stop.Address,
+				Latitude: stop.Latitude, Longitude: stop.Longitude,
+			})
+		}
+		return intent
+	}
+	// Without a committed multi-stop plan the mission collects from the one
+	// branch that owns the allocation.
+	intent.Pickups = []logistics.Location{{Ref: r.PickupBranch}}
+	return intent
+}
+
+// correlation falls back to the parent order, which is the identity every
+// mission for this order already shares.
+func (r MissionRequest) correlation() string {
+	if trimmed := strings.TrimSpace(r.CorrelationID); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(r.ParentOrderID)
+}
+
+// IdempotencyKey is the deterministic execution identity for this request
+// (VND-012).
+func (r MissionRequest) IdempotencyKey() string { return r.Intent().IdempotencyKey() }
 
 // MissionExecution is the immutable operational plan handed to a logistics
 // authority. It is populated by the fulfilment aggregate after the active plan
 // and its stable parcels have been committed; callers cannot supply it.
 type MissionExecution struct {
-	PlanRef         string
-	PlanVersion     int64
-	PlanFingerprint string
-	Mode            string
-	ServiceClass    string
-	Stops           []MissionStop
-	Parcels         []MissionParcel
-	PromisedBy      time.Time
+	PlanRef                 string
+	PlanVersion             int64
+	PlanFingerprint         string
+	AuthorityQuoteID        string
+	AuthorityQuoteReference string
+	Mode                    string
+	ServiceClass            string
+	Stops                   []MissionStop
+	Parcels                 []MissionParcel
+	PromisedBy              time.Time
+	LoadingDurationSeconds  int64
 }
 
 type MissionStop struct {
@@ -179,7 +264,7 @@ type MissionParcel struct {
 	Manifest                                                json.RawMessage
 	ManifestVersion                                         int64
 	WeightGrams, LengthMM, WidthMM, HeightMM, PackageCount  int64
-	Fragile                                                 bool
+	Fragile, Upright, StackRestricted                       bool
 	TemperatureControl                                      string
 }
 
@@ -254,6 +339,13 @@ type MissionExecutionProjection interface {
 	MissionExecution(ctx context.Context, order ParentOrder, plan MissionPlan) (MissionExecution, error)
 }
 
+// MissionPlanResolver restores the logistics authority and vehicle class from
+// the customer's frozen Section 17C mission. This prevents later order code
+// from guessing an authority from domain or fee size.
+type MissionPlanResolver interface {
+	ResolveMissionPlan(ctx context.Context, order ParentOrder, plan MissionPlan) (MissionPlan, error)
+}
+
 // SetFulfilmentProjection wires the operational fulfilment aggregate.
 //
 // Separate from SetFulfilmentAuthorities, and optional: a deployment without
@@ -287,6 +379,12 @@ type ActivationOutcome struct {
 	MissionsCreated    int
 	MissionsRefused    int
 	VendorOwnDelivery  int
+	// MissionsPlanned counts slots handed to the just-in-time orchestration
+	// instead of dispatched now. It is deliberately NOT folded into
+	// MissionsCreated: a planned slot has no vehicle behind it yet, and a
+	// recovery pass that could not tell the two apart would report work as
+	// done that nobody has started.
+	MissionsPlanned int
 }
 
 // ActivateFulfilment finalizes stock and creates logistics missions for a paid
@@ -362,6 +460,14 @@ func (s *Service) ActivateFulfilment(
 	if err != nil {
 		return outcome, err
 	}
+	if resolver, ok := s.fulfilmentProjection.(MissionPlanResolver); ok {
+		for index := range plans {
+			plans[index], err = resolver.ResolveMissionPlan(ctx, order, plans[index])
+			if err != nil {
+				return outcome, err
+			}
+		}
+	}
 	outcome.VendorOwnDelivery = countVendorOwn(order)
 
 	// The fulfilment aggregate is made durable BEFORE the first authority
@@ -374,6 +480,7 @@ func (s *Service) ActivateFulfilment(
 		}
 	}
 
+	var accepted []string
 	for _, plan := range plans {
 		mission, created, ensureErr := s.store.EnsureMission(ctx, order, plan, s.now().UTC())
 		if ensureErr != nil {
@@ -397,6 +504,37 @@ func (s *Service) ActivateFulfilment(
 				return outcome, snapshotErr
 			}
 			execution = &snapshot
+		}
+
+		// The mutual-exclusion point for this fulfilment.
+		//
+		// With just-in-time planning wired, this slot is handed to the
+		// orchestration and NOT dispatched here. That is what makes one
+		// authority-creation owner structural rather than a convention: there
+		// is no configuration in which control reaches both the planner above
+		// and the CreateMission below for the same slot, because this branch
+		// returns to the loop.
+		//
+		// Planning failures are fatal to activation rather than falling back
+		// to a synchronous create. A fallback would dispatch immediately on
+		// the one occasion the planner could not record that it intends to
+		// dispatch later, which is precisely how the same slot gets two
+		// vehicles.
+		if s.JITPlanningEnabled() {
+			if execution == nil {
+				// Just-in-time planning is decided from stops, ready windows
+				// and parcels. Without the frozen evidence there is nothing to
+				// plan against, and guessing would commit at a time nobody
+				// derived.
+				return outcome, ErrDependencyMissing
+			}
+			if planErr := s.logisticsPlanner.PlanMission(
+				ctx, plannedMissionFor(order, plan, mission, *execution),
+			); planErr != nil {
+				return outcome, planErr
+			}
+			outcome.MissionsPlanned++
+			continue
 		}
 
 		result, missionErr := s.missions.CreateMission(ctx, MissionRequest{
@@ -438,12 +576,54 @@ func (s *Service) ActivateFulfilment(
 		switch result.Status {
 		case MissionAccepted:
 			outcome.MissionsCreated++
+			accepted = append(accepted, mission.MissionRef)
 		case MissionRefused:
 			outcome.MissionsRefused++
 		}
 	}
 
+	// Commerce grouping: which movements belong to this one purchase, and in
+	// what order they were planned. It is published AFTER the authorities
+	// answered, carries no execution state, and a failure to publish never
+	// fails fulfilment - the customer's own history simply shows the
+	// movements ungrouped until the next publish.
+	s.publishCustomerGrouping(ctx, order, accepted)
+
 	return outcome, nil
+}
+
+// publishCustomerGrouping hands the commercial grouping to the customer
+// context owner. Vendor supplies grouping only: never a state, a provider or
+// a vehicle.
+func (s *Service) publishCustomerGrouping(ctx context.Context, order ParentOrder, missionRefs []string) {
+	if s.customerGrouping == nil || strings.TrimSpace(order.CustomerID) == "" {
+		return
+	}
+	// The current operational plan includes Vendor-owned missions and replaces
+	// cancelled platform references after replanning. Publish that binding when
+	// the composition root provides it, rather than a transient create-call list.
+	if publisher, ok := s.customerGrouping.(interface {
+		PublishCurrentGrouping(context.Context, string) error
+	}); ok {
+		if err := publisher.PublishCurrentGrouping(ctx, order.ID); err != nil {
+			logging.Error("commerce-grouping", "order=%s: %v", order.ID, err)
+		}
+		return
+	}
+	if len(missionRefs) == 0 {
+		return
+	}
+	grouping := events.MovementGrouping{
+		CustomerID: order.CustomerID, ProductCode: order.Domain, ParentContextType: "COMMERCE_ORDER", ParentContextRef: order.ID,
+	}
+	for index, ref := range missionRefs {
+		grouping.Missions = append(grouping.Missions, events.GroupingMission{
+			FulfilmentGroupRef: ref, MissionSequence: index + 1, MissionCount: len(missionRefs),
+		})
+	}
+	if err := s.customerGrouping.PublishGrouping(ctx, order.ID, grouping); err != nil {
+		logging.Error("commerce-grouping", "order=%s: %v", order.ID, err)
+	}
 }
 
 // MissionPlan is one mission to be created.
@@ -452,16 +632,17 @@ type MissionPlan struct {
 	// operation reference. Normal activation leaves it empty and derives the
 	// established value; Hybrid fallback passes the PlatformMissionRef value
 	// so Vendor, Dispatch and recovery all name the same operation.
-	MissionRef     string
-	PlanMissionRef string
-	Service        LogisticsService
-	VehicleClass   string
-	AgreedFeeMinor int64
-	VendorOrderIDs []string
-	PickupBusiness string
-	PickupBranch   string
-	WeightGrams    int64
-	PackageCount   int64
+	MissionRef             string
+	PlanMissionRef         string
+	Service                LogisticsService
+	VehicleClass           string
+	AgreedFeeMinor         int64
+	VendorOrderIDs         []string
+	PickupBusiness         string
+	PickupBranch           string
+	WeightGrams            int64
+	PackageCount           int64
+	LoadingDurationSeconds int64
 }
 
 // PlanMissions groups an order's platform-executed allocations into missions.
@@ -501,10 +682,12 @@ func PlanMissions(order ParentOrder) ([]MissionPlan, error) {
 			byPlanMission[reference] = plan
 		}
 		plan.VendorOrderIDs = append(plan.VendorOrderIDs, vendorOrder.ID)
-		// The fee is counted once per plan mission. A consolidated mission
-		// covering two allocations is one delivery at one agreed fee, and
-		// summing per allocation would double-charge the platform for it.
-		plan.AgreedFeeMinor = vendorOrder.DeliveryGrossMinor
+		// A consolidated mission is one delivery at one agreed fee, which the
+		// planner apportioned across its allocations (fulfilment planner
+		// apportion). Each VendorOrder carries only its share, so the mission's
+		// fee is the sum of the shares; taking any single share would under-
+		// state it and the frozen-quote check at activation would refuse it.
+		plan.AgreedFeeMinor += vendorOrder.DeliveryGrossMinor
 		plan.PackageCount++
 	}
 
@@ -536,8 +719,9 @@ func vendorOrderFulfillable(status VendorStatus) bool {
 
 // serviceFor picks the executing authority for one allocation.
 //
-// Food and small Shop consignments go to dispatch; a Shop allocation heavy
-// enough to need a truck goes to hauling. Taxi is never chosen.
+// This is a legacy fallback for projections that cannot restore the frozen
+// Section 17C authority. Production resolves the actual service and vehicle
+// through MissionPlanResolver before any mission is persisted or called.
 func serviceFor(vendorOrder VendorOrder) LogisticsService {
 	if vendorOrder.Domain == "SHOP" && vendorOrder.DeliveryGrossMinor >= haulingFeeThreshold {
 		return LogisticsHauling
@@ -585,7 +769,7 @@ func (s *Service) FinalizeInventoryFor(ctx context.Context, vendorOrder VendorOr
 	switch vendorOrder.Status {
 	case VendorStatusCompleted:
 		if partial, ok := s.inventory.(PartialInventoryAuthority); ok {
-			if fulfilled, found, err := s.store.FulfilledQuantities(ctx, vendorOrder.ID); err != nil {
+			if fulfilled, found, err := s.fulfilledReservationQuantities(ctx, vendorOrder); err != nil {
 				return err
 			} else if found {
 				if err = partial.FinalizeReservationPartial(ctx, vendorOrder.BusinessID, vendorOrder.BranchID, vendorOrder.ReservationRef, fulfilled); err != nil {

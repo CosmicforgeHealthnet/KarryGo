@@ -117,7 +117,7 @@ Everything Vendor Service implementation requires outside `services/vendor-servi
 - **Authority/boundary**: this is a platform-wide logistics capability, not something Vendor Service is authorized to build a duplicate of; it should be built once, coordinated across the owning logistics services, most plausibly as an extension of dispatch's existing `ConfirmRecipient`/WP6.3 idempotency/fingerprint scaffolding
 - **New/changed migration**: yes, on whichever service ends up owning it
 - **New/changed route**: yes
-- **Status**: **PENDING_EXTERNAL_DEPENDENCY** â€” this is the specification's own Case C outcome, not a Vendor Service implementation gap. Blocks only the final confirmed-handover step of platform-delivery fulfilment; does not block anything else in Vendor Service.
+- **Status**: **RESOLVED IN SECTION 32** — Dispatch, Hauling, Taxi Goods and the distinct Dispatch-owned VendorMission custody capability now provide approved two-stage OTP/QR handover. Vendor Service remains relay/projection only; rollout is disabled by default.
 
 ## 7. `driver-taxi-service` â€” future GOODS_DELIVERY capability
 
@@ -1138,6 +1138,25 @@ or configuration is required in any other service.
 - **Taxi goods mode.** Would make `VehicleCar.GoodsModeActive` meaningful. It
   needs a goods capability, a commerce mission ingress and a quote contract in
   `driver-taxi-service`, plus `CAR` in `shared/go/commercequote.VehicleClass`.
+
+## Section 29 superseding change — Taxi Goods Delivery
+
+The earlier Taxi deferrals above describe their original sections and are
+superseded for Section 29 by a real, false-by-default integration.
+
+| Service / contract | Status | Section 29 change |
+|---|---|---|
+| `driver-taxi-service` | IMPLEMENTED_GATED | Distinct Goods capability/settings, vehicle cargo profile, CAR quote, Taxi Goods Mission, matching, two-stage secure handover, explicit provider/receiver rebinding, Media references, Wallet Commerce settlement, and leased/retrying Vendor outbox delivery |
+| `vendor-service` | IMPLEMENTED_GATED | CAR selection and TAXI routing through shared clients; frozen quote/service binding; unknown-outcome read-back; cancellation; Taxi lifecycle ingress |
+| `shared/go/commercequote` | ADDITIVE | Added `CAR`; existing classes unchanged |
+| `shared/go/commercemission` | ADDITIVE | Added `TAXI`, `CAR`, and Taxi API base; Dispatch/Hauling unchanged |
+| `payment-wallet-service` | REUSED | Existing trusted Commerce delivery release; provider type `taxi`; no customer debit |
+| `media-file-service` | REUSED | Evidence ownership validation; Taxi stores opaque references only |
+| `notification-service` | REUSED | Receiver delivery credential transport |
+
+Both `TAXI_GOODS_DELIVERY_ENABLED` flags remain false by default. Passenger
+Taxi and direct-customer `ride_purpose=parcel` are unchanged and are not used
+for Vendor Commerce. Traceability: `SECTION29_TRACEABILITY.md`.
 - **Multi-pickup runtime.** `ServiceabilitySnapshot.MultiPickup` and
   `VehicleCapability.SupportsMulti` exist so this becomes configuration rather
   than a redesign. Both dispatch and hauling would first need to model a
@@ -1193,11 +1212,11 @@ All Vendor Service only, all defaulting to off or to the platform default:
 ## Vendor-owned and Hybrid delivery runtime — current dependency status
 
 This entry supersedes the historical Section 5 OTP/QR absence classification.
-`shared/go/handover` and Dispatch now provide a secure authority for Dispatch
-Commerce missions, so the platform capability is `PARTIAL`. No approved
-VendorMission-compatible adapter exists. Vendor pickup, receiver completion
-and return therefore remain fail-closed behind `VendorHandoverAuthority`; no
-competing credential domain or secret storage was added.
+`shared/go/handover` and Dispatch now provide both the established Dispatch
+Commerce authority and the distinct Section 32 VendorMission custody
+authority. Vendor pickup and receiver completion remain fail-closed behind
+`VendorHandoverAuthority` whenever rollout is disabled; no competing
+credential domain or Vendor secret storage was added.
 
 Wallet changed through migration `000012_commerce_delivery_responsibility_transition`
 and an internal HMAC v2 command/read-back contract. Dispatch is reused through
@@ -1219,8 +1238,8 @@ touched by this capability.
 | `notification-service` | REUSED | Existing outbox/notification integrations only; no new notification authority. |
 | `support-dispute-service` | REUSED | Controlled `SUPPORT` recovery may be projected; no automatic support case is fabricated. |
 
-Section 31 remains truthful: Vendor secure handover is partial/dependency-gated
-and Vendor Rider → platform provider post-custody transfer is not present.
+Section 31's dependency classification is superseded by Section 32. Vendor
+Rider → platform provider post-custody transfer remains not present.
 
 ## Realtime, notifications and confidence ETA
 
@@ -1236,3 +1255,92 @@ and Vendor Rider → platform provider post-custody transfer is not present.
 
 All outbound user delivery remains Notification Service-owned. Vendor and
 Dispatch provide only controlled semantic data and opaque recipient references.
+
+## Section 32 — approved handover relay boundary
+
+Vendor `internal/integrations/handover` now defines a narrow read/pickup-confirm
+port, frozen mission binding, allowlisted observation, unavailable adapter, and
+unknown-outcome read-back without automatic second mutation. No challenge engine,
+credential generation, resend state or credential persistence is permitted.
+Dispatch, Hauling and Taxi Goods expose source-scoped opaque read-back and
+pickup-confirm contracts over their existing service-auth boundaries. Vendor
+resolves the executor from the frozen mission, relays the credential only in
+memory, always reconciles canonical state, and stores only the allowlisted
+observation in migrations `000113`/`000114`/`000115`. Each authority relay flag defaults
+off independently.
+Dispatch now supplies the production `VendorHandoverAuthority` through its
+distinct `vendorownedhandover` capability and migration `000055`. Vendor adds
+only the HMAC adapter and existing opaque projection; no substitute challenge
+engine or secret state was added. `PENDING_EXTERNAL_DEPENDENCY = NONE`.
+
+## Sections 33–35 — superseding platform change record
+
+| Service | Final change |
+|---|---|
+| `driver-dispatch-delivery-service` | Migration `000056`; authority-local custody routes; Vendor-owned RETURN authority; existing Dispatch provider incident/replacement retained |
+| `driver-hauling-service` | Migration `017`; VAN/TRUCK manifest, evidence, exception, return, provider incident, replacement, transfer and allocation contract |
+| `driver-taxi-service` | Migration `011`; Taxi Goods parity for the same custody/recovery contract |
+| `vendor-service` | Adapter-only Vendor-owned RETURN relay and projection boundary; no custody route or schema |
+| `media-file-service` | Reused through authenticated reference read-back; media bytes remain outside mission services |
+| `payment-wallet-service` | Unchanged financial authority; custody records only an approved policy/Wallet operation result and cannot debit customers |
+| `notification-service` | Reused by Dispatch Vendor-owned return challenge delivery |
+| `shared/go/custodyops` | Shared code contract instantiated separately by each execution authority; not a shared database or new service authority |
+
+This record supersedes the earlier statement that Hauling was untouched and
+Vendor Rider → platform post-custody transfer was absent. Cross-authority
+transfer now requires explicit old/new authority mission references, exact
+manifest/Parcel scope, two-provider evidence, financial allocation reference,
+and source event/version. Vendor never mutates execution authority in its own
+database.
+
+**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.**
+
+## Sections 40-42 final closure
+
+| Service | Change | Authority impact |
+|---|---|---|
+| `vendor-service` | Migration `000116`; semantic command fingerprints; atomic idempotency reclaim; transaction-bound inbox; secret-safe outbox errors; retention/legal-hold worker | Vendor-local operational data only |
+| `payment-wallet-service` | REUSED / NOT CHANGED | Sole money and ledger authority preserved |
+| `media-file-service` | REUSED / NOT CHANGED | Media bytes and signed access preserved |
+| `customer-service` | REUSED / NOT CHANGED | Reusable customer preferences preserved |
+| Dispatch / Hauling / Taxi | REUSED / NOT CHANGED | Mission execution and OTP/QR authority preserved |
+
+No route, frontend contract, or external service schema changed.
+
+## Section 43 — API contract certification
+
+| Service / contract | Change | Authority impact |
+|---|---|---|
+| `vendor-service` router | AUDITED / UNCHANGED | 857 routes before and after; zero added, changed, deprecated or removed |
+| Vendor OpenAPI authority | CHANGED | 48 files validated; 867 globally unique operation IDs; structural path/response/ref/security gaps closed; no route semantics renamed |
+| Vendor order/substitution contracts | CHANGED | Existing required Idempotency-Key and If-Match behavior is now explicit |
+| Vendor Section 16D cost commands | HARDENED | Existing shared idempotency store is now applied as command middleware; Vendor remains cost-policy/projection authority only |
+| API Gateway | AUDITED / NOT CHANGED | No Vendor proxy mapping exists; no internal Vendor contract is exposed by the gateway |
+| `payment-wallet-service` | REUSED / NOT CHANGED | Sole hold, allocation, capture, settlement, refund, ledger and customer-debit authority preserved |
+| `media-file-service` | REUSED / NOT CHANGED | Media bytes and signed access authority preserved |
+| `customer-service` | REUSED / NOT CHANGED | Canonical identity and reusable preference authority preserved |
+| `verification-compliance-service` | REUSED / NOT CHANGED | Verification truth preserved |
+| Dispatch / Hauling / Taxi Goods / VendorMission | REUSED / NOT CHANGED | Mission, provider, custody and OTP/QR authority preserved; Vendor remains relay/status only |
+
+No migration, frontend change, pharmacy/medicine commerce, Order Guarantee
+route, or Section 44+ capability was introduced. Deterministic evidence:
+`docs/SECTION43_ROUTE_PARITY.json`; narrative traceability:
+`docs/SECTION43_TRACEABILITY.md`.
+
+## Sections 44–45 — event catalogue and durable workers
+
+| Service / contract | Change | Authority impact |
+|---|---|---|
+| `vendor-service` event envelope/outbox/inbox | HARDENED / CATALOGUED | Existing transactional outbox retained; quote approval, ParentOrder creation and Wallet-confirmed paid projection now append canonical events atomically; inbox fingerprint edge case closed |
+| Vendor durable worker framework | HARDENED / CATALOGUED | Existing leases, heartbeat, bounded retry, dead letter and replay retained; persisted failures now use common credential redaction |
+| Payment Wallet | REUSED / NOT CHANGED | Sole payment, refund, settlement and ledger authority preserved |
+| Dispatch / Hauling / Taxi Goods / VendorMission | REUSED / NOT CHANGED | Execution, assignment, custody and OTP/QR authority preserved |
+| Media / Customer / Verification / Notification | REUSED / NOT CHANGED | Existing canonical authorities preserved |
+| Search / Analytics | PROJECTION ONLY | No transactional catalogue or commerce authority granted |
+
+Routes added/changed/removed: 0/0/0. Migrations added: 0. Historical
+migrations changed: 0. Frontend changes: none. Order Guarantee remains
+`FUTURE_DISABLED`; pharmacy/medicine commerce remains out of scope.
+# Final production-GO external actions (2026-09-10)
+
+No receiving service contract was changed. Platform/DevOps must supply the deployment evidence enumerated in `FINAL_PRODUCTION_GO_CERTIFICATION.md`: declared Vendor ingress and internal-route isolation, distinct API/worker units, encrypted PostgreSQL backup plus restore drill, monitoring/alerts, reciprocal staging HMAC credentials/allowlists, live cross-service certification, and bounded staging SLO measurements. Until those actions pass, production GO is blocked.

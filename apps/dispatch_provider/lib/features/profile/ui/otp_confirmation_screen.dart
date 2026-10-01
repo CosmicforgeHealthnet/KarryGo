@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'phone_number_changed_dialog.dart';
+
+import '../../../core/theme/theme_extensions.dart';
+import 'phone_number_changed_screen.dart';
 
 class OtpConfirmationScreen extends StatefulWidget {
   const OtpConfirmationScreen({
@@ -11,22 +13,21 @@ class OtpConfirmationScreen extends StatefulWidget {
     required this.newPhoneNumber,
   });
 
-  /// The new phone number shown to the user (e.g. "🇳🇬 +234 8067735987").
   final String phoneDisplay;
-
   final String newCountryFlag;
   final String newCountryCode;
   final String newPhoneNumber;
 
   @override
-  State<OtpConfirmationScreen> createState() => _OtpConfirmationScreenState();
+  State<OtpConfirmationScreen> createState() =>
+      _OtpConfirmationScreenState();
 }
 
 class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
   final _otpController = TextEditingController();
   final _focusNode = FocusNode();
 
-  int _secondsLeft = 251; // matches "04:11" shown in the design
+  int _secondsLeft = 30;
   bool _canResend = false;
   bool _isLoading = false;
 
@@ -76,17 +77,16 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
 
   Future<void> _resend() async {
     setState(() => _isLoading = true);
-    // TODO: call verification_api / dispatch_auth_controller resend.
     await Future.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     setState(() {
       _isLoading = false;
-      _secondsLeft = 251;
+      _secondsLeft = 30;
       _canResend = false;
     });
     _startTimer();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Verification code resent successfully.')),
+      const SnackBar(content: Text('Verification code resent.')),
     );
   }
 
@@ -95,15 +95,17 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
     if (otp.length != 6) return;
 
     setState(() => _isLoading = true);
-    // TODO: call verification_api / dispatch_auth_controller verify.
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const PhoneNumberChangedDialog(),
+    final confirmed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PhoneNumberChangedScreen(
+          newPhoneDisplay:
+              '${widget.newCountryFlag} ${widget.newCountryCode} ${widget.newPhoneNumber}',
+        ),
+      ),
     );
 
     if (!mounted) return;
@@ -118,157 +120,157 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: c.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: const Padding(
-                  padding: EdgeInsets.only(top: 4, bottom: 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 20,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'OTP Confirmation!',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'We sent you a  6-digit code via your number',
-                style: TextStyle(
-                  color: Color(0xFF888888),
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.phoneDisplay,
-                style: const TextStyle(
-                  color: Color(0xFF05124D),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 36),
-              const Text(
-                'Enter OTP',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: _requestFocus,
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _otpController,
-                  builder: (context, value, _) => _OtpSlots(value: value.text),
-                ),
-              ),
-              SizedBox(
-                height: 1,
-                child: Opacity(
-                  opacity: 0.01,
-                  child: TextField(
-                    focusNode: _focusNode,
-                    controller: _otpController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(counterText: ''),
-                    onChanged: (v) => setState(() {}),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
+        child: Column(
+          children: [
+            // ── Header ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
                 children: [
                   GestureDetector(
-                    onTap: _canResend && !_isLoading ? _resend : null,
-                    child: Text(
-                      'Resend Code',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _canResend
-                            ? const Color(0xFF05124D)
-                            : const Color(0xFFAAAAAA),
+                    onTap: () => Navigator.of(context).pop(),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 22,
+                        color: c.text,
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  if (!_canResend)
-                    Text(
-                      _timerText,
-                      style: const TextStyle(
-                        color: Color(0xFF05124D),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                 ],
               ),
-              const Spacer(),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _otpController,
-                builder: (context, value, _) {
-                  final canContinue = value.text.length == 6;
-                  return SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: canContinue && !_isLoading ? _confirm : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF05124D),
-                        disabledBackgroundColor: const Color(
-                          0xFF05124D,
-                        ).withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
+            ),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  Text(
+                    'Enter verification code',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: c.text,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: c.textMuted,
+                        height: 1.5,
+                      ),
+                      children: [
+                        const TextSpan(
+                          text: "We've sent a 6-digit code to ",
+                        ),
+                        TextSpan(
+                          text: widget.phoneDisplay,
+                          style: TextStyle(
+                            color: c.text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  GestureDetector(
+                    onTap: _requestFocus,
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _otpController,
+                      builder: (context, value, _) =>
+                          _OtpSlots(value: value.text),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 1,
+                    child: Opacity(
+                      opacity: 0.01,
+                      child: TextField(
+                        focusNode: _focusNode,
+                        controller: _otpController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: const InputDecoration(counterText: ''),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Text(
+                        "Didn't receive code? ",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: c.textMuted,
                         ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Confirm',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  );
-                },
+                      GestureDetector(
+                        onTap: _canResend && !_isLoading ? _resend : null,
+                        child: Text(
+                          _canResend ? 'Resend' : 'Resend in $_timerText',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: _canResend
+                                ? c.brandTeal500
+                                : c.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            // ── Verify code ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: SizedBox(
+                height: 52,
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _otpController.text.length == 6 && !_isLoading
+                      ? _confirm
+                      : null,
+                  style: FilledButton.styleFrom(
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: c.brandWhite,
+                          ),
+                        )
+                      : const Text('Verify code'),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -281,6 +283,7 @@ class _OtpSlots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     final chars = value.split('').take(6).toList();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -288,25 +291,25 @@ class _OtpSlots extends StatelessWidget {
         final hasValue = i < chars.length;
         final isActive = i == chars.length;
         return Container(
-          width: 50,
-          height: 52,
+          width: 48,
+          height: 56,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            color: c.inputFill,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: hasValue || isActive
-                  ? const Color(0xFF05124D)
-                  : const Color(0xFFE0E0E0),
-              width: hasValue || isActive ? 1.5 : 1.0,
+                  ? c.brandTeal500
+                  : c.border,
+              width: hasValue || isActive ? 1.6 : 1.0,
             ),
           ),
           child: Text(
             hasValue ? chars[i] : '',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A1A),
+              color: c.text,
             ),
           ),
         );

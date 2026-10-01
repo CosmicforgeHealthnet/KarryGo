@@ -1,0 +1,22 @@
+[
+    {
+        "Service":  "vendor",
+        "Package":  "cosmicforge/logistics/services/vendor-service/internal/database",
+        "Status":  "FAIL",
+        "Pass":  94,
+        "Fail":  2,
+        "Skipped":  3,
+        "Exit":  1,
+        "Evidence":  "vendor-6.log"
+    },
+    {
+        "Service":  "vendor",
+        "Package":  "cosmicforge/logistics/services/vendor-service/internal/features/cart",
+        "Status":  "PASS",
+        "Pass":  18,
+        "Fail":  0,
+        "Skipped":  0,
+        "Exit":  0,
+        "Evidence":  "vendor-18.log"
+    }
+]

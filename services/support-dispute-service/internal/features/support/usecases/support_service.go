@@ -16,7 +16,9 @@ type SupportService struct {
 	repo                supportrepositories.SupportRepository
 	notifier            *supportclients.SupportNotifier
 	identity            supportclients.IdentityResolver
+	corporate           supportclients.OrganizationResolver
 	resolutionPublisher supportclients.CommerceResolutionPublisher
+	media               EvidenceValidator
 }
 
 // Options configures optional collaborators. Nil/empty fields fall back to safe
@@ -24,9 +26,14 @@ type SupportService struct {
 // (local dev). Money authority is deliberately absent: Support adjudicates;
 // the owning commerce workflow and Wallet execute financial action.
 type Options struct {
-	Notifier            *supportclients.SupportNotifier
-	Identity            supportclients.IdentityResolver
+	Notifier *supportclients.SupportNotifier
+	Identity supportclients.IdentityResolver
+	// Corporate resolves the organization behind a provider-raised case. Nil
+	// means the platform runs exactly as it did before this dimension
+	// existed: cases are created, simply without the label.
+	Corporate           supportclients.OrganizationResolver
 	ResolutionPublisher supportclients.CommerceResolutionPublisher
+	Media               EvidenceValidator
 }
 
 func NewSupportService(repo supportrepositories.SupportRepository, opts Options) *SupportService {
@@ -36,7 +43,14 @@ func NewSupportService(repo supportrepositories.SupportRepository, opts Options)
 	if opts.Identity == nil {
 		opts.Identity = supportclients.NoopIdentityResolver{}
 	}
-	return &SupportService{repo: repo, notifier: opts.Notifier, identity: opts.Identity, resolutionPublisher: opts.ResolutionPublisher}
+	if opts.Corporate == nil {
+		opts.Corporate = supportclients.NoopOrganizationResolver{}
+	}
+	return &SupportService{
+		repo: repo, notifier: opts.Notifier, identity: opts.Identity,
+		corporate: opts.Corporate, resolutionPublisher: opts.ResolutionPublisher,
+		media: opts.Media,
+	}
 }
 
 // ─── Inputs ────────────────────────────────────────────────────────────────────
@@ -72,6 +86,9 @@ type AddEvidenceInput struct {
 	MediaAssetID string
 	MediaURL     string
 	Note         string
+	// ReferenceEvidence already obtained Media's verdict for the exact
+	// operational binding. Public callers cannot set this field.
+	validatedMedia bool
 }
 
 type UpdateComplaintStatusInput struct {
@@ -104,17 +121,19 @@ func (s *SupportService) CreateComplaint(ctx context.Context, in CreateComplaint
 	}
 
 	name, phone := s.resolveSnapshot(ctx, in.ComplainantType, in.ComplainantID)
+	organization := s.resolveOrganization(ctx, in.ComplainantType, in.ComplainantID)
 	complaint, err := s.repo.CreateComplaint(ctx, supportrepositories.CreateComplaintInput{
-		ComplainantType:  in.ComplainantType,
-		ComplainantID:    in.ComplainantID,
-		ComplainantName:  name,
-		ComplainantPhone: phone,
-		ServiceType:      in.ServiceType,
-		BookingReference: trimToPtr(in.BookingReference),
-		Category:         trimToPtr(in.Category),
-		Priority:         supportmodels.PriorityNormal,
-		Subject:          strings.TrimSpace(in.Subject),
-		Description:      strings.TrimSpace(in.Description),
+		ComplainantType:       in.ComplainantType,
+		ComplainantID:         in.ComplainantID,
+		ComplainantName:       name,
+		ComplainantPhone:      phone,
+		ServiceType:           in.ServiceType,
+		BookingReference:      trimToPtr(in.BookingReference),
+		Category:              trimToPtr(in.Category),
+		Priority:              supportmodels.PriorityNormal,
+		Subject:               strings.TrimSpace(in.Subject),
+		Description:           strings.TrimSpace(in.Description),
+		OrganizationReference: organization,
 	})
 	if err != nil {
 		return supportmodels.Complaint{}, err
@@ -187,18 +206,20 @@ func (s *SupportService) CreateSOS(ctx context.Context, in SOSInput) (supportmod
 	category := "emergency"
 
 	name, phone := s.resolveSnapshot(ctx, in.ComplainantType, in.ComplainantID)
+	organization := s.resolveOrganization(ctx, in.ComplainantType, in.ComplainantID)
 	complaint, err := s.repo.CreateComplaint(ctx, supportrepositories.CreateComplaintInput{
-		ComplainantType:  in.ComplainantType,
-		ComplainantID:    in.ComplainantID,
-		ComplainantName:  name,
-		ComplainantPhone: phone,
-		ServiceType:      serviceType,
-		Category:         &category,
-		Priority:         supportmodels.PriorityEmergency,
-		IncidentLat:      in.Lat,
-		IncidentLng:      in.Lng,
-		Subject:          "Emergency SOS",
-		Description:      desc,
+		ComplainantType:       in.ComplainantType,
+		ComplainantID:         in.ComplainantID,
+		ComplainantName:       name,
+		ComplainantPhone:      phone,
+		ServiceType:           serviceType,
+		Category:              &category,
+		Priority:              supportmodels.PriorityEmergency,
+		IncidentLat:           in.Lat,
+		IncidentLng:           in.Lng,
+		Subject:               "Emergency SOS",
+		Description:           desc,
+		OrganizationReference: organization,
 	})
 	if err != nil {
 		return supportmodels.Complaint{}, err
@@ -281,6 +302,21 @@ func (s *SupportService) AddEvidence(ctx context.Context, in AddEvidenceInput) (
 	}
 	if complaint.Status == supportmodels.ComplaintStatusResolved || complaint.Status == supportmodels.ComplaintStatusClosed {
 		return supportmodels.Evidence{}, apperrors.BadRequest("Evidence cannot be added to a closed complaint.", nil)
+	}
+	if strings.TrimSpace(in.MediaURL) != "" {
+		return supportmodels.Evidence{}, apperrors.Validation("Supply a MediaRef, not a file URL.", nil)
+	}
+	if objectID := strings.TrimSpace(in.MediaAssetID); objectID != "" && !in.validatedMedia {
+		if s.media == nil {
+			return supportmodels.Evidence{}, apperrors.Unavailable("Media evidence validation is unavailable.", nil)
+		}
+		verdict, err := s.media.Validate(ctx, objectID, "COMPLAINT", complaint.ID)
+		if err != nil {
+			return supportmodels.Evidence{}, apperrors.Unavailable("Media evidence could not be checked.", err)
+		}
+		if !verdict.Usable {
+			return supportmodels.Evidence{}, apperrors.Validation("MediaRef is not valid for this complaint.", nil)
+		}
 	}
 
 	evidence, err := s.repo.AddEvidence(ctx, supportrepositories.AddEvidenceInput{
@@ -501,6 +537,26 @@ func (s *SupportService) resolveSnapshot(ctx context.Context, ctype supportmodel
 		return nil, nil
 	}
 	return trimToPtr(identity.Name), trimToPtr(identity.Phone)
+}
+
+// resolveOrganization snapshots the corporate organization behind a
+// provider-raised case.
+//
+// It is best-effort by design. Fleet being unreachable must never stop a case
+// being opened, and an SOS least of all: the incident is the urgent thing, the
+// organization label is a reporting dimension. An unresolved case is created
+// with no organization rather than failing, and stays that way -- rewriting it
+// on a later read would silently restate history the first time a provider
+// moves organization.
+func (s *SupportService) resolveOrganization(ctx context.Context, ctype supportmodels.ComplainantType, id string) *string {
+	if s.corporate == nil {
+		return nil
+	}
+	snapshot := s.corporate.ResolveOrganization(ctx, ctype, id)
+	if !snapshot.Resolved {
+		return nil
+	}
+	return trimToPtr(snapshot.OrganizationReference)
 }
 
 func (s *SupportService) recordEvent(ctx context.Context, complaintID, actorType, actorID, eventType string, payload map[string]any) {

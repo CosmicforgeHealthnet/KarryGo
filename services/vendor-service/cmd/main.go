@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
+	"cosmicforge/logistics/shared/go/journeyshare"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +20,8 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
+	"cosmicforge/logistics/services/vendor-service/internal/privacy"
+	sharedevents "cosmicforge/logistics/shared/go/events"
 
 	vendorauthclients "cosmicforge/logistics/services/vendor-service/internal/features/auth/clients"
 	vendorauthhttp "cosmicforge/logistics/services/vendor-service/internal/features/auth/http"
@@ -31,6 +36,7 @@ import (
 	food "cosmicforge/logistics/services/vendor-service/internal/features/food"
 	fulfilmentgroup "cosmicforge/logistics/services/vendor-service/internal/features/fulfilmentgroup"
 	inventory "cosmicforge/logistics/services/vendor-service/internal/features/inventory"
+	"cosmicforge/logistics/services/vendor-service/internal/features/orchestration"
 	orders "cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	pastry "cosmicforge/logistics/services/vendor-service/internal/features/pastry"
 	production "cosmicforge/logistics/services/vendor-service/internal/features/production"
@@ -50,6 +56,7 @@ import (
 
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -65,6 +72,8 @@ func main() {
 	}
 	logging.Notice("vendor-service", "migration=%t vendor_service_enabled=%t redis=%s",
 		cfg.Migration, cfg.Flags.VendorServiceEnabled, cfg.Redis.Addr)
+	logging.Notice("vendor-service", "process_mode=%s workers_enabled=%t kill_switch=%t",
+		cfg.ProcessMode, cfg.ProcessMode != "api", cfg.Flags.CommerceGlobalKillSwitch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -83,6 +92,9 @@ func main() {
 	defer redisClient.Close()
 
 	logConnectivity(ctx, cfg.Redis.Addr, db, redisClient)
+	if err := requireWorkerDatabase(ctx, cfg.ProcessMode, db); err != nil {
+		logging.Fatal("database", "worker startup readiness failed: %v", err)
+	}
 
 	if cfg.Migration {
 		logging.Notice("migration", "mode enabled")
@@ -474,7 +486,7 @@ func main() {
 	deliveryHandler := delivery.NewHandler(deliveryService)
 	promotionService := promotions.NewService(db, productionService, cfg.Auth.OTPSecret, cfg.Flags.CommerceQuoteLockEnabled)
 	promotionService.SetEventPublisher(events.NewDomainPublisher(outboxRepo))
-	promotionHandler := promotions.NewHandler(promotionService)
+	promotionHandler := promotions.NewHandler(promotionService, idempotencyStore)
 	accessSigner := sharedauth.NewTokenSigner(cfg.Auth.AccessTokenSecret)
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	workers := []func(context.Context) error{}
@@ -502,7 +514,58 @@ func main() {
 			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
 		}
 	}
+	// Commerce grouping delivery to the customer context owner. Its own
+	// worker, so an unreachable customer-service never holds up unrelated
+	// Vendor events.
+	if cfg.Flags.CustomerMovementGroupingEnabled {
+		publisher, err := events.NewHTTPPublisher(cfg.CustomerURL, sharedevents.CustomerMovementGroupingPath,
+			"vendor-service", []byte(cfg.CustomerSecret), 10*time.Second)
+		if err == nil {
+			worker := events.NewWorker(outboxRepo, customerGroupingHTTPPublisher{inner: publisher}, events.WorkerConfig{
+				Owner: "vendor-customer-movement-grouping", EventType: sharedevents.CommerceGroupingEventName,
+			})
+			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			repair := &customerGroupingReconciler{publisher: &customerGroupingPublisher{db: db, outbox: outboxRepo}, baseURL: cfg.CustomerURL, secret: []byte(cfg.CustomerSecret)}
+			workers = append(workers, repair.Run)
+		}
+		// Customer V4 §22 purchase Activity row: same flag, same Customer
+		// endpoint and secret, its own worker and its own reconciliation.
+		movementPublisher, err := events.NewHTTPPublisher(cfg.CustomerURL, sharedevents.CustomerMovementIngressPath,
+			"vendor-service", []byte(cfg.CustomerSecret), 10*time.Second)
+		if err == nil {
+			worker := events.NewWorker(outboxRepo, customerOrderMovementHTTPPublisher{inner: movementPublisher}, events.WorkerConfig{
+				Owner: "vendor-customer-order-movement", EventType: orders.CustomerOrderMovementEvent,
+			})
+			workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			orderRepair := &customerOrderMovementReconciler{db: db, outbox: outboxRepo, baseURL: cfg.CustomerURL, secret: []byte(cfg.CustomerSecret)}
+			workers = append(workers, orderRepair.Run)
+		}
+	}
+	if cfg.Flags.CustomerGroupingBackfillEnabled {
+		backfill := &customerGroupingPublisher{db: db, outbox: outboxRepo}
+		workers = append(workers, func(ctx context.Context) error {
+			runID := os.Getenv("VENDOR_CUSTOMER_GROUPING_BACKFILL_RUN_ID")
+			dryRun := os.Getenv("VENDOR_CUSTOMER_GROUPING_BACKFILL_APPLY") != "true"
+			cursor := ""
+			for {
+				_, next, done, err := backfill.BackfillBatch(ctx, runID, cursor, dryRun)
+				if err != nil {
+					return err
+				}
+				cursor = next
+				if done {
+					return nil
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(time.Second):
+				}
+			}
+		})
+	}
 	if cfg.AnalyticsURL != "" && cfg.AnalyticsSecret != "" {
+		// Other downstreams keep their own independently leased workers.
 		publisher, err := events.NewHTTPPublisher(
 			cfg.AnalyticsURL,
 			"/internal/analytics/v1/commerce-events",
@@ -511,6 +574,15 @@ func main() {
 			10*time.Second,
 		)
 		if err == nil {
+			// Section 13: readiness facts go to the network ingest, which
+			// accepts this same envelope.
+			if network, networkErr := events.NewHTTPPublisher(cfg.AnalyticsURL, networkanalytics.IngestPath,
+				"vendor-service", []byte(cfg.AnalyticsSecret), 10*time.Second); networkErr == nil {
+				worker := events.NewWorker(outboxRepo, network, events.WorkerConfig{
+					Owner: "vendor-network-analytics-readiness", EventType: networkanalytics.EventBranchReadiness,
+				})
+				workers = append(workers, func(runCtx context.Context) error { return worker.Run(runCtx) })
+			}
 			for _, eventType := range events.AnalyticsEventTypes() {
 				eventType := eventType
 				worker := events.NewWorker(outboxRepo, publisher, events.WorkerConfig{
@@ -788,11 +860,43 @@ func main() {
 	// Section 17D immutable quote lock. It freezes current checkout, product,
 	// fulfilment and funding evidence but performs no payment or order work.
 	quoteService := buildSection17DQuoteService(cfg, db, checkoutPromotionAdapter{service: promotionService, secret: cfg.Auth.OTPSecret})
+	if quoteService != nil && checkoutService != nil && fulfilmentService != nil {
+		quoteService.SetReplacementSourceAuthority(customer14ReplacementSource{db: db, checkout: checkoutService, planning: fulfilmentService})
+	}
 
 	// Section 17E order orchestration. It cuts one ParentOrder and its
 	// isolated VendorOrders from an approved quote. Composed with no Wallet
 	// or mission-execution dependency: it creates orders, not payments.
 	orderService := buildSection17EOrderService(cfg, db, evaluator, inventoryStockService, quoteService, productionService, abuseLimiter, events.NewDomainPublisher(outboxRepo))
+
+	// Fulfilment readiness and just-in-time orchestration.
+	//
+	// Built here, after the order service, because the two are wired to each
+	// other: the orchestration commits through the order service (so a
+	// just-in-time mission is assembled by exactly the code that assembles a
+	// legacy one), and the order service plans through the orchestration
+	// instead of dispatching during activation.
+	//
+	// A nil committer is passed deliberately when there is no order service to
+	// commit through, so the fail-closed check inside sees the truth rather
+	// than a non-nil adapter wrapping nothing.
+	var missionCommitter orchestration.MissionCommitter
+	if orderService != nil {
+		missionCommitter = productionMissionCommitter{orders: orderService}
+	}
+	readinessOrchestration, err := buildReadinessOrchestration(cfg, db, evaluator, missionCommitter)
+	if err != nil {
+		logging.Fatal("orchestration", "assemble just-in-time orchestration: %v", err)
+	}
+	// The other direction. Wiring it only when just-in-time commitment is
+	// actually enabled is what makes legacy and JIT mutually exclusive: with
+	// the flag off the order service has no planner, and activation dispatches
+	// synchronously exactly as it always has.
+	if readinessOrchestration.orchestrationEnabled && orderService != nil {
+		orderService.SetLogisticsPlanner(orchestrationPlanner{
+			service: readinessOrchestration.orchestrationService,
+		})
+	}
 	if orderService != nil {
 		productionService.SetETAReadinessProjector(orderService)
 	}
@@ -818,12 +922,25 @@ func main() {
 			fulfilmentOpsProjection = projection
 			orderService.SetFulfilmentProjection(projection)
 		}
+		// Post-pick physical re-evaluation (Karryam V4 §14.6) uses THE same
+		// Section 17C planner checkout uses, so a packed load meets exactly the
+		// policy, capabilities and authorities its quote was built on.
+		if cfg.Flags.CommerceFulfilmentPlanningEnabled {
+			if planner, plannerErr := newSection17CPlanner(cfg, db, deliveryService); plannerErr == nil {
+				if evaluator := newPhysicalLoadEvaluator(db, planner); evaluator != nil {
+					orderService.SetPhysicalLoadEvaluator(evaluator)
+				}
+			}
+		}
 	}
 	fulfilmentOpsService.SetHybridFallbackAuthority(newVendorDeliveryRuntimeAuthority(
 		db, fulfilmentOpsService, fulfilmentOpsProjection, orderService,
 		cfg.WalletURL, cfg.WalletSecret, cfg.Fulfilment.QuoteTimeout,
 	))
 	fulfilmentOpsService.SetVendorMissionOrderAuthority(orderService)
+	fulfilmentOpsService.SetVendorHandoverAuthority(newVendorOwnedRuntimeHandover(
+		db, cfg.DispatchURL, cfg.DispatchSecret, config.Section32VendorOwnedHandoverEnabled(),
+	))
 
 	// Section 21 Prompt 1 commerce foundations. Orders remains the conversion
 	// authority and Production remains the capacity authority.
@@ -1092,6 +1209,20 @@ func main() {
 			return nil
 		})
 	}
+	if cfg.Flags.VendorPrivacyRetentionEnabled {
+		// The flag is a claim kill switch only. Pending work remains durable and
+		// becomes eligible again when the worker is re-enabled.
+		retentionWorker := privacy.NewRetentionWorker(db, privacy.DefaultMaxAttempts)
+		retentionJob := jobs.Job{Name: "vendor-privacy-retention", Interval: time.Minute,
+			Pass: func(runCtx context.Context) error {
+				_, err := retentionWorker.RunPass(runCtx, privacy.DefaultBatchSize)
+				return err
+			}}
+		workers = append(workers, func(runCtx context.Context) error {
+			retentionJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
 	if crmFlags.CampaignsEnabled && crmFlags.CampaignExecutionEnabled {
 		scheduler := jobs.Job{Name: "crm-campaign-scheduler", Interval: 5 * time.Second, Pass: func(runCtx context.Context) error {
 			_, err := crmService.RunCampaignSchedulerPass(runCtx, 20)
@@ -1159,6 +1290,23 @@ func main() {
 		})
 	}
 
+	// Readiness/orchestration passes. Both are empty unless just-in-time
+	// orchestration is enabled, so a deployment that has not certified it adds
+	// no background work at all.
+	for _, job := range readinessOrchestration.Workers() {
+		orchestrationJob := job
+		workers = append(workers, func(runCtx context.Context) error {
+			orchestrationJob.Run(runCtx, func(name string, err error) { logging.Error("worker", "%s: %v", name, err) })
+			return nil
+		})
+	}
+
+	// Deployment topology is decided after workers are assembled so the same
+	// domain wiring is used by every mode. API instances never claim work. The
+	// global kill switch also stops new claims while leaving database-backed
+	// pending jobs, outbox rows, audit and reads untouched.
+	workers = workersForProcess(cfg.ProcessMode, cfg.Flags.CommerceGlobalKillSwitch, workers)
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "vendor-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -1175,12 +1323,7 @@ func main() {
 			"canonical Food/Shop taxonomy: versions, vocabulary, mapping and governance",
 			"Food and Shop search projections: ranking, filters, facets, suggestions",
 		},
-		ReadyChecks: []func(context.Context) error{
-			db.Ping,
-			func(ctx context.Context) error {
-				return redisClient.Ping(ctx).Err()
-			},
-		},
+		ReadyChecks: []func(context.Context) error{db.Ping},
 		Register: func(group *gin.RouterGroup) {
 			vendorauthhttp.RegisterRoutes(group, authHandler, accessSigner, sessionRepo, staffResolverAdapter{staff: staffRepo})
 
@@ -1267,6 +1410,7 @@ func main() {
 
 			purchasing.RegisterOperationsRoutes(protected, purchasingOperationsHandler, cfg.Flags.VendorPurchasingEnabled)
 			section13Components.registerVendorRoutes(protected)
+			readinessOrchestration.registerVendorRoutes(protected)
 
 			// Section 17E vendor order queue and lifecycle commands.
 			orders.RegisterVendorRoutes(
@@ -1280,7 +1424,13 @@ func main() {
 
 		},
 		RegisterRoot: func(router *gin.Engine) {
-			registerSection17ACustomerCartRoutes(
+			// Customer V4 §27.2: every customer commerce route below is
+			// registered after this, so each is measured by family/outcome.
+			router.Use(commerceRequestMetrics())
+			registerCustomerDiscoveryRoutes(router, cfg, foodService, shopService, section13Components, abuseLimiter)
+			shareService := &customershare.Service{DB: db, EnabledAuthorities: map[string]bool{"DISPATCH": cfg.Flags.DispatchCommerceIntegrationEnabled, "HAULING": cfg.Flags.HaulingCommerceIntegrationEnabled, "TAXI_GOODS": cfg.Flags.TaxiGoodsDeliveryEnabled, "VENDOR_OWN_DELIVERY": cfg.Flags.VendorOwnDeliveryEnabled}, Enabled: cfg.Flags.DispatchCommerceIntegrationEnabled || cfg.Flags.HaulingCommerceIntegrationEnabled || cfg.Flags.TaxiGoodsDeliveryEnabled || cfg.Flags.VendorOwnDeliveryEnabled, Logistics: &journeyshare.Client{Caller: "vendor-service", Endpoints: map[string]journeyshare.Endpoint{"DISPATCH": {BaseURL: cfg.DispatchURL, Secret: []byte(cfg.DispatchSecret)}, "HAULING": {BaseURL: cfg.HaulingURL, Secret: []byte(cfg.HaulingSecret)}, "TAXI_GOODS": {BaseURL: cfg.TaxiURL, Secret: []byte(cfg.TaxiSecret)}}, Paths: map[string]string{"DISPATCH": "/internal/dispatch/v1/commerce-share/missions/", "HAULING": "/internal/hauling/v1/commerce-share/missions/", "TAXI_GOODS": "/internal/taxi/v1/commerce-share/missions/"}}}
+			customershare.Register(router, shareService, journeyshare.RedisBoundary(inboundVerifier, redisClient, "customer-service"))
+			customerCartService := registerSection17ACustomerCartRoutes(
 				router,
 				cfg,
 				db,
@@ -1288,6 +1438,7 @@ func main() {
 				shopService,
 				idempotencyStore,
 			)
+			registerCartDeliveryPreview(router, cfg, customerCartService, newSection17BFoodAuthority(db, foodService), newSection17BShopAuthority(db, shopService, inventoryStockService), fulfilmentService, abuseLimiter)
 			registerSection17BCheckoutRoutes(
 				router,
 				cfg,
@@ -1331,15 +1482,53 @@ func main() {
 			shop.RegisterInternalInventoryRoutes(router, shop.NewInventoryInternalHandler(shopService, strings.Split(cfg.ShopInternalCallers, ",")), inboundVerifier, shopFlags)
 			inventory.RegisterInternalRoutes(router, inventory.NewInternalInventoryHandler(inventoryStockService, strings.Split(cfg.InventoryInternalCallers, ",")), inboundVerifier, inventoryFlags)
 			orders.RegisterInternalLogisticsRoutes(router, orderService, inboundVerifier)
+			// Operator-facing readiness for the logistics integrations
+			// (VND-031). Root-mounted and HMAC-protected for the same reason
+			// the logistics ingress is: which authorities a deployment can
+			// reach is operational detail, not a customer surface.
+			registerLogisticsReadinessRoutes(
+				router,
+				newLogisticsRegistry(cfg, cfg.Fulfilment.QuoteTimeout),
+				inboundVerifier,
+				map[string]bool{
+					"admin-backoffice-service": true,
+					"analytics-service":        true,
+				},
+			)
+			registerCommerceMetricsRoute(router, db, inboundVerifier, map[string]bool{
+				"admin-backoffice-service": true,
+				"analytics-service":        true,
+			})
 			orders.RegisterDispatchCommerceEventRoutes(router, orderService, inboundVerifier)
 			orders.RegisterSupportResolutionRoutes(router, orderService, inboundVerifier)
 			// Section 13 mounts two more internal-authority surfaces here: platform
 			// taxonomy administration and internal Food/Shop search. Each carries its
 			// own caller allowlist.
 			section13Components.registerInternalRoutes(router, inboundVerifier)
+			// The read-only orchestration decision surface, with its own
+			// caller allowlist: an authority reconciling its own work may ask
+			// what Vendor planned, but none may tell Vendor what to plan.
+			readinessOrchestration.registerInternalRoutes(router, inboundVerifier)
 		},
-		Workers: workers,
+		Workers:     workers,
+		DisableHTTP: cfg.ProcessMode == "worker",
 	})
+}
+
+func requireWorkerDatabase(ctx context.Context, mode string, db interface{ Ping(context.Context) error }) error {
+	if mode != "worker" {
+		return nil
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return db.Ping(pingCtx)
+}
+
+func workersForProcess(mode string, killSwitch bool, workers []func(context.Context) error) []func(context.Context) error {
+	if mode == "api" || killSwitch {
+		return nil
+	}
+	return workers
 }
 
 func logConnectivity(ctx context.Context, redisAddr string, db interface{ Ping(context.Context) error }, redisClient interface {

@@ -25,6 +25,12 @@ type Config struct {
 	WalletServiceSecret        []byte
 	WalletServiceSource        string
 	CustomerTokenSecret        []byte
+
+	// Customer movement events. Disabled by default; enabling it requires the
+	// customer-service origin and the shared HMAC secret.
+	CustomerMovementEventsEnabled bool
+	CustomerServiceURL            string
+	CustomerServiceSecret         []byte
 	// HandoverSecret signs/verifies pickup & delivery handover codes (QR/OTP).
 	// Service-local — no other service needs to match this value.
 	HandoverSecret       []byte
@@ -66,7 +72,16 @@ type Config struct {
 	// VendorServiceSecret is the shared HMAC secret Vendor Service signs its
 	// commerce quote requests with. Empty means this deployment does not serve
 	// commerce quotes at all, and the route is not registered.
-	VendorServiceSecret          []byte
+	VendorServiceSecret []byte
+
+	// VerificationServiceSecret is the shared HMAC secret
+	// verification-compliance-service signs its certification callbacks with.
+	//
+	// It is separate from VendorServiceSecret because certification and commerce
+	// are different integrations with different callers. Sharing one secret
+	// would mean any service able to quote a delivery could also certify a bike
+	// for a product it has no authority over.
+	VerificationServiceSecret    []byte
 	VendorServiceURL             string
 	RouteServiceURL              string
 	RouteServiceTimeout          time.Duration
@@ -83,6 +98,51 @@ type Config struct {
 	// are explicitly enabled by deployment configuration.
 	RouteServiceabilityEnabled bool
 	PackagePolicyEnabled       bool
+
+	// ── Section 8 capability matching ─────────────────────────────────────
+	//
+	// The pair is a two-stage rollout, not two independent switches:
+	//
+	//	MATCHING=false                    legacy bike_type matching only
+	//	MATCHING=true, ENFORCE=false      SHADOW: decide and record, do not enforce
+	//	MATCHING=true, ENFORCE=true       ENFORCED: hard parcel fit selects
+	//
+	// Shadow exists because enabling hard fit on an unsurveyed fleet would
+	// refuse nearly every candidate as CAPABILITY_UNKNOWN and be
+	// indistinguishable from a total outage. Run shadow, watch
+	// dispatch_fleet_capability_completeness_percent, then enforce.
+	CapabilityMatchingEnabled bool
+	// CapabilityMatchingEnforce turns a measured decision into a selecting
+	// one. It has no effect unless CapabilityMatchingEnabled is also true.
+	CapabilityMatchingEnforce bool
+	// SupplyPreviewEnabled mounts the read-only planning surface Vendor's
+	// just-in-time orchestration reads before it commits.
+	SupplyPreviewEnabled bool
+	// CertificationRequiredProducts lists products that may only be served by
+	// a formally certified bike, comma-separated. A legacy bike_type never
+	// substitutes for a certificate for a product named here.
+	CertificationRequiredProducts string
+	// CapabilityMaintenanceInterval and MatchDecisionRetention drive the
+	// eligibility-expiry and evidence-retention sweeper.
+	CapabilityMaintenanceInterval time.Duration
+	MatchDecisionRetention        time.Duration
+
+	// ── Policy publication ingestion ──────────────────────────────────────
+	//
+	// PolicyIngestEnabled mounts the sink that turns a published network
+	// catalogue into an immutable local snapshot. Matching always reads the
+	// LOCAL snapshot, so this only changes where that snapshot comes from --
+	// the control plane never becomes a synchronous dependency of assignment.
+	PolicyIngestEnabled bool
+	// AdminServiceCaller / AdminServiceSecret / AdminAllowedHosts configure
+	// the authenticated read-back used when a catalogue travels as a
+	// reference. An empty host allowlist disables read-back, which parks
+	// referenced publications rather than rejecting them.
+	AdminServiceCaller string
+	AdminServiceSecret []byte
+	AdminAllowedHosts  string
+	// PolicyReconcileInterval is how often parked publications are retried.
+	PolicyReconcileInterval    time.Duration
 	ServiceabilityDegradedMode bool
 	ServiceabilityTTL          time.Duration
 	ServiceabilityMaxRouteKM   float64
@@ -106,6 +166,7 @@ type Config struct {
 	PlanningMaxWeightGrams         int64
 	PlanningMaxVolumeML            int64
 	PlanningCapacityPolicyVersion  string
+	AssignmentRolloutServiceTiers  string
 
 	// Additive secure handover/evidence controls. Safe defaults preserve the
 	// legacy Trip OTP/proof workflow until an environment opts in.
@@ -113,6 +174,9 @@ type Config struct {
 	PickupEvidenceGateEnabled   bool
 	DeliveryEvidenceGateEnabled bool
 	HandoverQREnabled           bool
+	// VendorOwnedHandoverEnabled exposes the separate VendorMission custody
+	// authority. It is independent of marketplace Trip rollout and defaults off.
+	VendorOwnedHandoverEnabled  bool
 	HandoverChallengeTTL        time.Duration
 	HandoverWorkerInterval      time.Duration
 	HandoverCaptureSessionTTL   time.Duration
@@ -124,6 +188,11 @@ type Config struct {
 	HandoverInAppAllowed        bool
 	HandoverPushAllowed         bool
 	HandoverSMSAllowed          bool
+	RolloutPolicyVersion        string
+	HandoverRolloutCustomerIDs  string
+	HandoverRolloutSourceTypes  string
+	HandoverRolloutSourceRefs   string
+	HandoverRolloutServiceTiers string
 
 	// Additive delivery-recovery and route-integrity controls. All default off
 	// so existing Trip/failure/location behavior remains the rollout baseline.
@@ -153,10 +222,20 @@ type Config struct {
 
 	// Organization marketplace feature flags. All default false: a write path
 	// that is not explicitly enabled must not run.
-	MarketplaceInternalAPIEnabled         bool
-	MarketplaceReservationEnabled         bool
-	MarketplaceExecutionEnabled           bool
-	MarketplaceOutboxEnabled              bool
+	MarketplaceInternalAPIEnabled bool
+	MarketplaceReservationEnabled bool
+	MarketplaceExecutionEnabled   bool
+	MarketplaceOutboxEnabled      bool
+	// DispatchFleetCompletedWorkEnabled turns on canonical Fleet
+	// completed-work delivery for organization-managed missions (Section 9
+	// DSP-008). Default false: it is enabled only once Fleet's ingestion has
+	// been certified against both Dispatch and Taxi.
+	DispatchFleetCompletedWorkEnabled bool
+	// DispatchManagedSettlementEnabled isolates corporate settlement from the
+	// legacy direct-to-rider wallet path (Section 9 DSP-014). Default false
+	// until Section 12 exists; turning it on stops corporate missions being
+	// paid directly to the rider.
+	DispatchManagedSettlementEnabled      bool
 	MarketplaceProviderEligibilityEnabled bool
 	MarketplaceVehicleEligibilityEnabled  bool
 	PrivateExecutionEnabled               bool
@@ -236,32 +315,48 @@ func Load() (Config, error) {
 			Password: os.Getenv("DISPATCH_DELIVERY_REDIS_PASSWORD"),
 			DB:       getEnvInt("DISPATCH_DELIVERY_REDIS_DB", 0),
 		},
-		InternalServiceKey:             getEnv("DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY", "development-internal-service-key"),
-		AvailabilityServiceURL:         getEnv("AVAILABILITY_SERVICE_URL", "http://localhost:8103"),
-		BroadcastInitialRadiusKM:       getEnvFloat("BROADCAST_INITIAL_RADIUS_KM", 5),
-		BroadcastRadiusIncrementKM:     getEnvFloat("BROADCAST_RADIUS_INCREMENT_KM", 3),
-		BroadcastMaxAttempts:           getEnvInt("BROADCAST_MAX_ATTEMPTS", 3),
-		BroadcastWindow:                time.Duration(getEnvInt("BROADCAST_WINDOW_SECONDS", 30)) * time.Second,
-		WalletServiceURL:               getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
-		WalletServiceSecret:            []byte(walletServiceSecret),
-		WalletServiceSource:            getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
-		CustomerTokenSecret:            []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
-		HandoverSecret:                 []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
-		AvailabilityRadiusKM:           getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
-		RoutesAPIKey:                   os.Getenv("DISPATCH_ROUTES_API_KEY"),
-		FleetServiceURL:                getEnv("FLEET_PARTNER_SERVICE_URL", ""),
-		FleetServiceSecret:             []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
-		VendorServiceSecret:            []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
-		VendorServiceURL:               getEnv("VENDOR_SERVICE_URL", ""),
-		RouteServiceURL:                getEnv("DISPATCH_ROUTE_SERVICE_URL", ""),
-		RouteServiceTimeout:            time.Duration(getEnvInt("DISPATCH_ROUTE_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
-		CommerceEventDeliveryEnabled:   getEnvBool("DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED", false),
-		CommerceEventDeliveryPath:      getEnv("DISPATCH_COMMERCE_EVENT_DELIVERY_PATH", "/api/v1/internal/dispatch/v1/commerce/events"),
-		CommerceQuoteTTL:               time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 900)) * time.Second,
-		FleetServiceCaller:             getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
-		FleetServiceTimeout:            time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
-		RouteServiceabilityEnabled:     getEnvBool("DISPATCH_ROUTE_SERVICEABILITY_ENABLED", false),
-		PackagePolicyEnabled:           getEnvBool("DISPATCH_PACKAGE_POLICY_ENABLED", false),
+		InternalServiceKey:            getEnv("DISPATCH_DELIVERY_INTERNAL_SERVICE_KEY", "development-internal-service-key"),
+		AvailabilityServiceURL:        getEnv("AVAILABILITY_SERVICE_URL", "http://localhost:8103"),
+		BroadcastInitialRadiusKM:      getEnvFloat("BROADCAST_INITIAL_RADIUS_KM", 5),
+		BroadcastRadiusIncrementKM:    getEnvFloat("BROADCAST_RADIUS_INCREMENT_KM", 3),
+		BroadcastMaxAttempts:          getEnvInt("BROADCAST_MAX_ATTEMPTS", 3),
+		BroadcastWindow:               time.Duration(getEnvInt("BROADCAST_WINDOW_SECONDS", 30)) * time.Second,
+		WalletServiceURL:              getEnv("WALLET_SERVICE_URL", "http://localhost:8105/api/v1/payment-wallet"),
+		WalletServiceSecret:           []byte(walletServiceSecret),
+		WalletServiceSource:           getEnv("WALLET_SERVICE_SOURCE", "dispatch-delivery-service"),
+		CustomerTokenSecret:           []byte(getEnv("DISPATCH_CUSTOMER_TOKEN_SECRET", "development-customer-access-token-secret")),
+		CustomerMovementEventsEnabled: getEnvBool("DISPATCH_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerServiceURL:            os.Getenv("DISPATCH_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:         []byte(os.Getenv("DISPATCH_CUSTOMER_SERVICE_SECRET")),
+		HandoverSecret:                []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		AvailabilityRadiusKM:          getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
+		RoutesAPIKey:                  os.Getenv("DISPATCH_ROUTES_API_KEY"),
+		FleetServiceURL:               getEnv("FLEET_PARTNER_SERVICE_URL", ""),
+		FleetServiceSecret:            []byte(getEnv("FLEET_PARTNER_SERVICE_SECRET", "")),
+		VendorServiceSecret:           []byte(getEnv("VENDOR_SERVICE_SECRET", "")),
+		VerificationServiceSecret:     []byte(getEnv("VERIFICATION_SERVICE_SECRET", "")),
+		VendorServiceURL:              getEnv("VENDOR_SERVICE_URL", ""),
+		RouteServiceURL:               getEnv("DISPATCH_ROUTE_SERVICE_URL", ""),
+		RouteServiceTimeout:           time.Duration(getEnvInt("DISPATCH_ROUTE_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		CommerceEventDeliveryEnabled:  getEnvBool("DISPATCH_COMMERCE_EVENT_DELIVERY_ENABLED", false),
+		CommerceEventDeliveryPath:     getEnv("DISPATCH_COMMERCE_EVENT_DELIVERY_PATH", "/api/v1/internal/dispatch/v1/commerce/events"),
+		CommerceQuoteTTL:              time.Duration(getEnvInt("COMMERCE_QUOTE_TTL_SECONDS", 900)) * time.Second,
+		FleetServiceCaller:            getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-dispatch-delivery-service"),
+		FleetServiceTimeout:           time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		RouteServiceabilityEnabled:    getEnvBool("DISPATCH_ROUTE_SERVICEABILITY_ENABLED", false),
+		PackagePolicyEnabled:          getEnvBool("DISPATCH_PACKAGE_POLICY_ENABLED", false),
+
+		CapabilityMatchingEnabled:      getEnvBool("DISPATCH_CAPABILITY_MATCHING_ENABLED", false),
+		CapabilityMatchingEnforce:      getEnvBool("DISPATCH_CAPABILITY_MATCHING_ENFORCE", false),
+		SupplyPreviewEnabled:           getEnvBool("DISPATCH_SUPPLY_PREVIEW_ENABLED", false),
+		CertificationRequiredProducts:  os.Getenv("DISPATCH_CERTIFICATION_REQUIRED_PRODUCTS"),
+		PolicyIngestEnabled:            getEnvBool("DISPATCH_POLICY_INGEST_ENABLED", false),
+		AdminServiceCaller:             getEnv("DISPATCH_ADMIN_SERVICE_CALLER", "dispatch-delivery-service"),
+		AdminServiceSecret:             []byte(os.Getenv("DISPATCH_ADMIN_SERVICE_SECRET")),
+		AdminAllowedHosts:              os.Getenv("DISPATCH_ADMIN_ALLOWED_HOSTS"),
+		PolicyReconcileInterval:        time.Duration(getEnvInt("DISPATCH_POLICY_RECONCILE_INTERVAL_SECONDS", 120)) * time.Second,
+		CapabilityMaintenanceInterval:  time.Duration(getEnvInt("DISPATCH_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
+		MatchDecisionRetention:         time.Duration(getEnvInt("DISPATCH_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
 		ServiceabilityDegradedMode:     getEnvBool("DISPATCH_SERVICEABILITY_DEGRADED_MODE_ENABLED", false),
 		ServiceabilityTTL:              time.Duration(getEnvInt("DISPATCH_SERVICEABILITY_TTL_SECONDS", 900)) * time.Second,
 		ServiceabilityMaxRouteKM:       getEnvFloat("DISPATCH_SERVICEABILITY_MAX_ROUTE_KM", 60),
@@ -282,10 +377,12 @@ func Load() (Config, error) {
 		PlanningMaxWeightGrams:         int64(getEnvInt("DISPATCH_MOTORCYCLE_MAX_WEIGHT_GRAMS", 25000)),
 		PlanningMaxVolumeML:            int64(getEnvInt("DISPATCH_MOTORCYCLE_MAX_VOLUME_ML", 120000)),
 		PlanningCapacityPolicyVersion:  getEnv("DISPATCH_CAPACITY_POLICY_VERSION", "dispatch_motorcycle_capacity_v1"),
+		AssignmentRolloutServiceTiers:  getEnv("DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS", ""),
 		HandoverChallengeEnabled:       getEnvBool("DISPATCH_HANDOVER_CHALLENGE_ENABLED", false),
 		PickupEvidenceGateEnabled:      getEnvBool("DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", false),
 		DeliveryEvidenceGateEnabled:    getEnvBool("DISPATCH_DELIVERY_EVIDENCE_GATE_ENABLED", false),
 		HandoverQREnabled:              getEnvBool("DISPATCH_HANDOVER_QR_ENABLED", false),
+		VendorOwnedHandoverEnabled:     getEnvBool("DISPATCH_VENDOR_OWNED_HANDOVER_ENABLED", false),
 		HandoverChallengeTTL:           time.Duration(getEnvInt("DISPATCH_HANDOVER_CHALLENGE_TTL_SECONDS", 900)) * time.Second,
 		HandoverWorkerInterval:         time.Duration(getEnvInt("DISPATCH_HANDOVER_WORKER_INTERVAL_SECONDS", 30)) * time.Second,
 		HandoverCaptureSessionTTL:      time.Duration(getEnvInt("DISPATCH_EVIDENCE_CAPTURE_SESSION_TTL_SECONDS", 600)) * time.Second,
@@ -297,6 +394,11 @@ func Load() (Config, error) {
 		HandoverInAppAllowed:           getEnvBool("DELIVERY_HANDOVER_IN_APP_ALLOWED", true),
 		HandoverPushAllowed:            getEnvBool("DELIVERY_HANDOVER_PUSH_ALLOWED", true),
 		HandoverSMSAllowed:             getEnvBool("DELIVERY_HANDOVER_SMS_ALLOWED", false),
+		RolloutPolicyVersion:           getEnv("DISPATCH_ROLLOUT_POLICY_VERSION", "dispatch_rollout_v1"),
+		HandoverRolloutCustomerIDs:     getEnv("DISPATCH_HANDOVER_ROLLOUT_CUSTOMER_IDS", ""),
+		HandoverRolloutSourceTypes:     getEnv("DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES", ""),
+		HandoverRolloutSourceRefs:      getEnv("DISPATCH_HANDOVER_ROLLOUT_SOURCE_REFS", ""),
+		HandoverRolloutServiceTiers:    getEnv("DISPATCH_HANDOVER_ROLLOUT_SERVICE_TIERS", ""),
 		DeliveryRecoveryEnabled:        getEnvBool("DISPATCH_DELIVERY_RECOVERY_ENABLED", false),
 		ReturnWorkflowEnabled:          getEnvBool("DISPATCH_RETURN_WORKFLOW_ENABLED", false),
 		HubHoldEnabled:                 getEnvBool("DISPATCH_HUB_HOLD_ENABLED", false),
@@ -325,6 +427,8 @@ func Load() (Config, error) {
 		MarketplaceReservationEnabled:         getEnvBool("DISPATCH_ORGANIZATION_RESERVATION_ENABLED", false),
 		MarketplaceExecutionEnabled:           getEnvBool("DISPATCH_ORGANIZATION_EXECUTION_ENABLED", false),
 		MarketplaceOutboxEnabled:              getEnvBool("DISPATCH_MARKETPLACE_OUTBOX_ENABLED", false),
+		DispatchFleetCompletedWorkEnabled:     getEnvBool("DISPATCH_FLEET_COMPLETED_WORK_ENABLED", false),
+		DispatchManagedSettlementEnabled:      getEnvBool("DISPATCH_MANAGED_SETTLEMENT_ENABLED", false),
 		MarketplaceProviderEligibilityEnabled: getEnvBool("DISPATCH_PROVIDER_ELIGIBILITY_ENABLED", false),
 		MarketplaceVehicleEligibilityEnabled:  getEnvBool("DISPATCH_VEHICLE_ELIGIBILITY_ENABLED", false),
 		PrivateExecutionEnabled:               getEnvBool("DISPATCH_PRIVATE_EXECUTION_ENABLED", false),
@@ -399,6 +503,28 @@ func Load() (Config, error) {
 	if cfg.AppEnv != "development" && cfg.AppEnv != "test" && strings.HasPrefix(string(cfg.HandoverSecret), "development-") {
 		return Config{}, fmt.Errorf("a deployment handover key is required outside development")
 	}
+	if (cfg.PickupEvidenceGateEnabled || cfg.DeliveryEvidenceGateEnabled || cfg.HandoverQREnabled) && !cfg.HandoverChallengeEnabled {
+		return Config{}, fmt.Errorf("DISPATCH_HANDOVER_CHALLENGE_ENABLED is required for evidence gates and handover QR")
+	}
+	if cfg.HandoverChallengeEnabled && strings.TrimSpace(cfg.HandoverRolloutCustomerIDs) == "" &&
+		strings.TrimSpace(cfg.HandoverRolloutSourceTypes) == "" && strings.TrimSpace(cfg.HandoverRolloutSourceRefs) == "" {
+		return Config{}, fmt.Errorf("a server-owned handover rollout cohort is required when DISPATCH_HANDOVER_CHALLENGE_ENABLED is true")
+	}
+	if cfg.VendorOwnedHandoverEnabled && (len(cfg.VendorServiceSecret) == 0 || strings.TrimSpace(cfg.NotificationURL) == "" || len(cfg.NotificationSecret) == 0) {
+		return Config{}, fmt.Errorf("VENDOR_SERVICE_SECRET, DISPATCH_NOTIFICATION_URL and DISPATCH_NOTIFICATION_SECRET are required when DISPATCH_VENDOR_OWNED_HANDOVER_ENABLED is true")
+	}
+	if cfg.MultiVendorPlanningEnabled && (!cfg.HandoverChallengeEnabled || !cfg.PickupEvidenceGateEnabled || !cfg.DeliveryEvidenceGateEnabled) {
+		return Config{}, fmt.Errorf("protected handover plus pickup and delivery evidence are required when DISPATCH_MULTI_STOP_MISSIONS_ENABLED is true")
+	}
+	if cfg.MultiVendorPlanningEnabled && !csvContains(cfg.HandoverRolloutSourceTypes, "VENDOR_COMMERCE") {
+		return Config{}, fmt.Errorf("VENDOR_COMMERCE must be selected by DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES when multi-stop missions are enabled")
+	}
+	if cfg.SequentialAssignmentEnabled && strings.TrimSpace(cfg.AssignmentRolloutServiceTiers) == "" {
+		return Config{}, fmt.Errorf("DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS is required when sequential matching is enabled")
+	}
+	if cfg.DispatchQueueEnabled && !cfg.SequentialAssignmentEnabled && !cfg.OrganizationAssignmentEnabled && !cfg.AdminAssistedAssignmentEnabled {
+		return Config{}, fmt.Errorf("at least one assignment strategy is required when DISPATCH_QUEUE_ENABLED is true")
+	}
 	if (cfg.ReturnWorkflowEnabled || cfg.HubHoldEnabled || cfg.ReplacementHandoverEnabled) && !cfg.DeliveryRecoveryEnabled {
 		return Config{}, fmt.Errorf("DISPATCH_DELIVERY_RECOVERY_ENABLED is required for return, hub-hold or replacement recovery")
 	}
@@ -414,6 +540,9 @@ func Load() (Config, error) {
 	if cfg.ReplacementHandoverEnabled && !cfg.SequentialAssignmentEnabled {
 		return Config{}, fmt.Errorf("DISPATCH_SEQUENTIAL_MATCHING_ENABLED is required when DISPATCH_REPLACEMENT_HANDOVER_ENABLED is true")
 	}
+	if cfg.ReplacementHandoverEnabled && !cfg.HandoverChallengeEnabled {
+		return Config{}, fmt.Errorf("DISPATCH_HANDOVER_CHALLENGE_ENABLED is required when DISPATCH_REPLACEMENT_HANDOVER_ENABLED is true")
+	}
 	if cfg.OfflineReplayEnabled && !cfg.RouteAlertsEnabled {
 		return Config{}, fmt.Errorf("DISPATCH_ROUTE_ALERTS_ENABLED is required when DISPATCH_OFFLINE_REPLAY_ENABLED is true")
 	}
@@ -421,6 +550,16 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("DISPATCH_ROUTE_SERVICE_URL is required when DISPATCH_ROUTE_ALERTS_ENABLED is true")
 	}
 	return cfg, nil
+}
+
+func csvContains(raw, expected string) bool {
+	expected = strings.ToUpper(strings.TrimSpace(expected))
+	for _, value := range strings.Split(raw, ",") {
+		if strings.ToUpper(strings.TrimSpace(value)) == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func getEnvFloat(key string, fallback float64) float64 {

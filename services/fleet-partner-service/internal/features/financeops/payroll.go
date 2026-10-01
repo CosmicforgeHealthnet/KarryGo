@@ -230,6 +230,74 @@ func (s *Service) CalculatePayroll(ctx context.Context, t tenant.Context, id str
 			return err
 		}
 		rules.Close()
+		// CMP-027. Components already paid with a completed job's own money
+		// must not be paid a second time here. The two sides of that check are
+		// computed by different code from different tables, so payroll reads
+		// the durable record of what work settlement already paid and skips
+		// exactly those components.
+		//
+		// The completed assignments and the exclusions are read once rather
+		// than per rule: the query does not depend on the rule, and re-reading
+		// it per rule only multiplies the work.
+		type sourceItem struct {
+			member, source string
+			version        int64
+		}
+		var jobSources []sourceItem
+		var workSettled map[string]bool
+		jobSourcesLoaded := false
+		loadJobSources := func() error {
+			if jobSourcesLoaded {
+				return nil
+			}
+			jobsRows, err := tx.Query(ctx, `SELECT provider_membership_id,id,version FROM fleet_partner_private_assignments WHERE organization_id=$1 AND ($2='' OR branch_id=$2) AND status='COMPLETED' AND updated_at >= $3 AND updated_at < $4 ORDER BY id`, t.OrganizationID, branch, start, end)
+			if err != nil {
+				return err
+			}
+			for jobsRows.Next() {
+				var item sourceItem
+				if err := jobsRows.Scan(&item.member, &item.source, &item.version); err != nil {
+					jobsRows.Close()
+					return err
+				}
+				jobSources = append(jobSources, item)
+			}
+			if err := jobsRows.Err(); err != nil {
+				jobsRows.Close()
+				return err
+			}
+			jobsRows.Close()
+			assignmentIDs := make([]string, 0, len(jobSources))
+			for _, item := range jobSources {
+				assignmentIDs = append(assignmentIDs, item.source)
+			}
+			workSettled = map[string]bool{}
+			if len(assignmentIDs) > 0 {
+				// Matched on the assignment rather than a time window: a job
+				// completed inside the period can be settled moments after the
+				// period ends, and a windowed read would miss it and pay it
+				// again.
+				settledRows, err := tx.Query(ctx, `SELECT source_assignment_id,rule_id FROM fleet_partner_work_settled_components WHERE organization_id=$1 AND settlement_level='WORK' AND source_assignment_id = ANY($2)`, t.OrganizationID, assignmentIDs)
+				if err != nil {
+					return err
+				}
+				for settledRows.Next() {
+					var assignmentID, settledRuleID string
+					if err := settledRows.Scan(&assignmentID, &settledRuleID); err != nil {
+						settledRows.Close()
+						return err
+					}
+					workSettled[assignmentID+":"+settledRuleID] = true
+				}
+				if err := settledRows.Err(); err != nil {
+					settledRows.Close()
+					return err
+				}
+				settledRows.Close()
+			}
+			jobSourcesLoaded = true
+			return nil
+		}
 		count := 0
 		for _, rule := range active {
 			ruleID, ruleType, ruleVersion, cfg := rule.id, rule.typ, rule.version, rule.cfg
@@ -237,32 +305,18 @@ func (s *Service) CalculatePayroll(ctx context.Context, t tenant.Context, id str
 				continue
 			}
 			if ruleType == "PER_JOB" || ruleType == "COMMISSION" || ruleType == "BONUS" {
-				jobsRows, err := tx.Query(ctx, `SELECT provider_membership_id,id,version FROM fleet_partner_private_assignments WHERE organization_id=$1 AND ($2='' OR branch_id=$2) AND status='COMPLETED' AND updated_at >= $3 AND updated_at < $4 ORDER BY id`, t.OrganizationID, branch, start, end)
-				if err != nil {
+				if err := loadJobSources(); err != nil {
 					return err
 				}
-				type sourceItem struct {
-					member, source string
-					version        int64
-				}
-				var sources []sourceItem
-				for jobsRows.Next() {
-					var item sourceItem
-					if err := jobsRows.Scan(&item.member, &item.source, &item.version); err != nil {
-						jobsRows.Close()
-						return err
-					}
-					sources = append(sources, item)
-				}
-				if err := jobsRows.Err(); err != nil {
-					jobsRows.Close()
-					return err
-				}
-				jobsRows.Close()
-				for _, item := range sources {
+				for _, item := range jobSources {
 					var member, source string
 					var sourceVersion int64
 					member, source, sourceVersion = item.member, item.source, item.version
+					// Already paid with this job's own money. Paying it here
+					// as well is the double payment CMP-027 exists to stop.
+					if workSettled[source+":"+ruleID] {
+						continue
+					}
 					inputs, _ := json.Marshal(map[string]any{"assignmentId": source, "assignmentVersion": sourceVersion, "ruleVersion": ruleVersion})
 					tag, err := tx.Exec(ctx, `INSERT INTO fleet_partner_provider_compensation_items(id,organization_id,payroll_period_id,membership_id,source_type,source_reference,rule_id,rule_version,calculation_version,amount_minor,currency,reason_code,explanation,source_inputs) VALUES($1,$2,$3,$4,'COMPLETED_ASSIGNMENT',$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`, ids.New("pci"), t.OrganizationID, id, member, source, ruleID, ruleVersion, calcVersion, cfg.AmountMinor, currency, ruleType, "Deterministic "+ruleType+" rule version "+fmt.Sprint(ruleVersion), inputs)
 					if err != nil {

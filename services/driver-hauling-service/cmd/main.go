@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/hauling-service/internal/features/customershare"
+	haulingobservability "cosmicforge/logistics/services/hauling-service/internal/observability"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"net/http"
 	"strings"
 	"time"
@@ -22,6 +25,12 @@ import (
 	bookingpayments "cosmicforge/logistics/services/hauling-service/internal/features/booking/payments"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
+	"cosmicforge/logistics/services/hauling-service/internal/features/movement"
+	"cosmicforge/logistics/services/hauling-service/internal/features/networkevents"
+	"cosmicforge/logistics/services/hauling-service/internal/features/networkobserver"
+	"cosmicforge/logistics/services/hauling-service/internal/features/recovery"
+	sharedevents "cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 
 	haulingcommercemission "cosmicforge/logistics/services/hauling-service/internal/features/commercemission"
 	haulingcommercequote "cosmicforge/logistics/services/hauling-service/internal/features/commercequote"
@@ -41,11 +50,20 @@ import (
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
 
+	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
+	haulingsettlement "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement"
+	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
+	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/fleetproviderwork"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/managedsettlement"
+	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -155,13 +173,34 @@ func main() {
 	challengeStore := providerauthrepositories.NewRedisOTPChallengeRepository(redisClient)
 	profileRepo := providerprofilerepositories.NewPostgresProfileRepository(db)
 	truckRepo := providerprofilerepositories.NewPostgresTruckRepository(db)
-	bookingRepo := bookingrepo.NewPostgresBookingRepository(db)
+	// Shared multi-manifest custody: a commerce haulage's vendor manifests are
+	// collected and delivered through the same ledger Dispatch and Taxi use.
+	bookingRepo := bookingrepo.NewPostgresBookingRepository(db).WithCustody(custodyops.NewRepository(db, "HAULING"))
 
 	// ─── Auth service ──────────────────────────────────────────────────────────
 	var membershipReader providercompat.Reader
-	if cfg.ProviderOrganizationModeEnabled {
-		membershipReader = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+	// fleetCompat is the concrete Fleet client. It backs three distinct
+	// consumers: the legacy membership-summary read, the CANONICAL Section 7
+	// corporate-context read, and canonical completed-work submission. One
+	// client, because all three speak to the same service with the same
+	// credentials.
+	var fleetCompat *providercompat.Client
+	var fleetCorporateContext providercompat.CorporateContextReader
+	var fleetProviderWorkClient *fleetproviderwork.Client
+	if strings.TrimSpace(cfg.FleetServiceURL) != "" && len(cfg.FleetServiceSecret) > 0 {
+		fleetCompat = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller,
 			cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		fleetCorporateContext = fleetCompat
+		fleetProviderWorkClient, _ = fleetproviderwork.NewClient(fleetproviderwork.Config{
+			BaseURL:         cfg.FleetServiceURL,
+			ServiceName:     cfg.FleetServiceCaller,
+			Secret:          cfg.FleetServiceSecret,
+			ProviderService: providerauthusecases.ServiceCategory,
+			Timeout:         cfg.FleetServiceTimeout,
+		})
+	}
+	if cfg.ProviderOrganizationModeEnabled && fleetCompat != nil {
+		membershipReader = fleetCompat
 	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
@@ -178,6 +217,7 @@ func main() {
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
 		MembershipReader:   membershipReader,
+		CorporateContext:   fleetCorporateContext,
 		ProviderService:    cfg.FleetServiceCaller,
 	})
 
@@ -200,8 +240,10 @@ func main() {
 	// keys use, so a provider can never be matchable from a position that has
 	// already aged out of their status key.
 	availabilityStore := availabilityrepositories.NewRedisAvailabilityStoreWithTTL(redisClient, onlineTTL)
+	shareService := &customershare.Service{DB: db, Points: journeyshare.BoundPointStore{Client: redisClient, Namespace: "HAULING"}}
 	restrictionService := restrictions.New(db)
 	availService := availabilityusecases.NewAvailabilityServiceWithAuthority(availabilityStore, truckRepo, onlineTTL, availabilityrepositories.NewPostgresAuthorityStore(db)).WithRestrictionGate(restrictionService)
+	availService.WithJourneyRecorder(shareService.Record)
 
 	// ─── Booking service ───────────────────────────────────────────────────────
 	// bookingNotifier sends booking-lifecycle notifications via notification-service.
@@ -214,32 +256,73 @@ func main() {
 	var paymentClient bookingusecases.PaymentClient
 	var commerceSettlement bookingusecases.CommerceDeliverySettlementAuthority
 	if cfg.PaymentURL != "" && len(cfg.PaymentSecret) > 0 {
-		walletPayments := bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret)
+		walletPayments := bookingpayments.NewWalletPaymentClient(cfg.PaymentURL, "driver-hauling-service", cfg.PaymentSecret).
+			// Section 17: the settlement guard justifies a late rebind with the
+			// recovery case that made the booking's provider its provider.
+			WithRecoveryCases(recovery.NewRepository(db).CaseForReplacement)
 		paymentClient = walletPayments
 		commerceSettlement = walletPayments
 	}
 
+	// Section 12 (WAL-013). Hauling never settles corporate work -- Fleet
+	// resolves the compensation and instructs Wallet. The handoff's only job
+	// is to find out whether that money moved, so an ambiguous completion is
+	// visible rather than assumed. Without wallet credentials there is nothing
+	// to ask, so no handoff is wired and the completion is left to Fleet.
+	var managedHandoff bookingusecases.ManagedSettlementHandoff
+	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
+		managedHandoff = haulingsettlement.New(managedsettlement.Client{
+			BaseURL:     cfg.PaymentURL,
+			ServiceName: "driver-hauling-service",
+			Secret:      cfg.PaymentSecret,
+			HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		})
+	}
+
+	// Section 9 capability matching. Built unconditionally: the provider
+	// capability endpoints are how a fleet gets surveyed, and a deployment
+	// that could not record capability until matching was enabled could never
+	// reach the completeness needed to enable it.
+	capability := buildCapabilityWiring(cfg, db, availabilityStore, bookingclients.NewDurableQueue(notificationRedis))
+
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
-		Bookings:            bookingRepo,
-		Availability:        availabilityStore,
-		Trucks:              truckLookup{trucks: truckRepo},
-		Payments:            paymentClient,
-		CommerceSettlement:  commerceSettlement,
-		Notifier:            bookingNotifier,
-		MatchTimeoutSeconds: cfg.BookingMatchTimeout,
-		SearchWindowSeconds: cfg.BookingSearchWindow,
-		MaxRadiusKm:         cfg.MatchMaxRadiusKm,
-		HandoverSecret:      cfg.HandoverSecret,
-		AllowCashPayments:   cfg.CashPaymentsEnabled,
-		Restrictions:        restrictionService,
+		Bookings:     bookingRepo,
+		Availability: availabilityStore,
+		Trucks:       truckLookup{trucks: truckRepo},
+		Capability:   capability.authority,
+		CapabilityMatching: bookingusecases.CapabilityMatchingConfig{
+			Enabled:    cfg.CapabilityMatchingEnabled,
+			FailClosed: cfg.FailClosedTruckLookup,
+		},
+		Payments:           paymentClient,
+		CommerceSettlement: commerceSettlement,
+		// Section 10 corporate completion. Both default off; see each flag's
+		// own doc comment in internal/config for what turning it on changes.
+		ManagedSettlement:    bookingusecases.ManagedSettlementConfig{Enabled: cfg.HaulingManagedSettlementEnabled},
+		ManagedHandoff:       managedHandoff,
+		CompletedWorkEnabled: cfg.HaulingFleetCompletedWorkEnabled,
+		Notifier:             bookingNotifier,
+		MatchTimeoutSeconds:  cfg.BookingMatchTimeout,
+		SearchWindowSeconds:  cfg.BookingSearchWindow,
+		MaxRadiusKm:          cfg.MatchMaxRadiusKm,
+		HandoverSecret:       cfg.HandoverSecret,
+		AllowCashPayments:    cfg.CashPaymentsEnabled,
+		Restrictions:         restrictionService,
 		// nil when HAULING_ROUTES_API_KEY is unset: routes are then never
 		// fetched and the apps fall back to straight-line geometry.
 		Routes: routesClient,
 	})
+	// Customer tracking reuses the Share Journey booking-bound reader: only the
+	// current assignment's point, never the driver's global heartbeat.
+	bookingService.WithBookingLocation(shareService)
 	authorityHandler := fleetauthority.New(db, fleetauthority.Flags{
 		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
 	})
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	var custodyMedia *mediaclient.Client
+	if strings.TrimSpace(cfg.MediaURL) != "" && strings.TrimSpace(cfg.MediaToken) != "" {
+		custodyMedia = mediaclient.New(mediaclient.Config{BaseURL: cfg.MediaURL, ServiceName: "driver-hauling-service", Token: cfg.MediaToken, HTTPClient: &http.Client{Timeout: 10 * time.Second}})
+	}
 	privateExecutionService := privateexecution.NewService(
 		privateexecution.NewRepository(db),
 		privateexecution.NewHTTPAcceptanceVerifier(cfg.FleetServiceURL, cfg.FleetServiceCaller,
@@ -247,6 +330,27 @@ func main() {
 		cfg.PrivateExecutionEnabled, cfg.FleetIntegrationKillSwitch).WithRestrictionGate(restrictionService)
 	providerAssignmentClient := providerassignments.NewClient(cfg.FleetServiceURL,
 		cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+	// HLG-018: canonical completed-work delivery rides the SAME outbox table
+	// as the Fleet domain events above, with its own target and its own
+	// outcome classification. It is gated separately because a deployment can
+	// legitimately emit domain events without yet being certified to report
+	// completed work.
+	if cfg.HaulingFleetCompletedWorkEnabled && fleetCompat != nil && !cfg.FleetIntegrationKillSwitch {
+		go (&completedwork.Worker{DB: db, Client: fleetCompat, Enabled: true}).Run(ctx, 5*time.Second)
+		logging.Notice("hauling-fleet", "canonical completed-work delivery enabled")
+	}
+	// Section 13: analytics-addressed rows (recovery, guarantee and capability
+	// facts) had no worker at all before this.
+	if cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0 {
+		go (&networkevents.Worker{DB: db, Deliverer: sharedevents.HTTPDeliverer{
+			BaseURL: cfg.AnalyticsURL, Path: networkanalytics.IngestPath,
+			ServiceName: "driver-hauling-service", Secret: cfg.AnalyticsSecret,
+		}}).Run(ctx, 10*time.Second)
+		// Supply and demand, observed from the matcher's own online set once
+		// per bucket.
+		go (&networkobserver.Observer{DB: db, Online: availabilityStore}).Run(ctx)
+		logging.Notice("hauling-analytics", "network analytics delivery enabled")
+	}
 	if cfg.OutboxWorkerEnabled && cfg.FleetIntegrationEnabled && !cfg.FleetIntegrationKillSwitch {
 		go (&fleetauthority.OutboxWorker{DB: db, URL: cfg.FleetEventURL, Secret: cfg.FleetEventSecret}).Run(ctx)
 	}
@@ -273,8 +377,37 @@ func main() {
 		go bookingService.RunMatchRecoveryWorker(ctx)
 	}
 
+	// Outbox and reconciliation health, in the same metric names every other
+	// service reports (OBS-006, OBS-007). Hauling's completed-work outbox
+	// carries the corporate money path to Fleet; before this, a row stuck in
+	// RECONCILIATION_REQUIRED was only visible to someone running psql.
+	//
+	// The source description lives with the table's writer, where a test can
+	// run it against the real migrated schema.
+	haulingMetrics := outboxmetrics.NewReporter(db, completedwork.MetricsInterval,
+		completedwork.MetricsSource()).WithAuthToken(cfg.MetricsAuthToken)
+
 	// ─── HTTP ──────────────────────────────────────────────────────────────────
+	// Customer movement events. The sweeper reads committed booking state and
+	// queues what changed; the publisher delivers it to the customer context
+	// owner. Both are additive: neither can fail a haulage.
+	if cfg.CustomerMovementEventsEnabled {
+		go (&events.MovementReconciler{Pool: db, BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret, Metrics: haulingobservability.Metrics}).Run(ctx)
+		go movement.NewPublisher(db).Run(ctx, 10*time.Second)
+		go (&events.MovementPublisher{
+			Pool:  db,
+			Owner: movement.SourceService,
+			Deliverer: &events.HTTPDeliverer{
+				BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath,
+				ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+			},
+		}).Run(ctx, 5*time.Second)
+	}
+
 	serviceapp.Run(serviceapp.Options{
+		RegisterRoot: func(root *gin.Engine) {
+			customershare.Register(root, shareService, fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"customer-service"}), fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"vendor-service"}))
+		},
 		Name:        "hauling-service",
 		DefaultAddr: cfg.HTTPAddr,
 		APIBase:     "/api/v1/hauling",
@@ -293,7 +426,40 @@ func main() {
 				return redisClient.Ping(ctx).Err()
 			},
 		},
+		Workers: []func(context.Context) error{
+			haulingMetrics.Run,
+			func(ctx context.Context) error {
+				capability.service.RunMaintenanceWorker(ctx,
+					cfg.CapabilityMaintenanceInterval, cfg.MatchDecisionRetention)
+				return nil
+			},
+			func(ctx context.Context) error {
+				capability.runPolicyReconciler(ctx)
+				return nil
+			},
+		},
 		Register: func(group *gin.RouterGroup) {
+			haulingMetrics.RegisterRoutes(group)
+			// Customer V4 §27.2: the capability, matching, recovery and
+			// reconciliation registry was recorded but never exported. Private,
+			// HMAC-verified scrape, the same shape as Taxi's.
+			group.GET("/internal/metrics", serviceauth.Middleware(inboundVerifier), func(c *gin.Context) {
+				switch c.GetString("service_name") {
+				case "admin-backoffice-service", "analytics-service":
+				default:
+					c.AbortWithStatus(http.StatusForbidden)
+					return
+				}
+				c.String(http.StatusOK, haulingobservability.Render()+haulingMetrics.Render()+journeyshare.Render())
+			})
+			// HLG-021: the server-side typed financial projection. Mounted on
+			// the ROOT group so every provider-facing response is covered,
+			// including any route added later; it no-ops for customer and
+			// internal requests, and for an independent driver it never
+			// touches the body at all.
+			group.Use(apiresponse.ProviderFinancialPrivacy(
+				fleetCorporateContext, cfg.HaulingTypedFinancialVisibilityEnabled,
+				providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 			group.Use(func(c *gin.Context) {
 				if cfg.FleetIntegrationKillSwitch && c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead && c.Request.Method != http.MethodOptions {
 					c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"success": false, "error": gin.H{"code": "integration_kill_switch", "message": "Hauling writes are temporarily disabled."}})
@@ -308,10 +474,17 @@ func main() {
 			})
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService)
+			capability.registerRoutes(group, authService, cfg.ServiceSecrets)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			if len(serviceauth.ParseSecrets(cfg.ServiceSecrets)) > 0 {
+				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "HAULING"), inboundVerifier,
+					custodyops.MediaFileAuthorizer{Client: custodyMedia, AllowedOwners: map[string]struct{}{"driver-hauling-service": {}, "vendor-service": {}}},
+					custodyops.Policy{}, []string{"vendor-service", "operations-service"})
+			}
+			custodyops.RegisterProvider(group, custodyops.NewRepository(db, "HAULING"), authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)
 
 			// The internal commerce delivery-quote contract (Vendor Service
 			// Section 17C). It answers serviceability and price for a route;
@@ -346,11 +519,14 @@ func main() {
 			// service rather than accepting hauls nothing would ever match.
 			if _, trusted := serviceauth.ParseSecrets(cfg.ServiceSecrets)[commercemission.SignatureCaller]; trusted && cfg.CommerceIntegrationEnabled &&
 				bookingService != nil {
+				bookinghttp.RegisterCommerceHandover(group, bookingService, db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller})
 				haulingcommercemission.Register(
 					group,
 					haulingcommercemission.NewHandler(haulingcommercemission.New(
 						haulingcommercemission.Options{
-							Store:   haulingcommercemission.NewRepository(db),
+							Store:   haulingcommercemission.NewRepository(db).WithCustody(custodyops.NewRepository(db, "HAULING")),
 							Matcher: bookingService,
 						},
 					)),
@@ -358,12 +534,49 @@ func main() {
 					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
 					[]string{commercemission.SignatureCaller},
 				)
+				// The shared cross-authority capability contract Vendor reads
+				// to decide whether Hauling may be selected at all. Mounted
+				// beside the mission routes and behind the same boundary.
+				haulingcommercemission.RegisterCapability(
+					group,
+					haulingcommercemission.CapabilityProvider{Options: haulingcommercemission.CapabilityOptions{
+						Enabled:                    true,
+						CorporateProviderSupported: cfg.HaulingFleetProviderWorkEnabled,
+					}},
+					db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller},
+				)
+				// The read-only planning surface Vendor's just-in-time
+				// orchestration reads before it commits. It creates nothing:
+				// no mission, no booking, no offer, no reservation, and it
+				// names no provider or truck.
+				haulingcommercemission.RegisterSupplyPreview(
+					group,
+					capability.previewer,
+					db,
+					serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
+					[]string{commercemission.SignatureCaller},
+					cfg.SupplyPreviewEnabled,
+				)
 			}
 			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			restrictions.Register(group, restrictionService, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			privateexecution.Register(group, privateexecution.NewHandler(privateExecutionService),
 				authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			providerassignments.Register(group, authService, providerAssignmentClient)
+			// Section 10: the canonical provider-facing corporate surface
+			// (company-assignment LIST/detail/accept/decline and organization
+			// offer LIST/detail/accept/decline), shared with Taxi. The LIST
+			// reads are what make reconnect recovery work: a restarted
+			// provider app reads its corporate work back rather than hoping a
+			// notification arrived.
+			providerassignments.RegisterFleetWork(group, authService,
+				fleetProviderWorkClient, fleetCorporateContext,
+				cfg.HaulingFleetProviderWorkEnabled)
+			completedwork.RegisterRoutes(group,
+				completedwork.NewHandler(&completedwork.Store{DB: db}, splitCSV(cfg.FleetAllowedCallers)),
+				inboundVerifier)
 		},
 	})
 }

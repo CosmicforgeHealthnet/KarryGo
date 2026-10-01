@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:52:20.5897244+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract"}
+{"Time":"2026-09-27T16:52:21.8415525+02:00","Action":"run","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Test":"TestSection17AOpenAPIMatchesRegisteredRoutes"}
+{"Time":"2026-09-27T16:52:21.8415525+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Test":"TestSection17AOpenAPIMatchesRegisteredRoutes","Output":"=== RUN   TestSection17AOpenAPIMatchesRegisteredRoutes\n"}
+{"Time":"2026-09-27T16:52:21.8439389+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Test":"TestSection17AOpenAPIMatchesRegisteredRoutes","Output":"--- PASS: TestSection17AOpenAPIMatchesRegisteredRoutes (0.00s)\n"}
+{"Time":"2026-09-27T16:52:21.8439389+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Test":"TestSection17AOpenAPIMatchesRegisteredRoutes","Elapsed":0}
+{"Time":"2026-09-27T16:52:21.8444679+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Output":"PASS\n"}
+{"Time":"2026-09-27T16:52:21.8487394+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Output":"ok  \tcosmicforge/logistics/services/vendor-service/internal/section17acontract\t1.257s\n"}
+{"Time":"2026-09-27T16:52:21.8487394+02:00","Action":"pass","Package":"cosmicforge/logistics/services/vendor-service/internal/section17acontract","Elapsed":1.259}

@@ -282,6 +282,8 @@ type Line struct {
 	ReservationQuantity     int64            `json:"reservation_quantity"`
 	ReservationBasis        ReservationBasis `json:"reservation_basis"`
 
+	SubstitutionPolicy string `json:"substitution_policy"`
+
 	Status       LineStatus `json:"validation_status"`
 	ReasonCode   string     `json:"reason_code,omitempty"`
 	ReasonDetail string     `json:"reason_detail,omitempty"`
@@ -325,7 +327,8 @@ type Group struct {
 // It is not a quote. Section 17D builds and locks the quote from this
 // evidence; nothing here may be treated as an authorization to charge.
 type Session struct {
-	ID string `json:"id"`
+	ReplacementSourceSessionID *string `json:"-"`
+	ID                         string  `json:"id"`
 
 	CustomerID string `json:"-"`
 

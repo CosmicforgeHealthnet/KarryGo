@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/taxi-service/internal/adminaudit"
+	"cosmicforge/logistics/services/taxi-service/internal/capability"
 	bookingmatching "cosmicforge/logistics/services/taxi-service/internal/features/booking/matching"
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	bookingrepositories "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories"
@@ -17,6 +18,7 @@ import (
 	bookingtelemetry "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry"
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
 	marketmodels "cosmicforge/logistics/services/taxi-service/internal/features/markets/models"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 	"cosmicforge/logistics/services/taxi-service/internal/vehicleclass"
@@ -149,6 +151,30 @@ type BookingService struct {
 	scheduling SchedulingConfig
 
 	adminAudit adminaudit.Repository
+
+	// managedSettlement and managedHandoff are the Section 12 boundary. See
+	// managed_settlement.go: they decide whether a completed corporate ride
+	// takes the legacy direct-to-provider wallet path or the Fleet managed
+	// path, and that decision is never made by a live Fleet lookup at
+	// completion time.
+	managedSettlement ManagedSettlementConfig
+	managedHandoff    ManagedSettlementHandoff
+	// completedWorkEnabled gates writing the canonical Fleet completed-work
+	// outbox row. Off by default (TAXI_FLEET_COMPLETED_WORK_ENABLED).
+	completedWorkEnabled bool
+	movement             *movement.Writer
+	capability           CapabilityGate
+	riskStore            ScheduledRiskStore
+
+	products        ProductPolicySource
+	customerContext CustomerContextSource
+}
+
+// CapabilityGate runs Section 7 hard eligibility gates before scoring. It
+// returns the provider ids allowed into ranking. In shadow mode it returns
+// the input unchanged after recording evidence.
+type CapabilityGate interface {
+	FilterPassengerCandidates(ctx context.Context, booking bookingmodels.Booking, productCode string, snapshot []byte, providerIDs []string, instance string) ([]string, error)
 }
 
 type Options struct {
@@ -224,6 +250,28 @@ type Options struct {
 	// apperrors.Unavailable rather than silently skipping the audit trail
 	// an operator action must always leave.
 	AdminAudit adminaudit.Repository
+
+	// ManagedSettlement/ManagedHandoff/CompletedWorkEnabled configure the
+	// Section 8 corporate completion path. All three are nil/zero-safe: a
+	// service built without them behaves exactly as before, which is what
+	// keeps every independent ride unchanged.
+	ManagedSettlement    ManagedSettlementConfig
+	ManagedHandoff       ManagedSettlementHandoff
+	CompletedWorkEnabled bool
+	// Movement publishes customer movement summaries through the outbox.
+	// nil or disabled is a safe no-op.
+	Movement *movement.Writer
+	// CapabilityGate is nil when Section 7 passenger capability matching is
+	// not wired; matching then behaves exactly as before.
+	CapabilityGate CapabilityGate
+	// RiskStore backs the scheduled-ride risk monitor. nil disables it.
+	RiskStore ScheduledRiskStore
+	// ProductPolicy freezes a service product and requirement snapshot onto
+	// every new booking. nil keeps legacy class-only bookings.
+	ProductPolicy ProductPolicySource
+	// CustomerContext supplies saved customer mobility needs. nil skips the
+	// handoff; explicit request requirements still apply.
+	CustomerContext CustomerContextSource
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -236,8 +284,16 @@ func NewBookingService(opts Options) *BookingService {
 		notifier:  opts.Notifier,
 		telemetry: opts.Telemetry, positions: opts.Positions, telemetryConfig: opts.TelemetryConfig,
 		reviews: opts.Reviews, reviewRevealWindow: opts.ReviewRevealWindow, operationalHistory: opts.OperationalHistory,
-		scheduling: opts.Scheduling,
-		adminAudit: opts.AdminAudit,
+		scheduling:        opts.Scheduling,
+		adminAudit:        opts.AdminAudit,
+		managedSettlement: opts.ManagedSettlement, managedHandoff: opts.ManagedHandoff,
+		completedWorkEnabled: opts.CompletedWorkEnabled,
+		movement:             opts.Movement,
+		capability:           opts.CapabilityGate,
+		riskStore:            opts.RiskStore,
+
+		products:        opts.ProductPolicy,
+		customerContext: opts.CustomerContext,
 	}
 }
 
@@ -279,6 +335,17 @@ type CreateBookingInput struct {
 	// scheduled ride in the past is a client bug, not a same-as-immediate
 	// booking.
 	ScheduledAt *time.Time
+	// ServiceProductCode selects a Section 7 product. Empty maps the vehicle
+	// class to its legacy product.
+	ServiceProductCode string
+	// GuestTravellerID books the ride for one of the customer's saved
+	// travellers; Taxi freezes that traveller into the requirement snapshot.
+	GuestTravellerID string
+	// HardRequirements gate matching. A nil field is "not stated" and may be
+	// filled from the customer's saved mobility needs.
+	HardRequirements capability.HardRequirementInput
+	// Preferences are informational and never gate matching.
+	Preferences capability.RidePreferenceInput
 }
 
 // CreateBooking validates the request, enforces the addendum §5.2 one-active-
@@ -533,6 +600,10 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	} else {
 		booking.Status = bookingmodels.StatusPendingMatch
 		booking.MatchingStartedAt = &now
+	}
+
+	if err := s.freezePassengerProduct(ctx, input, &booking, now); err != nil {
+		return bookingmodels.Booking{}, err
 	}
 
 	bookingStops := make([]bookingmodels.Stop, len(stops))

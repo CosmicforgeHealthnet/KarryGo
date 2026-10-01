@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T15:58:49.2348331+02:00","Action":"start","Package":"cosmicforge/logistics/services/customer-service/internal/database"}
+{"Time":"2026-09-27T15:58:49.3719678+02:00","Action":"run","Package":"cosmicforge/logistics/services/customer-service/internal/database","Test":"TestClosureApplyOwningMigrations"}
+{"Time":"2026-09-27T15:58:49.3719678+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/internal/database","Test":"TestClosureApplyOwningMigrations","Output":"=== RUN   TestClosureApplyOwningMigrations\n"}
+{"Time":"2026-09-27T15:58:49.4229285+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/internal/database","Test":"TestClosureApplyOwningMigrations","Output":"--- PASS: TestClosureApplyOwningMigrations (0.05s)\n"}
+{"Time":"2026-09-27T15:58:49.4229285+02:00","Action":"pass","Package":"cosmicforge/logistics/services/customer-service/internal/database","Test":"TestClosureApplyOwningMigrations","Elapsed":0.05}
+{"Time":"2026-09-27T15:58:49.4229285+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/internal/database","Output":"PASS\n"}
+{"Time":"2026-09-27T15:58:49.4261889+02:00","Action":"output","Package":"cosmicforge/logistics/services/customer-service/internal/database","Output":"ok  \tcosmicforge/logistics/services/customer-service/internal/database\t0.191s\n"}
+{"Time":"2026-09-27T15:58:49.4261889+02:00","Action":"pass","Package":"cosmicforge/logistics/services/customer-service/internal/database","Elapsed":0.191}

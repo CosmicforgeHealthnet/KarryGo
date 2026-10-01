@@ -171,7 +171,7 @@ func loadCartReceiver(
 	err := q.QueryRow(
 		ctx,
 		`
-        SELECT receiver_name, receiver_phone
+        SELECT receiver_name, receiver_phone, COALESCE(receiver_customer_id::text,'')
         FROM commerce_cart_receivers
         WHERE cart_id=$1
         `,
@@ -179,6 +179,7 @@ func loadCartReceiver(
 	).Scan(
 		&receiver.Name,
 		&receiver.Phone,
+		&receiver.CustomerID,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -228,6 +229,7 @@ func loadCartItems(
             COALESCE(logistics_profile_ref,''),
             estimated_weight_grams,
             COALESCE(temperature_zone,''),
+            substitution_policy,
             version,
             created_at,
             updated_at
@@ -276,6 +278,7 @@ func loadCartItems(
 			&item.LogisticsProfileRef,
 			&item.EstimatedWeightGrams,
 			&item.TemperatureZone,
+			&item.SubstitutionPolicy,
 			&item.Version,
 			&item.CreatedAt,
 			&item.UpdatedAt,

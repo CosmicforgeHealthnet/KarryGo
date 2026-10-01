@@ -23,6 +23,24 @@ func (m sectionMedia) Configured() bool { return true }
 func (m sectionMedia) GetFile(_ context.Context, _ platformclients.CallMeta, id string) (platformclients.FileMetadata, error) {
 	return m.files[id], nil
 }
+func (m sectionMedia) AuthorizeUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadRequest) (platformclients.MediaUploadGrant, error) {
+	return platformclients.MediaUploadGrant{}, nil
+}
+func (m sectionMedia) CompleteUpload(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaUploadGrant, _, _ string, _ []byte) (platformclients.MediaObjectState, error) {
+	return platformclients.MediaObjectState{}, nil
+}
+func (m sectionMedia) ReadObject(_ context.Context, _ platformclients.CallMeta, _ string) (platformclients.MediaObjectState, error) {
+	return platformclients.MediaObjectState{}, nil
+}
+func (m sectionMedia) AuthorizeDownload(_ context.Context, _ platformclients.CallMeta, _ string) (platformclients.MediaDownloadGrant, error) {
+	return platformclients.MediaDownloadGrant{}, nil
+}
+func (m sectionMedia) ReadContent(_ context.Context, _ platformclients.CallMeta, _ platformclients.MediaDownloadGrant, _ int64) ([]byte, error) {
+	return nil, nil
+}
+func (m sectionMedia) RequestDeletion(_ context.Context, _ platformclients.CallMeta, _, _ string) (platformclients.MediaDeletionOutcome, error) {
+	return platformclients.MediaDeletionOutcome{}, nil
+}
 
 func TestSection17And18EndToEnd(t *testing.T) {
 	pool := testPool(t)
@@ -38,10 +56,10 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	}
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: member, ActorType: tenant.ActorTypeOrganizationUser, ActorID: member, CorrelationID: "sections-17-18-test"}
 	media := sectionMedia{files: map[string]platformclients.FileMetadata{
-		"member-clean":   {FileID: "member-clean", OwnerID: member, UploadState: "COMPLETE", ScanState: "CLEAN"},
-		"org-clean":      {FileID: "org-clean", OwnerID: org.ID, UploadState: "COMPLETE", ScanState: "CLEAN"},
-		"other-clean":    {FileID: "other-clean", OwnerID: "different-owner", UploadState: "COMPLETE", ScanState: "CLEAN"},
-		"org-quarantine": {FileID: "org-quarantine", OwnerID: org.ID, UploadState: "COMPLETE", ScanState: "QUARANTINED"},
+		"member-clean":   {FileID: "member-clean", OwnerID: member, UploadState: "COMPLETED", ScanState: "CLEAN"},
+		"org-clean":      {FileID: "org-clean", OwnerID: org.ID, UploadState: "COMPLETED", ScanState: "CLEAN"},
+		"other-clean":    {FileID: "other-clean", OwnerID: "different-owner", UploadState: "COMPLETED", ScanState: "CLEAN"},
+		"org-quarantine": {FileID: "org-quarantine", OwnerID: org.ID, UploadState: "COMPLETED", ScanState: "QUARANTINED"},
 	}}
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	now := time.Now().UTC().Truncate(time.Second)

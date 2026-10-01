@@ -221,7 +221,7 @@ func TestVendorLifecycleProjectionIsTransactionBoundPostgres(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 	repo := planning.NewRepository(pool)
-	svc := planning.New(repo, planning.NewPlanner(), true).WithRouteAuthority(routeAuthorityStub{})
+	svc := planning.New(repo, planning.NewPlanner(), true).WithRouteAuthority(routeAuthorityStub{}).WithRolloutPolicy(executionTestRollout())
 	in := executionPlanRequest()
 	plan, err := svc.Create(ctx, in)
 	if err != nil {

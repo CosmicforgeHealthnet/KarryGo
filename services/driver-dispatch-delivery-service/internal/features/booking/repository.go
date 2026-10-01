@@ -45,10 +45,12 @@ const bookingColumns = `
 	b.receiver_name, b.receiver_phone,
 	b.package_desc, b.package_weight::float8, b.package_type, b.package_size, b.is_fragile,
 	b.service_tier, COALESCE(b.serviceability_quote_id, ''), COALESCE(b.serviceability_quote_version, 0),
-	b.provider_id::text,
-	b.route_pickup_polyline, b.route_pickup_distance_m, b.route_pickup_duration_s,
-	b.route_dropoff_polyline, b.route_dropoff_distance_m, b.route_dropoff_duration_s,
-	b.cancel_reason,
+      b.rollout_protection_mode, b.rollout_policy_version, b.handover_required,
+      b.pickup_evidence_required, b.delivery_evidence_required, b.provider_transfer_required,
+      b.provider_id::text,
+      b.route_pickup_polyline, b.route_pickup_distance_m, b.route_pickup_duration_s,
+      b.route_dropoff_polyline, b.route_dropoff_distance_m, b.route_dropoff_duration_s,
+      b.cancel_reason,
 	b.cancelled_at, b.completed_at, b.created_at, b.updated_at`
 
 const derivedStateSelect = `
@@ -72,10 +74,11 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 			dropoff_address, dropoff_lat, dropoff_lng,
 			distance_km, fare_amount, currency,
 			payment_method, payment_status,
-			receiver_name, receiver_phone,
+			receiver_name, receiver_phone, receiver_email, receiver_customer_id,
 			package_desc, package_weight, package_type, package_size, is_fragile,
-			service_tier
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+			service_tier, rollout_protection_mode, rollout_policy_version,
+			handover_required, pickup_evidence_required, delivery_evidence_required, provider_transfer_required
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NULLIF($17,'')::uuid,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
 		RETURNING id::text, created_at, updated_at
 	`,
 		booking.CustomerID, booking.Status,
@@ -83,9 +86,10 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 		booking.DropoffAddress, booking.DropoffLat, booking.DropoffLng,
 		booking.DistanceKM, booking.FareAmount, booking.Currency,
 		booking.PaymentMethod, booking.PaymentStatus,
-		booking.ReceiverName, booking.ReceiverPhone,
+		booking.ReceiverName, booking.ReceiverPhone, booking.ReceiverEmail, booking.ReceiverCustomerID,
 		booking.PackageDesc, booking.PackageWeight, booking.PackageType, booking.PackageSize, booking.IsFragile,
-		booking.ServiceTier,
+		booking.ServiceTier, booking.RolloutProtectionMode, booking.RolloutPolicyVersion,
+		booking.HandoverRequired, booking.PickupEvidenceRequired, booking.DeliveryEvidenceRequired, booking.ProviderTransferRequired,
 	)
 	if err := row.Scan(&booking.ID, &booking.CreatedAt, &booking.UpdatedAt); err != nil {
 		return Booking{}, err
@@ -105,9 +109,12 @@ func (r *PostgresRepository) InsertIdempotent(ctx context.Context, booking Booki
 			payment_method,payment_status,receiver_name,receiver_phone,package_desc,
 			package_weight,package_type,package_size,is_fragile,service_tier,
 			serviceability_quote_id,serviceability_quote_version,serviceability_quote_fingerprint,
-			create_idempotency_key,create_request_fingerprint
+			create_idempotency_key,create_request_fingerprint,
+			rollout_protection_mode,rollout_policy_version,handover_required,
+			pickup_evidence_required,delivery_evidence_required,provider_transfer_required,
+			receiver_email,receiver_customer_id
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-			NULLIF($22,''),NULLIF($23,0),$24,$25,$26)
+			NULLIF($22,''),NULLIF($23,0),$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,NULLIF($34,'')::uuid)
 		ON CONFLICT (customer_id,create_idempotency_key)
 		WHERE create_idempotency_key IS NOT NULL DO NOTHING
 		RETURNING id::text,created_at,updated_at`,
@@ -115,7 +122,10 @@ func (r *PostgresRepository) InsertIdempotent(ctx context.Context, booking Booki
 		booking.DropoffAddress, booking.DropoffLat, booking.DropoffLng, booking.DistanceKM, booking.FareAmount,
 		booking.Currency, booking.PaymentMethod, booking.PaymentStatus, booking.ReceiverName, booking.ReceiverPhone,
 		booking.PackageDesc, booking.PackageWeight, booking.PackageType, booking.PackageSize, booking.IsFragile,
-		booking.ServiceTier, quoteID, quoteVersion, quoteFingerprint, key, fingerprint)
+		booking.ServiceTier, quoteID, quoteVersion, quoteFingerprint, key, fingerprint,
+		booking.RolloutProtectionMode, booking.RolloutPolicyVersion, booking.HandoverRequired,
+		booking.PickupEvidenceRequired, booking.DeliveryEvidenceRequired, booking.ProviderTransferRequired,
+		booking.ReceiverEmail, booking.ReceiverCustomerID)
 	if err := row.Scan(&booking.ID, &booking.CreatedAt, &booking.UpdatedAt); err == nil {
 		return booking, false, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -358,6 +368,8 @@ func scanDerivedState(row rowScanner) (DerivedState, error) {
 		&state.Booking.ReceiverName, &state.Booking.ReceiverPhone,
 		&state.Booking.PackageDesc, &packageWeight, &state.Booking.PackageType, &state.Booking.PackageSize, &state.Booking.IsFragile,
 		&state.Booking.ServiceTier, &state.Booking.ServiceabilityQuoteRef, &state.Booking.ServiceabilityQuoteVersion,
+		&state.Booking.RolloutProtectionMode, &state.Booking.RolloutPolicyVersion, &state.Booking.HandoverRequired,
+		&state.Booking.PickupEvidenceRequired, &state.Booking.DeliveryEvidenceRequired, &state.Booking.ProviderTransferRequired,
 		&providerID,
 		&state.Booking.RoutePickupPolyline, &state.Booking.RoutePickupDistanceM, &state.Booking.RoutePickupDurationS,
 		&state.Booking.RouteDropoffPolyline, &state.Booking.RouteDropoffDistanceM, &state.Booking.RouteDropoffDurationS,

@@ -145,6 +145,13 @@ func (r *Repository) ReconcileAssigned(ctx context.Context, fact runtimeFact, no
 	}
 	version := currentVersion + 1
 	if replacementState == "MATCHING" || replacementState == "REQUIRED" {
+		var currentProvider string
+		if err = tx.QueryRow(ctx, `SELECT COALESCE(current_provider_id::text,'') FROM commerce_missions WHERE id=$1::uuid`, fact.MissionID).Scan(&currentProvider); err != nil {
+			return err
+		}
+		if err = r.assignCustodyReplacementTx(ctx, tx, fact.MissionID, currentProvider, fact.ProviderID, "reconcile:"+fact.MissionRef+":"+fact.ProviderID, now); err != nil {
+			return err
+		}
 		if _, err = tx.Exec(ctx, `UPDATE commerce_missions SET replacement_provider_id=$2::uuid,replacement_trip_id=NULLIF($3,'')::uuid,replacement_state='ASSIGNED',runtime_state='TRANSFER_PENDING',queue_state='ASSIGNED',source_version=$4,updated_at=$5 WHERE id=$1::uuid`, fact.MissionID, fact.ProviderID, fact.TripID, version, now); err != nil {
 			return err
 		}
@@ -196,6 +203,12 @@ func (r *Repository) ReconcileCompleted(ctx context.Context, fact runtimeFact, n
 		return apperrors.New(409, "MISSION_COMPLETION_EVIDENCE_INCOMPLETE", "Mission cannot complete while a stop or parcel is outside a terminal delivery path.", nil)
 	}
 	version++
+	// Custody accounts for every required manifest before the mission may
+	// complete. An unaccounted manifest refuses completion rather than
+	// recording a delivery nobody can evidence.
+	if err = r.deliverCustodyTx(ctx, tx, fact.MissionID, fact.ProviderID, "complete:"+fact.MissionRef, version); err != nil {
+		return err
+	}
 	if _, err = tx.Exec(ctx, `UPDATE commerce_missions SET runtime_state='COMPLETED',queue_state='COMPLETED',source_version=$2,completed_at=$3,updated_at=$3 WHERE id=$1::uuid`, fact.MissionID, version, now); err != nil {
 		return err
 	}

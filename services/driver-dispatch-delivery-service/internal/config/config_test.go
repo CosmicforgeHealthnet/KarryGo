@@ -138,8 +138,13 @@ func TestLoadCanonicalAssignmentFlags(t *testing.T) {
 	t.Setenv("DISPATCH_RIDER_OTP_SECRET", "env-otp-secret")
 	t.Setenv("WALLET_SERVICE_SECRET", "env-wallet-secret")
 	t.Setenv("DISPATCH_SEQUENTIAL_MATCHING_ENABLED", "true")
+	t.Setenv("DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS", "express")
 	t.Setenv("DISPATCH_QUEUE_ENABLED", "true")
 	t.Setenv("DISPATCH_MULTI_STOP_MISSIONS_ENABLED", "true")
+	t.Setenv("DISPATCH_HANDOVER_CHALLENGE_ENABLED", "true")
+	t.Setenv("DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", "true")
+	t.Setenv("DISPATCH_DELIVERY_EVIDENCE_GATE_ENABLED", "true")
+	t.Setenv("DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES", "VENDOR_COMMERCE")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
@@ -149,19 +154,61 @@ func TestLoadCanonicalAssignmentFlags(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnsafeRolloutDependencies(t *testing.T) {
+	base := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("DISPATCH_RIDER_ACCESS_TOKEN_SECRET", "env-access-secret")
+		t.Setenv("DISPATCH_RIDER_REFRESH_TOKEN_SECRET", "env-refresh-secret")
+		t.Setenv("DISPATCH_RIDER_OTP_SECRET", "env-otp-secret")
+		t.Setenv("WALLET_SERVICE_SECRET", "env-wallet-secret")
+	}
+	t.Run("evidence requires handover", func(t *testing.T) {
+		base(t)
+		t.Setenv("DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", "true")
+		if _, err := Load(); err == nil {
+			t.Fatal("evidence gate accepted without secure handover")
+		}
+	})
+	t.Run("handover requires server cohort", func(t *testing.T) {
+		base(t)
+		t.Setenv("DISPATCH_HANDOVER_CHALLENGE_ENABLED", "true")
+		if _, err := Load(); err == nil {
+			t.Fatal("handover accepted without a server-owned cohort")
+		}
+	})
+	t.Run("multi stop requires protected vendor cohort", func(t *testing.T) {
+		base(t)
+		t.Setenv("DISPATCH_MULTI_STOP_MISSIONS_ENABLED", "true")
+		t.Setenv("DISPATCH_HANDOVER_CHALLENGE_ENABLED", "true")
+		t.Setenv("DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", "true")
+		t.Setenv("DISPATCH_DELIVERY_EVIDENCE_GATE_ENABLED", "true")
+		t.Setenv("DISPATCH_HANDOVER_ROLLOUT_SOURCE_TYPES", "CUSTOMER")
+		if _, err := Load(); err == nil {
+			t.Fatal("multi-stop accepted without the protected Vendor Commerce cohort")
+		}
+	})
+	t.Run("sequential requires controlled tier cohort", func(t *testing.T) {
+		base(t)
+		t.Setenv("DISPATCH_SEQUENTIAL_MATCHING_ENABLED", "true")
+		if _, err := Load(); err == nil {
+			t.Fatal("sequential matching accepted without a controlled service-tier cohort")
+		}
+	})
+}
+
 func TestLoadSecureHandoverDefaultsAreSafe(t *testing.T) {
 	t.Setenv("DISPATCH_RIDER_ACCESS_TOKEN_SECRET", "env-access-secret")
 	t.Setenv("DISPATCH_RIDER_REFRESH_TOKEN_SECRET", "env-refresh-secret")
 	t.Setenv("DISPATCH_RIDER_OTP_SECRET", "env-otp-secret")
 	t.Setenv("WALLET_SERVICE_SECRET", "env-wallet-secret")
-	for _, key := range []string{"DISPATCH_HANDOVER_CHALLENGE_ENABLED", "DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", "DISPATCH_DELIVERY_EVIDENCE_GATE_ENABLED", "DISPATCH_HANDOVER_QR_ENABLED", "DELIVERY_HANDOVER_SMS_ALLOWED"} {
+	for _, key := range []string{"DISPATCH_HANDOVER_CHALLENGE_ENABLED", "DISPATCH_PICKUP_EVIDENCE_GATE_ENABLED", "DISPATCH_DELIVERY_EVIDENCE_GATE_ENABLED", "DISPATCH_HANDOVER_QR_ENABLED", "DISPATCH_VENDOR_OWNED_HANDOVER_ENABLED", "DELIVERY_HANDOVER_SMS_ALLOWED"} {
 		t.Setenv(key, "")
 	}
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.HandoverChallengeEnabled || cfg.PickupEvidenceGateEnabled || cfg.DeliveryEvidenceGateEnabled || cfg.HandoverQREnabled || cfg.HandoverSMSAllowed {
+	if cfg.HandoverChallengeEnabled || cfg.PickupEvidenceGateEnabled || cfg.DeliveryEvidenceGateEnabled || cfg.HandoverQREnabled || cfg.HandoverSMSAllowed || cfg.VendorOwnedHandoverEnabled {
 		t.Fatalf("secure handover must default disabled: %+v", cfg)
 	}
 	if cfg.HandoverChallengeTTL != 15*time.Minute || cfg.HandoverCaptureSessionTTL != 10*time.Minute || cfg.HandoverResendCooldown != 45*time.Second || cfg.HandoverWorkerInterval != 30*time.Second {

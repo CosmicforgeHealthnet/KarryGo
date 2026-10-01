@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import '../state/dispatch_auth_controller.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -13,12 +15,9 @@ class OtpVerificationScreen extends StatefulWidget {
     required this.controller,
   });
 
-  /// The identifier (phone number or email) shown to the user.
   final String phone;
   final ValueChanged<String> onVerify;
   final VoidCallback onBack;
-
-  /// Called after a successful resend (e.g. to reset the UI timer externally).
   final VoidCallback onResend;
   final DispatchAuthController controller;
 
@@ -32,6 +31,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   int _secondsLeft = 120;
   bool _canResend = false;
+  bool _isLoading = false;
+  bool _hasVerified = false;
 
   @override
   void initState() {
@@ -42,9 +43,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
   }
 
-  /// Unfocus first (clears Flutter's internal "already focused" state),
-  /// then re-request after 1 frame — fix for the known Flutter bug where
-  /// requestFocus() is a no-op when keyboard was dismissed via back button.
   void _requestFocus() {
     _focusNode.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,218 +80,321 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: c.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Back arrow
-              GestureDetector(
-                onTap: widget.onBack,
-                child: const Padding(
-                  padding: EdgeInsets.only(top: 4, bottom: 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 20,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'OTP Confirmation!',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter the OTP sent to your phone or email.',
-                style: TextStyle(
-                  color: Color(0xFF888888),
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.phone,
-                style: const TextStyle(
-                  color: Color(0xFF05124D),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 28),
-              if (kDebugMode && widget.controller.debugOtp != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF05124D).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF05124D),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Your OTP code',
-                        style: TextStyle(
-                          color: Color(0xFF888888),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 550),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, t, child) {
+                    return Opacity(
+                      opacity: t,
+                      child: Transform.translate(
+                        offset: Offset(0, (1 - t) * 18),
+                        child: child,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.controller.debugOtp!,
-                        style: const TextStyle(
-                          color: Color(0xFF05124D),
-                          fontSize: 36,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-              const Text(
-                'Enter OTP',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
+                    );
+                  },
+                  child: _buildContent(),
                 ),
               ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: _requestFocus,
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _otpController,
-                  builder: (context, value, _) => _OtpSlots(value: value.text),
-                ),
-              ),
-              // Hidden real text field
-              SizedBox(
-                height: 1,
-                child: Opacity(
-                  opacity: 0.01,
-                  child: TextField(
-                    focusNode: _focusNode,
-                    controller: _otpController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(counterText: ''),
-                    onChanged: (v) => setState(() {}),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  GestureDetector(
-                    onTap: _canResend && !_isLoading ? _resend : null,
-                    child: Text(
-                      'Resend Code',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _canResend
-                            ? const Color(0xFF05124D)
-                            : const Color(0xFFAAAAAA),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  if (!_canResend)
-                    Text(
-                      _timerText,
-                      style: const TextStyle(
-                        color: Color(0xFF05124D),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  _buildVerifyButton(),
+                  const SizedBox(height: 20),
                 ],
               ),
-              const SizedBox(height: 48),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _otpController,
-                builder: (context, value, _) {
-                  final canContinue = value.text.length == 6;
-                  return SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: canContinue && !_isLoading && !_hasVerified
-                          ? _verify
-                          : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF05124D),
-                        disabledBackgroundColor: const Color(
-                          0xFF05124D,
-                        ).withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Continue',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  bool _isLoading = false;
+  Widget _buildContent() {
+    final c = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            GestureDetector(
+              onTap: widget.onBack,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                child: Icon(
+                  Icons.arrow_back,
+                  size: 24,
+                  color: c.text,
+                ),
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: c.teal10,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: c.brandTeal500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '?',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: c.brandTeal500,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Help',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: c.brandTeal500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Verify your number',
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+            color: c.text,
+            letterSpacing: -0.6,
+            height: 1.15,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text.rich(
+          TextSpan(
+            text: "We've sent a 6-digit code to\n",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: c.textMuted,
+              height: 1.5,
+            ),
+            children: [
+              TextSpan(
+                text: widget.phone,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: c.text,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
 
-  /// Latched to true after the first successful verify so that the OTP screen
-  /// never re-submits while _handlePostVerify is running asynchronously.
-  bool _hasVerified = false;
+        if (kDebugMode && widget.controller.debugOtp != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: c.teal10,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: c.brandTeal500,
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'DEBUG — Your OTP code',
+                  style: TextStyle(
+                    color: c.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.controller.debugOtp!,
+                  style: TextStyle(
+                    color: c.text,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        GestureDetector(
+          onTap: _requestFocus,
+          behavior: HitTestBehavior.opaque,
+          child: ListenableBuilder(
+            listenable: Listenable.merge([_otpController, _focusNode]),
+            builder: (context, _) => _OtpSlots(
+              value: _otpController.text,
+              focused: _focusNode.hasFocus,
+            ),
+          ),
+        ),
+
+        SizedBox(
+          height: 1,
+          child: Opacity(
+            opacity: 0.01,
+            child: TextField(
+              focusNode: _focusNode,
+              controller: _otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              autofillHints: const [AutofillHints.oneTimeCode],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(counterText: ''),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+        Center(
+          child: GestureDetector(
+            onTap: _canResend && !_isLoading ? _resend : null,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text.rich(
+                TextSpan(
+                  text: "Didn't receive the code? ",
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: c.textMuted,
+                    height: 1.5,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: _canResend ? 'Resend' : 'Resend in $_timerText',
+                      style: TextStyle(
+                        color: _canResend ? c.brandTeal500 : c.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildVerifyButton() {
+    final c = context.palette;
+    final buttonGlow = c.brandTeal500.withValues(alpha: 0.20);
+
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _otpController,
+      builder: (context, value, _) {
+        final canContinue = value.text.length == 6;
+        final enabled = canContinue && !_isLoading && !_hasVerified;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          height: 58,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: enabled
+                ? [
+                    BoxShadow(
+                      color: buttonGlow,
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: FilledButton(
+            onPressed: enabled ? _verify : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: c.brandTeal500,
+              disabledBackgroundColor:
+                  c.brandTeal500.withValues(alpha: 0.45),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'Verify and continue',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
 
   void _resend() async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
 
     try {
-      // Use the controller's resendOtp which knows whether this is login or signup.
       final result = await widget.controller.resendOtp();
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -334,9 +435,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   void _verify() async {
-    // Guard: block if loading OR already successfully verified.
-    // _hasVerified stays true while _handlePostVerify runs asynchronously so
-    // the user cannot re-tap Continue and trigger a second /auth/verify call.
     if (_isLoading || _hasVerified) {
       debugPrint('[AUTH_UI] verify ignored — already submitting or verified');
       return;
@@ -356,15 +454,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       result.when(
         success: (data) {
-          // Do NOT reset _isLoading on success — keep the button disabled
-          // while _handlePostVerify runs /provider/me asynchronously.
-          // The OTP screen stays mounted until _go() replaces it.
           setState(() => _hasVerified = true);
           debugPrint('[AUTH_UI] verify success');
           widget.onVerify(otp);
         },
         failure: (error) {
-          // Only re-enable the button on failure so the user can correct and retry.
           setState(() => _isLoading = false);
           debugPrint('[AUTH_UI] verify failed: ${error.message}');
           messenger.showSnackBar(
@@ -390,41 +484,126 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 }
 
 class _OtpSlots extends StatelessWidget {
-  const _OtpSlots({required this.value});
+  const _OtpSlots({required this.value, required this.focused});
+
   final String value;
+  final bool focused;
 
   @override
   Widget build(BuildContext context) {
     final chars = value.split('').take(6).toList();
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(6, (i) {
-        final hasValue = i < chars.length;
-        final isActive = i == chars.length;
-        return Container(
-          width: 50,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: hasValue || isActive
-                  ? const Color(0xFF05124D)
-                  : const Color(0xFFE0E0E0),
-              width: hasValue || isActive ? 1.5 : 1.0,
+      children: [
+        for (int i = 0; i < 6; i++) ...[
+          Expanded(
+            child: _OtpSlot(
+              char: i < chars.length ? chars[i] : null,
+              isActive: focused && i == chars.length,
             ),
           ),
-          child: Text(
-            hasValue ? chars[i] : '',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A1A),
-            ),
-          ),
-        );
-      }),
+          if (i < 5) const SizedBox(width: 10),
+        ],
+      ],
+    );
+  }
+}
+
+class _OtpSlot extends StatelessWidget {
+  const _OtpSlot({required this.char, required this.isActive});
+
+  final String? char;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+    final focusRing = c.brandTeal500.withValues(alpha: 0.15);
+
+    final hasValue = char != null;
+    final Widget content;
+    if (hasValue) {
+      content = Text(
+        char!,
+        key: ValueKey(char),
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: c.text,
+        ),
+      );
+    } else if (isActive) {
+      content = const _BlinkingCaret(key: ValueKey('caret'));
+    } else {
+      content = const SizedBox.shrink(key: ValueKey('empty'));
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      height: 58,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasValue || isActive ? c.brandTeal500 : c.border,
+          width: hasValue || isActive ? 1.5 : 1,
+        ),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: focusRing,
+                  blurRadius: 0,
+                  spreadRadius: 4,
+                ),
+              ]
+            : const [],
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 160),
+        transitionBuilder: (child, animation) => ScaleTransition(
+          scale: animation,
+          child: FadeTransition(opacity: animation, child: child),
+        ),
+        child: content,
+      ),
+    );
+  }
+}
+
+class _BlinkingCaret extends StatefulWidget {
+  const _BlinkingCaret({super.key});
+
+  @override
+  State<_BlinkingCaret> createState() => _BlinkingCaretState();
+}
+
+class _BlinkingCaretState extends State<_BlinkingCaret>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 600),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette;
+    return FadeTransition(
+      opacity: _controller,
+      child: Container(
+        width: 2,
+        height: 24,
+        decoration: BoxDecoration(
+          color: c.brandTeal500,
+          borderRadius: BorderRadius.circular(1),
+        ),
+      ),
     );
   }
 }

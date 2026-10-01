@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:53:54.6795967+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/tools/migrate"}
+{"Time":"2026-09-27T16:53:54.6795967+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/tools/migrate","Output":"?   \tcosmicforge/logistics/services/vendor-service/tools/migrate\t[no test files]\n"}
+{"Time":"2026-09-27T16:53:54.6795967+02:00","Action":"skip","Package":"cosmicforge/logistics/services/vendor-service/tools/migrate","Elapsed":0}

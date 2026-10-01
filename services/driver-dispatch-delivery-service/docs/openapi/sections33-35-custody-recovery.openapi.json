@@ -1,0 +1,21 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "KarryGo Dispatch Custody Recovery API", "version": "1.0.0", "description": "Sections 33-35 authority-local Dispatch custody contract. Vendor is an authenticated orchestration/projection caller."},
+  "paths": {
+    "/api/v1/internal/custody/v1/manifests/freeze": {"post": {"operationId": "dispatchFreezeCustodyManifest", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Frozen"}, "409": {"description": "Conflicting manifest"}}}},
+    "/api/v1/internal/custody/v1/manifests/confirm": {"post": {"operationId": "dispatchConfirmExactPickupParcels", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Exact parcel set confirmed"}, "409": {"description": "Scope or version mismatch"}}}},
+    "/api/v1/internal/custody/v1/evidence": {"post": {"operationId": "dispatchRecordTypedCustodyEvidence", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Opaque media reference recorded"}, "422": {"description": "Media relationship rejected"}}}},
+    "/api/v1/internal/custody/v1/exceptions": {"post": {"operationId": "dispatchReportStructuredException", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Recovery recorded"}, "422": {"description": "Recovery disallowed"}}}},
+    "/api/v1/internal/custody/v1/returns": {"post": {"operationId": "dispatchStartExplicitReturn", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Return started"}}}},
+    "/api/v1/internal/custody/v1/returns/complete": {"post": {"operationId": "dispatchCompleteExplicitReturn", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Return custody completed"}}}},
+    "/api/v1/internal/custody/v1/incidents": {"post": {"operationId": "dispatchReportCustodyIncident", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Completion frozen"}}}},
+    "/api/v1/internal/custody/v1/replacements": {"post": {"operationId": "dispatchAssignCompatibleReplacement", "security": [{"serviceHmacV2": []}], "responses": {"201": {"description": "Transfer required"}}}},
+    "/api/v1/internal/custody/v1/transfers": {"post": {"operationId": "dispatchCompleteProviderCustodyTransfer", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Transfer completed atomically"}}}},
+    "/api/v1/internal/custody/v1/earning-allocations": {"post": {"operationId": "dispatchRecordWalletAllocationOutcome", "security": [{"serviceHmacV2": []}], "responses": {"200": {"description": "Bounded Wallet outcome recorded"}}}}
+  },
+  "components": {"securitySchemes": {"serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-KarryGo-Signature"}}, "schemas": {
+    "EvidenceType": {"type": "string", "enum": ["PICKUP", "DELIVERY", "DAMAGE", "DISCREPANCY", "FAILED_ATTEMPT", "RETURN", "PROVIDER_TRANSFER"]},
+    "ExceptionReason": {"type": "string", "enum": ["VENDOR_NOT_READY", "PACKAGE_MISMATCH", "PROHIBITED_OR_RESTRICTED_ITEM", "DAMAGED_PACKAGE", "RECEIVER_UNAVAILABLE", "RECEIVER_REFUSED", "WRONG_ADDRESS", "ADDRESS_INACCESSIBLE", "PROVIDER_BREAKDOWN", "WEATHER_OR_ROAD", "SECURITY_RISK"]},
+    "RecoveryAction": {"type": "string", "enum": ["WAIT", "RESCHEDULE", "ALTERNATIVE_RECEIVER", "RETURN_TO_SENDER", "RETURN_TO_VENDOR", "CONTROLLED_HOLDING", "PROVIDER_REPLACEMENT"]}
+  }}
+}

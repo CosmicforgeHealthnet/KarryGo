@@ -108,8 +108,16 @@ func (c *Client) decide(decision string) gin.HandlerFunc {
 	}
 }
 
+// Register mounts the provider-facing relay for Fleet's PRIVATE-assignment
+// family (/internal/fleet-partner/v1/private-assignments/...). It is a
+// different resource from the corporate company-assignment family that
+// RegisterFleetWork serves through the shared fleetproviderwork facade, and
+// it must not share that family's URL: gin panics at boot when two handlers
+// claim one path, which is exactly what happened while this relay was mounted
+// under /provider/company-assignments. The path now names the Fleet resource
+// the relay actually proxies, which is also what every error code here says.
 func Register(group *gin.RouterGroup, authService *providerauthusecases.AuthService, client *Client) {
-	provider := group.Group("/provider/company-assignments")
+	provider := group.Group("/provider/private-assignments")
 	provider.Use(sharedauth.BearerMiddleware(authService.AccessSigner(),
 		providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 	provider.GET("/:assignmentId", client.get)

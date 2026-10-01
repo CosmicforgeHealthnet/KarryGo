@@ -1,0 +1,21 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Private journey sharing metrics", "version": "1.0.0"},
+  "paths": {
+    "/internal/customer/v1/journey-share-metrics": {
+      "get": {
+        "operationId": "customerJourneyShareMetrics",
+        "description": "HMAC v2, admin-backoffice-service only, nonce replay protection. Never publicly forwarded. Names are bounded code-owned categories; no token, customer or source labels.",
+        "security": [{"HMACv2": []}],
+        "responses": {
+          "200": {"description": "Process counters and duration sums", "content": {"application/json": {"schema": {"type": "object", "required": ["success", "data"], "properties": {"success": {"type": "boolean"}, "data": {"type": "object", "properties": {"counts": {"type": "object", "additionalProperties": {"type": "integer", "format": "int64"}}, "duration_nanoseconds": {"type": "object", "additionalProperties": {"type": "integer", "format": "int64"}}}}}}}}},
+          "401": {"description": "Missing, invalid or stale signature"},
+          "403": {"description": "Caller not allowed"},
+          "409": {"description": "Nonce replay"},
+          "503": {"description": "Nonce store unavailable"}
+        }
+      }
+    }
+  },
+  "components": {"securitySchemes": {"HMACv2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Also requires X-Service-Name, X-Service-Timestamp, X-Service-Nonce, X-Service-Signature-Version=2; signed request URI."}}}
+}

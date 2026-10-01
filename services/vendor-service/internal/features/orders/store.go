@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -30,6 +31,9 @@ type queryer interface {
 type Store struct {
 	db     *pgxpool.Pool
 	outbox *vendorevents.DomainPublisher
+
+	// customerMovements enables the Customer V4 purchase Activity row.
+	customerMovements bool
 }
 
 // NewStore builds the order store.
@@ -47,8 +51,8 @@ const parentColumns = `
 	p.id,p.customer_id,p.quote_id,p.quote_version,p.quote_fingerprint,
 	p.checkout_session_id,p.checkout_validation_revision,p.cart_id,p.cart_version,
 	p.fulfilment_plan_id,p.fulfilment_plan_revision,p.fulfilment_plan_version,
-	p.domain,p.currency,p.selected_fulfilment_mode,p.address_snapshot,
-	p.has_receiver,p.receiver_snapshot,
+	p.domain,p.currency,p.selected_fulfilment_mode,COALESCE(p.operational_address_snapshot,p.address_snapshot),
+	p.has_receiver,COALESCE(p.operational_receiver_snapshot,p.receiver_snapshot),
 	p.customer_approved_total_minor,p.max_authorized_total_minor,
 	p.product_subtotal_minor,p.delivery_subtotal_minor,p.fee_subtotal_minor,
 	p.tax_subtotal_minor,p.discount_total_minor,p.subsidy_total_minor,
@@ -211,6 +215,9 @@ func (s *Store) Create(
 		ActionOrderCreated, "CUSTOMER", source.CustomerID, "", string(ParentStateCreated), now); err != nil {
 		return ParentOrder{}, false, err
 	}
+	if err = appendCustomerOrderMovement(ctx, tx, s.movements(), parentID); err != nil {
+		return ParentOrder{}, false, err
+	}
 
 	created, err := loadParent(ctx, tx, source.CustomerID, parentID)
 	if err != nil {
@@ -270,9 +277,13 @@ func insertVendorOrders(
 				customer_payable_minor,vendor_payable_minor,
 				reservation_required,inventory_reservation_ref,inventory_reservation_source_ref,
 				fulfilment_mode,logistics_plan_group_ref,logistics_mission_ref,
-				vendor_own_delivery_state,promotion_snapshot,delivery_funding_snapshot,status,version,created_at,updated_at)
+				vendor_own_delivery_state,promotion_snapshot,delivery_funding_snapshot,status,version,created_at,updated_at,
+				inventory_state)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-			       $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,'CREATED',1,$35,$35)`,
+			       $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,'CREATED',1,$35,$35,
+			       -- A line with no stock reservation (Food) has nothing to hold;
+			       -- the column default HELD would violate the inventory-state check.
+			       CASE WHEN $26::boolean THEN 'HELD' ELSE 'NOT_REQUIRED' END)`,
 			vendorOrderID, parentID, source.CustomerID, vendor.BusinessID, vendor.BranchID,
 			group.Domain, source.Currency, vendor.QuoteGroupRef,
 			vendor.ProductSubtotalMinor, vendor.MaxProductSubtotalMinor,
@@ -371,6 +382,9 @@ func insertVendorOrderLines(
 		if line.Domain == "SHOP" || vendor.Domain == "SHOP" {
 			mode := strings.TrimSpace(line.MeasurementMode)
 			if mode == "" {
+				if line.PricingBasis == "VARIABLE_MEASURE" {
+					return ErrQuoteNotOrderable
+				}
 				mode = "FIXED_UNIT"
 			}
 			policy := strings.TrimSpace(line.SubstitutionPolicy)
@@ -445,9 +459,10 @@ func insertVendorOrderLines(
 					return ErrQuoteNotOrderable
 				}
 				estimate := line.ExpectedMeasureQuantity
-				if estimate <= 0 {
+				if estimate <= 0 || line.Quantity <= 0 || estimate > math.MaxInt64/line.Quantity {
 					return ErrQuoteNotOrderable
 				}
+				estimate *= line.Quantity
 				hardMax := upperQuantity
 				if hardMax < estimate {
 					hardMax = estimate + line.MeasurementToleranceQuantity
@@ -551,15 +566,38 @@ func appendEvent(
 	if err != nil {
 		return err
 	}
-	if outbox != nil && vendorOrderID != "" {
-		return outbox.Publish(ctx, tx, action, "VendorOrder", vendorOrderID, aggregateVersion, vendorBusinessID, actorRef, actorRef, map[string]any{
+	if outbox != nil {
+		aggregateType := "ParentOrder"
+		aggregateID := parentID
+		payload := map[string]any{
 			"from": from, "to": to,
 			"parent_order_ref": parentID,
 			"vendor_order_ref": vendorOrderID,
 			"customer_ref":     customerID,
 			"business_ref":     vendorBusinessID,
 			"source_version":   aggregateVersion,
-		})
+		}
+		if vendorOrderID != "" {
+			aggregateType = "VendorOrder"
+			aggregateID = vendorOrderID
+		} else if action == ActionOrderCreated {
+			var quoteRef, currency string
+			var quoteVersion, vendorOrderCount int64
+			if err := tx.QueryRow(ctx, `SELECT quote_id,quote_version,currency,vendor_order_count FROM commerce_parent_orders WHERE id=$1`, parentID).
+				Scan(&quoteRef, &quoteVersion, &currency, &vendorOrderCount); err != nil {
+				return err
+			}
+			payload = map[string]any{
+				"parent_order_ref":   parentID,
+				"quote_ref":          quoteRef,
+				"quote_version":      quoteVersion,
+				"order_version":      aggregateVersion,
+				"vendor_order_count": vendorOrderCount,
+				"currency":           currency,
+				"occurred_at":        now.UTC(),
+			}
+		}
+		return outbox.Publish(ctx, tx, action, aggregateType, aggregateID, aggregateVersion, vendorBusinessID, actorRef, actorRef, payload)
 	}
 	return nil
 }
@@ -625,7 +663,12 @@ func loadParent(ctx context.Context, q queryer, customerID, orderID string) (Par
 	// latest applied address and plan.
 	var appliedAddress []byte
 	var appliedPlan string
-	if overlayErr := q.QueryRow(ctx, `SELECT applied_address_snapshot,applied_fulfilment_plan_id FROM commerce_order_change_applications WHERE parent_order_id=$1 ORDER BY applied_at DESC,id DESC LIMIT 1`, order.ID).Scan(&appliedAddress, &appliedPlan); overlayErr == nil {
+	if overlayErr := q.QueryRow(ctx, `SELECT a.applied_address_snapshot,a.applied_fulfilment_plan_id
+		FROM commerce_order_change_applications a
+		WHERE a.parent_order_id=$1
+		  AND NOT EXISTS (SELECT 1 FROM vendor_privacy_retention_jobs j
+		                  WHERE j.parent_order_id=a.parent_order_id AND j.status='MINIMIZED')
+		ORDER BY a.applied_at DESC,a.id DESC LIMIT 1`, order.ID).Scan(&appliedAddress, &appliedPlan); overlayErr == nil {
 		if jsonErr := json.Unmarshal(appliedAddress, &order.Address); jsonErr != nil {
 			return ParentOrder{}, jsonErr
 		}
@@ -1016,6 +1059,13 @@ func (s *Store) Transition(
 		return VendorOrder{}, ParentOrder{}, err
 	}
 	if request.Transition == TransitionPack {
+		var unsettledRefunds int
+		if err = tx.QueryRow(ctx, `SELECT count(*) FROM commerce_refund_policy_decisions WHERE vendor_order_id=$1 AND wallet_status <> 'APPLIED'`, current.ID).Scan(&unsettledRefunds); err != nil {
+			return VendorOrder{}, ParentOrder{}, err
+		}
+		if unsettledRefunds != 0 {
+			return VendorOrder{}, ParentOrder{}, ErrOrderConflict
+		}
 		var pending int
 		if err = tx.QueryRow(ctx, `SELECT count(*) FROM commerce_substitution_proposals WHERE vendor_order_id=$1 AND status='PENDING' AND (expires_at IS NULL OR expires_at>$2)`, current.ID, now).Scan(&pending); err != nil {
 			return VendorOrder{}, ParentOrder{}, err
@@ -1051,7 +1101,10 @@ func (s *Store) Transition(
 			return VendorOrder{}, ParentOrder{}, ErrOrderConflict
 		}
 		if err = tx.QueryRow(ctx, `SELECT count(*) FROM commerce_variable_measurements m
-			WHERE m.vendor_order_id=$1 AND m.financial_state <> 'FINALIZED'`, current.ID).Scan(&blocked); err != nil {
+			JOIN commerce_vendor_order_lines l ON l.id=m.order_line_id
+			LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=m.order_line_id
+			WHERE m.vendor_order_id=$1 AND (m.financial_state <> 'FINALIZED'
+			 OR (l.pricing_basis='VARIABLE_MEASURE' AND m.actual_quantity<>COALESCE(o.actual_measure_quantity,0)))`, current.ID).Scan(&blocked); err != nil {
 			return VendorOrder{}, ParentOrder{}, err
 		}
 		if blocked > 0 {
@@ -1113,7 +1166,7 @@ func (s *Store) Transition(
 	}
 
 	parent, err := refreshParentState(
-		ctx, tx, parentID, customerID, previousState, platformFeeTax, now,
+		ctx, tx, parentID, customerID, previousState, platformFeeTax, now, s.movements(),
 	)
 	if err != nil {
 		return VendorOrder{}, ParentOrder{}, err
@@ -1139,6 +1192,7 @@ func refreshParentState(
 	parentID, customerID, previousState string,
 	platformFeeTaxMinor int64,
 	now time.Time,
+	movements *vendorevents.DomainPublisher,
 ) (ParentOrder, error) {
 	// Only the children's status and prepared amounts matter here, so this
 	// deliberately does not reload every line and allocation of every sibling
@@ -1191,6 +1245,9 @@ func refreshParentState(
 	if previousState != string(state) {
 		if err = appendEvent(ctx, tx, nil, parentID, "", customerID,
 			ActionOrderStateChanged, "SYSTEM", "", previousState, string(state), now); err != nil {
+			return ParentOrder{}, err
+		}
+		if err = appendCustomerOrderMovement(ctx, tx, movements, parentID); err != nil {
 			return ParentOrder{}, err
 		}
 	}

@@ -53,7 +53,7 @@ func referralTestPool(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	for _, file := range []string{"001_dispatch_rider_auth.sql", "002_dispatch_rider_auth_alter.sql", "003_dispatch_rider_auth_signup.sql",
 		"000004_create_providers.up.sql", "000011_create_verification_audit.up.sql", "000012_expand_verification_audit_actions.up.sql",
-		"000013_add_fully_approved_audit.up.sql", "000054_referral_outbox.up.sql"} {
+		"000013_add_fully_approved_audit.up.sql", "000068_referral_outbox.up.sql"} {
 		sql, err := os.ReadFile("../../../../migrations/" + file)
 		if err != nil {
 			t.Fatal(err)

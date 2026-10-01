@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -246,17 +247,58 @@ func (r *OutboxRepository) PendingCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+// OutboxMetrics is a low-cardinality queue snapshot. It intentionally exposes
+// no event, aggregate, customer or business identifiers.
+type OutboxMetrics struct {
+	PendingCount         int64
+	DeadLetterCount      int64
+	OldestPendingSeconds float64
+}
+
+// Metrics reports the backlog/dead-letter signals required by the service's
+// existing logging/metrics adapters.
+func (r *OutboxRepository) Metrics(ctx context.Context) (OutboxMetrics, error) {
+	var metrics OutboxMetrics
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			count(*) FILTER (WHERE status=$1),
+			count(*) FILTER (WHERE status=$2),
+			COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at)
+				FILTER (WHERE status=$1))), 0)
+		FROM vendor_outbox`, OutboxStatusPending, OutboxStatusDeadLettered).Scan(
+		&metrics.PendingCount,
+		&metrics.DeadLetterCount,
+		&metrics.OldestPendingSeconds,
+	)
+	return metrics, err
+}
+
 // RedactError trims error text to a bounded, credential-free summary.
 func RedactError(err error) string {
 	if err == nil {
 		return ""
 	}
 	message := err.Error()
+	for _, rule := range secretErrorRules {
+		message = rule.pattern.ReplaceAllString(message, rule.replacement)
+	}
+	message = longDigitRun.ReplaceAllString(message, "[REDACTED_PAN]")
 	if len(message) > 300 {
 		message = message[:300]
 	}
 	return message
 }
+
+var secretErrorRules = []struct {
+	pattern     *regexp.Regexp
+	replacement string
+}{
+	{regexp.MustCompile(`(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?i)(["']?(?:otp|qr|cvv|password|passcode|access[_-]?token|refresh[_-]?token|session[_-]?token|payment[_-]?credential|bank[_-]?credential|api[_-]?key|hmac[_-]?secret|service[_-]?secret|gateway[_-]?secret|private[_-]?key|card[_-]?pan)["']?\s*[:=]\s*)["']?[^\s,;}]+`), `${1}[REDACTED]`},
+}
+
+var longDigitRun = regexp.MustCompile(`\b[0-9][0-9 -]{10,21}[0-9]\b`)
 
 // DomainPublisher appends domain events onto the outbox inside the caller's
 // transaction, which is what makes "state changed" and "event recorded"

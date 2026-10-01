@@ -46,6 +46,12 @@ func NewDurableBookingNotifier(client *redis.Client) *BookingNotifier {
 	return NewBookingNotifierWith(redisQueueNotifier{publisher: notifications.RedisPublisher{Client: client}})
 }
 
+// NewDurableQueue is the same durable Redis queue, for senders that build
+// their own requests (Section 14 recovery notifications).
+func NewDurableQueue(client *redis.Client) notifications.Notifier {
+	return redisQueueNotifier{publisher: notifications.RedisPublisher{Client: client}}
+}
+
 type redisQueueNotifier struct{ publisher notifications.RedisPublisher }
 
 func (n redisQueueNotifier) Send(ctx context.Context, request notifications.Request) (notifications.SendResponse, error) {
@@ -98,8 +104,8 @@ func (n *BookingNotifier) NotifyCustomerPickupVerificationRequired(ctx context.C
 }
 
 // NotifyCustomerDeliveryCodeReady tells the customer their delivery
-// verification code is ready to share with the driver. The code is included
-// in data so it can be surfaced in the notification body.
+// verification code is ready to retrieve after receiver verification. No
+// handover credential enters Notification Service.
 func (n *BookingNotifier) NotifyCustomerDeliveryCodeReady(ctx context.Context, customerID, bookingID string, data map[string]interface{}) {
 	n.send(ctx, notifications.EventBookingDeliveryCodeReady, notifications.RecipientCustomer, customerID, bookingID, data)
 }
@@ -148,8 +154,15 @@ func (n *BookingNotifier) send(ctx context.Context, eventType, recipientType, re
 	if recipientID == "" {
 		return
 	}
+	dedupeRef := bookingID + ":" + recipientID
+	// Credential resends are distinct logical deliveries. Use only the safe
+	// challenge reference—not either bearer secret—to keep each version
+	// independently deliverable while retrying the same version remains deduped.
+	if challengeRef, ok := data["challenge_ref"].(string); ok && challengeRef != "" {
+		dedupeRef += ":" + challengeRef
+	}
 	_, err := n.notifier.Send(ctx, notifications.Request{
-		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, bookingID+":"+recipientID),
+		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, dedupeRef),
 		SourceService:  sourceService,
 		EventType:      eventType,
 		Recipient: notifications.Recipient{

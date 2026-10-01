@@ -15,6 +15,7 @@ package main
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -300,15 +301,21 @@ func (a *section17CLogisticsAuthority) applyShopSellUnit(
 		baseFamily     *string
 		baseQuantity   *int64
 		estimated      *int64
+		overfillBPS    int64
+		calibratedGram *int64
+		toleranceBPS   *int64
 	)
 
 	err := a.db.QueryRow(ctx, `
-		SELECT conversion_type, exact_base_family, exact_base_quantity,
-		       estimated_base_quantity
-		  FROM shop_sell_units
-		 WHERE id = $1 AND business_id = $2 AND variant_id = $3`,
+		SELECT su.conversion_type, su.exact_base_family, su.exact_base_quantity,
+		       su.estimated_base_quantity, COALESCE(su.overfill_tolerance_bps,0),
+		       c.approximate_weight_grams, c.tolerance_bps
+		  FROM shop_sell_units su
+		  LEFT JOIN shop_measure_calibrations c
+		    ON c.id = su.calibration_id AND c.business_id = su.business_id AND c.status = 'ACTIVE'
+		 WHERE su.id = $1 AND su.business_id = $2 AND su.variant_id = $3`,
 		sellUnitRef, businessID, variantID,
-	).Scan(&conversionType, &baseFamily, &baseQuantity, &estimated)
+	).Scan(&conversionType, &baseFamily, &baseQuantity, &estimated, &overfillBPS, &calibratedGram, &toleranceBPS)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -328,6 +335,16 @@ func (a *section17CLogisticsAuthority) applyShopSellUnit(
 		switch strings.ToUpper(strings.TrimSpace(*baseFamily)) {
 		case "MASS":
 			grams := *baseQuantity
+			if line.MeasureQuantity > 0 {
+				if line.Quantity <= 0 || grams > math.MaxInt64/line.MeasureQuantity {
+					return errors.New("measured logistics weight overflow")
+				}
+				total := grams * line.MeasureQuantity
+				grams = total / line.Quantity
+				if total%line.Quantity != 0 {
+					grams++
+				}
+			}
 			profile.WeightGrams = &grams
 
 			// The variant's own volume describes a whole variant unit, not
@@ -355,7 +372,20 @@ func (a *section17CLogisticsAuthority) applyShopSellUnit(
 		profile.WeightGrams = nil
 		profile.VolumeMl = nil
 
-		if estimated != nil && *estimated > 0 {
+		// Variable-measurement goods still need a safe PRE-PICK planning
+		// weight (Karryam V4 §14.6). The vendor's own calibration states an
+		// approximate weight and a tolerance; planning uses the tolerance-
+		// inflated UPPER bound, so an approximation can only ever size the
+		// vehicle up, never down. The measured weight later drives post-pick
+		// re-evaluation. Without a calibrated weight nothing is invented.
+		if calibratedGram != nil && *calibratedGram > 0 {
+			bps := overfillBPS
+			if toleranceBPS != nil && *toleranceBPS > bps {
+				bps = *toleranceBPS
+			}
+			upper := (*calibratedGram*(10_000+bps) + 9_999) / 10_000
+			profile.WeightGrams = &upper
+		} else if estimated != nil && *estimated > 0 {
 			profile.PackageSizeClass = approximateSizeClass(*estimated)
 		}
 

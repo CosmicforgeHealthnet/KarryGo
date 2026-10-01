@@ -69,6 +69,8 @@ type Booking struct {
 	PaymentRef                 string   `json:"-"`
 	ReceiverName               string   `json:"receiver_name"`
 	ReceiverPhone              string   `json:"receiver_phone"`
+	ReceiverEmail              string   `json:"-"`
+	ReceiverCustomerID         string   `json:"-"`
 	PackageDesc                string   `json:"package_desc"`
 	PackageWeight              *float64 `json:"package_weight,omitempty"`
 	PackageType                string   `json:"package_type"`
@@ -77,21 +79,31 @@ type Booking struct {
 	ServiceTier                string   `json:"service_tier"`
 	ServiceabilityQuoteRef     string   `json:"serviceability_quote_ref,omitempty"`
 	ServiceabilityQuoteVersion int64    `json:"serviceability_quote_version,omitempty"`
-	ProviderID                 string   `json:"provider_id,omitempty"`
+
+	RolloutProtectionMode    string `json:"rollout_protection_mode,omitempty"`
+	RolloutPolicyVersion     string `json:"rollout_policy_version,omitempty"`
+	HandoverRequired         bool   `json:"handover_required,omitempty"`
+	PickupEvidenceRequired   bool   `json:"pickup_evidence_required,omitempty"`
+	DeliveryEvidenceRequired bool   `json:"delivery_evidence_required,omitempty"`
+	ProviderTransferRequired bool   `json:"provider_transfer_required,omitempty"`
+
+	ProviderID string `json:"provider_id,omitempty"`
+
 	// Route geometry for the customer's map. The pickup leg only appears
 	// once a rider is assigned; both are absent when no routing API key is
 	// configured and the app falls back to a straight line.
-	RoutePickupPolyline   string     `json:"route_pickup_polyline,omitempty"`
-	RoutePickupDistanceM  *int64     `json:"route_pickup_distance_m,omitempty"`
-	RoutePickupDurationS  *int64     `json:"route_pickup_duration_s,omitempty"`
-	RouteDropoffPolyline  string     `json:"route_dropoff_polyline,omitempty"`
-	RouteDropoffDistanceM *int64     `json:"route_dropoff_distance_m,omitempty"`
-	RouteDropoffDurationS *int64     `json:"route_dropoff_duration_s,omitempty"`
-	CancelReason          string     `json:"cancel_reason,omitempty"`
-	CancelledAt           *time.Time `json:"cancelled_at,omitempty"`
-	CompletedAt           *time.Time `json:"completed_at,omitempty"`
-	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
+	RoutePickupPolyline   string `json:"route_pickup_polyline,omitempty"`
+	RoutePickupDistanceM  *int64 `json:"route_pickup_distance_m,omitempty"`
+	RoutePickupDurationS  *int64 `json:"route_pickup_duration_s,omitempty"`
+	RouteDropoffPolyline  string `json:"route_dropoff_polyline,omitempty"`
+	RouteDropoffDistanceM *int64 `json:"route_dropoff_distance_m,omitempty"`
+	RouteDropoffDurationS *int64 `json:"route_dropoff_duration_s,omitempty"`
+
+	CancelReason string     `json:"cancel_reason,omitempty"`
+	CancelledAt  *time.Time `json:"cancelled_at,omitempty"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // DerivedState is the joined broadcast + trip state used to compute the
@@ -104,7 +116,7 @@ type DerivedState struct {
 	TripProviderID  string
 
 	// Delivery handover credential (customer's own code, verified by the
-	// rider). Read-only here — resend/generation is owned by the trip
+	// rider). Read-only here â€” resend/generation is owned by the trip
 	// feature via TripControl. The rider's pickup credential is never
 	// exposed to the customer, so it is not part of this state.
 	DeliveryCode          string
@@ -178,6 +190,8 @@ type CreateBookingInput struct {
 	Dropoff                LatLngAddress `json:"dropoff"`
 	ReceiverName           string        `json:"receiver_name"`
 	ReceiverPhone          string        `json:"receiver_phone"`
+	ReceiverEmail          string        `json:"receiver_email,omitempty"`
+	ReceiverCustomerID     string        `json:"receiver_customer_id,omitempty"`
 	PackageDesc            string        `json:"package_desc"`
 	PackageWeight          float64       `json:"package_weight"`
 	PackageType            string        `json:"package_type"`
@@ -286,14 +300,18 @@ type AvailabilityResponse struct {
 // Heading, speed and accuracy have always been collected by the rider app and
 // stored, but were dropped here, so the customer's marker could not be rotated
 // or dead-reckoned between fixes. They are carried through now.
+//
+// The point is bound to the trip's current assignment (never the rider's
+// global position) and State is FRESH or STALE by server policy. The rider's
+// internal id is deliberately not part of the customer response.
 type LocationResponse struct {
-	ProviderID string    `json:"provider_id"`
-	Lat        float64   `json:"lat"`
-	Lng        float64   `json:"lng"`
-	Heading    float64   `json:"heading"`
-	Speed      float64   `json:"speed"`
-	Accuracy   float64   `json:"accuracy"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Lat       float64   `json:"lat"`
+	Lng       float64   `json:"lng"`
+	Heading   float64   `json:"heading"`
+	Speed     float64   `json:"speed"`
+	Accuracy  float64   `json:"accuracy"`
+	UpdatedAt time.Time `json:"updated_at"`
+	State     string    `json:"state"`
 }
 
 type ReviewInput struct {

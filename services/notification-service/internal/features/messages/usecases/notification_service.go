@@ -67,6 +67,24 @@ func (s *NotificationService) Send(ctx context.Context, request notifications.Re
 	if err := request.Validate(); err != nil {
 		return SendResult{}, err
 	}
+	// A producer may name a source object, but cannot supply a destination URL
+	// or a final business state as navigation authority. Derive the bounded
+	// intent here so persisted feed, websocket and push carry the same hint.
+	if request.Data != nil {
+		copyData := make(map[string]interface{}, len(request.Data)+1)
+		for key, value := range request.Data {
+			if key != "route_intent" {
+				copyData[key] = value
+			}
+		}
+		request.Data = copyData
+	}
+	if intent, ok := notifications.RouteIntentFor(request); ok {
+		if request.Data == nil {
+			request.Data = map[string]interface{}{}
+		}
+		request.Data["route_intent"] = intent
+	}
 
 	resolved, err := s.resolveRequest(ctx, request)
 	if err != nil {

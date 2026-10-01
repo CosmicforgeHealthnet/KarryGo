@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/vendor-service/internal/config"
+	"cosmicforge/logistics/services/vendor-service/internal/events"
 	"cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit"
@@ -22,7 +23,7 @@ func buildSection17DQuoteService(cfg config.Config, db *pgxpool.Pool, promotionA
 		return nil
 	}
 	service, err := checkoutquote.NewService(checkoutquote.Options{
-		Store:      checkoutquote.NewStore(db),
+		Store:      checkoutquote.NewStore(db, events.NewDomainPublisher(events.NewOutboxRepository(db))),
 		Promotions: promotionAuthority,
 		QuoteTTL:   cfg.Quote.TTL,
 	})

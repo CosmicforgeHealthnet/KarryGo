@@ -19,7 +19,7 @@ func TestResendPickupCredential_EnforcesCooldownAndOwnership(t *testing.T) {
 	}
 	sentJustNow := time.Now()
 	repo := newTrackingRepo(bookingmodels.Booking{
-		ID: "b1", CustomerID: customer, ProviderID: ptr(provider),
+		ID: "b1", CustomerID: customer, ReceiverCustomerID: customer, ProviderID: ptr(provider),
 		Status:               bookingmodels.StatusArrivedAtPickup,
 		PickupCode:           rec.Code,
 		PickupCodeHash:       rec.Hash,
@@ -62,7 +62,7 @@ func TestResendVerificationCode_DeliveryOnlyAndCooldown(t *testing.T) {
 	}
 	sentJustNow := time.Now()
 	repo := newTrackingRepo(bookingmodels.Booking{
-		ID: "b1", CustomerID: customer, ProviderID: ptr(provider),
+		ID: "b1", CustomerID: customer, ReceiverCustomerID: customer, ProviderID: ptr(provider),
 		Status:                 bookingmodels.StatusEnRouteDelivery,
 		DeliveryCode:           rec.Code,
 		DeliveryCodeHash:       rec.Hash,

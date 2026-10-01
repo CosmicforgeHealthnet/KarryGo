@@ -50,6 +50,17 @@ func RegisterCustomer(engine *gin.Engine, signer *sharedauth.TokenSigner, handle
 	group.POST("/:id/pickup/verify", handler.verifyCustomerPickup)
 	group.POST("/:id/handover/resend", handler.resendCustomer)
 	group.POST("/:id/return-credential", handler.returnCredentialCustomer)
+	group.GET("/handover/:challengeRef/receiver-credential", handler.receiverCredential)
+}
+
+func (h *Handler) receiverCredential(c *gin.Context) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok || claims.Subject == "" {
+		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
+		return
+	}
+	result, err := h.service.ReadReceiverCredential(c.Request.Context(), claims.Subject, c.Param("challengeRef"))
+	respond(c, http.StatusOK, result, err)
 }
 
 func RegisterInternal(group *gin.RouterGroup, handler *Handler, verifier *serviceauth.Verifier, db *pgxpool.Pool, allowed []string) {
@@ -59,8 +70,17 @@ func RegisterInternal(group *gin.RouterGroup, handler *Handler, verifier *servic
 	routes := group.Group("/commerce/dispatch/missions")
 	routes.Use(authority.ServiceBoundary(verifier, authority.NewPostgresNonceClaimer(db), allowed)...)
 	routes.POST("/:id/stops/:stopId/pickup/verify", handler.verifySourcePickup)
+	routes.GET("/:id/stops/:stopId/handover/:stage", handler.readSourceHandover)
+	routes.GET("/:id/handover/:stage", handler.readSourceHandover)
 	routes.POST("/:id/handover/resend", handler.resendSource)
 	routes.POST("/:id/stops/:stopId/return-credential", handler.returnCredentialSource)
+}
+
+func (h *Handler) readSourceHandover(c *gin.Context) {
+	caller, _ := c.Get("service_name")
+	stage := Stage(strings.ToUpper(strings.TrimSpace(c.Param("stage"))))
+	result, err := h.service.ReadBySource(c.Request.Context(), stringValue(caller), c.Param("id"), c.Param("stopId"), stage)
+	respond(c, http.StatusOK, result, err)
 }
 
 func (h *Handler) pickupCredential(c *gin.Context) {

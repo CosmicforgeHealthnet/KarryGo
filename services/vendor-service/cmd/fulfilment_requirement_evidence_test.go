@@ -180,9 +180,18 @@ func TestRequirementEvidence_OneDecisionPerMission(t *testing.T) {
 	}
 }
 
-// A car can never appear as the executed class in stored evidence, whatever
-// the plan claims. The gate holds at the boundary as well as in the engine.
+// A car appears as the executed class only when Taxi Goods executes it. A plan
+// claiming another authority drove a car gets no stored evidence, because the
+// evidence would disagree with the plan it explains.
 func TestRequirementEvidence_NeverFilesAnExecutedCar(t *testing.T) {
+	taxi := evidenceFor(t, []orders.MissionPlan{{
+		PlanMissionRef: "pm-taxi", Service: orders.LogisticsTaxi,
+		VehicleClass: "CAR", WeightGrams: 40_000, PackageCount: 4,
+	}})
+	if len(taxi) != 1 || taxi[0].Class != "CAR" {
+		t.Fatalf("Taxi Goods car evidence = %+v", taxi)
+	}
+
 	evidence := evidenceFor(t, []orders.MissionPlan{
 		{
 			PlanMissionRef: "pm-car",

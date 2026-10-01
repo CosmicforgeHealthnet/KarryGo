@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:55:27.5099654+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/logging"}
+{"Time":"2026-09-27T16:55:27.6270771+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/logging","Test":"TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects"}
+{"Time":"2026-09-27T16:55:27.6270771+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/logging","Test":"TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects","Output":"=== RUN   TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects\n"}
+{"Time":"2026-09-27T16:55:27.6276231+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/logging","Test":"TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects","Output":"--- PASS: TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects (0.00s)\n"}
+{"Time":"2026-09-27T16:55:27.6276231+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/logging","Test":"TestSafeFieldsRedactsNestedSecretsAndOpaqueObjects","Elapsed":0}
+{"Time":"2026-09-27T16:55:27.6276231+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/logging","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:27.6292508+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/logging","Output":"ok  \tcosmicforge/logistics/shared/go/logging\t0.119s\n"}
+{"Time":"2026-09-27T16:55:27.6292508+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/logging","Elapsed":0.119}

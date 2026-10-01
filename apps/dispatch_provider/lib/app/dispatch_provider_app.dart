@@ -8,13 +8,18 @@ import '../core/config.dart';
 import '../core/network/api_connectivity_check.dart';
 import '../core/network/authenticated_api_client.dart';
 import '../core/storage/token_storage.dart';
-import '../core/theme/dispatch_colors.dart';
+import '../core/theme/dispatch_theme.dart';
+import '../core/theme/theme_controller.dart';
 import '../features/account_setup/ui/bike_type_screen.dart';
 import '../features/account_setup/ui/driver_information_screen.dart';
+import '../features/account_setup/ui/emergency_contact_screen.dart';
+import '../features/account_setup/ui/guarantor_screen.dart';
 import '../features/account_setup/ui/operation_mode_screen.dart';
 import '../features/account_setup/ui/photo_upload_screen.dart';
 import '../features/account_setup/ui/profile_details_screen.dart';
 import '../features/account_setup/ui/service_type_screen.dart';
+import '../features/account_setup/ui/setup_hub_screen.dart';
+import '../features/account_setup/ui/setup_review_screen.dart';
 import '../features/account_setup/ui/verification_pending_screen.dart';
 import '../features/account_type/ui/account_type_screen.dart';
 import '../features/auth/data/dispatch_auth_api.dart';
@@ -23,6 +28,7 @@ import '../features/auth/ui/login_screen.dart';
 import '../features/auth/ui/otp_verification_screen.dart';
 import '../features/auth/ui/phone_entry_screen.dart';
 import '../features/auth/ui/splash_screen.dart';
+import '../features/auth/ui/welcome_back_screen.dart';
 import '../features/onboarding/ui/onboarding_screen.dart';
 import '../features/home/ui/dashboard_screen.dart';
 import '../features/profile/data/provider_profile_api.dart';
@@ -43,9 +49,11 @@ import '../features/notifications/ui/notifications_screen.dart';
 import '../features/requests/data/requests_api.dart';
 import '../features/requests/state/requests_controller.dart';
 import '../features/trips/data/trips_api.dart';
+import '../features/trips/data/trip_model.dart';
 import '../features/trips/state/trips_controller.dart';
 import '../features/wallet/data/wallet_api.dart';
 import '../features/wallet/state/wallet_controller.dart';
+import '../shared/widgets/mock_badge.dart';
 
 enum _DispatchScreen {
   splash,
@@ -53,19 +61,29 @@ enum _DispatchScreen {
   onboarding,
   phoneEntry,
   otpVerification,
-  accountType,
-  serviceType,
-  operationMode,
+  welcomeBack,
+  setupHub,
   profileDetails,
+  operationMode,
+  emergencyContact,
+  guarantor,
   photoUpload,
-  bikeType,
-  driverInformation,
+  setupReview,
   verificationPending,
   home,
+  // Legacy — kept so imports don't break. Not routed in the active flow.
+  accountType,
+  serviceType,
+  bikeType,
+  driverInformation,
 }
 
 class DispatchProviderApp extends StatefulWidget {
-  const DispatchProviderApp({super.key});
+  const DispatchProviderApp({super.key, required this.themeController});
+
+  /// Owns the app's [ThemeMode] and persists the choice. Loaded in main()
+  /// before runApp so the first frame already has the right brightness.
+  final ThemeController themeController;
 
   @override
   State<DispatchProviderApp> createState() => _DispatchProviderAppState();
@@ -74,13 +92,8 @@ class DispatchProviderApp extends StatefulWidget {
 class _DispatchProviderAppState extends State<DispatchProviderApp> {
   _DispatchScreen _screen = _DispatchScreen.splash;
 
-  /// The identifier shown to the user on the OTP screen (phone or email).
   String _phone = '';
-
   String? _selectedOperationType;
-
-  /// True when the active OTP flow was started from the Login screen.
-  /// Post-verify routing uses this to decide whether to call /provider/me.
   bool _isLoginMode = false;
 
   late final TokenStorage _tokenStorage;
@@ -101,10 +114,8 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   ProfileDetailsData? _profileDetailsData;
-  BikeTypeData? _bikeTypeData;
-
-  /// Selfie file path collected on PhotoUploadScreen. Stored locally and
-  /// uploaded only at the final submit step (DriverInformation.onSubmit).
+  EmergencyContactData? _emergencyContactData;
+  GuarantorData? _guarantorData;
   String? _selfiePath;
 
   static const _totalSteps = 6;
@@ -179,12 +190,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     _logBackendHealth();
   }
 
-  // ── Realtime + push (started when the rider reaches the dashboard) ────────
-
   void _startRealtimeAndPush() {
-    // Websocket fast path: every pushed event pokes the request/trip polls and
-    // the notification feed. Falls back silently to polling when the dispatch
-    // service has no notification-service configured (token endpoint 404s).
     _realtimeListener ??= RiderRealtimeListener(
       api: _notificationApi,
       wsUrl: AppConfig.notificationWsUrl,
@@ -193,8 +199,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     );
     _realtimeListener!.start();
 
-    // FCM: register this device so background pushes reach the system tray.
-    // No-ops when Firebase is unavailable on this platform.
     _registerPushDevice();
     _fcmTokenRefreshSub ??= FirebasePush.tokenRefresh().listen((_) {
       _registerPushDevice();
@@ -305,36 +309,72 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   }
 
   int get _currentStep => switch (_screen) {
-    _DispatchScreen.serviceType => 1,
+    _DispatchScreen.profileDetails => 1,
     _DispatchScreen.operationMode => 2,
-    _DispatchScreen.profileDetails => 3,
-    _DispatchScreen.photoUpload => 4,
-    _DispatchScreen.bikeType => 5,
-    _DispatchScreen.driverInformation => 6,
+    _DispatchScreen.emergencyContact => 3,
+    _DispatchScreen.guarantor => 4,
+    _DispatchScreen.photoUpload => 5,
+    _DispatchScreen.setupReview => 6,
     _ => 0,
   };
 
+  /// Maps a 1-based setup step index (as returned by SetupHubScreen) to the
+  /// corresponding screen in the flow.
+  _DispatchScreen _setupStepToScreen(int step) {
+    switch (step) {
+      case 1:
+        return _DispatchScreen.profileDetails;
+      case 2:
+        return _DispatchScreen.operationMode;
+      case 3:
+        return _DispatchScreen.emergencyContact;
+      case 4:
+        return _DispatchScreen.guarantor;
+      case 5:
+        return _DispatchScreen.photoUpload;
+      case 6:
+        return _DispatchScreen.setupReview;
+      default:
+        return _DispatchScreen.profileDetails;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Cosmicforge Logistics Driver',
-      navigatorKey: _navigatorKey,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: DispatchColors.primary,
-        useMaterial3: true,
-        fontFamily: 'Poppins',
+    // Rebuild the whole MaterialApp whenever the user flips the theme so
+    // themeMode + ThemeData (and therefore every context.palette lookup)
+    // reflect the new brightness immediately.
+    return AnimatedBuilder(
+      animation: widget.themeController,
+      builder: (context, _) => MaterialApp(
+        title: 'Karryam Driver',
+        navigatorKey: _navigatorKey,
+        debugShowCheckedModeBanner: false,
+        theme: DispatchTheme.light,
+        darkTheme: DispatchTheme.dark,
+        themeMode: widget.themeController.mode,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              if (child != null) child,
+              // Global MOCK / LIVE toggle — appears on every screen.
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                right: 12,
+                child: const MockBadge(),
+              ),
+            ],
+          );
+        },
+        home: _buildScreen(),
       ),
-      home: _buildScreen(),
     );
   }
 
   Widget _buildScreen() {
     return switch (_screen) {
-      // ── Splash ──────────────────────────────────────────────────────────────
       _DispatchScreen.splash => SplashScreen(onDone: _checkSavedSession),
 
-      // ── Login (first screen for unauthenticated users) ───────────────────
       _DispatchScreen.login => LoginScreen(
         controller: _authController,
         onContinue: (identifier) {
@@ -345,12 +385,10 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         onCreateAccountTap: () => _go(_DispatchScreen.onboarding),
       ),
 
-      // ── Onboarding (shown before signup) ────────────────────────────────
       _DispatchScreen.onboarding => OnboardingScreen(
         onDone: () => _go(_DispatchScreen.phoneEntry),
       ),
 
-      // ── Signup — phone + email entry ─────────────────────────────────────
       _DispatchScreen.phoneEntry => PhoneEntryScreen(
         controller: _authController,
         onContinue: (phone, email) {
@@ -361,7 +399,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         onLoginTap: () => _go(_DispatchScreen.login),
       ),
 
-      // ── OTP verification ─────────────────────────────────────────────────
       _DispatchScreen.otpVerification => OtpVerificationScreen(
         controller: _authController,
         phone: _phone,
@@ -372,227 +409,128 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         onResend: () {},
       ),
 
-      // ── Account setup ────────────────────────────────────────────────────
-      _DispatchScreen.accountType => AccountTypeScreen(
-        onSelected: (type) => _go(_DispatchScreen.serviceType),
+      _DispatchScreen.welcomeBack => WelcomeBackScreen(
+        profileController: _profileController,
+        onContinueSetup: () => _go(_DispatchScreen.setupHub),
+        onUseDifferentAccount: _handleLogout,
       ),
-      _DispatchScreen.serviceType => ServiceTypeScreen(
-        onContinue: (_) => _go(_DispatchScreen.operationMode),
-        onBack: () => _go(_DispatchScreen.accountType),
-        currentStep: _currentStep,
-        totalSteps: _totalSteps,
+
+      _DispatchScreen.setupHub => SetupHubScreen(
+        profileController: _profileController,
+        selectedOperationType: _selectedOperationType,
+        onContinue: (step) => _go(_setupStepToScreen(step)),
+        onBack: () => _go(_DispatchScreen.login),
       ),
-      _DispatchScreen.operationMode => OperationModeScreen(
-        onContinue: (mode) {
-          _selectedOperationType = mode;
-          _go(_DispatchScreen.profileDetails);
-        },
-        onBack: () => _go(_DispatchScreen.serviceType),
-        currentStep: _currentStep,
-        totalSteps: _totalSteps,
-      ),
+
       _DispatchScreen.profileDetails => ProfileDetailsScreen(
         initialPhone: _authController.currentPhoneNumber,
         initialEmail: _authController.currentSignupEmail,
         profileController: _profileController,
         operationType: _selectedOperationType,
         onContinue: (data) async {
-          // POST /provider/onboarding was already called inside
-          // ProfileDetailsScreen before this callback fires. Here we just
-          // store the collected data locally and advance to the next step.
-          // Backend uploads (identity, face, licence, vehicle) happen later,
-          // after the user completes all remaining screens.
           _profileDetailsData = data;
-          _go(_DispatchScreen.photoUpload);
+          _go(_DispatchScreen.operationMode);
         },
-        onBack: () => _go(_DispatchScreen.operationMode),
+        onBack: () => _go(_DispatchScreen.setupHub),
         currentStep: _currentStep,
         totalSteps: _totalSteps,
       ),
-      _DispatchScreen.photoUpload => PhotoUploadScreen(
-        onContinue: (selfiePath) async {
-          // Store the selfie path locally — no backend calls yet.
-          // Identity (E) and face (F) uploads are deferred to the final
-          // submit step in DriverInformation.onSubmit, after the backend
-          // has had time to initialise verification steps.
-          debugPrint(
-            '[PHOTO_UPLOAD] Selfie selected: $selfiePath — storing locally.',
-          );
-          _selfiePath = selfiePath;
-          _go(_DispatchScreen.bikeType);
+
+      _DispatchScreen.operationMode => OperationModeScreen(
+        onContinue: (mode) {
+          // Backend accepts only 'individual' or 'fleet'.
+          final backendValue =
+              mode == 'fleet_operator' ? 'fleet' : 'individual';
+          _selectedOperationType = backendValue;
+          // NOTE: We do NOT call updateMe here — the backend rejects
+          // operation_type on PATCH /provider/me (read-only field). The value
+          // stays in memory until submitOnboarding on step 6, where it is
+          // accepted and persisted.
+          _go(_DispatchScreen.emergencyContact);
         },
         onBack: () => _go(_DispatchScreen.profileDetails),
         currentStep: _currentStep,
         totalSteps: _totalSteps,
       ),
-      _DispatchScreen.bikeType => BikeTypeScreen(
-        onContinue: (data) {
-          _bikeTypeData = data;
-          _go(_DispatchScreen.driverInformation);
-        },
-        onBack: () => _go(_DispatchScreen.photoUpload),
+
+      _DispatchScreen.emergencyContact => EmergencyContactScreen(
+        initialData: _emergencyContactData,
         currentStep: _currentStep,
         totalSteps: _totalSteps,
-      ),
-      _DispatchScreen.driverInformation => DriverInformationScreen(
         profileController: _profileController,
-        onSubmit: (data) async {
-          // At this point DriverInformationScreen has already submitted:
-          //   B. POST /provider/guarantor
-          //   C. POST /provider/emergency-contact
-          //
-          // Now run the remaining upload sequence in order:
-          //   D. GET /verification/status  (poll until steps exist)
-          //   E. POST /verification/identity
-          //   F. POST /verification/face
-          //   G. POST /verification/licence
-          //   H. POST /provider/vehicle
-          //   I. POST /provider/vehicle/:id/documents
-
-          // ── D: Wait for verification steps ─────────────────────────────
-          debugPrint('[SUBMIT] Polling verification steps (D)...');
-          final stepsReady = await _waitForVerificationSteps();
-          if (!stepsReady) {
-            throw 'Verification is not ready yet. Please check your connection and try again.';
-          }
-
-          // ── E: Submit identity (govt ID + profile photo) ───────────────
-          if (_profileDetailsData != null && _selfiePath != null) {
-            debugPrint('[SUBMIT] Submitting identity (E)...');
-            final identityRes = await _verificationController.submitIdentity(
-              govtIdType: _profileDetailsData!.governmentIdType,
-              govtIdNumber: _profileDetailsData!.governmentIdNumber,
-              govtIdFilePath: _profileDetailsData!.governmentIdFilePath,
-              profilePhotoFilePath: _selfiePath!,
-            );
-            String? identityErr;
-            identityRes.when(
-              success: (_) {
-                debugPrint('[SUBMIT] Identity submitted (E) ✓');
-              },
-              failure: (err) {
-                debugPrint('[SUBMIT] Identity failed (E): ${err.message}');
-                identityErr = _friendlyUploadError(err.code, err.message);
-              },
-            );
-            if (identityErr != null) throw identityErr!;
-
-            // ── F: Submit face (selfie only) ───────────────────────────────
-            debugPrint('[SUBMIT] Submitting face (F)...');
-            final faceRes = await _verificationController.submitFace(
-              selfieFilePath: _selfiePath!,
-            );
-            String? faceErr;
-            faceRes.when(
-              success: (_) {
-                debugPrint('[SUBMIT] Face submitted (F) ✓');
-              },
-              failure: (err) {
-                debugPrint('[SUBMIT] Face failed (F): ${err.message}');
-                faceErr = _friendlyUploadError(err.code, err.message);
-              },
-            );
-            if (faceErr != null) throw faceErr!;
-          }
-
-          // ── G: Submit driver licence ───────────────────────────────────
-          if (_bikeTypeData != null && data.licenseFilePath.isNotEmpty) {
-            debugPrint('[SUBMIT] Submitting licence (G)...');
-            final expiry = _bikeTypeData!.licenceExpiryDate;
-            final licenceRes = await _verificationController.submitLicence(
-              licenceNumber: _bikeTypeData!.licenseNo,
-              expiryYear: expiry.year.toString(),
-              expiryMonth: expiry.month.toString().padLeft(2, '0'),
-              licenceFilePath: data.licenseFilePath,
-            );
-            String? licenceErr;
-            licenceRes.when(
-              success: (_) {
-                debugPrint('[SUBMIT] Licence submitted (G) ✓');
-              },
-              failure: (err) {
-                debugPrint('[SUBMIT] Licence failed (G): ${err.message}');
-                licenceErr = err.message;
-              },
-            );
-            if (licenceErr != null) throw licenceErr!;
-          }
-
-          // ── H: Create vehicle ──────────────────────────────────────────
-          if (_bikeTypeData != null) {
-            debugPrint('[SUBMIT] Creating vehicle (H)...');
-            debugPrint('[SUBMIT]   bike_type=${_bikeTypeData!.bikeType}');
-            debugPrint('[SUBMIT]   brand=${_bikeTypeData!.bikeBrand}');
-            debugPrint('[SUBMIT]   model=${_bikeTypeData!.bikeModel}');
-            debugPrint('[SUBMIT]   year=${_bikeTypeData!.bikeYear}');
-            debugPrint('[SUBMIT]   color=${_bikeTypeData!.color}');
-            debugPrint('[SUBMIT]   plate_number=${_bikeTypeData!.plateNumber}');
-            final vehicleRes = await _vehicleController.createVehicle(
-              bikeType: _bikeTypeData!.bikeType,
-              brand: _bikeTypeData!.bikeBrand,
-              model: _bikeTypeData!.bikeModel,
-              year: _bikeTypeData!.bikeYear,
-              color: _bikeTypeData!.color,
-              plateNumber: _bikeTypeData!.plateNumber,
-            );
-            String? vehicleId;
-            String? vehicleErr;
-            vehicleRes.when(
-              success: (id) {
-                vehicleId = id;
-                debugPrint('[SUBMIT] Vehicle created (H): id=$id ✓');
-              },
-              failure: (err) {
-                debugPrint(
-                  '[SUBMIT] Vehicle failed (H): ${err.message} fields=${err.fields.map((f) => f.message).join(', ')}',
-                );
-                // Show per-field errors when available, fall back to top-level message.
-                vehicleErr = err.fields.isNotEmpty
-                    ? err.fields.map((f) => f.message).join(' ')
-                    : err.message;
-              },
-            );
-            if (vehicleErr != null) throw vehicleErr!;
-
-            // ── I: Upload vehicle registration document ──────────────────
-            if (vehicleId != null &&
-                vehicleId!.isNotEmpty &&
-                data.vehicleRegFilePath.isNotEmpty) {
-              debugPrint(
-                '[SUBMIT] Uploading vehicle doc (I): vehicleId=$vehicleId',
-              );
-              final docRes = await _vehicleController.uploadVehicleDocument(
-                vehicleId: vehicleId!,
-                documentType: 'registration',
-                documentFilePath: data.vehicleRegFilePath,
-              );
-              docRes.when(
-                success: (_) {
-                  debugPrint('[SUBMIT] Vehicle doc uploaded (I) ✓');
-                },
-                failure: (err) {
-                  // Non-fatal: vehicle was created. Log and continue.
-                  debugPrint(
-                    '[SUBMIT] Vehicle doc upload failed (I) — non-fatal: ${err.message}',
-                  );
-                },
-              );
-            }
-          }
-
-          debugPrint(
-            '[SUBMIT] All steps complete — navigating to verificationPending.',
-          );
-          _go(_DispatchScreen.verificationPending);
+        onContinue: (data) {
+          _emergencyContactData = data;
+          _go(_DispatchScreen.guarantor);
         },
-        onBack: () => _go(_DispatchScreen.bikeType),
+        onBack: () => _go(_DispatchScreen.operationMode),
+      ),
+
+      _DispatchScreen.guarantor => GuarantorScreen(
+        initialData: _guarantorData,
+        currentStep: _currentStep,
+        totalSteps: _totalSteps,
+        profileController: _profileController,
+        onContinue: (data) {
+          _guarantorData = data;
+          _go(_DispatchScreen.photoUpload);
+        },
+        onBack: () => _go(_DispatchScreen.emergencyContact),
+      ),
+
+      _DispatchScreen.photoUpload => PhotoUploadScreen(
+        onContinue: (selfiePath) async {
+          debugPrint('[PHOTO_UPLOAD] Uploading selfie: $selfiePath');
+
+          // Upload to POST /provider/me/avatar BEFORE advancing.
+          final result = await _profileController.uploadAvatar(selfiePath);
+          if (!mounted) return;
+
+          String? err;
+          result.when(
+            success: (_) {
+              _selfiePath = selfiePath;
+            },
+            failure: (error) {
+              err = error.message.isNotEmpty
+                  ? error.message
+                  : 'Photo upload failed.';
+            },
+          );
+
+          if (err != null) {
+            // Rethrow so PhotoUploadScreen shows the error and stays on step 5.
+            throw Exception(err);
+          }
+
+          debugPrint('[PHOTO_UPLOAD] Upload succeeded → setupReview');
+          _go(_DispatchScreen.setupReview);
+        },
+        onBack: () => _go(_DispatchScreen.guarantor),
         currentStep: _currentStep,
         totalSteps: _totalSteps,
       ),
+
+      _DispatchScreen.setupReview => SetupReviewScreen(
+        profileController: _profileController,
+        profileData: _profileDetailsData,
+        emergencyContact: _emergencyContactData,
+        guarantorData: _guarantorData,
+        operationType: _selectedOperationType,
+        selfiePath: _selfiePath,
+        onBack: () => _go(_DispatchScreen.photoUpload),
+        onSubmitted: () => _go(_DispatchScreen.verificationPending),
+        onEditPersonal: () => _go(_DispatchScreen.profileDetails),
+        onEditOperation: () => _go(_DispatchScreen.operationMode),
+        onEditEmergency: () => _go(_DispatchScreen.emergencyContact),
+        onEditGuarantor: () => _go(_DispatchScreen.guarantor),
+        onEditPhoto: () => _go(_DispatchScreen.photoUpload),
+      ),
+
       _DispatchScreen.verificationPending => VerificationPendingScreen(
         onGoToDashboard: () => _go(_DispatchScreen.home),
         verificationController: _verificationController,
       ),
+
       _DispatchScreen.home => DashboardScreen(
         profileController: _profileController,
         verificationController: _verificationController,
@@ -606,15 +544,33 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         onAccountDeleted: _handleAccountDeleted,
         onOpenNotifications: _openNotifications,
       ),
+
+      // ── Legacy routes (not in active flow) ────────────────────────────────
+      _DispatchScreen.accountType => AccountTypeScreen(
+        onSelected: (type) => _go(_DispatchScreen.setupHub),
+      ),
+      _DispatchScreen.serviceType => ServiceTypeScreen(
+        onContinue: (_) => _go(_DispatchScreen.setupHub),
+        onBack: () => _go(_DispatchScreen.setupHub),
+        currentStep: _currentStep,
+        totalSteps: _totalSteps,
+      ),
+      _DispatchScreen.bikeType => BikeTypeScreen(
+        onContinue: (_) => _go(_DispatchScreen.setupReview),
+        onBack: () => _go(_DispatchScreen.setupReview),
+        currentStep: _currentStep,
+        totalSteps: _totalSteps,
+      ),
+      _DispatchScreen.driverInformation => DriverInformationScreen(
+        profileController: _profileController,
+        onSubmit: (_) async => _go(_DispatchScreen.verificationPending),
+        onBack: () => _go(_DispatchScreen.setupReview),
+        currentStep: _currentStep,
+        totalSteps: _totalSteps,
+      ),
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Startup session check
-  // ---------------------------------------------------------------------------
-  // Reads saved tokens → tries GET /provider/me → refreshes if 401 →
-  // routes to the correct screen.  Falls back to Login on any failure.
-  // ---------------------------------------------------------------------------
   Future<void> _checkSavedSession() async {
     debugPrint('[AUTH] Checking saved session...');
     late final SavedTokens saved;
@@ -652,7 +608,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       }
     }
 
-    // Try to load profile with the existing access token.
     final profileResult = await _profileController.loadMe();
     if (!mounted) return;
 
@@ -669,7 +624,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         if (profile.onboardingComplete) {
           _go(_DispatchScreen.home);
         } else {
-          _go(_DispatchScreen.accountType);
+          _go(_DispatchScreen.welcomeBack);
         }
       },
       failure: (error) {
@@ -683,9 +638,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
 
     if (profileSuccess) return;
 
-    // Network error during cold start: tokens may be valid but there is no
-    // connectivity right now. Preserve tokens and route to Home — the app
-    // will re-attempt profile loading when the user interacts.
     if (isNetworkError) {
       debugPrint(
         '[AUTH] Network error during session restore → Home (tokens preserved)',
@@ -694,7 +646,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       return;
     }
 
-    // If access token is expired and we have a refresh token, try to renew.
     if (isUnauthorized && saved.refreshToken != null) {
       debugPrint('[AUTH] Access token expired — attempting refresh');
       final refreshResult = await _authController.refreshSession();
@@ -716,7 +667,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       );
 
       if (refreshed && newAccess != null) {
-        // Persist the refreshed tokens.
         try {
           await _tokenStorage.saveTokens(
             accessToken: newAccess!,
@@ -727,7 +677,6 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
           debugPrint('[AUTH] Failed to persist refreshed tokens: $e');
         }
 
-        // Retry loading the profile with the new access token.
         final retryResult = await _profileController.loadMe();
         if (!mounted) return;
 
@@ -741,7 +690,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
             if (profile.onboardingComplete) {
               _go(_DispatchScreen.home);
             } else {
-              _go(_DispatchScreen.accountType);
+              _go(_DispatchScreen.welcomeBack);
             }
           },
           failure: (error) {
@@ -755,29 +704,18 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       }
     }
 
-    // All token-based attempts exhausted (refresh failed or was unavailable).
-    // Clear stored tokens — they are no longer usable — and show Login.
     debugPrint(
       '[AUTH] Session restore failed — refresh exhausted → clearing tokens → Login',
     );
     await _handleSessionExpired();
   }
 
-  // ---------------------------------------------------------------------------
-  // Post-OTP-verify routing
-  // ---------------------------------------------------------------------------
-  //   • Signup  (_isLoginMode == false) → AccountType
-  //   • Login   (_isLoginMode == true)  → GET /provider/me
-  //       onboardingComplete → Dashboard
-  //       else               → AccountType (continue setup)
-  //       failure            → AccountType (safe fallback)
-  // ---------------------------------------------------------------------------
   Future<void> _handlePostVerify() async {
     debugPrint('[AUTH_FLOW] post verify | isLoginMode=$_isLoginMode');
 
     if (!_isLoginMode) {
-      debugPrint('[AUTH_FLOW] signup flow → AccountType');
-      _go(_DispatchScreen.accountType);
+      debugPrint('[AUTH_FLOW] signup flow → SetupHub');
+      _go(_DispatchScreen.setupHub);
       return;
     }
 
@@ -791,121 +729,41 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
           '[AUTH_FLOW] /provider/me success'
           ' | provider_id=${profile.providerId}'
           ' | onboarding_complete=${profile.onboardingComplete}'
-          ' | verification_status=${profile.verificationStatus}'
-          ' | phone=${profile.phone.isNotEmpty ? "present" : "missing"}'
-          ' | email=${profile.email != null ? "present" : "missing"}',
+          ' | verification_status=${profile.verificationStatus}',
         );
         if (profile.onboardingComplete) {
-          debugPrint('[AUTH_FLOW] onboarding_complete=true → Home');
           _go(_DispatchScreen.home);
         } else {
-          // NOTE: If this fires for a user who believes they completed onboarding,
-          // the backend DB has onboarding_complete=false for provider_id=${profile.providerId}.
-          // Check the providers table and verify onboarding_complete was set to true.
-          debugPrint(
-            '[AUTH_FLOW] onboarding_complete=false → AccountType'
-            ' | INVESTIGATE: provider_id=${profile.providerId} may have stale DB state',
-          );
-          _go(_DispatchScreen.accountType);
+          _go(_DispatchScreen.welcomeBack);
         }
       },
       failure: (error) {
         debugPrint(
           '[AUTH_FLOW] /provider/me failed | code=${error.code} message=${error.message}',
         );
-        // OTP verified successfully — tokens are already saved. We must NOT
-        // route back to Login or AccountType: Login lets the user re-enter the
-        // same (already-consumed) OTP causing a 401; AccountType wipes an
-        // existing user's completed onboarding. Go to Home and let the app
-        // reload the profile lazily.
-        debugPrint(
-          '[AUTH_FLOW] profile load failed after verify → Home '
-          '(tokens valid, profile loads on mount)\n'
-          '  If this is a physical Android device: ensure '
-          'adb reverse tcp:8103 tcp:8103 is active',
-        );
         _go(_DispatchScreen.home);
       },
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Logout
-  // ---------------------------------------------------------------------------
-  // Calls the auth API, clears all stored tokens, resets in-memory state,
-  // then routes back to the Login screen.
-  // ---------------------------------------------------------------------------
   Future<void> _handleLogout() async {
     debugPrint('[AUTH] User initiated logout');
-    // The controller already clears storage + in-memory state on logout().
     await _authController.logout();
     if (!mounted) return;
-    // Reset profile state so a future login doesn't show stale data.
     _profileController.clearLocalState();
     _go(_DispatchScreen.login);
   }
 
   Future<void> _handleAccountDeleted() async {
     debugPrint('[AUTH] Account deleted — clearing local session');
-    // Backend already revoked all sessions via DELETE /provider/me.
-    // Clear stored tokens locally without calling the logout endpoint.
     await _authController.clearSession();
     if (!mounted) return;
     _profileController.clearLocalState();
     _go(_DispatchScreen.login);
   }
 
-  /// Polls GET /verification/status until the steps list is non-empty (meaning
-  /// the backend subscriber has initialized them) or all attempts are exhausted.
-  Future<bool> _waitForVerificationSteps() async {
-    const maxAttempts = 3;
-    const delay = Duration(milliseconds: 800);
-    for (int attempt = 0; attempt < maxAttempts; attempt++) {
-      if (attempt > 0) {
-        debugPrint(
-          '[VERIFICATION] Steps not ready — retrying in ${delay.inMilliseconds}ms (attempt ${attempt + 1}/$maxAttempts)',
-        );
-        await Future.delayed(delay);
-      }
-      debugPrint(
-        '[VERIFICATION] Polling GET /verification/status (attempt ${attempt + 1}/$maxAttempts)',
-      );
-      final result = await _verificationController.loadVerificationStatus();
-      bool ready = false;
-      result.when(
-        success: (status) {
-          debugPrint(
-            '[VERIFICATION] Status: overall=${status.overallStatus}, steps=${status.steps.length}',
-          );
-          ready = status.steps.isNotEmpty;
-        },
-        failure: (err) {
-          // 404 = steps not yet initialized — retry silently
-          debugPrint(
-            '[VERIFICATION] Status poll failed: ${err.message} (code=${err.code})',
-          );
-        },
-      );
-      if (ready) return true;
-    }
-    debugPrint(
-      '[VERIFICATION] Steps still not initialized after $maxAttempts attempts',
-    );
-    return false;
-  }
-
-  /// Returns a user-readable error message for upload failures.
-  String _friendlyUploadError(String code, String rawMessage) {
-    if (code == 'precondition_failed') {
-      return 'Your verification setup is not ready yet. Please go back and complete your profile details.';
-    }
-    return rawMessage;
-  }
-
   void _go(_DispatchScreen screen) {
     setState(() => _screen = screen);
-    // Realtime + push follow the authenticated dashboard: start when the rider
-    // lands on it, stop on any route back to login.
     if (screen == _DispatchScreen.home) {
       _startRealtimeAndPush();
     } else if (screen == _DispatchScreen.login) {

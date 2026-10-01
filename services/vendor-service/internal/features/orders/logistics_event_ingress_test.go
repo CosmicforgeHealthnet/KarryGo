@@ -16,6 +16,7 @@ func TestLogisticsIngressAllowlistMapsOnlyCanonicalCallers(t *testing.T) {
 	}{
 		{"dispatch", DispatchServiceCaller, 200},
 		{"hauling", HaulingServiceCaller, 200},
+		{"taxi goods", TaxiServiceCaller, 200},
 		{"taxi forbidden", "taxi-service", 403},
 		{"forged forbidden", "attacker-service", 403},
 	} {

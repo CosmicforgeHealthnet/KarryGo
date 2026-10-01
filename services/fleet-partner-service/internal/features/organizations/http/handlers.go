@@ -2,7 +2,10 @@
 package http
 
 import (
+	"io"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -48,6 +51,17 @@ func (h *Handler) RegisterOnboardingRoutes(group *gin.RouterGroup) {
 // RegisterTenantRoutes mounts routes that require resolved organization scope.
 func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.GET("/organizations/current", h.currentOrganization)
+	group.PUT("/organizations/:organizationId", h.updateOrganization)
+	group.PUT("/organizations/:organizationId/stages/:stage", h.markStage)
+	group.POST("/organizations/:organizationId/representatives", h.createRepresentative)
+	group.GET("/organizations/:organizationId/representatives", h.listRepresentatives)
+	group.PUT("/organizations/:organizationId/representatives/:representativeId", h.updateRepresentative)
+	group.GET("/organizations/:organizationId/capabilities", h.getCapabilities)
+	group.PUT("/organizations/:organizationId/capabilities", h.updateCapabilities)
+	group.GET("/organizations/:organizationId/profile", h.getProfile)
+	group.PUT("/organizations/:organizationId/profile", h.updateProfile)
+	group.POST("/organizations/:organizationId/documents/upload-authorization", h.requestUploadAuthorization)
+	group.POST("/organizations/:organizationId/documents/upload-content", h.completeDocumentUpload)
 	group.GET("/organizations/:organizationId/onboarding-status", h.onboardingStatus)
 	group.POST("/organizations/:organizationId/documents", h.attachDocument)
 	group.GET("/organizations/:organizationId/documents", h.listDocuments)
@@ -162,6 +176,544 @@ func (h *Handler) createOrganization(c *gin.Context) {
 		"organizationId": organization.ID,
 		"status":         organization.Status,
 		"version":        organization.Version,
+	})
+}
+
+type updateOrganizationRequest struct {
+	LegalName          string `json:"legalName"`
+	TradingName        string `json:"tradingName"`
+	RegistrationNumber string `json:"registrationNumber"`
+	CountryCode        string `json:"countryCode"`
+	OrganizationType   string `json:"organizationType"`
+	Timezone           string `json:"timezone"`
+	DefaultCurrency    string `json:"defaultCurrency"`
+}
+
+type createRepresentativeRequest struct {
+	FullName                string  `json:"fullName"`
+	RoleTitle               string  `json:"roleTitle"`
+	Email                   string  `json:"email"`
+	Phone                   string  `json:"phone"`
+	AuthorityType           string  `json:"authorityType"`
+	AuthorityDocumentFileID *string `json:"authorityDocumentFileId"`
+	IdentityReference       *string `json:"identityReference"`
+	IsOnboardingOwner       bool    `json:"isOnboardingOwner"`
+}
+
+type updateRepresentativeRequest struct {
+	FullName                string     `json:"fullName"`
+	RoleTitle               string     `json:"roleTitle"`
+	Email                   string     `json:"email"`
+	Phone                   string     `json:"phone"`
+	AuthorityType           string     `json:"authorityType"`
+	AuthorityDocumentFileID *string    `json:"authorityDocumentFileId"`
+	Status                  string     `json:"status"`
+	EffectiveTo             *time.Time `json:"effectiveTo"`
+}
+
+type requestUploadAuthorizationRequest struct {
+	DocumentType     string   `json:"documentType"`
+	UploadPurpose    string   `json:"uploadPurpose"`
+	AllowedMIMETypes []string `json:"allowedMimeTypes"`
+	MaxSizeBytes     int64    `json:"maxSizeBytes"`
+}
+
+type completeDocumentUploadRequest struct {
+	MediaObjectID    string `json:"mediaObjectId"`
+	AuthorizationID  string `json:"authorizationId"`
+	UploadToken      string `json:"uploadToken"`
+	DeclaredMIME     string `json:"declaredMime"`
+	DeclaredSize     int64  `json:"declaredSize"`
+	DeclaredChecksum string `json:"declaredChecksum"`
+	// File content is sent as multipart form data
+}
+
+func (h *Handler) requestUploadAuthorization(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	var request requestUploadAuthorizationRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	idempotencyKey := c.GetHeader("Idempotency-Key")
+	if idempotencyKey == "" {
+		respond.Error(c, apperrors.BadRequest("Idempotency-Key header is required.", nil))
+		return
+	}
+
+	grant, err := h.organizations.RequestDocumentUploadAuthorization(c.Request.Context(), orgusecases.RequestDocumentUploadAuthorizationInput{
+		Tenant:           tenantCtx,
+		DocumentType:     request.DocumentType,
+		UploadPurpose:    request.UploadPurpose,
+		AllowedMIMETypes: request.AllowedMIMETypes,
+		MaxSizeBytes:     request.MaxSizeBytes,
+		IdempotencyKey:   idempotencyKey,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"authorizationId":  grant.AuthorizationID,
+		"mediaObjectId":    grant.MediaObjectID,
+		"uploadToken":      grant.UploadToken,
+		"uploadPath":       grant.UploadPath,
+		"expiresAt":        grant.ExpiresAt,
+		"maxSizeBytes":     grant.MaxSizeBytes,
+		"allowedMimeTypes": grant.AllowedMIMETypes,
+	})
+}
+
+func (h *Handler) completeDocumentUpload(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	// Parse form data
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		respond.Error(c, apperrors.BadRequest("Failed to parse form data.", nil))
+		return
+	}
+
+	mediaObjectID := c.PostForm("mediaObjectId")
+	authorizationID := c.PostForm("authorizationId")
+	uploadToken := c.PostForm("uploadToken")
+	declaredMIME := c.PostForm("declaredMime")
+	declaredSize, _ := strconv.ParseInt(c.PostForm("declaredSize"), 10, 64)
+	declaredChecksum := c.PostForm("declaredChecksum")
+
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		respond.Error(c, apperrors.BadRequest("File is required.", nil))
+		return
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		respond.Error(c, apperrors.BadRequest("Failed to read file.", nil))
+		return
+	}
+
+	state, err := h.organizations.CompleteDocumentUpload(c.Request.Context(), orgusecases.CompleteDocumentUploadInput{
+		Tenant:           tenantCtx,
+		MediaObjectID:    mediaObjectID,
+		AuthorizationID:  authorizationID,
+		UploadToken:      uploadToken,
+		DeclaredMIME:     declaredMIME,
+		DeclaredSize:     declaredSize,
+		DeclaredChecksum: declaredChecksum,
+		Content:          content,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"mediaObjectId": state.MediaObjectID,
+		"uploadStatus":  state.UploadStatus,
+		"safetyStatus":  state.SafetyStatus,
+		"sizeBytes":     state.SizeBytes,
+		"detectedMime":  state.DetectedMIME,
+		"sourceVersion": state.SourceVersion,
+	})
+}
+
+func (h *Handler) updateOrganization(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	var request updateOrganizationRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	expectedVersion, err := expectedVersionFrom(c)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	organization, err := h.organizations.UpdateOrganization(c.Request.Context(), orgusecases.UpdateOrganizationInput{
+		OrganizationID:     tenantCtx.OrganizationID,
+		LegalName:          request.LegalName,
+		TradingName:        request.TradingName,
+		RegistrationNumber: request.RegistrationNumber,
+		CountryCode:        request.CountryCode,
+		Timezone:           request.Timezone,
+		DefaultCurrency:    request.DefaultCurrency,
+		ExpectedVersion:    expectedVersion,
+		RequestID:          tenantCtx.RequestID,
+		CorrelationID:      tenantCtx.CorrelationID,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"organizationId":  organization.ID,
+		"legalName":       organization.LegalName,
+		"tradingName":     organization.TradingName,
+		"status":          organization.Status,
+		"countryCode":     organization.CountryCode,
+		"timezone":        organization.Timezone,
+		"defaultCurrency": organization.DefaultCurrency,
+		"version":         organization.Version,
+	})
+}
+
+func (h *Handler) createRepresentative(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	var request createRepresentativeRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	rep, err := h.organizations.CreateRepresentative(c.Request.Context(), orgusecases.CreateRepresentativeInput{
+		OrganizationID:          tenantCtx.OrganizationID,
+		FullName:                request.FullName,
+		RoleTitle:               request.RoleTitle,
+		Email:                   request.Email,
+		Phone:                   request.Phone,
+		AuthorityType:           request.AuthorityType,
+		AuthorityDocumentFileID: request.AuthorityDocumentFileID,
+		IdentityReference:       request.IdentityReference,
+		IsOnboardingOwner:       request.IsOnboardingOwner,
+		RequestID:               tenantCtx.RequestID,
+		CorrelationID:           tenantCtx.CorrelationID,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.Created(c, gin.H{
+		"representativeId": rep.ID,
+		"fullName":         rep.FullName,
+		"roleTitle":        rep.RoleTitle,
+		"status":           rep.Status,
+	})
+}
+
+func (h *Handler) listRepresentatives(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.read") {
+		return
+	}
+
+	reps, err := h.organizations.ListRepresentatives(c.Request.Context(), tenantCtx.OrganizationID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.List(c, reps, "")
+}
+
+func (h *Handler) updateRepresentative(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	repID := c.Param("representativeId")
+	if repID == "" {
+		respond.Error(c, apperrors.BadRequest("Representative ID is required.", nil))
+		return
+	}
+
+	var request updateRepresentativeRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	expectedVersion, err := expectedVersionFrom(c)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	rep, err := h.organizations.UpdateRepresentative(c.Request.Context(), orgusecases.UpdateRepresentativeInput{
+		OrganizationID:          tenantCtx.OrganizationID,
+		RepresentativeID:        repID,
+		FullName:                request.FullName,
+		RoleTitle:               request.RoleTitle,
+		Email:                   request.Email,
+		Phone:                   request.Phone,
+		AuthorityType:           request.AuthorityType,
+		AuthorityDocumentFileID: request.AuthorityDocumentFileID,
+		Status:                  request.Status,
+		EffectiveTo:             request.EffectiveTo,
+		ExpectedVersion:         expectedVersion,
+		RequestID:               tenantCtx.RequestID,
+		CorrelationID:           tenantCtx.CorrelationID,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"representativeId": repID,
+		"fullName":         rep.FullName,
+		"roleTitle":        rep.RoleTitle,
+		"status":           rep.Status,
+	})
+}
+
+type markStageRequest struct {
+	Status string `json:"status"`
+}
+
+type updateCapabilitiesRequest struct {
+	Capabilities []string `json:"capabilities"`
+}
+
+func (h *Handler) getCapabilities(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.read") {
+		return
+	}
+
+	capabilities, err := h.organizations.GetCapabilities(c.Request.Context(), tenantCtx.OrganizationID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, capabilities)
+}
+
+func (h *Handler) updateCapabilities(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	var request updateCapabilitiesRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	capabilities, err := h.organizations.SetCapabilities(c.Request.Context(), orgusecases.SetCapabilitiesInput{
+		OrganizationID: tenantCtx.OrganizationID,
+		Capabilities:   request.Capabilities,
+		RequestID:      tenantCtx.RequestID,
+		CorrelationID:  tenantCtx.CorrelationID,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"capabilities": capabilities,
+	})
+}
+
+type updateProfileRequest struct {
+	BusinessType        *string        `json:"businessType"`
+	IncorporationDate   *time.Time     `json:"incorporationDate"`
+	TaxReference        *string        `json:"taxReference"`
+	RegisteredAddress   map[string]any `json:"registeredAddress"`
+	OperatingAddress    map[string]any `json:"operatingAddress"`
+	BusinessEmail       *string        `json:"businessEmail"`
+	BusinessPhone       *string        `json:"businessPhone"`
+	Website             *string        `json:"website"`
+	BusinessDescription *string        `json:"businessDescription"`
+}
+
+func (h *Handler) getProfile(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.read") {
+		return
+	}
+
+	profile, err := h.organizations.GetProfile(c.Request.Context(), tenantCtx.OrganizationID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	// Handle nil profile (no profile exists yet)
+	if profile == nil {
+		respond.OK(c, gin.H{})
+		return
+	}
+
+	respond.OK(c, profile)
+}
+
+func (h *Handler) updateProfile(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	var request updateProfileRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	expectedVersion, err := expectedVersionFrom(c)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	profile, err := h.organizations.UpdateProfile(c.Request.Context(), orgusecases.UpdateProfileInput{
+		OrganizationID:      tenantCtx.OrganizationID,
+		BusinessType:        request.BusinessType,
+		IncorporationDate:   request.IncorporationDate,
+		TaxReference:        request.TaxReference,
+		RegisteredAddress:   request.RegisteredAddress,
+		OperatingAddress:    request.OperatingAddress,
+		BusinessEmail:       request.BusinessEmail,
+		BusinessPhone:       request.BusinessPhone,
+		Website:             request.Website,
+		BusinessDescription: request.BusinessDescription,
+		ExpectedVersion:     expectedVersion,
+		RequestID:           tenantCtx.RequestID,
+		CorrelationID:       tenantCtx.CorrelationID,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"organizationId":      profile.OrganizationID,
+		"businessType":        profile.BusinessType,
+		"incorporationDate":   profile.IncorporationDate,
+		"taxReference":        profile.TaxReference,
+		"registeredAddress":   profile.RegisteredAddress,
+		"operatingAddress":    profile.OperatingAddress,
+		"businessEmail":       profile.BusinessEmail,
+		"businessPhone":       profile.BusinessPhone,
+		"website":             profile.Website,
+		"businessDescription": profile.BusinessDescription,
+		"version":             profile.Version,
+	})
+}
+
+func (h *Handler) markStage(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.update") {
+		return
+	}
+
+	stage := c.Param("stage")
+	if stage == "" {
+		respond.Error(c, apperrors.BadRequest("Stage is required.", nil))
+		return
+	}
+
+	var request markStageRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+
+	status := request.Status
+	if status == "" {
+		status = orgmodels.StageStatusComplete
+	}
+
+	// Validate stage exists
+	validStage := false
+	for _, s := range orgmodels.AllStages {
+		if s == stage {
+			validStage = true
+			break
+		}
+	}
+	if !validStage {
+		respond.Error(c, apperrors.BadRequest("Invalid stage name.", nil))
+		return
+	}
+
+	// Validate status
+	validStatus := false
+	validStatuses := []string{
+		orgmodels.StageStatusNotStarted,
+		orgmodels.StageStatusInProgress,
+		orgmodels.StageStatusComplete,
+		orgmodels.StageStatusBlocked,
+		orgmodels.StageStatusChangesRequired,
+	}
+	for _, s := range validStatuses {
+		if s == status {
+			validStatus = true
+			break
+		}
+	}
+	if !validStatus {
+		respond.Error(c, apperrors.BadRequest("Invalid status value.", nil))
+		return
+	}
+
+	err := h.organizations.MarkStage(c.Request.Context(), tenantCtx.OrganizationID, stage, status, nil, nil)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+
+	respond.OK(c, gin.H{
+		"stage":  stage,
+		"status": status,
 	})
 }
 

@@ -1,0 +1,28 @@
+{"Time":"2026-09-27T16:56:30.7621819+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/walletclient"}
+{"Time":"2026-09-27T16:56:30.9448518+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCreatePaymentIntentSignsAndHitsCorrectPath"}
+{"Time":"2026-09-27T16:56:30.9448518+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCreatePaymentIntentSignsAndHitsCorrectPath","Output":"=== RUN   TestCreatePaymentIntentSignsAndHitsCorrectPath\n"}
+{"Time":"2026-09-27T16:56:30.9496916+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCreatePaymentIntentSignsAndHitsCorrectPath","Output":"--- PASS: TestCreatePaymentIntentSignsAndHitsCorrectPath (0.00s)\n"}
+{"Time":"2026-09-27T16:56:30.9502214+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCreatePaymentIntentSignsAndHitsCorrectPath","Elapsed":0}
+{"Time":"2026-09-27T16:56:30.9502214+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath"}
+{"Time":"2026-09-27T16:56:30.9502214+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath","Output":"=== RUN   TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath\n"}
+{"Time":"2026-09-27T16:56:30.9530399+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath","Output":"--- PASS: TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath (0.00s)\n"}
+{"Time":"2026-09-27T16:56:30.9530399+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestClientAcceptsFullAPIBaseURLWithoutDuplicatingPath","Elapsed":0}
+{"Time":"2026-09-27T16:56:30.9530399+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestPayFromWalletEscapesIDInPath"}
+{"Time":"2026-09-27T16:56:30.9530399+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestPayFromWalletEscapesIDInPath","Output":"=== RUN   TestPayFromWalletEscapesIDInPath\n"}
+{"Time":"2026-09-27T16:56:30.9549529+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestPayFromWalletEscapesIDInPath","Output":"--- PASS: TestPayFromWalletEscapesIDInPath (0.00s)\n"}
+{"Time":"2026-09-27T16:56:30.9554806+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestPayFromWalletEscapesIDInPath","Elapsed":0}
+{"Time":"2026-09-27T16:56:30.9554806+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCompleteJobEscapesPathSegments"}
+{"Time":"2026-09-27T16:56:30.9554806+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCompleteJobEscapesPathSegments","Output":"=== RUN   TestCompleteJobEscapesPathSegments\n"}
+{"Time":"2026-09-27T16:56:30.9572881+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCompleteJobEscapesPathSegments","Output":"--- PASS: TestCompleteJobEscapesPathSegments (0.00s)\n"}
+{"Time":"2026-09-27T16:56:30.9578751+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestCompleteJobEscapesPathSegments","Elapsed":0}
+{"Time":"2026-09-27T16:56:30.9578751+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestGetPaymentUsesGET"}
+{"Time":"2026-09-27T16:56:30.9578751+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestGetPaymentUsesGET","Output":"=== RUN   TestGetPaymentUsesGET\n"}
+{"Time":"2026-09-27T16:56:30.9594768+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestGetPaymentUsesGET","Output":"--- PASS: TestGetPaymentUsesGET (0.00s)\n"}
+{"Time":"2026-09-27T16:56:30.9594768+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestGetPaymentUsesGET","Elapsed":0}
+{"Time":"2026-09-27T16:56:30.9600011+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestErrorEnvelopeSurfacesMessage"}
+{"Time":"2026-09-27T16:56:30.9600011+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestErrorEnvelopeSurfacesMessage","Output":"=== RUN   TestErrorEnvelopeSurfacesMessage\n"}
+{"Time":"2026-09-27T16:56:30.9610659+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestErrorEnvelopeSurfacesMessage","Output":"--- PASS: TestErrorEnvelopeSurfacesMessage (0.00s)\n"}
+{"Time":"2026-09-27T16:56:30.9610659+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Test":"TestErrorEnvelopeSurfacesMessage","Elapsed":0}
+{"Time":"2026-09-27T16:56:30.9610659+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Output":"PASS\n"}
+{"Time":"2026-09-27T16:56:30.9661338+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/walletclient","Output":"ok  \tcosmicforge/logistics/shared/go/walletclient\t0.204s\n"}
+{"Time":"2026-09-27T16:56:30.9661338+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/walletclient","Elapsed":0.204}

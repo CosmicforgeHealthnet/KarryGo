@@ -31,6 +31,14 @@ type Config struct {
 	// secrets. Empty disables enrichment for that service.
 	CustomerServiceURL    string
 	CustomerServiceSecret string
+	// NetworkContextEnabled gates Section 15: context references, owner
+	// context reads, snapshots and action requests. Off by default so a
+	// deployment enables it only once the owning services expose the read.
+	NetworkContextEnabled bool
+	// MediaFileURL / MediaFileSecret reach Media's verdict-only evidence
+	// route, so a complaint can cite private evidence (Section 16).
+	MediaFileURL          string
+	MediaFileSecret       string
 	HaulingServiceURL     string
 	HaulingServiceSecret  string
 	TaxiServiceURL        string
@@ -39,6 +47,12 @@ type Config struct {
 	DispatchServiceSecret string
 	VendorServiceURL      string
 	VendorServiceSecret   string
+
+	// Fleet corporate context, used to snapshot the organization behind a
+	// provider-raised case. Empty disables the dimension entirely: cases are
+	// still created, simply without the label.
+	FleetPartnerServiceURL    string
+	FleetPartnerServiceSecret string
 
 	AccessTokenTTL time.Duration
 }
@@ -62,16 +76,21 @@ func Load() Config {
 		PaymentURL:         getEnv("SUPPORT_DISPUTE_PAYMENT_URL", ""),
 		PaymentSecret:      getEnv("SUPPORT_DISPUTE_PAYMENT_SECRET", "development-support-dispute-payment-secret"),
 
-		CustomerServiceURL:    getEnv("SUPPORT_DISPUTE_CUSTOMER_SERVICE_URL", ""),
-		CustomerServiceSecret: getEnv("SUPPORT_DISPUTE_CUSTOMER_SERVICE_SECRET", "development-support-dispute-service-secret"),
-		HaulingServiceURL:     getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_URL", ""),
-		HaulingServiceSecret:  getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_SECRET", "development-support-dispute-service-secret"),
-		TaxiServiceURL:        getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_URL", ""),
-		TaxiServiceSecret:     getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_SECRET", "development-support-dispute-service-secret"),
-		DispatchServiceURL:    getEnv("SUPPORT_DISPUTE_DISPATCH_SERVICE_URL", ""),
-		DispatchServiceSecret: getEnv("SUPPORT_DISPUTE_DISPATCH_SERVICE_SECRET", "development-support-dispute-service-secret"),
-		VendorServiceURL:      getEnv("SUPPORT_DISPUTE_VENDOR_SERVICE_URL", ""),
-		VendorServiceSecret:   getEnv("SUPPORT_DISPUTE_VENDOR_SERVICE_SECRET", "development-vendor-support-secret"),
+		CustomerServiceURL:        getEnv("SUPPORT_DISPUTE_CUSTOMER_SERVICE_URL", ""),
+		CustomerServiceSecret:     getEnv("SUPPORT_DISPUTE_CUSTOMER_SERVICE_SECRET", "development-support-dispute-service-secret"),
+		FleetPartnerServiceURL:    getEnv("SUPPORT_DISPUTE_FLEET_PARTNER_SERVICE_URL", ""),
+		FleetPartnerServiceSecret: getEnv("SUPPORT_DISPUTE_FLEET_PARTNER_SERVICE_SECRET", ""),
+		NetworkContextEnabled:     getEnv("SUPPORT_NETWORK_CONTEXT_ENABLED", "false") == "true",
+		MediaFileURL:              getEnv("SUPPORT_DISPUTE_MEDIA_FILE_URL", ""),
+		MediaFileSecret:           getEnv("SUPPORT_DISPUTE_MEDIA_FILE_SECRET", ""),
+		HaulingServiceURL:         getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_URL", ""),
+		HaulingServiceSecret:      getEnv("SUPPORT_DISPUTE_HAULING_SERVICE_SECRET", "development-support-dispute-service-secret"),
+		TaxiServiceURL:            getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_URL", ""),
+		TaxiServiceSecret:         getEnv("SUPPORT_DISPUTE_TAXI_SERVICE_SECRET", "development-support-dispute-service-secret"),
+		DispatchServiceURL:        getEnv("SUPPORT_DISPUTE_DISPATCH_SERVICE_URL", ""),
+		DispatchServiceSecret:     getEnv("SUPPORT_DISPUTE_DISPATCH_SERVICE_SECRET", "development-support-dispute-service-secret"),
+		VendorServiceURL:          getEnv("SUPPORT_DISPUTE_VENDOR_SERVICE_URL", ""),
+		VendorServiceSecret:       getEnv("SUPPORT_DISPUTE_VENDOR_SERVICE_SECRET", "development-vendor-support-secret"),
 	}
 }
 

@@ -44,6 +44,17 @@ func (s *Service) WithRateLimiter(limiter RateLimiter) *Service       { s.limite
 
 func (s *Service) Enabled() bool { return s != nil && s.policy.Enabled }
 
+func (s *Service) Required(ctx context.Context, tripID string) (bool, error) {
+	if s == nil || s.repo == nil {
+		return false, nil
+	}
+	protection, err := s.repo.ProtectionByTrip(ctx, tripID)
+	if err != nil {
+		return false, err
+	}
+	return protection.HandoverRequired || protection.ExistingChallenge, nil
+}
+
 func (s *Service) IssuePickup(ctx context.Context, providerID, tripID, stopRef, operationRef string) (Credential, error) {
 	if !s.Enabled() {
 		return Credential{}, apperrors.Unavailable("Secure handover is not enabled.", nil)
@@ -54,6 +65,9 @@ func (s *Service) IssuePickup(ctx context.Context, providerID, tripID, stopRef, 
 	context, err := s.repo.ResolveByTrip(ctx, tripID, StagePickup, stopRef)
 	if err != nil || context.ProviderID != providerID {
 		return Credential{}, apperrors.NotFound("Assigned trip pickup was not found.", err)
+	}
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Credential{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
 	}
 	challenge, _, err := s.issue(ctx, context, StagePickup, "PROVIDER", "provider:"+providerID, "provider:"+providerID, operationRef, false)
 	if err != nil {
@@ -80,7 +94,13 @@ func (s *Service) IssueDelivery(ctx context.Context, tripID, operationRef string
 		}
 		return s.issueReturnForCustomer(ctx, returnContext, operationRef)
 	}
-	recipient := s.cipher.recipientRef(strings.TrimSpace(context.ReceiverPhone))
+	// An email address alone is a delivery address, not proof that the caller
+	// controls that mailbox. Until the email verification read contract is
+	// available, issue only for a receiver bound to an authenticated account.
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Challenge{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
+	recipient := s.deliveryRecipientRef(context)
 	challenge, replayed, err := s.issue(ctx, context, StageDelivery, "RECEIVER", recipient, "system:"+tripID, operationRef, true)
 	if err != nil {
 		return Challenge{}, mapError(err)
@@ -90,6 +110,26 @@ func (s *Service) IssueDelivery(ctx context.Context, tripID, operationRef string
 		challenge, _ = s.repo.FindChallenge(ctx, challenge.ChallengeRef)
 	}
 	return sanitize(challenge), nil
+}
+
+// ReadReceiverCredential is available only to the account frozen as the
+// receiver on the current challenge. Sender ownership alone is insufficient.
+func (s *Service) ReadReceiverCredential(ctx context.Context, receiverID, challengeRef string) (Credential, error) {
+	if !s.Enabled() {
+		return Credential{}, apperrors.Unavailable("Secure handover is not enabled.", nil)
+	}
+	if err := s.limit(ctx, "receiver-read:"+receiverID+":"+challengeRef, 12, time.Minute); err != nil {
+		return Credential{}, err
+	}
+	challenge, err := s.repo.FindChallenge(ctx, strings.TrimSpace(challengeRef))
+	if err != nil || challenge.Stage != StageDelivery {
+		return Credential{}, apperrors.NotFound("Receiver handover was not found.", err)
+	}
+	current, err := s.repo.ResolveByTrip(ctx, challenge.TripID, StageDelivery, challenge.StopRef)
+	if err != nil || current.ReceiverRef == "" || receiverID != current.ReceiverRef || !s.notificationContextMatches(challenge, current) {
+		return Credential{}, apperrors.NotFound("Receiver handover was not found.", err)
+	}
+	return s.credential(challenge, true), nil
 }
 
 func (s *Service) issueReturnForCustomer(ctx context.Context, context Context, operationRef string) (Challenge, error) {
@@ -177,6 +217,9 @@ func (s *Service) VerifyPickupByCustomer(ctx context.Context, customerID, bookin
 	if err != nil {
 		return Challenge{}, mapError(err)
 	}
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Challenge{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
+	}
 	return s.verify(ctx, context, Actor{Type: "CUSTOMER", Ref: customerID}, StagePickup, command)
 }
 
@@ -188,10 +231,42 @@ func (s *Service) VerifyPickupBySource(ctx context.Context, caller, missionRef, 
 	if err != nil {
 		return Challenge{}, mapError(err)
 	}
+	if strings.TrimSpace(context.ReceiverRef) == "" {
+		return Challenge{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
+	}
 	if (caller == "vendor-service" && context.SourceType != "VENDOR_COMMERCE") || (caller == "api-gateway" && context.SourceType != "PARTNER_API") {
 		return Challenge{}, apperrors.NotFound("Pickup handover was not found.", nil)
 	}
 	return s.verify(ctx, context, Actor{Type: sourceActor(caller), Ref: caller, SourceRef: context.SourceRef}, StagePickup, command)
+}
+
+// ReadBySource returns only an opaque challenge observation for an existing
+// Commerce mission. It is the canonical reconciliation path after a caller
+// loses the response to a verification request.
+func (s *Service) ReadBySource(ctx context.Context, caller, missionRef, stopRef string, stage Stage) (Observation, error) {
+	if !s.Enabled() || (stage != StagePickup && stage != StageDelivery) {
+		return Observation{}, apperrors.Unavailable("Secure handover is not enabled.", nil)
+	}
+	handoverContext, err := s.repo.ResolveMission(ctx, missionRef, stage, stopRef)
+	if err != nil {
+		return Observation{}, mapError(err)
+	}
+	if (caller == "vendor-service" && handoverContext.SourceType != "VENDOR_COMMERCE") ||
+		(caller == "api-gateway" && handoverContext.SourceType != "PARTNER_API") {
+		return Observation{}, apperrors.NotFound("Handover was not found.", nil)
+	}
+	challenge, err := s.repo.LatestChallenge(ctx, handoverContext.TripID, stage)
+	if err != nil {
+		return Observation{}, mapError(err)
+	}
+	if challenge.MissionRef != handoverContext.MissionRef || challenge.StopRef != handoverContext.StopRef {
+		return Observation{}, apperrors.NotFound("Handover was not found.", nil)
+	}
+	version := challenge.OptimisticVersion
+	if version < 1 {
+		version = 1
+	}
+	return Observation{MissionRef: missionRef, HandoverRef: challenge.ChallengeRef, Stage: challenge.Stage, Status: challenge.Status, SourceVersion: version}, nil
 }
 
 func (s *Service) VerifyDelivery(ctx context.Context, providerID, tripID string, command VerifyCommand) (Challenge, error) {
@@ -380,15 +455,35 @@ func (s *Service) SubmitEvidence(ctx context.Context, providerID, tripID, stopRe
 }
 
 func (s *Service) PickupReady(ctx context.Context, tripID string) (bool, error) {
-	return s.repo.StageReady(ctx, tripID, StagePickup, s.policy.PickupEvidenceEnabled)
+	protection, err := s.repo.ProtectionByTrip(ctx, tripID)
+	if err != nil {
+		return false, err
+	}
+	required, err := s.repo.StageEvidenceRequired(ctx, tripID, StagePickup)
+	if err != nil {
+		return false, err
+	}
+	return s.repo.StageReady(ctx, tripID, StagePickup, protection.PickupEvidenceRequired || required)
 }
 
 func (s *Service) DeliveryReady(ctx context.Context, tripID string) (bool, error) {
-	return s.repo.StageReady(ctx, tripID, StageDelivery, s.policy.DeliveryEvidenceEnabled)
+	protection, err := s.repo.ProtectionByTrip(ctx, tripID)
+	if err != nil {
+		return false, err
+	}
+	required, err := s.repo.StageEvidenceRequired(ctx, tripID, StageDelivery)
+	if err != nil {
+		return false, err
+	}
+	return s.repo.StageReady(ctx, tripID, StageDelivery, protection.DeliveryEvidenceRequired || required)
 }
 
 func (s *Service) ReturnReady(ctx context.Context, tripID string) (bool, error) {
-	return s.repo.StageReady(ctx, tripID, StageReturn, s.policy.DeliveryEvidenceEnabled)
+	required, err := s.repo.StageEvidenceRequired(ctx, tripID, StageReturn)
+	if err != nil {
+		return false, err
+	}
+	return s.repo.StageReady(ctx, tripID, StageReturn, required)
 }
 
 func (s *Service) MarkInTransit(ctx context.Context, tripID string) error {
@@ -406,9 +501,6 @@ func (s *Service) InvalidateForReceiverChange(ctx context.Context, tripID string
 func (s *Service) Expire(ctx context.Context) (int64, error) { return s.repo.Expire(ctx, s.now(), 100) }
 
 func (s *Service) RunExpiryWorker(ctx context.Context, interval time.Duration) {
-	if !s.Enabled() {
-		return
-	}
 	defer observability.WorkerRunning("handover")()
 	if interval <= 0 {
 		interval = 30 * time.Second
@@ -448,10 +540,11 @@ func (s *Service) credential(challenge Challenge, includeSecret bool) Credential
 
 func (s *Service) deliver(ctx context.Context, context Context, challenge Challenge, resend bool, leaseOwner ...string) {
 	channels := make([]string, 0, 3)
-	if s.policy.InAppAllowed && context.CustomerID != "" {
+	accountReceiver := context.ReceiverRef != ""
+	if s.policy.InAppAllowed && accountReceiver {
 		channels = append(channels, "in_app")
 	}
-	if s.policy.PushAllowed && context.CustomerID != "" {
+	if s.policy.PushAllowed && accountReceiver {
 		channels = append(channels, "push")
 	}
 	if s.policy.EmailAllowed && strings.TrimSpace(context.ReceiverEmail) != "" {
@@ -510,7 +603,7 @@ func (s *Service) reconcileNotifications(ctx context.Context, limit int) error {
 }
 
 func (s *Service) notificationContextMatches(challenge Challenge, current Context) bool {
-	recipient := s.cipher.recipientRef(strings.TrimSpace(current.ReceiverPhone))
+	recipient := s.deliveryRecipientRef(current)
 	if challenge.Stage == StageReturn {
 		recipient = s.cipher.recipientRef("customer:" + current.CustomerID)
 	}
@@ -519,6 +612,14 @@ func (s *Service) notificationContextMatches(challenge Challenge, current Contex
 		challenge.AssignedProviderID == current.ProviderID && challenge.ManifestRef == current.ManifestRef &&
 		challenge.ManifestVersion == current.ManifestVersion && challenge.SourceVersion == current.SourceVersion &&
 		challenge.IntendedRecipientRef == recipient && (challenge.Stage == StageDelivery || challenge.Stage == StageReturn)
+}
+
+func (s *Service) deliveryRecipientRef(current Context) string {
+	return s.cipher.recipientRef(strings.Join([]string{
+		strings.TrimSpace(current.ReceiverRef),
+		strings.ToLower(strings.TrimSpace(current.ReceiverEmail)),
+		strings.TrimSpace(current.ReceiverPhone),
+	}, "\x00"))
 }
 
 func (s *Service) notificationBackoff(attempt int) time.Duration {

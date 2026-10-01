@@ -1,0 +1,36 @@
+=== PART E: live wiring certification against a running payment-wallet-service ===
+
+PASS service is reachable                                       GET /health -> 200
+PASS Fleet's signature is accepted                              signed POST -> 422 (not 401)
+PASS a wrong secret is refused                                  bad signature -> 401
+PASS an unsigned call is refused                                unsigned -> 401
+PASS only Fleet may instruct a settlement                       Taxi-signed POST -> 403
+PASS read-back reaches taxi-service                             -> 200
+PASS read-back reaches dispatch-delivery-service                -> 200
+PASS read-back reaches driver-hauling-service                   -> 200
+PASS read-back reaches fleet-partner-service                    -> 200
+PASS an unrelated caller cannot read settlements                -> 403
+PASS shared client reads an unsettled job                       outcome={Settled:false Pending:false Unknown:false Settlements:[]} err=<nil>
+PASS a refused read is Unknown, not unsettled                   outcome={Settled:false Pending:false Unknown:true Settlements:[]}
+PASS an unreachable Wallet is Unknown, not unsettled            outcome={Settled:false Pending:false Unknown:true Settlements:[]}
+PASS Vendor may ask for a recovery plan                         -> 404 (reached the handler)
+PASS an execution service may not plan a recovery               -> 403
+PASS support-dispute may reverse for a dispute                  -> 422 (reached the handler)
+PASS an execution service may not reverse a dispute             -> 403
+PASS the provider surface refuses an unauthenticated read       -> 401
+PASS no settlement route exists on the provider surface         -> 404
+PASS a timeout is Unknown, never a confirmed failure            outcome={Settled:false Pending:false Unknown:true Settlements:[]}
+
+--- end-to-end: Fleet instructs, Wallet posts, the execution service reads back ---
+PASS Fleet posts a managed settlement                           -> 200
+PASS resending the instruction posts once                       -> 200
+PASS the retry returns the original journal                     03a1fede-ab98-4a7e-bc44-3b3cf8d05ecf == 03a1fede-ab98-4a7e-bc44-3b3cf8d05ecf
+PASS a changed instruction is a conflict                        -> 409
+PASS taxi-service sees the money moved                          settled=true err=<nil>
+PASS driver-hauling-service sees the money moved                settled=true err=<nil>
+PASS the legacy payout path pays nothing for managed work       status 200, job_completion journals for this job: 0
+PASS an execution service cannot reverse a settlement           -> 403
+PASS Fleet may reverse a settlement                             -> 200
+PASS a reversed settlement reads back as unpaid                 settled=false
+
+PART E: ALL LIVE WIRING CHECKS PASSED

@@ -72,3 +72,49 @@ func TestClientRejectsIncompleteManagedSummaryAndStripsIndependentLeaks(t *testi
 		})
 	}
 }
+
+func TestClientReadsSignedCorporateContext(t *testing.T) {
+	const caller = "driver-taxi-service"
+	secret := []byte("section8-test-secret")
+	verifier := serviceauth.NewVerifier(serviceauth.Secrets{caller: secret}, time.Minute)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/fleet-partner/v1/providers/provider_fixture/corporate-context" {
+			t.Errorf("incorrect corporate-context route: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Query().Get("service") != "TAXI" {
+			t.Errorf("service query = %q, want TAXI", r.URL.Query().Get("service"))
+		}
+		if _, err := verifier.VerifyRequest(r); err != nil {
+			t.Fatalf("verify signed request: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": CorporateContext{
+			ProviderID:         "provider_fixture",
+			IsManagedProvider:  true,
+			MembershipID:       "membership_fixture",
+			OrganizationID:     "org_fixture",
+			MembershipStatus:   "ACTIVE",
+			OrganizationRole:   "DRIVER",
+			OperatingMode:      "HYBRID",
+			ServiceEligibility: map[string]bool{"TAXI": true, "DISPATCH": false},
+			FinancialVisibilityPolicy: FinancialVisibilityPolicy{
+				ShowOwnEarning: true, ShowProviderShare: true,
+			},
+			Version: 7,
+		}})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, caller, secret, time.Second)
+	got, err := client.ReadCorporateContext(context.Background(), "TAXI", "provider_fixture")
+	if err != nil {
+		t.Fatalf("ReadCorporateContext: %v", err)
+	}
+	if !got.IsManagedProvider || got.MembershipID != "membership_fixture" || !got.ServiceEligibility["TAXI"] {
+		t.Fatalf("unexpected corporate context: %+v", got)
+	}
+	if !got.FinancialVisibilityPolicy.ShowOwnEarning || !got.FinancialVisibilityPolicy.ShowProviderShare {
+		t.Fatalf("visibility policy not decoded: %+v", got.FinancialVisibilityPolicy)
+	}
+}

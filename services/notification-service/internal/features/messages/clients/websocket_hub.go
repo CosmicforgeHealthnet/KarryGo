@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -21,6 +22,21 @@ type WebSocketHub struct {
 
 func NewWebSocketHub() *WebSocketHub {
 	return &WebSocketHub{clients: map[string]map[*webSocketClient]struct{}{}}
+}
+
+// ActiveSessions is the number of open websocket connections (Customer V4
+// §27.2). It is a count only; recipients never leave the hub.
+func (h *WebSocketHub) ActiveSessions() int {
+	if h == nil {
+		return 0
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	total := 0
+	for _, clients := range h.clients {
+		total += len(clients)
+	}
+	return total
 }
 
 func (h *WebSocketHub) ServeHTTP(w http.ResponseWriter, r *http.Request, recipientType string, recipientID string) error {
@@ -156,6 +172,12 @@ func encodeTextFrame(payload []byte) []byte {
 	return append(header, payload...)
 }
 
+// realtimeRecipientKey is the connection bucket for one recipient.
+//
+// The type is length-prefixed. Joining with a bare separator made the key
+// ambiguous -- type "customer" with id "a:b" and type "customer:a" with id
+// "b" shared a bucket -- and recipient types are free text, so a message for
+// one audience could reach a socket opened by another.
 func realtimeRecipientKey(recipientType string, recipientID string) string {
-	return recipientType + ":" + recipientID
+	return strconv.Itoa(len(recipientType)) + ":" + recipientType + ":" + recipientID
 }

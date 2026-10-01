@@ -29,11 +29,14 @@ func TestNotificationTransportUsesExistingSecretTransportContract(t *testing.T) 
 	if recorder.request.TemplateKey != templateDeliveryCode || recorder.request.EventType != eventDeliveryChallenge {
 		t.Fatalf("notification contract = %+v", recorder.request)
 	}
-	if recorder.request.Recipient.Email != "receiver@example.test" || recorder.request.Recipient.Phone != "+15551234567" {
+	if recorder.request.Recipient.Email != "receiver@example.test" || recorder.request.Recipient.Phone != "" || recorder.request.Recipient.ID == "customer-1" {
 		t.Fatalf("recipient = %+v", recorder.request.Recipient)
 	}
-	if recorder.request.TemplateData["code"] != "123456" || recorder.request.TemplateData["qr_token"] != "opaque-qr-token" {
-		t.Fatal("secret-bearing transport request omitted challenge credential")
+	if recorder.request.TemplateData["challenge_ref"] != "handover-1" || recorder.request.TemplateData["code"] != nil || recorder.request.TemplateData["qr_token"] != nil {
+		t.Fatal("notification must carry a challenge reference without a credential")
+	}
+	if err := recorder.request.Validate(); err != nil {
+		t.Fatalf("safe notification rejected: %v", err)
 	}
 	for _, channel := range recorder.request.Channels {
 		if channel == "sms" {
@@ -73,11 +76,11 @@ func TestNotificationRecoveryRejectsChangedContext(t *testing.T) {
 	now := time.Now().UTC()
 	s := &Service{cipher: cipher, now: func() time.Time { return now }}
 	current := Context{TripID: "trip", MissionRef: "mission", ProviderID: "provider", ManifestRef: "manifest", ManifestVersion: 1, SourceVersion: 2, ReceiverPhone: "+2348011111111"}
-	challenge := Challenge{Stage: StageDelivery, Status: StatusActive, ExpiresAt: now.Add(time.Minute), TripID: current.TripID, MissionRef: current.MissionRef, AssignedProviderID: current.ProviderID, ManifestRef: current.ManifestRef, ManifestVersion: 1, SourceVersion: 2, IntendedRecipientRef: cipher.recipientRef(current.ReceiverPhone)}
+	challenge := Challenge{Stage: StageDelivery, Status: StatusActive, ExpiresAt: now.Add(time.Minute), TripID: current.TripID, MissionRef: current.MissionRef, AssignedProviderID: current.ProviderID, ManifestRef: current.ManifestRef, ManifestVersion: 1, SourceVersion: 2, IntendedRecipientRef: s.deliveryRecipientRef(current)}
 	if !s.notificationContextMatches(challenge, current) {
 		t.Fatal("valid context rejected")
 	}
-	for _, change := range []func(*Context){func(c *Context) { c.ProviderID = "other" }, func(c *Context) { c.ManifestVersion++ }, func(c *Context) { c.ReceiverPhone = "+2348022222222" }, func(c *Context) { c.SourceVersion++ }} {
+	for _, change := range []func(*Context){func(c *Context) { c.ProviderID = "other" }, func(c *Context) { c.ManifestVersion++ }, func(c *Context) { c.ReceiverPhone = "+2348022222222" }, func(c *Context) { c.ReceiverEmail = "new@example.test" }, func(c *Context) { c.SourceVersion++ }} {
 		other := current
 		change(&other)
 		if s.notificationContextMatches(challenge, other) {

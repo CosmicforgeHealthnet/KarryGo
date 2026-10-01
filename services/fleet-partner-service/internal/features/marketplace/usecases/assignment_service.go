@@ -73,10 +73,11 @@ func (f Flags) SourceEnabled(category string) bool {
 
 // Options configure the assignment service.
 type Options struct {
-	Pool        *pgxpool.Pool
-	Projections *repositories.ProjectionRepository
-	Offers      *repositories.OfferRepository
-	Assignments *repositories.AssignmentRepository
+	Pool           *pgxpool.Pool
+	Projections    *repositories.ProjectionRepository
+	Offers         *repositories.OfferRepository
+	Assignments    *repositories.AssignmentRepository
+	OperatingModes OperatingModeReader
 	// ExecutionStarts holds durable execution-start work created atomically
 	// with a provider's acceptance.
 	ExecutionStarts *repositories.ExecutionStartRepository

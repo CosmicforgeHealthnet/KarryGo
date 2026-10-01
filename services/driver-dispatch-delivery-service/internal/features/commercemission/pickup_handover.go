@@ -43,7 +43,7 @@ func (s *MultiStopMissionService) ArrivePickup(ctx context.Context, providerID, 
 			return dispatchcommerce.PickupCredential{}, err
 		}
 		credential.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), credential.Code)
-		return credential, err
+		return credential.WithDirection(), err
 	}
 	now := s.now().UTC()
 	record, err := securehandover.NewCompatibilityCodeRecord(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), now)
@@ -55,7 +55,7 @@ func (s *MultiStopMissionService) ArrivePickup(ctx context.Context, providerID, 
 		return dispatchcommerce.PickupCredential{}, err
 	}
 	credential.Code, err = securehandover.CompatibilityCode(s.handoverSecret, handover.BuildChallengeID("dispatch", handover.StepPickup, missionRef+":"+stopRef), credential.Code)
-	return credential, err
+	return credential.WithDirection(), err
 }
 
 func (s *MultiStopMissionService) VerifyPickup(ctx context.Context, caller, missionRef, stopRef string, request dispatchcommerce.PickupVerificationRequest) (dispatchcommerce.Mission, error) {
@@ -348,6 +348,9 @@ func (r *Repository) CompletePickup(ctx context.Context, providerID, missionRef,
 		return dispatchcommerce.Mission{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE commerce_mission_parcels p SET manifest_frozen_at=COALESCE(manifest_frozen_at,$3) FROM commerce_mission_stops s WHERE p.stop_id=s.id AND s.commerce_mission_id=$1::uuid AND s.stop_ref=$2`, missionID, stopRef, now); err != nil {
+		return dispatchcommerce.Mission{}, err
+	}
+	if err = r.collectCustodyTx(ctx, tx, missionID, stopRef, providerID, operation, recorded.ID, providerID, nextVersion); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
 	var remaining int

@@ -43,6 +43,15 @@ func NewHandler(service *usecases.Service, verifier *serviceauth.Verifier, calle
 	return &Handler{service: service, verifier: verifier, allowedCallers: allowed, nonce: NewReplayCache(10 * time.Minute)}
 }
 
+// WithReplayCache shares one replay cache across the service's signed
+// surfaces, so a nonce spent on one cannot be replayed against another.
+func (h *Handler) WithReplayCache(cache *ReplayCache) *Handler {
+	if h != nil && cache != nil {
+		h.nonce = cache
+	}
+	return h
+}
+
 func (h *Handler) WithReadRateLimit(limiter RequestLimiter, max int, window time.Duration) *Handler {
 	if h != nil {
 		h.limiter, h.readRateMax, h.readRateWindow = limiter, max, window

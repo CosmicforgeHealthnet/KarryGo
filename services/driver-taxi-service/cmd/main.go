@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/taxi-service/internal/features/customertracking"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"net/http"
 	"strings"
 	"time"
@@ -38,22 +40,43 @@ import (
 	bookingtelemetry "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry"
 	bookingusecases "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases"
 	bookingverification "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification"
+	capabilities "cosmicforge/logistics/services/taxi-service/internal/features/capabilities"
+	fleetprovider "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider"
+	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
+	"cosmicforge/logistics/services/taxi-service/internal/features/managedexec"
+	"cosmicforge/logistics/services/taxi-service/internal/features/privateexecution"
+	"cosmicforge/logistics/services/taxi-service/internal/movement"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
 	notificationhttp "cosmicforge/logistics/services/taxi-service/internal/features/notifications/http"
 	operationshttp "cosmicforge/logistics/services/taxi-service/internal/features/operations/http"
 
+	"cosmicforge/logistics/services/taxi-service/internal/apiresponse"
 	"cosmicforge/logistics/services/taxi-service/internal/idempotency"
+	taxioutbox "cosmicforge/logistics/services/taxi-service/internal/outbox"
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 
+	taxisettlement "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement"
+	"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver"
+	"cosmicforge/logistics/services/taxi-service/internal/features/supportcontext"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/logging"
+	"cosmicforge/logistics/shared/go/managedsettlement"
+	"cosmicforge/logistics/shared/go/mediaclient"
+	"cosmicforge/logistics/shared/go/networkanalytics"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/observability"
+	"cosmicforge/logistics/shared/go/outboxmetrics"
+	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"cosmicforge/logistics/shared/go/supportcase"
 	"cosmicforge/logistics/shared/go/walletclient"
 )
 
@@ -70,6 +93,13 @@ func main() {
 	pricingRates, err := pricing.ParseRatesJSON(cfg.PricingRatesJSON)
 	if err != nil {
 		logging.Fatal("configuration", "%v", err)
+	}
+	var goodsPricing goods.PricingPolicy
+	if cfg.TaxiGoodsDeliveryEnabled {
+		goodsPricing, err = goods.ParsePricingPolicy(cfg.TaxiGoodsPricingJSON)
+		if err != nil {
+			logging.Fatal("configuration", "%v", err)
+		}
 	}
 	logging.Notice("taxi-service", "migration=%t redis=%s", cfg.Migration, cfg.Redis.Addr)
 
@@ -175,6 +205,19 @@ func main() {
 	vehicleRepo := providerprofilerepositories.NewPostgresVehicleRepository(db)
 
 	// ─── Services ─────────────────────────────────────────────────────────────
+	var fleetProviderContext providercompat.CorporateContextReader
+	var fleetProviderClient *fleetprovider.Client
+	// fleetProviderCompat is the concrete client, kept alongside the
+	// interface because completed-work submission needs the full client, not
+	// just the corporate-context read.
+	var fleetProviderCompat *providercompat.Client
+	if strings.TrimSpace(cfg.FleetServiceURL) != "" && len(cfg.FleetServiceSecret) > 0 {
+		fleetProviderCompat = providercompat.NewClient(cfg.FleetServiceURL, cfg.FleetServiceCaller, cfg.FleetServiceSecret, cfg.FleetServiceTimeout)
+		fleetProviderContext = fleetProviderCompat
+		fleetProviderClient, _ = fleetprovider.NewClient(fleetprovider.Config{BaseURL: cfg.FleetServiceURL, ServiceName: cfg.FleetServiceCaller, Secret: cfg.FleetServiceSecret, Timeout: cfg.FleetServiceTimeout})
+		logging.Notice("taxi-fleet", "corporate context client enabled url=%s", cfg.FleetServiceURL)
+	}
+
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -189,6 +232,7 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		CorporateContext:   fleetProviderContext,
 	})
 
 	profileService := providerprofileusecases.NewProfileService(profileRepo, vehicleRepo)
@@ -222,7 +266,19 @@ func main() {
 	// working day.
 	idempotencyStore := idempotency.NewStore(db, 24*time.Hour)
 
-	bookingRepo := bookingrepositories.NewPostgresBookingRepository(db)
+	// Section 7: movement summaries for customer-service are written through
+	// the outbox in the same transaction as each change (dark by default).
+	metrics := observability.NewMetrics()
+	movementWriter := &movement.Writer{Enabled: cfg.CustomerMovementEventsEnabled}
+	capabilityService := capabilities.NewService(capabilities.NewRepository(db), capabilities.Flags{
+		ServiceProductsEnabled:    cfg.ServiceProductsEnabled,
+		CapabilityMatchingEnabled: cfg.CapabilityMatchingEnabled,
+	}, metrics)
+	bookingRepo := bookingrepositories.NewPostgresBookingRepository(db).WithMovementEvents(movementWriter)
+	var riskStore bookingusecases.ScheduledRiskStore
+	if cfg.ScheduledRiskMonitorEnabled {
+		riskStore = bookingRepo
+	}
 	matcherLease := bookingmatching.NewMatcherLease(redisClient)
 	pickupVerificationRepo := bookingverification.NewPostgresRepository(db)
 	pickupVerifyRateLimiter := bookingverification.NewRateLimiter(redisClient)
@@ -242,14 +298,46 @@ func main() {
 	// requires both in production, so this branch only ever taken in local
 	// dev without payment-wallet-service running.
 	var paymentClient bookingusecases.PaymentClient
+	var walletAuthority walletclient.Client
 	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
-		paymentClient = walletclient.Client{
+		walletAuthority = walletclient.Client{
 			BaseURL: cfg.PaymentURL, HTTPClient: &http.Client{Timeout: 10 * time.Second},
 			ServiceName: bookingusecases.PaymentServiceName, Secret: cfg.PaymentSecret,
 		}
+		paymentClient = walletAuthority
 		logging.Notice("taxi-payments", "wallet integration enabled url=%s", cfg.PaymentURL)
 	} else {
 		logging.Notice("taxi-payments", "wallet integration disabled (no TAXI_PAYMENT_URL/_SECRET) -- rides will not be charged")
+	}
+
+	// Section 12 (WAL-011). Taxi does not settle corporate work -- Fleet
+	// resolves the compensation and instructs Wallet. What Taxi needs is a
+	// definite answer about whether a completed job's money moved, so an
+	// ambiguous completion is retried instead of assumed either way. Without
+	// wallet credentials there is no way to ask, so no handoff is wired and
+	// the completion is simply left for Fleet; that is the honest behaviour,
+	// and it still never falls through to paying the driver directly.
+	var managedHandoff bookingusecases.ManagedSettlementHandoff
+	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
+		managedHandoff = taxisettlement.New(managedsettlement.Client{
+			BaseURL:     cfg.PaymentURL,
+			ServiceName: bookingusecases.PaymentServiceName,
+			Secret:      cfg.PaymentSecret,
+			HTTPClient:  &http.Client{Timeout: 10 * time.Second},
+		})
+		logging.Notice("taxi-settlement", "managed settlement confirmation enabled url=%s", cfg.PaymentURL)
+	} else if cfg.TaxiManagedSettlementEnabled {
+		logging.Notice("taxi-settlement",
+			"managed settlement isolation is on but wallet credentials are missing -- corporate completions will be left entirely to Fleet")
+	}
+
+	var productPolicy bookingusecases.ProductPolicySource
+	if cfg.ServiceProductsEnabled {
+		productPolicy = capabilityService
+	}
+	var customerContext bookingusecases.CustomerContextSource
+	if cfg.CustomerContextEnabled {
+		customerContext = &bookingclients.CustomerContextClient{BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret}
 	}
 
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
@@ -273,6 +361,12 @@ func main() {
 		},
 		Payments: paymentClient,
 		Notifier: rideNotifier,
+		// Section 8 corporate completion. All three are off by default; see
+		// each flag's own doc comment in internal/config for what turning it
+		// on actually changes.
+		ManagedSettlement:    bookingusecases.ManagedSettlementConfig{Enabled: cfg.TaxiManagedSettlementEnabled},
+		ManagedHandoff:       managedHandoff,
+		CompletedWorkEnabled: cfg.TaxiFleetCompletedWorkEnabled,
 		// Positions is the same Redis store used for matching candidates --
 		// its repository-level Heartbeat(ctx, ProviderStatus) already
 		// satisfies bookingusecases.PositionUpdater with no adapter, per
@@ -293,7 +387,13 @@ func main() {
 		Scheduling: bookingusecases.SchedulingConfig{
 			LeadTime: time.Duration(cfg.ScheduleLeadMinutes) * time.Minute,
 		},
-		AdminAudit: adminAuditRepo,
+		AdminAudit:     adminAuditRepo,
+		Movement:       movementWriter,
+		CapabilityGate: capabilityService,
+		RiskStore:      riskStore,
+
+		ProductPolicy:   productPolicy,
+		CustomerContext: customerContext,
 	})
 
 	// Internal ops caller verification (phase B10) is nil when no
@@ -308,7 +408,135 @@ func main() {
 		opsVerifier = serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
 	}
 
+	goodsRepo := goods.NewRepository(db).WithMovementEvents(movementWriter)
+	var goodsSettlement goods.SettlementAuthority
+	if strings.TrimSpace(cfg.PaymentURL) != "" && len(cfg.PaymentSecret) > 0 {
+		goodsSettlement = goods.NewWalletAdapter(walletAuthority)
+	}
+	var goodsMedia goods.MediaAuthority
+	var taxiMediaClient *mediaclient.Client
+	if strings.TrimSpace(cfg.MediaURL) != "" && strings.TrimSpace(cfg.MediaToken) != "" {
+		taxiMediaClient = mediaclient.New(mediaclient.Config{
+			BaseURL: cfg.MediaURL, ServiceName: "driver-taxi-service", Token: cfg.MediaToken,
+			HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		})
+		goodsMedia = goods.NewMediaAdapter(taxiMediaClient)
+	}
+	// Fleet's private-execution authority (Section 8 TAX-012/013/014). The
+	// engine and binder are the SAME booking service and repository every
+	// independent ride uses, which is what keeps corporate work on the normal
+	// taxi trip engine rather than a parallel one.
+	managedExecService := managedexec.NewService(managedexec.Options{
+		Repo:             managedexec.NewRepository(db),
+		Engine:           bookingService,
+		Binder:           bookingRepo,
+		OperationalState: operationalStateRepo,
+		Vehicles:         vehicleRepo,
+		Corporate:        fleetProviderContext,
+		ReservationTTL:   cfg.TaxiFleetReservationTTL,
+	})
+
+	// Fleet's PRIVATE execution authority (Section 10). Distinct from the
+	// managed-execution surface above: that one claims an existing passenger
+	// booking for an organization, this one creates a corporate trip no
+	// passenger ever requested. Both produce ordinary taxi bookings on the
+	// ordinary engine.
+	//
+	// The acceptance verifier is what makes it safe. Taxi does not take the
+	// request body's word that a provider agreed; it reads Fleet's own record
+	// before creating anything.
+	privateExecutionService := privateexecution.NewService(
+		privateexecution.NewRepository(db),
+		privateexecution.NewHTTPAcceptanceVerifier(cfg.FleetServiceURL, cfg.FleetServiceCaller,
+			cfg.FleetServiceSecret, cfg.FleetServiceTimeout),
+		taxiZoneResolver{repo: marketRepo},
+		cfg.TaxiFleetPrivateExecutionEnabled,
+		cfg.TaxiFleetKillSwitch,
+	)
+
+	goodsNotifier := goods.NewRedisNotificationAdapter(notifications.RedisPublisher{Client: notificationRedis})
+	goodsService := goods.NewService(goods.Options{
+		Repository: goodsRepo, Markets: marketRepo, Candidates: availabilityStore,
+		Routing: routingClient, Settlement: goodsSettlement, Media: goodsMedia,
+		Notifier: goodsNotifier, Pricing: goodsPricing, Enabled: cfg.TaxiGoodsDeliveryEnabled,
+		HandoverSecret: cfg.TaxiGoodsHandoverSecret, QuoteTTL: cfg.TaxiGoodsQuoteTTL,
+		ReceiverReadLimiter: journeyshare.RedisLimiter{Client: redisClient},
+		MatchRadiusKM:       cfg.MatchMaxRadiusKm,
+		Capabilities: goods.ExecutionFlags{
+			CapabilityEnabled:     cfg.GoodsCapabilityEnabled,
+			MultiPickupEnabled:    cfg.GoodsMultiPickupEnabled,
+			SecureHandoverEnabled: cfg.GoodsSecureHandoverEnabled,
+			CumulativeFitEnabled:  cfg.GoodsCumulativeFitEnabled,
+			RecoveryEnabled:       cfg.RecoveryEnabled,
+		},
+		Policies: capabilityService,
+		Metrics:  metrics,
+	})
+	// ONE durable outbox, one worker, two destinations (Section 8 TAX-016).
+	// Vendor lifecycle rows and Fleet completed-work rows share the same
+	// leasing, backoff, dead-lettering and reconciliation machinery; the
+	// router only decides where a claimed row is delivered. Building a second
+	// outbox framework for Fleet would have duplicated all of that.
+	taxiOutboxStore := taxioutbox.NewStore(db)
+	var fleetCompletedWorkClient taxioutbox.CompletedWorkSubmitter
+	if fleetCompletedWork := fleetProviderCompat; fleetCompletedWork != nil {
+		fleetCompletedWorkClient = fleetCompletedWork
+	}
+	outboxRouter := taxioutbox.NewRouter(map[string]taxioutbox.Destination{
+		taxioutbox.TargetVendor: taxioutbox.VendorClient{
+			BaseURL: cfg.VendorURL, Secret: cfg.VendorSecret,
+			HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		},
+		taxioutbox.TargetFleet: taxioutbox.FleetCompletedWorkDestination{
+			Client:  fleetCompletedWorkClient,
+			Enabled: cfg.TaxiFleetCompletedWorkEnabled && fleetCompletedWorkClient != nil,
+		},
+		// Customer movement rows share the same durable outbox, worker,
+		// leasing and backoff as the Vendor lifecycle and Fleet completed
+		// work; the target is what keeps the three from ever being delivered
+		// to each other.
+		taxioutbox.TargetCustomer: movement.Destination{Deliverer: events.HTTPDeliverer{
+			BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath, ServiceName: movement.SourceService,
+			Secret: cfg.CustomerServiceSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		}},
+		// Section 13: analytics copies of recovery, guarantee and outcome facts.
+		// Section 14: recovery facts, told to the people they concern.
+		taxioutbox.TargetNotification: taxioutbox.RecoveryNotificationDestination{
+			Enabled:   cfg.RecoveryNotificationsEnabled,
+			Publisher: notifications.RedisPublisher{Client: notificationRedis},
+			Audience:  taxioutbox.PostgresAudience{DB: db},
+		},
+		taxioutbox.TargetAnalytics: taxioutbox.AnalyticsDestination{
+			Enabled: cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0,
+			Deliverer: events.HTTPDeliverer{
+				BaseURL: cfg.AnalyticsURL, Path: networkanalytics.IngestPath, ServiceName: movement.SourceService,
+				Secret: cfg.AnalyticsSecret, HTTPClient: &http.Client{Timeout: 10 * time.Second},
+			},
+		},
+	})
+	goodsOutboxPublisher := taxioutbox.NewPublisher(taxiOutboxStore, outboxRouter, "taxi-outbox-"+uuid.NewString())
+	if err := goodsService.AssertDependencies(); err != nil {
+		logging.Fatal("configuration", "%v", err)
+	}
+
+	// Outbox and reconciliation health, in the same metric names every other
+	// service reports (OBS-006, OBS-007).
+	//
+	// Mounted at /outbox-metrics rather than /metrics because Taxi already
+	// publishes booking and availability gauges at /metrics, and merging two
+	// registries would mean one of them silently wins.
+	//
+	// The source descriptions live with the table's writer, where a test can
+	// run them against the real migrated schema.
+	taxiOutboxMetrics := outboxmetrics.NewReporter(db, taxioutbox.MetricsInterval,
+		taxioutbox.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
+
+	trackingReader := &customertracking.Postgres{DB: db, FreshFor: cfg.CustomerLocationFreshFor}
 	serviceapp.Run(serviceapp.Options{
+		RegisterRoot: func(root *gin.Engine) {
+			customertracking.RegisterInternal(root, trackingReader, opsVerifier, redisClient, cfg.CustomerLiveLocationEnabled)
+			goods.RegisterCustomerShare(root, goodsService, opsVerifier)
+		},
 		Name:        "taxi-service",
 		DefaultAddr: cfg.HTTPAddr,
 		APIBase:     "/api/v1/taxi",
@@ -320,18 +548,46 @@ func main() {
 			"taxi trip lifecycle",
 			"taxi active-trip telemetry",
 			"taxi two-way reviews and earnings insights",
+			"feature-gated Vendor Commerce Taxi Goods delivery",
 		},
 		ReadyChecks: []func(context.Context) error{
 			db.Ping,
 			func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
 		},
 		Register: func(group *gin.RouterGroup) {
+			customertracking.RegisterCustomer(group, trackingReader, customerSigner, cfg.CustomerLiveLocationEnabled)
+			if opsVerifier != nil {
+				// Section 15: Support's minimized read of a booking or goods
+				// mission. It verifies its own caller -- support-dispute-service
+				// only -- and answers only about a job the complainant is on.
+				supportcase.RegisterContextRoute(group, opsVerifier, supportcontext.NewProjector(db))
+				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "TAXI_GOODS"), opsVerifier,
+					custodyops.MediaFileAuthorizer{Client: taxiMediaClient, AllowedOwners: map[string]struct{}{"driver-taxi-service": {}, "vendor-service": {}}},
+					custodyops.Policy{}, []string{"vendor-service", "operations-service"})
+			}
+			custodyops.RegisterProvider(group, custodyops.NewRepository(db, "TAXI_GOODS"), authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService, cfg.OTPDebug)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,
 				authService.AccessSigner(), customerSigner, cfg.MatchMaxRadiusKm)
-			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore)
+			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore,
+				apiresponse.ProviderFinancialPrivacy(fleetProviderContext, cfg.TaxiTypedFinancialVisibilityEnabled))
+			fleetprovider.RegisterRoutes(group, authService.AccessSigner(), fleetprovider.NewHandler(fleetProviderClient, fleetProviderContext, cfg.TaxiFleetProviderWorkEnabled))
 			operationshttp.RegisterOperationsRoutes(group, bookingService, opsVerifier)
+			goods.RegisterRoutes(group, goodsService, opsVerifier, authService.AccessSigner(), cfg.TaxiFleetProviderWorkEnabled)
+			goods.RegisterReceiverRoutes(group, goodsService, customerSigner)
+			// Fleet's private-execution authority calls INTO taxi here. Both
+			// surfaces stay unmounted unless an internal caller is trusted
+			// and the integration is switched on (Section 8 TAX-028).
+			managedexec.RegisterRoutes(group,
+				managedexec.NewHandler(managedExecService, cfg.TaxiFleetManagedExecutionEnabled, cfg.TaxiFleetExecutionCallers),
+				opsVerifier)
+			managedexec.RegisterReconciliationRoutes(group,
+				managedexec.NewReconciliationHandler(taxiOutboxStore, cfg.TaxiFleetExecutionCallers),
+				opsVerifier)
+			privateexecution.Register(group,
+				privateexecution.NewHandler(privateExecutionService, cfg.TaxiFleetExecutionCallers),
+				opsVerifier)
 			// Closes baseline spec finding 3.3 (phase B11): the last piece
 			// needed before support-dispute-service can resolve a taxi
 			// driver's identity for a complaint/dispute, the same way it
@@ -351,6 +607,12 @@ func main() {
 				authService.AccessSigner(),
 				customerSigner,
 			)
+			capabilities.RegisterRoutes(group, capabilityService, authService.AccessSigner(), customerSigner, opsVerifier, strings.Split(cfg.CapabilityInternalCallers, ","))
+			if opsVerifier != nil {
+				group.GET("/internal/metrics", serviceauth.Middleware(opsVerifier), func(c *gin.Context) {
+					c.String(http.StatusOK, metrics.Render()+taxiOutboxMetrics.Render()+journeyshare.Render())
+				})
+			}
 		},
 		// Every worker below runs against serviceapp.Run's own
 		// signal-derived context and is waited on before shutdown completes
@@ -359,6 +621,7 @@ func main() {
 		// "sweep-on-start, then tick" shape already established across this
 		// platform (see project memory's Go goroutine patterns note).
 		Workers: []func(context.Context) error{
+			taxiOutboxMetrics.Run,
 			func(ctx context.Context) error {
 				bookingService.RunScheduledDispatchWorker(ctx, 30*time.Second)
 				return nil
@@ -374,6 +637,62 @@ func main() {
 			},
 			func(ctx context.Context) error {
 				bookingService.RunAutoCompleteWorker(ctx, 5*time.Minute, 30*time.Minute)
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.TaxiGoodsDeliveryEnabled {
+					goodsService.RunSettlementWorker(ctx, time.Minute)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.TaxiGoodsDeliveryEnabled {
+					goodsService.RunRecoveryWorker(ctx, 30*time.Second)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				// The single outbox worker now drains BOTH destinations, so
+				// it must run whenever either is live -- gating it on Taxi
+				// Goods alone would have left Fleet completed-work rows
+				// undelivered in a deployment that runs corporate taxi work
+				// without Commerce.
+				//
+				// Section 13/14: analytics and recovery-notification rows ride
+				// the same worker, so either of those flags needs it too.
+				if cfg.TaxiGoodsDeliveryEnabled || cfg.TaxiFleetCompletedWorkEnabled ||
+					cfg.AnalyticsEventsEnabled || cfg.RecoveryNotificationsEnabled {
+					goodsOutboxPublisher.Run(ctx, time.Second)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				// Section 13: supply and demand observed from the matcher's
+				// own online set once per bucket; only alongside delivery.
+				if cfg.AnalyticsEventsEnabled && cfg.AnalyticsURL != "" && len(cfg.AnalyticsSecret) > 0 {
+					(&networkobserver.Observer{DB: db, Online: availabilityStore}).Run(ctx)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				// Backfill and reconciliation. It republishes only movements
+				// customer-service is missing or behind on, so a first run
+				// backfills history and later runs are a safety net that
+				// cannot flood the consumer.
+				if cfg.CustomerMovementEventsEnabled {
+					(&movement.Reconciler{
+						Pool: db, Writer: movementWriter, Metrics: metrics,
+						Reader: &movement.CustomerProjectionClient{
+							BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+						},
+					}).Run(ctx, 5*time.Minute)
+				}
+				return nil
+			},
+			func(ctx context.Context) error {
+				if cfg.ScheduledRiskMonitorEnabled {
+					bookingService.RunScheduledRiskMonitor(ctx, time.Minute, 2*time.Hour)
+				}
 				return nil
 			},
 		},
@@ -397,4 +716,23 @@ func logConnectivity(ctx context.Context, redisAddr string, db interface{ Ping(c
 	} else {
 		logging.Success("redis", "connected addr=%s", redisAddr)
 	}
+}
+
+// taxiZoneResolver adapts the markets repository to the private-execution
+// feature's two-field zone view.
+//
+// The adapter exists so privateexecution depends on a shape rather than on the
+// markets feature. A private execution needs exactly two facts about a zone --
+// which zone, which market -- and importing the whole feature to get them would
+// tie a Fleet integration to every future change in market modelling.
+type taxiZoneResolver struct {
+	repo marketrepositories.MarketRepository
+}
+
+func (r taxiZoneResolver) ResolveZone(ctx context.Context, point geo.Point) (privateexecution.Zone, error) {
+	zone, err := r.repo.ResolveZone(ctx, point)
+	if err != nil {
+		return privateexecution.Zone{}, err
+	}
+	return privateexecution.Zone{ID: zone.ID, MarketID: zone.MarketID}, nil
 }

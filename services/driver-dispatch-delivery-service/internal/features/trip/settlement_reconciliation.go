@@ -48,6 +48,28 @@ func (s *Service) WithSettlementReconciler(authority SettlementReconciler, polic
 	return s
 }
 
+// reconcileOne settles a single claimed item through the correct path.
+//
+// Section 9 DSP-014: the reconciliation worker is a SECOND route into the
+// same legacy settlement, so it needs the same boundary as the completion
+// path. Without this, a corporate mission the completion path deliberately
+// withheld would be paid directly to the rider on the next worker tick --
+// precisely the failure the boundary exists to prevent.
+//
+// A managed item with no Section 12 handoff reports success so the claim is
+// retired rather than retried forever: Fleet already holds the canonical
+// completed-work record, and there is nothing more Dispatch can do for it.
+func (s *Service) reconcileOne(ctx context.Context, item PendingSettlement) error {
+	if s.managedSettlement.Enabled && s.settlementRouteFor(ctx, item.TripID) == RouteManaged {
+		if s.managedHandoff == nil {
+			log.Printf("managed trip awaiting Fleet settlement trip_id=%s; independent reconciliation skipped", item.TripID)
+			return nil
+		}
+		return s.managedHandoff.HandleManagedCompletion(ctx, item.TripID, item.BookingID, item.CompletedAt)
+	}
+	return s.settlement.HandleTripCompleted(ctx, item.BookingID, item.CompletedAt)
+}
+
 func (s *Service) reconcileSettlements(ctx context.Context) {
 	started := time.Now()
 	var outcome error
@@ -67,7 +89,12 @@ func (s *Service) reconcileSettlements(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		err := s.settlement.HandleTripCompleted(ctx, item.BookingID, item.CompletedAt)
+		// Section 9 DSP-014: the reconciliation worker is a second path into
+		// the same legacy settlement, so it needs the same boundary. Without
+		// this, a corporate mission that the completion path deliberately
+		// withheld would be paid directly to the rider on the next worker
+		// tick -- the exact failure the boundary exists to prevent.
+		err := s.reconcileOne(ctx, item)
 		if err != nil {
 			outcome = err
 		}

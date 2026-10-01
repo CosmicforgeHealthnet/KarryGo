@@ -23,6 +23,24 @@ type Policy struct {
 	ReconciliationMaxAttempts int
 	ReconciliationBackoffBase time.Duration
 	ReconciliationBackoffMax  time.Duration
+	RolloutServiceTiers       string
+}
+
+func (p Policy) SequentialSelected(serviceTier string) bool {
+	configured := false
+	for _, value := range strings.Split(p.RolloutServiceTiers, ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		configured = true
+		if strings.EqualFold(value, serviceTier) {
+			return true
+		}
+	}
+	// Empty preserves the established global-flag behavior. Once configured,
+	// this is a restrictive server-side selector and clients cannot opt in.
+	return !configured
 }
 
 func (p Policy) Select(requested Strategy, organizationID string, adminAuthorized bool) (Strategy, error) {

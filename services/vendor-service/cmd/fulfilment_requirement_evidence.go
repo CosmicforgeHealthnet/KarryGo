@@ -63,6 +63,7 @@ func requirementEvidenceFor(
 	// engine pure - it never reads a global to discover what is enabled.
 	serviceability := fulfilment.ServiceabilityFrom(map[fulfilment.Service]bool{
 		fulfilment.ServiceDispatch: true,
+		fulfilment.ServiceTaxi:     true,
 		fulfilment.ServiceHauling:  true,
 	}, now)
 
@@ -77,7 +78,10 @@ func requirementEvidenceFor(
 				Source:           fulfilment.SourceCatalogEstimate,
 				PackageCount:     plan.PackageCount,
 				TotalWeightGrams: plan.WeightGrams,
-				Stackable:        true,
+				// The frozen plan carries the checkout aggregate's weight;
+				// a non-zero total is the evidence planning already accepted.
+				WeightEvidence: frozenWeightEvidence(plan.WeightGrams),
+				Stackable:      true,
 			},
 			// One pickup per mission. A consolidated slot covers vendors
 			// inside one tight shared radius, which is one physical
@@ -109,9 +113,11 @@ func requirementEvidenceFor(
 		// A decision that contradicts the plan it is filed against is worse
 		// than no decision: it would tell Support the delivery ran on a
 		// vehicle it did not run on. Only consistent evidence is stored.
-		if decision.Executable &&
-			plan.VehicleClass != "" &&
-			decision.SelectedVehicleClass != plan.VehicleClass {
+		if !decision.Executable ||
+			(plan.VehicleClass != "" && decision.SelectedVehicleClass != plan.VehicleClass) ||
+			(plan.Service != "" && decision.SelectedService != string(plan.Service)) {
+			// Evidence that refuses, or disagrees with, a plan that is already
+			// executing would misexplain the delivery; it is not stored.
 			continue
 		}
 
@@ -178,4 +184,11 @@ func requirementDecisionFrom(
 	}
 
 	return record
+}
+
+func frozenWeightEvidence(grams int64) fulfilment.Evidence {
+	if grams > 0 {
+		return fulfilment.EvidenceComplete
+	}
+	return fulfilment.EvidenceAbsent
 }

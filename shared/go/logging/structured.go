@@ -4,8 +4,50 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
+	"sync"
 	"time"
 )
+
+// fieldRedactor is an extra rule a domain package contributes: given a field
+// name, report whether its value must be concealed.
+//
+// The hook exists so this package keeps knowing nothing about any domain.
+// The rule that matters in practice is corporate financial privacy: a field
+// called organizationShareMinor is not secret-SOUNDING, so the word list
+// below passes it, and it is a plain integer, so the type check passes it
+// too — yet logging it leaks exactly what Section 14 spends a whole
+// visibility policy concealing from providers. The package that owns that
+// classification registers it; this one only asks.
+type fieldRedactor func(name string) bool
+
+var (
+	redactorsMu sync.RWMutex
+	redactors   []fieldRedactor
+)
+
+// RegisterFieldRedactor adds a concealment rule. Call it from an init in the
+// package that owns the classification. It is additive and never removes a
+// rule, so a caller cannot widen what gets logged.
+func RegisterFieldRedactor(rule func(name string) bool) {
+	if rule == nil {
+		return
+	}
+	redactorsMu.Lock()
+	defer redactorsMu.Unlock()
+	redactors = append(redactors, rule)
+}
+
+// registeredRedaction reports whether any registered rule conceals the field.
+func registeredRedaction(name string) bool {
+	redactorsMu.RLock()
+	defer redactorsMu.RUnlock()
+	for _, rule := range redactors {
+		if rule(name) {
+			return true
+		}
+	}
+	return false
+}
 
 // SafeFields extends the existing platform logger. It never serializes opaque
 // structs, errors or Stringers, which may embed secret-bearing request bodies.
@@ -14,11 +56,14 @@ func SafeFields(fields map[string]any) map[string]any {
 	for key, value := range fields {
 		k := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(key))
 		sensitive := false
-		for _, word := range []string{"otp", "qr", "credential", "secret", "hash", "password", "passcode", "authorization", "token", "cookie", "apikey", "phone", "email", "address", "body", "payload", "header", "url", "bank", "card"} {
+		for _, word := range []string{"otp", "qr", "credential", "secret", "hash", "password", "passcode", "authorization", "token", "cookie", "apikey", "phone", "email", "address", "body", "payload", "header", "url", "bank", "card", "accountnumber", "nuban", "bvn"} {
 			if strings.Contains(k, word) {
 				sensitive = true
 				break
 			}
+		}
+		if !sensitive {
+			sensitive = registeredRedaction(key)
 		}
 		if sensitive {
 			out[key] = "[REDACTED]"

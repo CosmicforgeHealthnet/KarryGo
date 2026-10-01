@@ -1,0 +1,48 @@
+{"Time":"2026-09-27T16:56:25.2542181+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/supportcase"}
+{"Time":"2026-09-27T16:56:25.4030054+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOperationalContextCarriesNoLocationContactOrMoney"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOperationalContextCarriesNoLocationContactOrMoney","Output":"=== RUN   TestOperationalContextCarriesNoLocationContactOrMoney\n"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOperationalContextCarriesNoLocationContactOrMoney","Output":"--- PASS: TestOperationalContextCarriesNoLocationContactOrMoney (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOperationalContextCarriesNoLocationContactOrMoney","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestTheGuardWouldCatchALeak"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestTheGuardWouldCatchALeak","Output":"=== RUN   TestTheGuardWouldCatchALeak\n"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestTheGuardWouldCatchALeak","Output":"--- PASS: TestTheGuardWouldCatchALeak (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestTheGuardWouldCatchALeak","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextRoundTrip"}
+{"Time":"2026-09-27T16:56:25.4035754+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextRoundTrip","Output":"=== RUN   TestContextRoundTrip\n"}
+{"Time":"2026-09-27T16:56:25.4085491+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextRoundTrip","Output":"--- PASS: TestContextRoundTrip (0.01s)\n"}
+{"Time":"2026-09-27T16:56:25.4085491+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextRoundTrip","Elapsed":0.01}
+{"Time":"2026-09-27T16:56:25.4090721+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestAnotherUsersJobIsIndistinguishableFromNone"}
+{"Time":"2026-09-27T16:56:25.4090721+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestAnotherUsersJobIsIndistinguishableFromNone","Output":"=== RUN   TestAnotherUsersJobIsIndistinguishableFromNone\n"}
+{"Time":"2026-09-27T16:56:25.4106471+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestAnotherUsersJobIsIndistinguishableFromNone","Output":"--- PASS: TestAnotherUsersJobIsIndistinguishableFromNone (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4106471+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestAnotherUsersJobIsIndistinguishableFromNone","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4106471+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOnlySupportMayRead"}
+{"Time":"2026-09-27T16:56:25.4106471+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOnlySupportMayRead","Output":"=== RUN   TestOnlySupportMayRead\n"}
+{"Time":"2026-09-27T16:56:25.4116901+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOnlySupportMayRead","Output":"--- PASS: TestOnlySupportMayRead (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4116901+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOnlySupportMayRead","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4116901+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestUnsignedReadIsRefused"}
+{"Time":"2026-09-27T16:56:25.4116901+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestUnsignedReadIsRefused","Output":"=== RUN   TestUnsignedReadIsRefused\n"}
+{"Time":"2026-09-27T16:56:25.4133067+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestUnsignedReadIsRefused","Output":"--- PASS: TestUnsignedReadIsRefused (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4133067+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestUnsignedReadIsRefused","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4133067+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMissingActorIsRefused"}
+{"Time":"2026-09-27T16:56:25.4133067+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMissingActorIsRefused","Output":"=== RUN   TestMissingActorIsRefused\n"}
+{"Time":"2026-09-27T16:56:25.4154234+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMissingActorIsRefused","Output":"--- PASS: TestMissingActorIsRefused (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4154234+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMissingActorIsRefused","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4154234+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOwnerOutageIsNotNotFound"}
+{"Time":"2026-09-27T16:56:25.4154234+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOwnerOutageIsNotNotFound","Output":"=== RUN   TestOwnerOutageIsNotNotFound\n"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOwnerOutageIsNotNotFound","Output":"--- PASS: TestOwnerOutageIsNotNotFound (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestOwnerOutageIsNotNotFound","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMinimizeDropsWhatTheContractDoesNotHold"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMinimizeDropsWhatTheContractDoesNotHold","Output":"=== RUN   TestMinimizeDropsWhatTheContractDoesNotHold\n"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMinimizeDropsWhatTheContractDoesNotHold","Output":"--- PASS: TestMinimizeDropsWhatTheContractDoesNotHold (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestMinimizeDropsWhatTheContractDoesNotHold","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestControlledCategoriesAndFingerprint"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestControlledCategoriesAndFingerprint","Output":"=== RUN   TestControlledCategoriesAndFingerprint\n"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestControlledCategoriesAndFingerprint","Output":"--- PASS: TestControlledCategoriesAndFingerprint (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestControlledCategoriesAndFingerprint","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextIsOpaquePIIMinimizedAndCredentialSafe"}
+{"Time":"2026-09-27T16:56:25.41656+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextIsOpaquePIIMinimizedAndCredentialSafe","Output":"=== RUN   TestContextIsOpaquePIIMinimizedAndCredentialSafe\n"}
+{"Time":"2026-09-27T16:56:25.4170793+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextIsOpaquePIIMinimizedAndCredentialSafe","Output":"--- PASS: TestContextIsOpaquePIIMinimizedAndCredentialSafe (0.00s)\n"}
+{"Time":"2026-09-27T16:56:25.4170793+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Test":"TestContextIsOpaquePIIMinimizedAndCredentialSafe","Elapsed":0}
+{"Time":"2026-09-27T16:56:25.4170793+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Output":"PASS\n"}
+{"Time":"2026-09-27T16:56:25.4196788+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/supportcase","Output":"ok  \tcosmicforge/logistics/shared/go/supportcase\t0.165s\n"}
+{"Time":"2026-09-27T16:56:25.4196788+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/supportcase","Elapsed":0.165}

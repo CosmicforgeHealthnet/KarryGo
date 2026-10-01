@@ -22,17 +22,19 @@ func (NoPromotions) Evaluate(context.Context, PromotionContext) ([]Adjustment, e
 }
 
 type Options struct {
-	Store      StoreAuthority
-	Promotions PromotionAuthority
-	QuoteTTL   time.Duration
-	Now        func() time.Time
+	Store             StoreAuthority
+	Promotions        PromotionAuthority
+	QuoteTTL          time.Duration
+	Now               func() time.Time
+	ReplacementSource ReplacementSourceAuthority
 }
 
 type Service struct {
-	store      StoreAuthority
-	promotions PromotionAuthority
-	ttl        time.Duration
-	now        func() time.Time
+	store             StoreAuthority
+	promotions        PromotionAuthority
+	ttl               time.Duration
+	now               func() time.Time
+	replacementSource ReplacementSourceAuthority
 }
 
 func NewService(options Options) (*Service, error) {
@@ -50,7 +52,17 @@ func NewService(options Options) (*Service, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{store: options.Store, promotions: promotions, ttl: options.QuoteTTL, now: now}, nil
+	return &Service{store: options.Store, promotions: promotions, ttl: options.QuoteTTL, now: now, replacementSource: options.ReplacementSource}, nil
+}
+
+// ReplacementSourceAuthority composes checkout revalidation and live logistics
+// planning. It returns persisted coherent references, never edited quote lines.
+type ReplacementSourceAuthority interface {
+	PrepareReplacement(context.Context, string, string, string, string, string, string, string, string, int64) (string, string, error)
+}
+
+func (s *Service) SetReplacementSourceAuthority(authority ReplacementSourceAuthority) {
+	s.replacementSource = authority
 }
 
 func (s *Service) Create(ctx context.Context, customerID, sessionID, planID string) (Quote, error) {

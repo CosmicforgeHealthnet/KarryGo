@@ -25,10 +25,14 @@ import (
 	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
 	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
 	tripfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip"
+	tripsettlement "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/tripsettlement"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
+	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
@@ -198,12 +202,45 @@ func main() {
 		log.Printf("marketplace: canonical event emission disabled by DISPATCH_MARKETPLACE_OUTBOX_ENABLED")
 	}
 
+	// Section 9 DSP-008/DSP-009: the canonical Fleet completed-work delivery
+	// is enqueued on the EXISTING marketplace outbox, in the same transaction
+	// as the mission's authoritative completion. Attached only when the flag
+	// is on, so a deployment that has not certified Fleet ingestion behaves
+	// exactly as before.
 	tripRepository := tripfeature.NewPostgresRepository(db).WithEventEmitter(marketplaceEmitter)
+	if cfg.DispatchFleetCompletedWorkEnabled {
+		tripRepository = tripRepository.WithCompletedWorkEnqueuer(
+			marketplace.NewCompletedWorkEnqueuer(marketplace.NewRepository(db)))
+		log.Printf("marketplace: Fleet completed-work enqueue enabled for managed mission completion")
+	}
+	// Section 12 (WAL-012). Both of Dispatch's settlement paths -- the
+	// synchronous completion and the reconciliation worker -- go through this
+	// one handoff, so they address a mission's money under the same identity.
+	// Without wallet credentials there is nothing to ask, so no handoff is
+	// wired and corporate completions are left entirely to Fleet.
+	var managedHandoff tripfeature.ManagedSettlementHandoff
+	if cfg.WalletServiceURL != "" && len(cfg.WalletServiceSecret) > 0 {
+		managedHandoff = tripsettlement.New(managedsettlement.Client{
+			BaseURL:     cfg.WalletServiceURL,
+			ServiceName: cfg.WalletServiceSource,
+			Secret:      cfg.WalletServiceSecret,
+			HTTPClient:  &http.Client{Timeout: cfg.ExternalServiceTimeout},
+		})
+	}
+
 	tripService := tripfeature.NewService(tripRepository, proofStorage).
 		WithEventPublisher(tripfeature.NewRedisEventPublisher(redisClient)).
 		WithWalletClient(walletClient).
 		WithNotifier(bookingNotifier).
-		WithHandoverSecret(cfg.HandoverSecret)
+		WithHandoverSecret(cfg.HandoverSecret).
+		// Section 9 DSP-014 / Section 12 WAL-012: the corporate settlement
+		// boundary. A corporate mission is never paid directly to the rider;
+		// Fleet resolves the compensation and instructs Wallet, and the
+		// handoff's job is only to find out whether that money actually moved
+		// so an ambiguous completion is retried rather than assumed.
+		WithManagedSettlement(
+			tripfeature.ManagedSettlementConfig{Enabled: cfg.DispatchManagedSettlementEnabled},
+			managedHandoff)
 	tripfeature.StartSubscribers(ctx, redisClient, tripService)
 
 	// Rider request push: real notification-service sender when configured,
@@ -292,6 +329,23 @@ func main() {
 	// called complete (killed, crashed, lost network). Without this the
 	// customer's escrowed fare stays held and the rider is never paid.
 	go tripService.RunAutoCompleteWorker(ctx)
+
+	// Customer movement events. The sweeper reads committed delivery state and
+	// queues what changed; the publisher delivers it to the customer context
+	// owner. Both are additive: neither can fail a delivery.
+	if cfg.CustomerMovementEventsEnabled {
+		go (&events.MovementReconciler{Pool: db, BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret, Metrics: observability.Metrics}).Run(ctx)
+		movementPublisher := movement.NewPublisher(db)
+		go movementPublisher.Run(ctx, 10*time.Second)
+		go (&events.MovementPublisher{
+			Pool:  db,
+			Owner: movement.SourceService,
+			Deliverer: &events.HTTPDeliverer{
+				BaseURL: cfg.CustomerServiceURL, Path: events.CustomerMovementIngressPath,
+				ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+			},
+		}).Run(ctx, 5*time.Second)
+	}
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

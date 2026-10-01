@@ -42,15 +42,15 @@ func TestBrowserRefreshCookieRotationAndReplay(t *testing.T) {
 	router, h := buildAuthRouter(t)
 	id, code := h.startAndCode(t, "browserrotate@example.com", "08012345679")
 	verified := postJSON(router, "/fleet-partner/v1/auth/verify", map[string]string{"challengeId": id, "code": code}, nil)
-	if verified.Code != 200 || len(verified.Result().Cookies()) != 1 {
-		t.Fatal("verify cookie missing")
+	if verified.Code != 200 {
+		t.Fatalf("verify status = %d; body=%s", verified.Code, verified.Body.String())
 	}
-	first := verified.Result().Cookies()[0]
+	first := findCookie(t, verified.Result().Cookies(), "karrygo_fleet_refresh")
 	out := postJSON(router, "/fleet-partner/v1/auth/refresh", nil, map[string]string{"Cookie": first.Name + "=" + first.Value})
-	if out.Code != 200 || len(out.Result().Cookies()) != 1 {
-		t.Fatalf("refresh status %d", out.Code)
+	if out.Code != 200 {
+		t.Fatalf("refresh status %d; body=%s", out.Code, out.Body.String())
 	}
-	second := out.Result().Cookies()[0]
+	second := findCookie(t, out.Result().Cookies(), "karrygo_fleet_refresh")
 	if second.Value == first.Value {
 		t.Fatal("not rotated")
 	}

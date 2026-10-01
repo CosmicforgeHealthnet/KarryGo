@@ -421,7 +421,7 @@
       },
       "CapabilityType": {
         "type": "string",
-        "enum": ["RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE"]
+        "enum": ["RESTAURANT", "FAST_FOOD", "CLOUD_KITCHEN", "PASTRY_BAKERY", "SHOP_GROCERY", "MARKET", "WHOLESALE", "CATERING", "MANUFACTURER"]
       },
       "OrderFactState": { "type": "string", "enum": ["COMPLETED", "CANCELLED", "REFUNDED", "UPDATED"] },
       "ModuleAvailability": {

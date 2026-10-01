@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
-import '../state/provider_profile_controller.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import '../models/provider_profile_models.dart';
+import '../state/provider_profile_controller.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Figma 15 — Emergency Contact
+// ══════════════════════a═════════════════════════════════════════════════════
 
 class EmergencyContactScreen extends StatefulWidget {
   const EmergencyContactScreen({super.key, required this.profileController});
@@ -8,16 +14,14 @@ class EmergencyContactScreen extends StatefulWidget {
   final ProviderProfileController profileController;
 
   @override
-  State<EmergencyContactScreen> createState() => _EmergencyContactScreenState();
+  State<EmergencyContactScreen> createState() =>
+      _EmergencyContactScreenState();
 }
 
 class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
   bool _isLoading = false;
   bool _isSaving = false;
   String? _loadError;
-
-  EmergencyContact? _saved;
-  bool _isAdding = false;
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -42,7 +46,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
   @override
   void initState() {
     super.initState();
-    _loadExisting();
+    _load();
   }
 
   @override
@@ -52,49 +56,44 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
     super.dispose();
   }
 
-  Future<void> _loadExisting() async {
-    // Use cached value from controller if available.
-    final cached = widget.profileController.emergencyContact;
-    if (cached != null) {
-      setState(() => _saved = cached);
-      return;
-    }
-
+  Future<void> _load() async {
     setState(() {
       _isLoading = true;
       _loadError = null;
     });
+
+    final cached = widget.profileController.emergencyContact;
+    if (cached != null) {
+      _prefill(cached);
+      setState(() => _isLoading = false);
+      return;
+    }
+
     final result = await widget.profileController.loadEmergencyContact();
     if (!mounted) return;
     result.when(
-      success: (contact) => setState(() {
-        _saved = contact;
-        _isLoading = false;
-      }),
+      success: (contact) {
+        _prefill(contact);
+        setState(() => _isLoading = false);
+      },
       failure: (error) {
-        // 404 = no contact yet — not an error for the user.
+        final notFound = error.message.toLowerCase().contains('not found') ||
+            error.message.toLowerCase().contains('no emergency');
         setState(() {
           _isLoading = false;
-          if (error.message.toLowerCase().contains('not found') ||
-              error.code == 'not_found') {
-            _saved = null;
-          } else {
-            _loadError = error.message;
-          }
+          if (!notFound) _loadError = error.message;
         });
       },
     );
   }
 
-  void _startAdding() {
-    _nameController.text = _saved?.fullName ?? '';
-    _phoneController.text = _saved != null
-        ? _saved!.phone.replaceFirst(RegExp(r'^\+234'), '')
-        : '';
-    setState(() {
-      _relationship = _saved?.relationship;
-      _isAdding = true;
-    });
+  void _prefill(EmergencyContact contact) {
+    _nameController.text = contact.fullName;
+    _phoneController.text =
+        contact.phone.replaceFirst(RegExp(r'^\+234'), '');
+    _relationship = _relationships.contains(contact.relationship)
+        ? contact.relationship
+        : null;
   }
 
   Future<void> _onSave() async {
@@ -106,226 +105,150 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
       relationship: _relationship!,
     );
     if (!mounted) return;
+    setState(() => _isSaving = false);
     result.when(
-      success: (contact) {
-        setState(() {
-          _saved = contact;
-          _isAdding = false;
-          _isSaving = false;
-        });
+      success: (_) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Emergency contact saved')),
         );
+        Navigator.of(context).pop();
       },
       failure: (error) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: c.background,
       body: SafeArea(
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF05124D)),
+            ? Center(
+                child: CircularProgressIndicator(color: c.brandTeal500),
               )
             : Column(
                 children: [
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  // ── Header ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                    child: Row(
                       children: [
-                        // ── Header ────────────────────────────────────
                         GestureDetector(
-                          behavior: HitTestBehavior.opaque,
                           onTap: () => Navigator.of(context).pop(),
-                          child: const Align(
-                            alignment: Alignment.centerLeft,
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
                             child: Icon(
-                              Icons.arrow_back_ios_new,
-                              size: 20,
-                              color: Color(0xFF1A1A1A),
+                              Icons.arrow_back_rounded,
+                              size: 22,
+                              color: c.text,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Emergency Contact',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Provide information about who we can contact in case of an emergency.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF888888),
-                          ),
-                        ),
+                      ],
+                    ),
+                  ),
 
-                        const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      children: [
+                        Text(
+                          'Emergency contact',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: c.text,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'This person will be contacted in case of emergency on the platform.',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: c.textMuted,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
 
                         if (_loadError != null) ...[
                           Text(
                             _loadError!,
-                            style: const TextStyle(
-                              color: Color(0xFFE53935),
-                              fontSize: 13,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: c.danger,
                             ),
                           ),
                           const SizedBox(height: 12),
                           OutlinedButton(
-                            onPressed: _loadExisting,
+                            onPressed: _load,
                             child: const Text('Retry'),
                           ),
-                        ] else if (_isAdding) ...[
-                          const Text(
-                            'Provide emergency Contact information. This could be a family member or close relative but not same individual as guarantor.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF05124D),
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Emergency Contact',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('Full Name'),
-                          const SizedBox(height: 8),
-                          _TextInput(
-                            controller: _nameController,
-                            hint: 'Enter name',
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('Mobile Number'),
-                          const SizedBox(height: 8),
-                          _PhoneInput(
-                            controller: _phoneController,
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('Relationship Type'),
-                          const SizedBox(height: 8),
-                          _DropdownField(
-                            hint: 'Select Relationship Type',
-                            value: _relationship,
-                            items: _relationships,
-                            onChanged: (v) => setState(() => _relationship = v),
-                          ),
-                        ] else if (_saved != null) ...[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              _AddNewButton(
-                                label: 'Edit',
-                                onTap: _startAdding,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _ContactCard(contact: _saved!),
                         ] else ...[
-                          const Text(
-                            'Provide emergency Contact information. This could be a family member or close relative but not same individual as guarantor.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF05124D),
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Emergency Contact',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('Full Name'),
-                          const SizedBox(height: 8),
-                          _TextInput(
+                          const _Label('Name'),
+                          _Field(
                             controller: _nameController,
-                            hint: 'Enter name',
+                            hint: 'Bisi Adebayo',
+                            textCapitalization: TextCapitalization.words,
                             onChanged: (_) => setState(() {}),
                           ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('Mobile Number'),
-                          const SizedBox(height: 8),
-                          _PhoneInput(
+                          const SizedBox(height: 20),
+
+                          const _Label('Phone number'),
+                          _PhoneField(
                             controller: _phoneController,
                             onChanged: (_) => setState(() {}),
                           ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('Relationship Type'),
-                          const SizedBox(height: 8),
-                          _DropdownField(
-                            hint: 'Select Relationship Type',
+                          const SizedBox(height: 20),
+
+                          const _Label('Relationship'),
+                          _RelationshipDropdown(
                             value: _relationship,
                             items: _relationships,
-                            onChanged: (v) => setState(() => _relationship = v),
+                            onChanged: (v) =>
+                                setState(() => _relationship = v),
                           ),
                         ],
                       ],
                     ),
                   ),
 
-                  // ── Save button (only when adding/editing) ───────────
-                  if (_saved == null || _isAdding)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                      child: SizedBox(
-                        height: 52,
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _canSave ? _onSave : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF05124D),
-                            disabledBackgroundColor: const Color(
-                              0xFF05124D,
-                            ).withValues(alpha: 0.35),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                            ),
+                  // ── Save contact ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: SizedBox(
+                      height: 52,
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _canSave ? _onSave : null,
+                        style: FilledButton.styleFrom(
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
-                          child: _isSaving
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Save',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
                         ),
+                        child: _isSaving
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: c.brandWhite,
+                                ),
+                              )
+                            : const Text('Save contact'),
                       ),
                     ),
+                  ),
                 ],
               ),
       ),
@@ -333,203 +256,141 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
   }
 }
 
-// ── Contact card ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// Shared widgets
+// ═══════════════════════════════════════════════════════════════════════════
 
-class _ContactCard extends StatelessWidget {
-  const _ContactCard({required this.contact});
-  final EmergencyContact contact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFEEEEEE)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  contact.fullName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  contact.phone,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF888888),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  contact.relationship,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF888888),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right, size: 20, color: Color(0xFF888888)),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Add New button ────────────────────────────────────────────────────────────
-
-class _AddNewButton extends StatelessWidget {
-  const _AddNewButton({required this.onTap, this.label = '+ Add New'});
-  final VoidCallback onTap;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF05124D),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Shared widgets ────────────────────────────────────────────────────────────
-
-class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.text);
+class _Label extends StatelessWidget {
+  const _Label(this.text);
   final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: Color(0xFF1A1A1A),
+    final c = context.palette;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: c.text,
+        ),
       ),
     );
   }
 }
 
-class _TextInput extends StatelessWidget {
-  const _TextInput({
+class _Field extends StatelessWidget {
+  const _Field({
     required this.controller,
-    this.hint,
+    required this.hint,
     required this.onChanged,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
   });
+
   final TextEditingController controller;
-  final String? hint;
+  final String hint;
   final ValueChanged<String> onChanged;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return TextField(
       controller: controller,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
       onChanged: onChanged,
-      style: const TextStyle(
-        fontSize: 14,
+      style: TextStyle(
+        fontSize: 15,
         fontWeight: FontWeight.w500,
-        color: Color(0xFF1A1A1A),
+        color: c.text,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
-        filled: true,
-        fillColor: const Color(0xFFF5F6F8),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+        hintStyle: TextStyle(
+          color: c.textDisabled,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
         ),
+        filled: true,
+        fillColor: c.inputFill,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.brandTeal500, width: 1.6),
+        ),
       ),
     );
   }
 }
 
-class _PhoneInput extends StatelessWidget {
-  const _PhoneInput({required this.controller, required this.onChanged});
+class _PhoneField extends StatelessWidget {
+  const _PhoneField({required this.controller, required this.onChanged});
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6F8),
+        color: c.inputFill,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(
               children: [
                 const Text('🇳🇬', style: TextStyle(fontSize: 18)),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.keyboard_arrow_down,
-                  size: 16,
-                  color: Color(0xFF888888),
-                ),
-                const SizedBox(width: 6),
-                const Text(
+                const SizedBox(width: 8),
+                Text(
                   '(+234)',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF888888),
+                    fontSize: 15,
                     fontWeight: FontWeight.w500,
+                    color: c.textMuted,
                   ),
                 ),
               ],
             ),
           ),
-          Container(width: 1, height: 20, color: const Color(0xFFDDDDDD)),
+          Container(width: 1, height: 22, color: c.divider),
           Expanded(
             child: TextField(
               controller: controller,
               onChanged: onChanged,
               keyboardType: TextInputType.phone,
-              style: const TextStyle(
-                fontSize: 14,
+              style: TextStyle(
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFF1A1A1A),
+                color: c.text,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Enter phone number',
-                hintStyle: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
+                hintStyle: TextStyle(
+                  color: c.textDisabled,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 18,
                 ),
               ),
             ),
@@ -540,25 +401,24 @@ class _PhoneInput extends StatelessWidget {
   }
 }
 
-class _DropdownField extends StatelessWidget {
-  const _DropdownField({
-    required this.hint,
+class _RelationshipDropdown extends StatelessWidget {
+  const _RelationshipDropdown({
     required this.value,
     required this.items,
     required this.onChanged,
   });
 
-  final String hint;
   final String? value;
   final List<String> items;
   final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6F8),
+        color: c.inputFill,
         borderRadius: BorderRadius.circular(12),
       ),
       child: DropdownButtonHideUnderline(
@@ -566,20 +426,31 @@ class _DropdownField extends StatelessWidget {
           value: value,
           isExpanded: true,
           hint: Text(
-            hint,
-            style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
+            'Select relationship',
+            style: TextStyle(
+              color: c.textDisabled,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF888888)),
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 22,
+            color: c.textMuted,
+          ),
+          dropdownColor: c.surface,
+          borderRadius: BorderRadius.circular(12),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           items: items
               .map(
                 (e) => DropdownMenuItem(
                   value: e,
                   child: Text(
                     e,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF1A1A1A),
+                      color: c.text,
                     ),
                   ),
                 ),

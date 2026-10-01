@@ -81,18 +81,104 @@ const (
 	PurposeDataExport = "DATA_EXPORT"
 )
 
+// Network evidence purposes (Section 16).
+//
+// They are additive: every purpose above keeps its meaning, and the legacy
+// lowercase vocabulary on media_assets (document_file, proof_image,
+// signature, profile_photo) is a separate contract that this does not touch.
+// Section 12 certification evidence created before these existed therefore
+// stays exactly as valid as it was.
+const (
+	PurposeVehicleInspection  = "VEHICLE_INSPECTION"
+	PurposeCapabilityEvidence = "CAPABILITY_EVIDENCE"
+	PurposeReadinessEvidence  = "READINESS_EVIDENCE"
+	PurposeCargoCondition     = "CARGO_CONDITION"
+	PurposeDamageEvidence     = "DAMAGE_EVIDENCE"
+	PurposeRecoveryTransfer   = "RECOVERY_TRANSFER"
+	PurposeSafetyIncident     = "SAFETY_INCIDENT"
+	PurposeLoadingEvidence    = "LOADING_EVIDENCE"
+)
+
 // ValidPurpose reports whether a purpose is one the private contract serves.
 func ValidPurpose(purpose string) bool {
 	switch purpose {
 	case PurposeCompanyDocument, PurposeBranchDocument, PurposeProviderDocument,
 		PurposeVehicleDocument, PurposeInsuranceDocument, PurposeComplianceDocument,
 		PurposeProofDocument, PurposeIncidentAttachment, PurposeDisputeAttachment,
-		PurposeApprovalAttachment, PurposeDataExport:
+		PurposeApprovalAttachment, PurposeDataExport,
+		PurposeVehicleInspection, PurposeCapabilityEvidence, PurposeReadinessEvidence,
+		PurposeCargoCondition, PurposeDamageEvidence, PurposeRecoveryTransfer,
+		PurposeSafetyIncident, PurposeLoadingEvidence:
 		return true
 	default:
 		return false
 	}
 }
+
+// SensitiveEvidencePurpose reports the purposes that describe a person, a
+// vehicle or goods closely enough that exposure is itself the harm.
+//
+// These may only ever be PRIVATE. The same list is written as a database
+// CHECK in 000005, so the rule does not depend on this function being called.
+func SensitiveEvidencePurpose(purpose string) bool {
+	switch purpose {
+	case PurposeVehicleInspection, PurposeCapabilityEvidence, PurposeCargoCondition,
+		PurposeDamageEvidence, PurposeRecoveryTransfer, PurposeSafetyIncident:
+		return true
+	default:
+		return false
+	}
+}
+
+// Binding types: what a file is evidence FOR.
+//
+// Deliberately a closed list. An arbitrary string would let a caller bind a
+// file to an identifier no consumer can interpret, and "bound to something"
+// is exactly what a validation must be able to check precisely.
+const (
+	BindingBooking          = "BOOKING"
+	BindingMission          = "MISSION"
+	BindingOrder            = "ORDER"
+	BindingAsset            = "ASSET"
+	BindingParcel           = "PARCEL"
+	BindingComplaint        = "COMPLAINT"
+	BindingRecoveryCase     = "RECOVERY_CASE"
+	BindingVerificationCase = "VERIFICATION_CASE"
+)
+
+// ValidBindingType reports whether a binding type is one this contract knows.
+func ValidBindingType(value string) bool {
+	switch value {
+	case BindingBooking, BindingMission, BindingOrder, BindingAsset, BindingParcel,
+		BindingComplaint, BindingRecoveryCase, BindingVerificationCase:
+		return true
+	default:
+		return false
+	}
+}
+
+// Binding is one "this file is evidence for that thing" statement.
+type Binding struct {
+	Type string `json:"bindingType"`
+	ID   string `json:"bindingId"`
+}
+
+// Evidence state, separate from deletion. A REVOKED file keeps its bytes --
+// what was withdrawn may itself matter later -- but no longer counts.
+const (
+	EvidenceActive  = "ACTIVE"
+	EvidenceRevoked = "REVOKED"
+)
+
+// Effective status as a consumer sees it: ACTIVE, REVOKED or DELETED.
+//
+// DELETED wins over REVOKED because a file whose bytes are gone cannot be
+// evidence of anything, whatever its evidence state says.
+const (
+	StatusActive  = "ACTIVE"
+	StatusRevoked = "REVOKED"
+	StatusDeleted = "DELETED"
+)
 
 // Object visibility.
 //
@@ -113,15 +199,57 @@ func ValidVisibility(value string) bool {
 
 // RequiresPrivateVisibility reports the purposes that may only ever be private.
 func RequiresPrivateVisibility(purpose string) bool {
-	return purpose == PurposeDataExport
+	return purpose == PurposeDataExport || SensitiveEvidencePurpose(purpose)
 }
 
 // Retention classes.
+//
+// STANDARD, LEGAL and EXTENDED are the original three. OPERATIONAL,
+// COMPLIANCE, SAFETY and SUPPORT say WHY a file is kept, which is what decides
+// how long: a safety incident outlives an ordinary loading photo.
 const (
-	RetentionStandard = "STANDARD"
-	RetentionLegal    = "LEGAL"
-	RetentionExtended = "EXTENDED"
+	RetentionStandard    = "STANDARD"
+	RetentionLegal       = "LEGAL"
+	RetentionExtended    = "EXTENDED"
+	RetentionOperational = "OPERATIONAL"
+	RetentionCompliance  = "COMPLIANCE"
+	RetentionSafety      = "SAFETY"
+	RetentionSupport     = "SUPPORT"
 )
+
+// ValidRetentionClass reports whether a retention class is one this service
+// knows how to honour.
+func ValidRetentionClass(value string) bool {
+	switch value {
+	case RetentionStandard, RetentionLegal, RetentionExtended, RetentionOperational,
+		RetentionCompliance, RetentionSafety, RetentionSupport:
+		return true
+	default:
+		return false
+	}
+}
+
+// DefaultRetentionFor names the retention a purpose gets when the caller does
+// not choose.
+//
+// Evidence purposes default to the class matching why they exist rather than
+// to STANDARD, because a caller that forgot to say "this is a safety incident"
+// should not have that incident expire on the ordinary schedule.
+func DefaultRetentionFor(purpose string) string {
+	switch purpose {
+	case PurposeSafetyIncident, PurposeDamageEvidence:
+		return RetentionSafety
+	case PurposeVehicleInspection, PurposeCapabilityEvidence:
+		return RetentionCompliance
+	case PurposeCargoCondition, PurposeRecoveryTransfer, PurposeReadinessEvidence,
+		PurposeLoadingEvidence:
+		return RetentionOperational
+	case PurposeDisputeAttachment, PurposeIncidentAttachment:
+		return RetentionSupport
+	default:
+		return RetentionStandard
+	}
+}
 
 // Validation failure codes. Controlled so a consumer can branch on them and an
 // operator can filter for them.
@@ -189,6 +317,12 @@ type Object struct {
 	RetentionClass        string
 	RetentionUntil        *time.Time
 	LegalHold             bool
+	BindingType           string
+	BindingID             string
+	SecondaryBindings     []Binding
+	EvidenceState         string
+	RevokedAt             *time.Time
+	RevocationReason      string
 	Version               int64
 	CorrelationID         string
 	CausationID           string
@@ -331,3 +465,35 @@ const (
 	DeletionRequestFailed    = "FAILED"
 	DeletionRequestUnknown   = "UNKNOWN"
 )
+
+// EffectiveStatus collapses deletion and revocation into the one status a
+// consumer of evidence needs.
+func (o *Object) EffectiveStatus() string {
+	if o == nil {
+		return StatusDeleted
+	}
+	if o.DeletionState != "" && o.DeletionState != "ACTIVE" {
+		return StatusDeleted
+	}
+	if o.EvidenceState == EvidenceRevoked {
+		return StatusRevoked
+	}
+	return StatusActive
+}
+
+// BoundTo reports whether this object is evidence for the given binding,
+// either primarily or through a secondary binding.
+func (o *Object) BoundTo(bindingType, bindingID string) bool {
+	if o == nil || bindingType == "" || bindingID == "" {
+		return false
+	}
+	if o.BindingType == bindingType && o.BindingID == bindingID {
+		return true
+	}
+	for _, binding := range o.SecondaryBindings {
+		if binding.Type == bindingType && binding.ID == bindingID {
+			return true
+		}
+	}
+	return false
+}

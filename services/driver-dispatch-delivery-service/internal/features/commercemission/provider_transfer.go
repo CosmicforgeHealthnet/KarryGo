@@ -315,6 +315,13 @@ func (r *Repository) CompleteProviderTransfer(ctx context.Context, providerID, m
 		return dispatchcommerce.Mission{}, apperrors.New(409, "TRANSFER_EVIDENCE_REQUIRED", "Transfer requires valid evidence and an opaque media reference.", err)
 	}
 	nextVersion := version + 1
+	// The shared custody transfer needs its own immutable evidence record.
+	// It is written before the transfer itself, so a failed transfer leaves
+	// evidence of an attempt and never a custody change nobody performed.
+	custodyEvidenceRef, err := r.recordCustodyTransferEvidence(ctx, missionRef, command.OperationRef, providerID, firstRef(evidenceCommand.MediaRefs), command.ParcelRefs, now)
+	if err != nil {
+		return dispatchcommerce.Mission{}, err
+	}
 	evidence, err := insertEvidenceTx(ctx, tx, missionID, missionRef, "", "", "PROVIDER", providerID, evidenceCommand, nextVersion, now)
 	if err != nil {
 		return dispatchcommerce.Mission{}, err
@@ -343,6 +350,11 @@ func (r *Repository) CompleteProviderTransfer(ctx context.Context, providerID, m
 		return dispatchcommerce.Mission{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE commerce_provider_transfers SET state='COMPLETED',evidence_id=$2::uuid,source_version=$3,completed_at=$4 WHERE id=$1::uuid`, transferID, evidence.ID, nextVersion, now); err != nil {
+		return dispatchcommerce.Mission{}, err
+	}
+	// Shared custody moves in the same transaction, recording exactly which
+	// manifests changed hands.
+	if err = r.transferCustodyTx(ctx, tx, missionID, transferRef, oldProvider, newProvider, custodyEvidenceRef, command.OperationRef, nextVersion); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE commerce_mission_legs SET state='COMPLETED',evidence_ref=$3,completed_at=$4 WHERE commerce_mission_id=$1::uuid AND leg_ref=$2`, missionID, transferRef, evidence.ID, now); err != nil {
@@ -403,4 +415,11 @@ func loadCustodyBindingsTx(ctx context.Context, tx pgx.Tx, missionID, providerID
 func transferChallengeID(missionRef, transferRef, oldProvider, newProvider, manifestFingerprint string) string {
 	entity := fmt.Sprintf("%s:%s:%s:%s:%s", missionRef, transferRef, oldProvider, newProvider, manifestFingerprint)
 	return handover.BuildChallengeID("dispatch", handover.StepProviderTransfer, entity)
+}
+
+func firstRef(refs []string) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	return refs[0]
 }

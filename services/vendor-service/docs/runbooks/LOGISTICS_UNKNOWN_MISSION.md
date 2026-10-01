@@ -1,0 +1,3 @@
+# Logistics UNKNOWN mission
+
+Trigger: a Dispatch, Hauling, Taxi Goods, or VendorMission projection is `UNKNOWN` beyond its SLO. Inspect mission operation ID, authority/class, job attempts, provider events, and correlated logs. Stop new admissions for the affected path if failures are systemic and read back from the named logistics authority with the same operation ID. Never create a second mission or infer success from a timeout. Reconcile the projection and resume only after authoritative state is stable; escalate on conflicting states or expired customer promise. Verify one authoritative mission, one Vendor projection, and consistent cancellation/handover state.

@@ -1,80 +1,710 @@
 {
-  "openapi": "3.0.3",
+  "components": {
+    "securitySchemes": {
+      "VendorBearer": {
+        "bearerFormat": "JWT",
+        "description": "Verified Vendor staff token; business and branch scope are derived server-side from membership.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
   "info": {
     "title": "KarryGo Vendor Service - Section 16C Production Batches",
     "version": "16C-implementation"
   },
+  "openapi": "3.0.3",
   "paths": {
     "/api/v1/vendor/production-batches": {
       "get": {
+        "operationId": "section16c_vendor_production_batches_openapi_get_api_v1_vendor_production_batches",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "List production batches"
       },
       "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Create a production batch"
       }
     },
     "/api/v1/vendor/production-batches/{batchId}": {
       "get": {
+        "operationId": "section16c_vendor_production_batches_openapi_get_api_v1_vendor_production_batches_batchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Get production batch and frozen requirements"
-      }
-    },
-    "/api/v1/vendor/production-batches/{batchId}/preview": {
-      "post": {
-        "summary": "Preview exact scaled production requirements"
-      }
-    },
-    "/api/v1/vendor/production-batches/{batchId}/plan": {
-      "post": {
-        "summary": "Freeze requirements and atomically reserve controlled Inventory"
-      }
-    },
-    "/api/v1/vendor/production-batches/{batchId}/inventory-adjustments": {
-      "post": {
-        "summary": "Explicitly reserve additional Inventory before over-consumption"
-      }
-    },
-    "/api/v1/vendor/production-batches/{batchId}/start": {
-      "post": {
-        "summary": "Start production after validating job and Inventory reservations"
       }
     },
     "/api/v1/vendor/production-batches/{batchId}/actual-consumption": {
       "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_actual_consumption",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Record actual Ingredient or Packaging usage"
-      }
-    },
-    "/api/v1/vendor/production-batches/{batchId}/waste": {
-      "post": {
-        "summary": "Record actual immutable production waste evidence"
-      }
-    },
-    "/api/v1/vendor/production-batches/{batchId}/complete": {
-      "post": {
-        "summary": "Exactly-once Inventory consumption and optional prepared-stock output"
       }
     },
     "/api/v1/vendor/production-batches/{batchId}/cancel": {
       "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Cancel production and release unconsumed reservations"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/complete": {
+      "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_complete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Exactly-once Inventory consumption and optional prepared-stock output"
       }
     },
     "/api/v1/vendor/production-batches/{batchId}/inventory": {
       "get": {
+        "operationId": "section16c_vendor_production_batches_openapi_get_api_v1_vendor_production_batches_batchId_inventory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Read Inventory reservation evidence for a production batch"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/inventory-adjustments": {
+      "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_inventory_adjustments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Explicitly reserve additional Inventory before over-consumption"
       }
     },
     "/api/v1/vendor/production-batches/{batchId}/output": {
       "get": {
+        "operationId": "section16c_vendor_production_batches_openapi_get_api_v1_vendor_production_batches_batchId_output",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Read prepared-stock output evidence"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/plan": {
+      "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_plan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Freeze requirements and atomically reserve controlled Inventory"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/preview": {
+      "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Preview exact scaled production requirements"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/start": {
+      "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Start production after validating job and Inventory reservations"
+      }
+    },
+    "/api/v1/vendor/production-batches/{batchId}/waste": {
+      "post": {
+        "operationId": "section16c_vendor_production_batches_openapi_post_api_v1_vendor_production_batches_batchId_waste",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
+        "summary": "Record actual immutable production waste evidence"
       }
     },
     "/api/v1/vendor/production-stock-policies/branches/{branchId}": {
       "get": {
+        "operationId": "section16c_vendor_production_batches_openapi_get_api_v1_vendor_production_stock_policies_branches_branchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Read ON_DEMAND/BATCH_STOCK production policy"
       },
       "put": {
+        "operationId": "section16c_vendor_production_batches_openapi_put_api_v1_vendor_production_stock_policies_branches_branchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Configure ON_DEMAND/BATCH_STOCK and prepared Inventory mapping"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "VendorBearer": []
+    }
+  ]
 }

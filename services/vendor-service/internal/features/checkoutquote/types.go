@@ -171,6 +171,13 @@ type LineSnapshot struct {
 	InventoryItemRef        string `json:"inventory_item_ref,omitempty"`
 	InventoryReservationRef string `json:"inventory_reservation_ref,omitempty"`
 
+	// SubstitutionPolicy binds the customer's replacement rule into the
+	// fingerprinted quote. Empty means EXACT_ONLY, which keeps every quote
+	// created before this field existed byte-identical.
+	SubstitutionPolicy string `json:"substitution_policy,omitempty"`
+	MeasurementMode    string `json:"measurement_mode,omitempty"`
+	MeasurementBasis   string `json:"measurement_basis,omitempty"`
+
 	OnlinePriceDisclosure   string `json:"online_price_disclosure"`
 	StorePriceParityClaimed bool   `json:"store_price_parity_claimed"`
 }

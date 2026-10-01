@@ -260,7 +260,10 @@ func replaceExecutionTx(ctx context.Context, tx pgx.Tx, record *multiStopMission
 	}
 	first := snapshot.PickupStops[0]
 	var bookingID string
-	err := tx.QueryRow(ctx, `INSERT INTO dispatch_bookings(customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,currency,payment_method,payment_status,payment_ref,receiver_name,receiver_phone,package_desc,package_size,is_fragile,service_tier) VALUES($1::uuid,'searching',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,$11,$12,$13,'large',$14,$15) RETURNING id::text`, snapshot.CustomerRef, first.Location.Address, first.Location.Latitude, first.Location.Longitude, snapshot.Receiver.Address, snapshot.Receiver.Latitude, snapshot.Receiver.Longitude, fee, currency, snapshot.FundingReference, receiverDisplay(snapshot.Receiver), snapshot.Receiver.Phone, "Commerce provider replacement", hasFragile(snapshot.Parcels), serviceTier(snapshot.Mode)).Scan(&bookingID)
+	err := tx.QueryRow(ctx, `INSERT INTO dispatch_bookings(customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,currency,payment_method,payment_status,payment_ref,receiver_name,receiver_phone,receiver_customer_id,package_desc,package_size,is_fragile,service_tier,rollout_protection_mode,rollout_policy_version,handover_required,pickup_evidence_required,delivery_evidence_required,provider_transfer_required)
+		SELECT $1::uuid,'searching',$2,$3,$4,$5,$6,$7,$8,$9,'wallet','paid',$10,b.receiver_name,b.receiver_phone,b.receiver_customer_id,$11,'large',$12,$13,
+			b.rollout_protection_mode,b.rollout_policy_version,b.handover_required,b.pickup_evidence_required,b.delivery_evidence_required,b.provider_transfer_required
+		FROM dispatch_bookings b WHERE b.id=$14::uuid RETURNING id::text`, snapshot.CustomerRef, first.Location.Address, first.Location.Latitude, first.Location.Longitude, snapshot.Receiver.Address, snapshot.Receiver.Latitude, snapshot.Receiver.Longitude, fee, currency, snapshot.FundingReference, "Commerce provider replacement", hasFragile(snapshot.Parcels), serviceTier(snapshot.Mode), record.BookingID).Scan(&bookingID)
 	if err != nil {
 		return err
 	}

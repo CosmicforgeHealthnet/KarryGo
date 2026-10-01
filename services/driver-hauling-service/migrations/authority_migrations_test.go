@@ -82,3 +82,48 @@ func TestRestrictionAuthorityMigration(t *testing.T) {
 		}
 	}
 }
+
+func TestSection30CommerceOperationsMigrationIsBoundedAndReversible(t *testing.T) {
+	up, err := os.ReadFile("015_section30_commerce_operations.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	statement := strings.ToLower(string(up))
+	for _, fragment := range []string{
+		"loading_duration_seconds", "between 0 and 28800", "alter table commerce_missions",
+	} {
+		if !strings.Contains(statement, fragment) {
+			t.Errorf("Section 30 migration missing %q", fragment)
+		}
+	}
+	down, err := os.ReadFile("015_section30_commerce_operations.down.sql")
+	if err != nil || !strings.Contains(strings.ToLower(string(down)), "drop column if exists loading_duration_seconds") {
+		t.Errorf("Section 30 down migration is incomplete: %v", err)
+	}
+}
+
+func TestSecureHandoverMigrationIsHashOnlyAndSingleActive(t *testing.T) {
+	up, err := os.ReadFile("016_secure_handover_challenges.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	statement := strings.ToLower(string(up))
+	for _, fragment := range []string{
+		"hauling_handover_challenges", "otp_hash", "qr_token_hash",
+		"challenge_ref", "version bigint", "where status = 'active'",
+		"haulage_bookings_no_plaintext_handover", "pickup_code = ''", "delivery_code = ''",
+	} {
+		if !strings.Contains(statement, fragment) {
+			t.Errorf("secure handover migration missing %q", fragment)
+		}
+	}
+	for _, forbidden := range []string{"otp_plaintext", "qr_token text", "raw_otp"} {
+		if strings.Contains(statement, forbidden) {
+			t.Errorf("secure handover migration persists forbidden secret field %q", forbidden)
+		}
+	}
+	down, err := os.ReadFile("016_secure_handover_challenges.down.sql")
+	if err != nil || !strings.Contains(strings.ToLower(string(down)), "drop table if exists hauling_handover_challenges") {
+		t.Errorf("secure handover down migration is incomplete: %v", err)
+	}
+}

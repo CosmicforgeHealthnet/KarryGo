@@ -23,10 +23,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/fulfilment"
@@ -113,7 +115,10 @@ func (p *fulfilmentOperationsProjection) OpenFulfilment(
 		parcels[vendorOrder.ID] = parcel
 	}
 
-	missions := p.planMissionsWithParcels(ctx, order, plans, units, parcels)
+	missions, err := p.planMissionsWithParcels(ctx, order, plans, units, parcels)
+	if err != nil {
+		return err
+	}
 	if len(missions) == 0 {
 		// Nothing to execute — a pickup-only order, or every allocation
 		// already terminal. There is no plan to write, and writing an empty
@@ -189,7 +194,8 @@ func (p *fulfilmentOperationsProjection) planMissions(
 	plans []orders.MissionPlan,
 	units map[string]fulfilmentgroup.Unit,
 ) []fulfilmentgroup.PlanMission {
-	return p.planMissionsWithParcels(context.Background(), order, plans, units, nil)
+	missions, _ := p.planMissionsWithParcels(context.Background(), order, plans, units, nil)
+	return missions
 }
 
 func (p *fulfilmentOperationsProjection) planMissionsWithParcels(
@@ -198,7 +204,7 @@ func (p *fulfilmentOperationsProjection) planMissionsWithParcels(
 	plans []orders.MissionPlan,
 	units map[string]fulfilmentgroup.Unit,
 	parcels map[string]fulfilmentgroup.Parcel,
-) []fulfilmentgroup.PlanMission {
+) ([]fulfilmentgroup.PlanMission, error) {
 	destination := fulfilmentgroup.Stop{
 		Address:   order.Address.Address,
 		Latitude:  order.Address.Latitude,
@@ -209,6 +215,14 @@ func (p *fulfilmentOperationsProjection) planMissionsWithParcels(
 	sequence := 0
 
 	for _, plan := range plans {
+		loadingDuration := plan.LoadingDurationSeconds
+		if loadingDuration == 0 {
+			var loadingErr error
+			loadingDuration, loadingErr = p.loadingDurationForMission(ctx, plan.PlanMissionRef)
+			if loadingErr != nil {
+				return nil, loadingErr
+			}
+		}
 		var stops []fulfilmentgroup.Stop
 		for _, vendorOrderID := range plan.VendorOrderIDs {
 			unit, found := units[vendorOrderID]
@@ -257,16 +271,17 @@ func (p *fulfilmentOperationsProjection) planMissionsWithParcels(
 			}
 		}
 		missions = append(missions, fulfilmentgroup.PlanMission{
-			SlotRef:          plan.PlanMissionRef,
-			Sequence:         sequence,
-			Owner:            fulfilmentgroup.OwnerPlatform,
-			Authority:        authorityFor(plan.Service),
-			ServiceClass:     "",
-			VehicleClass:     plan.VehicleClass,
-			PlannedCostMinor: plan.AgreedFeeMinor,
-			Currency:         order.Currency,
-			Stops:            stops,
-			ParcelIDs:        parcelIDs,
+			SlotRef:                plan.PlanMissionRef,
+			Sequence:               sequence,
+			Owner:                  fulfilmentgroup.OwnerPlatform,
+			Authority:              authorityFor(plan.Service),
+			ServiceClass:           "",
+			VehicleClass:           plan.VehicleClass,
+			PlannedCostMinor:       plan.AgreedFeeMinor,
+			Currency:               order.Currency,
+			LoadingDurationSeconds: loadingDuration,
+			Stops:                  stops,
+			ParcelIDs:              parcelIDs,
 		})
 	}
 
@@ -315,7 +330,19 @@ func (p *fulfilmentOperationsProjection) planMissionsWithParcels(
 		})
 	}
 
-	return missions
+	return missions, nil
+}
+
+func (p *fulfilmentOperationsProjection) loadingDurationForMission(ctx context.Context, missionRef string) (int64, error) {
+	if p == nil || p.db == nil || strings.TrimSpace(missionRef) == "" {
+		return 0, nil
+	}
+	var seconds int64
+	err := p.db.QueryRow(ctx, `SELECT loading_duration_seconds FROM commerce_fulfilment_missions WHERE id=$1`, strings.TrimSpace(missionRef)).Scan(&seconds)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return seconds, err
 }
 
 func (p *fulfilmentOperationsProjection) branchPoint(
@@ -426,6 +453,29 @@ func (p *fulfilmentOperationsProjection) MissionExecution(
 	execution := orders.MissionExecution{
 		PlanRef: plan.ID, PlanVersion: plan.Version, PlanFingerprint: plan.Fingerprint,
 		Mode: order.SelectedFulfilmentMode, ServiceClass: missionServiceClass(order, requested),
+		LoadingDurationSeconds: slot.LoadingDurationSeconds,
+	}
+	if err = p.db.QueryRow(ctx, `
+		SELECT authority_quote_id,authority_quote_reference
+		  FROM commerce_fulfilment_missions
+		 WHERE id=$1 AND customer_id=$2`,
+		requested.PlanMissionRef, order.CustomerID,
+	).Scan(&execution.AuthorityQuoteID, &execution.AuthorityQuoteReference); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return orders.MissionExecution{}, err
+		}
+		// Hybrid fallback missions are not born from a Section 17C quote row.
+		// Their authority adapter may obtain its own operational quote, but a
+		// normal checkout mission must carry the frozen authority identity.
+		execution.AuthorityQuoteID = ""
+		execution.AuthorityQuoteReference = ""
+	}
+	// An escalated slot executes on the escalation authority's own quote.
+	if escalation, escalated, escErr := p.escalationFor(ctx, order, requested.PlanMissionRef); escErr != nil {
+		return orders.MissionExecution{}, escErr
+	} else if escalated {
+		execution.AuthorityQuoteID = escalation.AuthorityQuoteID
+		execution.AuthorityQuoteReference = escalation.AuthorityQuoteReference
 	}
 	for _, stop := range slot.PickupStops() {
 		readyFrom, readyTo := p.readyWindow(ctx, order.ID, byUnit[stop.UnitID], now)
@@ -459,6 +509,61 @@ func (p *fulfilmentOperationsProjection) MissionExecution(
 	}
 	execution.PromisedBy = latestReady.Add(2 * time.Hour)
 	return execution, nil
+}
+
+// ResolveMissionPlan binds execution to the exact authority decision already
+// approved at checkout. No fee threshold or order domain is allowed to choose
+// between Dispatch, Taxi Goods, and Hauling here.
+func (p *fulfilmentOperationsProjection) ResolveMissionPlan(
+	ctx context.Context, order orders.ParentOrder, plan orders.MissionPlan,
+) (orders.MissionPlan, error) {
+	if p == nil || p.db == nil {
+		return orders.MissionPlan{}, fulfilmentgroup.ErrDependencyMissing
+	}
+	var service, vehicle, currency string
+	var fee, weight, packages, loading int64
+	err := p.db.QueryRow(ctx, `
+		SELECT service,vehicle_class,currency,gross_fee_minor,
+		       total_weight_grams,package_count,loading_duration_seconds
+		  FROM commerce_fulfilment_missions
+		 WHERE id=$1 AND customer_id=$2`,
+		plan.PlanMissionRef, order.CustomerID,
+	).Scan(&service, &vehicle, &currency, &fee, &weight, &packages, &loading)
+	if err != nil {
+		return orders.MissionPlan{}, err
+	}
+	resolved := orders.LogisticsService(strings.ToUpper(strings.TrimSpace(service)))
+	if resolved != orders.LogisticsDispatch && resolved != orders.LogisticsTaxi && resolved != orders.LogisticsHauling {
+		return orders.MissionPlan{}, fmt.Errorf("unsupported frozen logistics authority %q", service)
+	}
+	if !strings.EqualFold(currency, order.Currency) || fee != plan.AgreedFeeMinor {
+		return orders.MissionPlan{}, fmt.Errorf("frozen logistics quote no longer matches order allocation")
+	}
+	plan.Service = resolved
+	plan.VehicleClass = strings.ToUpper(strings.TrimSpace(vehicle))
+	plan.WeightGrams = weight
+	plan.PackageCount = packages
+	plan.LoadingDurationSeconds = loading
+	// A post-pick physical escalation re-points EXECUTION to a larger safe
+	// class and its authority's own quote. The customer's approved fee (checked
+	// above) is unchanged; only what the authority is asked to carry changes.
+	escalation, escalated, err := p.escalationFor(ctx, order, plan.PlanMissionRef)
+	if err != nil {
+		return orders.MissionPlan{}, err
+	}
+	if escalated {
+		plan.Service = escalation.Service
+		plan.VehicleClass = strings.ToUpper(strings.TrimSpace(escalation.VehicleClass))
+		plan.AgreedFeeMinor = escalation.AuthorityFeeMinor
+		plan.MissionRef = escalation.MissionRef
+		if escalation.WeightGrams > 0 {
+			plan.WeightGrams = escalation.WeightGrams
+		}
+		if escalation.PackageCount > 0 {
+			plan.PackageCount = escalation.PackageCount
+		}
+	}
+	return plan, nil
 }
 
 func missionServiceClass(order orders.ParentOrder, mission orders.MissionPlan) string {
@@ -622,8 +727,8 @@ func (p *fulfilmentOperationsProjection) missionRefForMissionSlot(
 // here. Dispatch V1 now accepts route-bound multi-pickup missions; Hauling's
 // legacy commerce contract still accepts one pickup only.
 //
-// Taxi is absent. It has no commerce mission ingress, so there is no capability
-// to state and nothing that could accidentally select it.
+// Taxi Goods is single-pickup. Its runtime feature flag and configured quote
+// authority govern selection; this table describes only execution shape.
 //
 // This table is the input to the aggregate's post-order grouping decision
 // (fulfilmentgroup.GroupCandidates), which is what a REPLAN uses when it has to
@@ -644,6 +749,11 @@ func authorityCapabilities() map[fulfilmentgroup.Authority]fulfilmentgroup.Capab
 		},
 		fulfilmentgroup.AuthorityHauling: {
 			Authority:       fulfilmentgroup.AuthorityHauling,
+			MultiStopPickup: false,
+			MaxPickupStops:  1,
+		},
+		fulfilmentgroup.AuthorityTaxi: {
+			Authority:       fulfilmentgroup.AuthorityTaxi,
 			MultiStopPickup: false,
 			MaxPickupStops:  1,
 		},
@@ -678,6 +788,8 @@ func (p *fulfilmentOperationsProjection) Replan(
 
 func authorityFor(service orders.LogisticsService) fulfilmentgroup.Authority {
 	switch service {
+	case orders.LogisticsTaxi:
+		return fulfilmentgroup.AuthorityTaxi
 	case orders.LogisticsHauling:
 		return fulfilmentgroup.AuthorityHauling
 	default:
@@ -687,6 +799,8 @@ func authorityFor(service orders.LogisticsService) fulfilmentgroup.Authority {
 
 func custodySourceFor(source orders.LogisticsService) fulfilmentgroup.CustodySource {
 	switch source {
+	case orders.LogisticsTaxi:
+		return fulfilmentgroup.SourceTaxi
 	case orders.LogisticsHauling:
 		return fulfilmentgroup.SourceHauling
 	default:

@@ -311,6 +311,18 @@ func TestSection7SubmissionLifecycleReadBackAndReplay(t *testing.T) {
 	if projectionStatus != VerificationVerified || operationStatus != "COMPLETED" {
 		t.Fatalf("projection=%s operation=%s", projectionStatus, operationStatus)
 	}
+	// Customer V4 §19: repair a lost suspension callback after completion.
+	authority.result = verified("case-submit", 3, nil)
+	authority.result.Status = VerificationSuspended
+	if _, err = pool.Exec(ctx, `UPDATE vendor_verification_operations SET next_attempt_at=now()`); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.ReconcileVerifications(ctx, "completed-reconciler", 10); err != nil {
+		t.Fatal(err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT status FROM vendor_verification_projections WHERE source_ref='case-submit'`).Scan(&projectionStatus); err != nil || projectionStatus != VerificationSuspended {
+		t.Fatalf("completed read-back status=%s err=%v", projectionStatus, err)
+	}
 	if _, err = pool.Exec(ctx, `UPDATE vendor_verification_operations SET status='DEAD_LETTER' WHERE id=$1`, operationID); err != nil {
 		t.Fatal(err)
 	}

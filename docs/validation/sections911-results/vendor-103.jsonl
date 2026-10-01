@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:54:06.748002+02:00","Action":"start","Package":"cosmicforge/logistics/services/vendor-service/tools/vendor-test-runner"}
+{"Time":"2026-09-27T16:54:06.7490286+02:00","Action":"output","Package":"cosmicforge/logistics/services/vendor-service/tools/vendor-test-runner","Output":"?   \tcosmicforge/logistics/services/vendor-service/tools/vendor-test-runner\t[no test files]\n"}
+{"Time":"2026-09-27T16:54:06.7490286+02:00","Action":"skip","Package":"cosmicforge/logistics/services/vendor-service/tools/vendor-test-runner","Elapsed":0.001}

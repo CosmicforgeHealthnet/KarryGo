@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/theme_extensions.dart';
+
 class NumericKeypad extends StatelessWidget {
   const NumericKeypad({
     super.key,
     required this.onKeyTap,
-    this.textColor = const Color(0xFF1A1A1A),
+    this.textColor,
   });
 
   final ValueChanged<String> onKeyTap;
-  final Color textColor;
+
+  /// Optional override for the digit color. Falls back to the theme's
+  /// `text` color so the keypad adapts to light/dark automatically.
+  final Color? textColor;
 
   static const _rows = [
     ['1', '2', '3'],
@@ -19,6 +24,9 @@ class NumericKeypad extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.palette;
+    final digitColor = textColor ?? colors.text;
+
     return Column(
       children: _rows.map((row) {
         return Padding(
@@ -43,13 +51,13 @@ class NumericKeypad extends StatelessWidget {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE6E8EE),
+                              color: colors.navy10,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.close,
                               size: 16,
-                              color: Color(0xFF05124D),
+                              color: digitColor,
                             ),
                           )
                         : Text(
@@ -57,7 +65,7 @@ class NumericKeypad extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w600,
-                              color: textColor,
+                              color: digitColor,
                             ),
                           ),
                   ),

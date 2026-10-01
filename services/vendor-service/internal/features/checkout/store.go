@@ -57,6 +57,7 @@ const sessionColumns = `
     updated_at,
     validated_at,
     settled_at
+    ,replacement_source_session_id
 `
 
 func scanSession(row pgx.Row) (Session, error) {
@@ -86,6 +87,7 @@ func scanSession(row pgx.Row) (Session, error) {
 		&session.UpdatedAt,
 		&session.ValidatedAt,
 		&session.SettledAt,
+		&session.ReplacementSourceSessionID,
 	)
 
 	return session, err
@@ -145,6 +147,7 @@ func loadLiveSessionForCart(
         FROM commerce_checkout_sessions
         WHERE cart_id=$1
           AND status IN ('VALIDATING','VALIDATED')
+          AND replacement_source_session_id IS NULL
     `
 
 	if forUpdate {
@@ -311,7 +314,8 @@ const lineColumns = `
     reservation_basis,
     validation_status,
     reason_code,
-    reason_detail
+    reason_detail,
+    substitution_policy
 `
 
 func loadLines(
@@ -378,6 +382,7 @@ func loadLines(
 			&line.Status,
 			&line.ReasonCode,
 			&line.ReasonDetail,
+			&line.SubstitutionPolicy,
 		); err != nil {
 			return nil, err
 		}
@@ -584,13 +589,14 @@ func insertLine(
             reservation_basis,
             validation_status,
             reason_code,
-            reason_detail
+            reason_detail,
+            substitution_policy
         )
         VALUES(
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
             $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
             $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
-            $31,$32,$33,$34,$35,$36,$37,$38
+            $31,$32,$33,$34,$35,$36,$37,$38,$39
         )
         `,
 		line.ID,
@@ -631,6 +637,7 @@ func insertLine(
 		line.Status,
 		line.ReasonCode,
 		line.ReasonDetail,
+		firstNonEmpty(line.SubstitutionPolicy, "EXACT_ONLY"),
 	)
 
 	return err

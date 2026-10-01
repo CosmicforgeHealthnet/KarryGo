@@ -1,0 +1,698 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "driver-dispatch-delivery-service customer route register (Customer V4 \u00a723)",
+    "version": "v4-23",
+    "description": "Mounted customer-family routes that had no OpenAPI document. Every operation is derived from the registered gin route and its handler source (request DTO fields, query and header reads); no field is hand-authored. Response bodies use the platform success/error envelope."
+  },
+  "paths": {
+    "/api/v1/customer/dispatch/bookings/estimate": {
+      "post": {
+        "operationId": "post_api_v1_customer_dispatch_bookings_estimate",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).Estimate-fm",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "EstimateRequest",
+                "properties": {
+                  "pickup_lat": {
+                    "type": "number"
+                  },
+                  "pickup_lng": {
+                    "type": "number"
+                  },
+                  "dropoff_lat": {
+                    "type": "number"
+                  },
+                  "dropoff_lng": {
+                    "type": "number"
+                  },
+                  "package_size": {
+                    "type": "string"
+                  },
+                  "service_tier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/dispatch/availability": {
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_availability",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).CheckAvailability-fm",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/bookings": {
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_bookings",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).ListBookings-fm",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/cancel": {
+      "post": {
+        "operationId": "post_api_v1_customer_dispatch_bookings_id_cancel",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).CancelBooking-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "cancelBookingRequest",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/review": {
+      "post": {
+        "operationId": "post_api_v1_customer_dispatch_bookings_id_review",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).SubmitReview-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "ReviewInput",
+                "properties": {
+                  "rating": {
+                    "type": "integer"
+                  },
+                  "review_text": {
+                    "type": "string"
+                  },
+                  "recommends_provider": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_bookings_id_review",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).GetReview-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/location": {
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_bookings_id_location",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).GetLocation-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/verify-driver": {
+      "post": {
+        "operationId": "post_api_v1_customer_dispatch_bookings_id_verify_driver",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).VerifyDriverAtPickup-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "x-go-dto": "verifyDriverRequest",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/verification-code": {
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_bookings_id_verification_code",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).GetVerificationCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "step",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/verification-code/resend": {
+      "post": {
+        "operationId": "post_api_v1_customer_dispatch_bookings_id_verification_code_resend",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).ResendVerificationCode-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "step",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/providers/{id}": {
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_providers_id",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*Handler).GetRider-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer/dispatch/bookings/{id}/track": {
+      "get": {
+        "operationId": "get_api_v1_customer_dispatch_bookings_id_track",
+        "x-handler": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking.(*TrackHandler).StreamBookingTrack-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 service auth: X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature; exact caller allowlist; replayed nonce refused."
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {}
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

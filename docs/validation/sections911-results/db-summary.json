@@ -1,0 +1,3262 @@
+[
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/cmd",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-1.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-2.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/config",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-3.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/database",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-4.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/auth/clients",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-5.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/auth/http",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-6.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/auth/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-7.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-8.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/auth/usecases",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-9.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/customer_context/http",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-10.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/customer_context/usecases",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-11.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/identity/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-12.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/http",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-13.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/models",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-14.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-15.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/usecases",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-16.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/journey_sharing/workers",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-17.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-18.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-19.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/repositories",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-20.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/usecases",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-21.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-22.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/models",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-23.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/repositories",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-24.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/movement_history/usecases",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-25.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/notifications/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-26.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/preferences",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-27.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/profile/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-28.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/profile/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-29.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/profile/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-30.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/profile/usecases",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-31.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-32.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-33.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-34.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/usecases",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-35.jsonl"
+  },
+  {
+    "Service": "customer",
+    "Package": "cosmicforge/logistics/services/customer-service/migrations",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "customer-36.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/cmd",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-1.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/cmd/online",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-2.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/cmd/seed",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-3.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-4.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/adminaudit",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-5.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/apiresponse",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-6.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/capability",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-7.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/config",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-8.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/database",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-9.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/dbtx",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-10.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/clients",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-11.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/earnings",
+    "Status": "PASS",
+    "Pass": 12,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-12.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-13.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/matching",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-14.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-15.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories",
+    "Status": "FAIL",
+    "Pass": 1,
+    "Fail": 10,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-16.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/reviews",
+    "Status": "FAIL",
+    "Pass": 0,
+    "Fail": 5,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-17.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-18.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/telemetry",
+    "Status": "FAIL",
+    "Pass": 14,
+    "Fail": 7,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-19.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases",
+    "Status": "FAIL",
+    "Pass": 132,
+    "Fail": 48,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-20.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/booking/verification",
+    "Status": "FAIL",
+    "Pass": 3,
+    "Fail": 5,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-21.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/capabilities",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-22.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/customertracking",
+    "Status": "FAIL",
+    "Pass": 1,
+    "Fail": 1,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-23.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-24.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/goods",
+    "Status": "PASS",
+    "Pass": 35,
+    "Fail": 0,
+    "Skipped": 21,
+    "Exit": 0,
+    "Evidence": "taxi-25.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/identity/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-26.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/managedexec",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-27.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/markets/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-28.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/markets/repositories",
+    "Status": "FAIL",
+    "Pass": 0,
+    "Fail": 4,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-29.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/networkobserver",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-30.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/operations/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-31.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/privateexecution",
+    "Status": "PASS",
+    "Pass": 20,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-32.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/http",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-33.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-34.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-35.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/usecases",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-36.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-37.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-38.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/repositories",
+    "Status": "FAIL",
+    "Pass": 0,
+    "Fail": 7,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-39.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/usecases",
+    "Status": "PASS",
+    "Pass": 16,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-40.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-41.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-42.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-43.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/usecases",
+    "Status": "PASS",
+    "Pass": 16,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-44.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/features/supportcontext",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-45.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/idempotency",
+    "Status": "FAIL",
+    "Pass": 1,
+    "Fail": 13,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-46.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/movement",
+    "Status": "FAIL",
+    "Pass": 3,
+    "Fail": 1,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "taxi-47.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/outbox",
+    "Status": "PASS",
+    "Pass": 31,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-48.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/pricing",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-49.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/routing",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-50.jsonl"
+  },
+  {
+    "Service": "taxi",
+    "Package": "cosmicforge/logistics/services/taxi-service/internal/vehicleclass",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "taxi-51.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/cmd",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-1.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/cmd/online",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-2.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/cmd/seed",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-3.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/cmd/test-migrate",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-4.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/apiresponse",
+    "Status": "PASS",
+    "Pass": 14,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-5.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/config",
+    "Status": "PASS",
+    "Pass": 22,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-6.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/database",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-7.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/assignment",
+    "Status": "PASS",
+    "Pass": 38,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-8.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/clients",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-9.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/http",
+    "Status": "PASS",
+    "Pass": 48,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-10.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-11.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-12.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases",
+    "Status": "PASS",
+    "Pass": 96,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-13.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority",
+    "Status": "PASS",
+    "Pass": 19,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-14.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/availability",
+    "Status": "PASS",
+    "Pass": 122,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-15.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/bikecapability",
+    "Status": "PASS",
+    "Pass": 26,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-16.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking",
+    "Status": "PASS",
+    "Pass": 72,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-17.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-18.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission",
+    "Status": "PASS",
+    "Pass": 23,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-19.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote",
+    "Status": "PASS",
+    "Pass": 27,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-20.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/customershare",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-21.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/deliveryfoundation",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-22.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/deliveryrecovery",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-23.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/identity/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-24.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace",
+    "Status": "PASS",
+    "Pass": 131,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-25.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/missionplanning",
+    "Status": "PASS",
+    "Pass": 10,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-26.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-27.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/networkobserver",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-28.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/notifications/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-29.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/privateexecution",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-30.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/profile",
+    "Status": "PASS",
+    "Pass": 142,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-31.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request",
+    "Status": "PASS",
+    "Pass": 117,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-32.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/restrictions",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-33.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-34.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/routeintegrity",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-35.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/securehandover",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-36.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability",
+    "Status": "PASS",
+    "Pass": 31,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-37.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/supportcontext",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-38.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/trip",
+    "Status": "PASS",
+    "Pass": 248,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-39.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/tripsettlement",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-40.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vehicle",
+    "Status": "PASS",
+    "Pass": 112,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-41.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/vendorownedhandover",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-42.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification",
+    "Status": "PASS",
+    "Pass": 162,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-43.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-44.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/observability",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-45.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/parcelfit",
+    "Status": "PASS",
+    "Pass": 26,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-46.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/internal/router",
+    "Status": "PASS",
+    "Pass": 19,
+    "Fail": 0,
+    "Skipped": 1,
+    "Exit": 0,
+    "Evidence": "dispatch-47.jsonl"
+  },
+  {
+    "Service": "dispatch",
+    "Package": "cosmicforge/logistics/services/dispatch-delivery-service/migrations",
+    "Status": "PASS",
+    "Pass": 137,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "dispatch-48.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/cmd",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-1.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/cmd/online",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-2.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/cmd/seed",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-3.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/apiresponse",
+    "Status": "PASS",
+    "Pass": 14,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-4.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/cargofit",
+    "Status": "PASS",
+    "Pass": 44,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-5.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/config",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-6.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/database",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-7.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/clients",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-8.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-9.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/models",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-10.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/payments",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-11.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-12.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-13.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases",
+    "Status": "PASS",
+    "Pass": 102,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-14.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/commercemission",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-15.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/commercequote",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-16.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/completedwork",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-17.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/customershare",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-18.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/fleetauthority",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-19.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/identity/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-20.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/movement",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-21.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/networkevents",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-22.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/networkobserver",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-23.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/notifications/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-24.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/privateexecution",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-25.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-26.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-27.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-28.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-29.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-30.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-31.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/usecases",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-32.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-33.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-34.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-35.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-36.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/providerassignments",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-37.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/recovery",
+    "Status": "PASS",
+    "Pass": 37,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-38.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/restrictions",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-39.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/supportcontext",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-40.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/features/truckcapability",
+    "Status": "PASS",
+    "Pass": 21,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-41.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/observability",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-42.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/internal/truckcatalog",
+    "Status": "PASS",
+    "Pass": 23,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-43.jsonl"
+  },
+  {
+    "Service": "hauling",
+    "Package": "cosmicforge/logistics/services/hauling-service/migrations",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "hauling-44.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/cmd",
+    "Status": "PASS",
+    "Pass": 267,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-1.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-2.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/audit",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-3.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/config",
+    "Status": "PASS",
+    "Pass": 57,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-4.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/crmcontract",
+    "Status": "PASS",
+    "Pass": 12,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-5.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/database",
+    "Status": "FAIL",
+    "Pass": 95,
+    "Fail": 1,
+    "Skipped": 3,
+    "Exit": 1,
+    "Evidence": "vendor-6.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/events",
+    "Status": "PASS",
+    "Pass": 22,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-7.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/analytics",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-8.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/auth/clients",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-9.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/auth/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-10.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/auth/models",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-11.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-12.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases",
+    "Status": "PASS",
+    "Pass": 12,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-13.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/basket",
+    "Status": "PASS",
+    "Pass": 43,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-14.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/branches",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-15.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/brands",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-16.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/capabilities",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-17.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/cart",
+    "Status": "FAIL",
+    "Pass": 13,
+    "Fail": 5,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "vendor-18.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/catalog",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-19.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/checkout",
+    "Status": "PASS",
+    "Pass": 22,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-20.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/checkoutquote",
+    "Status": "PASS",
+    "Pass": 10,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-21.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/cloud_kitchen",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-22.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/cost",
+    "Status": "PASS",
+    "Pass": 73,
+    "Fail": 0,
+    "Skipped": 2,
+    "Exit": 0,
+    "Evidence": "vendor-23.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/crm",
+    "Status": "PASS",
+    "Pass": 643,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-24.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/customershare",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-25.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/delivery",
+    "Status": "PASS",
+    "Pass": 33,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-26.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/finance_projection",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-27.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/food",
+    "Status": "PASS",
+    "Pass": 46,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-28.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/fulfilment",
+    "Status": "PASS",
+    "Pass": 166,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-29.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/fulfilment_readiness",
+    "Status": "PASS",
+    "Pass": 37,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-30.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/fulfilmentgroup",
+    "Status": "PASS",
+    "Pass": 124,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-31.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/inventory",
+    "Status": "PASS",
+    "Pass": 63,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-32.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/orchestration",
+    "Status": "PASS",
+    "Pass": 51,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-33.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/orders",
+    "Status": "PASS",
+    "Pass": 113,
+    "Fail": 0,
+    "Skipped": 2,
+    "Exit": 0,
+    "Evidence": "vendor-34.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/pastry",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-35.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/production",
+    "Status": "PASS",
+    "Pass": 24,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-36.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/productionbatch",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-37.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/productionmaster",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-38.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/promotions",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-39.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/purchasing",
+    "Status": "PASS",
+    "Pass": 63,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-40.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/recipes",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-41.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/searchprojection",
+    "Status": "PASS",
+    "Pass": 19,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-42.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/shop",
+    "Status": "PASS",
+    "Pass": 86,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-43.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/staff/http",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-44.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/staff/models",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-45.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-46.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-47.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/substitutions",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-48.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/taxonomy",
+    "Status": "PASS",
+    "Pass": 82,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-49.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/features/vendors",
+    "Status": "PASS",
+    "Pass": 26,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-50.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/fulfilmentcontract",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-51.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/admin",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-52.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/analytics",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-53.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/customer",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-54.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/dispatch",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-55.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/handover",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-56.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/hauling",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-57.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/logistics",
+    "Status": "PASS",
+    "Pass": 43,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-58.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/media",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-59.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/notification",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-60.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/support",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-61.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/taxi",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-62.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/verification",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-63.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/integrations/wallet",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-64.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/jobs",
+    "Status": "PASS",
+    "Pass": 21,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-65.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/operational",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-66.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/platform/authctx",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-67.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/platform/geo",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-68.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/platform/idempotency",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-69.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/platform/ratelimit",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-70.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/platform/servicenonce",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-71.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/privacy",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-72.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/promotioncontract",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-73.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/searchrebuild",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-74.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section10_11contract",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-75.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section12acontract",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-76.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section12bcontract",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-77.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section13contract",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-78.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section13security",
+    "Status": "PASS",
+    "Pass": 97,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-79.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section14contract",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-80.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section15contract",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-81.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section17acontract",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-82.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section17bcontract",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-83.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section17ccontract",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-84.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section17dcontract",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-85.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section17econtract",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-86.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section17fcontract",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-87.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section5contract",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-88.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section6contract",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-89.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section7contract",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-90.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8acontract",
+    "Status": "PASS",
+    "Pass": 7,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-91.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8bcontract",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-92.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8ccontract",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-93.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8dcontract",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-94.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8econtract",
+    "Status": "PASS",
+    "Pass": 10,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-95.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8fcontract",
+    "Status": "PASS",
+    "Pass": 3,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-96.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8gcontract",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-97.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section8hcontract",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-98.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/internal/section9acontract",
+    "Status": "PASS",
+    "Pass": 10,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-99.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/tools/migrate",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-100.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/tools/section43-openapi-normalize",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-101.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/tools/section44-45-catalogue",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-102.jsonl"
+  },
+  {
+    "Service": "vendor",
+    "Package": "cosmicforge/logistics/services/vendor-service/tools/vendor-test-runner",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "vendor-103.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/apperrors",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-1.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/architecture",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-2.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/auth",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-3.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/browserauth",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-4.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/cache",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-5.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/capabilityfit",
+    "Status": "PASS",
+    "Pass": 12,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-6.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/commerceanalytics",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-7.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/commercecapability",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-8.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/commercemission",
+    "Status": "PASS",
+    "Pass": 8,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-9.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/commercequote",
+    "Status": "PASS",
+    "Pass": 24,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-10.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/custodychain",
+    "Status": "PASS",
+    "Pass": 19,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-11.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/custodyops",
+    "Status": "FAIL",
+    "Pass": 14,
+    "Fail": 7,
+    "Skipped": 0,
+    "Exit": 1,
+    "Evidence": "shared-12.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/dispatchcommerce",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-13.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/dispatchpricing",
+    "Status": "PASS",
+    "Pass": 15,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-14.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/events",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-15.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/fleetproviderwork",
+    "Status": "PASS",
+    "Pass": 16,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-16.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/geo",
+    "Status": "PASS",
+    "Pass": 75,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-17.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/handover",
+    "Status": "PASS",
+    "Pass": 16,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-18.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/httpx",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-19.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/journeyshare",
+    "Status": "PASS",
+    "Pass": 10,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-20.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/journeyshare/journeysharetest",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-21.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/journeyshare/journeysharetest/stacke2e",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 6,
+    "Exit": 0,
+    "Evidence": "shared-22.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/livetrack",
+    "Status": "PASS",
+    "Pass": 24,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-23.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/logging",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-24.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/logisticscapability",
+    "Status": "PASS",
+    "Pass": 21,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-25.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/managedsettlement",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-26.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/mediaclient",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-27.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/networkanalytics",
+    "Status": "PASS",
+    "Pass": 17,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-28.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/notifications",
+    "Status": "PASS",
+    "Pass": 14,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-29.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/observability",
+    "Status": "PASS",
+    "Pass": 5,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-30.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/outboxmetrics",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-31.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/pagination",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-32.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/phonenumber",
+    "Status": "PASS",
+    "Pass": 2,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-33.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/policyingest",
+    "Status": "PASS",
+    "Pass": 35,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-34.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/providercompat",
+    "Status": "PASS",
+    "Pass": 59,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-35.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/ratelimit",
+    "Status": "PASS",
+    "Pass": 1,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-36.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/redisx",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-37.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/routing",
+    "Status": "PASS",
+    "Pass": 13,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-38.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/serviceapp",
+    "Status": "PASS",
+    "Pass": 4,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-39.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/serviceauth",
+    "Status": "PASS",
+    "Pass": 9,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-40.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/supplypreview",
+    "Status": "PASS",
+    "Pass": 14,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-41.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/supportcase",
+    "Status": "PASS",
+    "Pass": 11,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-42.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/validation",
+    "Status": "SKIPPED",
+    "Pass": 0,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-43.jsonl"
+  },
+  {
+    "Service": "shared",
+    "Package": "cosmicforge/logistics/shared/go/walletclient",
+    "Status": "PASS",
+    "Pass": 6,
+    "Fail": 0,
+    "Skipped": 0,
+    "Exit": 0,
+    "Evidence": "shared-44.jsonl"
+  }
+]

@@ -1,0 +1,3 @@
+DROP TABLE commerce_handover_observations;
+DROP FUNCTION section32_guard_observation();
+ALTER TABLE commerce_order_missions DROP CONSTRAINT section32_mission_authority_unique;

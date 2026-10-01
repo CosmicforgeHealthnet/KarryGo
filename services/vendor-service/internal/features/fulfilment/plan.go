@@ -241,8 +241,9 @@ type Mission struct {
 	CustomerPriceGuaranteeMinor int64          `json:"customer_price_guarantee_minor"`
 	CustodyState                string         `json:"custody_state"`
 
-	TotalWeightGrams int64 `json:"total_weight_grams"`
-	PackageCount     int64 `json:"package_count"`
+	TotalWeightGrams       int64 `json:"total_weight_grams"`
+	PackageCount           int64 `json:"package_count"`
+	LoadingDurationSeconds int64 `json:"loading_duration_seconds,omitempty"`
 
 	// GroupIDs is what makes a consolidated fee traceable: every mission
 	// records exactly which vendor groups it covers.

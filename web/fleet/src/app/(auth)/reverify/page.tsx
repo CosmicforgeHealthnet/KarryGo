@@ -17,9 +17,6 @@ function ReverifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // The screen that requested reverification passes what it's confirming
-  // and where to return to on success, e.g.
-  // /reverify?action=Revoke%20API%20client%20access&returnTo=/settings/integrations/api-clients
   const action = searchParams.get("action") ?? "this action";
   const returnTo = searchParams.get("returnTo") ?? "/";
 
@@ -47,8 +44,6 @@ function ReverifyContent() {
 
     setState({ status: "submitting" });
 
-    // MOCK: accepts a fixed code until the real reverification endpoint
-    // is wired in.
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     if (candidate !== MOCK_VALID_CODE) {
@@ -65,7 +60,6 @@ function ReverifyContent() {
     router.push(`${returnTo}?reverified=1`);
   }
 
-  // Auto-submit the instant a full 6-digit code is entered.
   useEffect(() => {
     if (code.length === 6 && state.status === "idle") {
       submitCode(code);
@@ -80,7 +74,6 @@ function ReverifyContent() {
   }
 
   function handleCancel() {
-    // Cancel safely: never proceed with the pending action.
     router.push(returnTo);
   }
 
@@ -127,7 +120,7 @@ function ReverifyContent() {
           }}
           placeholder="000000"
           disabled={submitting || expired || locked}
-          className="w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-center text-xl font-semibold tracking-[0.4em] text-ink-950 outline-none transition focus:border-primary focus:bg-white disabled:opacity-60"
+          className="w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-center text-xl font-semibold tracking-[0.4em] text-ink-950 outline-none transition focus:border-primary focus:bg-surface disabled:opacity-60"
         />
 
         {state.status === "error" && (

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/taxi-service/internal/apiresponse"
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
 	bookingusecases "cosmicforge/logistics/services/taxi-service/internal/features/booking/usecases"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -27,8 +28,15 @@ type successResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
+// respond is the single success-envelope choke point for this feature.
+//
+// Every provider-facing body passes through apiresponse.Project here, which
+// is what makes the Section 8 corporate financial projection server-side and
+// total: there is no handler that can return money to a provider without
+// going through this call. Customer and internal responses pass through
+// untouched.
 func respond(c *gin.Context, status int, data interface{}) {
-	c.JSON(status, successResponse{Success: true, Data: data})
+	c.JSON(status, successResponse{Success: true, Data: apiresponse.Project(c, data)})
 }
 
 func customerID(c *gin.Context) (string, bool) {

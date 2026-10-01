@@ -18,8 +18,10 @@ import (
 	"cosmicforge/logistics/services/vendor-service/internal/config"
 	"cosmicforge/logistics/services/vendor-service/internal/features/delivery"
 	"cosmicforge/logistics/services/vendor-service/internal/features/fulfilment"
+	taxiintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/taxi"
 	"cosmicforge/logistics/services/vendor-service/internal/jobs"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 )
 
@@ -242,7 +244,8 @@ func (a *section17CCheckoutAuthority) lines(
 ) ([]fulfilment.LineLogistics, error) {
 	rows, err := a.db.Query(ctx, `
 		SELECT id, domain, business_id, branch_id,
-		       item_ref, variant_ref, listing_ref, sell_unit_ref, quantity
+		       item_ref, variant_ref, listing_ref, sell_unit_ref, quantity,
+		       CASE WHEN pricing_basis='VARIABLE_MEASURE' THEN expected_measure_quantity*quantity ELSE 0 END
 		  FROM commerce_checkout_lines
 		 WHERE session_id = $1 AND group_id = $2
 		   AND validation_status IN ('VALID', 'CHANGED')
@@ -264,7 +267,7 @@ func (a *section17CCheckoutAuthority) lines(
 			&line.CheckoutLineID, &line.Domain,
 			&line.BusinessID, &line.BranchID,
 			&line.ItemRef, &line.VariantRef, &line.ListingRef,
-			&line.SellUnitRef, &line.Quantity,
+			&line.SellUnitRef, &line.Quantity, &line.MeasureQuantity,
 		); err != nil {
 			return nil, err
 		}
@@ -292,6 +295,7 @@ func (a *section17CCheckoutAuthority) lines(
 // registers, in that service's own test.
 const (
 	dispatchQuoteAPIBase = "/api/v1"
+	taxiQuoteAPIBase     = "/api/v1/taxi"
 	haulingQuoteAPIBase  = "/api/v1/hauling"
 )
 
@@ -309,7 +313,32 @@ func buildSection17CFulfilmentService(
 		return nil
 	}
 
-	planner, err := fulfilment.NewPlanner(fulfilment.Options{
+	planner, err := newSection17CPlanner(cfg, db, deliveryService)
+	if err != nil {
+		return nil
+	}
+
+	service, err := fulfilment.NewService(fulfilment.ServiceOptions{
+		Store:    fulfilment.NewStore(db),
+		Planner:  planner,
+		Checkout: newSection17CCheckoutAuthority(db),
+	})
+	if err != nil {
+		return nil
+	}
+
+	return service
+}
+
+// newSection17CPlanner builds THE fulfilment planner: checkout planning, the
+// cart delivery preview and post-pick re-evaluation all use this one, so the
+// same load always meets the same policy, capabilities and authorities.
+func newSection17CPlanner(
+	cfg config.Config,
+	db *pgxpool.Pool,
+	deliveryService *delivery.Service,
+) (*fulfilment.Planner, error) {
+	return fulfilment.NewPlanner(fulfilment.Options{
 		Logistics: newSection17CLogisticsAuthority(db),
 		Branches:  newSection17CBranchAuthority(db),
 		VendorOwn: section17CVendorDelivery{service: deliveryService},
@@ -326,10 +355,11 @@ func buildSection17CFulfilmentService(
 			cfg.HaulingSecret, cfg.Fulfilment.QuoteTimeout,
 		),
 
-		// Taxi is deliberately not wired. driver-taxi-service has no
-		// production goods-delivery capability, the shared quote contract has
-		// no CAR class, and fulfilment.ServiceFor refuses one. Section 17C
-		// works without taxi by construction, not by omission.
+		Taxi: newSection17CQuoteAuthority(
+			cfg.Flags.TaxiGoodsDeliveryEnabled,
+			cfg.TaxiURL, taxiQuoteAPIBase, "TAXI",
+			cfg.TaxiSecret, cfg.Fulfilment.QuoteTimeout,
+		),
 
 		ConsolidationRadiusMeters: cfg.Fulfilment.ConsolidationRadiusMeters,
 		PlanTTL:                   cfg.Fulfilment.PlanTTL,
@@ -339,33 +369,19 @@ func buildSection17CFulfilmentService(
 			ColocationRadiusMeters: cfg.Fulfilment.ConsolidationRadiusMeters,
 		},
 
-		// The runtime multi-pickup capability, declared as data.
+		// The runtime multi-pickup capability.
 		//
-		// Both are false today and that is the whole reason consolidated
-		// multi-stop candidates are rejected rather than executed. Taxi is
-		// absent for the same reason it has no quote authority above: it has
-		// no production goods-delivery capability at all, so declaring
-		// anything about its multi-stop support would be declaring something
-		// about a service that will never be asked.
+		// Dispatch and hauling still declare theirs as deployment data,
+		// because neither publishes a capability contract yet. Taxi does, so
+		// its entry is read from Taxi itself below: a deployment can no
+		// longer claim, or deny, a capability the authority owns.
 		MultiPickup: map[fulfilment.Service]bool{
 			fulfilment.ServiceDispatch: cfg.Fulfilment.DispatchMultiPickupSupported,
 			fulfilment.ServiceHauling:  cfg.Fulfilment.HaulingMultiPickupSupported,
 		},
-	})
-	if err != nil {
-		return nil
-	}
 
-	service, err := fulfilment.NewService(fulfilment.ServiceOptions{
-		Store:    fulfilment.NewStore(db),
-		Planner:  planner,
-		Checkout: newSection17CCheckoutAuthority(db),
+		CapabilityAuthorities: taxiCapabilityAuthorities(cfg),
 	})
-	if err != nil {
-		return nil
-	}
-
-	return service
 }
 
 // registerSection17CFulfilmentRoutes mounts the customer planning surface.
@@ -420,4 +436,20 @@ func section17CExpiryJob(
 		MaxAttempts: 5,
 		RetryBase:   interval,
 	}, true
+}
+
+// taxiCapabilityAuthorities wires Taxi's live capability contract. An
+// unconfigured or disabled integration contributes no entry, which leaves
+// Taxi with no multi-pickup capability rather than an assumed one.
+func taxiCapabilityAuthorities(cfg config.Config) map[fulfilment.Service]fulfilment.CapabilityAuthority {
+	authority := taxiintegration.NewCapabilityAuthority(
+		cfg.Flags.TaxiGoodsDeliveryEnabled, cfg.TaxiURL, commercemission.SignatureCaller, cfg.TaxiSecret,
+	)
+	if authority == nil {
+		return nil
+	}
+
+	return map[fulfilment.Service]fulfilment.CapabilityAuthority{
+		fulfilment.ServiceTaxi: authority,
+	}
 }

@@ -1,90 +1,724 @@
 {
-  "openapi": "3.0.3",
+  "components": {
+    "securitySchemes": {
+      "VendorBearer": {
+        "bearerFormat": "JWT",
+        "description": "Verified Vendor staff token; business and branch scope are derived server-side from membership.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
   "info": {
     "title": "KarryGo Vendor Service - Section 16D Operational Cost",
     "version": "16D-implementation"
   },
+  "openapi": "3.0.3",
   "paths": {
     "/api/v1/vendor/cost/highest-cost-subjects": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_cost_highest_cost_subjects",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Highest-cost ingredients and packaging"
       }
     },
     "/api/v1/vendor/cost/policies": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_cost_policies",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "List operational cost policies"
       },
       "post": {
+        "operationId": "section16d_vendor_operational_cost_openapi_post_api_v1_vendor_cost_policies",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Create an operational cost policy"
       }
     },
     "/api/v1/vendor/cost/policies/{policyId}": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_cost_policies_policyId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Read one operational cost policy"
       },
       "put": {
+        "operationId": "section16d_vendor_operational_cost_openapi_put_api_v1_vendor_cost_policies_policyId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Update a cost policy (If-Match required)"
       }
     },
     "/api/v1/vendor/cost/policies/{policyId}/archive": {
       "post": {
+        "operationId": "section16d_vendor_operational_cost_openapi_post_api_v1_vendor_cost_policies_policyId_archive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Archive a cost policy (If-Match required)"
       }
     },
     "/api/v1/vendor/cost/snapshots/{snapshotId}/components": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_cost_snapshots_snapshotId_components",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Component-level cost evidence for one snapshot"
       }
     },
     "/api/v1/vendor/production-cost/batches/{batchId}": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_production_cost_batches_batchId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Read expected and actual production cost"
       }
     },
     "/api/v1/vendor/production-cost/batches/{batchId}/actual": {
       "post": {
+        "operationId": "section16d_vendor_operational_cost_openapi_post_api_v1_vendor_production_cost_batches_batchId_actual",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Calculate and store actual production cost"
       }
     },
     "/api/v1/vendor/production-cost/batches/{batchId}/expected": {
       "post": {
+        "operationId": "section16d_vendor_operational_cost_openapi_post_api_v1_vendor_production_cost_batches_batchId_expected",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Calculate and store expected production cost"
       }
     },
     "/api/v1/vendor/production-cost/batches/{batchId}/variance": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_production_cost_batches_batchId_variance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batchId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Expected-versus-actual production cost variance"
       }
     },
     "/api/v1/vendor/production-cost/history": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_production_cost_history",
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Production cost snapshot history"
       }
     },
     "/api/v1/vendor/recipe-cost/recipes/{recipeId}": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_recipe_cost_recipes_recipeId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Preview estimated COGS for the recipe's ACTIVE version"
       }
     },
     "/api/v1/vendor/recipe-cost/recipes/{recipeId}/history": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_recipe_cost_recipes_recipeId_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipeId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Recipe cost snapshot history"
       }
     },
     "/api/v1/vendor/recipe-cost/versions/{versionId}": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_recipe_cost_versions_versionId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Preview estimated COGS for one recipe version"
       }
     },
     "/api/v1/vendor/recipe-cost/versions/{versionId}/latest": {
       "get": {
+        "operationId": "section16d_vendor_operational_cost_openapi_get_api_v1_vendor_recipe_cost_versions_versionId_latest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful production response"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Latest immutable recipe cost snapshot"
       }
     },
     "/api/v1/vendor/recipe-cost/versions/{versionId}/snapshots": {
       "post": {
+        "operationId": "section16d_vendor_operational_cost_openapi_post_api_v1_vendor_recipe_cost_versions_versionId_snapshots",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created using the production response envelope"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not authorized for the Vendor resource"
+          },
+          "404": {
+            "description": "Resource not found or ownership is intentionally opaque"
+          },
+          "409": {
+            "description": "Idempotency, version, or state conflict"
+          },
+          "422": {
+            "description": "Domain validation failed"
+          }
+        },
         "summary": "Create an immutable recipe cost snapshot"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "VendorBearer": []
+    }
+  ]
 }

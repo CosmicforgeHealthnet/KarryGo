@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:55:13.0414411+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/httpx"}
+{"Time":"2026-09-27T16:55:13.2072549+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/httpx","Test":"TestMiddlewareNeverLogsCredentialQueryBodyHeaderPanicOrCause"}
+{"Time":"2026-09-27T16:55:13.20779+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/httpx","Test":"TestMiddlewareNeverLogsCredentialQueryBodyHeaderPanicOrCause","Output":"=== RUN   TestMiddlewareNeverLogsCredentialQueryBodyHeaderPanicOrCause\n"}
+{"Time":"2026-09-27T16:55:13.2098553+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/httpx","Test":"TestMiddlewareNeverLogsCredentialQueryBodyHeaderPanicOrCause","Output":"--- PASS: TestMiddlewareNeverLogsCredentialQueryBodyHeaderPanicOrCause (0.00s)\n"}
+{"Time":"2026-09-27T16:55:13.2098553+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/httpx","Test":"TestMiddlewareNeverLogsCredentialQueryBodyHeaderPanicOrCause","Elapsed":0}
+{"Time":"2026-09-27T16:55:13.2098553+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/httpx","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:13.2148062+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/httpx","Output":"ok  \tcosmicforge/logistics/shared/go/httpx\t0.173s\n"}
+{"Time":"2026-09-27T16:55:13.2148062+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/httpx","Elapsed":0.173}

@@ -1,4 +1,24 @@
+## Karryam Backend V4 customer §14 closure — 28 September 2026
+
+**SECTION 14: COMPLETE LOCALLY — PASS.** This verdict covers the repository implementation and the targeted local tests below. §§9–13 retain their prior completed status. Work remains uncommitted on `staging`; no fetch, pull, reset, checkout, commit or push was performed for this closure.
+
+The saved authority is `C:\Users\favou\.claude\projects\C--KarryGoPush\memory\karryam_backend_v4.txt`, §14 (lines 680–1048). The implementation reuses the existing catalogue, Inventory, checkout, fulfilment, immutable quote, Wallet and logistics-authority contracts.
+
+**Customer discovery and preview.** Mounted Food and Shop catalogue, sellability/product detail, search/suggestions and cart delivery preview with customer bearer authorization, default-off feature flags, customer-scoped Redis rate limits and customer-safe DTOs. Preview recomputes authoritative pickup, destination, grouping and physical requirement on every read and makes no stock, mission, provider or money mutation. The mounted surface and OpenAPI inventory match.
+
+**Full local lifecycle evidence.** `TestCommerceLifecycleE2E_Food` and `TestCommerceLifecycleE2E_Shop*` pass from discovery/cart/preview through checkout, plan, quote, approval, payment hold, activation, vendor execution, logistics callbacks, completion, settlement, Activity grouping and mission-scoped Share. Shop covers single and multi-vendor allocation, Dispatch, Taxi Goods, Hauling and Vendor Own Delivery. The substitution cases cover equal, cheaper, costlier, reject and EXACT_ONLY decisions; the Shop chain also covers variable measurement, post-pick Dispatch-to-Taxi replanning, and one-vendor cancellation/refund while its sibling completes. Repeated callbacks, payment and refund requests do not duplicate their effects. Replanned mission references resolve to the active executor; the replaced executor cannot advance an order even when it presents the old plan slot. Consolidated mission fees equal the sum of every included VendorOrder's apportioned share.
+
+The E2E runs real Vendor-owned services and PostgreSQL persistence. Wallet, logistics quote/mission/read and handover authorities are explicit test doubles; local completion is not a claim of independently deployed multi-service black-box or staging certification.
+
+**Verification passed.** Affected PostgreSQL integration and race tests, Wallet and mission unknown-outcome read-back/recovery, concurrent replan/refund/inventory claims, Vendor migration apply/rollback/reapply through `000128`, route/OpenAPI parity, and targeted `go vet` passed. The Redis-backed HTTP load test completed 240 reads across eight workers (116 success, 124 expected rate-limit responses, no unexpected status; 767 ms under race). Final logs are `tmp/customer14-final-db.log`, `tmp/customer14-final-race.log`, `tmp/customer14-final-recovery.log`, `tmp/customer14-final-migrations.log` and `tmp/customer14-final-openapi.log`. The expensive §§9–13 suites were not rerun.
+
+**Defects closed in this local work.** Food orders no longer claim an Inventory hold; actual Taxi Goods transit callbacks are stored and projected to canonical Vendor/Activity status (`000127`–`000128`); consolidated delivery fees are summed across VendorOrders; measured Shop quantities use the frozen price basis and actual physical load; approved replacement stock is committed correctly; concurrent post-pick replan creates one replacement mission; Activity grouping follows the current mission binding. Mission creation and Wallet recovery read the authority after an unknown outcome rather than creating a duplicate. Substitution was unreachable before this work and is now closed: the customer's per-line rule is captured in the cart and frozen through checkout, quote fingerprint and order (`000126`; every Shop line previously froze as EXACT_ONLY); proposal creation no longer fails on `FOR UPDATE` across outer joins; nullable proposal timestamps/case ids scan; a costlier approval becomes effective once its commercial change is APPLIED (the store verifies that itself) without writing a duplicate POSITIVE_DELTA adjustment.
+
+**External/staging certification: PENDING.** Production catalogue and packed-weight data remediation, deployed configuration/ingress and multi-service staging certification, and the separately approved external Reference/Repricing adapter remain external. External Reference/Repricing stays disabled without that adapter. These items do not change the repository-local §14 verdict.
+
 <!-- SECTION17F_PAYMENT_BINDING -->
+Historical milestone entries below describe the state at their original closure. Their earlier Taxi-exclusion statements are superseded by the §14 Taxi Goods executor verified above.
+
 ## Section 17F - Payment Binding, Total Price Guarantee and Recovery
 
 **Status: IMPLEMENTED.** Independent final certification has NOT been run; this
@@ -443,7 +463,7 @@ Each of these is expected to follow the specification's own "Preferred backend f
 
 - Real Postgres aggregates and constraints: `vendor_businesses`, `vendor_capabilities`, `vendor_brands`, `vendor_branches`, normalized hours, radius service areas, explicit settings, and branch capabilities.
 - Authenticated staff scope is authoritative: business id equals the Section 5 `vendor_id`, owner is the creating `staff_id`, and every repository query includes business scope. Multi-business staff continue to select a distinct Section 5 session scope.
-- Exact state vocabularies and seven capability types are enforced in Go, SQL, OpenAPI, and contract tests. Creation is always non-active/non-verified; vendor operational transitions are only `ACTIVE` to `PAUSED` and `PAUSED` to `ACTIVE`.
+- Exact state vocabularies and nine capability types (the original seven plus `CATERING` and `MANUFACTURER`, admitted by migration 000121) are enforced in Go, SQL, OpenAPI, and contract tests. Creation is always non-active/non-verified; vendor operational transitions are only `ACTIVE` to `PAUSED` and `PAUSED` to `ACTIVE`.
 - Mutations use optimistic versions, idempotency, audit records, and transactional outbox events for aggregate/status changes. Parent pause gates effective branch capability state without rewriting children.
 - Production IAM branch assignments validate that the branch exists in the same business. Section 5 tests remain backward compatible through the optional validation port.
 - No frontend, catalogue, logistics, wallet, verification, media-file, or other-service implementation was added.
@@ -520,7 +540,7 @@ At the time Section 8A closed: Section 8B and everything after it. Section 8B ha
 
 ## External dependencies blocking full activation (not blocking further Vendor Service sections)
 
-- **PENDING_EXTERNAL_DEPENDENCY â€” LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md)): blocks only final confirmed-handover activation of platform-delivery fulfilment units.
+- **RESOLVED IN SECTION 32 — LOGISTICS OTP/QR** (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md) and [SECTION32_TRACEABILITY.md](SECTION32_TRACEABILITY.md)): Dispatch, Hauling, Taxi Goods and Vendor-owned delivery now have approved two-stage authorities. Activation remains controlled by disabled-by-default rollout flags.
 - **Vendor admin review product**: Verification's Vendor authority and signed callback/read-back paths are implemented, but `admin-backoffice-service` remains a scaffold with no operator work queue/UI. Formal cases remain honestly `PENDING_REVIEW` until an authorized admin-service caller decides them.
 
 ## Section 8B â€” Tags & Advanced Segmentation Engine
@@ -2366,10 +2386,11 @@ commercial and Parcel identities, appends a plan version, transitions funding
 through Wallet and reuses Dispatch Section 28. Clean post-custody conversion is
 hard-blocked.
 
-Secure Vendor handover status is `PARTIAL`: Dispatch has an authority for its
-own missions, but no approved VendorMission-compatible authority exists.
-Custody-moving Vendor actions are dependency-gated and return 503 rather than
-accepting client proof. Full traceability is in `SECTION31_TRACEABILITY.md`.
+The Section 31 secure Vendor handover dependency was closed by Section 32:
+Dispatch now owns a distinct VendorMission-compatible custody authority.
+Custody-moving Vendor actions still return 503 whenever either safe-default
+flag or the authority dependency is absent. Full traceability is in
+`SECTION32_TRACEABILITY.md`.
 
 ## Operational evidence, exceptions, returns and provider transfer
 
@@ -2442,3 +2463,220 @@ Analytics, Notification and handover authorities remain authoritative.
 Analytics read routes are HMAC/allowlist/scope protected, and Shop Commerce
 now rejects pharmacy/medicine products on product create/update, bulk import
 and checkout revalidation. Traceability is in `SECTION40_TRACEABILITY.md`.
+
+## Section 29 — Taxi Goods Delivery extension
+
+Implemented behind `TAXI_GOODS_DELIVERY_ENABLED=false` in both Taxi and Vendor.
+CAR now maps to the distinct Taxi Goods quote/mission authority. Vendor restores
+the exact service, vehicle class, fee, and authority quote from the customer's
+frozen Section 17C mission before execution; it never guesses from order domain
+or fee and never calls the passenger booking surface. See
+`SECTION29_TRACEABILITY.md` and the Taxi Goods OpenAPI contract.
+
+Final gap closure adds explicit idempotent provider-reassignment and receiver-
+change workflows, atomic OTP/opaque-QR verification against binding changes,
+and a leased Taxi outbox publisher for HMAC-authenticated Vendor projection.
+PostgreSQL/Redis integration, migration replay, and repeated concurrency tests
+certify these paths while both runtime flags remain false by default.
+
+## Section 32 — approved handover integration
+
+This audit uses the local implementation, including uncommitted Sections 29/30.
+Section 29 is closed. Section 32 does not reopen passenger Taxi and Vendor
+Commerce does not implement a challenge authority.
+
+| Authority | Mission type | Current finding | Challenge owner / contract |
+|---|---|---|---|
+| Dispatch | MOTORCYCLE | AVAILABLE / INTEGRATED | `securehandover`; source-scoped pickup verify plus opaque pickup/delivery read-back, HMAC v2, caller allowlist and nonce |
+| Hauling | VAN/TRUCK | AVAILABLE / INTEGRATED | booking `SecureHandoverRepository`; Commerce pickup confirm plus opaque pickup/delivery read-back, HMAC v2, caller allowlist and nonce |
+| Taxi Goods | CAR | AVAILABLE / INTEGRATED | `goods`; pickup verify plus opaque pickup/delivery read-back, Vendor-only HMAC and durable nonce |
+| Vendor-owned | VendorMission | AVAILABLE / INTEGRATED | Dispatch `vendorownedhandover`; distinct mirrored custody binding, OTP/QR authority, HMAC v2 and canonical read-back |
+
+All four authorities are wired through one Vendor relay/projection boundary
+and independently disabled-by-default capability flags. Dispatch owns the new
+VendorMission challenge/custody state in migration `000055`; Vendor keeps no
+credential or credential hash. `PENDING_EXTERNAL_DEPENDENCY = NONE`.
+
+The adapter contract covers canonical read-back after unknown outcomes, wrong
+authority/mission rejection, concurrent duplicate confirmation, stale
+projection protection and credential-free serialization. Canonical Dispatch,
+Hauling and Taxi suites retain OTP/QR mutual consumption, resend, binding,
+expiry, attempt and concurrency ownership.
+
+## Sections 33–35 — final authority-local closure
+
+This entry supersedes the earlier Dispatch-only operational-evidence status.
+Dispatch, Hauling and Taxi now each persist the shared authority-local custody
+contract in their own database. Dispatch also owns VendorMission custody
+through `vendorownedhandover`; its former return-unavailable adapter gap is
+closed.
+
+The contract covers immutable/versioned exact manifests, typed Media-backed
+evidence, structured exceptions and recovery, category-specific explicit
+returns, authenticated incidents, completion freeze, capability-safe
+replacement, atomic two-provider transfer, receiver challenge regeneration,
+cross-authority provenance, bounded policy-backed Wallet allocations, durable
+outbox events, HMAC v2 and replay prevention. Vendor adds no custody route,
+credential store, physical mission authority, or migration.
+
+Traceability: `docs/SECTION33_35_TRACEABILITY.md` and repository root
+`docs/SECTION33_35_TRACEABILITY.md`.
+
+**SECTION 37 — INTENTIONALLY SKIPPED / OUT OF CURRENT SCOPE.** At the time of
+the Sections 33-35 closure no Section 41+ work had started; no frontend code
+changed.
+
+## Sections 40-42 final security, recovery and schema closure
+
+Sections 40, 41 and 42 are implementation-complete. Additive migration
+`000116_sections40_42_security_recovery` adds complete idempotency metadata and
+policy-driven operational receiver/location minimization with durable legal
+holds, restricted evidence, bounded legacy discovery and a dead-letter-capable
+worker. Semantic JSON fingerprints, atomic expired-key reclaim,
+transaction-bound fingerprinted inbox claims and credential-safe durable worker
+errors close the code gaps found by the repository audit.
+
+No route or frontend was added and no service authority moved. See
+`SECTION40_42_TRACEABILITY.md` for the closure and domain-model matrices.
+
+## Section 43 — API contract families
+
+**COMPLETE / RELEASE-CERTIFIED.** The fully enabled production router remains
+857 routes before and after this work. Across 48 Vendor OpenAPI files, 867
+declarations map to 857 unique production operations; router-to-OpenAPI and
+OpenAPI-to-router mismatch counts are both zero. Ten mature cross-section
+declaration overlaps are explicitly allowlisted and guarded.
+
+All operations now have globally unique operation IDs, responses, valid local
+references, valid security-scheme references, and required declarations for
+every path template. Missing idempotency and optimistic-version headers were
+aligned with the existing Vendor order, substitution and Section 16 command
+behavior. Section 16D cost writes now use their already-injected shared
+idempotency store. No route, migration, frontend, or authority was added or
+moved. The route/register artifact and full matrix are in
+`SECTION43_ROUTE_PARITY.json` and `SECTION43_TRACEABILITY.md`.
+
+Order Guarantee is `FUTURE_DISABLED`. Pharmacy/medicine commerce remains out of
+scope and unimplemented. Wallet, Media, Customer preference, Verification,
+Dispatch, Hauling, Taxi Goods, VendorMission, and handover/QR authorities remain
+preserved.
+
+Certification completed on 2026-09-09:
+
+- `go test ./... -count=1` — PASS.
+- isolated PostgreSQL/Redis regression — all 66 packages PASS in aggregate. The
+  initial full run passed 65/66 and exposed a certification-only Section 13
+  measurement that counted asynchronous database-wide transaction statistics;
+  the measurement was scoped to the search pool's traced SQL statements and its
+  isolated rerun passed against the same 48,000-row corpus. Production behavior
+  was not changed by this correction.
+- `go vet ./...` and `go build ./...` — PASS.
+- shared `serviceauth` HMAC test suite — PASS.
+- Section 43 OpenAPI validation — PASS: 48 documents, 867 operations, 867
+  globally unique operation IDs, zero unresolved local references, zero missing
+  responses, zero missing required path parameters, and zero invalid security
+  scheme references.
+- formatter, deterministic parity artifact and Git whitespace checks — PASS.
+
+## Sections 44–45 — event catalogue and durable workers
+
+**COMPLETE / RELEASE-CERTIFIED.** The repository-native envelope,
+`vendor_outbox`, transactional inbox,
+durable coordinator and domain-row worker patterns remain canonical. There are
+39 authority-reviewed event contracts and 27 worker-requirement mappings.
+
+Three real publication gaps were closed without schema changes:
+`commerce.quote.locked` now reaches the transactional outbox once per immutable
+approval, `commerce.order.created` reaches it once per ParentOrder, and
+`commerce.checkout.paid` is emitted only after authoritative Wallet confirmation
+changes the payment operation to `HELD`. An `UNKNOWN` Wallet outcome remains
+non-paid. Inbox fingerprint matching now rejects a late
+fingerprint if the original event identity was claimed without one. Persisted
+durable-worker failures now reuse the Section 40 event credential redactor,
+including OTP, QR, access/payment/bank credentials, PAN/CVV and service secrets.
+The outbox exposes bounded pending/dead-letter/oldest-pending metrics without
+event or tenant identifiers.
+The durable coordinator now exposes a low-cardinality health/metrics snapshot
+covering retained backlog, persistent retry, dead letters, stale leases and
+dependency availability; disabled workers remain visible and do not consume or
+erase pending work.
+
+No route, migration, frontend, external service, custody code or Section 43
+contract was changed. Order Guarantee remains future-disabled. Full matrices
+and machine parity are in `SECTION44_45_TRACEABILITY.md`,
+`SECTION44_EVENT_PARITY.json` and `SECTION45_WORKER_CATALOGUE.json`.
+
+Certification completed on 2026-09-10:
+
+- Vendor isolated runner: the full pass completed 65/66; the only failure was
+  the Section 13 scale fixture exceeding its 10-minute seed context. That
+  package passed on its fresh isolated rerun, and the final changed `events`
+  and `cmd` packages also passed independently. Effective package result:
+  66/66, with the initial timeout retained here rather than hidden.
+- `go test ./... -count=1`, `go vet ./...`, and `go build ./...` — PASS.
+- Section 44/45 deterministic catalogue validation — PASS: 39 events, 27
+  worker requirements, two future-disabled events, zero parity gaps.
+- Section 43 OpenAPI regression — PASS: 867 operations, zero quality changes.
+- changed-Go-file formatting and `git diff --check` — PASS.
+- Migration replay — NOT REQUIRED; no migration was added or changed.
+# Final production-readiness closure (2026-09-10)
+
+Repository implementation remains complete. Local `api`, `worker`, and `all` process probes pass after closing a worker-only nil-server panic and enforcing PostgreSQL connectivity at worker startup. Production GO remains blocked because deployed ingress, encrypted backups/restore drill, monitoring/alerts, staging credentials/allowlists, live multi-service black-box flows, failure injection, and bounded staging performance/SLO measurements are unavailable. The authoritative register is `docs/FINAL_PRODUCTION_GO_CERTIFICATION.md`.
+
+## Final DevOps execution (2026-09-11)
+
+The actual backend deployment convention was confirmed from repository and GitHub metadata: immutable GHCR images are deployed over SSH to Docker Compose under `/opt/karrygo` on a VPS. Vendor now has a repository-native deployment bundle following that convention: a Vendor-specific production image, a PostgreSQL-advisory-locked migration binary, distinct API and Worker Compose units, and a workflow enforcing migration -> API readiness -> Worker rollout. The API publishes only on VPS loopback and the Worker publishes no port. Compose validation, image build, and the packaged migration-tip verification (116 records) pass locally.
+
+This does not promote Sections 47/48 or production GO. The VPS shell, existing reverse proxy/TLS/DNS, Vendor environment file, PostgreSQL backup provider, monitoring control plane, and downstream staging credentials/allowlists are unavailable from this task. The exact remaining operator commands and pass conditions are in `deploy/vendor-service/README.md`; the authoritative production decision remains `PRODUCTION GO: BLOCKED`.
+
+## Customer V4 §22 purchase Activity row (2026-09-28, local)
+
+Vendor, as ParentOrder authority, publishes one `VENDOR_COMMERCE`/`COMMERCE_ORDER` movement per ParentOrder (`internal/features/orders/customer_movement.go`). It is appended to the existing outbox in the creation and parent-state-change transactions as `commerce.customer_order.movement`, delivered by `vendor-customer-order-movement` to Customer's movement ingress, and repaired by `customerOrderMovementReconciler` (`cmd/customer_order_movement.go`). `source_version` is the ParentOrder version. Order state only: no amounts, items, provider or credentials. Gated by `VENDOR_CUSTOMER_MOVEMENT_GROUPING_ENABLED`; no Vendor migration. Evidence: `TestCustomerOrderMovementCancelledBeforeDispatchAndReconciled` and the lifecycle E2E with emission enabled. Full record: `docs/customer-sections9-11-report.md` §§22–26 (Customer V4 numbering, not Vendor section numbering).
+
+## Customer V4 Sections 15–18 integration (2026-09-28, local)
+
+**Section 15: COMPLETE LOCALLY — PASS.** Wallet remains financial authority.
+Commerce binds approved immutable quote/order fingerprints and deterministic
+Wallet operation IDs, reads back UNKNOWN payment/refund outcomes, and preserves
+VendorOrder plus platform-leg isolation. Real PostgreSQL tests cover duplicate
+and concurrent writes, partial/full and multi-vendor refunds, recovery and
+Customer Wallet regressions. External Reference/Repricing remains gated and
+unimplemented pending an approved adapter.
+
+**Section 17: COMPLETE LOCALLY — PASS.** Support remains case/resolution
+authority. Order-scoped case ownership and child-ref integrity, Media verdict
+binding, IDOR denial and deterministic refund separation pass targeted tests.
+
+**Section 18: COMPLETE LOCALLY — PASS for repository scope.** Customer bearer
+authorization, Support ownership validation, one-use Media grant redemption,
+metadata read-back, MIME/size/expiry/rate limits, OpenAPI and mobile credential
+removal pass targeted tests. Production scanner, HMAC configuration and ingress
+remain staging items.
+
+**Section 16: PARTIAL locally.** Ride, Send, Truck, Commerce, Share and Wallet
+route-intent hints are wired; Taxi Ride, Customer Share and Wallet state
+transitions have durable retry. The receiver-channel product decision is now
+fixed: a phone-only snapshot without a verified account or other supported
+secure channel must fail closed; no SMS or voice integration is authorized.
+Dispatch secure handover returns `RECEIVER_SECURE_CHANNEL_REQUIRED` for that
+case. Dispatch secure handover, Vendor Own Delivery, Hauling and Taxi Goods
+notification producers now send challenge references, not OTP/QR values;
+Notification validation rejects custody secrets, and production template
+copy no longer interpolates a code. Vendor Own Delivery has a hash-checked
+credential reconstruction path. Dispatch, Hauling, Taxi Goods and Vendor Own
+Delivery now have account-scoped receiver reads; a third-party receiver account
+is explicitly frozen from the Vendor cart into the order and authority mission
+instead of being inferred from the sender. Phone-only third-party receiver
+bindings fail closed before pickup custody with `RECEIVER_SECURE_CHANNEL_REQUIRED`.
+The sender is no longer assumed to be the receiver in Dispatch secure handover.
+Hauling, Taxi Goods and Vendor Own PostgreSQL tests confirm that receiver
+binding changes invalidate or deny old credential reads. Vendor cart, order,
+mission and typed-error propagation have targeted tests; receiver read routes
+have bearer-auth and OpenAPI checks. The remaining closure is a transaction-
+bound, verified email-only receiver read contract. Notification delivery alone
+cannot prove mailbox control, and existing Customer email login creates an
+account rather than providing an account-free proof for this transaction.
+Until that authority contract and the full affected E2E/race
+matrix pass, repository-local §16 is not certified. Staging delivery and
+mobile navigation remain separate certification items. No commit or push was
+made in this local worktree.

@@ -1,31 +1,502 @@
 {
-  "openapi": "3.0.3",
   "info": {
+    "description": "Section 21 commerce. Checkout, Wallet, Production and logistics execution remain owned by their existing authorities; Wallet is the sole payment authority.",
     "title": "KarryGo Vendor Service - Commerce, Advanced RFQ and Recurring Feeding",
-    "version": "21.2",
-    "description": "Section 21 commerce. Checkout, Wallet, Production and logistics execution remain owned by their existing authorities; Wallet is the sole payment authority."
+    "version": "21.2"
   },
-  "servers": [{ "url": "/api/v1" }],
+  "openapi": "3.0.3",
   "paths": {
-    "/vendor/commerce/section21/scheduled-orders": { "post": { "responses": { "201": { "description": "Scheduled order accepted" } } } },
-    "/vendor/commerce/section21/scheduled-orders/{id}/cancel": { "post": { "responses": { "204": { "description": "Cancelled" } } } },
-    "/vendor/commerce/section21/rfqs/{rfqId}/quotes": { "post": { "responses": { "201": { "description": "Quote revision or counter-offer submitted" } } } },
-    "/vendor/commerce/section21/recurring-schedules": { "post": { "responses": { "201": { "description": "Corporate recurring schedule created" } } } },
-    "/vendor/commerce/section21/recurring-schedules/{scheduleId}": { "put": { "responses": { "204": { "description": "Corporate recurring schedule updated" } } } },
-    "/vendor/commerce/section21/recurring-schedules/{scheduleId}/status": { "post": { "responses": { "204": { "description": "Recurring schedule status changed" } } } },
-    "/vendor/commerce/section21/recurring-schedules/{scheduleId}/occurrences": { "get": { "responses": { "200": { "description": "Tenant-scoped future occurrences and proposals" } } } },
-    "/commerce/section21/groups": { "post": { "responses": { "201": { "description": "Group session created" } } } },
-    "/commerce/section21/groups/{groupId}/close": { "post": { "responses": { "204": { "description": "Group closed" } } } },
-    "/commerce/section21/groups/{groupId}/convert": { "post": { "responses": { "200": { "description": "Organizer-paid order conversion" } } } },
-    "/commerce/section21/groups/{groupId}/join": { "post": { "responses": { "201": { "description": "Participant joined" } } } },
-    "/commerce/section21/groups/{groupId}/selections/{selectionId}": { "put": { "responses": { "200": { "description": "Participant selection" } } }, "delete": { "responses": { "204": { "description": "Participant selection removed" } } } },
-    "/commerce/section21/rfqs": { "post": { "responses": { "201": { "description": "RFQ created" } } } },
-    "/commerce/section21/rfqs/{rfqId}/open": { "post": { "responses": { "204": { "description": "RFQ opened" } } } },
-    "/commerce/section21/rfqs/{rfqId}/quotes": { "get": { "responses": { "200": { "description": "Eligible quote revisions" } } } },
-    "/commerce/section21/rfqs/{rfqId}/quotes/{quoteId}/counter": { "post": { "responses": { "201": { "description": "Requester counter-offer revision" } } } },
-    "/commerce/section21/rfqs/{rfqId}/accept": { "post": { "responses": { "200": { "description": "RFQ quote accepted" } } } },
-    "/commerce/section21/rfqs/{rfqId}/convert": { "post": { "responses": { "204": { "description": "RFQ converted through CheckoutQuote and Wallet policy" } } } },
-    "/commerce/section21/rfqs/{rfqId}/conversion": { "get": { "responses": { "200": { "description": "Authoritative RFQ payment/conversion status" } } } },
-    "/commerce/section21/rfqs/{rfqId}/cancel": { "post": { "responses": { "204": { "description": "RFQ cancelled with snapshotted refund policy" } } } }
+    "/commerce/section21/groups": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_groups",
+        "responses": {
+          "201": {
+            "description": "Group session created"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/groups/{groupId}/close": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_groups_groupId_close",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Group closed"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/groups/{groupId}/convert": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_groups_groupId_convert",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organizer-paid order conversion"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/groups/{groupId}/join": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_groups_groupId_join",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Participant joined"
+          }
+        }
+      }
+    },
+    "/commerce/section21/groups/{groupId}/selections/{selectionId}": {
+      "delete": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_delete_commerce_section21_groups_groupId_selections_selectionId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "selectionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Participant selection removed"
+          }
+        }
+      },
+      "put": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_put_commerce_section21_groups_groupId_selections_selectionId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "selectionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Participant selection"
+          }
+        }
+      }
+    },
+    "/commerce/section21/rfqs": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_rfqs",
+        "responses": {
+          "201": {
+            "description": "RFQ created"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/accept": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_rfqs_rfqId_accept",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "RFQ quote accepted"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/cancel": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_rfqs_rfqId_cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "RFQ cancelled with snapshotted refund policy"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/conversion": {
+      "get": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_get_commerce_section21_rfqs_rfqId_conversion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative RFQ payment/conversion status"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/convert": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_rfqs_rfqId_convert",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "RFQ converted through CheckoutQuote and Wallet policy"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/open": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_rfqs_rfqId_open",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "RFQ opened"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/quotes": {
+      "get": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_get_commerce_section21_rfqs_rfqId_quotes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eligible quote revisions"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/commerce/section21/rfqs/{rfqId}/quotes/{quoteId}/counter": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_commerce_section21_rfqs_rfqId_quotes_quoteId_counter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "quoteId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Requester counter-offer revision"
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
+    "/vendor/commerce/section21/recurring-schedules": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_vendor_commerce_section21_recurring_schedules",
+        "responses": {
+          "201": {
+            "description": "Corporate recurring schedule created"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/recurring-schedules/{scheduleId}": {
+      "put": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_put_vendor_commerce_section21_recurring_schedules_scheduleId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Corporate recurring schedule updated"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/recurring-schedules/{scheduleId}/occurrences": {
+      "get": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_get_vendor_commerce_section21_recurring_schedules_scheduleId_occurrences",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped future occurrences and proposals"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/recurring-schedules/{scheduleId}/status": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_vendor_commerce_section21_recurring_schedules_scheduleId_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Recurring schedule status changed"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/rfqs/{rfqId}/quotes": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_vendor_commerce_section21_rfqs_rfqId_quotes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rfqId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Quote revision or counter-offer submitted"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/scheduled-orders": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_vendor_commerce_section21_scheduled_orders",
+        "responses": {
+          "201": {
+            "description": "Scheduled order accepted"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/scheduled-orders/{id}/cancel": {
+      "post": {
+        "operationId": "scheduled_group_rfq_recurring_commerce_openapi_post_vendor_commerce_section21_scheduled_orders_id_cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
+      }
+    }
   }
 }

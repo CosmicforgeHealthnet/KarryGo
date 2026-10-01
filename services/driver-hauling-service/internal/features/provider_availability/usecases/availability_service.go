@@ -20,13 +20,19 @@ const (
 )
 
 type AvailabilityService struct {
-	store        availabilityrepositories.AvailabilityStore
-	trucks       providerprofilerepositories.TruckRepository
-	onlineTTL    time.Duration
-	authority    availabilityrepositories.AuthorityStore
-	restrictions interface {
+	journeyRecorder func(context.Context, string, float64, float64, float64, float64)
+	store           availabilityrepositories.AvailabilityStore
+	trucks          providerprofilerepositories.TruckRepository
+	onlineTTL       time.Duration
+	authority       availabilityrepositories.AuthorityStore
+	restrictions    interface {
 		Restricted(context.Context, string, string, string) (bool, error)
 	}
+}
+
+func (s *AvailabilityService) WithJourneyRecorder(record func(context.Context, string, float64, float64, float64, float64)) *AvailabilityService {
+	s.journeyRecorder = record
+	return s
 }
 
 func (s *AvailabilityService) WithRestrictionGate(gate interface {
@@ -149,6 +155,9 @@ func (s *AvailabilityService) Heartbeat(ctx context.Context, input HeartbeatInpu
 	}, s.onlineTTL)
 	if err != nil {
 		return err
+	}
+	if s.journeyRecorder != nil {
+		s.journeyRecorder(ctx, input.ProviderID, input.Lat, input.Lng, input.Heading, input.Accuracy)
 	}
 	if s.authority != nil {
 		return s.authority.SetAuthorityState(ctx, input.ProviderID, "AVAILABLE", true, "HEARTBEAT")

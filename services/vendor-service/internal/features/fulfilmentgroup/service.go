@@ -74,6 +74,12 @@ func (s *Service) SetVendorMissionOrderAuthority(authority VendorMissionOrderAut
 	}
 }
 
+func (s *Service) SetVendorHandoverAuthority(authority VendorHandoverAuthority) {
+	if s != nil {
+		s.handover = authority
+	}
+}
+
 // Ready reports whether the service can serve a request at all.
 func (s *Service) Ready() bool {
 	return s != nil && s.enabled && s.store.Ready() && s.production != nil

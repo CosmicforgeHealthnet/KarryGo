@@ -31,6 +31,16 @@ const (
 	DeliveryResponsibilityNone     = "NONE"
 	DeliveryResponsibilityPlatform = "PLATFORM"
 	DeliveryResponsibilityVendor   = "VENDOR"
+
+	// Delivery executor modes.
+	//
+	// ExecutorUnknown means nobody has said yet. It is not a synonym for
+	// INDEPENDENT and must never be treated as one: the whole point of the
+	// distinction is that paying an independent provider is right and paying a
+	// corporate one directly is an unrecoverable mistake.
+	ExecutorUnknown     = "UNKNOWN"
+	ExecutorIndependent = "INDEPENDENT"
+	ExecutorManaged     = "ORGANIZATION_MANAGED"
 )
 
 var ErrInvalidCommerceAllocation = errors.New("commerce allocation is invalid or does not conserve money")
@@ -58,53 +68,76 @@ type CommercePaymentIntent struct {
 }
 
 type CommerceAllocation struct {
-	ID                                    string          `json:"id"`
-	PaymentIntentID                       string          `json:"payment_intent_id"`
-	AllocationReference                   string          `json:"allocation_reference"`
-	Scope                                 string          `json:"scope"`
-	VendorOrderID                         string          `json:"vendor_order_id,omitempty"`
-	VendorID                              string          `json:"vendor_id,omitempty"`
-	BranchID                              string          `json:"branch_id,omitempty"`
-	AssignedProviderType                  string          `json:"assigned_provider_type,omitempty"`
-	AssignedProviderID                    string          `json:"assigned_provider_id,omitempty"`
-	DeliveryResponsibility                string          `json:"delivery_responsibility"`
-	Currency                              string          `json:"currency"`
-	CustomerPayableMinor                  int64           `json:"customer_payable_minor"`
-	MaxAuthorizedMinor                    int64           `json:"max_authorized_minor"`
-	MerchandiseGrossMinor                 int64           `json:"merchandise_gross_minor"`
-	VendorProductDiscountMinor            int64           `json:"vendor_product_discount_minor"`
-	PlatformProductDiscountMinor          int64           `json:"platform_product_discount_minor"`
-	PlatformCommissionMinor               int64           `json:"platform_commission_minor"`
-	DeliveryCustomerMinor                 int64           `json:"delivery_customer_minor"`
-	VendorDeliverySubsidyMinor            int64           `json:"vendor_delivery_subsidy_minor"`
-	PlatformDeliverySubsidyMinor          int64           `json:"platform_delivery_subsidy_minor"`
-	OtherFundingMinor                     int64           `json:"other_funding_minor"`
-	VendorMerchandisePayableMinor         int64           `json:"vendor_merchandise_payable_minor"`
-	VendorDeliveryPayableMinor            int64           `json:"vendor_delivery_payable_minor"`
-	ProviderDeliveryPayableMinor          int64           `json:"provider_delivery_payable_minor"`
-	PlatformRevenueMinor                  int64           `json:"platform_revenue_minor"`
-	VendorReleasedMinor                   int64           `json:"vendor_released_minor"`
-	DeliveryReleasedMinor                 int64           `json:"delivery_released_minor"`
-	RefundedMinor                         int64           `json:"refunded_minor"`
-	RefundCustomerMinor                   int64           `json:"refund_customer_minor"`
-	RefundPlatformFundingMinor            int64           `json:"refund_platform_funding_minor"`
-	RefundOtherFundingMinor               int64           `json:"refund_other_funding_minor"`
-	RefundEscrowRecoveryMinor             int64           `json:"refund_escrow_recovery_minor"`
-	RefundVendorRecoveryMinor             int64           `json:"refund_vendor_recovery_minor"`
-	RefundProviderRecoveryMinor           int64           `json:"refund_provider_recovery_minor"`
-	RefundPlatformRecoveryMinor           int64           `json:"refund_platform_recovery_minor"`
-	RefundPlatformLossFundingMinor        int64           `json:"refund_platform_loss_funding_minor"`
-	RefundVendorMerchandiseReductionMinor int64           `json:"refund_vendor_merchandise_reduction_minor"`
-	RefundVendorDeliveryReductionMinor    int64           `json:"refund_vendor_delivery_reduction_minor"`
-	RefundProviderDeliveryReductionMinor  int64           `json:"refund_provider_delivery_reduction_minor"`
-	RefundPlatformRevenueReductionMinor   int64           `json:"refund_platform_revenue_reduction_minor"`
-	RefundAuthorizationReleaseMinor       int64           `json:"refund_authorization_release_minor"`
-	Status                                string          `json:"status"`
-	Snapshot                              json.RawMessage `json:"snapshot"`
-	SnapshotFingerprint                   string          `json:"snapshot_fingerprint"`
-	Version                               int64           `json:"version"`
-	CreatedAt                             time.Time       `json:"created_at"`
-	UpdatedAt                             time.Time       `json:"updated_at"`
+	ID                                    string `json:"id"`
+	PaymentIntentID                       string `json:"payment_intent_id"`
+	AllocationReference                   string `json:"allocation_reference"`
+	Scope                                 string `json:"scope"`
+	VendorOrderID                         string `json:"vendor_order_id,omitempty"`
+	VendorID                              string `json:"vendor_id,omitempty"`
+	BranchID                              string `json:"branch_id,omitempty"`
+	AssignedProviderType                  string `json:"assigned_provider_type,omitempty"`
+	AssignedProviderID                    string `json:"assigned_provider_id,omitempty"`
+	DeliveryResponsibility                string `json:"delivery_responsibility"`
+	Currency                              string `json:"currency"`
+	CustomerPayableMinor                  int64  `json:"customer_payable_minor"`
+	MaxAuthorizedMinor                    int64  `json:"max_authorized_minor"`
+	MerchandiseGrossMinor                 int64  `json:"merchandise_gross_minor"`
+	VendorProductDiscountMinor            int64  `json:"vendor_product_discount_minor"`
+	PlatformProductDiscountMinor          int64  `json:"platform_product_discount_minor"`
+	PlatformCommissionMinor               int64  `json:"platform_commission_minor"`
+	DeliveryCustomerMinor                 int64  `json:"delivery_customer_minor"`
+	VendorDeliverySubsidyMinor            int64  `json:"vendor_delivery_subsidy_minor"`
+	PlatformDeliverySubsidyMinor          int64  `json:"platform_delivery_subsidy_minor"`
+	OtherFundingMinor                     int64  `json:"other_funding_minor"`
+	VendorMerchandisePayableMinor         int64  `json:"vendor_merchandise_payable_minor"`
+	VendorDeliveryPayableMinor            int64  `json:"vendor_delivery_payable_minor"`
+	ProviderDeliveryPayableMinor          int64  `json:"provider_delivery_payable_minor"`
+	PlatformRevenueMinor                  int64  `json:"platform_revenue_minor"`
+	VendorReleasedMinor                   int64  `json:"vendor_released_minor"`
+	DeliveryReleasedMinor                 int64  `json:"delivery_released_minor"`
+	RefundedMinor                         int64  `json:"refunded_minor"`
+	RefundCustomerMinor                   int64  `json:"refund_customer_minor"`
+	RefundPlatformFundingMinor            int64  `json:"refund_platform_funding_minor"`
+	RefundOtherFundingMinor               int64  `json:"refund_other_funding_minor"`
+	RefundEscrowRecoveryMinor             int64  `json:"refund_escrow_recovery_minor"`
+	RefundVendorRecoveryMinor             int64  `json:"refund_vendor_recovery_minor"`
+	RefundProviderRecoveryMinor           int64  `json:"refund_provider_recovery_minor"`
+	RefundPlatformRecoveryMinor           int64  `json:"refund_platform_recovery_minor"`
+	RefundPlatformLossFundingMinor        int64  `json:"refund_platform_loss_funding_minor"`
+	RefundVendorMerchandiseReductionMinor int64  `json:"refund_vendor_merchandise_reduction_minor"`
+	RefundVendorDeliveryReductionMinor    int64  `json:"refund_vendor_delivery_reduction_minor"`
+	RefundProviderDeliveryReductionMinor  int64  `json:"refund_provider_delivery_reduction_minor"`
+	RefundPlatformRevenueReductionMinor   int64  `json:"refund_platform_revenue_reduction_minor"`
+	RefundAuthorizationReleaseMinor       int64  `json:"refund_authorization_release_minor"`
+
+	// RefundOrganizationRecoveryMinor is what the organization has given back
+	// on a corporate delivery. A separate counter from the provider's, because
+	// they are separate parties holding separate money.
+	RefundOrganizationRecoveryMinor int64 `json:"refund_organization_recovery_minor"`
+
+	// DeliveryExecutorMode is how this allocation's delivery is executed.
+	//
+	// UNKNOWN is the honest state for an allocation whose executor has not
+	// been assigned, and deliberately not INDEPENDENT: defaulting to
+	// independent would pay a corporate rider directly the moment anything
+	// failed to set it, and that payment cannot be taken back.
+	DeliveryExecutorMode  string `json:"delivery_executor_mode"`
+	ManagedOrganizationID string `json:"managed_organization_id,omitempty"`
+	ManagedMembershipID   string `json:"managed_membership_id,omitempty"`
+
+	// The frozen delivery payable, split the way it was actually released.
+	// Two numbers rather than one, because the customer's delivery amount is
+	// fixed at quote time and the provider's compensation is decided later by
+	// Fleet -- they are equal only for an independent provider, and only by
+	// coincidence.
+	ProviderDeliveryReleasedMinor     int64           `json:"provider_delivery_released_minor"`
+	OrganizationDeliveryReleasedMinor int64           `json:"organization_delivery_released_minor"`
+	Status                            string          `json:"status"`
+	Snapshot                          json.RawMessage `json:"snapshot"`
+	SnapshotFingerprint               string          `json:"snapshot_fingerprint"`
+	Version                           int64           `json:"version"`
+	CreatedAt                         time.Time       `json:"created_at"`
+	UpdatedAt                         time.Time       `json:"updated_at"`
 }
 
 func (a CommerceAllocation) PlatformFundingMinor() int64 {
@@ -194,6 +227,7 @@ func CommerceAllocationFingerprint(allocations []CommerceAllocation) (string, er
 		copyOf[i].RefundProviderDeliveryReductionMinor = 0
 		copyOf[i].RefundPlatformRevenueReductionMinor = 0
 		copyOf[i].RefundAuthorizationReleaseMinor = 0
+		copyOf[i].RefundOrganizationRecoveryMinor = 0
 		copyOf[i].Status = ""
 		copyOf[i].Version = 0
 		copyOf[i].CreatedAt = time.Time{}

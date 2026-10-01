@@ -37,6 +37,7 @@ type successEnvelope struct {
 type ErrorBody struct {
 	Code      apperrors.Code             `json:"code"`
 	Message   string                     `json:"message"`
+	Retryable bool                       `json:"retryable"`
 	Details   []apperrors.FieldViolation `json:"details"`
 	RequestID string                     `json:"requestId"`
 }
@@ -91,6 +92,7 @@ func Error(c *gin.Context, err error) {
 		Error: ErrorBody{
 			Code:      appErr.Code,
 			Message:   appErr.Message,
+			Retryable: appErr.Retryable,
 			Details:   details,
 			RequestID: requestID,
 		},

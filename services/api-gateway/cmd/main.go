@@ -25,6 +25,8 @@ import (
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/ratelimit"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partner/webhooks"
 	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
+	routinghttp "cosmicforge/logistics/services/api-gateway/internal/features/routing/http"
+	routingmodels "cosmicforge/logistics/services/api-gateway/internal/features/routing/models"
 	"cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/redisx"
@@ -126,6 +128,8 @@ func main() {
 	} else {
 		log.Printf("%s: partner API routes NOT registered (DB/Redis unavailable); serving health/ready/meta only", serviceName)
 	}
+
+	registerEdge(router, cfg)
 
 	runServer(rootCtx, cfg, router)
 
@@ -330,3 +334,25 @@ func runServer(ctx context.Context, cfg config.Config, handler http.Handler) {
 }
 
 // trigger deploy
+
+// registerEdge mounts the Section 18 pass-through routing.
+//
+// It is the router's fallback, so every route the gateway owns -- health,
+// the partner API, its own internal callbacks -- is matched first and never
+// forwarded. A misconfigured origin stops startup rather than silently
+// dropping a service from the edge.
+func registerEdge(router *gin.Engine, cfg config.Config) {
+	if !cfg.Edge.Enabled {
+		return
+	}
+	edge, err := routinghttp.NewEdge(routinghttp.Options{
+		Routes: routingmodels.DefaultRoutes(), Origins: cfg.Edge.Origins, Timeout: cfg.Edge.Timeout,
+		BreakerThreshold: cfg.Edge.BreakerThreshold, BreakerCooldown: cfg.Edge.BreakerCooldown,
+	})
+	if err != nil {
+		log.Fatalf("%s: edge routing: %v", serviceName, err)
+	}
+	router.GET("/api/v1/gateway/customer/overview", edge.Aggregate(routinghttp.CustomerOverviewParts, nil))
+	router.NoRoute(edge.Handle)
+	log.Printf("%s: edge routing enabled for %d upstream(s)", serviceName, len(cfg.Edge.Origins))
+}

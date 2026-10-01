@@ -27,3 +27,38 @@ configure the operation policy with
 `ANALYTICS_READ_RATE_WINDOW_SECONDS`. The conservative technical default is 60
 authorized reads per caller/business/branch per 60 seconds and returns HTTP
 429 when exceeded.
+
+## Network dashboards and ADMIN_NETWORK_PUBLIC_UI_DEPENDENCY
+
+The Section 13 dashboards live under `/api/v1/analytics/network/*`:
+`mission-success`, `mission-outcomes` (per authority and product: committed,
+assigned, completed, cancelled, recovered, recovery failed, guarantee
+breaches), `recovery`, `capability-mismatches`, `declines`, `demand`,
+`demand-forecast`, `supply`, `provider-quality/:authority/:providerId` and
+`readiness/branches/:branchId`. Every one of them requires HMAC v2 service
+auth from exactly `admin-backoffice-service` (`ANALYTICS_ADMIN_CALLER`).
+There is no end-user bearer path, and no Admin authentication platform was
+built for this section.
+
+The API gateway deliberately does not route analytics-service
+(`api-gateway/internal/features/routing/models/routes.go`), and
+`TestAnalyticsIsNeverReachableAtTheEdge` pins that every analytics path,
+admin and internal alike, is a 404 at the edge.
+
+**ADMIN_NETWORK_PUBLIC_UI_DEPENDENCY (open).** `admin-backoffice-service` is
+still a bare scaffold: it has no operator authentication, no RBAC and no
+client for these dashboards. Until it gains an authenticated operator
+session and signs its calls to this service, the dashboards can only be
+read by a service holding the admin HMAC secret (for example from
+operations tooling). Exposing them to an operator UI is Admin work, not
+Analytics work: the backoffice authenticates the human, then calls these
+routes as itself. Nothing here needs to change for that.
+
+Supply and demand are published by Taxi, Dispatch and Haulage as
+counts per authority, market, zone and product (`shared/go/networkanalytics`),
+never with a provider, vehicle or customer identity or an exact position.
+An unknown count is stored as NULL and reported as `UNKNOWN`, never as zero.
+The demand forecast (`same_slot_mean_v1`) averages the same 15-minute slot
+over the previous four weeks, carries `data_as_of`, method and model version,
+and stays neutral (`INSUFFICIENT_DATA`, not available) with fewer than three
+observed slots.

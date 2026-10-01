@@ -1,50 +1,405 @@
 {
+  "components": {
+    "parameters": {
+      "PromotionId": {
+        "in": "path",
+        "name": "promotionId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "CampaignInput": {
+        "additionalProperties": false,
+        "properties": {
+          "bundle_requirements": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "combinability": {
+            "enum": [
+              "EXCLUSIVE",
+              "STACKABLE"
+            ],
+            "type": "string"
+          },
+          "coupon_required": {
+            "type": "boolean"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fixed_amount_minor": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "funding_sponsor": {
+            "description": "Vendor staff API is intentionally restricted to Vendor-funded campaigns.",
+            "enum": [
+              "VENDOR"
+            ],
+            "type": "string"
+          },
+          "global_usage_limit": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_discount_minor": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minimum_order_minor": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "per_customer_usage_limit": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "percentage_bps": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "promotion_type": {
+            "enum": [
+              "PERCENTAGE_DISCOUNT",
+              "FIXED_DISCOUNT",
+              "COUPON",
+              "BUNDLE",
+              "QUANTITY_BREAK",
+              "FREE_DELIVERY",
+              "DELIVERY_PERCENTAGE_DISCOUNT",
+              "DELIVERY_FLAT_DISCOUNT"
+            ],
+            "type": "string"
+          },
+          "quantity_tiers": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "scopes": {
+            "items": {
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "BRANCH",
+                    "CAPABILITY",
+                    "CATEGORY",
+                    "ITEM",
+                    "VARIANT",
+                    "CUSTOMER_SEGMENT"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "promotion_type",
+          "currency",
+          "starts_at",
+          "ends_at",
+          "funding_sponsor"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Vendor Promotions and Delivery Funding",
+    "version": "1.0.0"
+  },
   "openapi": "3.0.3",
-  "info": {"title": "Vendor Promotions and Delivery Funding", "version": "1.0.0"},
   "paths": {
     "/api/v1/vendor/promotions": {
-      "get": {"summary": "List visible promotion campaigns", "responses": {"200": {"description": "Promotion list"}, "401": {"description": "Authentication required"}, "403": {"description": "Scope denied"}}},
-      "post": {"summary": "Create a Vendor-funded promotion campaign", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CampaignInput"}}}}, "responses": {"201": {"description": "Campaign created"}, "403": {"description": "Vendor actors cannot create Platform-funded campaigns"}, "422": {"description": "Invalid campaign"}}}
+      "get": {
+        "operationId": "promotions_delivery_funding_openapi_get_api_v1_vendor_promotions",
+        "responses": {
+          "200": {
+            "description": "Promotion list"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Scope denied"
+          }
+        },
+        "summary": "List visible promotion campaigns"
+      },
+      "post": {
+        "operationId": "promotions_delivery_funding_openapi_post_api_v1_vendor_promotions",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Campaign created"
+          },
+          "403": {
+            "description": "Vendor actors cannot create Platform-funded campaigns"
+          },
+          "422": {
+            "description": "Invalid campaign"
+          }
+        },
+        "summary": "Create a Vendor-funded promotion campaign"
+      }
     },
     "/api/v1/vendor/promotions/{promotionId}": {
-      "get": {"summary": "Get an immutable-versioned campaign definition", "parameters": [{"$ref": "#/components/parameters/PromotionId"}], "responses": {"200": {"description": "Campaign"}, "404": {"description": "Not found"}}},
-      "patch": {"summary": "Replace the mutable Vendor-funded campaign definition", "parameters": [{"$ref": "#/components/parameters/PromotionId"}, {"name": "If-Match", "in": "header", "required": true, "schema": {"type": "integer", "minimum": 1}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CampaignInput"}}}}, "responses": {"200": {"description": "Campaign updated with a new version"}, "403": {"description": "Tenant/sponsor/scope denied"}, "409": {"description": "Version conflict"}}}
-    },
-    "/api/v1/vendor/promotions/{promotionId}/status": {
-      "post": {
-        "summary": "Apply a controlled campaign lifecycle transition",
-        "parameters": [{"$ref": "#/components/parameters/PromotionId"}, {"name": "If-Match", "in": "header", "required": true, "schema": {"type": "integer", "minimum": 1}}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["status"], "properties": {"status": {"type": "string", "enum": ["DRAFT","SCHEDULED","ACTIVE","PAUSED","ENDED","ARCHIVED"]}}}}}},
-        "responses": {"200": {"description": "Updated campaign"}, "409": {"description": "Version/state conflict"}}
+      "get": {
+        "operationId": "promotions_delivery_funding_openapi_get_api_v1_vendor_promotions_promotionId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PromotionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campaign"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "summary": "Get an immutable-versioned campaign definition"
+      },
+      "patch": {
+        "operationId": "promotions_delivery_funding_openapi_patch_api_v1_vendor_promotions_promotionId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PromotionId"
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Campaign updated with a new version"
+          },
+          "403": {
+            "description": "Tenant/sponsor/scope denied"
+          },
+          "409": {
+            "description": "Version conflict"
+          }
+        },
+        "summary": "Replace the mutable Vendor-funded campaign definition"
       }
     },
     "/api/v1/vendor/promotions/{promotionId}/coupons": {
       "post": {
-        "summary": "Create a securely digested coupon activation",
-        "parameters": [{"$ref": "#/components/parameters/PromotionId"}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["code"], "properties": {"code": {"type": "string"}, "usage_limit": {"type": "integer", "minimum": 1}, "per_customer_usage_limit": {"type": "integer", "minimum": 1}}}}}},
-        "responses": {"201": {"description": "Coupon created"}}
+        "operationId": "promotions_delivery_funding_openapi_post_api_v1_vendor_promotions_promotionId_coupons",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PromotionId"
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "per_customer_usage_limit": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "usage_limit": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Coupon created"
+          }
+        },
+        "summary": "Create a securely digested coupon activation"
+      }
+    },
+    "/api/v1/vendor/promotions/{promotionId}/status": {
+      "post": {
+        "operationId": "promotions_delivery_funding_openapi_post_api_v1_vendor_promotions_promotionId_status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PromotionId"
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "DRAFT",
+                      "SCHEDULED",
+                      "ACTIVE",
+                      "PAUSED",
+                      "ENDED",
+                      "ARCHIVED"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated campaign"
+          },
+          "409": {
+            "description": "Version/state conflict"
+          }
+        },
+        "summary": "Apply a controlled campaign lifecycle transition"
       }
     },
     "/api/v1/vendor/promotions/{promotionId}/usage": {
-      "get": {"summary": "Read authoritative reserved and consumed usage", "parameters": [{"$ref": "#/components/parameters/PromotionId"}], "responses": {"200": {"description": "Usage evidence"}}}
-    }
-  },
-  "components": {
-    "parameters": {"PromotionId": {"name": "promotionId", "in": "path", "required": true, "schema": {"type": "string"}}},
-    "schemas": {
-      "CampaignInput": {
-        "type": "object", "additionalProperties": false,
-        "required": ["name","promotion_type","currency","starts_at","ends_at","funding_sponsor"],
-        "properties": {
-          "name": {"type": "string"}, "promotion_type": {"type": "string", "enum": ["PERCENTAGE_DISCOUNT","FIXED_DISCOUNT","COUPON","BUNDLE","QUANTITY_BREAK","FREE_DELIVERY","DELIVERY_PERCENTAGE_DISCOUNT","DELIVERY_FLAT_DISCOUNT"]},
-          "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}, "percentage_bps": {"type": "integer", "minimum": 0, "maximum": 10000}, "fixed_amount_minor": {"type": "integer", "minimum": 0},
-          "max_discount_minor": {"type": "integer", "minimum": 1}, "minimum_order_minor": {"type": "integer", "minimum": 0}, "starts_at": {"type": "string", "format": "date-time"}, "ends_at": {"type": "string", "format": "date-time"},
-          "funding_sponsor": {"type": "string", "enum": ["VENDOR"], "description": "Vendor staff API is intentionally restricted to Vendor-funded campaigns."}, "coupon_required": {"type": "boolean"},
-          "global_usage_limit": {"type": "integer", "minimum": 1}, "per_customer_usage_limit": {"type": "integer", "minimum": 1}, "combinability": {"type": "string", "enum": ["EXCLUSIVE","STACKABLE"]}, "priority": {"type": "integer"},
-          "scopes": {"type": "array", "items": {"type": "object", "required": ["type","ref"], "properties": {"type": {"type": "string", "enum": ["BRANCH","CAPABILITY","CATEGORY","ITEM","VARIANT","CUSTOMER_SEGMENT"]}, "ref": {"type": "string"}}}},
-          "bundle_requirements": {"type": "array", "items": {"type": "object"}}, "quantity_tiers": {"type": "array", "items": {"type": "object"}}
-        }
+      "get": {
+        "operationId": "promotions_delivery_funding_openapi_get_api_v1_vendor_promotions_promotionId_usage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PromotionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage evidence"
+          }
+        },
+        "summary": "Read authoritative reserved and consumed usage"
       }
     }
   }

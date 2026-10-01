@@ -81,6 +81,8 @@ type RiderActionRequest struct {
 	OperationRef    string      `json:"operation_ref"`
 	ExpectedVersion int64       `json:"expected_version"`
 	EvidenceRef     string      `json:"evidence_ref,omitempty"`
+	Method          string      `json:"method,omitempty"`
+	Credential      string      `json:"-"`
 	ProofRef        string      `json:"proof_ref,omitempty"`
 	ReasonCode      string      `json:"reason_code,omitempty"`
 	ParcelRefs      []string    `json:"parcel_refs,omitempty"`
@@ -97,6 +99,7 @@ type VendorHandoverRequest struct {
 	MissionID, BusinessID, BranchID, RiderStaffID, OperationRef string
 	ParcelRefs                                                  []string
 	EvidenceRef                                                 string
+	Method, Credential                                          string
 }
 
 type VendorMissionOrderAuthority interface {
@@ -209,7 +212,7 @@ func (s *Service) ExecuteRiderAction(ctx context.Context, actor production.Actor
 		if s.handover == nil {
 			return VendorMissionRuntime{}, ErrHandoverUnavailable
 		}
-		handoverRequest := VendorHandoverRequest{MissionID: missionID, BusinessID: runtime.Mission.BusinessID, BranchID: runtime.Mission.BranchID, RiderStaffID: actor.StaffID, OperationRef: request.OperationRef, ParcelRefs: request.ParcelRefs, EvidenceRef: request.EvidenceRef}
+		handoverRequest := VendorHandoverRequest{MissionID: missionID, BusinessID: runtime.Mission.BusinessID, BranchID: runtime.Mission.BranchID, RiderStaffID: actor.StaffID, OperationRef: request.OperationRef, ParcelRefs: request.ParcelRefs, EvidenceRef: request.EvidenceRef, Method: request.Method, Credential: request.Credential}
 		switch request.Action {
 		case ActionCompletePickup:
 			verified, err = s.handover.VerifyPickup(ctx, handoverRequest)

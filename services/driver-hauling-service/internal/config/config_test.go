@@ -40,3 +40,10 @@ func TestFleetKillSwitchOverridesIntegrationRequirements(t *testing.T) {
 		t.Fatalf("kill switch did not override integration: %v", err)
 	}
 }
+
+func TestCommerceIntegrationDefaultsDisabled(t *testing.T) {
+	t.Setenv("HAULING_COMMERCE_INTEGRATION_ENABLED", "")
+	if Load().CommerceIntegrationEnabled {
+		t.Fatal("Hauling Commerce must be explicitly enabled")
+	}
+}

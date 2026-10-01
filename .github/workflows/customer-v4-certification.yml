@@ -1,0 +1,140 @@
+name: Customer V4 backend certification
+
+# B22: the accepted Customer V4 backend gates, run from one entrypoint
+# (scripts/customer-v4/cert.py) that reuses each service's own migration
+# runner and test suites. No deployment step, no production secret: the
+# database and Redis are disposable service containers and every credential
+# below exists only inside this job.
+
+on:
+  pull_request:
+    paths:
+      - 'services/**'
+      - 'shared/go/**'
+      - 'deploy/**'
+      - 'scripts/customer-v4/**'
+      - 'go.work'
+      - 'go.work.sum'
+      - '.github/workflows/customer-v4-certification.yml'
+  push:
+    branches: [staging, main]
+    paths:
+      - 'services/**'
+      - 'shared/go/**'
+      - 'deploy/**'
+      - 'scripts/customer-v4/**'
+      - 'go.work'
+      - 'go.work.sum'
+      - '.github/workflows/customer-v4-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: customer-v4-certification-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOFLAGS: -buildvcs=false
+  # Disposable server: maintenance URLs for cert.py. Client tools run on the
+  # runner, so the tools URL is the same address.
+  CERT_PG_URL: postgres://karry_ci:karry_ci@127.0.0.1:5432/postgres?sslmode=disable
+  CERT_PG_TOOLS_URL: postgres://karry_ci:karry_ci@127.0.0.1:5432/postgres?sslmode=disable
+  CERT_REDIS_ADDR: 127.0.0.1:6379
+  CERT_OUT_DIR: ${{ github.workspace }}/tmp/customer-v4-cert
+  PROMETHEUS_IMAGE: prom/prometheus:v2.53.2
+
+jobs:
+  customer-v4-certification:
+    name: Customer V4 certification (B21/B22/B24 gates)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: karry_ci
+          POSTGRES_PASSWORD: karry_ci
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U karry_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26.6', cache: true}
+
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+
+      - name: Tooling dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml==6.0.2
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client
+          psql --version
+
+      - name: Download Go modules
+        run: |
+          for module in shared/go services/customer-service services/driver-taxi-service services/driver-dispatch-delivery-service \
+                        services/driver-hauling-service services/vendor-service services/payment-wallet-service \
+                        services/media-file-service services/notification-service services/support-dispute-service \
+                        services/verification-compliance-service services/api-gateway; do
+            (cd "$module" && go mod download)
+          done
+
+      - name: Build and vet V4 modules
+        run: |
+          set -euo pipefail
+          for module in shared/go services/customer-service services/driver-taxi-service services/driver-dispatch-delivery-service \
+                        services/driver-hauling-service services/vendor-service services/payment-wallet-service \
+                        services/media-file-service services/notification-service services/support-dispute-service \
+                        services/verification-compliance-service services/api-gateway; do
+            echo "::group::$module"
+            if [ -d "$module/cmd" ]; then vet_target=./cmd/...; else vet_target=./...; fi
+            (cd "$module" && go build ./... && go vet "$vet_target")
+            echo "::endgroup::"
+          done
+
+      - name: Monitoring definitions and tooling self-tests
+        run: python scripts/customer-v4/cert.py monitoring
+
+      - name: promtool check rules
+        run: |
+          docker run --rm -v "$PWD/deploy/monitoring/customer-v4:/rules:ro" --entrypoint promtool \
+            "$PROMETHEUS_IMAGE" check rules /rules/alerts.rules.yml
+
+      - name: Secret and credential scan
+        run: python scripts/customer-v4/cert.py secrets
+
+      - name: Migration verification (owning runners) and backup/restore drill
+        run: python scripts/customer-v4/cert.py backup-drill --keep-templates
+
+      - name: V4 contract, security and E2E gates (fail on any skip)
+        run: python scripts/customer-v4/cert.py gates --keep-templates
+
+      - name: Route exposure, OpenAPI drift and register freshness
+        run: python scripts/customer-v4/cert.py routes
+
+      - name: Release manifest (LOCAL_RELEASE_CANDIDATE_DIGEST of this checkout)
+        run: python scripts/customer-v4/cert.py manifest
+
+      - name: Preserve certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-v4-certification-evidence
+          path: |
+            tmp/customer-v4-cert/**
+            docs/customer-v4-release-manifest.json
+          if-no-files-found: warn
+          retention-days: 30

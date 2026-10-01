@@ -123,6 +123,11 @@ func RegisterPrivateRoutes(group *gin.RouterGroup, handler *Handler,
 	group.POST("/objects/:id/deletions", handler.requestDeletion)
 	group.GET("/objects/:id/deletion", handler.readDeletion)
 	group.POST("/objects/:id/retention", handler.setRetention)
+	group.POST("/objects/:id/revocations", handler.revokeEvidence)
+	// The one route a NON-owner may use. It answers "may I rely on this file
+	// as I describe it?" and returns a verdict, never bytes or a storage
+	// location -- see ValidateEvidence for why that makes it safe to open.
+	group.POST("/evidence-validations", handler.validateEvidence)
 }
 
 func errorBody(code string) gin.H {
@@ -201,6 +206,11 @@ type authorizeUploadRequest struct {
 	// FileName is required for DATA_EXPORT, where the extension must pair
 	// exactly with the declared content type.
 	FileName string `json:"fileName"`
+	// BindingType/BindingID say what the file is evidence FOR. Required for
+	// sensitive evidence purposes; fixed at this moment for every purpose.
+	BindingType       string           `json:"bindingType"`
+	BindingID         string           `json:"bindingId"`
+	SecondaryBindings []models.Binding `json:"secondaryBindings"`
 }
 
 func (h *Handler) authorizeUpload(c *gin.Context) {
@@ -222,6 +232,9 @@ func (h *Handler) authorizeUpload(c *gin.Context) {
 		RetentionClass:     body.RetentionClass,
 		Visibility:         body.Visibility,
 		FileName:           body.FileName,
+		BindingType:        body.BindingType,
+		BindingID:          body.BindingID,
+		SecondaryBindings:  body.SecondaryBindings,
 		IdempotencyKey:     strings.TrimSpace(c.GetHeader(idempotencyHeader)),
 		RequestFingerprint: strings.TrimSpace(c.GetHeader(fingerprintHeader)),
 		PayloadVersion:     payloadVersion,
@@ -453,6 +466,12 @@ func objectView(object *models.Object) gin.H {
 		"retentionClass":        object.RetentionClass,
 		"legalHold":             object.LegalHold,
 		"validationFailureCode": object.ValidationFailureCode,
+		"bindingType":           object.BindingType,
+		"bindingId":             object.BindingID,
+		"secondaryBindings":     secondaryBindingsView(object.SecondaryBindings),
+		"status":                object.EffectiveStatus(),
+		"evidenceState":         object.EvidenceState,
+		"revocationReason":      object.RevocationReason,
 		"sourceVersion":         object.Version,
 		"createdAt":             object.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt":             object.UpdatedAt.UTC().Format(time.RFC3339),
@@ -466,7 +485,70 @@ func objectView(object *models.Object) gin.H {
 	if object.DeletedAt != nil {
 		view["deletedAt"] = object.DeletedAt.UTC().Format(time.RFC3339)
 	}
+	if object.RevokedAt != nil {
+		view["revokedAt"] = object.RevokedAt.UTC().Format(time.RFC3339)
+	}
 	return view
+}
+
+// secondaryBindingsView never returns null, so a consumer iterating the list
+// does not need a nil check that it will eventually forget.
+func secondaryBindingsView(bindings []models.Binding) []models.Binding {
+	if bindings == nil {
+		return []models.Binding{}
+	}
+	return bindings
+}
+
+type revokeRequest struct {
+	ExpectedVersion int64  `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+}
+
+func (h *Handler) revokeEvidence(c *gin.Context) {
+	var body revokeRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		fail(c, usecases.ErrInvalid)
+		return
+	}
+	object, err := h.service.RevokeEvidence(c.Request.Context(), usecases.RevokeInput{
+		Caller: callerFrom(c), MediaObjectID: c.Param("id"),
+		ExpectedVersion: body.ExpectedVersion, Reason: body.Reason,
+	})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, objectView(object))
+}
+
+type evidenceValidationRequest struct {
+	MediaObjectID string   `json:"mediaObjectId"`
+	OwnerService  string   `json:"ownerService"`
+	OwnerType     string   `json:"ownerType"`
+	OwnerRef      string   `json:"ownerReference"`
+	Purposes      []string `json:"purposes"`
+	BindingType   string   `json:"bindingType"`
+	BindingID     string   `json:"bindingId"`
+}
+
+func (h *Handler) validateEvidence(c *gin.Context) {
+	var body evidenceValidationRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		fail(c, usecases.ErrInvalid)
+		return
+	}
+	verdict, err := h.service.ValidateEvidence(c.Request.Context(), callerFrom(c),
+		usecases.EvidenceExpectation{
+			MediaObjectID: body.MediaObjectID, OwnerService: body.OwnerService,
+			OwnerType: body.OwnerType, OwnerRef: body.OwnerRef, Purposes: body.Purposes,
+			BindingType: body.BindingType, BindingID: body.BindingID,
+		})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, verdict)
 }
 
 func optionalTime(value *time.Time) string {

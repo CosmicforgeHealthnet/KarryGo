@@ -1,0 +1,8 @@
+{"Time":"2026-09-27T16:08:08.7596069+02:00","Action":"start","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement"}
+{"Time":"2026-09-27T16:08:08.8928899+02:00","Action":"run","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Test":"TestStateMirrorsTheDerivedWireStatus"}
+{"Time":"2026-09-27T16:08:08.8928899+02:00","Action":"output","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Test":"TestStateMirrorsTheDerivedWireStatus","Output":"=== RUN   TestStateMirrorsTheDerivedWireStatus\n"}
+{"Time":"2026-09-27T16:08:08.8928899+02:00","Action":"output","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Test":"TestStateMirrorsTheDerivedWireStatus","Output":"--- PASS: TestStateMirrorsTheDerivedWireStatus (0.00s)\n"}
+{"Time":"2026-09-27T16:08:08.8928899+02:00","Action":"pass","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Test":"TestStateMirrorsTheDerivedWireStatus","Elapsed":0}
+{"Time":"2026-09-27T16:08:08.8928899+02:00","Action":"output","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Output":"PASS\n"}
+{"Time":"2026-09-27T16:08:08.8949332+02:00","Action":"output","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Output":"ok  \tcosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement\t0.135s\n"}
+{"Time":"2026-09-27T16:08:08.8949332+02:00","Action":"pass","Package":"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement","Elapsed":0.135}

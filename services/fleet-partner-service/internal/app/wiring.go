@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,8 @@ import (
 	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
 	crmusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/usecases"
+	dashboardhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/http"
+	dashboardusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/usecases"
 	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	documentrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/repositories"
@@ -44,11 +47,14 @@ import (
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	fleetpartnerfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	manifestsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/usecases"
+	marketplacehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
 	ordersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
@@ -87,6 +93,7 @@ import (
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cache"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/circuitbreaker"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -166,6 +173,7 @@ type Components struct {
 	FinanceOperations *financeops.Service
 	Engagement        *engagement.Service
 	Marketplace       *mktusecases.Service
+	FleetPartner      *fleetpartnerfeature.Service
 	// Search is the Section 25 (partial slice) full-text search projection.
 	// Always constructed; with the enablement flag off its route answers
 	// not-found. It is a read-side projection only — nothing else in this
@@ -450,28 +458,64 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		FinanceOperations: financeOperations,
 		Engagement:        engagementService,
 		Marketplace:       BuildMarketplaceService(cfg, pool, metrics),
-		Search:            searchService,
-		Exports:           exportsService,
-		Synchronization:   synchronizationService,
-		Idempotency:       idempotency.NewStore(pool, 0),
-		Limiter:           limiter,
-		Documents:         BuildDocumentService(cfg, pool, metrics, publisher),
-		Auth:              authService,
-		Staff:             staffService,
-		Organizations:     organizations,
-		Providers:         providers,
-		Resolver:          staffusecases.NewMembershipResolver(members, organizations),
-		Authorizer:        authorizer,
-		Sessions:          sessions,
-		Challenges:        challenges,
-		Invitations:       invitations,
-		ProviderRepo:      providerRepo,
-		Contracts:         contracts,
-		Safety:            safetyService,
-		Finance:           financeService,
-		Eligibility:       eligibilityService,
-		Approvals:         approvalService,
+		FleetPartner: fleetpartnerfeature.NewService(pool,
+			fleetpartnerfeature.NewRepository(pool),
+			fleetPartnerMembershipReader{repo: providerrepos.NewRepository(pool)},
+			audit.NewRecorder(),
+			events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+			fleetpartnerfeature.Flags{
+				OperatingModeEnforcement: cfg.FleetOperatingModeEnforcementEnabled,
+				CompensationResolver:     cfg.FleetCompensationResolverEnabled,
+				ResolverMode:             cfg.FleetCompensationResolverMode,
+				CompletedWorkProjection:  cfg.FleetCompletedWorkProjectionEnabled,
+				SettlementInstruction:    cfg.FleetSettlementInstructionEnabled,
+				TypedFinancialVisibility: cfg.FleetTypedFinancialVisibilityEnabled,
+			}),
+		Search:          searchService,
+		Exports:         exportsService,
+		Synchronization: synchronizationService,
+		Idempotency:     idempotency.NewStore(pool, 0),
+		Limiter:         limiter,
+		Documents:       BuildDocumentService(cfg, pool, metrics, publisher),
+		Auth:            authService,
+		Staff:           staffService,
+		Organizations:   organizations,
+		Providers:       providers,
+		Resolver:        staffusecases.NewMembershipResolver(members, organizations),
+		Authorizer:      authorizer,
+		Sessions:        sessions,
+		Challenges:      challenges,
+		Invitations:     invitations,
+		ProviderRepo:    providerRepo,
+		Contracts:       contracts,
+		Safety:          safetyService,
+		Finance:         financeService,
+		Eligibility:     eligibilityService,
+		Approvals:       approvalService,
 	}
+}
+
+type fleetPartnerMembershipReader struct {
+	repo *providerrepos.Repository
+}
+
+func (r fleetPartnerMembershipReader) FindLiveByProvider(ctx context.Context, providerService, providerID string) (fleetpartnerfeature.ProviderMembership, error) {
+	membership, err := r.repo.FindLiveByProvider(ctx, nil, providerService, providerID)
+	if err != nil {
+		if errors.Is(err, providerrepos.ErrNotFound) {
+			return fleetpartnerfeature.ProviderMembership{}, fleetpartnerfeature.ErrNotFound
+		}
+		return fleetpartnerfeature.ProviderMembership{}, err
+	}
+	return fleetpartnerfeature.ProviderMembership{
+		ID:               membership.ID,
+		OrganizationID:   membership.OrganizationID,
+		ProviderService:  membership.ProviderService,
+		ServiceCategory:  membership.ServiceCategory,
+		RelationshipType: membership.RelationshipType,
+		Status:           membership.Status,
+		Version:          membership.Version,
+	}, nil
 }
 
 type complianceRestrictionGate struct{ service *compliancefeature.Service }
@@ -623,6 +667,16 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	})
 	c.Integrations = integrationService
 	integrationHandler := integrationsfeature.NewHandler(integrationService, c.Authorizer)
+
+	// Section 10: the organization-member layer. One person, several provider
+	// identities, each still owned by the service that issued it. The authority
+	// adapter is what keeps that true -- Fleet resolves a provider with its
+	// owning service before recording a link and never mints one itself.
+	managedMemberHandler := managedmembers.NewHandler(managedmembers.NewService(managedmembers.Options{
+		Repository: managedmembers.NewRepository(c.Pool),
+		Authority:  BuildProviderAuthorityAdapter(c.Contracts),
+		Enabled:    cfg.MultiServiceProviderLinksEnabled,
+	}), c.Authorizer)
 	legalHoldService := legalholdusecases.NewService(c.Pool, stepUpVerifier, securitySettingsService)
 	legalHoldHandler := legalholdhttp.NewHandler(legalHoldService, c.Authorizer)
 	securitySettingsHandler := securitysettingshttp.NewHandler(securitySettingsService, c.Authorizer)
@@ -718,6 +772,34 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		retentionexec.NewAdministrator(c.Pool, retentionRunner, jobs.NewQueue(c.Pool),
 			stepUpVerifier, securitySettingsService, nil),
 		c.Authorizer)
+
+	// ============================================================
+	// DASHBOARD ROUTES - ADDED FOR PRODUCTION DASHBOARD
+	// ============================================================
+	dashboardService := dashboardusecases.NewService(c.Pool, c.DispatchControl)
+	dashboardHandler := dashboardhttp.NewHandler(dashboardService, c.Authorizer)
+
+	// ============================================================
+	// MARKETPLACE CORPORATE ROUTES - FLEET MANAGER SURFACE
+	//
+	// The marketplace usecases and repositories have existed since the
+	// feature was first written, but only the internal (HMAC service-to-
+	// service) HTTP layer was ever mounted. This constructs the corporate
+	// (Bearer + tenant-scoped) handler so the Fleet manager's web app can
+	// list offers, accept or decline them for the organization, and
+	// manage the resulting assignment.
+	//
+	// Feature flags: the write paths (accept, assign, cancel, reassign)
+	// consult the marketplace Flags (OrganizationAcceptEnabled,
+	// AssignmentEnabled, ReassignmentEnabled) on the Service. Those flags
+	// are wired by BuildMarketplaceService; when they are off the write
+	// endpoints return an "unavailable" error. The read endpoints do not
+	// consult any flag and work as soon as the marketplace.read permission
+	// is seeded.
+	// ============================================================
+	marketplaceHandler := marketplacehttp.NewHandler(c.Marketplace, c.Authorizer, c.Idempotency)
+	fleetPartnerHandler := fleetpartnerfeature.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
+
 	tenantScoped = func(group *gin.RouterGroup) {
 		corporateHandler.RegisterTenantRoutes(group)
 		safetyHandler.RegisterTenantRoutes(group)
@@ -755,6 +837,16 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		retentionPolicyHandler.RegisterTenantRoutes(group)
 		retentionExecutionHandler.RegisterTenantRoutes(group)
 		integrationHandler.RegisterTenantRoutes(group)
+		managedMemberHandler.RegisterTenantRoutes(group)
+		// ============================================================
+		// DASHBOARD ROUTES - REGISTERED HERE
+		// ============================================================
+		dashboardHandler.RegisterTenantRoutes(group)
+		// ============================================================
+		// MARKETPLACE CORPORATE ROUTES - REGISTERED HERE
+		// ============================================================
+		marketplaceHandler.RegisterTenantRoutes(group)
+		fleetPartnerHandler.RegisterTenantRoutes(group)
 		// Rate limiting for every route registered above, including these
 		// four, is no longer applied per-feature here: middleware.
 		// GlobalRateLimit (internal/app/app.go, mounted once per route
@@ -767,6 +859,28 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		// router.Use) is required for identity-dimension keying to work.
 	}
 	return public, identity, tenantScoped
+}
+
+func allowedFleetPartnerCallers(cfg config.Config) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(value string) {
+		for _, part := range strings.Split(value, ",") {
+			name := strings.TrimSpace(part)
+			if name != "" && !seen[name] {
+				seen[name] = true
+				out = append(out, name)
+			}
+		}
+	}
+	add(cfg.ProviderMembershipAllowedCallers)
+	add(cfg.MarketplaceAllowedCallers)
+	for _, name := range []string{"driver-dispatch-delivery-service", "driver-taxi-service", "driver-hauling-service"} {
+		if !seen[name] {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // OrganizationAPIRoutes is the separately authenticated organization-client
@@ -831,6 +945,13 @@ func (c *Components) InternalSection22To23Routes() RouteRegistrar {
 	return func(group *gin.RouterGroup) {
 		financeHandler.RegisterInternalRoutes(group)
 		engagementHandler.RegisterInternalRoutes(group)
+	}
+}
+
+func (c *Components) InternalFleetPartnerRoutes(cfg config.Config) RouteRegistrar {
+	handler := fleetpartnerfeature.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
+	return func(group *gin.RouterGroup) {
+		handler.RegisterInternalRoutes(group)
 	}
 }
 

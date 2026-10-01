@@ -14,7 +14,11 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
+	"sort"
+
+	"cosmicforge/logistics/shared/go/networkanalytics"
 )
 
 const (
@@ -153,6 +157,17 @@ func IdempotencyKey(sourceService, eventType, entityID string) string {
 
 var DefaultChannels = []string{ChannelPush, ChannelWebSocket, ChannelInApp}
 
+// isProviderRecipient reports whether a notification is addressed to a
+// provider, whose financial visibility is policy-bound.
+func isProviderRecipient(recipientType string) bool {
+	switch strings.ToLower(strings.TrimSpace(recipientType)) {
+	case RecipientProvider, "truck_provider", "taxi_provider", "dispatch_provider", "rider", "driver":
+		return true
+	default:
+		return false
+	}
+}
+
 type Recipient struct {
 	Type  string `json:"type"`
 	ID    string `json:"id"`
@@ -220,10 +235,142 @@ func (r Request) Validate() error {
 	if r.Priority != "" && r.Priority != PriorityLow && r.Priority != PriorityNormal && r.Priority != PriorityHigh {
 		fields = append(fields, apperrors.FieldViolation{Field: "priority", Message: "Priority must be low, normal, or high."})
 	}
+	// Section 14 VIS-017. A notification's data bag takes anything, which is
+	// what makes it a way around the provider API's own care: a field the
+	// provider surface withholds can reach a provider's phone through a push
+	// payload that nobody classified.
+	//
+	// Refused rather than quietly stripped. A caller that put the
+	// organization's share in a provider notification has a bug, and silently
+	// sending the rest would leave it in place for the next field.
+	for _, bag := range []struct {
+		field   string
+		payload map[string]interface{}
+	}{{"data", r.Data}, {"template_data", r.TemplateData}} {
+		if !legacyCredentialDeliveryEvent(r.EventType) {
+			leaked := unsafeCredentialKeys(bag.payload)
+			if custodyNotificationEvent(r.EventType) {
+				leaked = append(leaked, unsafeCustodyKeys(bag.payload)...)
+			}
+			if len(leaked) > 0 {
+				fields = append(fields, apperrors.FieldViolation{Field: bag.field, Message: "Notification payload cannot carry credentials: " + strings.Join(leaked, ", ")})
+			}
+		}
+		if leaked := providercompat.ConcealedFinancialFields(bag.payload); len(leaked) > 0 && isProviderRecipient(r.Recipient.Type) {
+			fields = append(fields, apperrors.FieldViolation{
+				Field:   bag.field,
+				Message: "Provider notifications cannot carry organization or platform financial fields: " + strings.Join(leaked, ", "),
+			})
+		}
+	}
+	// Section 14: a network notification is about work, not people or money.
+	// It carries references -- a booking, a case, a provider id -- and the
+	// template supplies the words. A location, a contact detail, an amount or
+	// a credential in its data is refused, for the same reason as above.
+	if strings.HasPrefix(r.EventType, "network.") {
+		for _, bag := range []struct {
+			field   string
+			payload map[string]interface{}
+		}{{"data", r.Data}, {"template_data", r.TemplateData}} {
+			if leaked := unsafeNetworkKeys(bag.payload); len(leaked) > 0 {
+				fields = append(fields, apperrors.FieldViolation{
+					Field:   bag.field,
+					Message: "Network notifications carry references only; refused: " + strings.Join(leaked, ", "),
+				})
+			}
+		}
+	}
 	if len(fields) > 0 {
 		return apperrors.Validation("Check your notification request.", fields)
 	}
 	return nil
+}
+
+func custodyNotificationEvent(event string) bool {
+	return event == "booking.delivery_code_ready" || event == "package.delivery_code_ready" ||
+		event == "taxi.goods.pickup_credential_ready" || event == "dispatch.delivery_handover_challenge" ||
+		event == "dispatch.handover_resend" || strings.HasPrefix(event, "dispatch.vendor_delivery.handover_")
+}
+
+func unsafeCustodyKeys(payload map[string]interface{}) []string {
+	var leaked []string
+	var walk func(any, string, int)
+	walk = func(value any, prefix string, depth int) {
+		if depth > 8 {
+			leaked = append(leaked, prefix)
+			return
+		}
+		switch values := value.(type) {
+		case map[string]interface{}:
+			for key, nested := range values {
+				path := prefix + key
+				switch strings.ToLower(strings.ReplaceAll(key, "-", "_")) {
+				case "code", "qr", "credential", "delivery_code", "pickup_code":
+					leaked = append(leaked, path)
+				}
+				walk(nested, path+".", depth+1)
+			}
+		case []interface{}:
+			for _, nested := range values {
+				walk(nested, prefix, depth+1)
+			}
+		}
+	}
+	walk(payload, "", 0)
+	return leaked
+}
+
+// The legacy custody and login templates still need their own verified-read
+// migration. All other producers fail closed if they attempt to add a secret.
+func legacyCredentialDeliveryEvent(event string) bool {
+	switch event {
+	case "corporate.auth.otp":
+		return true
+	}
+	return false
+}
+
+func unsafeCredentialKeys(payload map[string]interface{}) []string {
+	var leaked []string
+	var walk func(map[string]interface{}, string, int)
+	walk = func(values map[string]interface{}, prefix string, depth int) {
+		if depth > 8 {
+			leaked = append(leaked, prefix)
+			return
+		}
+		for key, value := range values {
+			path := prefix + key
+			switch strings.ToLower(strings.ReplaceAll(key, "-", "_")) {
+			case "otp", "qr_token", "qrtoken", "share_token", "bearer_token", "hmac_secret", "service_token", "account_number", "bank_account", "access_code", "cvv", "pan":
+				leaked = append(leaked, path)
+			}
+			switch nested := value.(type) {
+			case map[string]interface{}:
+				walk(nested, path+".", depth+1)
+			case []interface{}:
+				for _, item := range nested {
+					if object, ok := item.(map[string]interface{}); ok {
+						walk(object, path+"[].", depth+1)
+					}
+				}
+			}
+		}
+	}
+	walk(payload, "", 0)
+	return leaked
+}
+
+// unsafeNetworkKeys lists the keys the network minimization would drop.
+func unsafeNetworkKeys(payload map[string]interface{}) []string {
+	kept := networkanalytics.Minimize(payload)
+	var leaked []string
+	for key := range payload {
+		if _, ok := kept[key]; !ok {
+			leaked = append(leaked, key)
+		}
+	}
+	sort.Strings(leaked)
+	return leaked
 }
 
 func (r Request) EventName() string {

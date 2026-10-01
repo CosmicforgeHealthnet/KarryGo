@@ -240,8 +240,9 @@ inferred and never double-committed.
 
 **Execution.** One logistics mission per Section 17C plan mission, created for
 the fee the customer already paid; an authority that answers with a different
-fee is refused. Vendor-owned delivery gets no platform mission. Taxi is never
-an executor.
+fee is refused. Vendor-owned delivery gets no platform mission. A CAR mission
+may execute only through the false-by-default, distinct Taxi Goods authority;
+it never uses passenger or direct-parcel booking APIs.
 
 **Commercial changes.** A customer address or service-level change creates a
 new Section 17D quote and an append-only chain from the original ParentOrder;

@@ -1,18 +1,16 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+
+import '../../../core/app_mode.dart';
+import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/widgets/numeric_keypad.dart';
 import '../state/wallet_controller.dart';
 import 'payment_processing_screen.dart';
+import 'change_transaction_pin_screen.dart';
 
 enum _AuthPhase { loading, enter, create, confirm }
 
-/// Transaction authorization — the real withdrawal PIN gate.
-///
-/// payment-wallet-service requires a transaction PIN on every withdrawal:
-/// - PIN already set → enter it → withdraw.
-/// - No PIN yet → create + confirm → save via POST /provider/pin → withdraw.
-/// Wrong-PIN / locked errors from the server surface inline.
 class TransactionAuthScreen extends StatefulWidget {
   const TransactionAuthScreen({
     super.key,
@@ -30,7 +28,7 @@ class TransactionAuthScreen extends StatefulWidget {
 }
 
 class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
-  static const int _pinLength = 4;
+  static const int _pinLength = 6;
 
   _AuthPhase _phase = _AuthPhase.loading;
   String _pin = '';
@@ -38,7 +36,6 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
   bool _submitting = false;
   String? _error;
 
-  // Stable idempotency key for this attempt — generated once on first submit.
   String? _idempotencyKey;
 
   @override
@@ -48,6 +45,13 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
   }
 
   Future<void> _loadPinStatus() async {
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (!mounted) return;
+      setState(() => _phase = _AuthPhase.enter);
+      return;
+    }
+
     final result = await widget.walletController.loadPinStatus();
     if (!mounted) return;
     result.when(
@@ -55,8 +59,6 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
         setState(() => _phase = isSet ? _AuthPhase.enter : _AuthPhase.create);
       },
       failure: (err) {
-        // Can't determine — try the enter phase; the server rejects with
-        // pin_not_set if none exists, which routes to create below.
         setState(() {
           _phase = _AuthPhase.enter;
           _error = null;
@@ -122,6 +124,14 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       _submitting = true;
       _error = null;
     });
+
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      await _withdraw(_pin);
+      return;
+    }
+
     final result = await widget.walletController.setupPin(_pin);
     if (!mounted) return;
     var saved = false;
@@ -143,7 +153,6 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
   }
 
   Future<void> _withdraw(String pin) async {
-    // Generate a stable idempotency key per attempt.
     _idempotencyKey ??= _generateIdempotencyKey();
     final idempotencyKey = _idempotencyKey!;
     final amountKobo = (widget.amount * 100).round();
@@ -152,6 +161,17 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       _submitting = true;
       _error = null;
     });
+
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => PaymentProcessingScreen(amount: widget.amount),
+        ),
+      );
+      return;
+    }
 
     final result = await widget.walletController.requestWithdrawal(
       bankAccountId: widget.bankAccountId,
@@ -174,7 +194,6 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
         setState(() {
           _submitting = false;
           _pin = '';
-          // Server says no PIN exists — route to first-time creation.
           if (err.code == 'pin_not_set') {
             _phase = _AuthPhase.create;
             _error = 'Set a withdrawal PIN to continue.';
@@ -183,158 +202,321 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
                 ? err.message
                 : 'Withdrawal failed. Please try again.';
           }
-          // Reset idempotency key on non-idempotent errors (anything except
-          // network/timeout where retrying with the same key is correct).
           if (err.code != 'network') _idempotencyKey = null;
         });
       },
     );
   }
 
+  void _onForgotPin() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeTransactionPinScreen(
+          walletController: widget.walletController,
+        ),
+      ),
+    );
+  }
+
+  // ── Copy ──────────────────────────────────────────────────────────
+
+  String get _topBarTitle => switch (_phase) {
+        _AuthPhase.create => 'Create transaction PIN',
+        _AuthPhase.confirm => 'Confirm transaction PIN',
+        _ => 'Enter transaction PIN',
+      };
+
+  String get _heading => switch (_phase) {
+        _AuthPhase.create => 'Create your transaction PIN',
+        _AuthPhase.confirm => 'Confirm your transaction PIN',
+        _ => 'Enter your transaction PIN',
+      };
+
   String get _subtitle => switch (_phase) {
-    _AuthPhase.loading => 'Checking your PIN status...',
-    _AuthPhase.enter => 'Please input your secure pin to authorize withdrawal',
-    _AuthPhase.create => 'Create a 4-digit withdrawal PIN to secure your payouts',
-    _AuthPhase.confirm => 'Re-enter your new PIN to confirm',
-  };
+        _AuthPhase.loading => '',
+        _AuthPhase.enter =>
+          'This PIN is for financial transactions only (withdrawals, bank accounts). '
+              'It is different from your login PIN.',
+        _AuthPhase.create =>
+          'Choose a 6-digit PIN. You will use it for every withdrawal.',
+        _AuthPhase.confirm => 'Re-enter your new PIN to confirm.',
+      };
 
   String get _buttonLabel => switch (_phase) {
-    _AuthPhase.enter => 'Withdraw Now',
-    _AuthPhase.create => 'Continue',
-    _AuthPhase.confirm => 'Save PIN & Withdraw',
-    _AuthPhase.loading => 'Please wait...',
-  };
+        _AuthPhase.confirm => 'Save PIN & Withdraw',
+        _AuthPhase.loading => 'Please wait...',
+        _ => 'Continue',
+      };
+
+  bool get _showForgotLink => _phase == _AuthPhase.enter;
+
+  // ── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.palette;
     final ready = _phase != _AuthPhase.loading;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Icon(
-                        Icons.arrow_back_ios_new,
-                        size: 18,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      _phase == _AuthPhase.create ||
-                              _phase == _AuthPhase.confirm
-                          ? 'Create Transaction PIN'
-                          : 'Transaction Authorization',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Text(
-                _subtitle,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
-              ),
-              const SizedBox(height: 24),
-              if (ready)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(_pinLength, (i) {
-                    final filled = i < _pin.length;
-                    return Container(
-                      width: 56,
-                      height: 56,
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF05124D),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Text(
-                        filled ? '•' : '',
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                    );
-                  }),
-                )
-              else
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: CircularProgressIndicator(color: Color(0xFF05124D)),
-                  ),
-                ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFFE53935),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-              const Spacer(),
-              if (ready) NumericKeypad(onKeyTap: _onKeyTap),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: (ready && _isValid && !_submitting) ? _onContinue : null,
-                child: Container(
-                  width: double.infinity,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: (ready && _isValid && !_submitting)
-                        ? const Color(0xFF05124D)
-                        : const Color(0xFFC1C5D4),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
+        child: Column(
+          children: [
+            _buildTopBar(context),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!ready)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 60),
+                        child: Center(
                           child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          _buttonLabel,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: colors.brandTeal500,
                           ),
                         ),
+                      )
+                    else ...[
+                      _buildLockIcon(),
+                      const SizedBox(height: 22),
+                      Text(
+                        _heading,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: colors.text,
+                          letterSpacing: -0.4,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _subtitle,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: colors.textMuted,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      _buildPinSlots(),
+                      if (_error != null) ...[
+                        const SizedBox(height: 18),
+                        _buildError(),
+                      ],
+                      if (_showForgotLink) ...[
+                        const SizedBox(height: 18),
+                        Center(
+                          child: GestureDetector(
+                            onTap: _onForgotPin,
+                            behavior: HitTestBehavior.opaque,
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 6),
+                              child: Text(
+                                'Forgot PIN?',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.brandTeal500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
                 ),
               ),
-            ],
+            ),
+            if (ready) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: NumericKeypad(onKeyTap: _onKeyTap),
+              ),
+              const SizedBox(height: 12),
+              _buildBottomButton(enabled: _isValid && !_submitting),
+            ] else
+              const SizedBox(height: 100),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Top bar ───────────────────────────────────────────────────────
+
+  Widget _buildTopBar(BuildContext context) {
+    final colors = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  size: 22,
+                  color: colors.text,
+                ),
+              ),
+            ),
+          ),
+          Text(
+            _topBarTitle,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: colors.text,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  // ── Lock icon circle ──────────────────────────────────────────────
+
+  Widget _buildLockIcon() {
+    final colors = context.palette;
+    return Center(
+      child: Container(
+        width: 88,
+        height: 88,
+        decoration: BoxDecoration(
+          color: colors.teal10,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Icon(
+            Icons.lock_outline_rounded,
+            size: 38,
+            color: colors.brandTeal500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── PIN slots ─────────────────────────────────────────────────────
+
+  Widget _buildPinSlots() {
+    final colors = context.palette;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_pinLength, (i) {
+        final filled = i < _pin.length;
+        return Container(
+          width: 42,
+          height: 48,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: filled ? colors.brandTeal500 : colors.divider,
+              width: filled ? 1.6 : 1.2,
+            ),
+          ),
+          child: filled
+              ? Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: colors.text,
+                    shape: BoxShape.circle,
+                  ),
+                )
+              : null,
+        );
+      }),
+    );
+  }
+
+  // ── Error ─────────────────────────────────────────────────────────
+
+  Widget _buildError() {
+    final colors = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.dangerSoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.danger, width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: colors.danger,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _error!,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: colors.danger,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom button ─────────────────────────────────────────────────
+
+  Widget _buildBottomButton({required bool enabled}) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: FilledButton(
+            onPressed: enabled ? _onContinue : null,
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: _submitting
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.2,
+                    ),
+                  )
+                : Text(
+                    _buttonLabel,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
         ),
       ),

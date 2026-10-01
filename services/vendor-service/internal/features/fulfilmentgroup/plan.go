@@ -126,11 +126,8 @@ const (
 	AuthorityDispatch Authority = "DISPATCH"
 	AuthorityHauling  Authority = "HAULING"
 
-	// AuthorityTaxi is modelled so the vocabulary is complete and a future
-	// integration does not require a schema change. It is NOT currently an
-	// active commerce fulfilment authority: driver-taxi-service has no
-	// commerce mission ingress, so selecting it is refused rather than
-	// attempted. See ActiveForCommerce.
+	// AuthorityTaxi is the distinct Taxi Goods authority. Runtime feature
+	// flags still decide whether Vendor can select it for a deployment.
 	AuthorityTaxi Authority = "TAXI"
 
 	AuthorityVendor Authority = "VENDOR"
@@ -153,12 +150,8 @@ func (a Authority) Platform() bool {
 
 // ActiveForCommerce reports whether a mission may actually be created against
 // this authority today.
-//
-// Taxi answers false. Modelling the vocabulary is honest; creating a mission
-// against an integration that does not exist would be a fabricated delivery,
-// and the customer would be the one who found out.
 func (a Authority) ActiveForCommerce() bool {
-	return a == AuthorityDispatch || a == AuthorityHauling || a == AuthorityVendor
+	return a == AuthorityDispatch || a == AuthorityTaxi || a == AuthorityHauling || a == AuthorityVendor
 }
 
 // OwnerFor returns the executor implied by an authority.
@@ -218,8 +211,9 @@ type PlanMission struct {
 	ServiceClass string `json:"service_class,omitempty"`
 	VehicleClass string `json:"vehicle_class,omitempty"`
 
-	PlannedCostMinor int64  `json:"planned_cost_minor"`
-	Currency         string `json:"currency,omitempty"`
+	PlannedCostMinor       int64  `json:"planned_cost_minor"`
+	Currency               string `json:"currency,omitempty"`
+	LoadingDurationSeconds int64  `json:"loading_duration_seconds,omitempty"`
 
 	Stops     []Stop   `json:"stops"`
 	ParcelIDs []string `json:"parcel_ids"`
@@ -276,6 +270,8 @@ func (m PlanMission) Validate() error {
 		// reverse, would make responsibility unanswerable.
 		return ErrInvalid
 	case m.PlannedCostMinor < 0:
+		return ErrInvalid
+	case m.LoadingDurationSeconds < 0 || m.LoadingDurationSeconds > 8*60*60:
 		return ErrInvalid
 	case m.Currency != "" && len(m.Currency) != 3:
 		return ErrInvalid

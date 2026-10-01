@@ -41,6 +41,20 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/payment-intents", handler.CreatePaymentIntent)
 	internal.POST("/payment-intents/:id/pay-from-wallet", handler.PayFromWallet)
 	internal.POST("/jobs/:source_service/:source_reference/complete", handler.CompleteJob)
+	// Section 17. Only the service that owns the job may move its held
+	// payment to a replacement provider; the usecase enforces that per source.
+	internal.POST("/jobs/:source_service/:source_reference/execution-provider", handler.RebindExecutionProvider)
+	internal.GET("/jobs/:source_service/:source_reference/execution-provider", handler.GetExecutionProviderBinding)
+
+	// Section 12. Managed settlement is posted only by Fleet and read back by
+	// Fleet and the execution services; the usecase layer narrows the caller
+	// further than this HMAC group does.
+	internal.POST("/finance/v1/managed-settlements", handler.PostManagedSettlement)
+	internal.GET("/finance/v1/managed-settlements/:instructionId/:instructionVersion", handler.GetManagedSettlement)
+	internal.GET("/finance/v1/managed-settlements/by-key/:idempotencyKey", handler.GetManagedSettlementByKey)
+	internal.GET("/finance/v1/managed-settlements/by-job/:sourceService/:sourceJobId", handler.ListManagedSettlementsForJob)
+	internal.PUT("/finance/v1/managed-jobs/:sourceService/:sourceJobId", handler.MarkJobManaged)
+	internal.POST("/finance/v1/managed-settlements/:instructionId/:instructionVersion/reverse", handler.ReverseManagedSettlement)
 	internal.POST("/refunds", handler.RequestRefund)
 	internal.GET("/payments/:reference", handler.GetInternalPayment)
 	internal.PUT("/payments/:reference/provider", handler.AssignPaymentProvider)
@@ -61,6 +75,12 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 	internal.POST("/commerce/allocations/:vendorOrderId/delivery-responsibility", handler.TransitionDeliveryResponsibility)
 	internal.GET("/commerce/delivery-responsibility-transitions/:operationRef", handler.GetDeliveryResponsibilityTransition)
 	internal.POST("/commerce/allocations/:vendorOrderId/refunds", handler.RefundCommerceAllocation)
+	// Section 12 WAL-029/030. A dispute reversal is its own operation drawing
+	// on the same recovery pool as a refund, and the recovery plan lets a
+	// caller learn the provider/organization split without having to know how
+	// Fleet decided it.
+	internal.POST("/commerce/allocations/:vendorOrderId/dispute-reversals", handler.ReverseCommerceAllocationForDispute)
+	internal.POST("/commerce/allocations/:vendorOrderId/delivery-recovery-plan", handler.PlanCommerceDeliveryRecovery)
 	internal.GET("/commerce/operations/:operationType/:idempotencyKey", handler.GetCommerceOperation)
 	internal.GET("/vendor-finance/:businessId/summary", handler.VendorPayableSummary)
 	internal.GET("/vendor-finance/:businessId/transactions", handler.VendorFinanceTransactions)

@@ -1,8 +1,10 @@
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/app_mode.dart';
 import '../../trips/data/trip_model.dart';
 import '../data/rider_support_api.dart';
+import '../mock/disputes_mock.dart';
 import '../models/dispute_models.dart';
 
 /// Drives the disputes flow (select trip → select type → submit), the disputes
@@ -29,11 +31,26 @@ class RiderDisputeController extends ChangeNotifier {
   String? get error => _error;
 
   Future<void> loadComplaints() async {
-    final token = _token;
-    if (token == null) return;
     _loading = true;
     _error = null;
     notifyListeners();
+
+    // ── MOCK ──
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _complaints = DisputesMock.complaints();
+      _loading = false;
+      notifyListeners();
+      return;
+    }
+
+    // ── LIVE ──
+    final token = _token;
+    if (token == null) {
+      _loading = false;
+      notifyListeners();
+      return;
+    }
     try {
       _complaints = await _api.listComplaints(accessToken: token);
     } catch (e) {
@@ -77,14 +94,38 @@ class RiderDisputeController extends ChangeNotifier {
   Complaint? get createdComplaint => _createdComplaint;
 
   Future<Complaint?> submitDispute() async {
-    final token = _token;
     final trip = _selectedTrip;
     final type = _selectedType;
-    if (token == null || trip == null || type == null) return null;
+    if (trip == null || type == null) return null;
 
     _submitting = true;
     _submitError = null;
     notifyListeners();
+
+    // ── MOCK ──
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 600));
+      final reference = trip.bookingId.isNotEmpty ? trip.bookingId : trip.id;
+      final complaint = DisputesMock.addComplaint(
+        subject: type,
+        description: 'Dispute on trip ${trip.id}: $type',
+        bookingReference: reference,
+      );
+      _createdComplaint = complaint;
+      _complaints = [complaint, ..._complaints];
+      _submitting = false;
+      notifyListeners();
+      return complaint;
+    }
+
+    // ── LIVE ──
+    final token = _token;
+    if (token == null) {
+      _submitting = false;
+      notifyListeners();
+      return null;
+    }
+
     try {
       final reference = trip.bookingId.isNotEmpty ? trip.bookingId : trip.id;
       final complaint = await _api.createComplaint(
@@ -122,11 +163,27 @@ class RiderDisputeController extends ChangeNotifier {
   /// Finds the rider's open support-chat complaint or creates one.
   /// Returns null on failure (error in [supportChatError]).
   Future<Complaint?> openSupportChat() async {
-    final token = _token;
-    if (token == null) return null;
     _openingSupportChat = true;
     _supportChatError = null;
     notifyListeners();
+
+    // ── MOCK ──
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      final c = DisputesMock.supportChatComplaint();
+      _supportComplaint = c;
+      _openingSupportChat = false;
+      notifyListeners();
+      return c;
+    }
+
+    // ── LIVE ──
+    final token = _token;
+    if (token == null) {
+      _openingSupportChat = false;
+      notifyListeners();
+      return null;
+    }
     try {
       final complaints = await _api.listComplaints(accessToken: token);
       Complaint? existing;
@@ -157,6 +214,7 @@ class RiderDisputeController extends ChangeNotifier {
 
   /// Marks agent messages on a complaint as read. Failure-silent.
   Future<void> markMessagesRead(String complaintId) async {
+    if (AppModeConfig.instance.isMock) return;
     final token = _token;
     if (token == null) return;
     try {
@@ -173,6 +231,15 @@ class RiderDisputeController extends ChangeNotifier {
   bool get sending => _sending;
 
   Future<void> loadMessages(String complaintId) async {
+    // ── MOCK ──
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      _messages = DisputesMock.messages(complaintId);
+      notifyListeners();
+      return;
+    }
+
+    // ── LIVE ──
     final token = _token;
     if (token == null) return;
     _loadingMessages = true;
@@ -188,8 +255,20 @@ class RiderDisputeController extends ChangeNotifier {
   }
 
   Future<void> sendMessage(String complaintId, String content) async {
+    if (content.trim().isEmpty) return;
+
+    // ── MOCK ──
+    if (AppModeConfig.instance.isMock) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      final msg = DisputesMock.sendMessage(complaintId, content.trim());
+      _messages = [..._messages, msg];
+      notifyListeners();
+      return;
+    }
+
+    // ── LIVE ──
     final token = _token;
-    if (token == null || content.trim().isEmpty) return;
+    if (token == null) return;
     _sending = true;
     notifyListeners();
     try {

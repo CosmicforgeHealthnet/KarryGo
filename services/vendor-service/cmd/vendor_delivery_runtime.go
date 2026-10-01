@@ -122,7 +122,7 @@ func (a *vendorDeliveryRuntimeAuthority) fallbackMissionEvidence(ctx context.Con
 		byUnit[parcel.UnitID] = append(byUnit[parcel.UnitID], parcel)
 	}
 	now := time.Now().UTC()
-	execution := orders.MissionExecution{PlanRef: "prospective-" + request.OperationRef, PlanVersion: request.Plan.Version + 1, PlanFingerprint: fulfilmentgroup.Fingerprint(fulfilmentgroup.ModeHybrid, []fulfilmentgroup.PlanMission{request.Mission}), Mode: order.SelectedFulfilmentMode, ServiceClass: "COMMERCE"}
+	execution := orders.MissionExecution{PlanRef: "prospective-" + request.OperationRef, PlanVersion: request.Plan.Version + 1, PlanFingerprint: fulfilmentgroup.Fingerprint(fulfilmentgroup.ModeHybrid, []fulfilmentgroup.PlanMission{request.Mission}), Mode: order.SelectedFulfilmentMode, ServiceClass: "COMMERCE", LoadingDurationSeconds: request.Mission.LoadingDurationSeconds}
 	for _, stop := range pickups {
 		readyFrom, readyTo := a.projection.readyWindow(ctx, order.ID, byUnit[stop.UnitID], now)
 		execution.Stops = append(execution.Stops, orders.MissionStop{StopRef: stop.ID, PhysicalStopRef: physicalStopRef(stop), UnitRef: stop.UnitID, BusinessID: stop.BusinessID, BranchID: stop.BranchID, Address: stop.Address, Latitude: stop.Latitude, Longitude: stop.Longitude, ReadyFrom: readyFrom, ReadyTo: readyTo})
@@ -131,12 +131,25 @@ func (a *vendorDeliveryRuntimeAuthority) fallbackMissionEvidence(ctx context.Con
 			if marshalErr != nil {
 				return "", order, orders.MissionExecution{}, orders.MissionPlan{}, marshalErr
 			}
-			execution.Parcels = append(execution.Parcels, orders.MissionParcel{ParcelRef: parcel.ParcelRef, UnitRef: parcel.UnitID, VendorOrderID: parcel.VendorOrderID, BusinessID: parcel.BusinessID, BranchID: parcel.BranchID, Manifest: manifest, ManifestVersion: parcel.ManifestVersion, WeightGrams: parcel.WeightGrams, LengthMM: parcel.LengthMm, WidthMM: parcel.WidthMm, HeightMM: parcel.HeightMm, PackageCount: parcel.Manifest.PackageCount, Fragile: parcel.Fragile, TemperatureControl: string(parcel.TemperatureControl)})
+			upright, stackRestricted := parcelHandlingFlags(parcel.Manifest.SpecialHandlingRefs)
+			execution.Parcels = append(execution.Parcels, orders.MissionParcel{ParcelRef: parcel.ParcelRef, UnitRef: parcel.UnitID, VendorOrderID: parcel.VendorOrderID, BusinessID: parcel.BusinessID, BranchID: parcel.BranchID, Manifest: manifest, ManifestVersion: parcel.ManifestVersion, WeightGrams: parcel.WeightGrams, LengthMM: parcel.LengthMm, WidthMM: parcel.WidthMm, HeightMM: parcel.HeightMm, PackageCount: parcel.Manifest.PackageCount, Fragile: parcel.Fragile, Upright: upright, StackRestricted: stackRestricted, TemperatureControl: string(parcel.TemperatureControl)})
 		}
 	}
 	execution.PromisedBy = now.Add(2 * time.Hour)
 	plan := orders.MissionPlan{PlanMissionRef: request.Mission.SlotRef, Service: orders.LogisticsDispatch, VehicleClass: request.Mission.VehicleClass, VendorOrderIDs: request.VendorOrderIDs, PickupBusiness: pickups[0].BusinessID, PickupBranch: pickups[0].BranchID, PackageCount: int64(len(request.Mission.ParcelIDs))}
 	return parentOrderID, order, execution, plan, nil
+}
+
+func parcelHandlingFlags(refs []string) (upright, stackRestricted bool) {
+	for _, ref := range refs {
+		switch strings.ToUpper(strings.TrimSpace(ref)) {
+		case "UPRIGHT", "UPRIGHT_REQUIRED", "KEEP_UPRIGHT":
+			upright = true
+		case "STACK_RESTRICTED", "DO_NOT_STACK", "NON_STACKABLE":
+			stackRestricted = true
+		}
+	}
+	return upright, stackRestricted
 }
 
 var _ fulfilmentgroup.HybridFallbackAuthority = (*vendorDeliveryRuntimeAuthority)(nil)

@@ -58,6 +58,12 @@ func (s *WalletService) RefundCommerceAllocation(ctx context.Context, input wall
 	return s.repository.RefundCommerceAllocation(ctx, input)
 }
 
+// PlanDeliveryRecovery reports who would give back what for a delivery refund
+// of this size, without moving anything (WAL-029).
+func (s *WalletService) PlanDeliveryRecovery(ctx context.Context, vendorOrderID string, recoverMinor int64) (walletmodels.DeliveryRecoverySplit, error) {
+	return s.repository.PlanDeliveryRecovery(ctx, vendorOrderID, recoverMinor)
+}
+
 func (s *WalletService) CommerceOperation(ctx context.Context, operationType, idempotencyKey string) (walletmodels.CommerceFinancialOperation, error) {
 	return s.repository.GetCommerceFinancialOperation(ctx, strings.ToUpper(strings.TrimSpace(operationType)), strings.TrimSpace(idempotencyKey))
 }

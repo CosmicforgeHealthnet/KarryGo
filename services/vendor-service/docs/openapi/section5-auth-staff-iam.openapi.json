@@ -28,6 +28,12 @@
           }
         }
       }
+    },
+    "responses": {
+      "Validation": { "description": "Validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "Unauthorized": { "description": "Authentication required or invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "Forbidden": { "description": "Authenticated but not authorized for this action.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "RateLimited": { "description": "Too many requests for this bucket/identity.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
     }
   },
   "paths": {
@@ -195,11 +201,5 @@
         "responses": { "200": { "description": "Owner provisioned (or already existed)." } }
       }
     }
-  },
-  "responses": {
-    "Validation": { "description": "Validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
-    "Unauthorized": { "description": "Authentication required or invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
-    "Forbidden": { "description": "Authenticated but not authorized for this action.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
-    "RateLimited": { "description": "Too many requests for this bucket/identity.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
   }
 }

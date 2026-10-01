@@ -102,3 +102,16 @@ Then apply the migration:
 psql "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5441/media_file_service?sslmode=disable" \
   -f services/media-file-service/migrations/001_media_assets.sql
 ```
+
+## V4 Section 18 customer upload security (local)
+
+Media remains the byte and metadata authority. Customer Service's HMAC-only
+authorization issues the existing short-lived, purpose/source/owner/MIME/size
+grant. The token-only public content route redeems that grant once, bounds the
+body and validates authoritative metadata before returning MediaRef. Wrong
+token, replay, expiry and cross-scope use fail closed. The existing cleanup and
+retention policy handles unused/expired grants and unattached objects. See
+`docs/private-media-api.md` and `docs/customer-evidence-upload.openapi.json`.
+Real PostgreSQL redemption and replay tests pass locally. Production evidence
+attachment remains dependent on configured malware scanning, Media private
+HMAC callers and ingress; test fakes are not a production scanner.

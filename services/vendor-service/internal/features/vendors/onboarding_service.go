@@ -503,7 +503,12 @@ func (s *Service) applyProjection(ctx context.Context, actor Actor, source strin
 	}
 	var existingVersion int64
 	var existingRef string
-	e := tx.QueryRow(ctx, `SELECT source_version,source_ref FROM vendor_verification_projections WHERE business_id=$1 AND dimension=$2 AND subject_type=$3 AND subject_ref=$4 FOR UPDATE`, actor.VendorID, dimension, subjectType, subjectRef).Scan(&existingVersion, &existingRef)
+	// Serialize the first insert as well as updates for this subject.
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, actor.VendorID+":"+string(dimension)+":"+subjectType+":"+subjectRef); err != nil {
+		return VerificationProjection{}, err
+	}
+	var existingObserved time.Time
+	e := tx.QueryRow(ctx, `SELECT source_version,source_ref,observed_at FROM vendor_verification_projections WHERE business_id=$1 AND dimension=$2 AND subject_type=$3 AND subject_ref=$4 FOR UPDATE`, actor.VendorID, dimension, subjectType, subjectRef).Scan(&existingVersion, &existingRef, &existingObserved)
 	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
 		return VerificationProjection{}, e
 	}
@@ -511,15 +516,23 @@ func (s *Service) applyProjection(ctx context.Context, actor Actor, source strin
 		s.metrics.Inc("verification_stale_source_rejected_total", "dimension", string(dimension))
 		return VerificationProjection{}, apperrors.Conflict("Stale verification source version cannot overwrite the current projection.", nil)
 	}
+	if e == nil && existingRef != result.SourceRef && !result.ObservedAt.After(existingObserved) {
+		return VerificationProjection{}, apperrors.Conflict("An older verification case cannot replace the current projection.", nil)
+	}
 	if e == nil && existingRef == result.SourceRef && result.SourceVersion == existingVersion {
+		// Only a successful authority read-back renews freshness. Replayed
+		// callbacks must not keep a lost/superseded decision publicly valid.
+		if eventID == "" {
+			if _, err = tx.Exec(ctx, `UPDATE vendor_verification_projections SET updated_at=now() WHERE business_id=$1 AND dimension=$2 AND subject_type=$3 AND subject_ref=$4`, actor.VendorID, dimension, subjectType, subjectRef); err != nil {
+				return VerificationProjection{}, err
+			}
+		}
 		p, scanErr := scanProjection(tx.QueryRow(ctx, `SELECT `+projectionCols+` FROM vendor_verification_projections WHERE business_id=$1 AND dimension=$2 AND subject_type=$3 AND subject_ref=$4`, actor.VendorID, dimension, subjectType, subjectRef))
 		if scanErr != nil {
 			return VerificationProjection{}, scanErr
 		}
-		if eventID != "" {
-			if commitErr := tx.Commit(ctx); commitErr != nil {
-				return VerificationProjection{}, commitErr
-			}
+		if commitErr := tx.Commit(ctx); commitErr != nil {
+			return VerificationProjection{}, commitErr
 		}
 		return p, nil
 	}
@@ -1031,7 +1044,7 @@ func (s *Service) ReconcileVerifications(ctx context.Context, worker string, lim
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := s.db.Query(ctx, `WITH due AS (SELECT id FROM vendor_verification_operations WHERE status IN ('PENDING','UNKNOWN','FAILED') AND next_attempt_at<=now() AND (lease_expires_at IS NULL OR lease_expires_at<now()) ORDER BY next_attempt_at LIMIT $1 FOR UPDATE SKIP LOCKED) UPDATE vendor_verification_operations o SET lease_owner=$2,lease_expires_at=now()+interval '30 seconds',attempts=attempts+1,updated_at=now() FROM due WHERE o.id=due.id RETURNING o.id,o.business_id,o.dimension,o.subject_type,o.subject_ref,o.client_reference,o.attempts`, limit, worker)
+	rows, err := s.db.Query(ctx, `WITH due AS (SELECT id FROM vendor_verification_operations WHERE status IN ('PENDING','UNKNOWN','FAILED','COMPLETED') AND next_attempt_at<=now() AND (lease_expires_at IS NULL OR lease_expires_at<now()) ORDER BY next_attempt_at LIMIT $1 FOR UPDATE SKIP LOCKED) UPDATE vendor_verification_operations o SET lease_owner=$2,lease_expires_at=now()+interval '30 seconds',attempts=attempts+1,updated_at=now() FROM due WHERE o.id=due.id RETURNING o.id,o.business_id,o.dimension,o.subject_type,o.subject_ref,o.client_reference,o.attempts`, limit, worker)
 	if err != nil {
 		return err
 	}
@@ -1067,7 +1080,7 @@ func (s *Service) ReconcileVerifications(ctx context.Context, worker string, lim
 			if terminalVerificationStatus(result.Status) {
 				status = "COMPLETED"
 			}
-			_, _ = s.db.Exec(ctx, `UPDATE vendor_verification_operations SET status=$2,source_ref=$3,attempts=CASE WHEN $2='PENDING' THEN 0 ELSE attempts END,next_attempt_at=CASE WHEN $2='PENDING' THEN now()+interval '1 minute' ELSE next_attempt_at END,lease_owner=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=now(),version=version+1 WHERE id=$1`, o.id, status, result.SourceRef)
+			_, _ = s.db.Exec(ctx, `UPDATE vendor_verification_operations SET status=$2,source_ref=$3,attempts=0,next_attempt_at=now()+interval '1 minute',lease_owner=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=now(),version=version+1 WHERE id=$1`, o.id, status, result.SourceRef)
 		} else {
 			status := "FAILED"
 			if o.attempts >= 8 {

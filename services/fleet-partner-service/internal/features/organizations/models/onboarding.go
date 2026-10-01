@@ -125,6 +125,13 @@ const (
 	DocumentStatusRemoved  = "REMOVED"
 )
 
+var RequiredDocumentTypes = []string{
+	"CERTIFICATE_OF_INCORPORATION",
+	"TAX_CLEARANCE",
+	"INSURANCE_POLICY",
+	"OPERATING_LICENSE",
+}
+
 // Closure request statuses.
 const (
 	ClosureStatusRequested        = "REQUESTED"
@@ -148,39 +155,39 @@ const (
 
 // Profile is the extended organization business profile.
 type Profile struct {
-	OrganizationID      string
-	BusinessType        *string
-	IncorporationDate   *time.Time
-	TaxReference        *string
-	RegisteredAddress   map[string]any
-	OperatingAddress    map[string]any
-	BusinessEmail       *string
-	BusinessPhone       *string
-	Website             *string
-	BusinessDescription *string
-	Version             int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	OrganizationID      string         `json:"organizationId"`
+	BusinessType        *string        `json:"businessType,omitempty"`
+	IncorporationDate   *time.Time     `json:"incorporationDate,omitempty"`
+	TaxReference        *string        `json:"taxReference,omitempty"`
+	RegisteredAddress   map[string]any `json:"registeredAddress,omitempty"`
+	OperatingAddress    map[string]any `json:"operatingAddress,omitempty"`
+	BusinessEmail       *string        `json:"businessEmail,omitempty"`
+	BusinessPhone       *string        `json:"businessPhone,omitempty"`
+	Website             *string        `json:"website,omitempty"`
+	BusinessDescription *string        `json:"businessDescription,omitempty"`
+	Version             int64          `json:"version"`
+	CreatedAt           time.Time      `json:"createdAt"`
+	UpdatedAt           time.Time      `json:"updatedAt"`
 }
 
 // Representative is an authorized representative of the organization.
 type Representative struct {
-	ID                      string
-	OrganizationID          string
-	FullName                string
-	RoleTitle               string
-	Email                   string
-	Phone                   string
-	AuthorityType           string
-	AuthorityDocumentFileID *string
-	IdentityReference       *string
-	IsOnboardingOwner       bool
-	Status                  string
-	EffectiveFrom           time.Time
-	EffectiveTo             *time.Time
-	Version                 int64
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
+	ID                      string     `json:"id"`
+	OrganizationID          string     `json:"organizationId"`
+	FullName                string     `json:"fullName"`
+	RoleTitle               string     `json:"roleTitle"`
+	Email                   string     `json:"email"`
+	Phone                   string     `json:"phone"`
+	AuthorityType           string     `json:"authorityType"`
+	AuthorityDocumentFileID *string    `json:"authorityDocumentFileId,omitempty"`
+	IdentityReference       *string    `json:"identityReference,omitempty"`
+	IsOnboardingOwner       bool       `json:"isOnboardingOwner"`
+	Status                  string     `json:"status"`
+	EffectiveFrom           time.Time  `json:"effectiveFrom"`
+	EffectiveTo             *time.Time `json:"effectiveTo,omitempty"`
+	Version                 int64      `json:"version"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	UpdatedAt               time.Time  `json:"updatedAt"`
 }
 
 // OnboardingStage is one stage's progress.
@@ -196,20 +203,20 @@ type OnboardingStage struct {
 
 // Document references a business document held by media-file-service.
 type Document struct {
-	ID                    string
-	OrganizationID        string
-	DocumentType          string
-	FileID                string
-	VerificationReference *string
-	Status                string
-	IssuedAt              *time.Time
-	ExpiresAt             *time.Time
-	SourceService         string
-	SourceVersion         int64
-	LastEventID           *string
-	SyncedAt              *time.Time
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	ID                    string     `json:"id"`
+	OrganizationID        string     `json:"organizationId"`
+	DocumentType          string     `json:"documentType"`
+	FileID                string     `json:"fileId"`
+	VerificationReference *string    `json:"verificationReference,omitempty"`
+	Status                string     `json:"status"`
+	IssuedAt              *time.Time `json:"issuedAt,omitempty"`
+	ExpiresAt             *time.Time `json:"expiresAt,omitempty"`
+	SourceService         string     `json:"sourceService"`
+	SourceVersion         int64      `json:"sourceVersion"`
+	LastEventID           *string    `json:"lastEventId,omitempty"`
+	SyncedAt              *time.Time `json:"syncedAt,omitempty"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 // VerificationRequest is an immutable submission snapshot plus its
@@ -283,12 +290,12 @@ type ClosureRequest struct {
 
 // ClosureBlocker is one obligation preventing closure.
 type ClosureBlocker struct {
-	ID               string
-	OrganizationID   string
-	ClosureRequestID string
-	BlockerCode      string
-	OwningService    string
-	Detail           string
-	State            string
-	CheckedAt        time.Time
+	ID               string    `json:"id"`
+	OrganizationID   string    `json:"organizationId"`
+	ClosureRequestID string    `json:"closureRequestId"`
+	BlockerCode      string    `json:"blockerCode"`
+	OwningService    string    `json:"owningService"`
+	Detail           string    `json:"detail"`
+	State            string    `json:"state"`
+	CheckedAt        time.Time `json:"checkedAt"`
 }

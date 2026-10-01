@@ -1,0 +1,1175 @@
+{
+  "section": "44 — EVENT CATALOGUE",
+  "canonicalEvents": [
+    {
+      "name": "vendor.business.activated",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "vendor.business.activated"
+      ],
+      "transactionalSource": "vendor business activation transaction",
+      "payloadFields": [
+        "activation_version",
+        "business_ref",
+        "occurred_at"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "admin projection",
+        "analytics",
+        "notification"
+      ]
+    },
+    {
+      "name": "vendor.branch.status_changed",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "vendor.branch.status_changed"
+      ],
+      "transactionalSource": "vendor branch lifecycle transaction",
+      "payloadFields": [
+        "branch_ref",
+        "branch_version",
+        "business_ref",
+        "new_status",
+        "previous_status",
+        "reason_code"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics",
+        "search projection"
+      ]
+    },
+    {
+      "name": "vendor.catalog.item_changed",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "food.item.archived",
+        "food.item.created",
+        "food.item.updated",
+        "pastry.product.changed",
+        "shop.listing.changed",
+        "shop.product.changed"
+      ],
+      "transactionalSource": "Food/Shop/Pastry catalogue transaction",
+      "payloadFields": [
+        "branch_ref",
+        "business_ref",
+        "catalogue_family",
+        "catalogue_revision",
+        "change_type",
+        "item_ref",
+        "item_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics",
+        "search projection"
+      ]
+    },
+    {
+      "name": "vendor.inventory.stock_changed",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "shop.inventory.adjusted",
+        "shop.inventory.lot.expired",
+        "shop.inventory.receipt.posted",
+        "shop.inventory.reservation.expired"
+      ],
+      "transactionalSource": "inventory mutation transaction",
+      "payloadFields": [
+        "availability_state",
+        "branch_ref",
+        "business_ref",
+        "change_reason",
+        "stock_basis_ref",
+        "stock_revision"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics",
+        "search projection"
+      ]
+    },
+    {
+      "name": "commerce.checkout.paid",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "payment-wallet-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.checkout.paid"
+      ],
+      "transactionalSource": "Wallet-confirmed payment projection transaction",
+      "payloadFields": [
+        "approved_total_minor",
+        "currency",
+        "parent_order_ref",
+        "payment_authority_status_ref",
+        "payment_operation_ref",
+        "quote_ref",
+        "quote_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics"
+      ]
+    },
+    {
+      "name": "commerce.order.created",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.order.created"
+      ],
+      "transactionalSource": "ParentOrder creation transaction",
+      "payloadFields": [
+        "currency",
+        "occurred_at",
+        "order_version",
+        "parent_order_ref",
+        "quote_ref",
+        "vendor_order_count"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics"
+      ]
+    },
+    {
+      "name": "vendor.order.accepted",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.accepted"
+      ],
+      "transactionalSource": "VendorOrder expectedVersion transition",
+      "payloadFields": [
+        "accepted_at",
+        "branch_ref",
+        "business_ref",
+        "order_version",
+        "parent_order_ref",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics",
+        "notification"
+      ]
+    },
+    {
+      "name": "vendor.order.rejected",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.rejected"
+      ],
+      "transactionalSource": "VendorOrder expectedVersion transition",
+      "payloadFields": [
+        "branch_ref",
+        "business_ref",
+        "order_version",
+        "parent_order_ref",
+        "reason_code",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics",
+        "notification"
+      ]
+    },
+    {
+      "name": "vendor.order.ready",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.ready",
+        "commerce.vendor_order.ready_for_pickup"
+      ],
+      "transactionalSource": "VendorOrder expectedVersion transition",
+      "payloadFields": [
+        "branch_ref",
+        "fulfilment_ref",
+        "order_version",
+        "ready_at",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics",
+        "notification"
+      ]
+    },
+    {
+      "name": "commerce.fulfilment.plan_created",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.fulfilment.plan_activated"
+      ],
+      "transactionalSource": "fulfilment plan activation transaction",
+      "payloadFields": [
+        "checkout_ref",
+        "expires_at",
+        "mission_count",
+        "mode",
+        "plan_ref",
+        "plan_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "notification"
+      ]
+    },
+    {
+      "name": "commerce.fulfilment.plan_replanned",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.fulfilment.plan_activated"
+      ],
+      "transactionalSource": "versioned fulfilment replan transaction",
+      "payloadFields": [
+        "commercial_impact",
+        "new_plan_ref",
+        "new_plan_version",
+        "previous_plan_ref",
+        "previous_plan_version",
+        "reason_code"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "notification"
+      ]
+    },
+    {
+      "name": "commerce.mission.requested",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.fulfilment.mission_requested"
+      ],
+      "transactionalSource": "mission reference creation transaction",
+      "payloadFields": [
+        "authority_ref",
+        "commerce_operation_ref",
+        "mission_operation_id",
+        "service_family",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.provider_assigned",
+      "version": 1,
+      "producer": "logistics-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "PROVIDER_ASSIGNED",
+        "PROVIDER_REASSIGNED"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "assigned_at",
+        "assignment_version",
+        "mission_ref",
+        "provider_ref"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.pickup.verified",
+      "version": 1,
+      "producer": "logistics-custody-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "HANDED_OVER",
+        "PICKUP_VERIFIED"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "custody_version",
+        "mission_ref",
+        "occurred_at"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.parcel.picked_up",
+      "version": 1,
+      "producer": "logistics-custody-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "PICKED_UP"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "custody_version",
+        "mission_ref",
+        "occurred_at",
+        "parcel_refs"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.receiver.verified",
+      "version": 1,
+      "producer": "logistics-custody-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "RECEIVER_VERIFIED"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "custody_version",
+        "mission_ref",
+        "occurred_at",
+        "verification_ref"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.completed",
+      "version": 1,
+      "producer": "logistics-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "COMPLETED",
+        "DELIVERED"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "mission_ref",
+        "occurred_at",
+        "outcome_ref",
+        "outcome_version"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.failed",
+      "version": 1,
+      "producer": "logistics-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "DELIVERY_FAILED",
+        "FAILED"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "failure_code",
+        "mission_ref",
+        "outcome_version",
+        "recovery_ref"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "delivery.returned",
+      "version": 1,
+      "producer": "logistics-custody-authority",
+      "authority": "Dispatch/Hauling/Taxi Goods/VendorMission",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "RETURNED",
+        "commerce.fulfilment.return_initiated"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "destination_authority_ref",
+        "mission_ref",
+        "return_manifest_ref",
+        "return_version"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.refund.completed",
+      "version": 1,
+      "producer": "payment-wallet-service",
+      "authority": "payment-wallet-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.partially_refunded",
+        "commerce.vendor_order.refunded",
+        "wallet.refund.status_changed.v1"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "amount_minor",
+        "authority_version",
+        "currency",
+        "order_ref",
+        "refund_operation_ref"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.vendor_settlement.completed",
+      "version": 1,
+      "producer": "payment-wallet-service",
+      "authority": "payment-wallet-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "wallet.settlement.status_changed.v1"
+      ],
+      "transactionalSource": "authority event inbox and projection transaction",
+      "payloadFields": [
+        "amount_minor",
+        "authority_version",
+        "currency",
+        "settlement_operation_ref",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": [
+        "vendor-service"
+      ],
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.quote.locked",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.quote.locked"
+      ],
+      "transactionalSource": "immutable quote approval and outbox transaction",
+      "payloadFields": [
+        "currency",
+        "expires_at",
+        "final_total_minor",
+        "maximum_authorized_total_minor",
+        "quote_fingerprint",
+        "quote_ref",
+        "quote_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.fulfilment.option_selected",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.fulfilment.plan_activated"
+      ],
+      "transactionalSource": "selected plan activation transaction",
+      "payloadFields": [
+        "checkout_ref",
+        "mode",
+        "plan_ref",
+        "plan_version",
+        "quote_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.allocation.created",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.order.created",
+        "commerce.vendor_order.created"
+      ],
+      "transactionalSource": "ParentOrder/VendorOrder allocation transaction",
+      "payloadFields": [
+        "allocation_ref",
+        "allocation_type",
+        "amount_minor",
+        "beneficiary_ref",
+        "currency",
+        "parent_order_ref",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.substitution.proposed",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.substitution_proposed"
+      ],
+      "transactionalSource": "substitution proposal transaction",
+      "payloadFields": [
+        "expires_at",
+        "financial_delta_classification",
+        "line_ref",
+        "proposal_ref",
+        "proposal_version",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "notification"
+      ]
+    },
+    {
+      "name": "commerce.substitution.resolved",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.substitution_approved",
+        "commerce.vendor_order.substitution_rejected"
+      ],
+      "transactionalSource": "substitution resolution transaction",
+      "payloadFields": [
+        "decision",
+        "decision_version",
+        "proposal_ref",
+        "resulting_order_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "notification"
+      ]
+    },
+    {
+      "name": "commerce.variable_weight.finalized",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.vendor_order.variable_measurement_finalized"
+      ],
+      "transactionalSource": "variable measurement finalization transaction",
+      "payloadFields": [
+        "financial_adjustment_ref",
+        "line_ref",
+        "measurement_ref",
+        "measurement_version",
+        "quantity",
+        "vendor_order_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.optimization.proposal_created",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "DEPENDENCY_GATED",
+      "implementedEventNames": null,
+      "transactionalSource": "",
+      "payloadFields": [
+        "candidate_count",
+        "expires_at",
+        "objective",
+        "proposal_ref",
+        "proposal_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "commerce basket optimization feature flag"
+      ],
+      "notes": "No active emitter is claimed while the dependency is disabled."
+    },
+    {
+      "name": "commerce.recurring_basket.generated",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.recurring_occurrence.generated"
+      ],
+      "transactionalSource": "recurring occurrence uniqueness transaction",
+      "payloadFields": [
+        "generated_at",
+        "idempotency_ref",
+        "occurrence_ref",
+        "proposal_ref",
+        "proposal_version",
+        "template_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.rfq.quote_submitted",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.rfq.quote_submitted"
+      ],
+      "transactionalSource": "RFQ quote transaction",
+      "payloadFields": [
+        "business_ref",
+        "occurred_at",
+        "quote_ref",
+        "quote_revision",
+        "rfq_ref",
+        "status"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics"
+      ]
+    },
+    {
+      "name": "commerce.rfq.quote_revised",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.rfq.counter_offer.submitted",
+        "commerce.rfq.quote_submitted"
+      ],
+      "transactionalSource": "RFQ quote revision transaction",
+      "payloadFields": [
+        "business_ref",
+        "occurred_at",
+        "quote_ref",
+        "quote_revision",
+        "rfq_ref",
+        "status"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics"
+      ]
+    },
+    {
+      "name": "commerce.rfq.quote_accepted",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.rfq.accepted"
+      ],
+      "transactionalSource": "RFQ acceptance transaction",
+      "payloadFields": [
+        "business_ref",
+        "occurred_at",
+        "quote_ref",
+        "quote_revision",
+        "rfq_ref",
+        "status"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "analytics"
+      ]
+    },
+    {
+      "name": "vendor.verification.badge_changed",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "verification-compliance-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "vendor.verification.projection_changed"
+      ],
+      "transactionalSource": "authoritative verification projection transaction",
+      "payloadFields": [
+        "authority_ref",
+        "authority_version",
+        "badge_projection",
+        "business_ref",
+        "projection_version",
+        "verification_dimension"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "vendor.reliability.updated",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "DEPENDENCY_GATED",
+      "implementedEventNames": null,
+      "transactionalSource": "",
+      "payloadFields": [
+        "business_ref",
+        "coverage_window",
+        "metric_version",
+        "snapshot_ref",
+        "updated_at"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "Vendor CRM intelligence worker flag"
+      ],
+      "notes": "No active emitter is claimed while the dependency is disabled."
+    },
+    {
+      "name": "vendor.intelligence.snapshot_updated",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "DEPENDENCY_GATED",
+      "implementedEventNames": null,
+      "transactionalSource": "",
+      "payloadFields": [
+        "business_ref",
+        "coverage_period",
+        "freshness_state",
+        "snapshot_ref",
+        "snapshot_version"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "Vendor CRM intelligence worker flag"
+      ],
+      "notes": "No active emitter is claimed while the dependency is disabled."
+    },
+    {
+      "name": "commerce.budget_basket.proposal_created",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "DEPENDENCY_GATED",
+      "implementedEventNames": null,
+      "transactionalSource": "",
+      "payloadFields": [
+        "budget_minor",
+        "candidate_count",
+        "currency",
+        "expires_at",
+        "proposal_ref",
+        "proposal_version",
+        "request_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": [
+        "commerce basket optimization feature flag"
+      ],
+      "notes": "No active emitter is claimed while the dependency is disabled."
+    },
+    {
+      "name": "commerce.recurring_basket.approved",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "vendor-service",
+      "status": "ACTIVE",
+      "implementedEventNames": [
+        "commerce.recurring_schedule.active"
+      ],
+      "transactionalSource": "recurring schedule approval transaction",
+      "payloadFields": [
+        "approval_version",
+        "approved_quote_version",
+        "occurred_at",
+        "occurrence_ref",
+        "proposal_ref",
+        "template_ref"
+      ],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null
+    },
+    {
+      "name": "commerce.order_guarantee.evaluated",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "future Order Guarantee authority",
+      "status": "FUTURE_DISABLED",
+      "implementedEventNames": null,
+      "transactionalSource": "",
+      "payloadFields": [],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null,
+      "notes": "Reserved only; no emitter, worker, route, table, or Wallet call exists."
+    },
+    {
+      "name": "commerce.order_guarantee.compensation_issued",
+      "version": 1,
+      "producer": "vendor-service",
+      "authority": "future Order Guarantee authority",
+      "status": "FUTURE_DISABLED",
+      "implementedEventNames": null,
+      "transactionalSource": "",
+      "payloadFields": [],
+      "activeConsumers": null,
+      "dependencyGatedConsumers": null,
+      "notes": "Reserved only; no emitter, worker, route, table, or Wallet call exists."
+    }
+  ],
+  "implementedEmitters": {
+    "commerce.allocation.created": [
+      "commerce.order.created",
+      "commerce.vendor_order.created"
+    ],
+    "commerce.checkout.paid": [
+      "commerce.checkout.paid"
+    ],
+    "commerce.fulfilment.option_selected": [
+      "commerce.fulfilment.plan_activated"
+    ],
+    "commerce.fulfilment.plan_created": [
+      "commerce.fulfilment.plan_activated"
+    ],
+    "commerce.fulfilment.plan_replanned": [
+      "commerce.fulfilment.plan_activated"
+    ],
+    "commerce.mission.requested": [
+      "commerce.fulfilment.mission_requested"
+    ],
+    "commerce.order.created": [
+      "commerce.order.created"
+    ],
+    "commerce.quote.locked": [
+      "commerce.quote.locked"
+    ],
+    "commerce.recurring_basket.approved": [
+      "commerce.recurring_schedule.active"
+    ],
+    "commerce.recurring_basket.generated": [
+      "commerce.recurring_occurrence.generated"
+    ],
+    "commerce.refund.completed": [
+      "commerce.vendor_order.partially_refunded",
+      "commerce.vendor_order.refunded",
+      "wallet.refund.status_changed.v1"
+    ],
+    "commerce.rfq.quote_accepted": [
+      "commerce.rfq.accepted"
+    ],
+    "commerce.rfq.quote_revised": [
+      "commerce.rfq.counter_offer.submitted",
+      "commerce.rfq.quote_submitted"
+    ],
+    "commerce.rfq.quote_submitted": [
+      "commerce.rfq.quote_submitted"
+    ],
+    "commerce.substitution.proposed": [
+      "commerce.vendor_order.substitution_proposed"
+    ],
+    "commerce.substitution.resolved": [
+      "commerce.vendor_order.substitution_approved",
+      "commerce.vendor_order.substitution_rejected"
+    ],
+    "commerce.variable_weight.finalized": [
+      "commerce.vendor_order.variable_measurement_finalized"
+    ],
+    "commerce.vendor_settlement.completed": [
+      "wallet.settlement.status_changed.v1"
+    ],
+    "delivery.completed": [
+      "COMPLETED",
+      "DELIVERED"
+    ],
+    "delivery.failed": [
+      "DELIVERY_FAILED",
+      "FAILED"
+    ],
+    "delivery.parcel.picked_up": [
+      "PICKED_UP"
+    ],
+    "delivery.pickup.verified": [
+      "HANDED_OVER",
+      "PICKUP_VERIFIED"
+    ],
+    "delivery.provider_assigned": [
+      "PROVIDER_ASSIGNED",
+      "PROVIDER_REASSIGNED"
+    ],
+    "delivery.receiver.verified": [
+      "RECEIVER_VERIFIED"
+    ],
+    "delivery.returned": [
+      "RETURNED",
+      "commerce.fulfilment.return_initiated"
+    ],
+    "vendor.branch.status_changed": [
+      "vendor.branch.status_changed"
+    ],
+    "vendor.business.activated": [
+      "vendor.business.activated"
+    ],
+    "vendor.catalog.item_changed": [
+      "food.item.archived",
+      "food.item.created",
+      "food.item.updated",
+      "pastry.product.changed",
+      "shop.listing.changed",
+      "shop.product.changed"
+    ],
+    "vendor.inventory.stock_changed": [
+      "shop.inventory.adjusted",
+      "shop.inventory.lot.expired",
+      "shop.inventory.receipt.posted",
+      "shop.inventory.reservation.expired"
+    ],
+    "vendor.order.accepted": [
+      "commerce.vendor_order.accepted"
+    ],
+    "vendor.order.ready": [
+      "commerce.vendor_order.ready",
+      "commerce.vendor_order.ready_for_pickup"
+    ],
+    "vendor.order.rejected": [
+      "commerce.vendor_order.rejected"
+    ],
+    "vendor.verification.badge_changed": [
+      "vendor.verification.projection_changed"
+    ]
+  },
+  "producers": {
+    "commerce.allocation.created": "vendor-service",
+    "commerce.budget_basket.proposal_created": "vendor-service",
+    "commerce.checkout.paid": "vendor-service",
+    "commerce.fulfilment.option_selected": "vendor-service",
+    "commerce.fulfilment.plan_created": "vendor-service",
+    "commerce.fulfilment.plan_replanned": "vendor-service",
+    "commerce.mission.requested": "vendor-service",
+    "commerce.optimization.proposal_created": "vendor-service",
+    "commerce.order.created": "vendor-service",
+    "commerce.order_guarantee.compensation_issued": "vendor-service",
+    "commerce.order_guarantee.evaluated": "vendor-service",
+    "commerce.quote.locked": "vendor-service",
+    "commerce.recurring_basket.approved": "vendor-service",
+    "commerce.recurring_basket.generated": "vendor-service",
+    "commerce.refund.completed": "payment-wallet-service",
+    "commerce.rfq.quote_accepted": "vendor-service",
+    "commerce.rfq.quote_revised": "vendor-service",
+    "commerce.rfq.quote_submitted": "vendor-service",
+    "commerce.substitution.proposed": "vendor-service",
+    "commerce.substitution.resolved": "vendor-service",
+    "commerce.variable_weight.finalized": "vendor-service",
+    "commerce.vendor_settlement.completed": "payment-wallet-service",
+    "delivery.completed": "logistics-authority",
+    "delivery.failed": "logistics-authority",
+    "delivery.parcel.picked_up": "logistics-custody-authority",
+    "delivery.pickup.verified": "logistics-custody-authority",
+    "delivery.provider_assigned": "logistics-authority",
+    "delivery.receiver.verified": "logistics-custody-authority",
+    "delivery.returned": "logistics-custody-authority",
+    "vendor.branch.status_changed": "vendor-service",
+    "vendor.business.activated": "vendor-service",
+    "vendor.catalog.item_changed": "vendor-service",
+    "vendor.intelligence.snapshot_updated": "vendor-service",
+    "vendor.inventory.stock_changed": "vendor-service",
+    "vendor.order.accepted": "vendor-service",
+    "vendor.order.ready": "vendor-service",
+    "vendor.order.rejected": "vendor-service",
+    "vendor.reliability.updated": "vendor-service",
+    "vendor.verification.badge_changed": "vendor-service"
+  },
+  "versions": {
+    "commerce.allocation.created": 1,
+    "commerce.budget_basket.proposal_created": 1,
+    "commerce.checkout.paid": 1,
+    "commerce.fulfilment.option_selected": 1,
+    "commerce.fulfilment.plan_created": 1,
+    "commerce.fulfilment.plan_replanned": 1,
+    "commerce.mission.requested": 1,
+    "commerce.optimization.proposal_created": 1,
+    "commerce.order.created": 1,
+    "commerce.order_guarantee.compensation_issued": 1,
+    "commerce.order_guarantee.evaluated": 1,
+    "commerce.quote.locked": 1,
+    "commerce.recurring_basket.approved": 1,
+    "commerce.recurring_basket.generated": 1,
+    "commerce.refund.completed": 1,
+    "commerce.rfq.quote_accepted": 1,
+    "commerce.rfq.quote_revised": 1,
+    "commerce.rfq.quote_submitted": 1,
+    "commerce.substitution.proposed": 1,
+    "commerce.substitution.resolved": 1,
+    "commerce.variable_weight.finalized": 1,
+    "commerce.vendor_settlement.completed": 1,
+    "delivery.completed": 1,
+    "delivery.failed": 1,
+    "delivery.parcel.picked_up": 1,
+    "delivery.pickup.verified": 1,
+    "delivery.provider_assigned": 1,
+    "delivery.receiver.verified": 1,
+    "delivery.returned": 1,
+    "vendor.branch.status_changed": 1,
+    "vendor.business.activated": 1,
+    "vendor.catalog.item_changed": 1,
+    "vendor.intelligence.snapshot_updated": 1,
+    "vendor.inventory.stock_changed": 1,
+    "vendor.order.accepted": 1,
+    "vendor.order.ready": 1,
+    "vendor.order.rejected": 1,
+    "vendor.reliability.updated": 1,
+    "vendor.verification.badge_changed": 1
+  },
+  "activeConsumers": {
+    "commerce.refund.completed": [
+      "vendor-service"
+    ],
+    "commerce.vendor_settlement.completed": [
+      "vendor-service"
+    ],
+    "delivery.completed": [
+      "vendor-service"
+    ],
+    "delivery.failed": [
+      "vendor-service"
+    ],
+    "delivery.parcel.picked_up": [
+      "vendor-service"
+    ],
+    "delivery.pickup.verified": [
+      "vendor-service"
+    ],
+    "delivery.provider_assigned": [
+      "vendor-service"
+    ],
+    "delivery.receiver.verified": [
+      "vendor-service"
+    ],
+    "delivery.returned": [
+      "vendor-service"
+    ]
+  },
+  "dependencyGatedConsumers": {
+    "commerce.budget_basket.proposal_created": [
+      "commerce basket optimization feature flag"
+    ],
+    "commerce.checkout.paid": [
+      "analytics"
+    ],
+    "commerce.fulfilment.plan_created": [
+      "notification"
+    ],
+    "commerce.fulfilment.plan_replanned": [
+      "notification"
+    ],
+    "commerce.optimization.proposal_created": [
+      "commerce basket optimization feature flag"
+    ],
+    "commerce.order.created": [
+      "analytics"
+    ],
+    "commerce.rfq.quote_accepted": [
+      "analytics"
+    ],
+    "commerce.rfq.quote_revised": [
+      "analytics"
+    ],
+    "commerce.rfq.quote_submitted": [
+      "analytics"
+    ],
+    "commerce.substitution.proposed": [
+      "notification"
+    ],
+    "commerce.substitution.resolved": [
+      "notification"
+    ],
+    "vendor.branch.status_changed": [
+      "analytics",
+      "search projection"
+    ],
+    "vendor.business.activated": [
+      "admin projection",
+      "analytics",
+      "notification"
+    ],
+    "vendor.catalog.item_changed": [
+      "analytics",
+      "search projection"
+    ],
+    "vendor.intelligence.snapshot_updated": [
+      "Vendor CRM intelligence worker flag"
+    ],
+    "vendor.inventory.stock_changed": [
+      "analytics",
+      "search projection"
+    ],
+    "vendor.order.accepted": [
+      "analytics",
+      "notification"
+    ],
+    "vendor.order.ready": [
+      "analytics",
+      "notification"
+    ],
+    "vendor.order.rejected": [
+      "analytics",
+      "notification"
+    ],
+    "vendor.reliability.updated": [
+      "Vendor CRM intelligence worker flag"
+    ]
+  },
+  "futureDisabledEvents": [
+    "commerce.order_guarantee.compensation_issued",
+    "commerce.order_guarantee.evaluated"
+  ],
+  "missingDocumentedEvents": [],
+  "undocumentedImplementedEvents": [],
+  "producerMismatches": [],
+  "duplicateCanonicalEvents": []
+}

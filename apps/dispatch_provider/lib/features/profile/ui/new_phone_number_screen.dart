@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import 'otp_confirmation_screen.dart';
 
 class NewPhoneNumberScreen extends StatefulWidget {
@@ -27,7 +29,7 @@ class _NewPhoneNumberScreenState extends State<NewPhoneNumberScreen> {
     super.dispose();
   }
 
-  Future<void> _onVerify() async {
+  Future<void> _onSendCode() async {
     final result = await Navigator.of(context).push<Map<String, String>>(
       MaterialPageRoute(
         builder: (_) => OtpConfirmationScreen(
@@ -38,198 +40,163 @@ class _NewPhoneNumberScreenState extends State<NewPhoneNumberScreen> {
         ),
       ),
     );
-
     if (!mounted) return;
-    if (result != null) {
-      Navigator.of(context).pop(result);
-    }
+    if (result != null) Navigator.of(context).pop(result);
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: c.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: const Padding(
-                  padding: EdgeInsets.only(top: 4, bottom: 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 20,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'New Phone Number',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter new phone number to proceed',
-                style: TextStyle(
-                  color: Color(0xFF888888),
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 36),
-              const Text(
-                'Enter your Phone Number',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
+        child: Column(
+          children: [
+            // ── Header ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
                 children: [
-                  _CountryCodeBox(flag: _countryFlag, code: _countryCode),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _numberController,
-                      builder: (context, value, _) {
-                        return TextField(
-                          controller: _numberController,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF05124D),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Phone number',
-                            hintStyle: const TextStyle(
-                              color: Color(0xFFAAAAAA),
-                              fontSize: 14,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF05124D),
-                                width: 1.5,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF05124D),
-                                width: 1.5,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF05124D),
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 22,
+                        color: c.text,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const Spacer(),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _numberController,
-                builder: (context, value, _) {
-                  final canContinue = value.text.length >= 10;
-                  return SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: canContinue ? _onVerify : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF05124D),
-                        disabledBackgroundColor: const Color(
-                          0xFF05124D,
-                        ).withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      child: const Text(
-                        'Verify',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CountryCodeBox extends StatelessWidget {
-  const _CountryCodeBox({required this.flag, required this.code});
-
-  final String flag;
-  final String code;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(flag, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 6),
-          Text(
-            code,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1A1A1A),
             ),
-          ),
-          const SizedBox(width: 4),
-          const Icon(
-            Icons.keyboard_arrow_down,
-            size: 18,
-            color: Color(0xFF888888),
-          ),
-        ],
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  Text(
+                    'Change phone number',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: c.text,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "We'll send a verification code to your new number.",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: c.textMuted,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  Text(
+                    'New phone number',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: c.text,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── Country code + number ──
+                  Container(
+                    decoration: BoxDecoration(
+                      color: c.inputFill,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Row(
+                            children: [
+                              Text(_countryFlag,
+                                  style: const TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
+                              Text(
+                                '($_countryCode)',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 22,
+                          color: c.divider,
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _numberController,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            onChanged: (_) => setState(() {}),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: c.text,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '801 234 5678',
+                              hintStyle: TextStyle(
+                                color: c.textDisabled,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Send code ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: SizedBox(
+                height: 52,
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _numberController.text.length >= 10
+                      ? _onSendCode
+                      : null,
+                  style: FilledButton.styleFrom(
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: const Text('Send code'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -15,10 +15,10 @@ func NewLoggingOTPSender(debug bool) *LoggingOTPSender {
 
 func (s *LoggingOTPSender) SendOTP(ctx context.Context, destination OTPDestination, otp string) error {
 	if s.debug {
-		log.Printf("customer_auth_otp type=%s value=%s otp=%s", destination.Type, destination.Value, otp)
+		log.Printf("customer_auth_otp type=%s generated=true debug=true", destination.Type)
 		return nil
 	}
 
-	log.Printf("customer_auth_otp type=%s value=%s generated=true", destination.Type, destination.Value)
+	log.Printf("customer_auth_otp type=%s generated=true", destination.Type)
 	return nil
 }

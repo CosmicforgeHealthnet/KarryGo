@@ -68,6 +68,8 @@ All routes below are absent unless `DISPATCH_HANDOVER_CHALLENGE_ENABLED=true`. P
 | POST | `/api/v1/customer/dispatch/bookings/:id/handover/resend` | owning customer bearer | Rotate a receiver/customer-owned challenge |
 | POST | `/api/v1/customer/dispatch/bookings/:id/return-credential` | owning customer bearer | Issue a new manifest-bound return-to-sender credential |
 | POST | `/api/v1/internal/commerce/dispatch/missions/:id/stops/:stopId/pickup/verify` | allowlisted Vendor/API Gateway HMAC v2 + nonce | Source-scoped sender pickup verification |
+| GET | `/api/v1/internal/commerce/dispatch/missions/:id/stops/:stopId/handover/:stage` | allowlisted Vendor/API Gateway HMAC v2 + nonce | Credential-free pickup handover read-back |
+| GET | `/api/v1/internal/commerce/dispatch/missions/:id/handover/:stage` | allowlisted Vendor/API Gateway HMAC v2 + nonce | Credential-free delivery handover read-back |
 | POST | `/api/v1/internal/commerce/dispatch/missions/:id/handover/resend` | allowlisted Vendor/API Gateway HMAC v2 + nonce | Source-scoped challenge rotation |
 | POST | `/api/v1/internal/commerce/dispatch/missions/:id/stops/:stopId/return-credential` | allowlisted Vendor/API Gateway HMAC v2 + nonce | Issue a source-scoped return credential for the sender |
 
@@ -91,3 +93,21 @@ All routes are additive and absent unless their capability flag is enabled.
 | GET | `/api/v1/customer/dispatch/bookings/:id/route-status` | booking-owning customer bearer | Read minimized location plus freshness state |
 
 All mutations require `Idempotency-Key`. Canonical contract: `docs/openapi/delivery-recovery-route-integrity.openapi.json`.
+
+## Section 32 Vendor-owned custody authority
+
+All routes are absent unless `DISPATCH_VENDOR_OWNED_HANDOVER_ENABLED=true` and
+the Vendor HMAC secret is configured. Every route uses HMAC v2, the exact
+`vendor-service` allowlist and PostgreSQL nonce replay protection.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/internal/commerce/vendor-owned/missions` | Bind immutable VendorMission scope and issue one pickup-session challenge |
+| GET | `/api/v1/internal/commerce/vendor-owned/missions/:missionRef/handover/:stage` | Credential-free canonical read-back |
+| POST | `/api/v1/internal/commerce/vendor-owned/missions/:missionRef/handover/:stage/confirm` | Verify OTP/QR and commit custody |
+| POST | `/api/v1/internal/commerce/vendor-owned/missions/:missionRef/handover/:stage/resend` | Rotate both credentials under lock |
+| POST | `/api/v1/internal/commerce/vendor-owned/missions/:missionRef/reassignments` | Explicit provider change and invalidation |
+| POST | `/api/v1/internal/commerce/vendor-owned/missions/:missionRef/receiver-changes` | Explicit receiver change and rotation |
+| POST | `/api/v1/internal/commerce/vendor-owned/missions/:missionRef/cancellations` | Cancel and invalidate active challenge |
+
+Canonical contract: `docs/openapi/vendor-owned-secure-handover.openapi.json`.

@@ -160,10 +160,19 @@ func BodySizeLimit(maxBytes int64) gin.HandlerFunc {
 // RequireJSON enforces application/json on mutating requests.
 // multipart/form-data is reserved for a future direct-upload handoff and is
 // not accepted by any foundation route.
-func RequireJSON() gin.HandlerFunc {
+// RequireJSON enforces application/json on mutating requests, except for
+// paths explicitly exempted (currently: multipart file upload handoffs).
+func RequireJSON(exemptPaths ...string) gin.HandlerFunc {
+	exempt := make(map[string]bool, len(exemptPaths))
+	for _, p := range exemptPaths {
+		exempt[p] = true
+	}
 	return func(c *gin.Context) {
 		switch c.Request.Method {
 		case "POST", "PUT", "PATCH":
+			if exempt[c.FullPath()] {
+				break
+			}
 			contentType := c.ContentType()
 			if c.Request.ContentLength != 0 && contentType != "application/json" {
 				httpx.Abort(c, apperrors.New(415, apperrors.CodeBadRequest, "Content-Type must be application/json.", nil))

@@ -9,7 +9,7 @@
       "post": {
         "operationId": "quoteHaulingCommerceRoute",
         "summary": "Quote a Van/Truck commerce fulfilment route.",
-        "description": "HMAC v2 internal route for vendor-service only. Supports single-pickup and multi-pickup route evidence; creates no booking.",
+        "description": "HMAC v2 internal route for vendor-service only. Supports single-pickup and multi-pickup route evidence, readiness/departure windows, handling, dimensions, and optional bounded loading_duration_seconds; creates no booking.",
         "responses": {
           "200": { "description": "Authoritative persisted quote" },
           "401": { "description": "Missing or invalid HMAC signature" },
@@ -22,7 +22,7 @@
       "post": {
         "operationId": "createHaulingCommerceMission",
         "summary": "Create an already-paid Van/Truck commerce mission.",
-        "description": "Creates one Hauling booking and commerce mission atomically using the customer-approved fee. Same operation_ref with different semantic request conflicts.",
+        "description": "Creates one Hauling booking and commerce mission atomically using the customer-approved fee. Persists multi-stop parcel/manifest/handling/loading evidence for the provider operational projection. Same operation_ref with different semantic request conflicts.",
         "responses": {
           "200": { "description": "Accepted or refused mission" },
           "400": { "description": "Invalid request" },
@@ -58,6 +58,22 @@
           "404": { "description": "Mission not found" },
           "409": { "description": "Mission is already in custody" }
         }
+      }
+    },
+    "/hauling/internal/commerce/missions/{missionRef}/handover/{stage}": {
+      "get": {
+        "operationId": "readHaulingCommerceHandover",
+        "summary": "Read a credential-free canonical handover observation.",
+        "description": "Vendor-only HMAC v2 route with nonce replay protection. Returns opaque reference, stage, status and monotonic projection version only.",
+        "responses": {"200": {"description": "Canonical observation"}, "404": {"description": "Mission or challenge not found"}}
+      }
+    },
+    "/hauling/internal/commerce/missions/{missionRef}/handover/PICKUP/confirm": {
+      "post": {
+        "operationId": "confirmHaulingCommercePickup",
+        "summary": "Relay a provider-presented pickup OTP or QR.",
+        "description": "Credential is processed transiently by the existing Hauling secure challenge repository and is never returned or projected. Idempotency-Key is required; unknown outcomes use the GET read-back route.",
+        "responses": {"200": {"description": "Canonical consumed observation"}, "400": {"description": "Invalid request"}, "401": {"description": "Invalid HMAC"}, "404": {"description": "Mission/challenge mismatch"}, "409": {"description": "Canonical rejection"}}
       }
     }
   }

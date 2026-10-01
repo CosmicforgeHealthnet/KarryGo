@@ -12,19 +12,22 @@ import (
 )
 
 type ProfileService struct {
-	customers  profilerepositories.CustomerRepository
-	mediaClient *mediaclient.Client
+	customers    profilerepositories.CustomerRepository
+	mediaClient  *mediaclient.Client
+	mediaBaseURL string
 }
 
 type Options struct {
-	Customers   profilerepositories.CustomerRepository
-	MediaClient *mediaclient.Client
+	Customers    profilerepositories.CustomerRepository
+	MediaClient  *mediaclient.Client
+	MediaBaseURL string
 }
 
 func NewProfileService(opts Options) *ProfileService {
 	return &ProfileService{
-		customers:   opts.Customers,
-		mediaClient: opts.MediaClient,
+		customers:    opts.Customers,
+		mediaClient:  opts.MediaClient,
+		mediaBaseURL: strings.TrimRight(opts.MediaBaseURL, "/"),
 	}
 }
 
@@ -56,7 +59,24 @@ type SavePhotoURLInput struct {
 }
 
 func (s *ProfileService) SaveProfilePhotoURL(ctx context.Context, input SavePhotoURLInput) (profilemodels.Customer, error) {
-	return s.customers.UpdateProfilePhoto(ctx, input.CustomerID, input.AssetID, input.PhotoURL)
+	if s.mediaClient == nil || strings.TrimSpace(input.AssetID) == "" {
+		return profilemodels.Customer{}, apperrors.Unavailable("Media validation is unavailable.", nil)
+	}
+	asset, err := s.mediaClient.GetByID(ctx, input.AssetID)
+	if err != nil {
+		return profilemodels.Customer{}, err
+	}
+	if asset.OwnerService != "customer-service" || asset.OwnerID != input.CustomerID || asset.Purpose != "profile_photo" || asset.Status != "active" || asset.PublicURL == "" {
+		return profilemodels.Customer{}, apperrors.Forbidden("This photo does not belong to the customer.", nil)
+	}
+	return s.customers.UpdateProfilePhoto(ctx, input.CustomerID, asset.ID, s.absoluteMediaURL(asset.PublicURL))
+}
+
+func (s *ProfileService) absoluteMediaURL(value string) string {
+	if strings.HasPrefix(value, "/") && s.mediaBaseURL != "" {
+		return s.mediaBaseURL + value
+	}
+	return value
 }
 
 // ─── Emergency contacts ───────────────────────────────────────────────────────
@@ -99,8 +119,6 @@ func (s *ProfileService) DeleteEmergencyContact(ctx context.Context, id, custome
 }
 
 func (s *ProfileService) UploadProfilePhoto(ctx context.Context, input UploadPhotoInput) (profilemodels.Customer, error) {
-	var assetID, photoURL string
-
 	if s.mediaClient != nil {
 		asset, err := s.mediaClient.Upload(ctx, mediaclient.UploadRequest{
 			OwnerID:     input.CustomerID,
@@ -112,9 +130,7 @@ func (s *ProfileService) UploadProfilePhoto(ctx context.Context, input UploadPho
 		if err != nil {
 			return profilemodels.Customer{}, err
 		}
-		assetID = asset.ID
-		photoURL = asset.PublicURL
+		return s.customers.UpdateProfilePhoto(ctx, input.CustomerID, asset.ID, s.absoluteMediaURL(asset.PublicURL))
 	}
-
-	return s.customers.UpdateProfilePhoto(ctx, input.CustomerID, assetID, photoURL)
+	return profilemodels.Customer{}, apperrors.Unavailable("Media upload is unavailable.", nil)
 }

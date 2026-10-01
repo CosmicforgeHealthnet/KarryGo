@@ -119,7 +119,7 @@ Backing routes: see [API_ROUTE_REGISTER.md](API_ROUTE_REGISTER.md). Reminder: th
 | Checkout (multi-vendor split, delivery method selection) | `features/orders`, `integrations/wallet` | NOT_STARTED |
 | Substitution approval prompt | `features/substitutions` | NOT_STARTED |
 | Order tracking (multi-vendor, multi-fulfilment-unit) | `features/fulfilment` | NOT_STARTED |
-| **Pickup/delivery handover confirmation UI** | `integrations/handover` | **PENDING_EXTERNAL_DEPENDENCY** â€” the underlying OTP/QR credential does not exist anywhere in the platform yet (see [architecture/07_EXISTING_OTP_QR_INTEGRATION.md](architecture/07_EXISTING_OTP_QR_INTEGRATION.md)). No screen requirement can be written honestly until the credential shape is real; today's dispatch/hauling proof-of-delivery UI (photo/signature capture) is the closest existing pattern to reuse for evidence capture, but it is not the same thing as a receiver-facing OTP/QR entry screen. |
+| **Pickup/delivery handover confirmation UI** | `integrations/handover` | Backend authority AVAILABLE for Dispatch, Hauling, Taxi Goods and Vendor-owned delivery. Frontend implementation remains future work and must use canonical read-back; offline completion is forbidden. |
 
 ## Section 7 â€” Onboarding and activation UX specification only
 
@@ -1500,11 +1500,14 @@ that journey rather than a new item.
   mechanism: the arrival estimate and who is bringing it, not the routing
   decision behind it.
 
-### Deferred
+### Taxi Goods (future UI, backend gated)
 
-Taxi is not a commerce delivery option. It exists in the domain vocabulary so a
-future integration needs no rework, but `driver-taxi-service` has no commerce
-mission ingress and the server refuses it. Do not present it as a choice.
+The backend may select `CAR` / `TAXI` only when the distinct Taxi Goods
+authority and both false-by-default feature flags are enabled. Do not present a
+provider picker or call passenger booking APIs. A future provider experience
+needs a separate Goods availability control, verified cargo limits, a
+privacy-safe goods job card, provider-held pickup credential display,
+receiver-held delivery credential entry/scan, and Media-backed evidence capture.
 
 ---
 
@@ -1770,3 +1773,13 @@ Hauling as a platform fulfilment option selected by backend checkout planning.
 Do not expose internal operation refs as user-editable values. Display
 customer-safe refusal/unavailable/cancel-blocked states and preserve scheduled
 pickup-window timezone wording from the backend response.
+
+## Section 32 — pickup feedback and unknown outcomes
+
+The operator enters/scans the provider-presented pickup credential. Relay it to
+the Vendor backend; show verified only after canonical server consumption.
+Display unavailable/pending confirmation for an unavailable authority or unknown
+outcome. No cached verification, offline final handover, provider/service picker,
+or staff display of receiver delivery OTP/QR is allowed. Each split physical
+mission has its own handover status. Provider delivery UX remains separate
+logistics/provider-app work. No frontend code is part of this change.

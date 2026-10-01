@@ -2,7 +2,7 @@
 │   ├── dartpad
 │   │   └── web_plugin_registrant.dart
 │   ├── flutter_build
-│   │   ├── eeda6f5048ea34566b8ffaf90200d252
+│   │   ├── d21f961fb8e28e729a1fadd4f62689f4
 │   │   │   ├── .filecache
 │   │   │   ├── app.dill
 │   │   │   ├── dart_build.d
@@ -91,14 +91,27 @@
 │   │   │   │   │               └── GeneratedPluginRegistrant.java
 │   │   │   │   ├── kotlin
 │   │   │   │   │   └── com
-│   │   │   │   │       └── karrygo
-│   │   │   │   │           └── dispatch_provider
-│   │   │   │   │               └── MainActivity.kt
+│   │   │   │   │       └── cosmicforge
+│   │   │   │   │           └── logistics
+│   │   │   │   │               └── dispatch_provider
+│   │   │   │   │                   └── MainActivity.kt
 │   │   │   │   ├── res
 │   │   │   │   │   ├── drawable
 │   │   │   │   │   │   └── launch_background.xml
+│   │   │   │   │   ├── drawable-hdpi
+│   │   │   │   │   │   └── ic_launcher_foreground.png
+│   │   │   │   │   ├── drawable-mdpi
+│   │   │   │   │   │   └── ic_launcher_foreground.png
 │   │   │   │   │   ├── drawable-v21
 │   │   │   │   │   │   └── launch_background.xml
+│   │   │   │   │   ├── drawable-xhdpi
+│   │   │   │   │   │   └── ic_launcher_foreground.png
+│   │   │   │   │   ├── drawable-xxhdpi
+│   │   │   │   │   │   └── ic_launcher_foreground.png
+│   │   │   │   │   ├── drawable-xxxhdpi
+│   │   │   │   │   │   └── ic_launcher_foreground.png
+│   │   │   │   │   ├── mipmap-anydpi-v26
+│   │   │   │   │   │   └── ic_launcher.xml
 │   │   │   │   │   ├── mipmap-hdpi
 │   │   │   │   │   │   └── ic_launcher.png
 │   │   │   │   │   ├── mipmap-mdpi
@@ -110,13 +123,15 @@
 │   │   │   │   │   ├── mipmap-xxxhdpi
 │   │   │   │   │   │   └── ic_launcher.png
 │   │   │   │   │   ├── values
+│   │   │   │   │   │   ├── colors.xml
 │   │   │   │   │   │   └── styles.xml
 │   │   │   │   │   └── values-night
 │   │   │   │   │       └── styles.xml
 │   │   │   │   └── AndroidManifest.xml
 │   │   │   └── profile
 │   │   │       └── AndroidManifest.xml
-│   │   └── build.gradle.kts
+│   │   ├── build.gradle.kts
+│   │   └── google-services.json
 │   ├── gradle
 │   │   └── wrapper
 │   │       ├── gradle-wrapper.jar
@@ -129,36 +144,50 @@
 │   ├── local.properties
 │   └── settings.gradle.kts
 ├── assets
-│   └── figma
-│       ├── figma
-│       │   ├── account_customer.png
-│       │   ├── account_delivery.png
-│       │   ├── account_driver.png
-│       │   ├── auth_car_header.png
-│       │   ├── mode_fleet.png
-│       │   ├── mode_individual.png
-│       │   ├── onboarding_car.png
-│       │   ├── onboarding_rider.png
-│       │   ├── onboarding_truck.png
-│       │   ├── profile_submitted.png
-│       │   ├── service_package.png
-│       │   ├── service_taxi.png
-│       │   ├── service_truck.png
-│       │   └── splash_logo.png
-│       ├── account_customer.png
-│       ├── account_delivery.png
-│       ├── account_driver.png
-│       ├── auth_car_header.png
-│       ├── mode_fleet.png
-│       ├── mode_individual.png
-│       ├── onboarding_car.png
-│       ├── onboarding_rider.png
-│       ├── onboarding_truck.png
-│       ├── profile_submitted.png
-│       ├── service_package.png
-│       ├── service_taxi.png
-│       ├── service_truck.png
-│       └── splash_logo.png
+│   ├── figma
+│   │   ├── figma
+│   │   │   ├── account_customer.png
+│   │   │   ├── account_delivery.png
+│   │   │   ├── account_driver.png
+│   │   │   ├── auth_car_header.png
+│   │   │   ├── mode_fleet.png
+│   │   │   ├── mode_individual.png
+│   │   │   ├── onboarding_car.png
+│   │   │   ├── onboarding_rider.png
+│   │   │   ├── onboarding_truck.png
+│   │   │   ├── profile_submitted.png
+│   │   │   ├── service_package.png
+│   │   │   ├── service_taxi.png
+│   │   │   ├── service_truck.png
+│   │   │   └── splash_logo.png
+│   │   ├── account_customer.png
+│   │   ├── account_delivery.png
+│   │   ├── account_driver.png
+│   │   ├── auth_car_header.png
+│   │   ├── ChatGPT Image Sep 19, 2026, 09_30_01 PM.png
+│   │   ├── mode_fleet.png
+│   │   ├── mode_individual.png
+│   │   ├── onboarding_car.png
+│   │   ├── onboarding_rider.png
+│   │   ├── onboarding_truck.png
+│   │   ├── profile_submitted.png
+│   │   ├── service_package.png
+│   │   ├── service_taxi.png
+│   │   ├── service_truck.png
+│   │   ├── splash_background.png
+│   │   ├── splash_logo.png
+│   │   ├── splash_logo5.png
+│   │   ├── splash_rider.png
+│   │   ├── splash_scene.jpg
+│   │   └── welcome_hero.png
+│   ├── fonts
+│   │   ├── Inter_18pt-Bold.ttf
+│   │   ├── Inter_18pt-ExtraBold.ttf
+│   │   ├── Inter_18pt-Medium.ttf
+│   │   ├── Inter_18pt-Regular.ttf
+│   │   └── Inter_18pt-SemiBold.ttf
+│   └── launcher
+│       └── app_icon.png
 ├── ios
 │   ├── Flutter
 │   │   ├── ephemeral
@@ -184,8 +213,14 @@
 │   │   │   │   ├── Icon-App-40x40@1x.png
 │   │   │   │   ├── Icon-App-40x40@2x.png
 │   │   │   │   ├── Icon-App-40x40@3x.png
+│   │   │   │   ├── Icon-App-50x50@1x.png
+│   │   │   │   ├── Icon-App-50x50@2x.png
+│   │   │   │   ├── Icon-App-57x57@1x.png
+│   │   │   │   ├── Icon-App-57x57@2x.png
 │   │   │   │   ├── Icon-App-60x60@2x.png
 │   │   │   │   ├── Icon-App-60x60@3x.png
+│   │   │   │   ├── Icon-App-72x72@1x.png
+│   │   │   │   ├── Icon-App-72x72@2x.png
 │   │   │   │   ├── Icon-App-76x76@1x.png
 │   │   │   │   ├── Icon-App-76x76@2x.png
 │   │   │   │   └── Icon-App-83.5x83.5@2x.png
@@ -221,27 +256,35 @@
 │   │   └── contents.xcworkspacedata
 │   ├── RunnerTests
 │   │   └── RunnerTests.swift
-│   └── .gitignore
+│   ├── .gitignore
+│   └── Podfile
 ├── lib
 │   ├── app
 │   │   ├── app_routes.dart
 │   │   └── dispatch_provider_app.dart
 │   ├── core
+│   │   ├── network
+│   │   │   ├── api_connectivity_check.dart
+│   │   │   └── authenticated_api_client.dart
 │   │   ├── storage
 │   │   │   └── token_storage.dart
-│   │   ├── config.dart
-│   │   └── karrygo_app_theme.dart
-│   ├── data
-│   │   └── dispatch_provider_api.dart
+│   │   ├── theme
+│   │   │   └── dispatch_colors.dart
+│   │   ├── app_mode.dart
+│   │   └── config.dart
 │   ├── features
 │   │   ├── account_setup
 │   │   │   └── ui
 │   │   │       ├── bike_type_screen.dart
 │   │   │       ├── driver_information_screen.dart
+│   │   │       ├── emergency_contact_screen.dart
+│   │   │       ├── guarantor_screen.dart
 │   │   │       ├── operation_mode_screen.dart
 │   │   │       ├── photo_upload_screen.dart
 │   │   │       ├── profile_details_screen.dart
 │   │   │       ├── service_type_screen.dart
+│   │   │       ├── setup_hub_screen.dart
+│   │   │       ├── setup_review_screen.dart
 │   │   │       └── verification_pending_screen.dart
 │   │   ├── account_type
 │   │   │   └── ui
@@ -257,15 +300,47 @@
 │   │   │       ├── login_screen.dart
 │   │   │       ├── otp_verification_screen.dart
 │   │   │       ├── phone_entry_screen.dart
-│   │   │       └── splash_screen.dart
+│   │   │       ├── splash_screen.dart
+│   │   │       └── welcome_back_screen.dart
+│   │   ├── availability
+│   │   │   ├── data
+│   │   │   │   ├── availability_api.dart
+│   │   │   │   └── availability_models.dart
+│   │   │   └── state
+│   │   │       └── availability_controller.dart
+│   │   ├── disputes
+│   │   │   ├── data
+│   │   │   │   └── rider_support_api.dart
+│   │   │   ├── models
+│   │   │   │   └── dispute_models.dart
+│   │   │   ├── state
+│   │   │   │   └── rider_dispute_controller.dart
+│   │   │   └── ui
+│   │   │       └── dispute_chat_screen.dart
 │   │   ├── home
 │   │   │   └── ui
+│   │   │       ├── sheets
+│   │   │       │   └── offline_sheet.dart
 │   │   │       ├── widgets
 │   │   │       │   ├── incoming_request_card.dart
+│   │   │       │   ├── map_label.dart
 │   │   │       │   ├── offline_modal.dart
+│   │   │       │   ├── status_pill.dart
+│   │   │       │   ├── top_stats_row.dart
 │   │   │       │   └── trip_completed_screen.dart
 │   │   │       ├── dashboard_screen.dart
 │   │   │       └── home_screen.dart
+│   │   ├── notifications
+│   │   │   ├── data
+│   │   │   │   ├── firebase_push.dart
+│   │   │   │   ├── rider_notification_api.dart
+│   │   │   │   └── rider_realtime_listener.dart
+│   │   │   ├── models
+│   │   │   │   └── rider_notification.dart
+│   │   │   ├── state
+│   │   │   │   └── rider_notification_controller.dart
+│   │   │   └── ui
+│   │   │       └── notifications_screen.dart
 │   │   ├── onboarding
 │   │   │   └── ui
 │   │   │       └── onboarding_screen.dart
@@ -277,12 +352,48 @@
 │   │   │   ├── state
 │   │   │   │   └── provider_profile_controller.dart
 │   │   │   └── ui
-│   │   │       └── profile_screen.dart
+│   │   │       ├── widgets
+│   │   │       │   ├── change_phone_number_sheet.dart
+│   │   │       │   └── profile_menu_item.dart
+│   │   │       ├── change_password_screen.dart
+│   │   │       ├── create_password_screen.dart
+│   │   │       ├── create_pin_screen.dart
+│   │   │       ├── email_verification_screen.dart
+│   │   │       ├── emergency_contact_screen.dart
+│   │   │       ├── face_verification_screen.dart
+│   │   │       ├── guarantor_information_screen.dart
+│   │   │       ├── live_chat_screen.dart
+│   │   │       ├── new_phone_number_screen.dart
+│   │   │       ├── otp_confirmation_screen.dart
+│   │   │       ├── password_screen.dart
+│   │   │       ├── payments_withdrawals_screen.dart
+│   │   │       ├── phone_number_changed_dialog.dart
+│   │   │       ├── privacy_screen.dart
+│   │   │       ├── profile_info_screen.dart
+│   │   │       ├── profile_screen.dart
+│   │   │       ├── safety_emergency_screen.dart
+│   │   │       ├── security_screen.dart
+│   │   │       ├── support_screen.dart
+│   │   │       ├── transaction_pin_screen.dart
+│   │   │       ├── two_step_verification_screen.dart
+│   │   │       ├── vehicle_information_screen.dart
+│   │   │       ├── verification_documents_screen.dart
+│   │   │       └── verification_intro_screen.dart
 │   │   ├── requests
+│   │   │   ├── data
+│   │   │   │   ├── request_model.dart
+│   │   │   │   └── requests_api.dart
+│   │   │   ├── state
+│   │   │   │   └── requests_controller.dart
 │   │   │   └── ui
 │   │   │       ├── request_detail_screen.dart
 │   │   │       └── requests_screen.dart
 │   │   ├── trips
+│   │   │   ├── data
+│   │   │   │   ├── trip_model.dart
+│   │   │   │   └── trips_api.dart
+│   │   │   ├── state
+│   │   │   │   └── trips_controller.dart
 │   │   │   └── ui
 │   │   │       ├── trip_detail_screen.dart
 │   │   │       └── trips_screen.dart
@@ -299,24 +410,963 @@
 │   │   │   └── state
 │   │   │       └── verification_controller.dart
 │   │   └── wallet
+│   │       ├── data
+│   │       │   ├── wallet_api.dart
+│   │       │   └── wallet_models.dart
+│   │       ├── mock
+│   │       │   └── wallet_tab_mock.dart
+│   │       ├── state
+│   │       │   └── wallet_controller.dart
 │   │       └── ui
+│   │           ├── account_resolved_screen.dart
+│   │           ├── add_bank_account_screen.dart
+│   │           ├── adjustment_detail_screen.dart
+│   │           ├── bank_accounts_screen.dart
+│   │           ├── change_transaction_pin_screen.dart
 │   │           ├── dispute_detail_screen.dart
 │   │           ├── earning_summary_screen.dart
+│   │           ├── earnings_details_screen.dart
 │   │           ├── log_dispute_screen.dart
 │   │           ├── payment_processing_screen.dart
+│   │           ├── period_filter_sheet.dart
+│   │           ├── quick_actions_sheet.dart
+│   │           ├── remove_account_screen.dart
+│   │           ├── resolve_account_screen.dart
+│   │           ├── set_default_account_screen.dart
 │   │           ├── transaction_auth_screen.dart
 │   │           ├── transaction_detail_screen.dart
+│   │           ├── transaction_list_screen.dart
 │   │           ├── wallet_screen.dart
 │   │           ├── withdrawal_confirm_screen.dart
-│   │           └── withdrawal_form_screen.dart
+│   │           ├── withdrawal_failed_screen.dart
+│   │           ├── withdrawal_form_screen.dart
+│   │           └── withdrawal_receipt_screen.dart
 │   ├── shared
 │   │   └── widgets
 │   │       ├── dispatch_screen_frame.dart
 │   │       ├── document_upload_box.dart
-│   │       └── numeric_keypad.dart
+│   │       ├── mock_badge.dart
+│   │       ├── mock_toggle.dart
+│   │       ├── mode_badge.dart
+│   │       ├── numeric_keypad.dart
+│   │       ├── password_widgets.dart
+│   │       ├── request_card.dart
+│   │       ├── route_info.dart
+│   │       └── trip_stats.dart
+│   ├── firebase_options.dart
 │   └── main.dart
 ├── linux
 │   ├── flutter
+│   │   ├── ephemeral
+│   │   │   └── .plugin_symlinks
+│   │   │       ├── file_picker
+│   │   │       │   ├── android
+│   │   │       │   │   ├── gradle
+│   │   │       │   │   │   └── wrapper
+│   │   │       │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       ├── java
+│   │   │       │   │   │       │   └── com
+│   │   │       │   │   │       │       └── mr
+│   │   │       │   │   │       │           └── flutter
+│   │   │       │   │   │       │               └── plugin
+│   │   │       │   │   │       │                   └── filepicker
+│   │   │       │   │   │       │                       ├── FileInfo.java
+│   │   │       │   │   │       │                       ├── FilePickerDelegate.java
+│   │   │       │   │   │       │                       ├── FilePickerPlugin.java
+│   │   │       │   │   │       │                       └── FileUtils.java
+│   │   │       │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   ├── build.gradle
+│   │   │       │   │   ├── gradle.properties
+│   │   │       │   │   └── settings.gradle
+│   │   │       │   ├── example
+│   │   │       │   │   ├── android
+│   │   │       │   │   │   ├── app
+│   │   │       │   │   │   │   ├── src
+│   │   │       │   │   │   │   │   ├── debug
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   ├── main
+│   │   │       │   │   │   │   │   │   ├── kotlin
+│   │   │       │   │   │   │   │   │   │   └── com
+│   │   │       │   │   │   │   │   │   │       └── mr
+│   │   │       │   │   │   │   │   │   │           └── flutter
+│   │   │       │   │   │   │   │   │   │               └── plugin
+│   │   │       │   │   │   │   │   │   │                   └── filepicker
+│   │   │       │   │   │   │   │   │   │                       └── file_picker_example
+│   │   │       │   │   │   │   │   │   │                           └── MainActivity.kt
+│   │   │       │   │   │   │   │   │   ├── res
+│   │   │       │   │   │   │   │   │   │   ├── drawable
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── drawable-v21
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-hdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-mdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── values
+│   │   │       │   │   │   │   │   │   │   │   └── styles.xml
+│   │   │       │   │   │   │   │   │   │   └── values-night
+│   │   │       │   │   │   │   │   │   │       └── styles.xml
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   └── profile
+│   │   │       │   │   │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   │   │   └── build.gradle
+│   │   │       │   │   │   ├── gradle
+│   │   │       │   │   │   │   └── wrapper
+│   │   │       │   │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   │   ├── build.gradle
+│   │   │       │   │   │   ├── gradle.properties
+│   │   │       │   │   │   └── settings.gradle
+│   │   │       │   │   ├── ios
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── AppFrameworkInfo.plist
+│   │   │       │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   └── Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   ├── AppIcon.appiconset
+│   │   │       │   │   │   │   │   │   ├── Contents.json
+│   │   │       │   │   │   │   │   │   ├── Icon-App-1024x1024@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-60x60@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-60x60@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-76x76@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-76x76@2x.png
+│   │   │       │   │   │   │   │   │   └── Icon-App-83.5x83.5@2x.png
+│   │   │       │   │   │   │   │   └── LaunchImage.imageset
+│   │   │       │   │   │   │   │       ├── Contents.json
+│   │   │       │   │   │   │   │       ├── LaunchImage.png
+│   │   │       │   │   │   │   │       ├── LaunchImage@2x.png
+│   │   │       │   │   │   │   │       ├── LaunchImage@3x.png
+│   │   │       │   │   │   │   │       └── README.md
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   ├── LaunchScreen.storyboard
+│   │   │       │   │   │   │   │   └── Main.storyboard
+│   │   │       │   │   │   │   ├── AppDelegate.h
+│   │   │       │   │   │   │   ├── AppDelegate.m
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── File.swift
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── main.m
+│   │   │       │   │   │   │   └── Runner-Bridging-Header.h
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   │   └── WorkspaceSettings.xcsettings
+│   │   │       │   │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   └── WorkspaceSettings.xcsettings
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── gpxgenerator_path.gpx
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   ├── src
+│   │   │       │   │   │   │   └── file_picker_demo.dart
+│   │   │       │   │   │   ├── main.dart
+│   │   │       │   │   │   └── main_desktop.dart
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.cc
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.h
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   ├── main.cc
+│   │   │       │   │   │   ├── my_application.cc
+│   │   │       │   │   │   └── my_application.h
+│   │   │       │   │   ├── macos
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── Flutter-Debug.xcconfig
+│   │   │       │   │   │   │   └── Flutter-Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   └── AppIcon.appiconset
+│   │   │       │   │   │   │   │       ├── app_icon_1024.png
+│   │   │       │   │   │   │   │       ├── app_icon_128.png
+│   │   │       │   │   │   │   │       ├── app_icon_16.png
+│   │   │       │   │   │   │   │       ├── app_icon_256.png
+│   │   │       │   │   │   │   │       ├── app_icon_32.png
+│   │   │       │   │   │   │   │       ├── app_icon_512.png
+│   │   │       │   │   │   │   │       ├── app_icon_64.png
+│   │   │       │   │   │   │   │       └── Contents.json
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   └── MainMenu.xib
+│   │   │       │   │   │   │   ├── Configs
+│   │   │       │   │   │   │   │   ├── AppInfo.xcconfig
+│   │   │       │   │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   │   ├── Release.xcconfig
+│   │   │       │   │   │   │   │   └── Warnings.xcconfig
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── DebugProfile.entitlements
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── MainFlutterWindow.swift
+│   │   │       │   │   │   │   └── Release.entitlements
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   └── xcshareddata
+│   │   │       │   │   │   │   │       └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── RunnerTests
+│   │   │       │   │   │       └── RunnerTests.swift
+│   │   │       │   │   ├── screenshots
+│   │   │       │   │   │   ├── example_android.gif
+│   │   │       │   │   │   ├── example_ios.gif
+│   │   │       │   │   │   ├── example_linux.gif
+│   │   │       │   │   │   ├── example_macos.png
+│   │   │       │   │   │   └── example_windows.gif
+│   │   │       │   │   ├── web
+│   │   │       │   │   │   ├── icons
+│   │   │       │   │   │   │   ├── Icon-192.png
+│   │   │       │   │   │   │   └── Icon-512.png
+│   │   │       │   │   │   ├── favicon.png
+│   │   │       │   │   │   ├── index.html
+│   │   │       │   │   │   └── manifest.json
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.cc
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.h
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── analysis_options.yaml
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── ios
+│   │   │       │   │   ├── file_picker
+│   │   │       │   │   │   ├── Sources
+│   │   │       │   │   │   │   └── file_picker
+│   │   │       │   │   │   │       ├── include
+│   │   │       │   │   │   │       │   ├── file_picker
+│   │   │       │   │   │   │       │   │   ├── FileInfo.h
+│   │   │       │   │   │   │       │   │   ├── FilePickerPlugin.h
+│   │   │       │   │   │   │       │   │   ├── FileUtils.h
+│   │   │       │   │   │   │       │   │   └── ImageUtils.h
+│   │   │       │   │   │   │       │   ├── file_picker.modulemap
+│   │   │       │   │   │   │       │   └── file_picker-umbrella.h
+│   │   │       │   │   │   │       ├── FileInfo.m
+│   │   │       │   │   │   │       ├── FilePickerPlugin.m
+│   │   │       │   │   │   │       ├── FileUtils.m
+│   │   │       │   │   │   │       ├── ImageUtils.m
+│   │   │       │   │   │   │       └── PrivacyInfo.xcprivacy
+│   │   │       │   │   │   ├── Package.resolved
+│   │   │       │   │   │   └── Package.swift
+│   │   │       │   │   └── file_picker.podspec
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── _internal
+│   │   │       │   │   │   └── file_picker_web.dart
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   ├── linux
+│   │   │       │   │   │   │   ├── dialog_handler.dart
+│   │   │       │   │   │   │   ├── file_picker_linux.dart
+│   │   │       │   │   │   │   ├── kdialog_handler.dart
+│   │   │       │   │   │   │   └── qarma_and_zenity_handler.dart
+│   │   │       │   │   │   ├── windows
+│   │   │       │   │   │   │   ├── file_picker_windows.dart
+│   │   │       │   │   │   │   ├── file_picker_windows_ffi_types.dart
+│   │   │       │   │   │   │   └── file_picker_windows_stub.dart
+│   │   │       │   │   │   ├── exceptions.dart
+│   │   │       │   │   │   ├── file_picker.dart
+│   │   │       │   │   │   ├── file_picker_io.dart
+│   │   │       │   │   │   ├── file_picker_macos.dart
+│   │   │       │   │   │   ├── file_picker_result.dart
+│   │   │       │   │   │   ├── platform_file.dart
+│   │   │       │   │   │   └── utils.dart
+│   │   │       │   │   └── file_picker.dart
+│   │   │       │   ├── macos
+│   │   │       │   │   ├── file_picker
+│   │   │       │   │   │   ├── Sources
+│   │   │       │   │   │   │   └── file_picker
+│   │   │       │   │   │   │       ├── FilePickerPlugin.swift
+│   │   │       │   │   │   │       └── PrivacyInfo.xcprivacy
+│   │   │       │   │   │   └── Package.swift
+│   │   │       │   │   └── file_picker.podspec
+│   │   │       │   ├── test
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── dialog_handler_test.dart
+│   │   │       │   │   │   ├── kdialog_handler_test.dart
+│   │   │       │   │   │   └── qarma_and_zenity_handler_test.dart
+│   │   │       │   │   ├── test_files
+│   │   │       │   │   │   ├── franz-michael-schneeberger-unsplash.jpg
+│   │   │       │   │   │   ├── test.pdf
+│   │   │       │   │   │   └── test.yml
+│   │   │       │   │   ├── common.dart
+│   │   │       │   │   ├── file_picker_macos_test.dart
+│   │   │       │   │   ├── file_picker_utils_test.dart
+│   │   │       │   │   └── file_picker_windows_test.dart
+│   │   │       │   ├── analysis_options.yaml
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── CONTRIBUTING.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── file_selector_linux
+│   │   │       │   ├── example
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   ├── get_directory_page.dart
+│   │   │       │   │   │   ├── get_multiple_directories_page.dart
+│   │   │       │   │   │   ├── home_page.dart
+│   │   │       │   │   │   ├── main.dart
+│   │   │       │   │   │   ├── open_image_page.dart
+│   │   │       │   │   │   ├── open_multiple_images_page.dart
+│   │   │       │   │   │   ├── open_text_page.dart
+│   │   │       │   │   │   └── save_text_page.dart
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   ├── main.cc
+│   │   │       │   │   │   ├── my_application.cc
+│   │   │       │   │   │   └── my_application.h
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── messages.g.dart
+│   │   │       │   │   └── file_selector_linux.dart
+│   │   │       │   ├── linux
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   └── file_selector_linux
+│   │   │       │   │   │       └── file_selector_plugin.h
+│   │   │       │   │   ├── test
+│   │   │       │   │   │   ├── file_selector_plugin_test.cc
+│   │   │       │   │   │   └── test_main.cc
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   ├── file_selector_plugin.cc
+│   │   │       │   │   ├── file_selector_plugin_private.h
+│   │   │       │   │   ├── messages.g.cc
+│   │   │       │   │   └── messages.g.h
+│   │   │       │   ├── pigeons
+│   │   │       │   │   ├── copyright.txt
+│   │   │       │   │   └── messages.dart
+│   │   │       │   ├── test
+│   │   │       │   │   └── file_selector_linux_test.dart
+│   │   │       │   ├── AUTHORS
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── flutter_secure_storage_linux
+│   │   │       │   ├── linux
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   ├── flutter_secure_storage_linux
+│   │   │       │   │   │   │   └── flutter_secure_storage_linux_plugin.h
+│   │   │       │   │   │   ├── FHashTable.hpp
+│   │   │       │   │   │   ├── json.hpp
+│   │   │       │   │   │   └── Secret.hpp
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   └── flutter_secure_storage_linux_plugin.cc
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── image_picker_linux
+│   │   │       │   ├── example
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   ├── main.cc
+│   │   │       │   │   │   ├── my_application.cc
+│   │   │       │   │   │   └── my_application.h
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── lib
+│   │   │       │   │   └── image_picker_linux.dart
+│   │   │       │   ├── test
+│   │   │       │   │   ├── image_picker_linux_test.dart
+│   │   │       │   │   └── image_picker_linux_test.mocks.dart
+│   │   │       │   ├── AUTHORS
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── jni
+│   │   │       │   ├── android
+│   │   │       │   │   ├── .cxx
+│   │   │       │   │   │   ├── Debug
+│   │   │       │   │   │   │   └── f396y1k1
+│   │   │       │   │   │   │       ├── arm64-v8a
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-baab64173173215e8628.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-2a1a336bb28cc01ff09e.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-6fc5c9efd35739407ed2.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-27-30-0529.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-a2a6d57ec32d6db6b43f.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       ├── armeabi-v7a
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-1ff2ca3342c64399e026.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-ba0c60296a286e9bf9cd.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-f321bfd29fdc95b8afad.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-28-08-0752.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-9f521ea4fcc9e2a3e4b9.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       ├── x86
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-edd34caf0ee3f40f8631.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-2d67b5a37490b84ec63d.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-400f00ad912c483fb97a.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-28-20-0714.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-935a690e6f70f4f8af98.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       ├── x86_64
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-d8906d101e162d6ac1c9.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-52017f854b7e98fea334.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-dab4bc9cc5472c647b85.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-28-28-0404.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-2c2a9f8bd21d7c1f6303.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       └── hash_key.txt
+│   │   │       │   │   │   └── tools
+│   │   │       │   │   │       └── profile
+│   │   │       │   │   │           ├── arm64-v8a
+│   │   │       │   │   │           │   └── compile_commands.json
+│   │   │       │   │   │           ├── armeabi-v7a
+│   │   │       │   │   │           │   └── compile_commands.json
+│   │   │       │   │   │           ├── x86
+│   │   │       │   │   │           │   └── compile_commands.json
+│   │   │       │   │   │           └── x86_64
+│   │   │       │   │   │               └── compile_commands.json
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       ├── java
+│   │   │       │   │   │       │   └── com
+│   │   │       │   │   │       │       └── github
+│   │   │       │   │   │       │           └── dart_lang
+│   │   │       │   │   │       │               └── jni
+│   │   │       │   │   │       │                   └── JniPlugin.java
+│   │   │       │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   ├── build.gradle
+│   │   │       │   │   ├── consumer-rules.pro
+│   │   │       │   │   ├── README.md
+│   │   │       │   │   └── settings.gradle
+│   │   │       │   ├── bin
+│   │   │       │   │   └── setup.dart
+│   │   │       │   ├── example
+│   │   │       │   │   ├── android
+│   │   │       │   │   │   ├── app
+│   │   │       │   │   │   │   ├── src
+│   │   │       │   │   │   │   │   ├── debug
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   ├── main
+│   │   │       │   │   │   │   │   │   ├── java
+│   │   │       │   │   │   │   │   │   │   ├── com
+│   │   │       │   │   │   │   │   │   │   │   └── github
+│   │   │       │   │   │   │   │   │   │   │       └── dart_lang
+│   │   │       │   │   │   │   │   │   │   │           └── jni_example
+│   │   │       │   │   │   │   │   │   │   │               └── Toaster.java
+│   │   │       │   │   │   │   │   │   │   └── io
+│   │   │       │   │   │   │   │   │   │       └── flutter
+│   │   │       │   │   │   │   │   │   │           └── plugins
+│   │   │       │   │   │   │   │   │   ├── kotlin
+│   │   │       │   │   │   │   │   │   │   └── dev
+│   │   │       │   │   │   │   │   │   │       └── dart
+│   │   │       │   │   │   │   │   │   │           └── jni_example
+│   │   │       │   │   │   │   │   │   │               └── MainActivity.kt
+│   │   │       │   │   │   │   │   │   ├── res
+│   │   │       │   │   │   │   │   │   │   ├── drawable
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── drawable-v21
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-hdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-mdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── values
+│   │   │       │   │   │   │   │   │   │   │   └── styles.xml
+│   │   │       │   │   │   │   │   │   │   └── values-night
+│   │   │       │   │   │   │   │   │   │       └── styles.xml
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   └── profile
+│   │   │       │   │   │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   │   │   └── build.gradle
+│   │   │       │   │   │   ├── gradle
+│   │   │       │   │   │   │   └── wrapper
+│   │   │       │   │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   │   ├── build.gradle
+│   │   │       │   │   │   ├── gradle.properties
+│   │   │       │   │   │   └── settings.gradle
+│   │   │       │   │   ├── integration_test
+│   │   │       │   │   │   └── on_device_jni_test.dart
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   └── CMakeLists.txt
+│   │   │       │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   ├── main.cc
+│   │   │       │   │   │   ├── my_application.cc
+│   │   │       │   │   │   └── my_application.h
+│   │   │       │   │   ├── macos
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── Flutter-Debug.xcconfig
+│   │   │       │   │   │   │   └── Flutter-Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   └── AppIcon.appiconset
+│   │   │       │   │   │   │   │       ├── app_icon_1024.png
+│   │   │       │   │   │   │   │       ├── app_icon_128.png
+│   │   │       │   │   │   │   │       ├── app_icon_16.png
+│   │   │       │   │   │   │   │       ├── app_icon_256.png
+│   │   │       │   │   │   │   │       ├── app_icon_32.png
+│   │   │       │   │   │   │   │       ├── app_icon_512.png
+│   │   │       │   │   │   │   │       ├── app_icon_64.png
+│   │   │       │   │   │   │   │       └── Contents.json
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   └── MainMenu.xib
+│   │   │       │   │   │   │   ├── Configs
+│   │   │       │   │   │   │   │   ├── AppInfo.xcconfig
+│   │   │       │   │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   │   ├── Release.xcconfig
+│   │   │       │   │   │   │   │   └── Warnings.xcconfig
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── DebugProfile.entitlements
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── MainFlutterWindow.swift
+│   │   │       │   │   │   │   └── Release.entitlements
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   └── xcshareddata
+│   │   │       │   │   │   │   │       └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── Podfile
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   └── CMakeLists.txt
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── analysis_options.yaml
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── java
+│   │   │       │   │   ├── ~
+│   │   │       │   │   │   └── dev
+│   │   │       │   │   │       ├── native
+│   │   │       │   │   │       │   └── native
+│   │   │       │   │   │       │       └── pkgs
+│   │   │       │   │   │       │           └── jnigen
+│   │   │       │   │   │       │               └── example
+│   │   │       │   │   │       │                   └── pdfbox_plugin
+│   │   │       │   │   │       │                       └── dart_example
+│   │   │       │   │   │       └── native2
+│   │   │       │   │   │           └── pkgs
+│   │   │       │   │   │               └── jnigen
+│   │   │       │   │   │                   └── example
+│   │   │       │   │   │                       └── pdfbox_plugin
+│   │   │       │   │   │                           └── dart_example
+│   │   │       │   │   ├── gradle
+│   │   │       │   │   │   ├── wrapper
+│   │   │       │   │   │   │   ├── gradle-wrapper.jar
+│   │   │       │   │   │   │   └── gradle-wrapper.properties
+│   │   │       │   │   │   └── libs.versions.toml
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       └── java
+│   │   │       │   │   │           └── com
+│   │   │       │   │   │               └── github
+│   │   │       │   │   │                   └── dart_lang
+│   │   │       │   │   │                       └── jni
+│   │   │       │   │   │                           ├── JniUtils.java
+│   │   │       │   │   │                           ├── PortCleaner.java
+│   │   │       │   │   │                           ├── PortContinuation.java
+│   │   │       │   │   │                           └── PortProxyBuilder.java
+│   │   │       │   │   ├── build.gradle.kts
+│   │   │       │   │   ├── gradlew
+│   │   │       │   │   ├── gradlew.bat
+│   │   │       │   │   ├── README.md
+│   │   │       │   │   └── settings.gradle.kts
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   ├── build_util
+│   │   │       │   │   │   │   └── build_util.dart
+│   │   │       │   │   │   ├── lang
+│   │   │       │   │   │   │   ├── jboolean.dart
+│   │   │       │   │   │   │   ├── jbyte.dart
+│   │   │       │   │   │   │   ├── jcharacter.dart
+│   │   │       │   │   │   │   ├── jdouble.dart
+│   │   │       │   │   │   │   ├── jfloat.dart
+│   │   │       │   │   │   │   ├── jinteger.dart
+│   │   │       │   │   │   │   ├── jlong.dart
+│   │   │       │   │   │   │   ├── jnumber.dart
+│   │   │       │   │   │   │   ├── jshort.dart
+│   │   │       │   │   │   │   ├── jstring.dart
+│   │   │       │   │   │   │   └── lang.dart
+│   │   │       │   │   │   ├── nio
+│   │   │       │   │   │   │   ├── jbuffer.dart
+│   │   │       │   │   │   │   ├── jbyte_buffer.dart
+│   │   │       │   │   │   │   └── nio.dart
+│   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │   ├── generated_bindings.dart
+│   │   │       │   │   │   │   ├── global_env_extensions.dart
+│   │   │       │   │   │   │   └── jni_bindings_generated.dart
+│   │   │       │   │   │   ├── util
+│   │   │       │   │   │   │   ├── jiterator.dart
+│   │   │       │   │   │   │   ├── jlist.dart
+│   │   │       │   │   │   │   ├── jmap.dart
+│   │   │       │   │   │   │   ├── jset.dart
+│   │   │       │   │   │   │   └── util.dart
+│   │   │       │   │   │   ├── accessors.dart
+│   │   │       │   │   │   ├── core_bindings.dart
+│   │   │       │   │   │   ├── errors.dart
+│   │   │       │   │   │   ├── jarray.dart
+│   │   │       │   │   │   ├── jclass.dart
+│   │   │       │   │   │   ├── jimplementer.dart
+│   │   │       │   │   │   ├── jni.dart
+│   │   │       │   │   │   ├── jobject.dart
+│   │   │       │   │   │   ├── jprimitives.dart
+│   │   │       │   │   │   ├── jreference.dart
+│   │   │       │   │   │   ├── jvalues.dart
+│   │   │       │   │   │   ├── kotlin.dart
+│   │   │       │   │   │   ├── method_invocation.dart
+│   │   │       │   │   │   ├── primitive_jarrays.dart
+│   │   │       │   │   │   ├── types.dart
+│   │   │       │   │   │   └── version_check.dart
+│   │   │       │   │   ├── _internal.dart
+│   │   │       │   │   ├── jni.dart
+│   │   │       │   │   └── jni_symbols.yaml
+│   │   │       │   ├── linux
+│   │   │       │   │   └── CMakeLists.txt
+│   │   │       │   ├── src
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   ├── bin
+│   │   │       │   │   │   │   ├── dart_io_api.h
+│   │   │       │   │   │   │   └── native_assets_api.h
+│   │   │       │   │   │   ├── internal
+│   │   │       │   │   │   │   └── dart_api_dl_impl.h
+│   │   │       │   │   │   ├── analyze_snapshot_api.h
+│   │   │       │   │   │   ├── BUILD.gn
+│   │   │       │   │   │   ├── dart_api.h
+│   │   │       │   │   │   ├── dart_api_dl.c
+│   │   │       │   │   │   ├── dart_api_dl.h
+│   │   │       │   │   │   ├── dart_embedder_api.h
+│   │   │       │   │   │   ├── dart_native_api.h
+│   │   │       │   │   │   ├── dart_tools_api.h
+│   │   │       │   │   │   └── dart_version.h
+│   │   │       │   │   ├── third_party
+│   │   │       │   │   │   ├── global_jni_env.c
+│   │   │       │   │   │   └── global_jni_env.h
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   ├── dartjni.c
+│   │   │       │   │   ├── dartjni.h
+│   │   │       │   │   ├── jni_constants.h
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── test
+│   │   │       │   │   ├── test_util
+│   │   │       │   │   │   └── test_util.dart
+│   │   │       │   │   ├── version_check
+│   │   │       │   │   │   ├── fail_major.dart
+│   │   │       │   │   │   ├── fail_minor.dart
+│   │   │       │   │   │   └── pass.dart
+│   │   │       │   │   ├── boxed_test.dart
+│   │   │       │   │   ├── debug_release_test.dart
+│   │   │       │   │   ├── exception_test.dart
+│   │   │       │   │   ├── global_env_test.dart
+│   │   │       │   │   ├── isolate_test.dart
+│   │   │       │   │   ├── jarray_test.dart
+│   │   │       │   │   ├── jbyte_buffer_test.dart
+│   │   │       │   │   ├── jlist_test.dart
+│   │   │       │   │   ├── jmap_test.dart
+│   │   │       │   │   ├── jobject_test.dart
+│   │   │       │   │   ├── jset_test.dart
+│   │   │       │   │   ├── jstring_test.dart
+│   │   │       │   │   ├── load_test.dart
+│   │   │       │   │   └── version_check_test.dart
+│   │   │       │   ├── third_party
+│   │   │       │   │   └── jni.h
+│   │   │       │   ├── tool
+│   │   │       │   │   ├── wrapper_generators
+│   │   │       │   │   │   ├── ffigen_util.dart
+│   │   │       │   │   │   ├── generate_c_extensions.dart
+│   │   │       │   │   │   ├── generate_dart_extensions.dart
+│   │   │       │   │   │   ├── generate_helper_functions.dart
+│   │   │       │   │   │   └── logging.dart
+│   │   │       │   │   ├── generate_ffi_bindings.dart
+│   │   │       │   │   ├── generate_ide_files.dart
+│   │   │       │   │   ├── generate_jni_bindings.dart
+│   │   │       │   │   └── generate_primitive_arrays.dart
+│   │   │       │   ├── windows
+│   │   │       │   │   └── CMakeLists.txt
+│   │   │       │   ├── analysis_options.yaml
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── dart_test.yaml
+│   │   │       │   ├── ffigen.yaml
+│   │   │       │   ├── ffigen_exts.yaml
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       └── path_provider_linux
+│   │   │           ├── example
+│   │   │           │   ├── integration_test
+│   │   │           │   │   └── path_provider_test.dart
+│   │   │           │   ├── lib
+│   │   │           │   │   └── main.dart
+│   │   │           │   ├── linux
+│   │   │           │   │   ├── flutter
+│   │   │           │   │   │   └── CMakeLists.txt
+│   │   │           │   │   ├── CMakeLists.txt
+│   │   │           │   │   ├── main.cc
+│   │   │           │   │   ├── my_application.cc
+│   │   │           │   │   └── my_application.h
+│   │   │           │   ├── test_driver
+│   │   │           │   │   └── integration_test.dart
+│   │   │           │   ├── pubspec.yaml
+│   │   │           │   └── README.md
+│   │   │           ├── lib
+│   │   │           │   ├── src
+│   │   │           │   │   ├── get_application_id.dart
+│   │   │           │   │   ├── get_application_id_real.dart
+│   │   │           │   │   ├── get_application_id_stub.dart
+│   │   │           │   │   └── path_provider_linux.dart
+│   │   │           │   └── path_provider_linux.dart
+│   │   │           ├── test
+│   │   │           │   ├── get_application_id_test.dart
+│   │   │           │   └── path_provider_linux_test.dart
+│   │   │           ├── AUTHORS
+│   │   │           ├── CHANGELOG.md
+│   │   │           ├── LICENSE
+│   │   │           ├── pubspec.yaml
+│   │   │           └── README.md
 │   │   ├── CMakeLists.txt
 │   │   ├── generated_plugin_registrant.cc
 │   │   ├── generated_plugin_registrant.h
@@ -374,8 +1424,16 @@
 │   │   └── contents.xcworkspacedata
 │   ├── RunnerTests
 │   │   └── RunnerTests.swift
-│   └── .gitignore
+│   ├── .gitignore
+│   └── Podfile
+├── scripts
+│   └── run_android_usb_local.ps1
 ├── test
+│   ├── dispute_controller_test.dart
+│   ├── notifications_feed_test.dart
+│   ├── provider_compatibility_contract_test.dart
+│   ├── request_trip_model_test.dart
+│   ├── wallet_pin_test.dart
 │   └── widget_test.dart
 ├── web
 │   ├── icons
@@ -390,6 +1448,1314 @@
 │   ├── flutter
 │   │   ├── ephemeral
 │   │   │   └── .plugin_symlinks
+│   │   │       ├── file_picker
+│   │   │       │   ├── android
+│   │   │       │   │   ├── gradle
+│   │   │       │   │   │   └── wrapper
+│   │   │       │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       ├── java
+│   │   │       │   │   │       │   └── com
+│   │   │       │   │   │       │       └── mr
+│   │   │       │   │   │       │           └── flutter
+│   │   │       │   │   │       │               └── plugin
+│   │   │       │   │   │       │                   └── filepicker
+│   │   │       │   │   │       │                       ├── FileInfo.java
+│   │   │       │   │   │       │                       ├── FilePickerDelegate.java
+│   │   │       │   │   │       │                       ├── FilePickerPlugin.java
+│   │   │       │   │   │       │                       └── FileUtils.java
+│   │   │       │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   ├── build.gradle
+│   │   │       │   │   ├── gradle.properties
+│   │   │       │   │   └── settings.gradle
+│   │   │       │   ├── example
+│   │   │       │   │   ├── android
+│   │   │       │   │   │   ├── app
+│   │   │       │   │   │   │   ├── src
+│   │   │       │   │   │   │   │   ├── debug
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   ├── main
+│   │   │       │   │   │   │   │   │   ├── kotlin
+│   │   │       │   │   │   │   │   │   │   └── com
+│   │   │       │   │   │   │   │   │   │       └── mr
+│   │   │       │   │   │   │   │   │   │           └── flutter
+│   │   │       │   │   │   │   │   │   │               └── plugin
+│   │   │       │   │   │   │   │   │   │                   └── filepicker
+│   │   │       │   │   │   │   │   │   │                       └── file_picker_example
+│   │   │       │   │   │   │   │   │   │                           └── MainActivity.kt
+│   │   │       │   │   │   │   │   │   ├── res
+│   │   │       │   │   │   │   │   │   │   ├── drawable
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── drawable-v21
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-hdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-mdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── values
+│   │   │       │   │   │   │   │   │   │   │   └── styles.xml
+│   │   │       │   │   │   │   │   │   │   └── values-night
+│   │   │       │   │   │   │   │   │   │       └── styles.xml
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   └── profile
+│   │   │       │   │   │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   │   │   └── build.gradle
+│   │   │       │   │   │   ├── gradle
+│   │   │       │   │   │   │   └── wrapper
+│   │   │       │   │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   │   ├── build.gradle
+│   │   │       │   │   │   ├── gradle.properties
+│   │   │       │   │   │   └── settings.gradle
+│   │   │       │   │   ├── ios
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── AppFrameworkInfo.plist
+│   │   │       │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   └── Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   ├── AppIcon.appiconset
+│   │   │       │   │   │   │   │   │   ├── Contents.json
+│   │   │       │   │   │   │   │   │   ├── Icon-App-1024x1024@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-60x60@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-60x60@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-76x76@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-76x76@2x.png
+│   │   │       │   │   │   │   │   │   └── Icon-App-83.5x83.5@2x.png
+│   │   │       │   │   │   │   │   └── LaunchImage.imageset
+│   │   │       │   │   │   │   │       ├── Contents.json
+│   │   │       │   │   │   │   │       ├── LaunchImage.png
+│   │   │       │   │   │   │   │       ├── LaunchImage@2x.png
+│   │   │       │   │   │   │   │       ├── LaunchImage@3x.png
+│   │   │       │   │   │   │   │       └── README.md
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   ├── LaunchScreen.storyboard
+│   │   │       │   │   │   │   │   └── Main.storyboard
+│   │   │       │   │   │   │   ├── AppDelegate.h
+│   │   │       │   │   │   │   ├── AppDelegate.m
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── File.swift
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── main.m
+│   │   │       │   │   │   │   └── Runner-Bridging-Header.h
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   │   └── WorkspaceSettings.xcsettings
+│   │   │       │   │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   └── WorkspaceSettings.xcsettings
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── gpxgenerator_path.gpx
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   ├── src
+│   │   │       │   │   │   │   └── file_picker_demo.dart
+│   │   │       │   │   │   ├── main.dart
+│   │   │       │   │   │   └── main_desktop.dart
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.cc
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.h
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   ├── main.cc
+│   │   │       │   │   │   ├── my_application.cc
+│   │   │       │   │   │   └── my_application.h
+│   │   │       │   │   ├── macos
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── Flutter-Debug.xcconfig
+│   │   │       │   │   │   │   └── Flutter-Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   └── AppIcon.appiconset
+│   │   │       │   │   │   │   │       ├── app_icon_1024.png
+│   │   │       │   │   │   │   │       ├── app_icon_128.png
+│   │   │       │   │   │   │   │       ├── app_icon_16.png
+│   │   │       │   │   │   │   │       ├── app_icon_256.png
+│   │   │       │   │   │   │   │       ├── app_icon_32.png
+│   │   │       │   │   │   │   │       ├── app_icon_512.png
+│   │   │       │   │   │   │   │       ├── app_icon_64.png
+│   │   │       │   │   │   │   │       └── Contents.json
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   └── MainMenu.xib
+│   │   │       │   │   │   │   ├── Configs
+│   │   │       │   │   │   │   │   ├── AppInfo.xcconfig
+│   │   │       │   │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   │   ├── Release.xcconfig
+│   │   │       │   │   │   │   │   └── Warnings.xcconfig
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── DebugProfile.entitlements
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── MainFlutterWindow.swift
+│   │   │       │   │   │   │   └── Release.entitlements
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   └── xcshareddata
+│   │   │       │   │   │   │   │       └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── RunnerTests
+│   │   │       │   │   │       └── RunnerTests.swift
+│   │   │       │   │   ├── screenshots
+│   │   │       │   │   │   ├── example_android.gif
+│   │   │       │   │   │   ├── example_ios.gif
+│   │   │       │   │   │   ├── example_linux.gif
+│   │   │       │   │   │   ├── example_macos.png
+│   │   │       │   │   │   └── example_windows.gif
+│   │   │       │   │   ├── web
+│   │   │       │   │   │   ├── icons
+│   │   │       │   │   │   │   ├── Icon-192.png
+│   │   │       │   │   │   │   └── Icon-512.png
+│   │   │       │   │   │   ├── favicon.png
+│   │   │       │   │   │   ├── index.html
+│   │   │       │   │   │   └── manifest.json
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.cc
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.h
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── analysis_options.yaml
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── ios
+│   │   │       │   │   ├── file_picker
+│   │   │       │   │   │   ├── Sources
+│   │   │       │   │   │   │   └── file_picker
+│   │   │       │   │   │   │       ├── include
+│   │   │       │   │   │   │       │   ├── file_picker
+│   │   │       │   │   │   │       │   │   ├── FileInfo.h
+│   │   │       │   │   │   │       │   │   ├── FilePickerPlugin.h
+│   │   │       │   │   │   │       │   │   ├── FileUtils.h
+│   │   │       │   │   │   │       │   │   └── ImageUtils.h
+│   │   │       │   │   │   │       │   ├── file_picker.modulemap
+│   │   │       │   │   │   │       │   └── file_picker-umbrella.h
+│   │   │       │   │   │   │       ├── FileInfo.m
+│   │   │       │   │   │   │       ├── FilePickerPlugin.m
+│   │   │       │   │   │   │       ├── FileUtils.m
+│   │   │       │   │   │   │       ├── ImageUtils.m
+│   │   │       │   │   │   │       └── PrivacyInfo.xcprivacy
+│   │   │       │   │   │   ├── Package.resolved
+│   │   │       │   │   │   └── Package.swift
+│   │   │       │   │   └── file_picker.podspec
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── _internal
+│   │   │       │   │   │   └── file_picker_web.dart
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   ├── linux
+│   │   │       │   │   │   │   ├── dialog_handler.dart
+│   │   │       │   │   │   │   ├── file_picker_linux.dart
+│   │   │       │   │   │   │   ├── kdialog_handler.dart
+│   │   │       │   │   │   │   └── qarma_and_zenity_handler.dart
+│   │   │       │   │   │   ├── windows
+│   │   │       │   │   │   │   ├── file_picker_windows.dart
+│   │   │       │   │   │   │   ├── file_picker_windows_ffi_types.dart
+│   │   │       │   │   │   │   └── file_picker_windows_stub.dart
+│   │   │       │   │   │   ├── exceptions.dart
+│   │   │       │   │   │   ├── file_picker.dart
+│   │   │       │   │   │   ├── file_picker_io.dart
+│   │   │       │   │   │   ├── file_picker_macos.dart
+│   │   │       │   │   │   ├── file_picker_result.dart
+│   │   │       │   │   │   ├── platform_file.dart
+│   │   │       │   │   │   └── utils.dart
+│   │   │       │   │   └── file_picker.dart
+│   │   │       │   ├── macos
+│   │   │       │   │   ├── file_picker
+│   │   │       │   │   │   ├── Sources
+│   │   │       │   │   │   │   └── file_picker
+│   │   │       │   │   │   │       ├── FilePickerPlugin.swift
+│   │   │       │   │   │   │       └── PrivacyInfo.xcprivacy
+│   │   │       │   │   │   └── Package.swift
+│   │   │       │   │   └── file_picker.podspec
+│   │   │       │   ├── test
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── dialog_handler_test.dart
+│   │   │       │   │   │   ├── kdialog_handler_test.dart
+│   │   │       │   │   │   └── qarma_and_zenity_handler_test.dart
+│   │   │       │   │   ├── test_files
+│   │   │       │   │   │   ├── franz-michael-schneeberger-unsplash.jpg
+│   │   │       │   │   │   ├── test.pdf
+│   │   │       │   │   │   └── test.yml
+│   │   │       │   │   ├── common.dart
+│   │   │       │   │   ├── file_picker_macos_test.dart
+│   │   │       │   │   ├── file_picker_utils_test.dart
+│   │   │       │   │   └── file_picker_windows_test.dart
+│   │   │       │   ├── analysis_options.yaml
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── CONTRIBUTING.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── file_selector_windows
+│   │   │       │   ├── example
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   ├── get_directory_page.dart
+│   │   │       │   │   │   ├── get_multiple_directories_page.dart
+│   │   │       │   │   │   ├── home_page.dart
+│   │   │       │   │   │   ├── main.dart
+│   │   │       │   │   │   ├── open_image_page.dart
+│   │   │       │   │   │   ├── open_multiple_images_page.dart
+│   │   │       │   │   │   ├── open_text_page.dart
+│   │   │       │   │   │   └── save_text_page.dart
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── messages.g.dart
+│   │   │       │   │   └── file_selector_windows.dart
+│   │   │       │   ├── pigeons
+│   │   │       │   │   ├── copyright.txt
+│   │   │       │   │   └── messages.dart
+│   │   │       │   ├── test
+│   │   │       │   │   └── file_selector_windows_test.dart
+│   │   │       │   ├── windows
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   └── file_selector_windows
+│   │   │       │   │   │       └── file_selector_windows.h
+│   │   │       │   │   ├── test
+│   │   │       │   │   │   ├── file_selector_plugin_test.cpp
+│   │   │       │   │   │   ├── test_file_dialog_controller.cpp
+│   │   │       │   │   │   ├── test_file_dialog_controller.h
+│   │   │       │   │   │   ├── test_main.cpp
+│   │   │       │   │   │   ├── test_utils.cpp
+│   │   │       │   │   │   └── test_utils.h
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   ├── file_dialog_controller.cpp
+│   │   │       │   │   ├── file_dialog_controller.h
+│   │   │       │   │   ├── file_selector_plugin.cpp
+│   │   │       │   │   ├── file_selector_plugin.h
+│   │   │       │   │   ├── file_selector_windows.cpp
+│   │   │       │   │   ├── messages.g.cpp
+│   │   │       │   │   ├── messages.g.h
+│   │   │       │   │   ├── string_utils.cpp
+│   │   │       │   │   └── string_utils.h
+│   │   │       │   ├── AUTHORS
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── firebase_core
+│   │   │       │   ├── android
+│   │   │       │   │   ├── gradle
+│   │   │       │   │   │   └── wrapper
+│   │   │       │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       ├── java
+│   │   │       │   │   │       │   └── io
+│   │   │       │   │   │       │       └── flutter
+│   │   │       │   │   │       │           └── plugins
+│   │   │       │   │   │       │               └── firebase
+│   │   │       │   │   │       │                   └── core
+│   │   │       │   │   │       │                       ├── FlutterFirebaseCorePlugin.java
+│   │   │       │   │   │       │                       ├── FlutterFirebaseCoreRegistrar.java
+│   │   │       │   │   │       │                       ├── FlutterFirebasePlugin.java
+│   │   │       │   │   │       │                       ├── FlutterFirebasePluginRegistry.java
+│   │   │       │   │   │       │                       └── GeneratedAndroidFirebaseCore.java
+│   │   │       │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   ├── build.gradle
+│   │   │       │   │   ├── gradle.properties
+│   │   │       │   │   ├── local-config.gradle
+│   │   │       │   │   ├── settings.gradle
+│   │   │       │   │   └── user-agent.gradle
+│   │   │       │   ├── example
+│   │   │       │   │   ├── android
+│   │   │       │   │   │   ├── app
+│   │   │       │   │   │   │   ├── src
+│   │   │       │   │   │   │   │   ├── debug
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   ├── main
+│   │   │       │   │   │   │   │   │   ├── java
+│   │   │       │   │   │   │   │   │   │   └── io
+│   │   │       │   │   │   │   │   │   │       └── flutter
+│   │   │       │   │   │   │   │   │   │           └── plugins
+│   │   │       │   │   │   │   │   │   ├── kotlin
+│   │   │       │   │   │   │   │   │   │   └── io
+│   │   │       │   │   │   │   │   │   │       └── flutter
+│   │   │       │   │   │   │   │   │   │           └── plugins
+│   │   │       │   │   │   │   │   │   │               └── firebasecoreexample
+│   │   │       │   │   │   │   │   │   │                   └── MainActivity.kt
+│   │   │       │   │   │   │   │   │   ├── res
+│   │   │       │   │   │   │   │   │   │   ├── drawable
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── drawable-v21
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-hdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-mdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── values
+│   │   │       │   │   │   │   │   │   │   │   └── styles.xml
+│   │   │       │   │   │   │   │   │   │   └── values-night
+│   │   │       │   │   │   │   │   │   │       └── styles.xml
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   └── profile
+│   │   │       │   │   │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   │   │   ├── build.gradle
+│   │   │       │   │   │   │   └── google-services.json
+│   │   │       │   │   │   ├── gradle
+│   │   │       │   │   │   │   └── wrapper
+│   │   │       │   │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   │   ├── build.gradle
+│   │   │       │   │   │   ├── gradle.properties
+│   │   │       │   │   │   └── settings.gradle
+│   │   │       │   │   ├── ios
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── AppFrameworkInfo.plist
+│   │   │       │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   └── Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   ├── AppIcon.appiconset
+│   │   │       │   │   │   │   │   │   ├── Contents.json
+│   │   │       │   │   │   │   │   │   ├── Icon-App-1024x1024@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-20x20@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-29x29@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-40x40@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-60x60@2x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-60x60@3x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-76x76@1x.png
+│   │   │       │   │   │   │   │   │   ├── Icon-App-76x76@2x.png
+│   │   │       │   │   │   │   │   │   └── Icon-App-83.5x83.5@2x.png
+│   │   │       │   │   │   │   │   └── LaunchImage.imageset
+│   │   │       │   │   │   │   │       ├── Contents.json
+│   │   │       │   │   │   │   │       ├── LaunchImage.png
+│   │   │       │   │   │   │   │       ├── LaunchImage@2x.png
+│   │   │       │   │   │   │   │       ├── LaunchImage@3x.png
+│   │   │       │   │   │   │   │       └── README.md
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   ├── LaunchScreen.storyboard
+│   │   │       │   │   │   │   │   └── Main.storyboard
+│   │   │       │   │   │   │   ├── AppDelegate.h
+│   │   │       │   │   │   │   ├── AppDelegate.m
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   └── main.m
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   │   ├── swiftpm
+│   │   │       │   │   │   │   │   │   │   └── configuration
+│   │   │       │   │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   ├── swiftpm
+│   │   │       │   │   │   │   │   │   └── configuration
+│   │   │       │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── Podfile
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   ├── firebase_options.dart
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── macos
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── Flutter-Debug.xcconfig
+│   │   │       │   │   │   │   └── Flutter-Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   └── AppIcon.appiconset
+│   │   │       │   │   │   │   │       ├── app_icon_1024.png
+│   │   │       │   │   │   │   │       ├── app_icon_128.png
+│   │   │       │   │   │   │   │       ├── app_icon_16.png
+│   │   │       │   │   │   │   │       ├── app_icon_256.png
+│   │   │       │   │   │   │   │       ├── app_icon_32.png
+│   │   │       │   │   │   │   │       ├── app_icon_512.png
+│   │   │       │   │   │   │   │       ├── app_icon_64.png
+│   │   │       │   │   │   │   │       └── Contents.json
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   └── MainMenu.xib
+│   │   │       │   │   │   │   ├── Configs
+│   │   │       │   │   │   │   │   ├── AppInfo.xcconfig
+│   │   │       │   │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   │   ├── Release.xcconfig
+│   │   │       │   │   │   │   │   └── Warnings.xcconfig
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── DebugProfile.entitlements
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── MainFlutterWindow.swift
+│   │   │       │   │   │   │   └── Release.entitlements
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   │   ├── swiftpm
+│   │   │       │   │   │   │   │   │   │   └── configuration
+│   │   │       │   │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   ├── swiftpm
+│   │   │       │   │   │   │   │   │   └── configuration
+│   │   │       │   │   │   │   │   ├── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   │   └── WorkspaceSettings.xcsettings
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── Podfile
+│   │   │       │   │   ├── web
+│   │   │       │   │   │   ├── icons
+│   │   │       │   │   │   │   ├── Icon-192.png
+│   │   │       │   │   │   │   ├── Icon-512.png
+│   │   │       │   │   │   │   ├── Icon-maskable-192.png
+│   │   │       │   │   │   │   └── Icon-maskable-512.png
+│   │   │       │   │   │   ├── favicon.png
+│   │   │       │   │   │   ├── index.html
+│   │   │       │   │   │   └── manifest.json
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   └── CMakeLists.txt
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── analysis_options.yaml
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── ios
+│   │   │       │   │   ├── firebase_core
+│   │   │       │   │   │   ├── Sources
+│   │   │       │   │   │   │   └── firebase_core
+│   │   │       │   │   │   │       ├── include
+│   │   │       │   │   │   │       │   └── firebase_core
+│   │   │       │   │   │   │       │       ├── dummy.h
+│   │   │       │   │   │   │       │       ├── FLTFirebaseCorePlugin.h
+│   │   │       │   │   │   │       │       ├── FLTFirebasePlugin.h
+│   │   │       │   │   │   │       │       ├── FLTFirebasePluginRegistry.h
+│   │   │       │   │   │   │       │       └── messages.g.h
+│   │   │       │   │   │   │       ├── Resources
+│   │   │       │   │   │   │       ├── dummy.m
+│   │   │       │   │   │   │       ├── FLTFirebaseCorePlugin.m
+│   │   │       │   │   │   │       ├── FLTFirebasePlugin.m
+│   │   │       │   │   │   │       ├── FLTFirebasePluginRegistry.m
+│   │   │       │   │   │   │       └── messages.g.m
+│   │   │       │   │   │   └── Package.swift
+│   │   │       │   │   ├── firebase_core.podspec
+│   │   │       │   │   └── firebase_sdk_version.rb
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   ├── firebase.dart
+│   │   │       │   │   │   ├── firebase_app.dart
+│   │   │       │   │   │   └── port_mapping.dart
+│   │   │       │   │   └── firebase_core.dart
+│   │   │       │   ├── macos
+│   │   │       │   │   ├── firebase_core
+│   │   │       │   │   │   ├── Sources
+│   │   │       │   │   │   │   └── firebase_core
+│   │   │       │   │   │   │       ├── include
+│   │   │       │   │   │   │       │   ├── firebase_core
+│   │   │       │   │   │   │       │   │   ├── FLTFirebaseCorePlugin.h
+│   │   │       │   │   │   │       │   │   ├── FLTFirebasePlugin.h
+│   │   │       │   │   │   │       │   │   ├── FLTFirebasePluginRegistry.h
+│   │   │       │   │   │   │       │   │   └── messages.g.h
+│   │   │       │   │   │   │       │   └── dummy.h
+│   │   │       │   │   │   │       ├── Resources
+│   │   │       │   │   │   │       ├── dummy.m
+│   │   │       │   │   │   │       ├── FLTFirebaseCorePlugin.m
+│   │   │       │   │   │   │       ├── FLTFirebasePlugin.m
+│   │   │       │   │   │   │       ├── FLTFirebasePluginRegistry.m
+│   │   │       │   │   │   │       └── messages.g.m
+│   │   │       │   │   │   └── Package.swift
+│   │   │       │   │   └── firebase_core.podspec
+│   │   │       │   ├── test
+│   │   │       │   │   └── firebase_core_test.dart
+│   │   │       │   ├── windows
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   └── firebase_core
+│   │   │       │   │   │       ├── firebase_core_plugin_c_api.h
+│   │   │       │   │   │       └── flutter_firebase_plugin.h
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   ├── firebase_core_plugin.cpp
+│   │   │       │   │   ├── firebase_core_plugin.h
+│   │   │       │   │   ├── firebase_core_plugin_c_api.cpp
+│   │   │       │   │   ├── flutter_firebase_plugin_registry.cpp
+│   │   │       │   │   ├── flutter_firebase_plugin_registry.h
+│   │   │       │   │   ├── messages.g.cpp
+│   │   │       │   │   ├── messages.g.h
+│   │   │       │   │   └── plugin_version.h.in
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── flutter_secure_storage_windows
+│   │   │       │   ├── example
+│   │   │       │   │   ├── integration_test
+│   │   │       │   │   │   └── app_test.dart
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.cc
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.h
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── analysis_options.yaml
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   ├── flutter_secure_storage_windows_ffi.dart
+│   │   │       │   │   │   └── flutter_secure_storage_windows_stub.dart
+│   │   │       │   │   └── flutter_secure_storage_windows.dart
+│   │   │       │   ├── test
+│   │   │       │   │   └── unit_test.dart
+│   │   │       │   ├── windows
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   └── flutter_secure_storage_windows
+│   │   │       │   │   │       └── flutter_secure_storage_windows_plugin.h
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   └── flutter_secure_storage_windows_plugin.cpp
+│   │   │       │   ├── analysis_options.yaml
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── geolocator_windows
+│   │   │       │   ├── example
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── res
+│   │   │       │   │   │   └── images
+│   │   │       │   │   │       ├── baseflow_logo_def_light-02.png
+│   │   │       │   │   │       ├── poweredByBaseflowLogoLight.png
+│   │   │       │   │   │       ├── poweredByBaseflowLogoLight@2x.png
+│   │   │       │   │   │       ├── poweredByBaseflowLogoLight@3x.png
+│   │   │       │   │   │       └── poweredByBaseflowLogoLight_2020-06-23.zip
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.cc
+│   │   │       │   │   │   │   ├── generated_plugin_registrant.h
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── windows
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   └── geolocator_windows
+│   │   │       │   │   │       └── geolocator_windows.h
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   ├── geolocator_enums.h
+│   │   │       │   │   ├── geolocator_plugin.cpp
+│   │   │       │   │   ├── geolocator_plugin.h
+│   │   │       │   │   └── geolocator_windows.cpp
+│   │   │       │   ├── analysis_options.yaml
+│   │   │       │   ├── AUTHORS
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── image_picker_windows
+│   │   │       │   ├── example
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   └── generated_plugins.cmake
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── lib
+│   │   │       │   │   └── image_picker_windows.dart
+│   │   │       │   ├── test
+│   │   │       │   │   ├── image_picker_windows_test.dart
+│   │   │       │   │   └── image_picker_windows_test.mocks.dart
+│   │   │       │   ├── AUTHORS
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       ├── jni
+│   │   │       │   ├── android
+│   │   │       │   │   ├── .cxx
+│   │   │       │   │   │   ├── Debug
+│   │   │       │   │   │   │   └── f396y1k1
+│   │   │       │   │   │   │       ├── arm64-v8a
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-baab64173173215e8628.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-2a1a336bb28cc01ff09e.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-6fc5c9efd35739407ed2.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-27-30-0529.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-a2a6d57ec32d6db6b43f.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       ├── armeabi-v7a
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-1ff2ca3342c64399e026.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-ba0c60296a286e9bf9cd.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-f321bfd29fdc95b8afad.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-28-08-0752.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-9f521ea4fcc9e2a3e4b9.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       ├── x86
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-edd34caf0ee3f40f8631.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-2d67b5a37490b84ec63d.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-400f00ad912c483fb97a.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-28-20-0714.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-935a690e6f70f4f8af98.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       ├── x86_64
+│   │   │       │   │   │   │       │   ├── .cmake
+│   │   │       │   │   │   │       │   │   └── api
+│   │   │       │   │   │   │       │   │       └── v1
+│   │   │       │   │   │   │       │   │           ├── query
+│   │   │       │   │   │   │       │   │           │   └── client-agp
+│   │   │       │   │   │   │       │   │           │       ├── cache-v2
+│   │   │       │   │   │   │       │   │           │       ├── cmakeFiles-v1
+│   │   │       │   │   │   │       │   │           │       └── codemodel-v2
+│   │   │       │   │   │   │       │   │           └── reply
+│   │   │       │   │   │   │       │   │               ├── cache-v2-d8906d101e162d6ac1c9.json
+│   │   │       │   │   │   │       │   │               ├── cmakeFiles-v1-52017f854b7e98fea334.json
+│   │   │       │   │   │   │       │   │               ├── codemodel-v2-dab4bc9cc5472c647b85.json
+│   │   │       │   │   │   │       │   │               ├── directory-.-Debug-d0094a50bb2071803777.json
+│   │   │       │   │   │   │       │   │               ├── index-2026-06-07T15-28-28-0404.json
+│   │   │       │   │   │   │       │   │               └── target-jni-Debug-2c2a9f8bd21d7c1f6303.json
+│   │   │       │   │   │   │       │   ├── CMakeFiles
+│   │   │       │   │   │   │       │   │   ├── 3.22.1-g37088a8-dirty
+│   │   │       │   │   │   │       │   │   │   ├── CompilerIdC
+│   │   │       │   │   │   │       │   │   │   │   ├── tmp
+│   │   │       │   │   │   │       │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │       │   │   │   │       │   │   │   │   └── CMakeCCompilerId.o
+│   │   │       │   │   │   │       │   │   │   ├── CMakeCCompiler.cmake
+│   │   │       │   │   │   │       │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │       │   │   │   │       │   │   │   └── CMakeSystem.cmake
+│   │   │       │   │   │   │       │   │   ├── CMakeTmp
+│   │   │       │   │   │   │       │   │   ├── jni.dir
+│   │   │       │   │   │   │       │   │   │   ├── include
+│   │   │       │   │   │   │       │   │   │   │   └── dart_api_dl.c.o
+│   │   │       │   │   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │       │   │   │   │   └── global_jni_env.c.o
+│   │   │       │   │   │   │       │   │   │   └── dartjni.c.o
+│   │   │       │   │   │   │       │   │   ├── cmake.check_cache
+│   │   │       │   │   │   │       │   │   ├── rules.ninja
+│   │   │       │   │   │   │       │   │   └── TargetDirectories.txt
+│   │   │       │   │   │   │       │   ├── .ninja_deps
+│   │   │       │   │   │   │       │   ├── .ninja_log
+│   │   │       │   │   │   │       │   ├── additional_project_files.txt
+│   │   │       │   │   │   │       │   ├── android_gradle_build.json
+│   │   │       │   │   │   │       │   ├── android_gradle_build_mini.json
+│   │   │       │   │   │   │       │   ├── build.ninja
+│   │   │       │   │   │   │       │   ├── build_file_index.txt
+│   │   │       │   │   │   │       │   ├── cmake_install.cmake
+│   │   │       │   │   │   │       │   ├── CMakeCache.txt
+│   │   │       │   │   │   │       │   ├── compile_commands.json
+│   │   │       │   │   │   │       │   ├── compile_commands.json.bin
+│   │   │       │   │   │   │       │   ├── configure_fingerprint.bin
+│   │   │       │   │   │   │       │   ├── metadata_generation_command.txt
+│   │   │       │   │   │   │       │   ├── prefab_config.json
+│   │   │       │   │   │   │       │   └── symbol_folder_index.txt
+│   │   │       │   │   │   │       └── hash_key.txt
+│   │   │       │   │   │   └── tools
+│   │   │       │   │   │       └── profile
+│   │   │       │   │   │           ├── arm64-v8a
+│   │   │       │   │   │           │   └── compile_commands.json
+│   │   │       │   │   │           ├── armeabi-v7a
+│   │   │       │   │   │           │   └── compile_commands.json
+│   │   │       │   │   │           ├── x86
+│   │   │       │   │   │           │   └── compile_commands.json
+│   │   │       │   │   │           └── x86_64
+│   │   │       │   │   │               └── compile_commands.json
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       ├── java
+│   │   │       │   │   │       │   └── com
+│   │   │       │   │   │       │       └── github
+│   │   │       │   │   │       │           └── dart_lang
+│   │   │       │   │   │       │               └── jni
+│   │   │       │   │   │       │                   └── JniPlugin.java
+│   │   │       │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   ├── build.gradle
+│   │   │       │   │   ├── consumer-rules.pro
+│   │   │       │   │   ├── README.md
+│   │   │       │   │   └── settings.gradle
+│   │   │       │   ├── bin
+│   │   │       │   │   └── setup.dart
+│   │   │       │   ├── example
+│   │   │       │   │   ├── android
+│   │   │       │   │   │   ├── app
+│   │   │       │   │   │   │   ├── src
+│   │   │       │   │   │   │   │   ├── debug
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   ├── main
+│   │   │       │   │   │   │   │   │   ├── java
+│   │   │       │   │   │   │   │   │   │   ├── com
+│   │   │       │   │   │   │   │   │   │   │   └── github
+│   │   │       │   │   │   │   │   │   │   │       └── dart_lang
+│   │   │       │   │   │   │   │   │   │   │           └── jni_example
+│   │   │       │   │   │   │   │   │   │   │               └── Toaster.java
+│   │   │       │   │   │   │   │   │   │   └── io
+│   │   │       │   │   │   │   │   │   │       └── flutter
+│   │   │       │   │   │   │   │   │   │           └── plugins
+│   │   │       │   │   │   │   │   │   ├── kotlin
+│   │   │       │   │   │   │   │   │   │   └── dev
+│   │   │       │   │   │   │   │   │   │       └── dart
+│   │   │       │   │   │   │   │   │   │           └── jni_example
+│   │   │       │   │   │   │   │   │   │               └── MainActivity.kt
+│   │   │       │   │   │   │   │   │   ├── res
+│   │   │       │   │   │   │   │   │   │   ├── drawable
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── drawable-v21
+│   │   │       │   │   │   │   │   │   │   │   └── launch_background.xml
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-hdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-mdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── mipmap-xxxhdpi
+│   │   │       │   │   │   │   │   │   │   │   └── ic_launcher.png
+│   │   │       │   │   │   │   │   │   │   ├── values
+│   │   │       │   │   │   │   │   │   │   │   └── styles.xml
+│   │   │       │   │   │   │   │   │   │   └── values-night
+│   │   │       │   │   │   │   │   │   │       └── styles.xml
+│   │   │       │   │   │   │   │   │   └── AndroidManifest.xml
+│   │   │       │   │   │   │   │   └── profile
+│   │   │       │   │   │   │   │       └── AndroidManifest.xml
+│   │   │       │   │   │   │   └── build.gradle
+│   │   │       │   │   │   ├── gradle
+│   │   │       │   │   │   │   └── wrapper
+│   │   │       │   │   │   │       └── gradle-wrapper.properties
+│   │   │       │   │   │   ├── build.gradle
+│   │   │       │   │   │   ├── gradle.properties
+│   │   │       │   │   │   └── settings.gradle
+│   │   │       │   │   ├── integration_test
+│   │   │       │   │   │   └── on_device_jni_test.dart
+│   │   │       │   │   ├── lib
+│   │   │       │   │   │   └── main.dart
+│   │   │       │   │   ├── linux
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   └── CMakeLists.txt
+│   │   │       │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   ├── main.cc
+│   │   │       │   │   │   ├── my_application.cc
+│   │   │       │   │   │   └── my_application.h
+│   │   │       │   │   ├── macos
+│   │   │       │   │   │   ├── Flutter
+│   │   │       │   │   │   │   ├── Flutter-Debug.xcconfig
+│   │   │       │   │   │   │   └── Flutter-Release.xcconfig
+│   │   │       │   │   │   ├── Runner
+│   │   │       │   │   │   │   ├── Assets.xcassets
+│   │   │       │   │   │   │   │   └── AppIcon.appiconset
+│   │   │       │   │   │   │   │       ├── app_icon_1024.png
+│   │   │       │   │   │   │   │       ├── app_icon_128.png
+│   │   │       │   │   │   │   │       ├── app_icon_16.png
+│   │   │       │   │   │   │   │       ├── app_icon_256.png
+│   │   │       │   │   │   │   │       ├── app_icon_32.png
+│   │   │       │   │   │   │   │       ├── app_icon_512.png
+│   │   │       │   │   │   │   │       ├── app_icon_64.png
+│   │   │       │   │   │   │   │       └── Contents.json
+│   │   │       │   │   │   │   ├── Base.lproj
+│   │   │       │   │   │   │   │   └── MainMenu.xib
+│   │   │       │   │   │   │   ├── Configs
+│   │   │       │   │   │   │   │   ├── AppInfo.xcconfig
+│   │   │       │   │   │   │   │   ├── Debug.xcconfig
+│   │   │       │   │   │   │   │   ├── Release.xcconfig
+│   │   │       │   │   │   │   │   └── Warnings.xcconfig
+│   │   │       │   │   │   │   ├── AppDelegate.swift
+│   │   │       │   │   │   │   ├── DebugProfile.entitlements
+│   │   │       │   │   │   │   ├── Info.plist
+│   │   │       │   │   │   │   ├── MainFlutterWindow.swift
+│   │   │       │   │   │   │   └── Release.entitlements
+│   │   │       │   │   │   ├── Runner.xcodeproj
+│   │   │       │   │   │   │   ├── project.xcworkspace
+│   │   │       │   │   │   │   │   └── xcshareddata
+│   │   │       │   │   │   │   │       └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── xcschemes
+│   │   │       │   │   │   │   │       └── Runner.xcscheme
+│   │   │       │   │   │   │   └── project.pbxproj
+│   │   │       │   │   │   ├── Runner.xcworkspace
+│   │   │       │   │   │   │   ├── xcshareddata
+│   │   │       │   │   │   │   │   └── IDEWorkspaceChecks.plist
+│   │   │       │   │   │   │   └── contents.xcworkspacedata
+│   │   │       │   │   │   └── Podfile
+│   │   │       │   │   ├── windows
+│   │   │       │   │   │   ├── flutter
+│   │   │       │   │   │   │   └── CMakeLists.txt
+│   │   │       │   │   │   ├── runner
+│   │   │       │   │   │   │   ├── resources
+│   │   │       │   │   │   │   │   └── app_icon.ico
+│   │   │       │   │   │   │   ├── CMakeLists.txt
+│   │   │       │   │   │   │   ├── flutter_window.cpp
+│   │   │       │   │   │   │   ├── flutter_window.h
+│   │   │       │   │   │   │   ├── main.cpp
+│   │   │       │   │   │   │   ├── resource.h
+│   │   │       │   │   │   │   ├── runner.exe.manifest
+│   │   │       │   │   │   │   ├── Runner.rc
+│   │   │       │   │   │   │   ├── utils.cpp
+│   │   │       │   │   │   │   ├── utils.h
+│   │   │       │   │   │   │   ├── win32_window.cpp
+│   │   │       │   │   │   │   └── win32_window.h
+│   │   │       │   │   │   └── CMakeLists.txt
+│   │   │       │   │   ├── analysis_options.yaml
+│   │   │       │   │   ├── pubspec.yaml
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── java
+│   │   │       │   │   ├── ~
+│   │   │       │   │   │   └── dev
+│   │   │       │   │   │       ├── native
+│   │   │       │   │   │       │   └── native
+│   │   │       │   │   │       │       └── pkgs
+│   │   │       │   │   │       │           └── jnigen
+│   │   │       │   │   │       │               └── example
+│   │   │       │   │   │       │                   └── pdfbox_plugin
+│   │   │       │   │   │       │                       └── dart_example
+│   │   │       │   │   │       └── native2
+│   │   │       │   │   │           └── pkgs
+│   │   │       │   │   │               └── jnigen
+│   │   │       │   │   │                   └── example
+│   │   │       │   │   │                       └── pdfbox_plugin
+│   │   │       │   │   │                           └── dart_example
+│   │   │       │   │   ├── gradle
+│   │   │       │   │   │   ├── wrapper
+│   │   │       │   │   │   │   ├── gradle-wrapper.jar
+│   │   │       │   │   │   │   └── gradle-wrapper.properties
+│   │   │       │   │   │   └── libs.versions.toml
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   └── main
+│   │   │       │   │   │       └── java
+│   │   │       │   │   │           └── com
+│   │   │       │   │   │               └── github
+│   │   │       │   │   │                   └── dart_lang
+│   │   │       │   │   │                       └── jni
+│   │   │       │   │   │                           ├── JniUtils.java
+│   │   │       │   │   │                           ├── PortCleaner.java
+│   │   │       │   │   │                           ├── PortContinuation.java
+│   │   │       │   │   │                           └── PortProxyBuilder.java
+│   │   │       │   │   ├── build.gradle.kts
+│   │   │       │   │   ├── gradlew
+│   │   │       │   │   ├── gradlew.bat
+│   │   │       │   │   ├── README.md
+│   │   │       │   │   └── settings.gradle.kts
+│   │   │       │   ├── lib
+│   │   │       │   │   ├── src
+│   │   │       │   │   │   ├── build_util
+│   │   │       │   │   │   │   └── build_util.dart
+│   │   │       │   │   │   ├── lang
+│   │   │       │   │   │   │   ├── jboolean.dart
+│   │   │       │   │   │   │   ├── jbyte.dart
+│   │   │       │   │   │   │   ├── jcharacter.dart
+│   │   │       │   │   │   │   ├── jdouble.dart
+│   │   │       │   │   │   │   ├── jfloat.dart
+│   │   │       │   │   │   │   ├── jinteger.dart
+│   │   │       │   │   │   │   ├── jlong.dart
+│   │   │       │   │   │   │   ├── jnumber.dart
+│   │   │       │   │   │   │   ├── jshort.dart
+│   │   │       │   │   │   │   ├── jstring.dart
+│   │   │       │   │   │   │   └── lang.dart
+│   │   │       │   │   │   ├── nio
+│   │   │       │   │   │   │   ├── jbuffer.dart
+│   │   │       │   │   │   │   ├── jbyte_buffer.dart
+│   │   │       │   │   │   │   └── nio.dart
+│   │   │       │   │   │   ├── third_party
+│   │   │       │   │   │   │   ├── generated_bindings.dart
+│   │   │       │   │   │   │   ├── global_env_extensions.dart
+│   │   │       │   │   │   │   └── jni_bindings_generated.dart
+│   │   │       │   │   │   ├── util
+│   │   │       │   │   │   │   ├── jiterator.dart
+│   │   │       │   │   │   │   ├── jlist.dart
+│   │   │       │   │   │   │   ├── jmap.dart
+│   │   │       │   │   │   │   ├── jset.dart
+│   │   │       │   │   │   │   └── util.dart
+│   │   │       │   │   │   ├── accessors.dart
+│   │   │       │   │   │   ├── core_bindings.dart
+│   │   │       │   │   │   ├── errors.dart
+│   │   │       │   │   │   ├── jarray.dart
+│   │   │       │   │   │   ├── jclass.dart
+│   │   │       │   │   │   ├── jimplementer.dart
+│   │   │       │   │   │   ├── jni.dart
+│   │   │       │   │   │   ├── jobject.dart
+│   │   │       │   │   │   ├── jprimitives.dart
+│   │   │       │   │   │   ├── jreference.dart
+│   │   │       │   │   │   ├── jvalues.dart
+│   │   │       │   │   │   ├── kotlin.dart
+│   │   │       │   │   │   ├── method_invocation.dart
+│   │   │       │   │   │   ├── primitive_jarrays.dart
+│   │   │       │   │   │   ├── types.dart
+│   │   │       │   │   │   └── version_check.dart
+│   │   │       │   │   ├── _internal.dart
+│   │   │       │   │   ├── jni.dart
+│   │   │       │   │   └── jni_symbols.yaml
+│   │   │       │   ├── linux
+│   │   │       │   │   └── CMakeLists.txt
+│   │   │       │   ├── src
+│   │   │       │   │   ├── include
+│   │   │       │   │   │   ├── bin
+│   │   │       │   │   │   │   ├── dart_io_api.h
+│   │   │       │   │   │   │   └── native_assets_api.h
+│   │   │       │   │   │   ├── internal
+│   │   │       │   │   │   │   └── dart_api_dl_impl.h
+│   │   │       │   │   │   ├── analyze_snapshot_api.h
+│   │   │       │   │   │   ├── BUILD.gn
+│   │   │       │   │   │   ├── dart_api.h
+│   │   │       │   │   │   ├── dart_api_dl.c
+│   │   │       │   │   │   ├── dart_api_dl.h
+│   │   │       │   │   │   ├── dart_embedder_api.h
+│   │   │       │   │   │   ├── dart_native_api.h
+│   │   │       │   │   │   ├── dart_tools_api.h
+│   │   │       │   │   │   └── dart_version.h
+│   │   │       │   │   ├── third_party
+│   │   │       │   │   │   ├── global_jni_env.c
+│   │   │       │   │   │   └── global_jni_env.h
+│   │   │       │   │   ├── CMakeLists.txt
+│   │   │       │   │   ├── dartjni.c
+│   │   │       │   │   ├── dartjni.h
+│   │   │       │   │   ├── jni_constants.h
+│   │   │       │   │   └── README.md
+│   │   │       │   ├── test
+│   │   │       │   │   ├── test_util
+│   │   │       │   │   │   └── test_util.dart
+│   │   │       │   │   ├── version_check
+│   │   │       │   │   │   ├── fail_major.dart
+│   │   │       │   │   │   ├── fail_minor.dart
+│   │   │       │   │   │   └── pass.dart
+│   │   │       │   │   ├── boxed_test.dart
+│   │   │       │   │   ├── debug_release_test.dart
+│   │   │       │   │   ├── exception_test.dart
+│   │   │       │   │   ├── global_env_test.dart
+│   │   │       │   │   ├── isolate_test.dart
+│   │   │       │   │   ├── jarray_test.dart
+│   │   │       │   │   ├── jbyte_buffer_test.dart
+│   │   │       │   │   ├── jlist_test.dart
+│   │   │       │   │   ├── jmap_test.dart
+│   │   │       │   │   ├── jobject_test.dart
+│   │   │       │   │   ├── jset_test.dart
+│   │   │       │   │   ├── jstring_test.dart
+│   │   │       │   │   ├── load_test.dart
+│   │   │       │   │   └── version_check_test.dart
+│   │   │       │   ├── third_party
+│   │   │       │   │   └── jni.h
+│   │   │       │   ├── tool
+│   │   │       │   │   ├── wrapper_generators
+│   │   │       │   │   │   ├── ffigen_util.dart
+│   │   │       │   │   │   ├── generate_c_extensions.dart
+│   │   │       │   │   │   ├── generate_dart_extensions.dart
+│   │   │       │   │   │   ├── generate_helper_functions.dart
+│   │   │       │   │   │   └── logging.dart
+│   │   │       │   │   ├── generate_ffi_bindings.dart
+│   │   │       │   │   ├── generate_ide_files.dart
+│   │   │       │   │   ├── generate_jni_bindings.dart
+│   │   │       │   │   └── generate_primitive_arrays.dart
+│   │   │       │   ├── windows
+│   │   │       │   │   └── CMakeLists.txt
+│   │   │       │   ├── analysis_options.yaml
+│   │   │       │   ├── CHANGELOG.md
+│   │   │       │   ├── dart_test.yaml
+│   │   │       │   ├── ffigen.yaml
+│   │   │       │   ├── ffigen_exts.yaml
+│   │   │       │   ├── LICENSE
+│   │   │       │   ├── pubspec.yaml
+│   │   │       │   └── README.md
+│   │   │       └── path_provider_windows
+│   │   │           ├── example
+│   │   │           │   ├── integration_test
+│   │   │           │   │   └── path_provider_test.dart
+│   │   │           │   ├── lib
+│   │   │           │   │   └── main.dart
+│   │   │           │   ├── test_driver
+│   │   │           │   │   └── integration_test.dart
+│   │   │           │   ├── windows
+│   │   │           │   │   ├── flutter
+│   │   │           │   │   │   ├── CMakeLists.txt
+│   │   │           │   │   │   └── generated_plugins.cmake
+│   │   │           │   │   ├── runner
+│   │   │           │   │   │   ├── resources
+│   │   │           │   │   │   │   └── app_icon.ico
+│   │   │           │   │   │   ├── CMakeLists.txt
+│   │   │           │   │   │   ├── flutter_window.cpp
+│   │   │           │   │   │   ├── flutter_window.h
+│   │   │           │   │   │   ├── main.cpp
+│   │   │           │   │   │   ├── resource.h
+│   │   │           │   │   │   ├── run_loop.cpp
+│   │   │           │   │   │   ├── run_loop.h
+│   │   │           │   │   │   ├── runner.exe.manifest
+│   │   │           │   │   │   ├── Runner.rc
+│   │   │           │   │   │   ├── utils.cpp
+│   │   │           │   │   │   ├── utils.h
+│   │   │           │   │   │   ├── win32_window.cpp
+│   │   │           │   │   │   └── win32_window.h
+│   │   │           │   │   └── CMakeLists.txt
+│   │   │           │   ├── pubspec.yaml
+│   │   │           │   └── README.md
+│   │   │           ├── lib
+│   │   │           │   ├── src
+│   │   │           │   │   ├── folders.dart
+│   │   │           │   │   ├── folders_stub.dart
+│   │   │           │   │   ├── guid.dart
+│   │   │           │   │   ├── path_provider_windows_real.dart
+│   │   │           │   │   ├── path_provider_windows_stub.dart
+│   │   │           │   │   └── win32_wrappers.dart
+│   │   │           │   └── path_provider_windows.dart
+│   │   │           ├── test
+│   │   │           │   ├── guid_test.dart
+│   │   │           │   └── path_provider_windows_test.dart
+│   │   │           ├── AUTHORS
+│   │   │           ├── CHANGELOG.md
+│   │   │           ├── LICENSE
+│   │   │           ├── pubspec.yaml
+│   │   │           └── README.md
 │   │   ├── CMakeLists.txt
 │   │   ├── generated_plugin_registrant.cc
 │   │   ├── generated_plugin_registrant.h
@@ -415,6 +2781,7 @@
 ├── .metadata
 ├── analysis_options.yaml
 ├── folder-structure.txt
+├── LOCAL_BACKEND_TESTING.md
 ├── pubspec.lock
 ├── pubspec.yaml
 └── README.md

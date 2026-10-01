@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../models/provider_profile_models.dart';
-import '../state/provider_profile_controller.dart';
-import '../../verification/state/verification_controller.dart';
-import '../../vehicle/state/vehicle_controller.dart';
+
+import '../../../core/theme/theme_extensions.dart';
 import '../../disputes/state/rider_dispute_controller.dart';
+import '../../vehicle/state/vehicle_controller.dart';
+import '../../vehicle/ui/bike_list_screen.dart';
+import '../../verification/state/verification_controller.dart';
 import '../../wallet/state/wallet_controller.dart';
-import 'widgets/profile_menu_item.dart';
-import 'security_screen.dart';
+import '../state/provider_profile_controller.dart';
 import 'profile_info_screen.dart';
-import 'verification_intro_screen.dart';
-import 'vehicle_information_screen.dart';
-import 'safety_emergency_screen.dart';
-import 'support_screen.dart';
+import 'emergency_contact_screen.dart';
+import 'guarantor_information_screen.dart';
+import 'stats_settings_screen.dart';
+import 'deactivate_account_screen.dart';
+import 'update_profile_photo_screen.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Figma 11 — Account Home
+// Navy hero (avatar · "Good morning," · "Karryam Provider" · gear) +
+// white sheet with 7 rows (Figma 5 + Bikes/Vehicles + Log out).
+// ═══════════════════════════════════════════════════════════════════════════
 
 class ProfileScreen extends StatefulWidget {
   final ProviderProfileController profileController;
@@ -39,882 +45,399 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isLoading = false;
-  bool _isLoggingOut = false;
-  bool _isDeletingAccount = false;
-
   @override
   void initState() {
     super.initState();
-    _fetchProfile();
+    _fetch();
   }
 
-  Future<void> _fetchProfile() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetch() async {
     await Future.wait([
       widget.profileController.loadMe(),
       widget.profileController.loadStats(),
       widget.verificationController.loadVerificationStatus(),
     ]);
-    if (mounted) {
-      debugPrint(
-        'photoUrl: ${widget.profileController.profile?.profilePhotoUrl}',
-      );
-      setState(() => _isLoading = false);
-    }
+    if (mounted) setState(() {});
+  }
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning,';
+    if (h < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────
+
+  void _openProfileDetails() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProfileInfoScreen(
+          profileController: widget.profileController,
+        ),
+      ),
+    );
+  }
+
+  void _openEmergencyContact() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EmergencyContactScreen(
+          profileController: widget.profileController,
+        ),
+      ),
+    );
+  }
+
+  void _openGuarantor() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GuarantorInformationScreen(
+          profileController: widget.profileController,
+        ),
+      ),
+    );
+  }
+
+  void _openBikes() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BikeListScreen(
+          vehicleController: widget.vehicleController,
+        ),
+      ),
+    );
+  }
+
+  void _openStatsSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StatsSettingsScreen(
+          profileController: widget.profileController,
+          verificationController: widget.verificationController,
+          vehicleController: widget.vehicleController,
+          walletController: widget.walletController,
+          disputeController: widget.disputeController,
+          onLogout: widget.onLogout,
+        ),
+      ),
+    );
+  }
+
+  void _openAvatar() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => UpdateProfilePhotoScreen(
+          profileController: widget.profileController,
+        ),
+      ),
+    );
+  }
+
+  void _openDeactivate() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DeactivateAccountScreen(
+          profileController: widget.profileController,
+          onDeleted: widget.onAccountDeleted,
+        ),
+      ),
+    );
   }
 
   void _confirmLogout() {
-    showDialog<bool>(
+    showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Log Out',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: const Text('Are you sure you want to log out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        final c = ctx.palette;
+        return AlertDialog(
+          title: const Text('Log out?'),
+          content: Text(
+            'You will need to sign in again to use Karryam.',
+            style: TextStyle(color: c.textMuted, fontSize: 14, height: 1.5),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFE53935),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
             ),
-            child: const Text(
-              'Log Out',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                widget.onLogout?.call();
+              },
+              style: TextButton.styleFrom(foregroundColor: c.danger),
+              child: const Text(
+                'Log out',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
-          ),
-        ],
-      ),
-    ).then((confirmed) {
-      if (confirmed == true && mounted) {
-        _doLogout();
-      }
-    });
-  }
-
-  Future<void> _doLogout() async {
-    setState(() => _isLoggingOut = true);
-    try {
-      widget.onLogout?.call();
-    } finally {
-      if (mounted) setState(() => _isLoggingOut = false);
-    }
-  }
-
-  void _confirmDeleteAccount() {
-    showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Delete Account',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: const Text(
-          'This will permanently delete your account and you will lose all your data. This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFE53935),
-            ),
-            child: const Text(
-              'Delete Account',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    ).then((confirmed) {
-      if (confirmed == true && mounted) {
-        _doDeleteAccount();
-      }
-    });
-  }
-
-  Future<void> _doDeleteAccount() async {
-    setState(() => _isDeletingAccount = true);
-    final result = await widget.profileController.deleteAccount();
-    if (!mounted) return;
-    result.when(
-      success: (_) {
-        widget.onAccountDeleted?.call();
-      },
-      failure: (error) {
-        setState(() => _isDeletingAccount = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: const Color(0xFFE53935),
-          ),
+          ],
         );
       },
     );
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final c = context.palette;
     final profile = widget.profileController.profile;
+    final initial = (profile?.fullName?.isNotEmpty == true)
+        ? profile!.fullName![0].toUpperCase()
+        : 'K';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF05124D)),
-              )
-            : profile == null
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Failed to load profile details.',
-                      style: TextStyle(color: Color(0xFF888888)),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: _fetchProfile,
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              )
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  20,
-                  16,
-                  20,
-                  // Extra bottom clearance for the floating bottom nav.
-                  24,
-                ),
+      backgroundColor: c.brandNavy900,
+      body: Column(
+        children: [
+          // ── Navy hero ──
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+              child: Column(
                 children: [
-                  const Text(
-                    'Profile',
+                  Row(
+                    children: [
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: _openStatsSettings,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.settings_outlined,
+                            size: 22,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Avatar with camera badge
+                  GestureDetector(
+                    onTap: _openAvatar,
+                    behavior: HitTestBehavior.opaque,
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 96,
+                          height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              width: 2.5,
+                            ),
+                          ),
+                          child: ClipOval(
+                            child:
+                                profile?.profilePhotoUrl?.isNotEmpty == true
+                                    ? Image.network(
+                                        profile!.profilePhotoUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) =>
+                                            _Initial(letter: initial),
+                                      )
+                                    : _Initial(letter: initial),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: c.brandTeal500,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: c.brandNavy900,
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.photo_camera_rounded,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  Text(
+                    _greeting,
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.72),
                     ),
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'Manage your Personal Information and Account',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF888888)),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Header: avatar, name, stats, badges ─────────
-                  Center(
-                    child: Column(
-                      children: [
-                        _ProfileAvatar(
-                          photoUrl: profile.profilePhotoUrl,
-                          fallbackInitial:
-                              (profile.fullName?.isNotEmpty == true)
-                              ? profile.fullName![0].toUpperCase()
-                              : '?',
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          profile.fullName ?? 'Unnamed Provider',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              const TextSpan(
-                                text: 'Driving with Cosmicforge Logistics . ',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF888888),
-                                ),
-                              ),
-                              TextSpan(
-                                text: _membershipDuration(profile.createdAt),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF05124D),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              const TextSpan(
-                                text: 'Completed Trips . ',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF888888),
-                                ),
-                              ),
-                              TextSpan(
-                                text: _formatNumber(profile.totalTrips),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF05124D),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // TODO: confirm the service-type field (Taxi/
-                        // Truck/Package) below once exposed by the API —
-                        // operationType currently maps to Individual/Fleet.
-                        ListenableBuilder(
-                          listenable: widget.verificationController,
-                          builder: (context, _) {
-                            // The verification/status endpoint computes
-                            // real-time overall status (including in_progress
-                            // and pending_review) and is preferred over the
-                            // providers.verification_status DB column, which
-                            // is only updated when all steps are approved.
-                            final effectiveStatus = widget
-                                    .verificationController
-                                    .latestStatus
-                                    ?.overallStatus ??
-                                profile.verificationStatus;
-                            return _StatusBadges(
-                              verificationStatus: effectiveStatus,
-                              operationType: profile.operationType,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        _RiderIdRow(supportId: profile.supportId),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ── Stats card ─────────────────────────────────
-                  _StatsCard(
-                    stats: widget.profileController.stats,
-                    isLoading: widget.profileController.isLoading,
-                    onRetry: _fetchProfile,
-                  ),
-
-                  // ── Menu list ──────────────────────────────────
-                  ProfileMenuItem(
-                    icon: Icons.person_outline,
-                    label: 'Profile Information',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ProfileInfoScreen(
-                          profileController: widget.profileController,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.map_outlined,
-                    label: 'Verification & Documents',
-                    onTap: () async {
-                      final result = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(
-                          builder: (_) => VerificationIntroScreen(
-                            verificationController:
-                                widget.verificationController,
-                            vehicleController: widget.vehicleController,
-                            profileController: widget.profileController,
-                          ),
-                        ),
-                      );
-                      if (result == true && mounted) {
-                        _fetchProfile();
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.people_alt_outlined,
-                    label: 'Vehicle Information',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => VehicleInformationScreen(
-                          vehicleController: widget.vehicleController,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.business_outlined,
-                    label: 'Safety & Emergency',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => SafetyEmergencyScreen(
-                          profileController: widget.profileController,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.block_outlined,
-                    label: 'Security',
-                    onTap: widget.walletController == null
-                        ? () {}
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => SecurityScreen(
-                                walletController: widget.walletController!,
-                              ),
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.shield_outlined,
-                    label: 'Privacy',
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Payment & Withdrawals',
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 10),
-                  ProfileMenuItem(
-                    icon: Icons.support_agent_outlined,
-                    label: 'Support',
-                    onTap: widget.disputeController == null
-                        ? () {}
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => SupportScreen(
-                                disputeController: widget.disputeController!,
-                              ),
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (widget.onLogout != null)
-                    ProfileMenuItem(
-                      icon: Icons.logout,
-                      label: _isLoggingOut ? 'Logging out…' : 'Log Out',
-                      color: const Color(0xFFE53935),
-                      onTap: _isLoggingOut ? null : _confirmLogout,
-                      trailing: _isLoggingOut
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFFE53935),
-                              ),
-                            )
-                          : null,
-                    ),
-
-                  const SizedBox(height: 24),
-
-                  // ── Delete account banner ───────────────────────
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFDECEC),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Delete Account',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFE53935),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'When you delete your account, you lose complete access.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF888888),
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: _isDeletingAccount
-                              ? null
-                              : _confirmDeleteAccount,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE53935),
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor:
-                                const Color(0xFFE53935).withValues(alpha: 0.6),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          child: _isDeletingAccount
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Delete Account',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                        ),
-                      ],
+                    'Karryam Provider',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ],
               ),
+            ),
+          ),
+
+          // ── White sheet ──
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: c.background,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                children: [
+                  _MenuRow(
+                    icon: Icons.person_outline_rounded,
+                    label: 'Profile details',
+                    onTap: _openProfileDetails,
+                  ),
+                  _MenuRow(
+                    icon: Icons.emergency_outlined,
+                    label: 'Emergency contact',
+                    onTap: _openEmergencyContact,
+                  ),
+                  _MenuRow(
+                    icon: Icons.people_outline_rounded,
+                    label: 'Guarantor',
+                    onTap: _openGuarantor,
+                  ),
+                  _MenuRow(
+                    icon: Icons.two_wheeler_outlined,
+                    label: 'Bikes / Vehicles',
+                    onTap: _openBikes,
+                  ),
+                  _MenuRow(
+                    icon: Icons.bar_chart_rounded,
+                    label: 'Stats and settings',
+                    onTap: _openStatsSettings,
+                  ),
+                  _MenuRow(
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Deactivate account',
+                    onTap: _openDeactivate,
+                    destructive: true,
+                  ),
+                  _MenuRow(
+                    icon: Icons.logout_rounded,
+                    label: 'Log out',
+                    onTap: _confirmLogout,
+                    destructive: true,
+                    isLast: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Displays the rider's support ID (e.g. KG-6BA7B810) with a copy button.
-class _RiderIdRow extends StatelessWidget {
-  const _RiderIdRow({required this.supportId});
-  final String supportId;
+class _Initial extends StatelessWidget {
+  const _Initial({required this.letter});
+  final String letter;
 
   @override
   Widget build(BuildContext context) {
-    if (supportId.isEmpty) return const SizedBox.shrink();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          supportId,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF888888),
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(width: 4),
-        GestureDetector(
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: supportId));
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Rider ID copied'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          },
-          child: const Icon(
-            Icons.copy_outlined,
-            size: 14,
-            color: Color(0xFF888888),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Resolves [profilePhotoUrl] from the API into a loadable URL.
-///
-/// TODO: if the backend ever starts returning relative paths instead of
-/// full URLs, prepend the API base URL here (e.g. from `core/config.dart`).
-/// Currently `profile_photo_url` from the Go service is expected to already
-/// be an absolute URL.
-String? _resolvePhotoUrl(String? url) {
-  if (url == null || url.isEmpty) return null;
-  return url;
-}
-
-/// Avatar that shows the provider's uploaded photo, falling back to an
-/// initial-letter circle while loading or if no photo is set / it fails
-/// to load.
-class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({required this.photoUrl, required this.fallbackInitial});
-
-  final String? photoUrl;
-  final String fallbackInitial;
-
-  static const double _size = 100;
-
-  Widget _fallback() {
     return Container(
-      width: _size,
-      height: _size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF05124D).withValues(alpha: 0.1),
-      ),
+      color: Colors.white.withValues(alpha: 0.14),
       child: Text(
-        fallbackInitial,
+        letter,
         style: const TextStyle(
           fontSize: 36,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF05124D),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final resolvedUrl = _resolvePhotoUrl(photoUrl);
-    if (resolvedUrl == null) return _fallback();
-
-    return ClipOval(
-      child: Image.network(
-        resolvedUrl,
-        width: _size,
-        height: _size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _fallback(),
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return Container(
-            width: _size,
-            height: _size,
-            alignment: Alignment.center,
-            color: const Color(0xFF05124D).withValues(alpha: 0.1),
-            child: const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Color(0xFF05124D),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// "1 year", "3 months", or "New" based on when the provider account
-/// was created.
-String _membershipDuration(DateTime? createdAt) {
-  if (createdAt == null) return '—';
-
-  final now = DateTime.now();
-  final months =
-      (now.year - createdAt.year) * 12 + (now.month - createdAt.month);
-
-  if (months < 1) return 'New';
-  if (months < 12) return '$months month${months == 1 ? '' : 's'}';
-
-  final years = months ~/ 12;
-  return '$years year${years == 1 ? '' : 's'}';
-}
-
-/// Formats a count with thousands separators, e.g. 1234 -> "1,234".
-String _formatNumber(int value) {
-  final digits = value.toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
-    buffer.write(digits[i]);
-  }
-  return buffer.toString();
-}
-
-class _StatusBadges extends StatelessWidget {
-  const _StatusBadges({
-    required this.verificationStatus,
-    required this.operationType,
-  });
-
-  final String verificationStatus;
-  final String? operationType;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color verificationColor;
-    final String verificationLabel;
-
-    switch (verificationStatus) {
-      case 'verified':
-        verificationColor = const Color(0xFF2E7D32);
-        verificationLabel = 'Verified';
-        break;
-      case 'pending_review':
-        verificationColor = const Color(0xFFF57F17);
-        verificationLabel = 'Pending Review';
-        break;
-      case 'in_progress':
-        verificationColor = const Color(0xFF1565C0);
-        verificationLabel = 'In Progress';
-        break;
-      case 'rejected':
-        verificationColor = const Color(0xFFC62828);
-        verificationLabel = 'Rejected';
-        break;
-      case 'suspended':
-        verificationColor = const Color(0xFF37474F);
-        verificationLabel = 'Suspended';
-        break;
-      default:
-        verificationColor = const Color(0xFFE53935);
-        verificationLabel = 'Unverified';
-    }
-
-    // TODO: replace with the dedicated service-type field (Taxi/Truck/
-    // Package) once exposed by the API — operationType currently maps to
-    // Individual/Fleet, not the vehicle service type shown in the Figma.
-    final operationLabel = (operationType?.isNotEmpty == true)
-        ? operationType![0].toUpperCase() + operationType!.substring(1)
-        : 'Individual';
-
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: verificationLabel,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: verificationColor,
-            ),
-          ),
-          const TextSpan(
-            text: '  •  ',
-            style: TextStyle(fontSize: 13, color: Color(0xFFCCCCCC)),
-          ),
-          TextSpan(
-            text: operationLabel,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF05124D),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsCard extends StatelessWidget {
-  const _StatsCard({
-    required this.stats,
-    required this.isLoading,
-    required this.onRetry,
-  });
-
-  final ProviderStats? stats;
-  final bool isLoading;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading && stats == null) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
+          fontWeight: FontWeight.w800,
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: const Center(
-          child: SizedBox(
-            height: 32,
-            width: 32,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFF05124D),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (stats == null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Could not load stats.',
-              style: TextStyle(color: Color(0xFF888888), fontSize: 13),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onRetry,
-              child: const Text(
-                'Retry',
-                style: TextStyle(
-                  color: Color(0xFF05124D),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final hasRatings = stats!.ratingsCount > 0;
-    final ratingLabel = hasRatings
-        ? stats!.avgRating.toStringAsFixed(2)
-        : 'No ratings yet';
-    final completionLabel =
-        '${(stats!.completionRate * 100).toStringAsFixed(0)}%';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _StatCell(label: 'Trips', value: _formatNumber(stats!.totalTrips)),
-          _StatDivider(),
-          _StatCell(
-            label: 'Rating',
-            value: ratingLabel,
-            icon: hasRatings ? Icons.star_rounded : null,
-            iconColor: const Color(0xFFFFA000),
-          ),
-          _StatDivider(),
-          _StatCell(label: 'Completion', value: completionLabel),
-          _StatDivider(),
-          _StatCell(
-            label: 'Reviews',
-            value: _formatNumber(stats!.ratingsCount),
-          ),
-        ],
       ),
     );
   }
 }
 
-class _StatCell extends StatelessWidget {
-  const _StatCell({
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({
+    required this.icon,
     required this.label,
-    required this.value,
-    this.icon,
-    this.iconColor,
+    required this.onTap,
+    this.destructive = false,
+    this.isLast = false,
   });
 
+  final IconData icon;
   final String label;
-  final String value;
-  final IconData? icon;
-  final Color? iconColor;
+  final VoidCallback? onTap;
+  final bool destructive;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          if (icon != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
+    final c = context.palette;
+    final fg = destructive ? c.danger : c.text;
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
               children: [
-                Icon(icon, size: 14, color: iconColor),
-                const SizedBox(width: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A1A1A),
+                Icon(icon, size: 22, color: fg),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                      letterSpacing: -0.1,
+                    ),
                   ),
                 ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 22,
+                  color: destructive
+                      ? c.danger.withValues(alpha: 0.6)
+                      : c.textMuted,
+                ),
               ],
-            )
-          else
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
-              ),
-              textAlign: TextAlign.center,
             ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
-            textAlign: TextAlign.center,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 36,
-      color: const Color(0xFFEEEEEE),
-      margin: const EdgeInsets.symmetric(horizontal: 4),
+        ),
+        if (!isLast)
+          Divider(
+            height: 1,
+            color: destructive
+                ? c.danger.withValues(alpha: 0.15)
+                : c.divider,
+          ),
+      ],
     );
   }
 }

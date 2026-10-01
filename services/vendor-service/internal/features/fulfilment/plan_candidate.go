@@ -135,6 +135,14 @@ const (
 	// why the capability is read rather than hardcoded.
 	ReasonCandidateMultiStopUnsupported = "MULTI_STOP_UNSUPPORTED"
 
+	// ReasonCandidateMultiStopLimitExceeded means the authority can drive a
+	// multi-stop collection but not this many collection points.
+	ReasonCandidateMultiStopLimitExceeded = "MULTI_STOP_LIMIT_EXCEEDED"
+
+	// ReasonCandidateSecureHandoverUnsupported means the consolidated load
+	// needs a verified per-stop handover the authority does not perform.
+	ReasonCandidateSecureHandoverUnsupported = "SECURE_HANDOVER_UNSUPPORTED"
+
 	// ReasonCandidateServiceMismatch means the members need different
 	// logistics services or vehicle classes, so no one mission covers them.
 	ReasonCandidateServiceMismatch = "SERVICE_OR_CLASS_MISMATCH"
@@ -168,6 +176,7 @@ func KnownCandidateReason(code string) bool {
 		ReasonCandidateFragileUnsafe, ReasonCandidateSeparationConflict,
 		ReasonCandidateReadyWindowConflict, ReasonCandidateETADetourExceeded,
 		ReasonCandidateMultiStopUnsupported, ReasonCandidateServiceMismatch,
+		ReasonCandidateMultiStopLimitExceeded, ReasonCandidateSecureHandoverUnsupported,
 		ReasonCandidateUrgencyConflict, ReasonCandidateNotQuotable,
 		ReasonCandidateProximityExceeded:
 		return true
@@ -188,6 +197,7 @@ func HardCandidateReason(code string) bool {
 		ReasonCandidateFragileUnsafe, ReasonCandidateSeparationConflict,
 		ReasonCandidateReadyWindowConflict, ReasonCandidateETADetourExceeded,
 		ReasonCandidateMultiStopUnsupported, ReasonCandidateServiceMismatch,
+		ReasonCandidateMultiStopLimitExceeded, ReasonCandidateSecureHandoverUnsupported,
 		ReasonCandidateUrgencyConflict, ReasonCandidateNotQuotable,
 		ReasonCandidateProximityExceeded:
 		return true
@@ -218,6 +228,10 @@ type CandidateLeg struct {
 	// Conflating the two is precisely how a plan gets marked executable
 	// against a runtime that cannot execute it.
 	PickupStopCount int `json:"pickup_stop_count"`
+
+	// SecureHandoverRequired is whether this leg carries load whose
+	// collection must be verified per stop.
+	SecureHandoverRequired bool `json:"secure_handover_required,omitempty"`
 
 	DistanceKm       float64 `json:"distance_km"`
 	EstimatedMinutes int     `json:"estimated_minutes"`

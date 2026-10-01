@@ -1,10 +1,17 @@
-﻿"use client";
+﻿// src/app/(auth)/verify/page.tsx
 
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+"use client";
+
+import { Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail, ShieldCheck, ShieldAlert, Lock, RotateCw, CheckCircle2, WifiOff } from "lucide-react";
+import { authService } from "@/lib/services/authService";
+import { useAuthStore } from "@/lib/stores/authStore";
+import { useOrganizationStore } from "@/lib/stores/organizationStore";
+import { organizationService } from "@/lib/services/organizationService";
+import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
 
-const MOCK_VALID_CODE = "123456";
+const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
 const EXPIRY_SECONDS = 300;
 const MAX_ATTEMPTS = 5;
@@ -12,19 +19,28 @@ const MAX_ATTEMPTS = 5;
 type SubmitState =
   | { status: "idle" }
   | { status: "submitting" }
-  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" };
+  | { status: "success" }
+  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" | "network" };
 
 function VerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const challengeId = searchParams.get("challengeId") || "";
   const destination = searchParams.get("destination") ?? "your contact";
 
-  const [code, setCode] = useState("");
+  const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [state, setState] = useState<SubmitState>({ status: "idle" });
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const [expiresIn, setExpiresIn] = useState(EXPIRY_SECONDS);
   const [attempts, setAttempts] = useState(0);
   const [justResent, setJustResent] = useState(false);
+  const [resendError, setResendError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const { setAuth, setLoading, setError } = useAuthStore();
+  const { setOrganization } = useOrganizationStore();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -34,9 +50,22 @@ function VerifyContent() {
     return () => clearInterval(timer);
   }, []);
 
+  const code = digits.join("");
   const submitting = state.status === "submitting";
+  const success = state.status === "success";
   const expired = expiresIn === 0;
   const locked = state.status === "error" && state.kind === "locked";
+  const hasError = state.status === "error";
+
+  function triggerShake() {
+    setShake(true);
+    setTimeout(() => setShake(false), 400);
+  }
+
+  function clearAndRefocus() {
+    setDigits(Array(CODE_LENGTH).fill(""));
+    setTimeout(() => inputRefs.current[0]?.focus(), 0);
+  }
 
   async function submitCode(candidate: string) {
     if (expired) {
@@ -44,51 +73,200 @@ function VerifyContent() {
       return;
     }
 
-    setState({ status: "submitting" });
-
-    // MOCK: accepts a fixed code until the real verify endpoint is wired in.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    if (candidate !== MOCK_VALID_CODE) {
-      const nextAttempts = attempts + 1;
-      setAttempts(nextAttempts);
-      if (nextAttempts >= MAX_ATTEMPTS) {
-        setState({ status: "error", kind: "locked" });
-      } else {
-        setState({ status: "error", kind: "invalid" });
-      }
+    if (!challengeId) {
+      setState({ status: "error", kind: "access_denied" });
       return;
     }
 
-    router.push("/choose-organization");
+    if (submitting || success) return;
+
+    setState({ status: "submitting" });
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await authService.verifyOTP({
+        challengeId,
+        code: candidate,
+      });
+
+      const data = response.data;
+
+      if (data?.nextStep === "ONBOARDING_REQUIRED") {
+        if (data?.tokens) {
+          setAuth(data.tokens, data.identityId, data.organizations || []);
+        }
+        setOrgStatusCookie("DRAFT");
+        setState({ status: "success" });
+        setLoading(false);
+        setTimeout(() => {
+          router.push("/setup");
+        }, 800);
+        return;
+      }
+
+      if (data?.nextStep === "ORGANIZATION_SELECTION_REQUIRED" && data?.tokens) {
+        setAuth(data.tokens, data.identityId, data.organizations || []);
+        setState({ status: "success" });
+        setLoading(false);
+        setTimeout(() => {
+          router.push("/choose-organization");
+        }, 800);
+        return;
+      }
+
+      if (data?.nextStep === "READY" && data?.tokens) {
+        setAuth(data.tokens, data.identityId, data.organizations || []);
+
+        try {
+          const org = await organizationService.getCurrentOrganization();
+          setOrganization(org);
+          setOrgStatusCookie(org.status);
+
+          setState({ status: "success" });
+          setLoading(false);
+          setTimeout(() => {
+            router.push(org.status === "DRAFT" ? "/setup" : "/");
+          }, 800);
+          return;
+        } catch {
+          setOrgStatusCookie("DRAFT");
+          setState({ status: "success" });
+          setLoading(false);
+          setTimeout(() => {
+            router.push("/setup");
+          }, 800);
+          return;
+        }
+      }
+
+      if (data?.nextStep === "STEP_UP_GRANTED") {
+        setState({ status: "success" });
+        setLoading(false);
+        setTimeout(() => {
+          router.back();
+        }, 800);
+        return;
+      }
+
+      setState({ status: "error", kind: "access_denied" });
+      setLoading(false);
+      triggerShake();
+    } catch (err: any) {
+      const isNetworkError = !err?.response;
+      const message: string = err?.response?.data?.error?.message || err?.message || "";
+      const lowerMessage = message.toLowerCase();
+
+      if (isNetworkError) {
+        setState({ status: "error", kind: "network" });
+      } else if (lowerMessage.includes("expired")) {
+        setState({ status: "error", kind: "expired" });
+      } else if (lowerMessage.includes("too many") || lowerMessage.includes("locked")) {
+        setState({ status: "error", kind: "locked" });
+      } else {
+        const nextAttempts = attempts + 1;
+        setAttempts(nextAttempts);
+        setState({
+          status: "error",
+          kind: nextAttempts >= MAX_ATTEMPTS ? "locked" : "invalid",
+        });
+      }
+
+      setError(message || null);
+      setLoading(false);
+      triggerShake();
+      if (!isNetworkError) {
+        clearAndRefocus();
+      }
+    }
   }
 
-  // Auto-submit the instant a full 6-digit code is entered.
-  useEffect(() => {
-    if (code.length === 6 && state.status === "idle") {
-      submitCode(code);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code]);
+  function updateDigit(index: number, value: string) {
+    if (success || submitting) return;
 
-  async function handleSubmit(e: FormEvent) {
+    const clean = value.replace(/\D/g, "");
+    if (!clean) {
+      setDigits((prev) => {
+        const next = [...prev];
+        next[index] = "";
+        return next;
+      });
+      return;
+    }
+
+    setDigits((prev) => {
+      const next = [...prev];
+      next[index] = clean[clean.length - 1];
+      return next;
+    });
+
+    if (hasError && !locked) setState({ status: "idle" });
+
+    if (index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleKeyDown(index: number, e: KeyboardEvent<HTMLInputElement>) {
+    if (success || submitting) return;
+
+    if (e.key === "Backspace") {
+      if (digits[index]) {
+        updateDigit(index, "");
+      } else if (index > 0) {
+        inputRefs.current[index - 1]?.focus();
+        updateDigit(index - 1, "");
+      }
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === "ArrowRight" && index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handlePaste(e: ClipboardEvent<HTMLInputElement>) {
+    if (success || submitting) return;
+
     e.preventDefault();
-    if (locked || submitting) return;
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
+    if (!pasted) return;
+
+    const next = Array(CODE_LENGTH).fill("");
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setDigits(next);
+
+    const focusIndex = Math.min(pasted.length, CODE_LENGTH - 1);
+    inputRefs.current[focusIndex]?.focus();
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (locked || submitting || success || code.length !== CODE_LENGTH) return;
     submitCode(code);
   }
 
-  function handleResend() {
-    if (resendIn > 0) return;
-    setResendIn(RESEND_SECONDS);
-    setExpiresIn(EXPIRY_SECONDS);
-    setAttempts(0);
-    setState({ status: "idle" });
-    setCode("");
-    setJustResent(true);
-    setTimeout(() => setJustResent(false), 3000);
+  async function handleResend() {
+    if (resendIn > 0 || submitting || success) return;
+
+    setResendError(false);
+    try {
+      await authService.resendOTP({ challengeId });
+      setResendIn(RESEND_SECONDS);
+      setExpiresIn(EXPIRY_SECONDS);
+      setAttempts(0);
+      setState({ status: "idle" });
+      setDigits(Array(CODE_LENGTH).fill(""));
+      inputRefs.current[0]?.focus();
+      setJustResent(true);
+      setTimeout(() => setJustResent(false), 3000);
+    } catch {
+      setResendError(true);
+      setTimeout(() => setResendError(false), 4000);
+    }
   }
 
   const attemptsRemaining = MAX_ATTEMPTS - attempts;
+  const boxIsLocked = submitting || expired || locked || success;
 
   return (
     <div>
@@ -101,69 +279,146 @@ function VerifyContent() {
         Back to sign in
       </button>
 
-      <form onSubmit={handleSubmit} noValidate>
-        <p className="mb-4 text-[14px] leading-relaxed text-ink-600">
-          Enter the code we sent to{" "}
-          <span className="font-semibold text-ink-950">{destination}</span>.
+      <div className="mb-6 flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
+        <Mail className="h-[18px] w-[18px] shrink-0 text-primary" />
+        <p className="text-[14px] leading-relaxed text-ink-600">
+          Code sent to{" "}
+          <span className="font-semibold text-ink-950">{destination}</span>
         </p>
+      </div>
 
-        <label htmlFor="code" className="mb-1.5 block text-[13px] font-semibold text-ink-800">
+      <form onSubmit={handleSubmit} noValidate>
+        <label className="mb-2 block text-[13px] font-semibold text-ink-800">
           Verification code
         </label>
-        <input
-          id="code"
-          type="text"
-          inputMode="numeric"
-          maxLength={6}
-          autoComplete="one-time-code"
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value.replace(/\D/g, ""));
-            if (state.status === "error" && state.kind !== "locked") {
-              setState({ status: "idle" });
-            }
-          }}
-          placeholder="000000"
-          disabled={submitting || expired || locked}
-          className="w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-center text-xl font-semibold tracking-[0.4em] text-ink-950 outline-none transition focus:border-primary focus:bg-white disabled:opacity-60"
-        />
 
-        {state.status === "error" && (
-          <p role="alert" className="mt-2 text-[13px] font-medium text-red">
-            {state.kind === "invalid" &&
-              `That code isn't right. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.`}
-            {state.kind === "expired" &&
-              "This code has expired. Request a new one."}
-            {state.kind === "access_denied" &&
-              "Access denied. Contact your organization administrator."}
-            {state.kind === "locked" &&
-              "Too many attempts. Request a new code to try again."}
-          </p>
-        )}
+        <div className={`flex justify-between gap-2 ${shake ? "animate-[otp-shake_0.4s_ease-in-out]" : ""}`}>
+          {digits.map((digit, i) => (
+            <input
+              key={i}
+              ref={(el) => {
+                inputRefs.current[i] = el;
+              }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              autoComplete={i === 0 ? "one-time-code" : "off"}
+              autoFocus={i === 0}
+              value={digit}
+              onChange={(e) => updateDigit(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              onPaste={handlePaste}
+              disabled={boxIsLocked}
+              aria-label={`Digit ${i + 1} of ${CODE_LENGTH}`}
+              aria-invalid={hasError}
+              className={`h-14 w-full max-w-[52px] rounded-xl border text-center text-xl font-semibold text-ink-950 outline-none transition disabled:opacity-60 ${
+                hasError && !locked
+                  ? "border-red bg-red-bg focus:border-red"
+                  : success
+                  ? "border-green bg-green-bg focus:border-green"
+                  : "border-line bg-surface-2 focus:border-primary focus:bg-surface"
+              }`}
+            />
+          ))}
+        </div>
 
-        {!expired && state.status !== "error" && (
-          <p className="mt-2 text-[13px] text-ink-500">
-            {justResent ? "Code resent." : `Code expires in ${formatTime(expiresIn)}`}
-          </p>
-        )}
+        <div className="mt-3 min-h-[20px]" role="status" aria-live="polite">
+          {state.status === "error" && (
+            <p role="alert" className="flex items-center gap-1.5 text-[13px] font-medium text-red">
+              {state.kind === "locked" ? (
+                <Lock className="h-3.5 w-3.5 shrink-0" />
+              ) : state.kind === "network" ? (
+                <WifiOff className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              )}
+              {state.kind === "invalid" &&
+                `That code isn't right. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.`}
+              {state.kind === "expired" &&
+                "This code has expired. Request a new one."}
+              {state.kind === "access_denied" &&
+                "Access denied. Contact your organization administrator."}
+              {state.kind === "locked" &&
+                "Too many attempts. Request a new code to try again."}
+              {state.kind === "network" &&
+                "Couldn't reach the server. Check your connection and try again."}
+            </p>
+          )}
+
+          {state.status === "success" && (
+            <p className="flex items-center gap-1.5 text-[13px] font-medium text-green">
+              <CheckCircle2 className="h-4 w-4" />
+              Verification successful! Redirecting...
+            </p>
+          )}
+
+          {!expired && state.status !== "error" && state.status !== "success" && (
+            <p className="flex items-center gap-1.5 text-[13px] text-ink-500">
+              {justResent ? (
+                <>
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-green" />
+                  Code resent.
+                </>
+              ) : (
+                `Code expires in ${formatTime(expiresIn)}`
+              )}
+            </p>
+          )}
+
+          {expired && state.status !== "error" && state.status !== "success" && (
+            <p className="flex items-center gap-1.5 text-[13px] font-medium text-red">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              This code has expired. Request a new one.
+            </p>
+          )}
+        </div>
 
         <button
           type="submit"
-          disabled={submitting || code.length !== 6 || expired || locked}
-          className="mt-4 flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={submitting || code.length !== CODE_LENGTH || expired || locked || success}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 bg-primary hover:bg-primary-hover"
         >
-          {submitting ? "Verifying…" : "Verify"}
+          {submitting ? (
+            <>
+              <RotateCw className="h-4 w-4 animate-spin" />
+              Verifying…
+            </>
+          ) : success ? (
+            <>
+              <CheckCircle2 className="h-4 w-4" />
+              Verified
+            </>
+          ) : (
+            "Verify"
+          )}
         </button>
 
         <button
           type="button"
           onClick={handleResend}
-          disabled={resendIn > 0}
+          disabled={resendIn > 0 || submitting || success}
           className="mt-3 w-full text-center text-[13px] font-semibold text-primary transition hover:text-primary-hover disabled:cursor-not-allowed disabled:text-ink-500"
         >
           {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
         </button>
+
+        {resendError && (
+          <p role="alert" className="mt-2 flex items-center justify-center gap-1.5 text-[12px] font-medium text-red">
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+            Couldn't resend the code. Please try again.
+          </p>
+        )}
       </form>
+
+      <style jsx>{`
+        @keyframes otp-shake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
+      `}</style>
     </div>
   );
 }

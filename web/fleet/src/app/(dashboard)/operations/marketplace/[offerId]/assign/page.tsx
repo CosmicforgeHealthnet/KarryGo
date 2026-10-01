@@ -2,384 +2,403 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   UserCheck,
-  Truck,
+  User,
   Clock,
   MapPin,
   Package,
+  X,
   AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  Search,
-  X,
 } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
+import {
+  marketplaceService,
+  newIdempotencyKey,
+} from "@/lib/services/marketplaceService";
+import type {
+  CorporateCandidate,
+  CorporateOfferDetail,
+} from "@/lib/types/marketplace";
 
-// Types
-type Provider = {
-  id: string;
-  name: string;
-  service: "Dispatch" | "Hauling";
-  branch: string;
-  status: "Eligible" | "Warning" | "Blocked";
-  asset: string;
-  availability: "Available" | "Busy" | "Offline";
-};
+// ---------------------------------------------------------------------------
+// Presentation helpers
+// ---------------------------------------------------------------------------
 
-type Asset = {
-  id: string;
-  name: string;
-  type: string;
-  branch: string;
-  status: "Available" | "Maintenance" | "Reserved" | "Blocked";
-};
-
-// Mock data
-const PROVIDERS: Provider[] = [
-  { id: "P-044", name: "Peter Okafor", service: "Dispatch", branch: "Ikeja", status: "Eligible", asset: "Bike BR-88", availability: "Available" },
-  { id: "P-061", name: "Chinedu Uche", service: "Dispatch", branch: "Lekki", status: "Eligible", asset: "Bike BR-20", availability: "Available" },
-  { id: "P-052", name: "Amina Yusuf", service: "Dispatch", branch: "Ikeja", status: "Warning", asset: "Bike BR-71", availability: "Available" },
+const DEADLINE_OPTIONS = [
+  { label: "30 seconds", value: 30 },
+  { label: "1 minute", value: 60 },
+  { label: "90 seconds", value: 90 },
+  { label: "5 minutes", value: 300 },
+  { label: "15 minutes", value: 900 },
 ];
 
-const ASSETS: Asset[] = [
-  { id: "BR-88", name: "Honda ACE 110", type: "Motorcycle", branch: "Ikeja", status: "Available" },
-  { id: "BR-20", name: "Yamaha FZ", type: "Motorcycle", branch: "Lekki", status: "Available" },
-  { id: "VN-04", name: "Mercedes Sprinter", type: "Van", branch: "Ikeja", status: "Reserved" },
-  { id: "TR-12", name: "Scania R500", type: "Truck", branch: "Apapa", status: "Maintenance" },
-];
+function serviceLabel(sourceService: string): string {
+  switch (sourceService) {
+    case "DISPATCH":
+      return "Dispatch";
+    case "TAXI":
+      return "Taxi";
+    case "HAULING":
+      return "Hauling";
+    default:
+      return sourceService || "—";
+  }
+}
 
-const DEADLINE_OPTIONS = ["15 min", "30 min", "45 min", "1 hour", "2 hours"];
+function summaryLabel(summary: Record<string, unknown> | undefined): string {
+  if (!summary) return "—";
+  const candidateKeys = ["label", "name", "reference", "address"];
+  for (const key of candidateKeys) {
+    const value = summary[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  return "—";
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function AssignPage() {
   const params = useParams();
   const router = useRouter();
-  const offerId = params.offerId as string;
+  const searchParams = useSearchParams();
 
+  const offerId = typeof params.offerId === "string" ? params.offerId : "";
+  const preselectedMembershipId = searchParams.get("membershipId") ?? "";
+
+  const [detail, setDetail] = useState<CorporateOfferDetail | null>(null);
+  const [candidates, setCandidates] = useState<CorporateCandidate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Form state
-  const [selectedProvider, setSelectedProvider] = useState<string>("");
-  const [selectedAsset, setSelectedAsset] = useState<string>("");
-  const [deadline, setDeadline] = useState("30 min");
+  const [selectedMembershipId, setSelectedMembershipId] =
+    useState<string>(preselectedMembershipId);
+  const [responseTimeoutSeconds, setResponseTimeoutSeconds] = useState<number>(90);
   const [instructions, setInstructions] = useState("");
-  const [searchProvider, setSearchProvider] = useState("");
-  const [searchAsset, setSearchAsset] = useState("");
 
-  // Check for candidate param from candidates page
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // One idempotency key per page load. If the dispatcher retries, the same
+  // key is reused so the backend replays the original outcome rather than
+  // creating a second assignment.
+  const idempotencyKey = useMemo(() => newIdempotencyKey(), []);
+
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const candidateId = urlParams.get("candidate");
-    if (candidateId) {
-      const provider = PROVIDERS.find(p => p.id === candidateId && p.availability === "Available" && p.status === "Eligible");
-      if (provider) {
-        setSelectedProvider(provider.id);
-        const asset = ASSETS.find(a => a.id === provider.asset && a.status === "Available");
-        if (asset) {
-          setSelectedAsset(asset.id);
+    if (!offerId) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+
+    marketplaceService
+      .getOffer(offerId)
+      .then((offerDetail) => {
+        if (cancelled) return null;
+        setDetail(offerDetail);
+        return marketplaceService.listCandidates(
+          offerDetail.offer.requestProjectionId,
+        );
+      })
+      .then((list) => {
+        if (cancelled || !list) return;
+        setCandidates(list.filter((c) => c.eligible));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 404) {
+          setLoadError("Offer not found.");
+        } else {
+          const message =
+            err?.response?.data?.error?.message ??
+            err?.message ??
+            "Failed to load offer.";
+          setLoadError(message);
         }
-      }
-    }
-  }, []);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [offerId]);
 
-  const filteredProviders = PROVIDERS.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchProvider.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchProvider.toLowerCase())
+  const selectedCandidate = useMemo(
+    () => candidates.find((c) => c.membershipId === selectedMembershipId) ?? null,
+    [candidates, selectedMembershipId],
   );
 
-  const filteredAssets = ASSETS.filter(
-    (a) =>
-      a.name.toLowerCase().includes(searchAsset.toLowerCase()) ||
-      a.id.toLowerCase().includes(searchAsset.toLowerCase())
-  );
-
-  const selectedProviderData = PROVIDERS.find((p) => p.id === selectedProvider);
-  const selectedAssetData = ASSETS.find((a) => a.id === selectedAsset);
-
-  const isFormValid = selectedProvider && selectedAsset && deadline;
+  const formValid = !!selectedMembershipId && responseTimeoutSeconds > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid) return;
-
+    if (!formValid || !detail) return;
     setSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setSubmitting(false);
+    setSubmitError(null);
 
-    router.push(`/operations/assignments/ASN-${Date.now().toString().slice(-6)}`);
+    try {
+      const assignment = await marketplaceService.assignRequest(
+        detail.offer.requestProjectionId,
+        {
+          membershipId: selectedMembershipId,
+          responseTimeoutSeconds,
+          expectedRequestVersion: detail.offer.version,
+        },
+        idempotencyKey,
+      );
+      router.push(`/operations/marketplace/${offerId}`);
+      // The assignment object is available if we later want to navigate to
+      // an assignment-detail page instead. For now we return to the offer.
+      void assignment;
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.error?.message ??
+        err?.message ??
+        "Could not create the assignment.";
+      setSubmitError(message);
+      setSubmitting(false);
+    }
   };
 
+  // ---- Loading skeleton ----
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl py-12">
-        <div className="flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="ml-3">Loading...</p>
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg border border-line bg-surface" />
+          <div>
+            <div className="h-5 w-44 rounded bg-surface-2" />
+            <div className="mt-1.5 h-3 w-64 rounded bg-surface-2" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-4">
+          <div className="h-4 w-48 rounded bg-surface-2" />
+        </div>
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+          <div className="h-64 rounded-lg border border-line bg-surface" />
+          <div className="h-64 rounded-lg border border-line bg-surface" />
         </div>
       </div>
     );
   }
 
+  // ---- Error / not-found ----
+  if (loadError || !detail) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/operations/marketplace"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink-600 transition-colors hover:bg-surface-2 hover:text-ink-900"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1>Create assignment</h1>
+            <p className="font-mono text-sm text-ink-500">{offerId}</p>
+          </div>
+        </div>
+        <div className="rounded-lg border border-line bg-surface">
+          <EmptyState
+            image="/images/trips-empty.png"
+            title={loadError ?? "Offer not found"}
+            description="This offer may have expired or been accepted by another organization."
+            actionHref="/operations/marketplace"
+            actionLabel="Back to marketplace"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const offer = detail.offer;
+  const pickup = summaryLabel(offer.pickupSummary);
+  const dropoff = summaryLabel(offer.dropoffSummary);
+
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       {/* ── Header ── */}
-      <div>
-        <h1>Create assignment</h1>
-        <p className="mt-1.5">
-          Assign a provider and asset to offer <span className="font-mono text-ink-800">{offerId}</span>
-        </p>
+      <div className="flex items-center gap-3">
+        <Link
+          href={`/operations/marketplace/${offerId}/candidates`}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink-600 transition-colors hover:bg-surface-2 hover:text-ink-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div>
+          <h1>Create assignment</h1>
+          <p className="mt-1.5 text-sm text-ink-500">
+            Assign a provider to offer{" "}
+            <span className="font-mono text-ink-800">{offerId}</span>
+          </p>
+        </div>
       </div>
+
+      {/* ── Offer summary ── */}
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-ink-400" />
+            <span className="font-semibold text-ink-950">{offer.offerId}</span>
+          </div>
+          <div className="flex items-center gap-2 text-ink-700">
+            <MapPin className="h-4 w-4 text-ink-400" />
+            <span>
+              {pickup} → {dropoff}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-ink-700">
+            <Clock className="h-4 w-4 text-ink-400" />
+            <span>{serviceLabel(offer.sourceService)}</span>
+          </div>
+        </div>
+      </div>
+
+      {submitError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-300/40 bg-red-bg px-4 py-3 text-sm text-red">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{submitError}</span>
+        </div>
+      )}
 
       {/* ── Form ── */}
       <form onSubmit={handleSubmit} className="space-y-3.5">
-        {/* Offer Summary */}
-        <div className="rounded-lg border border-line bg-white p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-ink-400" />
-              <span className="font-semibold text-ink-950">{offerId}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-ink-400" />
-              <span>Ikeja → Lekki</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-ink-400" />
-              <span className="rounded-full bg-amber-bg px-2 py-0.5 text-xs font-semibold text-amber">
-                27 min left
-              </span>
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-          {/* Select Provider */}
-          <div className="rounded-lg border border-line bg-white p-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-ink-700">
-                Select provider <span className="text-red">*</span>
-              </label>
+          {/* Provider selector */}
+          <div className="rounded-lg border border-line bg-surface p-4">
+            <label className="block text-xs font-semibold text-ink-700 mb-3">
+              Select provider <span className="text-red">*</span>
+            </label>
 
-              <div className="flex h-9 items-center gap-2 rounded-lg border border-line bg-white px-3">
-                <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-400" />
-                <input
-                  value={searchProvider}
-                  onChange={(e) => setSearchProvider(e.target.value)}
-                  placeholder="Search provider..."
-                  className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-400"
-                />
+            {candidates.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-line bg-surface-2 py-6 text-center">
+                <User className="mx-auto h-6 w-6 text-ink-400" />
+                <p className="mt-2 text-xs text-ink-500">
+                  No eligible providers for this offer.
+                </p>
               </div>
-
-              <div className="max-h-52 overflow-y-auto space-y-1.5">
-                {filteredProviders.length === 0 ? (
-                  <div className="py-4 text-center text-sm text-ink-500">No providers found</div>
-                ) : (
-                  filteredProviders.map((p) => {
-                    const isSelected = selectedProvider === p.id;
-                    const isAvailable = p.availability === "Available" && p.status === "Eligible";
-
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => isAvailable && setSelectedProvider(p.id)}
-                        className={`w-full rounded-lg border p-2.5 text-left transition ${
-                          isSelected
-                            ? "border-primary bg-primary-bg ring-2 ring-primary/30"
-                            : isAvailable
-                            ? "border-line hover:bg-surface-2"
-                            : "border-line opacity-60 cursor-not-allowed"
-                        }`}
-                        disabled={!isAvailable}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-ink-950">{p.name}</span>
-                              <span className="font-mono text-[10px] text-ink-400">{p.id}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-ink-500">
-                              <span>{p.service}</span>
-                              <span className="text-ink-300">·</span>
-                              <span>{p.asset}</span>
-                            </div>
+            ) : (
+              <div className="max-h-[280px] overflow-y-auto space-y-1.5 pr-1">
+                {candidates.map((c) => {
+                  const isSelected = selectedMembershipId === c.membershipId;
+                  return (
+                    <button
+                      key={c.membershipId}
+                      type="button"
+                      onClick={() => setSelectedMembershipId(c.membershipId)}
+                      className={`w-full rounded-lg border p-2.5 text-left transition ${
+                        isSelected
+                          ? "border-primary bg-primary-bg ring-2 ring-primary/30"
+                          : "border-line bg-surface hover:bg-surface-2"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-green-bg text-green">
+                            <User className="h-4 w-4" />
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            {p.status === "Warning" && (
-                              <span className="text-[10px] font-semibold text-amber">⚠ Warning</span>
-                            )}
-                            <span
-                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                p.availability === "Available"
-                                  ? "bg-green-bg text-green"
-                                  : p.availability === "Busy"
-                                  ? "bg-amber-bg text-amber"
-                                  : "bg-surface-2 text-ink-500"
-                              }`}
-                            >
-                              <span
-                                className={`h-1.5 w-1.5 rounded-full ${
-                                  p.availability === "Available"
-                                    ? "bg-green"
-                                    : p.availability === "Busy"
-                                    ? "bg-amber"
-                                    : "bg-ink-400"
-                                }`}
-                              />
-                              {p.availability}
-                            </span>
+                          <div className="min-w-0">
+                            <div className="font-mono text-sm font-semibold text-ink-950 truncate">
+                              {c.membershipId}
+                            </div>
+                            <div className="text-[11px] text-ink-500 truncate">
+                              {c.providerId || "No provider id"} ·{" "}
+                              {serviceLabel(c.serviceCategory)}
+                            </div>
                           </div>
                         </div>
-                      </button>
-                    );
-                  })
-                )}
+                        {isSelected && (
+                          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Select Asset */}
-          <div className="rounded-lg border border-line bg-white p-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-ink-700">
-                Select asset <span className="text-red">*</span>
-              </label>
-
-              <div className="flex h-9 items-center gap-2 rounded-lg border border-line bg-white px-3">
-                <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-400" />
-                <input
-                  value={searchAsset}
-                  onChange={(e) => setSearchAsset(e.target.value)}
-                  placeholder="Search asset..."
-                  className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-400"
-                />
-              </div>
-
-              <div className="max-h-52 overflow-y-auto space-y-1.5">
-                {filteredAssets.length === 0 ? (
-                  <div className="py-4 text-center text-sm text-ink-500">No assets found</div>
-                ) : (
-                  filteredAssets.map((a) => {
-                    const isSelected = selectedAsset === a.id;
-                    const isAvailable = a.status === "Available";
-
-                    return (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => isAvailable && setSelectedAsset(a.id)}
-                        className={`w-full rounded-lg border p-2.5 text-left transition ${
-                          isSelected
-                            ? "border-primary bg-primary-bg ring-2 ring-primary/30"
-                            : isAvailable
-                            ? "border-line hover:bg-surface-2"
-                            : "border-line opacity-60 cursor-not-allowed"
-                        }`}
-                        disabled={!isAvailable}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-ink-950">{a.name}</span>
-                              <span className="font-mono text-[10px] text-ink-400">{a.id}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-ink-500">
-                              <span>{a.type}</span>
-                              <span className="text-ink-300">·</span>
-                              <span>{a.branch}</span>
-                            </div>
-                          </div>
-                          <span
-                            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              a.status === "Available"
-                                ? "bg-green-bg text-green"
-                                : a.status === "Reserved"
-                                ? "bg-amber-bg text-amber"
-                                : "bg-surface-2 text-ink-500"
-                            }`}
-                          >
-                            {a.status}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+          {/* Response deadline */}
+          <div className="rounded-lg border border-line bg-surface p-4">
+            <label
+              htmlFor="response-timeout"
+              className="block text-xs font-semibold text-ink-700 mb-3"
+            >
+              Response deadline <span className="text-red">*</span>
+            </label>
+            <div className="relative">
+              <select
+                id="response-timeout"
+                value={responseTimeoutSeconds}
+                onChange={(e) =>
+                  setResponseTimeoutSeconds(Number(e.target.value))
+                }
+                className="w-full appearance-none rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                {DEADLINE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
             </div>
+            <p className="mt-2 text-xs text-ink-500">
+              The provider has this long to accept or decline the assignment.
+            </p>
           </div>
         </div>
 
-        {/* Deadline & Instructions */}
-        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-          <div className="rounded-lg border border-line bg-white p-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-ink-700">
-                Response deadline <span className="text-red">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-line px-3 py-2 text-sm text-ink-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                >
-                  {DEADLINE_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400 pointer-events-none" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-line bg-white p-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-ink-700">Instructions (optional)</label>
-              <textarea
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Add any special instructions for this assignment..."
-                className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 resize-none h-14 placeholder:text-ink-400"
-              />
-            </div>
-          </div>
+        {/* Instructions */}
+        <div className="rounded-lg border border-line bg-surface p-4">
+          <label
+            htmlFor="instructions"
+            className="block text-xs font-semibold text-ink-700 mb-3"
+          >
+            Instructions (optional)
+          </label>
+          <textarea
+            id="instructions"
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Add any special instructions for this assignment..."
+            rows={3}
+            className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
+          />
         </div>
 
-        {/* Selected Summary */}
-        {(selectedProviderData || selectedAssetData) && (
-          <div className="rounded-lg border border-line bg-primary-bg/30 p-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-ink-600">
+        {/* Selection summary */}
+        {selectedCandidate && (
+          <div className="rounded-lg border border-line bg-primary-bg/40 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 text-sm">
                 <UserCheck className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-ink-950">Assignment ready</span>
+                <span className="font-semibold text-ink-950">
+                  Assignment ready
+                </span>
               </div>
-              {selectedProviderData && (
-                <div className="flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green" />
-                  {selectedProviderData.name}
-                </div>
-              )}
-              {selectedAssetData && (
-                <div className="flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-700">
-                  <Truck className="h-3 w-3 text-ink-400" />
-                  {selectedAssetData.id}
-                </div>
-              )}
-              <div className="flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-700">
+              <div className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-green" />
+                <span className="font-mono">
+                  {selectedCandidate.membershipId}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink-700">
                 <Clock className="h-3 w-3 text-ink-400" />
-                {deadline}
+                {DEADLINE_OPTIONS.find(
+                  (o) => o.value === responseTimeoutSeconds,
+                )?.label ?? `${responseTimeoutSeconds}s`}
               </div>
             </div>
           </div>
@@ -388,21 +407,21 @@ export default function AssignPage() {
         {/* Actions */}
         <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
           <Link
-            href={`/operations/marketplace/${offerId}`}
-            className="flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-5 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
+            href={`/operations/marketplace/${offerId}/candidates`}
+            className="flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-5 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
           >
             <X className="h-4 w-4" />
             Cancel
           </Link>
           <button
             type="submit"
-            disabled={!isFormValid || submitting}
-            className={`flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed`}
+            disabled={!formValid || submitting}
+            className="flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Creating...
+                Creating…
               </>
             ) : (
               <>

@@ -1,20 +1,195 @@
 {
+  "info": {
+    "title": "Commerce support case integration",
+    "version": "1.0.0"
+  },
   "openapi": "3.0.3",
-  "info": {"title": "Commerce support case integration", "version": "1.0.0"},
   "paths": {
     "/api/v1/commerce/orders/{orderId}/support-cases": {
-      "post": {"summary": "Report one controlled issue for an owned CommerceOrder", "responses": {"201": {"description": "Support case linked"}}},
-      "get": {"summary": "List safe Support case projections for an owned CommerceOrder", "responses": {"200": {"description": "Case projections"}}}
+      "get": {
+        "operationId": "commerce_support_cases_openapi_get_api_v1_commerce_orders_orderId_support_cases",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Case projections"
+          }
+        },
+        "summary": "List safe Support case projections for an owned CommerceOrder",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "commerce_support_cases_openapi_post_api_v1_commerce_orders_orderId_support_cases",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Support case linked"
+          }
+        },
+        "summary": "Report one controlled issue for an owned CommerceOrder",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
     },
     "/api/v1/commerce/orders/{orderId}/support-cases/{caseRef}": {
-      "get": {"summary": "Read one safe Support case projection", "responses": {"200": {"description": "Case projection"}}}
-    },
-    "/api/v1/vendor/commerce/orders/{vendorOrderId}/support-cases": {
-      "post": {"summary": "Open a controlled Support case in the acting Vendor scope", "responses": {"201": {"description": "Support case linked"}}},
-      "get": {"summary": "List safe Support case projections in the acting Vendor scope", "responses": {"200": {"description": "Case projections"}}}
+      "get": {
+        "operationId": "commerce_support_cases_openapi_get_api_v1_commerce_orders_orderId_support_cases_caseRef",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "caseRef",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Case projection"
+          }
+        },
+        "summary": "Read one safe Support case projection",
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
     },
     "/api/v1/internal/vendor/commerce/support-case-resolutions": {
-      "post": {"summary": "Ingest an HMAC-v2 Support-owned resolution event", "responses": {"200": {"description": "Applied or replay acknowledged"}}}
+      "post": {
+        "operationId": "commerce_support_cases_openapi_post_api_v1_internal_vendor_commerce_support_case_resolutions",
+        "parameters": [
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Applied or replay acknowledged"
+          }
+        },
+        "summary": "Ingest an HMAC-v2 Support-owned resolution event"
+      }
+    },
+    "/api/v1/vendor/commerce/orders/{vendorOrderId}/support-cases": {
+      "get": {
+        "operationId": "commerce_support_cases_openapi_get_api_v1_vendor_commerce_orders_vendorOrderId_support_cases",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Case projections"
+          }
+        },
+        "summary": "List safe Support case projections in the acting Vendor scope"
+      },
+      "post": {
+        "operationId": "commerce_support_cases_openapi_post_api_v1_vendor_commerce_orders_vendorOrderId_support_cases",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendorOrderId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Retry key. Same tenant/key/fingerprint replays the original result; a different fingerprint returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Support case linked"
+          }
+        },
+        "summary": "Open a controlled Support case in the acting Vendor scope"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer Service access token; the customer is derived from the token, never from the request."
+      }
     }
   }
 }

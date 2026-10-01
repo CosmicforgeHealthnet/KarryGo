@@ -77,6 +77,9 @@ func TestWalletNotifierSendsExpectedEvents(t *testing.T) {
 			if req.IDempotencyKey == "" {
 				t.Error("idempotency key is empty")
 			}
+			if len(req.Data) != 1 || req.Data["reference"] == nil || len(req.TemplateData) != 1 {
+				t.Error("financial notification must carry only an opaque read-back reference")
+			}
 		})
 	}
 }

@@ -1,0 +1,28 @@
+{"Time":"2026-09-27T16:55:52.0819763+02:00","Action":"start","Package":"cosmicforge/logistics/shared/go/outboxmetrics"}
+{"Time":"2026-09-27T16:55:52.2437091+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestIdentifiersMustBePlain"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestIdentifiersMustBePlain","Output":"=== RUN   TestIdentifiersMustBePlain\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestIdentifiersMustBePlain","Output":"--- PASS: TestIdentifiersMustBePlain (0.00s)\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestIdentifiersMustBePlain","Elapsed":0}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestMetricNamesAreServiceNeutral"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestMetricNamesAreServiceNeutral","Output":"=== RUN   TestMetricNamesAreServiceNeutral\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestMetricNamesAreServiceNeutral","Output":"--- PASS: TestMetricNamesAreServiceNeutral (0.00s)\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestMetricNamesAreServiceNeutral","Elapsed":0}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestPublishUsesLowCardinalityLabels"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestPublishUsesLowCardinalityLabels","Output":"=== RUN   TestPublishUsesLowCardinalityLabels\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestPublishUsesLowCardinalityLabels","Output":"--- PASS: TestPublishUsesLowCardinalityLabels (0.00s)\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestPublishUsesLowCardinalityLabels","Elapsed":0}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmittedLabelKeysAreLowCardinality"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmittedLabelKeysAreLowCardinality","Output":"=== RUN   TestEmittedLabelKeysAreLowCardinality\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmittedLabelKeysAreLowCardinality","Output":"--- PASS: TestEmittedLabelKeysAreLowCardinality (0.00s)\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmittedLabelKeysAreLowCardinality","Elapsed":0}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmptiedReconciliationStateDisappears"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmptiedReconciliationStateDisappears","Output":"=== RUN   TestEmptiedReconciliationStateDisappears\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmptiedReconciliationStateDisappears","Output":"--- PASS: TestEmptiedReconciliationStateDisappears (0.00s)\n"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestEmptiedReconciliationStateDisappears","Elapsed":0}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"run","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestCollectReadsARealTable"}
+{"Time":"2026-09-27T16:55:52.2442646+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestCollectReadsARealTable","Output":"=== RUN   TestCollectReadsARealTable\n"}
+{"Time":"2026-09-27T16:55:52.3359866+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestCollectReadsARealTable","Output":"--- PASS: TestCollectReadsARealTable (0.09s)\n"}
+{"Time":"2026-09-27T16:55:52.3359866+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Test":"TestCollectReadsARealTable","Elapsed":0.09}
+{"Time":"2026-09-27T16:55:52.3359866+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Output":"PASS\n"}
+{"Time":"2026-09-27T16:55:52.3413054+02:00","Action":"output","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Output":"ok  \tcosmicforge/logistics/shared/go/outboxmetrics\t0.259s\n"}
+{"Time":"2026-09-27T16:55:52.3413054+02:00","Action":"pass","Package":"cosmicforge/logistics/shared/go/outboxmetrics","Elapsed":0.259}

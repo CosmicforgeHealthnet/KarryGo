@@ -23,6 +23,13 @@ type vendorDeliveryRuntimeFixture struct {
 
 func seedVendorDeliveryRuntime(t *testing.T, riderCount int) vendorDeliveryRuntimeFixture {
 	t.Helper()
+	return seedVendorDeliveryRuntimeFor(t, riderCount, "")
+}
+
+// seedVendorDeliveryRuntimeFor lets a caller bind the order to a real
+// Customer identity; empty keeps the synthetic runtime customer.
+func seedVendorDeliveryRuntimeFor(t *testing.T, riderCount int, customerID string) vendorDeliveryRuntimeFixture {
+	t.Helper()
 	pool := integrationPool(t)
 	store := NewStore(pool, nil)
 	ctx := context.Background()
@@ -67,11 +74,16 @@ func seedVendorDeliveryRuntime(t *testing.T, riderCount int) vendorDeliveryRunti
 
 	parentOrderID := "parent_runtime_" + suffix
 	vendorOrderID := "vendor_order_runtime_" + suffix
-	customerID := "customer_runtime_" + suffix
-	if _, err := pool.Exec(ctx, `INSERT INTO commerce_parent_orders(id,customer_id,currency,state,created_at,updated_at) VALUES($1,$2,'NGN','CREATED',$3,$3)`, parentOrderID, customerID, now); err != nil {
-		t.Fatalf("seed parent order: %v", err)
+	if customerID == "" {
+		customerID = "customer_runtime_" + suffix
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO commerce_vendor_orders(id,parent_order_id,customer_id,business_id,branch_id,domain,currency,status,delivery_responsibility,delivery_fee_beneficiary,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'FOOD','NGN','PAID','VENDOR_OWN_DELIVERY','VENDOR',$6,$6)`, vendorOrderID, parentOrderID, customerID, businessID, branchID, now); err != nil {
+	seedCommerceParentOrderEvidence(t, pool, parentOrderID, customerID, now)
+	if _, err := pool.Exec(ctx, `INSERT INTO commerce_vendor_orders(
+		id,parent_order_id,customer_id,business_id,branch_id,domain,currency,quote_group_ref,
+		product_subtotal_minor,max_product_subtotal_minor,delivery_responsibility,delivery_fee_beneficiary,
+		customer_payable_minor,vendor_payable_minor,fulfilment_mode,status,vendor_own_delivery_state,inventory_state,
+		created_at,updated_at)
+		VALUES($1,$2,$3,$4,$5,'FOOD','NGN',$6,0,0,'VENDOR_OWN_DELIVERY','VENDOR',0,0,'SINGLE','PAID','PENDING','NOT_REQUIRED',$7,$7)`, vendorOrderID, parentOrderID, customerID, businessID, branchID, "quote_group_"+suffix, now); err != nil {
 		t.Fatalf("seed VendorOrder: %v", err)
 	}
 	group, err := store.EnsureGroup(ctx, parentOrderID, customerID, now)

@@ -1,7 +1,9 @@
 package profilehttp
 
 import (
+	"context"
 	nethttp "net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,11 +16,20 @@ import (
 const maxPhotoBytes = 10 * 1024 * 1024 // 10 MB
 
 type ProfileHandler struct {
-	profile *profileusecases.ProfileService
+	profile      *profileusecases.ProfileService
+	mediaLimiter interface {
+		Allow(context.Context, string, string, int, time.Duration) error
+	}
 }
 
-func NewProfileHandler(profile *profileusecases.ProfileService) *ProfileHandler {
-	return &ProfileHandler{profile: profile}
+func NewProfileHandler(profile *profileusecases.ProfileService, limiters ...interface {
+	Allow(context.Context, string, string, int, time.Duration) error
+}) *ProfileHandler {
+	handler := &ProfileHandler{profile: profile}
+	if len(limiters) > 0 {
+		handler.mediaLimiter = limiters[0]
+	}
+	return handler
 }
 
 type updateProfileRequest struct {
@@ -176,6 +187,12 @@ func (h *ProfileHandler) UploadPhoto(c *gin.Context) {
 	if !ok {
 		httpx.Abort(c, apperrors.Unauthorized("Authentication is required.", nil))
 		return
+	}
+	if h.mediaLimiter != nil {
+		if err := h.mediaLimiter.Allow(c.Request.Context(), "profile_photo_upload", claims.Subject, 10, time.Hour); err != nil {
+			httpx.Abort(c, err)
+			return
+		}
 	}
 
 	file, header, err := c.Request.FormFile("photo")

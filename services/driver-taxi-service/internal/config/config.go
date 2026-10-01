@@ -23,8 +23,10 @@ const defaultProvisionalRatesJSON = `{
 }`
 
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	CustomerLiveLocationEnabled bool
+	CustomerLocationFreshFor    time.Duration
+	AppEnv                      string
+	HTTPAddr                    string
 
 	Migration bool
 
@@ -54,6 +56,18 @@ type Config struct {
 	// HandoverSecret signs/verifies the pickup ride PIN. Service-local: no
 	// other service reads these codes, so it needs no cross-service match.
 	HandoverSecret []byte
+
+	// Taxi Goods is a distinct Vendor Commerce product. It is disabled by
+	// default and uses its own pricing and handover namespaces so passenger
+	// fare/PIN configuration cannot accidentally activate it.
+	TaxiGoodsDeliveryEnabled bool
+	TaxiGoodsPricingJSON     string
+	TaxiGoodsHandoverSecret  []byte
+	TaxiGoodsQuoteTTL        time.Duration
+	MediaURL                 string
+	MediaToken               string
+	VendorURL                string
+	VendorSecret             []byte
 
 	// Token TTLs
 	AccessTokenTTL  time.Duration
@@ -101,6 +115,79 @@ type Config struct {
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a driver identity).
 	ServiceSecrets string
+
+	// MetricsAuthToken gates GET <api-base>/outbox-metrics. Empty means the
+	// route refuses every request: backlog and dead-letter counts describe
+	// where the system is weak, and the safe default for that is closed.
+	MetricsAuthToken string
+
+	// Fleet Partner integration is optional while rolled out, but once
+	// configured all corporate provider checks use HMAC v2 and Fleet's
+	// canonical provider context.
+	FleetServiceURL              string
+	FleetServiceCaller           string
+	FleetServiceSecret           []byte
+	FleetServiceTimeout          time.Duration
+	TaxiFleetProviderWorkEnabled bool
+
+	// Section 7 flags. All default false; multi-pickup is only advertised
+	// when execution, secure handover and cumulative fit are all enabled.
+	ServiceProductsEnabled        bool
+	CapabilityMatchingEnabled     bool
+	GoodsCapabilityEnabled        bool
+	GoodsMultiPickupEnabled       bool
+	GoodsSecureHandoverEnabled    bool
+	GoodsCumulativeFitEnabled     bool
+	RecoveryEnabled               bool
+	ScheduledRiskMonitorEnabled   bool
+	CustomerMovementEventsEnabled bool
+	CustomerContextEnabled        bool
+	CustomerServiceURL            string
+	CustomerServiceSecret         []byte
+	// Section 13. Analytics is advisory: off by default, and a Taxi journey
+	// never waits on it.
+	AnalyticsEventsEnabled bool
+	AnalyticsURL           string
+	AnalyticsSecret        []byte
+	// RecoveryNotificationsEnabled tells customers, drivers, fleets and
+	// operations about recovery (Section 14). Off by default.
+	RecoveryNotificationsEnabled bool
+
+	CapabilityInternalCallers           string
+	TaxiFleetCompletedWorkEnabled       bool
+	TaxiTypedFinancialVisibilityEnabled bool
+	// TaxiFleetManagedExecutionEnabled mounts the Fleet-facing private
+	// execution surface (reservation, provider confirmation, execution start,
+	// reconciliation reads). Default false: Section 8 TAX-028 gates the whole
+	// corporate Taxi chain behind certification.
+	TaxiFleetManagedExecutionEnabled bool
+	// TaxiFleetPrivateExecutionEnabled mounts the Fleet-facing PRIVATE
+	// execution surface: corporate work that never reached a marketplace at
+	// all, where Fleet already holds the order, the assignment and the
+	// provider's acceptance and asks Taxi to create the trip.
+	//
+	// It is separate from the managed-execution flag because the two answer
+	// different questions. Managed execution claims an EXISTING passenger
+	// booking for an organization; private execution CREATES a booking that no
+	// passenger requested. A deployment may legitimately want one without the
+	// other, and sharing a flag would make that impossible to express.
+	TaxiFleetPrivateExecutionEnabled bool
+	// TaxiFleetKillSwitch stops every Fleet-facing surface immediately,
+	// independently of the rollout flags. A rollout flag is a planning
+	// decision; a kill switch has to work during an incident without anyone
+	// reasoning about which of several flags also has to move.
+	TaxiFleetKillSwitch bool
+	// TaxiManagedSettlementEnabled isolates corporate settlement from the
+	// legacy direct-to-provider wallet path (Section 8 TAX-020A). Default
+	// false until Section 12 exists; turning it on stops corporate work
+	// being paid directly to the provider.
+	TaxiManagedSettlementEnabled bool
+	// TaxiFleetExecutionCallers lists the service callers allowed to drive
+	// taxi execution over the internal marketplace surface.
+	TaxiFleetExecutionCallers []string
+	// TaxiFleetReservationTTLSeconds bounds how long a Fleet reservation
+	// holds a booking before it can be reclaimed.
+	TaxiFleetReservationTTL time.Duration
 
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched driver has to accept
@@ -150,8 +237,10 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		AppEnv:   getEnv("APP_ENV", "development"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8102"),
+		CustomerLiveLocationEnabled: getEnvBool("TAXI_CUSTOMER_LIVE_LOCATION_ENABLED", false),
+		CustomerLocationFreshFor:    time.Duration(getEnvInt("TAXI_CUSTOMER_LOCATION_FRESH_SECONDS", 30)) * time.Second,
+		AppEnv:                      getEnv("APP_ENV", "development"),
+		HTTPAddr:                    getEnv("HTTP_ADDR", ":8102"),
 
 		Migration: getEnvBool("TAXI_MIGRATION", false),
 
@@ -176,11 +265,19 @@ func Load() Config {
 			DB:       getEnvInt("TAXI_NOTIFICATION_REDIS_DB", getEnvInt("TAXI_REDIS_DB", 0)),
 		},
 
-		ProviderTokenSecret:   []byte(os.Getenv("TAXI_PROVIDER_TOKEN_SECRET")),
-		ProviderRefreshSecret: []byte(os.Getenv("TAXI_PROVIDER_REFRESH_SECRET")),
-		ProviderOTPSecret:     []byte(os.Getenv("TAXI_PROVIDER_OTP_SECRET")),
-		CustomerTokenSecret:   []byte(os.Getenv("TAXI_CUSTOMER_TOKEN_SECRET")),
-		HandoverSecret:        []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		ProviderTokenSecret:      []byte(os.Getenv("TAXI_PROVIDER_TOKEN_SECRET")),
+		ProviderRefreshSecret:    []byte(os.Getenv("TAXI_PROVIDER_REFRESH_SECRET")),
+		ProviderOTPSecret:        []byte(os.Getenv("TAXI_PROVIDER_OTP_SECRET")),
+		CustomerTokenSecret:      []byte(os.Getenv("TAXI_CUSTOMER_TOKEN_SECRET")),
+		HandoverSecret:           []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
+		TaxiGoodsDeliveryEnabled: getEnvBool("TAXI_GOODS_DELIVERY_ENABLED", false),
+		TaxiGoodsPricingJSON:     os.Getenv("TAXI_GOODS_PRICING"),
+		TaxiGoodsHandoverSecret:  []byte(os.Getenv("TAXI_GOODS_HANDOVER_SECRET")),
+		TaxiGoodsQuoteTTL:        time.Duration(getEnvInt("TAXI_GOODS_QUOTE_TTL_SECONDS", 900)) * time.Second,
+		MediaURL:                 os.Getenv("TAXI_MEDIA_URL"),
+		MediaToken:               os.Getenv("TAXI_MEDIA_TOKEN"),
+		VendorURL:                os.Getenv("TAXI_VENDOR_URL"),
+		VendorSecret:             []byte(os.Getenv("TAXI_VENDOR_SECRET")),
 
 		AccessTokenTTL:  time.Duration(getEnvInt("TAXI_ACCESS_TOKEN_TTL_SECONDS", 3600)) * time.Second,
 		RefreshTokenTTL: time.Duration(getEnvInt("TAXI_REFRESH_TOKEN_TTL_DAYS", 30)) * 24 * time.Hour,
@@ -204,7 +301,41 @@ func Load() Config {
 		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
 
-		ServiceSecrets: os.Getenv("TAXI_SERVICE_SECRETS"),
+		ServiceSecrets:   os.Getenv("TAXI_SERVICE_SECRETS"),
+		MetricsAuthToken: os.Getenv("TAXI_METRICS_AUTH_TOKEN"),
+
+		FleetServiceURL:              os.Getenv("FLEET_PARTNER_SERVICE_URL"),
+		FleetServiceCaller:           getEnv("TAXI_FLEET_SERVICE_CALLER", "driver-taxi-service"),
+		FleetServiceSecret:           []byte(os.Getenv("FLEET_PARTNER_SERVICE_SECRET")),
+		FleetServiceTimeout:          time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
+		TaxiFleetProviderWorkEnabled: getEnvBool("TAXI_FLEET_PROVIDER_WORK_ENABLED", false),
+
+		ServiceProductsEnabled:        getEnvBool("TAXI_SERVICE_PRODUCTS_ENABLED", false),
+		CapabilityMatchingEnabled:     getEnvBool("TAXI_CAPABILITY_MATCHING_ENABLED", false),
+		GoodsCapabilityEnabled:        getEnvBool("TAXI_GOODS_CAPABILITY_ENABLED", false),
+		GoodsMultiPickupEnabled:       getEnvBool("TAXI_GOODS_MULTI_PICKUP_ENABLED", false),
+		GoodsSecureHandoverEnabled:    getEnvBool("TAXI_GOODS_SECURE_HANDOVER_ENABLED", false),
+		GoodsCumulativeFitEnabled:     getEnvBool("TAXI_GOODS_CUMULATIVE_FIT_ENABLED", false),
+		RecoveryEnabled:               getEnvBool("TAXI_RECOVERY_ENABLED", false),
+		ScheduledRiskMonitorEnabled:   getEnvBool("TAXI_SCHEDULED_RISK_MONITOR_ENABLED", false),
+		CustomerMovementEventsEnabled: getEnvBool("TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerContextEnabled:        getEnvBool("TAXI_CUSTOMER_CONTEXT_ENABLED", false),
+		CustomerServiceURL:            os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:         []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
+		AnalyticsEventsEnabled:        getEnvBool("TAXI_ANALYTICS_EVENTS_ENABLED", false),
+		AnalyticsURL:                  os.Getenv("TAXI_ANALYTICS_URL"),
+		AnalyticsSecret:               []byte(os.Getenv("TAXI_ANALYTICS_SECRET")),
+		RecoveryNotificationsEnabled:  getEnvBool("TAXI_RECOVERY_NOTIFICATIONS_ENABLED", false),
+
+		CapabilityInternalCallers:           getEnv("TAXI_CAPABILITY_INTERNAL_CALLERS", "vendor-service,operations-service,verification-compliance-service"),
+		TaxiFleetCompletedWorkEnabled:       getEnvBool("TAXI_FLEET_COMPLETED_WORK_ENABLED", false),
+		TaxiTypedFinancialVisibilityEnabled: getEnvBool("TAXI_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
+		TaxiFleetManagedExecutionEnabled:    getEnvBool("TAXI_FLEET_MANAGED_EXECUTION_ENABLED", false),
+		TaxiFleetPrivateExecutionEnabled:    getEnvBool("TAXI_FLEET_PRIVATE_EXECUTION_ENABLED", false),
+		TaxiFleetKillSwitch:                 getEnvBool("TAXI_FLEET_KILL_SWITCH", false),
+		TaxiManagedSettlementEnabled:        getEnvBool("TAXI_MANAGED_SETTLEMENT_ENABLED", false),
+		TaxiFleetExecutionCallers:           splitCSV(getEnv("TAXI_FLEET_EXECUTION_CALLERS", "fleet-partner-service")),
+		TaxiFleetReservationTTL:             time.Duration(getEnvInt("TAXI_FLEET_RESERVATION_TTL_SECONDS", 300)) * time.Second,
 
 		BookingMatchTimeout: getEnvInt("TAXI_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("TAXI_BOOKING_SEARCH_WINDOW", 60),
@@ -301,11 +432,101 @@ func (c Config) Validate() error {
 	if c.TelemetryStaleSeconds <= 0 {
 		problems = append(problems, "TAXI_TELEMETRY_STALE_SECONDS must be greater than zero")
 	}
+	if c.CapabilityMatchingEnabled && !c.ServiceProductsEnabled {
+		problems = append(problems, "TAXI_CAPABILITY_MATCHING_ENABLED requires TAXI_SERVICE_PRODUCTS_ENABLED (run shadow evaluation first)")
+	}
+	if c.GoodsMultiPickupEnabled && (!c.TaxiGoodsDeliveryEnabled || !c.GoodsCapabilityEnabled || !c.GoodsSecureHandoverEnabled || !c.GoodsCumulativeFitEnabled) {
+		problems = append(problems, "TAXI_GOODS_MULTI_PICKUP_ENABLED requires TAXI_GOODS_DELIVERY_ENABLED, TAXI_GOODS_CAPABILITY_ENABLED, TAXI_GOODS_SECURE_HANDOVER_ENABLED and TAXI_GOODS_CUMULATIVE_FIT_ENABLED")
+	}
+	if c.CustomerContextEnabled && !c.ServiceProductsEnabled {
+		problems = append(problems, "TAXI_CUSTOMER_CONTEXT_ENABLED requires TAXI_SERVICE_PRODUCTS_ENABLED (saved needs are frozen into the product snapshot)")
+	}
+	if c.CustomerLiveLocationEnabled && len(serviceSecretsFor(c.ServiceSecrets)["customer-service"]) == 0 {
+		problems = append(problems, "TAXI_CUSTOMER_LIVE_LOCATION_ENABLED requires customer-service in TAXI_SERVICE_SECRETS")
+	}
+	if c.CustomerMovementEventsEnabled || c.CustomerContextEnabled {
+		if strings.TrimSpace(c.CustomerServiceURL) == "" || len(c.CustomerServiceSecret) == 0 {
+			problems = append(problems, "TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED and TAXI_CUSTOMER_CONTEXT_ENABLED require TAXI_CUSTOMER_SERVICE_URL and TAXI_CUSTOMER_SERVICE_SECRET")
+		} else if path := urlPath(c.CustomerServiceURL); path != "" {
+			problems = append(problems, "TAXI_CUSTOMER_SERVICE_URL must be a bare origin, got path "+path)
+		}
+	}
+	if c.TaxiGoodsDeliveryEnabled {
+		if strings.TrimSpace(c.TaxiGoodsPricingJSON) == "" {
+			problems = append(problems, "TAXI_GOODS_PRICING is required when TAXI_GOODS_DELIVERY_ENABLED=true")
+		}
+		if len(c.TaxiGoodsHandoverSecret) < 32 {
+			problems = append(problems, "TAXI_GOODS_HANDOVER_SECRET must be at least 32 bytes when Taxi Goods is enabled")
+		}
+		if c.TaxiGoodsQuoteTTL <= 0 {
+			problems = append(problems, "TAXI_GOODS_QUOTE_TTL_SECONDS must be greater than zero")
+		}
+		if strings.TrimSpace(c.MediaURL) == "" || strings.TrimSpace(c.MediaToken) == "" {
+			problems = append(problems, "TAXI_MEDIA_URL and TAXI_MEDIA_TOKEN are required when Taxi Goods is enabled")
+		}
+		if strings.TrimSpace(c.PaymentURL) == "" || len(c.PaymentSecret) == 0 {
+			problems = append(problems, "TAXI_PAYMENT_URL and TAXI_PAYMENT_SECRET are required when Taxi Goods is enabled")
+		}
+		if len(serviceSecretsFor(c.ServiceSecrets)["vendor-service"]) == 0 {
+			problems = append(problems, "TAXI_SERVICE_SECRETS must allow vendor-service when Taxi Goods is enabled")
+		}
+		if strings.TrimSpace(c.VendorURL) == "" || len(c.VendorSecret) == 0 {
+			problems = append(problems, "TAXI_VENDOR_URL and TAXI_VENDOR_SECRET are required when Taxi Goods is enabled")
+		}
+	}
+	if (c.TaxiFleetProviderWorkEnabled || c.TaxiFleetCompletedWorkEnabled || c.TaxiTypedFinancialVisibilityEnabled) &&
+		(strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0) &&
+		strings.EqualFold(strings.TrimSpace(c.AppEnv), "production") {
+		problems = append(problems, "FLEET_PARTNER_SERVICE_URL, TAXI_FLEET_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required for Taxi Fleet integration in production")
+	}
+	if path := urlPath(c.FleetServiceURL); path != "" {
+		problems = append(problems, "FLEET_PARTNER_SERVICE_URL must be a bare origin, got path "+path)
+	}
+	// Private execution depends on Fleet unconditionally, in every
+	// environment. Its whole safety rests on reading Fleet's own acceptance
+	// record before creating a trip, so an unreachable Fleet is not a degraded
+	// mode here -- it is a surface that would accept commands it cannot verify.
+	if c.TaxiFleetPrivateExecutionEnabled && !c.TaxiFleetKillSwitch {
+		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" ||
+			len(c.FleetServiceSecret) == 0 {
+			problems = append(problems,
+				"FLEET_PARTNER_SERVICE_URL, TAXI_FLEET_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required when TAXI_FLEET_PRIVATE_EXECUTION_ENABLED is true: acceptance cannot be verified without them")
+		}
+		if len(serviceSecretsFor(c.ServiceSecrets)) == 0 {
+			problems = append(problems,
+				"TAXI_SERVICE_SECRETS must carry a secret for fleet-partner-service when TAXI_FLEET_PRIVATE_EXECUTION_ENABLED is true")
+		}
+	}
 
 	if len(problems) > 0 {
 		return errors.New("configuration invalid: " + strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// splitCSV parses a comma-separated allowlist, dropping empty entries.
+func splitCSV(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if name := strings.TrimSpace(part); name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func serviceSecretsFor(raw string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(raw, ",") {
+		name, secret, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			name, secret, ok = strings.Cut(strings.TrimSpace(part), ":")
+		}
+		if ok {
+			out[strings.TrimSpace(name)] = strings.TrimSpace(secret)
+		}
+	}
+	return out
 }
 
 // urlPath returns the path portion of a configured internal base URL, or "" if

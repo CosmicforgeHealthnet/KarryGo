@@ -39,7 +39,7 @@ func TestRequestValidate_RefusesIncompleteOrImpossibleMissions(t *testing.T) {
 		"no parent order":    func(r *Request) { r.ParentOrderRef = "" },
 		"no vendor orders":   func(r *Request) { r.VendorOrderRefs = nil },
 		"no customer":        func(r *Request) { r.CustomerRef = "" },
-		"unknown service":    func(r *Request) { r.Service = "TAXI" },
+		"unknown service":    func(r *Request) { r.Service = "AIR" },
 		"unknown vehicle":    func(r *Request) { r.VehicleClass = "HOVERCRAFT" },
 		"null island pickup": func(r *Request) { r.Pickup.Latitude, r.Pickup.Longitude = 0, 0 },
 		"out of range drop":  func(r *Request) { r.Dropoff.Latitude = 200 },
@@ -47,6 +47,8 @@ func TestRequestValidate_RefusesIncompleteOrImpossibleMissions(t *testing.T) {
 		"bad currency":       func(r *Request) { r.Currency = "NAIRA" },
 		"negative fee":       func(r *Request) { r.AgreedFeeMinor = -1 },
 		"negative load":      func(r *Request) { r.Load.WeightGrams = -1 },
+		"negative loading":   func(r *Request) { r.Load.LoadingDurationSeconds = -1 },
+		"unbounded loading":  func(r *Request) { r.Load.LoadingDurationSeconds = MaxLoadingDurationSeconds + 1 },
 	}
 
 	for name, mutate := range cases {
@@ -58,16 +60,16 @@ func TestRequestValidate_RefusesIncompleteOrImpossibleMissions(t *testing.T) {
 	}
 }
 
-// Taxi is deliberately not a commerce execution authority. A mission must
-// never be created against an integration that is not ready.
-func TestRequestValidate_TaxiIsNotAnExecutionAuthority(t *testing.T) {
+// Taxi Goods is an additive Commerce authority and CAR is its vehicle class.
+func TestRequestValidate_TaxiGoodsIsAnExecutionAuthority(t *testing.T) {
 	request := validRequest()
-	request.Service = "TAXI"
-	if _, ok := request.Validate(); ok {
-		t.Fatal("a taxi mission was accepted")
+	request.Service = ServiceTaxi
+	request.VehicleClass = VehicleCar
+	if message, ok := request.Validate(); !ok {
+		t.Fatalf("Taxi Goods mission was refused: %s", message)
 	}
-	if Service("TAXI").Valid() {
-		t.Fatal("TAXI is a valid commerce execution service")
+	if !ServiceTaxi.Valid() || !VehicleCar.Valid() {
+		t.Fatal("Taxi Goods contract values are invalid")
 	}
 }
 

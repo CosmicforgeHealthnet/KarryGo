@@ -307,13 +307,20 @@ func TestExecutionCreatesExactlyOneTripAndReplays(t *testing.T) {
 		t.Fatalf("read-back by key = %d (%v)", status, byKey)
 	}
 
-	// trip.created event was written in the same transaction.
-	var eventCount int
+	// trip.created event was written in the same transaction, once; the
+	// network-analytics fan-out (migration 000064) adds exactly one delivery
+	// copy for analytics, which is not a second event.
+	var eventCount, analyticsCopies int
 	_ = pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM dispatch_marketplace_outbox WHERE event_type = 'trip.created.v1'`).
-		Scan(&eventCount)
+		`SELECT count(*) FILTER (WHERE aggregate_type NOT LIKE 'analytics:%'),
+			count(*) FILTER (WHERE aggregate_type LIKE 'analytics:%')
+		FROM dispatch_marketplace_outbox WHERE event_type = 'trip.created.v1'`).
+		Scan(&eventCount, &analyticsCopies)
 	if eventCount != 1 {
 		t.Fatalf("trip.created events = %d, want exactly 1", eventCount)
+	}
+	if analyticsCopies != 1 {
+		t.Fatalf("trip.created analytics copies = %d, want exactly 1", analyticsCopies)
 	}
 }
 

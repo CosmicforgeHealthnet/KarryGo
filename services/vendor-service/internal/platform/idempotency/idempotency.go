@@ -24,11 +24,15 @@
 package idempotency
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -58,10 +62,38 @@ type Record struct {
 	ResponseBody   []byte
 }
 
-// Fingerprint produces the normalized request hash: method, path and body.
+// Fingerprint produces a semantic request hash: method, path and a canonical
+// JSON body. JSON member ordering and insignificant whitespace therefore do
+// not turn a safe retry into a different command. Non-JSON bodies retain their
+// byte identity because interpreting their semantics belongs to their media
+// type's handler, not this generic command boundary.
 func Fingerprint(method string, path string, body []byte) string {
-	sum := sha256.Sum256(append([]byte(method+"\n"+path+"\n"), body...))
+	canonical := canonicalBody(body)
+	prefix := strings.ToUpper(strings.TrimSpace(method)) + "\n" + path + "\n"
+	sum := sha256.Sum256(append([]byte(prefix), canonical...))
 	return hex.EncodeToString(sum[:])
+}
+
+func canonicalBody(body []byte) []byte {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return body
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return body
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return body
+	}
+	return canonical
 }
 
 // querier is satisfied by *pgxpool.Pool and pgx.Tx, so a caller can run
@@ -99,52 +131,61 @@ func (s *Store) Begin(ctx context.Context, scopeID, endpoint, key, fingerprint s
 		return nil, errors.New("idempotency: Idempotency-Key is required")
 	}
 
-	_, err := s.db.Exec(ctx, `
+	var inserted int
+	err := s.db.QueryRow(ctx, `
 		INSERT INTO vendor_idempotency_keys
-			(scope_id, endpoint, idempotency_key, request_fingerprint, status, created_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, now(), now() + $6::interval)`,
+			(scope_id, endpoint, idempotency_key, request_fingerprint, status,
+			 actor_ref, operation_type, resource_target, created_at, updated_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $1, $2, $2, now(), now(), now() + $6::interval)
+		ON CONFLICT (scope_id, endpoint, idempotency_key) DO NOTHING
+		RETURNING 1`,
 		scopeID, endpoint, key, fingerprint, StatusInProgress,
 		fmt.Sprintf("%d seconds", int64(s.expiry.Seconds())),
-	)
+	).Scan(&inserted)
 	if err == nil {
 		return nil, nil // claimed; caller executes the command
 	}
-
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("idempotency: claim key: %w", err)
+	}
+
+	// Reclaim in one conditional statement. A formerly unconditional UPDATE
+	// allowed two callers that both observed an expired row to execute the
+	// command. The expiry predicate means exactly one caller can win.
+	var reclaimed int
+	err = s.db.QueryRow(ctx, `
+		UPDATE vendor_idempotency_keys SET
+			request_fingerprint = $1, status = $2, response_status = NULL,
+			response_body = NULL, actor_ref = $3, operation_type = $4,
+			resource_target = $4, completed_at = NULL, created_at = now(),
+			updated_at = now(), expires_at = now() + $5::interval
+		WHERE scope_id = $6 AND endpoint = $7 AND idempotency_key = $8
+		  AND expires_at <= now()
+		RETURNING 1`,
+		fingerprint, StatusInProgress, scopeID, endpoint,
+		fmt.Sprintf("%d seconds", int64(s.expiry.Seconds())),
+		scopeID, endpoint, key,
+	).Scan(&reclaimed)
+	if err == nil {
+		return nil, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("idempotency: reclaim expired key: %w", err)
 	}
 
 	var record Record
 	var storedFingerprint string
-	var expiresAt time.Time
 	err = s.db.QueryRow(ctx, `
-		SELECT request_fingerprint, status, COALESCE(response_status, 0), COALESCE(response_body, ''), expires_at
+		SELECT request_fingerprint, status, COALESCE(response_status, 0), COALESCE(response_body, '')
 		FROM vendor_idempotency_keys
 		WHERE scope_id = $1 AND endpoint = $2 AND idempotency_key = $3`,
 		scopeID, endpoint, key,
-	).Scan(&storedFingerprint, &record.Status, &record.ResponseStatus, &record.ResponseBody, &expiresAt)
+	).Scan(&storedFingerprint, &record.Status, &record.ResponseStatus, &record.ResponseBody)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrInProgress // raced with cleanup; treat as in progress
 	}
 	if err != nil {
 		return nil, fmt.Errorf("idempotency: load key: %w", err)
-	}
-
-	if time.Now().After(expiresAt) {
-		_, err = s.db.Exec(ctx, `
-			UPDATE vendor_idempotency_keys SET
-				request_fingerprint = $1, status = $2, response_status = NULL,
-				response_body = NULL, created_at = now(), expires_at = now() + $3::interval
-			WHERE scope_id = $4 AND endpoint = $5 AND idempotency_key = $6`,
-			fingerprint, StatusInProgress,
-			fmt.Sprintf("%d seconds", int64(s.expiry.Seconds())),
-			scopeID, endpoint, key,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("idempotency: reclaim expired key: %w", err)
-		}
-		return nil, nil
 	}
 
 	if storedFingerprint != fingerprint {
@@ -164,9 +205,12 @@ func (s *Store) Complete(ctx context.Context, scopeID, endpoint, key string, res
 	}
 	_, err := s.db.Exec(ctx, `
 		UPDATE vendor_idempotency_keys SET
-			status = $1, response_status = $2, response_body = $3
-		WHERE scope_id = $4 AND endpoint = $5 AND idempotency_key = $6`,
+			status = $1, response_status = $2, response_body = $3,
+			completed_at = now(), updated_at = now()
+		WHERE scope_id = $4 AND endpoint = $5 AND idempotency_key = $6
+		  AND status = $7`,
 		StatusCompleted, responseStatus, responseBody, scopeID, endpoint, key,
+		StatusInProgress,
 	)
 	if err != nil {
 		return fmt.Errorf("idempotency: complete: %w", err)

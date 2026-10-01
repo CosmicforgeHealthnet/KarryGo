@@ -1,6 +1,8 @@
 package handover
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,6 +18,58 @@ func TestBuildChallengeID(t *testing.T) {
 
 	if got, want := a, "handover:hauling:pickup:booking-1"; got != want {
 		t.Fatalf("BuildChallengeID() = %q, want %q", got, want)
+	}
+}
+
+func TestSecureCodeRecordUsesIndependentContextBoundCredentials(t *testing.T) {
+	secret := []byte("secure-handover-test-secret")
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	rec, err := NewSecureCodeRecord(secret, "hauling", StepPickup, "challenge-1", 1, "booking-1", "provider-1", "customer-1", 0, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.Code) != 6 || len(rec.QRToken) < 40 || strings.Contains(rec.QRToken, rec.Code) || rec.QRToken == rec.Code {
+		t.Fatalf("credentials are not independent opaque values: otp_len=%d qr_len=%d", len(rec.Code), len(rec.QRToken))
+	}
+	if rec.ExpiresAt.Sub(now) != DefaultTTL {
+		t.Fatalf("TTL = %v, want %v", rec.ExpiresAt.Sub(now), DefaultTTL)
+	}
+	if !VerifySecureCredential(secret, "OTP", rec, rec.Code, rec.Hash) || !VerifySecureCredential(secret, "QR", rec, rec.QRToken, rec.QRHash) {
+		t.Fatal("issued credentials did not verify")
+	}
+	restored := rec
+	restored.Code, restored.QRToken = "", ""
+	if recovered, ok := RecoverSecureCredentials(secret, restored); !ok || recovered.Code != rec.Code || recovered.QRToken != rec.QRToken {
+		t.Fatal("credential reconstruction failed")
+	}
+	if VerifySecureCredential(secret, "QR", rec, rec.Code, rec.QRHash) || VerifySecureCredential(secret, "OTP", rec, rec.QRToken, rec.Hash) {
+		t.Fatal("OTP and QR purposes must not be interchangeable")
+	}
+
+	contexts := []CodeRecord{rec, rec, rec, rec}
+	contexts[0].BookingID = "booking-2"
+	contexts[1].ProviderID = "provider-2"
+	contexts[2].Stage = StepDelivery
+	contexts[3].Version = 2
+	for i, changed := range contexts {
+		if VerifySecureCredential(secret, "OTP", changed, rec.Code, rec.Hash) || VerifySecureCredential(secret, "QR", changed, rec.QRToken, rec.QRHash) {
+			t.Fatalf("credential verified across changed authoritative context %d", i)
+		}
+	}
+}
+
+func TestSecureCodeRecordGeneratesUnpredictableQRTokens(t *testing.T) {
+	secret := []byte("secure-handover-test-secret")
+	seen := make(map[string]struct{}, 128)
+	for i := 0; i < 128; i++ {
+		rec, err := NewSecureCodeRecord(secret, "hauling", StepDelivery, fmt.Sprintf("challenge-%d", i+1), 1, "booking-1", "provider-1", "customer-1", 0, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, duplicate := seen[rec.QRToken]; duplicate {
+			t.Fatal("duplicate opaque QR token generated")
+		}
+		seen[rec.QRToken] = struct{}{}
 	}
 }
 

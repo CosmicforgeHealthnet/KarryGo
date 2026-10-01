@@ -1,54 +1,167 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
+  /* ========================================
+     LIGHT MODE (DEFAULT)
+     ======================================== */
   --background: #ffffff;
-  --foreground: #0d0d1a;
+  --foreground: #0B1F44;
 
-  /* ===== NEW BRAND COLORS ===== */
-  --sidebar-bg: #141455;
-  --sidebar-hover: #1e1f7a;
-  --sidebar-selected: #2b2caa;
+  /* ========================================
+     KARRYAM BRAND COLORS
+     Source: Official brand palette
+     ======================================== */
+  --midnight: #0B1F44;
+  --aurora-teal: #00C2A8;
+  --pure-white: #FFFFFF;
+  --forge-gray: #A7B0BB;
+  --indigo-gray: #2D3A5B;
+
+  /* ===== SIDEBAR ===== */
+  --sidebar-bg: #0B1F44;
+  --sidebar-hover: #2D3A5B;
+  --sidebar-selected: #00C2A8;
   --sidebar-text: #ffffff;
-  --sidebar-text-secondary: #e8e8f8;
+  --sidebar-text-secondary: #A7B0BB;
 
-  --primary: #2b2caa;
-  --primary-hover: #3a3bc4;
-  --primary-bg: #e8e8ff;
+  /* ===== PRIMARY ACTIONS ===== */
+  --primary: #00C2A8;
+  --primary-hover: #00A990;
+  --primary-bg: #E6FAF7;
 
-  --accent: #0e91c7;
-  --accent-hover: #0a7ab0;
-  --accent-bg: #e6f5fc;
+  /* ===== ACCENT ===== */
+  --accent: #00C2A8;
+  --accent-hover: #0B1F44;
+  --accent-bg: #E6FAF7;
 
-  --links: #006e99;
+  /* ===== BRAND (dark/structural) ===== */
+  --brand: #0B1F44;
+  --brand-hover: #2D3A5B;
 
-  --navy-950: #141455;
-  --navy-900: #1a1a5a;
-  --navy-850: #1e1f7a;
+  /* ===== LINKS ===== */
+  --links: #0B1F44;
 
-  --ink-950: #0d0d1a;
-  --ink-900: #1a1a30;
-  --ink-800: #2a2a45;
-  --ink-700: #4a4a6a;
-  --ink-600: #6a6a8a;
-  --ink-500: #8a8aaa;
-  --ink-400: #aaaac8;
+  /* ===== NAVY SCALE ===== */
+  --navy-950: #0B1F44;
+  --navy-900: #0B1F44;
+  --navy-850: #2D3A5B;
 
-  --line: #e0e0ee;
+  /* ===== TEXT / INK ===== */
+  --ink-950: #0B1F44;
+  --ink-900: #2D3A5B;
+  --ink-800: #2D3A5B;
+  --ink-700: #2D3A5B;
+  --ink-600: #A7B0BB;
+  --ink-500: #A7B0BB;
+  --ink-400: #A7B0BB;
+
+  /* ===== SURFACES ===== */
+  --line: #E5E9EE;
   --surface: #ffffff;
-  --surface-2: #f0f0f8;
-  --surface-3: #e8e8f4;
+  --surface-2: #F8FAFB;
+  --surface-3: #EEF2F5;
 
-  --green: #139a5d;
-  --green-bg: #e9f9f1;
-  --amber: #d97706;
-  --amber-bg: #fff5e7;
-  --red: #c81e33;
-  --red-bg: #fff0f2;
+  /* ===== STATUS COLORS ===== */
+  --green: #00C2A8;
+  --green-bg: #E6FAF7;
+  --amber: #D99A24;
+  --amber-bg: #FFF6E3;
+  --red: #D64545;
+  --red-bg: #FFF0F0;
+
+  /* ===== HERO BANNER (dashboard welcome card) =====
+     Gradients (background-image) can't be CSS-transitioned directly, so
+     instead of swapping one gradient's color stops we layer a fixed
+     light-mode gradient and a fixed dark-mode gradient and crossfade
+     them with opacity, which *is* animatable on the shared clock. */
+  --hero-gradient-from-light: #dfecf7;
+  --hero-gradient-via-light: #eef5fb;
+  --hero-gradient-from-dark: #16233F;
+  --hero-gradient-via-dark: #111C33;
+  --hero-border: rgba(255, 255, 255, 0.5);
+
+  /* ===== THEME TRANSITION (single shared clock) ===== */
+  --theme-transition-duration: 0.2s;
+  --theme-transition-easing: ease;
+}
+
+/* ========================================
+   DARK MODE
+   ======================================== */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --background: #0A0F1E;
+  --foreground: #F0F4FF;
+
+  /* Brand colors - adjusted for dark */
+  --midnight: #0A0F1E;
+  --indigo-gray: #2A3A5C;
+
+  /* Surfaces */
+  --surface: #111827;
+  --surface-2: #1A2338;
+  --surface-3: #2A3A5C;
+  --line: rgba(255, 255, 255, 0.08);
+
+  /* Text / Ink - lighter for dark bg */
+  --ink-950: #F0F4FF;
+  --ink-900: #E8EDF8;
+  --ink-800: #D0D9E8;
+  --ink-700: #B0BDD0;
+  --ink-600: #A7B0BB;
+  --ink-500: #8A9BB0;
+  --ink-400: #6B7A99;
+
+  /* Primary - slightly brighter for dark bg */
+  --primary: #00C2A8;
+  --primary-hover: #00D4B8;
+  --primary-bg: rgba(0, 194, 168, 0.15);
+
+  /* Accent */
+  --accent: #00C2A8;
+  --accent-hover: #00D4B8;
+  --accent-bg: rgba(0, 194, 168, 0.12);
+
+  /* Brand */
+  --brand: #0A0F1E;
+  --brand-hover: #1A2338;
+  --links: #00C2A8;
+
+  /* Sidebar - keep dark but adjust */
+  --sidebar-bg: #0A0F1E;
+  --sidebar-hover: #1A2338;
+  --sidebar-selected: #00C2A8;
+  --sidebar-text: #F0F4FF;
+  --sidebar-text-secondary: #8A9BB0;
+
+  /* Status colors - brighter for dark bg */
+  --green: #00C2A8;
+  --green-bg: rgba(0, 194, 168, 0.15);
+  --amber: #F59E0B;
+  --amber-bg: rgba(245, 158, 11, 0.15);
+  --red: #EF4444;
+  --red-bg: rgba(239, 68, 68, 0.15);
+
+  /* Navy scale */
+  --navy-950: #0A0F1E;
+  --navy-900: #111827;
+  --navy-850: #1A2338;
+
+  /* ===== HERO BANNER (dashboard welcome card) ===== */
+  --hero-border: rgba(255, 255, 255, 0.08);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  --color-midnight: var(--midnight);
+  --color-aurora-teal: var(--aurora-teal);
+  --color-pure-white: var(--pure-white);
+  --color-forge-gray: var(--forge-gray);
+  --color-indigo-gray: var(--indigo-gray);
 
   --color-sidebar-bg: var(--sidebar-bg);
   --color-sidebar-hover: var(--sidebar-hover);
@@ -63,6 +176,9 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-bg: var(--accent-bg);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
 
   --color-links: var(--links);
 
@@ -90,8 +206,14 @@
   --color-red: var(--red);
   --color-red-bg: var(--red-bg);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-hero-gradient-from-light: var(--hero-gradient-from-light);
+  --color-hero-gradient-via-light: var(--hero-gradient-via-light);
+  --color-hero-gradient-from-dark: var(--hero-gradient-from-dark);
+  --color-hero-gradient-via-dark: var(--hero-gradient-via-dark);
+  --color-hero-border: var(--hero-border);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
   --font-display: var(--font-space-grotesk);
 }
 
@@ -100,11 +222,19 @@ body {
   color: var(--foreground);
   font-size: 15px;
   line-height: 1.6;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Larger base font sizes for better readability */
+/* Use display font for headlines only */
+h1, h2, h3, .display-text {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
 h1 {
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-size: clamp(1.8rem, 4vw, 2.1rem);
   letter-spacing: -0.02em;
 }
 
@@ -115,6 +245,25 @@ h2 {
 
 h3 {
   font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+}
+
+p, .body-text {
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Monospace for data, code, and numbers in tables */
+code, .mono, .tabular-nums, .data-text {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Better number display in tables and metrics */
+table .numeric,
+.metric-value,
+.stats-number {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 p {
@@ -197,7 +346,7 @@ input,
 textarea,
 select,
 button {
-  font-family: inherit;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: inherit;
 }
 
@@ -207,7 +356,8 @@ button {
   border: 1px solid var(--line);
   border-radius: 0.75rem;
   padding: 1.25rem;
-  transition: border-color 0.2s ease;
+  /* No local transition here — the global `*` rule below owns timing so
+     background, border and shadow all move on the same clock. */
 }
 
 .card:hover {
@@ -280,8 +430,8 @@ main {
 }
 
 .leaflet-control-zoom a {
-  background: white !important;
-  color: #1a1a2e !important;
+  background: var(--surface) !important;
+  color: var(--ink-950) !important;
   border: none !important;
   width: 32px !important;
   height: 32px !important;
@@ -290,16 +440,77 @@ main {
 }
 
 .leaflet-control-zoom a:hover {
-  background: #f0f0f8 !important;
+  background: var(--surface-3) !important;
 }
 
 .leaflet-popup-content-wrapper {
   border: 1px solid var(--line) !important;
   border-radius: 12px !important;
+  background: var(--surface) !important;
 }
 
 .leaflet-popup-content {
   font-size: 13px !important;
   font-weight: 500 !important;
-  color: #1a1a2e !important;
+  color: var(--ink-950) !important;
+}
+
+/* ===== TYPOGRAPHY IMPROVEMENTS FOR DASHBOARD ===== */
+.data-grid {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.data-grid .label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-grid .value {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--ink-950);
+}
+
+/* Table improvements */
+.table-data {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+}
+
+/* Status badges with better readability */
+.status-badge {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* Quick action buttons */
+.action-label {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Smooth transitions for all theme-aware elements — one shared clock so
+   background, text, borders and shadows all cross-fade together instead
+   of finishing at different times. */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity;
+  transition-duration: var(--theme-transition-duration);
+  transition-timing-function: var(--theme-transition-easing);
+}
+
+/* Disable transitions for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0s !important;
+  }
 }

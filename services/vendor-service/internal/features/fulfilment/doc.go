@@ -25,8 +25,7 @@
 //     owning logistics authority's own quote. The single exception is
 //     Vendor Own Delivery (internal/features/delivery), where the vendor both
 //     performs and prices the delivery.
-//   - TAXI IS NOT USED. driver-taxi-service has no production goods-delivery
-//     capability, so VehicleCar is defined but never selected and no taxi
-//     route is ever called. See vehicle.go for how that is enforced rather
-//     than merely intended.
+//   - CAR is executed only through driver-taxi-service's distinct Taxi Goods
+//     quote/mission contract. The Vendor and Taxi feature flags default false;
+//     no passenger booking endpoint is used for Commerce.
 package fulfilment

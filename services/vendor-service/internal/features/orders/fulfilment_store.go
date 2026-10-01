@@ -24,7 +24,10 @@ func (s *Store) FulfilledQuantities(ctx context.Context, vendorOrderID string) (
 	if s == nil || s.db == nil {
 		return nil, false, ErrDependencyMissing
 	}
-	rows, err := s.db.Query(ctx, `SELECT l.inventory_item_ref,COALESCE(o.picked_quantity,0) FROM commerce_vendor_order_lines l LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=l.id WHERE l.vendor_order_id=$1 AND l.inventory_item_ref<>''`, vendorOrderID)
+	rows, err := s.db.Query(ctx, `SELECT l.inventory_item_ref,
+	 CASE WHEN l.pricing_basis='VARIABLE_MEASURE' THEN COALESCE(o.actual_measure_quantity,0) ELSE COALESCE(o.picked_quantity,0) END,
+	 o.id IS NOT NULL
+	 FROM commerce_vendor_order_lines l LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=l.id WHERE l.vendor_order_id=$1 AND l.inventory_item_ref<>''`, vendorOrderID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -34,13 +37,60 @@ func (s *Store) FulfilledQuantities(ctx context.Context, vendorOrderID string) (
 	for rows.Next() {
 		var item string
 		var quantity int64
-		if err = rows.Scan(&item, &quantity); err != nil {
+		var hasOutcome bool
+		if err = rows.Scan(&item, &quantity, &hasOutcome); err != nil {
 			return nil, false, err
 		}
 		result[item] += quantity
-		found = true
+		found = found || hasOutcome
 	}
 	return result, found, rows.Err()
+}
+
+// Reservation identities for replacements remain Inventory's authority. The
+// order only supplies the approved variant and quantity from its own evidence.
+func (s *Service) fulfilledReservationQuantities(ctx context.Context, order VendorOrder) (map[string]int64, bool, error) {
+	quantities, found, err := s.store.FulfilledQuantities(ctx, order.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	proposals, err := s.store.approvedSubstitutionsForOrder(ctx, order.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, proposal := range proposals {
+		authority, ok := s.inventory.(ReplacementInventoryAuthority)
+		if !ok {
+			return nil, false, ErrDependencyMissing
+		}
+		item, resolveErr := authority.ResolveShopVariantItem(ctx, order.BusinessID, order.BranchID, proposal.ProposedVariantRef)
+		if resolveErr != nil {
+			return nil, false, resolveErr
+		}
+		quantity, valid := checkedMinorSum(quantities[item], proposal.ProposedQuantity)
+		if !valid {
+			return nil, false, ErrOrderConflict
+		}
+		quantities[item], found = quantity, true
+	}
+	return quantities, found, nil
+}
+
+func (s *Store) approvedSubstitutionsForOrder(ctx context.Context, vendorOrderID string) ([]SubstitutionProposal, error) {
+	rows, err := s.db.Query(ctx, `SELECT id,parent_order_id,vendor_order_id,order_line_id,customer_id,business_id,branch_id,proposed_item_ref,proposed_variant_ref,proposed_catalogue_ref,replacement_snapshot,proposed_quantity,proposed_price_minor,price_difference_minor,reason,expires_at,status,response_ref,version,created_at,responded_at,updated_at,COALESCE(case_id,'') FROM commerce_substitution_proposals WHERE vendor_order_id=$1 AND status='APPROVED' ORDER BY id`, vendorOrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var proposals []SubstitutionProposal
+	for rows.Next() {
+		proposal, readErr := scanSubstitution(rows)
+		if readErr != nil {
+			return nil, readErr
+		}
+		proposals = append(proposals, proposal)
+	}
+	return proposals, rows.Err()
 }
 
 const missionColumns = `
@@ -161,6 +211,18 @@ func (s *Store) EnsureMission(
 		return OrderMission{}, false, err
 	}
 	return created, true, nil
+}
+
+// GetMissionByRef reads one mission slot by its stable reference.
+//
+// The reference, not the internal id, is what the just-in-time orchestration
+// carries: it is derived from the order and its plan mission, so it survives a
+// restart and means the same thing to the executing authority.
+func (s *Store) GetMissionByRef(ctx context.Context, missionRef string) (OrderMission, error) {
+	if s == nil || s.db == nil {
+		return OrderMission{}, ErrDependencyMissing
+	}
+	return loadMissionBy(ctx, s.db, `m.mission_ref=$1`, missionRef)
 }
 
 // RecordMissionResult stores the executing authority's own answer.

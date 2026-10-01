@@ -34,6 +34,7 @@ const SignatureCaller = "vendor-service"
 // APIBase paths, mirroring the commerce quote contract's shape.
 const (
 	DispatchAPIBase = "/api/v1"
+	TaxiAPIBase     = "/api/v1/taxi"
 	HaulingAPIBase  = "/api/v1/hauling"
 
 	// Path is appended to the authority's own internal commerce base.
@@ -44,18 +45,20 @@ const (
 
 // Service names the logistics authority that will execute the mission.
 //
-// Taxi is deliberately absent. It is not required for commerce, and a mission
-// must never be created against an integration that is not ready.
+// Taxi names the distinct Taxi Goods authority. Feature flags and readiness
+// still decide whether it can be called; this value never denotes a passenger
+// booking.
 type Service string
 
 const (
 	ServiceDispatch Service = "DISPATCH"
+	ServiceTaxi     Service = "TAXI"
 	ServiceHauling  Service = "HAULING"
 )
 
 // Valid reports whether the service is one this contract can execute.
 func (s Service) Valid() bool {
-	return s == ServiceDispatch || s == ServiceHauling
+	return s == ServiceDispatch || s == ServiceTaxi || s == ServiceHauling
 }
 
 // VehicleClass mirrors the quote contract's vocabulary so a mission is created
@@ -64,6 +67,7 @@ type VehicleClass string
 
 const (
 	VehicleMotorcycle VehicleClass = "MOTORCYCLE"
+	VehicleCar        VehicleClass = "CAR"
 	VehicleTricycle   VehicleClass = "TRICYCLE"
 	VehicleVan        VehicleClass = "VAN"
 	VehicleTruck      VehicleClass = "TRUCK"
@@ -72,7 +76,7 @@ const (
 // Valid reports whether the vehicle class is known.
 func (v VehicleClass) Valid() bool {
 	switch v {
-	case VehicleMotorcycle, VehicleTricycle, VehicleVan, VehicleTruck:
+	case VehicleMotorcycle, VehicleTricycle, VehicleCar, VehicleVan, VehicleTruck:
 		return true
 	default:
 		return false
@@ -107,11 +111,14 @@ type Point struct {
 
 // Load describes what is being moved.
 type Load struct {
-	WeightGrams  int64  `json:"weight_grams"`
-	PackageCount int64  `json:"package_count"`
-	Description  string `json:"description,omitempty"`
-	Fragile      bool   `json:"fragile,omitempty"`
+	WeightGrams            int64  `json:"weight_grams"`
+	PackageCount           int64  `json:"package_count"`
+	LoadingDurationSeconds int64  `json:"loading_duration_seconds,omitempty"`
+	Description            string `json:"description,omitempty"`
+	Fragile                bool   `json:"fragile,omitempty"`
 }
+
+const MaxLoadingDurationSeconds int64 = 8 * 60 * 60
 
 type ReadyWindow struct {
 	From     time.Time `json:"from,omitempty"`
@@ -129,6 +136,7 @@ type PlanBinding struct {
 type Handling struct {
 	Fragile         bool     `json:"fragile,omitempty"`
 	Upright         bool     `json:"upright,omitempty"`
+	StackRestricted bool     `json:"stack_restricted,omitempty"`
 	SpillLiquid     bool     `json:"spill_liquid,omitempty"`
 	Hot             bool     `json:"hot,omitempty"`
 	Chilled         bool     `json:"chilled,omitempty"`
@@ -191,6 +199,10 @@ type Request struct {
 	VendorOrderRefs []string `json:"vendor_order_refs"`
 
 	CustomerRef string `json:"customer_ref"`
+	// ReceiverCustomerRef is the authenticated account explicitly bound to
+	// the frozen recipient. Empty means no supported account channel; it must
+	// never be inferred from CustomerRef when a third-party contact exists.
+	ReceiverCustomerRef string `json:"receiver_customer_ref,omitempty"`
 
 	Service      Service      `json:"service"`
 	VehicleClass VehicleClass `json:"vehicle_class,omitempty"`
@@ -324,6 +336,16 @@ var (
 	ErrAuthorityUnavailable = errors.New("logistics authority is unavailable")
 
 	ErrNotConfigured = errors.New("logistics authority is not configured")
+
+	// ErrMissionNotFound means the authority answered, and its answer is that
+	// it holds no such mission.
+	//
+	// It is separate from ErrInvalidRequest -- which it also satisfies, so
+	// existing callers are unaffected -- because a caller reconciling an
+	// ambiguous create needs to tell "definitely absent" from "malformed" and
+	// from "could not ask". Only the first permits sending the create again;
+	// collapsing them is how one timeout becomes two vehicles.
+	ErrMissionNotFound = errors.New("logistics authority holds no such mission")
 )
 
 // Validate reports the first reason a request could not be executed.
@@ -341,7 +363,7 @@ func (r Request) Validate() (string, bool) {
 	case strings.TrimSpace(r.CustomerRef) == "":
 		return "customer_ref is required", false
 	case !r.Service.Valid():
-		return "service must be DISPATCH or HAULING", false
+		return "service must be DISPATCH, TAXI, or HAULING", false
 	case r.VehicleClass != "" && !r.VehicleClass.Valid():
 		return "vehicle_class is not a known class", false
 	case len(r.PickupStops) == 0 && !validCoordinate(r.Pickup.Latitude, r.Pickup.Longitude):
@@ -358,6 +380,9 @@ func (r Request) Validate() (string, bool) {
 		return "agreed_fee_minor cannot be negative", false
 	case r.Load.PackageCount < 0 || r.Load.WeightGrams < 0:
 		return "load values cannot be negative", false
+	case r.Load.LoadingDurationSeconds < 0 ||
+		r.Load.LoadingDurationSeconds > MaxLoadingDurationSeconds:
+		return "load.loading_duration_seconds must be between 0 and 28800", false
 	}
 	if len(r.PickupStops) > 0 {
 		seenStops := map[string]bool{}

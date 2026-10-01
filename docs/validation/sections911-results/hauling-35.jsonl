@@ -1,0 +1,3 @@
+{"Time":"2026-09-27T16:18:39.5446392+02:00","Action":"start","Package":"cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"}
+{"Time":"2026-09-27T16:18:39.5446392+02:00","Action":"output","Package":"cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories","Output":"?   \tcosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories\t[no test files]\n"}
+{"Time":"2026-09-27T16:18:39.5446392+02:00","Action":"skip","Package":"cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories","Elapsed":0}

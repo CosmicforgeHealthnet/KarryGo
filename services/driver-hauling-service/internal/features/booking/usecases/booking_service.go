@@ -3,6 +3,7 @@ package bookingusecases
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"sort"
 	"strings"
 	"sync"
@@ -14,9 +15,12 @@ import (
 	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
+	"cosmicforge/logistics/services/hauling-service/internal/truckcatalog"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
+	"cosmicforge/logistics/shared/go/journeyshare"
+	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/routing"
 )
 
@@ -76,6 +80,12 @@ type PaymentClient interface {
 	Refund(ctx context.Context, paymentIntentID string, amountKobo int64, reason string) error
 }
 
+// executionProviderBinder confirms a held payment is bound to the provider
+// about to be paid (Section 17). Optional on a PaymentClient.
+type executionProviderBinder interface {
+	EnsureExecutionProvider(ctx context.Context, bookingID, providerID string) error
+}
+
 type CommerceDeliverySettlementAuthority interface {
 	ReleaseCommerceDelivery(ctx context.Context, parentOrderID, vendorOrderID, providerID, completionReference string) error
 }
@@ -83,6 +93,10 @@ type CommerceDeliverySettlementAuthority interface {
 type commerceMissionScopeReader interface {
 	CommerceMissionScope(ctx context.Context, bookingID string) (string, []string, bool, error)
 	ListCompletedCommerceBookings(ctx context.Context, limit int) ([]string, error)
+}
+
+type commerceProviderMetadataReader interface {
+	CommerceProviderMetadata(ctx context.Context, bookingID string) (*bookingmodels.CommerceOperations, error)
 }
 
 var ErrPaymentOutcomeUnknown = errors.New("payment authority outcome is unknown")
@@ -98,7 +112,10 @@ type BookingService struct {
 	bookings           bookingrepo.BookingRepository
 	availability       availabilityrepositories.AvailabilityStore
 	trucks             TruckLookup
+	capability         CapabilityAuthority
+	capabilityMatching CapabilityMatchingConfig
 	payments           PaymentClient
+	bookingLocation    BookingLocationReader
 	commerceSettlement CommerceDeliverySettlementAuthority
 	notifier           *bookingclients.BookingNotifier
 	matchTimeout       time.Duration // per-provider acceptance window
@@ -108,7 +125,19 @@ type BookingService struct {
 	restrictions       RestrictionGate
 	activeMatches      sync.Map // map[bookingID]*matchHandle
 	handoverSecret     []byte
+	secureHandover     bookingrepo.SecureHandoverRepository
 	routes             routing.Fetcher
+
+	// managedSettlement and managedHandoff are the Section 12 boundary -- see
+	// managed_settlement.go. They decide whether a completed corporate job
+	// takes the legacy direct-to-provider wallet path or the Fleet managed
+	// path, and that decision is never made by a live Fleet lookup at
+	// completion time.
+	managedSettlement ManagedSettlementConfig
+	managedHandoff    ManagedSettlementHandoff
+	// completedWorkEnabled gates writing the canonical Fleet completed-work
+	// record. Off by default (HAULING_FLEET_COMPLETED_WORK_ENABLED).
+	completedWorkEnabled bool
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -119,9 +148,14 @@ type matchHandle struct {
 }
 
 type Options struct {
-	Bookings            bookingrepo.BookingRepository
-	Availability        availabilityrepositories.AvailabilityStore
-	Trucks              TruckLookup
+	Bookings     bookingrepo.BookingRepository
+	Availability availabilityrepositories.AvailabilityStore
+	Trucks       TruckLookup
+	// Capability is Hauling's truck capability store (Section 9). nil keeps
+	// the legacy weight-and-type matcher exactly as it was, which is what
+	// lets this ship dark.
+	Capability          CapabilityAuthority
+	CapabilityMatching  CapabilityMatchingConfig
 	Payments            PaymentClient // nil disables payment binding (local dev)
 	CommerceSettlement  CommerceDeliverySettlementAuthority
 	Notifier            *bookingclients.BookingNotifier
@@ -135,6 +169,17 @@ type Options struct {
 	// nil disables route fetching; every consumer then falls back to
 	// straight-line geometry.
 	Routes routing.Fetcher
+	// SecureHandover is optional for isolated tests. Production automatically
+	// uses the Postgres booking repository's existing handover authority.
+	SecureHandover bookingrepo.SecureHandoverRepository
+
+	// ManagedSettlement/ManagedHandoff/CompletedWorkEnabled configure the
+	// Section 10 corporate completion path. All three are nil/zero-safe: a
+	// service built without them behaves exactly as before, which is what
+	// keeps every independent job unchanged.
+	ManagedSettlement    ManagedSettlementConfig
+	ManagedHandoff       ManagedSettlementHandoff
+	CompletedWorkEnabled bool
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -152,20 +197,30 @@ func NewBookingService(opts Options) *BookingService {
 	if searchWindow < matchTimeout {
 		searchWindow = matchTimeout
 	}
+	secureHandover := opts.SecureHandover
+	if secureHandover == nil {
+		secureHandover, _ = opts.Bookings.(bookingrepo.SecureHandoverRepository)
+	}
 	return &BookingService{
-		bookings:           opts.Bookings,
-		availability:       opts.Availability,
-		trucks:             opts.Trucks,
-		payments:           opts.Payments,
-		commerceSettlement: opts.CommerceSettlement,
-		notifier:           opts.Notifier,
-		matchTimeout:       matchTimeout,
-		searchWindow:       searchWindow,
-		maxRadiusKm:        radius,
-		allowCashPayments:  opts.AllowCashPayments,
-		restrictions:       opts.Restrictions,
-		handoverSecret:     opts.HandoverSecret,
-		routes:             opts.Routes,
+		bookings:             opts.Bookings,
+		availability:         opts.Availability,
+		trucks:               opts.Trucks,
+		capability:           opts.Capability,
+		capabilityMatching:   opts.CapabilityMatching,
+		payments:             opts.Payments,
+		commerceSettlement:   opts.CommerceSettlement,
+		notifier:             opts.Notifier,
+		matchTimeout:         matchTimeout,
+		searchWindow:         searchWindow,
+		maxRadiusKm:          radius,
+		allowCashPayments:    opts.AllowCashPayments,
+		restrictions:         opts.Restrictions,
+		handoverSecret:       opts.HandoverSecret,
+		secureHandover:       secureHandover,
+		routes:               opts.Routes,
+		managedSettlement:    opts.ManagedSettlement,
+		managedHandoff:       opts.ManagedHandoff,
+		completedWorkEnabled: opts.CompletedWorkEnabled,
 	}
 }
 
@@ -203,6 +258,8 @@ type CreateBookingInput struct {
 	WeightCategory     string
 	ReceiverName       string
 	ReceiverPhone      string
+	ReceiverEmail      string
+	ReceiverCustomerID string
 	PackageContent     string
 	PackageSize        string
 	IsFragile          bool
@@ -227,11 +284,21 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	if input.CargoWeightKg <= 0 {
 		fields = append(fields, apperrors.FieldViolation{Field: "cargo_weight_kg", Message: "Cargo weight must be greater than zero."})
 	}
+	if receiverID := strings.TrimSpace(input.ReceiverCustomerID); receiverID != "" {
+		if _, err := uuid.Parse(receiverID); err != nil {
+			fields = append(fields, apperrors.FieldViolation{Field: "receiver_customer_id", Message: "Choose a valid receiver account."})
+		}
+	}
+	if receiverEmail := strings.TrimSpace(input.ReceiverEmail); receiverEmail != "" {
+		if address, err := mail.ParseAddress(receiverEmail); err != nil || address.Address != receiverEmail {
+			fields = append(fields, apperrors.FieldViolation{Field: "receiver_email", Message: "Enter a valid receiver email address."})
+		}
+	}
 	// Empty means "any truck" (skips the matcher's type filter). Anything else
 	// must be a real truck type, otherwise the booking would be stored fine and
-	// then silently never match, since matching compares the type verbatim.
-	if truckType := strings.TrimSpace(input.PreferredTruckType); truckType != "" &&
-		!bookingmodels.ValidPreferredTruckTypes[strings.ToLower(truckType)] {
+	// then silently never match. The catalogue is the same source provider
+	// registration and the matcher read, so the three can no longer diverge.
+	if !truckcatalog.ValidForBooking(input.PreferredTruckType) {
 		fields = append(fields, apperrors.FieldViolation{Field: "preferred_truck_type", Message: "Choose a valid truck type."})
 	}
 	paymentMethod := strings.TrimSpace(input.PaymentMethod)
@@ -276,7 +343,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		DropoffLat:         input.DropoffLat,
 		DropoffLng:         input.DropoffLng,
 		CargoType:          "",
-		PreferredTruckType: strings.ToLower(strings.TrimSpace(input.PreferredTruckType)),
+		PreferredTruckType: truckcatalog.Canonical(input.PreferredTruckType),
 		CargoWeightKg:      input.CargoWeightKg,
 		CargoDescription:   strings.TrimSpace(input.CargoDescription),
 		RequiresHelpers:    input.RequiresHelpers,
@@ -284,6 +351,8 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		WeightCategory:     strings.TrimSpace(input.WeightCategory),
 		ReceiverName:       strings.TrimSpace(input.ReceiverName),
 		ReceiverPhone:      strings.TrimSpace(input.ReceiverPhone),
+		ReceiverEmail:      strings.ToLower(strings.TrimSpace(input.ReceiverEmail)),
+		ReceiverCustomerID: strings.TrimSpace(input.ReceiverCustomerID),
 		PackageContent:     strings.TrimSpace(input.PackageContent),
 		PackageSize:        strings.TrimSpace(input.PackageSize),
 		IsFragile:          input.IsFragile,
@@ -293,6 +362,9 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		PaymentStatus:      bookingmodels.PaymentStatusUnpaid,
 		Status:             bookingmodels.StatusPendingMatch,
 		ScheduledAt:        input.ScheduledAt,
+	}
+	if booking.ReceiverName == "" && booking.ReceiverPhone == "" && booking.ReceiverCustomerID == "" {
+		booking.ReceiverCustomerID = input.CustomerID
 	}
 
 	created, err := s.bookings.Create(ctx, booking)
@@ -324,6 +396,8 @@ type ProviderLocation struct {
 	Accuracy  float64 `json:"accuracy"`
 	UpdatedAt int64   `json:"updated_at"`
 	Available bool    `json:"available"`
+	// State is FRESH, STALE or UNAVAILABLE by server freshness policy.
+	State string `json:"state"`
 }
 
 // TrackTarget identifies whose live position a customer is entitled to watch
@@ -342,10 +416,34 @@ func (s *BookingService) ResolveTrackTarget(ctx context.Context, bookingID, cust
 	if err != nil {
 		return TrackTarget{}, err
 	}
-	if b.ProviderID == nil || *b.ProviderID == "" {
-		return TrackTarget{}, apperrors.NotFound("No driver is assigned to this booking yet.", nil)
+	// The stream is the driver's own channel: authorised only while that
+	// driver is assigned to an ACTIVE booking, never after it ends.
+	if b.ProviderID == nil || *b.ProviderID == "" || !activeCustomerTrackingStatuses[b.Status] {
+		return TrackTarget{}, apperrors.NotFound("No driver is currently assigned to this booking.", nil)
 	}
 	return TrackTarget{BookingID: bookingID, ProviderID: *b.ProviderID}, nil
+}
+
+// activeCustomerTrackingStatuses are the booking states in which the
+// assigned driver is on the customer's job and may be tracked.
+var activeCustomerTrackingStatuses = map[string]bool{
+	bookingmodels.StatusAccepted: true, bookingmodels.StatusEnRoutePickup: true,
+	bookingmodels.StatusArrivedAtPickup: true, bookingmodels.StatusPickedUp: true,
+	bookingmodels.StatusEnRouteDelivery: true,
+}
+
+// BookingLocationReader is the booking-bound point projection shared with
+// Share Journey (N10). Satisfied by *customershare.Service.
+type BookingLocationReader interface {
+	Read(ctx context.Context, bookingRef, customerID string) (journeyshare.Projection, error)
+}
+
+// WithBookingLocation wires booking-bound customer tracking. Without it the
+// customer location route reports no fix rather than the driver's global
+// heartbeat.
+func (s *BookingService) WithBookingLocation(reader BookingLocationReader) *BookingService {
+	s.bookingLocation = reader
+	return s
 }
 
 // GetBookingLocation returns the live location of the provider assigned to the
@@ -356,26 +454,29 @@ func (s *BookingService) GetBookingLocation(ctx context.Context, bookingID, cust
 	if err != nil {
 		return ProviderLocation{}, err
 	}
-	if b.ProviderID == nil {
-		return ProviderLocation{BookingID: bookingID, Available: false}, nil
+	unavailable := ProviderLocation{BookingID: bookingID, Available: false, State: "UNAVAILABLE"}
+	// Only the driver currently assigned to an active booking, and only a
+	// point bound to that assignment. The driver's global heartbeat is never
+	// a substitute, and a finished booking stops exposing the driver.
+	if b.ProviderID == nil || !activeCustomerTrackingStatuses[b.Status] || s.bookingLocation == nil {
+		return unavailable, nil
 	}
-	st, ok, err := s.availability.GetProviderStatus(ctx, *b.ProviderID)
+	projection, err := s.bookingLocation.Read(ctx, bookingID, customerID)
 	if err != nil {
 		return ProviderLocation{}, err
 	}
-	if !ok {
-		return ProviderLocation{BookingID: bookingID, Available: false}, nil
+	l := projection.Location
+	if projection.Terminal || !l.Available || l.Lat == nil || l.Lng == nil || l.UpdatedAt == nil {
+		return unavailable, nil
 	}
-	return ProviderLocation{
-		BookingID: bookingID,
-		Lat:       st.Lat,
-		Lng:       st.Lng,
-		Heading:   st.Heading,
-		Speed:     st.Speed,
-		Accuracy:  st.Accuracy,
-		UpdatedAt: st.UpdatedAt,
-		Available: true,
-	}, nil
+	out := ProviderLocation{BookingID: bookingID, Lat: *l.Lat, Lng: *l.Lng, UpdatedAt: l.UpdatedAt.Unix(), Available: true, State: l.State}
+	if l.Heading != nil {
+		out.Heading = *l.Heading
+	}
+	if l.AccuracyM != nil {
+		out.Accuracy = *l.AccuracyM
+	}
+	return out, nil
 }
 
 type InitiateCardPaymentInput struct {
@@ -671,6 +772,7 @@ func (s *BookingService) eligibleProviders(
 		dist float64
 	}
 	var matches []scored
+	distances := make(map[string]float64, len(providers))
 	for _, p := range providers {
 		if s.restrictions != nil {
 			restricted, err := s.restrictions.Restricted(ctx, "", "PROVIDER", p.ProviderID)
@@ -691,20 +793,23 @@ func (s *BookingService) eligibleProviders(
 		if dist > s.maxRadiusKm {
 			continue
 		}
-		// Truck eligibility. When we can't resolve the truck (no lookup wired, or
-		// the truck record is gone) we fall back to proximity-only so matching
-		// degrades gracefully rather than rejecting everyone.
+		// Legacy truck eligibility, kept as the pre-capability behaviour so a
+		// deployment with HAULING_CAPABILITY_MATCHING_ENABLED off matches
+		// exactly as it did before. Note what it does NOT do: an unresolved
+		// truck falls through, which is the fail-open the capability filter
+		// below replaces.
 		if s.trucks != nil && p.TruckID != "" {
 			truck, err := s.trucks.GetTruck(ctx, p.TruckID)
 			if err == nil {
 				if truck.CapacityKg > 0 && booking.CargoWeightKg > truck.CapacityKg {
 					continue
 				}
-				if wantType != "" && strings.ToLower(strings.TrimSpace(truck.TruckType)) != wantType {
+				if wantType != "" && !truckcatalog.SatisfiesPreferredType(truck.TruckType, wantType) {
 					continue
 				}
 			}
 		}
+		distances[p.ProviderID] = dist
 		matches = append(matches, scored{p: p, dist: dist})
 	}
 
@@ -713,6 +818,34 @@ func (s *BookingService) eligibleProviders(
 	result := make([]availabilityrepositories.ProviderStatus, len(matches))
 	for i, m := range matches {
 		result[i] = m.p
+	}
+
+	// Hard cargo fit. This is the gate the legacy block above cannot be: it
+	// refuses an unresolved truck instead of waving it through, and it reads
+	// every physical fact rather than weight and type alone.
+	//
+	// Hard eligibility and ranking stay separate. The proximity sort has
+	// already run, and this only REMOVES candidates from it -- a nearer truck
+	// can never be scored back into a job it does not fit.
+	if s.capability != nil && s.capabilityMatching.Enabled {
+		eligible, decisions := s.capabilityFilter(ctx, booking, result, distances)
+		s.recordCapabilityDecisions(ctx, decisions)
+		if s.capabilityMatching.FailClosed {
+			if len(eligible) < len(result) {
+				logging.Notice("hauling-capability",
+					"booking %s: %d of %d candidates failed hard cargo fit (%s)",
+					booking.ID, len(result)-len(eligible), len(result), capabilityShortfall(decisions))
+			}
+			return eligible
+		}
+		// Shadow mode: the decision was computed and recorded, and the legacy
+		// selection stands. Anything else here would make the flag pair
+		// meaningless.
+		if len(eligible) < len(result) {
+			logging.Notice("hauling-capability",
+				"shadow: booking %s would have lost %d of %d candidates (%s)",
+				booking.ID, len(result)-len(eligible), len(result), capabilityShortfall(decisions))
+		}
 	}
 	return result
 }
@@ -759,6 +892,10 @@ func (s *BookingService) autoCompleteDelivered(ctx context.Context) {
 	for _, b := range bookings {
 		if _, err := s.bookings.MarkCompleted(ctx, b.ID); err == nil {
 			_ = s.addEvent(ctx, b.ID, "booking_completed", bookingmodels.ActorSystem, "system")
+			// HLG-017: the canonical Fleet completed-work record is persisted
+			// at the authoritative completion, before settlement is routed,
+			// so Fleet holds the record even if settlement is withheld.
+			s.recordCompletedWork(ctx, b.ID)
 			s.settleOnComplete(ctx, b.ID)
 			s.notifier.NotifyCustomerCompleted(ctx, b.CustomerID, b.ID, map[string]interface{}{"booking_id": b.ID})
 		}
@@ -906,6 +1043,7 @@ func (s *BookingService) SubmitReview(ctx context.Context, input SubmitReviewInp
 	if b.Status == bookingmodels.StatusDelivered {
 		if _, err := s.bookings.MarkCompleted(ctx, input.BookingID); err == nil {
 			_ = s.addEvent(ctx, input.BookingID, "booking_completed", bookingmodels.ActorCustomer, input.CustomerID)
+			s.recordCompletedWork(ctx, input.BookingID)
 			s.settleOnComplete(ctx, input.BookingID)
 			s.notifier.NotifyCustomerCompleted(ctx, input.CustomerID, input.BookingID, map[string]interface{}{"booking_id": input.BookingID})
 		}
@@ -967,7 +1105,7 @@ func (s *BookingService) GetProviderBooking(ctx context.Context, id, providerID 
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.NotFound("Booking could not be found.", nil)
 	}
-	return b.Public(), nil
+	return s.providerBookingView(ctx, b)
 }
 
 // GetProviderBookingReview returns the customer's review for one of the
@@ -996,9 +1134,35 @@ func (s *BookingService) ListProviderBookings(ctx context.Context, providerID st
 	}
 	result := make([]bookingmodels.PublicBooking, len(bookings))
 	for i, b := range bookings {
-		result[i] = b.Public()
+		result[i], err = s.providerBookingView(ctx, b)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
+}
+
+func (s *BookingService) providerBookingView(ctx context.Context, b bookingmodels.Booking) (bookingmodels.PublicBooking, error) {
+	view := b.Public()
+	reader, ok := s.bookings.(commerceProviderMetadataReader)
+	if !ok {
+		return view, nil
+	}
+	metadata, err := reader.CommerceProviderMetadata(ctx, b.ID)
+	if err != nil {
+		return bookingmodels.PublicBooking{}, err
+	}
+	if metadata == nil {
+		return view, nil
+	}
+	view.Commerce = metadata
+	// The provider has a separate earnings projection. Commerce customer price,
+	// payment method and settlement state do not belong on this operational view.
+	view.FareEstimateKobo = nil
+	view.FareFinalKobo = nil
+	view.PaymentMethod = ""
+	view.PaymentStatus = ""
+	return view, nil
 }
 
 // earningsLookback caps how many of the provider's most recent bookings feed the
@@ -1105,6 +1269,17 @@ func (s *BookingService) MarkEnRoutePickup(ctx context.Context, id, providerID s
 	return updated.Public(), nil
 }
 
+func (s *BookingService) nextSecureHandoverVersion(ctx context.Context, bookingID string, stage handover.Step) (int64, error) {
+	current, _, err := s.secureHandover.GetHandoverChallenge(ctx, bookingID, stage)
+	if errors.Is(err, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+		return 1, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return current.Version + 1, nil
+}
+
 // MarkArrivedAtPickup transitions the booking to arrived_at_pickup and
 // generates the driver's pickup credential (shown on the driver's own app and
 // verified by the customer). The credential is returned to the caller (the
@@ -1118,7 +1293,16 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return ArrivedAtPickupResult{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepPickup, id), time.Now())
+	var rec handover.CodeRecord
+	if s.secureHandover != nil {
+		version, versionErr := s.nextSecureHandoverVersion(ctx, id, handover.StepPickup)
+		if versionErr != nil {
+			return ArrivedAtPickupResult{}, versionErr
+		}
+		rec, err = handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepPickup, uuid.NewString(), version, id, providerID, b.CustomerID, 0, time.Now())
+	} else {
+		rec, err = handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepPickup, id), time.Now())
+	}
 	if err != nil {
 		return ArrivedAtPickupResult{}, apperrors.Internal("Could not generate a pickup code.", err)
 	}
@@ -1130,8 +1314,13 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID
 	s.notifier.NotifyCustomerArrivedPickup(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	s.notifier.NotifyCustomerPickupVerificationRequired(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	return ArrivedAtPickupResult{
-		Booking:          updated.Public(),
-		PickupCredential: pickupCredentialViewFrom(updated),
+		Booking: updated.Public(),
+		PickupCredential: s.withPickupDirection(ctx, id, func() PickupCredentialView {
+			if rec.Version > 0 {
+				return securePickupCredentialView(rec, "ACTIVE")
+			}
+			return pickupCredentialViewFrom(updated)
+		}()),
 	}, nil
 }
 
@@ -1143,7 +1332,19 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
 	}
-	rec, err := handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, id), time.Now())
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return bookingmodels.PublicBooking{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before delivery handover.", nil)
+	}
+	var rec handover.CodeRecord
+	if s.secureHandover != nil {
+		version, versionErr := s.nextSecureHandoverVersion(ctx, id, handover.StepDelivery)
+		if versionErr != nil {
+			return bookingmodels.PublicBooking{}, versionErr
+		}
+		rec, err = handover.NewSecureCodeRecord(s.handoverSecret, "hauling", handover.StepDelivery, uuid.NewString(), version, id, providerID, b.ReceiverCustomerID, 0, time.Now())
+	} else {
+		rec, err = handover.NewCodeRecord(s.handoverSecret, handover.BuildChallengeID("hauling", handover.StepDelivery, id), time.Now())
+	}
 	if err != nil {
 		return bookingmodels.PublicBooking{}, apperrors.Internal("Could not generate a delivery code.", err)
 	}
@@ -1153,7 +1354,12 @@ func (s *BookingService) MarkEnRouteDelivery(ctx context.Context, id, providerID
 	}
 	_ = s.addEvent(ctx, id, "driver_en_route_delivery", bookingmodels.ActorProvider, providerID)
 	s.notifier.NotifyCustomerEnRouteDelivery(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
-	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id, "code": updated.DeliveryCode})
+	deliveryPayload := map[string]interface{}{"booking_id": id}
+	if rec.Version > 0 {
+		deliveryPayload["challenge_ref"] = rec.ChallengeRef
+		deliveryPayload["version"] = rec.Version
+	}
+	s.notifier.NotifyCustomerDeliveryCodeReady(ctx, b.ReceiverCustomerID, id, deliveryPayload)
 	return updated.Public(), nil
 }
 
@@ -1164,6 +1370,9 @@ func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID strin
 	b, err := s.bookings.GetByID(ctx, id)
 	if err != nil {
 		return bookingmodels.PublicBooking{}, err
+	}
+	if strings.TrimSpace(b.ReceiverCustomerID) == "" {
+		return bookingmodels.PublicBooking{}, apperrors.New(412, "RECEIVER_SECURE_CHANNEL_REQUIRED", "Receiver requires a supported verified channel before pickup custody.", nil)
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
@@ -1192,6 +1401,19 @@ func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, co
 	}
 	if b.ProviderID == nil || *b.ProviderID != providerID {
 		return bookingmodels.PublicBooking{}, apperrors.Forbidden("You cannot update this booking.", nil)
+	}
+	if s.secureHandover != nil {
+		updated, consumed, consumeErr := s.secureHandover.ConsumeHandoverChallenge(ctx, id, handover.StepDelivery, providerID, strings.TrimSpace(code), s.handoverSecret, proofPhotoURL, signatureURL)
+		if consumeErr != nil && !errors.Is(consumeErr, bookingrepo.ErrSecureHandoverChallengeNotFound) {
+			return bookingmodels.PublicBooking{}, consumeErr
+		}
+		if consumeErr == nil && consumed {
+			_ = s.addEvent(ctx, id, "cargo_delivered", bookingmodels.ActorProvider, providerID)
+			s.notifier.NotifyCustomerDelivered(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
+		}
+		if consumeErr == nil {
+			return updated.Public(), nil
+		}
 	}
 	if err := s.verifyDeliveryCode(ctx, id, b, code); err != nil {
 		return bookingmodels.PublicBooking{}, err
@@ -1287,6 +1509,15 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	if err != nil {
 		return
 	}
+	// HLG-025: an organization-managed job is NEVER paid directly to the
+	// provider once isolation is on. The route is read from the booking's own
+	// persisted settlement mode, so a Fleet outage cannot reroute corporate
+	// work onto the legacy path. This gate covers BOTH the plain wallet
+	// settlement below and the Commerce delivery release, because both move
+	// money to the executing provider.
+	if !s.routeCompletedSettlement(ctx, bookingID) {
+		return
+	}
 	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {
 		parentID, vendorIDs, commerce, scopeErr := scopes.CommerceMissionScope(ctx, bookingID)
 		if scopeErr != nil {
@@ -1314,6 +1545,19 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	if b.PaymentIntentID != nil {
 		reference = *b.PaymentIntentID
 	}
+	// Section 17: the held payment must be bound to the provider who did the
+	// job. After a recovery replacement that is not the provider who accepted,
+	// and the rebind that follows recovery may not have landed. An
+	// unconfirmable binding leaves the payment for reconciliation rather than
+	// releasing it to whoever it happens to point at.
+	if binder, ok := s.payments.(executionProviderBinder); ok && b.ProviderID != nil && *b.ProviderID != "" {
+		if err := binder.EnsureExecutionProvider(ctx, bookingID, *b.ProviderID); err != nil {
+			_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, reference)
+			return
+		}
+	}
+	// The completion time stays on this call: the referral engine's 90-day
+	// window is judged from when the job finished, not when it settled.
 	if err := s.payments.Settle(ctx, bookingID, reference, jobCompletedAt(b)); err != nil {
 		_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusUnknown, reference)
 		return

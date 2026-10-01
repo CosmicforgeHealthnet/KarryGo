@@ -2,149 +2,253 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   MapPin,
   Plus,
   X,
-  GripVertical,
-  Clock,
   Save,
   Trash2,
-  MoveUp,
-  MoveDown,
-  Package,
-  Truck,
+  Clock,
   AlertCircle,
 } from "lucide-react";
-import { ROUTE_DETAIL } from "@/lib/mock-routes-data";
+import EmptyState from "@/components/EmptyState";
+import { routeService } from "@/lib/services/routeService";
+import type { RoutePlan, RouteStop, CreateStopInput } from "@/lib/types/route";
 
-type Stop = {
-  id: string;
-  type: "Pickup" | "Dropoff" | "Waypoint";
-  location: string;
-  address: string;
-  status: "Pending" | "Completed" | "Skipped" | "Exception";
-  timeWindow?: string;
-  assignedTo?: string;
+const STOP_TYPES = [
+  "PICKUP",
+  "DELIVERY",
+  "WAREHOUSE_TRANSFER",
+  "RETURN",
+  "DEPOT_START",
+  "DEPOT_END",
+];
+
+function stopTypeLabel(t: string): string {
+  switch ((t || "").toUpperCase()) {
+    case "PICKUP":              return "Pickup";
+    case "DELIVERY":            return "Delivery";
+    case "WAREHOUSE_TRANSFER":  return "Warehouse transfer";
+    case "RETURN":              return "Return";
+    case "DEPOT_START":         return "Depot start";
+    case "DEPOT_END":           return "Depot end";
+    default:                    return t || "—";
+  }
+}
+
+function stopStatusLabel(s: string): string {
+  switch ((s || "").toUpperCase()) {
+    case "PLANNED":         return "Planned";
+    case "ASSIGNED":        return "Assigned";
+    case "EN_ROUTE":        return "En route";
+    case "ARRIVED":         return "Arrived";
+    case "SERVICE_STARTED": return "Service started";
+    case "COMPLETED":       return "Completed";
+    case "FAILED":          return "Failed";
+    case "SKIPPED":         return "Skipped";
+    case "CANCELLED":       return "Cancelled";
+    default:                return s || "—";
+  }
+}
+
+function formatTimestamp(iso: string | undefined): string {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  return new Date(t).toLocaleString(undefined, {
+    month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// The backend's add-stop input. Fields the mock used but the backend has no
+// column for (a free-text address, an arbitrary "waypoint") are not present.
+type StopForm = {
+  stopType: string;
+  locationReference: string;
+  latitude: string;
+  longitude: string;
+  timeWindowStart: string;
+  timeWindowEnd: string;
+  serviceDurationSeconds: string;
 };
 
-const TYPE_STYLES = {
-  Pickup: { bg: "bg-primary-bg", text: "text-primary", icon: Package },
-  Dropoff: { bg: "bg-green-bg", text: "text-green", icon: Truck },
-  Waypoint: { bg: "bg-surface-2", text: "text-ink-500", icon: MapPin },
+const EMPTY_FORM: StopForm = {
+  stopType: "PICKUP",
+  locationReference: "",
+  latitude: "",
+  longitude: "",
+  timeWindowStart: "",
+  timeWindowEnd: "",
+  serviceDurationSeconds: "",
 };
+
+function formToInput(form: StopForm): CreateStopInput | null {
+  const lat = form.latitude.trim() === "" ? undefined : Number(form.latitude);
+  const lng = form.longitude.trim() === "" ? undefined : Number(form.longitude);
+  if (lat !== undefined && (!Number.isFinite(lat) || lat < -90 || lat > 90)) return null;
+  if (lng !== undefined && (!Number.isFinite(lng) || lng < -180 || lng > 180)) return null;
+  if ((lat === undefined) !== (lng === undefined)) return null;
+
+  const dur = form.serviceDurationSeconds.trim() === ""
+    ? undefined
+    : Number(form.serviceDurationSeconds);
+
+  return {
+    stopType: form.stopType,
+    locationReference: form.locationReference.trim() || undefined,
+    latitude: lat,
+    longitude: lng,
+    timeWindowStart: form.timeWindowStart || undefined,
+    timeWindowEnd: form.timeWindowEnd || undefined,
+    serviceDurationSeconds: dur,
+  };
+}
 
 export default function RouteBuilderPage() {
   const params = useParams();
   const router = useRouter();
-  const routeId = params.routeId as string;
+  const routeId = typeof params.routeId === "string" ? params.routeId : "";
 
+  const [route, setRoute] = useState<RoutePlan | null>(null);
+  const [stops, setStops] = useState<RouteStop[]>([]);
   const [loading, setLoading] = useState(true);
-  const [route, setRoute] = useState(ROUTE_DETAIL);
-  const [stops, setStops] = useState<Stop[]>(ROUTE_DETAIL.stops);
-  const [isAddingStop, setIsAddingStop] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [newStopType, setNewStopType] = useState<"Pickup" | "Dropoff" | "Waypoint">("Pickup");
-  const [newStopLocation, setNewStopLocation] = useState("");
-  const [newStopAddress, setNewStopAddress] = useState("");
-  const [newStopTimeWindow, setNewStopTimeWindow] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState<StopForm>(EMPTY_FORM);
+  const [busy, setBusy] = useState<"add" | string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleAddStop = () => {
-    if (!newStopLocation.trim()) return;
-
-    const newStop: Stop = {
-      id: `STOP-${String(stops.length + 1).padStart(3, "0")}`,
-      type: newStopType,
-      location: newStopLocation.trim(),
-      address: newStopAddress.trim() || "Address not set",
-      status: "Pending",
-      timeWindow: newStopTimeWindow || undefined,
+    if (!routeId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    Promise.all([routeService.getRoute(routeId), routeService.listStops(routeId)])
+      .then(([r, s]) => {
+        if (cancelled) return;
+        setRoute(r);
+        setStops(s);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(
+          err?.response?.data?.error?.message ??
+            err?.message ??
+            "Failed to load route.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [routeId]);
 
-    setStops([...stops, newStop]);
-    setNewStopLocation("");
-    setNewStopAddress("");
-    setNewStopTimeWindow("");
-    setIsAddingStop(false);
+  const refetchStops = async () => {
+    const s = await routeService.listStops(routeId);
+    setStops(s);
   };
 
-  const handleRemoveStop = (index: number) => {
-    if (window.confirm("Remove this stop from the route?")) {
-      const newStops = stops.filter((_, i) => i !== index);
-      setStops(newStops);
+  const handleAdd = async () => {
+    const input = formToInput(form);
+    if (!input) {
+      setActionError("Latitude and longitude must both be set, and within valid ranges.");
+      return;
+    }
+    setBusy("add");
+    setActionError(null);
+    try {
+      await routeService.createStop(routeId, input);
+      await refetchStops();
+      setAddOpen(false);
+      setForm(EMPTY_FORM);
+    } catch (err: any) {
+      setActionError(
+        err?.response?.data?.error?.message ??
+          err?.message ??
+          "Could not add stop.",
+      );
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleMoveStop = (index: number, direction: "up" | "down") => {
-    const newStops = [...stops];
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newStops.length) return;
-    [newStops[index], newStops[targetIndex]] = [newStops[targetIndex], newStops[index]];
-    setStops(newStops);
-  };
-
-  const handleSave = async () => {
-    setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setLoading(false);
-    router.push(`/operations/routes/${routeId}`);
-  };
-
-  const handleCancel = () => {
-    router.push(`/operations/routes/${routeId}`);
+  const handleDelete = async (stop: RouteStop) => {
+    setBusy(stop.id);
+    setActionError(null);
+    try {
+      await routeService.deleteStop(routeId, stop.id);
+      await refetchStops();
+    } catch (err: any) {
+      setActionError(
+        err?.response?.data?.error?.message ??
+          err?.message ??
+          "Could not delete stop.",
+      );
+    } finally {
+      setBusy(null);
+    }
   };
 
   if (loading) {
     return (
-      <div className="py-12">
-        <div className="flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <span className="ml-3 text-sm text-ink-600">Loading builder...</span>
-        </div>
+      <div className="space-y-5">
+        <div className="h-16 rounded-lg border border-line bg-surface" />
+        <div className="h-72 rounded-lg border border-line bg-surface" />
       </div>
     );
   }
 
+  if (error || !route) {
+    return (
+      <div className="rounded-lg border border-line bg-surface">
+        <EmptyState
+          image="/images/trips-empty.png"
+          title={error ?? "Route not found"}
+          description="The route may have been deleted or the URL may be incorrect."
+          actionHref="/operations/routes"
+          actionLabel="Back to routes"
+        />
+      </div>
+    );
+  }
+
+  const isDraft = (route.status || "").toUpperCase() === "DRAFT";
+
   return (
     <div className="space-y-5">
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-ink-500">
-            Add, reorder, or remove stops for this route
+            Add or remove stops for this route. The backend assigns sequence
+            numbers automatically.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={handleCancel}
-            className="flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
+          <Link
+            href={`/operations/routes/${routeId}`}
+            className="flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
           >
             <X className="h-4 w-4" />
             Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-          >
-            <Save className="h-4 w-4" />
-            Save route
-          </button>
+          </Link>
         </div>
       </div>
 
-      {/* ── Route Summary ── */}
-      <div className="rounded-lg border border-line bg-white p-4">
+      {/* Route summary */}
+      <div className="rounded-lg border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <span className="flex items-center gap-2">
             <span className="font-medium text-ink-600">Route:</span>
-            <span className="font-semibold text-ink-950">{route.name}</span>
+            <span className="font-semibold text-ink-950">
+              {route.routeReference || route.id}
+            </span>
           </span>
           <span className="hidden sm:block w-px h-5 bg-line" />
           <span className="flex items-center gap-2">
@@ -154,18 +258,29 @@ export default function RouteBuilderPage() {
           <span className="hidden sm:block w-px h-5 bg-line" />
           <span className="flex items-center gap-2">
             <span className="font-medium text-ink-600">Service:</span>
-            <span className="font-semibold text-ink-950">{route.service}</span>
+            <span className="font-semibold text-ink-950">
+              {route.executionService}
+            </span>
           </span>
           <span className="hidden sm:block w-px h-5 bg-line" />
           <span className="flex items-center gap-2">
             <span className="font-medium text-ink-600">Branch:</span>
-            <span className="font-semibold text-ink-950">{route.branch}</span>
+            <span className="font-mono font-semibold text-ink-950">
+              {route.branchId || "—"}
+            </span>
           </span>
         </div>
       </div>
 
-      {/* ── Stops List ── */}
-      <div className="rounded-lg border border-line bg-white">
+      {actionError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red/20 bg-red-bg px-4 py-3 text-sm text-red">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{actionError}</span>
+        </div>
+      )}
+
+      {/* Stops card */}
+      <div className="rounded-lg border border-line bg-surface">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-ink-400" />
@@ -174,23 +289,37 @@ export default function RouteBuilderPage() {
               {stops.length}
             </span>
           </div>
-          <button
-            onClick={() => setIsAddingStop(true)}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add stop
-          </button>
+          {isDraft && (
+            <button
+              onClick={() => setAddOpen(true)}
+              disabled={addOpen}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add stop
+            </button>
+          )}
         </div>
 
-        {/* Add stop form */}
-        {isAddingStop && (
+        {!isDraft && (
+          <div className="border-b border-line bg-amber-bg/30 px-4 py-3 text-xs text-amber">
+            Stops can only be added or removed while the route is in Draft.
+          </div>
+        )}
+
+        {addOpen && (
           <div className="border-b border-line p-4 bg-primary-bg/10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-ink-950">Add new stop</span>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-ink-950">
+                Add new stop
+              </span>
               <button
-                onClick={() => setIsAddingStop(false)}
-                className="text-ink-400 hover:text-ink-600 transition-colors"
+                onClick={() => {
+                  setAddOpen(false);
+                  setForm(EMPTY_FORM);
+                  setActionError(null);
+                }}
+                className="text-ink-400 hover:text-ink-600"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -199,54 +328,126 @@ export default function RouteBuilderPage() {
               <div>
                 <label className="text-xs font-medium text-ink-600">Type</label>
                 <select
-                  value={newStopType}
-                  onChange={(e) => setNewStopType(e.target.value as "Pickup" | "Dropoff" | "Waypoint")}
-                  className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  value={form.stopType}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, stopType: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="Pickup">Pickup</option>
-                  <option value="Dropoff">Dropoff</option>
-                  <option value="Waypoint">Waypoint</option>
+                  {STOP_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {stopTypeLabel(t)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-ink-600">Location</label>
+                <label className="text-xs font-medium text-ink-600">
+                  Location reference
+                </label>
                 <input
-                  value={newStopLocation}
-                  onChange={(e) => setNewStopLocation(e.target.value)}
-                  placeholder="e.g., Ikeja Mall"
-                  className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-xs font-medium text-ink-600">Address</label>
-                <input
-                  value={newStopAddress}
-                  onChange={(e) => setNewStopAddress(e.target.value)}
-                  placeholder="e.g., 42 Awolowo Way, Ikeja"
-                  className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
+                  value={form.locationReference}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, locationReference: e.target.value }))
+                  }
+                  placeholder="e.g. Ikeja Mall"
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-ink-600">Time window (optional)</label>
+                <label className="text-xs font-medium text-ink-600">
+                  Latitude
+                </label>
                 <input
-                  value={newStopTimeWindow}
-                  onChange={(e) => setNewStopTimeWindow(e.target.value)}
-                  placeholder="e.g., 10:00 - 11:00"
-                  className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
+                  value={form.latitude}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, latitude: e.target.value }))
+                  }
+                  placeholder="e.g. 6.5244"
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-ink-600">
+                  Longitude
+                </label>
+                <input
+                  value={form.longitude}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, longitude: e.target.value }))
+                  }
+                  placeholder="e.g. 3.3792"
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-ink-600">
+                  Time window start
+                </label>
+                <input
+                  type="datetime-local"
+                  value={form.timeWindowStart}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, timeWindowStart: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-ink-600">
+                  Time window end
+                </label>
+                <input
+                  type="datetime-local"
+                  value={form.timeWindowEnd}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, timeWindowEnd: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-ink-600">
+                  Service duration (seconds)
+                </label>
+                <input
+                  value={form.serviceDurationSeconds}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      serviceDurationSeconds: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g. 300"
+                  className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-ink-400"
                 />
               </div>
             </div>
             <div className="mt-3 flex gap-2.5">
               <button
-                onClick={handleAddStop}
-                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+                onClick={handleAdd}
+                disabled={busy === "add"}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
               >
-                <Plus className="h-4 w-4" />
-                Add stop
+                {busy === "add" ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Adding…
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    Add stop
+                  </>
+                )}
               </button>
               <button
-                onClick={() => setIsAddingStop(false)}
-                className="rounded-md border border-line bg-white px-4 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
+                onClick={() => {
+                  setAddOpen(false);
+                  setForm(EMPTY_FORM);
+                  setActionError(null);
+                }}
+                className="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
@@ -254,129 +455,72 @@ export default function RouteBuilderPage() {
           </div>
         )}
 
-        {/* Stops list */}
         {stops.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="rounded-full bg-surface-2 p-4 mb-3">
-              <MapPin className="h-8 w-8 text-ink-400" />
-            </div>
-            <p className="text-sm font-medium text-ink-950">No stops added yet</p>
-            <p className="text-sm text-ink-500">Click "Add stop" to start building your route</p>
-          </div>
+          <EmptyState
+            image="/images/trips-empty.png"
+            title="No stops on this route"
+            description="Add the first stop to begin building the route."
+          />
         ) : (
           <div className="divide-y divide-line">
-            {stops.map((stop, index) => {
-              const isFirst = index === 0;
-              const isLast = index === stops.length - 1;
-              const style = TYPE_STYLES[stop.type];
-              const Icon = style.icon;
-
-              return (
-                <div
-                  key={stop.id}
-                  className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-2 group"
-                >
-                  {/* Drag + Number */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="text-ink-300 cursor-grab opacity-50 group-hover:opacity-100 transition-opacity">
-                      <GripVertical className="h-4 w-4" />
-                    </div>
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${style.bg} ${style.text}`}
-                    >
-                      {index + 1}
-                    </div>
+            {stops.map((stop, index) => (
+              <div
+                key={stop.id}
+                className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-surface-2"
+              >
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary-bg text-xs font-bold text-primary">
+                  {index + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-ink-950">
+                      {stopTypeLabel(stop.stopType)}
+                    </span>
+                    {stop.locationReference && (
+                      <span className="text-sm text-ink-600">
+                        {stop.locationReference}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-500">
+                      {stopStatusLabel(stop.status)}
+                    </span>
                   </div>
-
-                  {/* Stop details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-ink-950">
-                        {stop.type}: {stop.location}
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-ink-500">
+                    {stop.latitude != null && stop.longitude != null && (
+                      <span className="font-mono">
+                        {stop.latitude.toFixed(6)}, {stop.longitude.toFixed(6)}
                       </span>
-                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[9px] font-medium text-ink-500">
-                        {stop.status}
-                      </span>
-                    </div>
-                    <div className="text-xs text-ink-500">{stop.address}</div>
-                    {stop.timeWindow && (
-                      <div className="flex items-center gap-1 text-[10px] text-ink-400">
+                    )}
+                    {stop.timeWindowStart && stop.timeWindowEnd && (
+                      <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {stop.timeWindow}
-                      </div>
+                        {formatTimestamp(stop.timeWindowStart)} →{" "}
+                        {formatTimestamp(stop.timeWindowEnd)}
+                      </span>
                     )}
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleMoveStop(index, "up")}
-                      disabled={isFirst}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        isFirst
-                          ? "text-ink-200 cursor-not-allowed"
-                          : "text-ink-400 hover:bg-surface-3 hover:text-ink-600"
-                      }`}
-                    >
-                      <MoveUp className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleMoveStop(index, "down")}
-                      disabled={isLast}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        isLast
-                          ? "text-ink-200 cursor-not-allowed"
-                          : "text-ink-400 hover:bg-surface-3 hover:text-ink-600"
-                      }`}
-                    >
-                      <MoveDown className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleRemoveStop(index)}
-                      className="p-1.5 rounded-md text-ink-400 transition-colors hover:bg-red-bg hover:text-red"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
-              );
-            })}
+                {isDraft && (
+                  <button
+                    onClick={() => handleDelete(stop)}
+                    disabled={busy === stop.id}
+                    className="p-1.5 rounded-md text-ink-400 transition-colors hover:bg-red-bg hover:text-red disabled:opacity-60"
+                  >
+                    {busy === stop.id ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-red/30 border-t-red" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Summary footer */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 text-xs text-ink-500">
           <span className="font-medium">{stops.length} stops in route</span>
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              Pickup
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-green" />
-              Dropoff
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-ink-400" />
-              Waypoint
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Route Info Cards ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-line bg-white p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-ink-500">Total distance</div>
-          <div className="mt-1 text-base font-semibold text-ink-950">{route.distance}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-white p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-ink-500">Est. duration</div>
-          <div className="mt-1 text-base font-semibold text-ink-950">{route.duration}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-white p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-ink-500">ETA</div>
-          <div className="mt-1 text-base font-semibold text-ink-950">{route.eta}</div>
+          <span>Sequence is assigned by the backend.</span>
         </div>
       </div>
     </div>

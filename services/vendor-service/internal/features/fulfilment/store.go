@@ -64,6 +64,13 @@ func (s *Store) Save(
 
 	plan.ID = "vfp_" + uuid.NewString()
 
+	// PostgreSQL represents an absent delivery-policy snapshot as an
+	// empty JSON object. Passing a nil json.RawMessage explicitly would
+	// become SQL NULL and bypass the column's '{}' default.
+	if len(plan.DeliveryPolicySnapshot) == 0 {
+		plan.DeliveryPolicySnapshot = []byte("{}")
+	}
+
 	if err = tx.QueryRow(ctx, `
 		INSERT INTO commerce_fulfilment_plans (
 			id, checkout_session_id, customer_id,
@@ -166,12 +173,12 @@ func insertMission(
 			gross_fee_minor, customer_fee_minor,
 			vendor_funded_minor, platform_funded_minor,
 			base_minor, distance_minor, surcharge_minor,
-			fee_beneficiary, total_weight_grams, package_count,
+			fee_beneficiary, total_weight_grams, package_count, loading_duration_seconds,
 			delivery_mode, fallback_trigger, policy_version,
 			customer_price_guarantee_minor, custody_state
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
 		          $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,
-		          $33,$34,$35,$36,$37)`,
+		          $33,$34,$35,$36,$37,$38)`,
 		mission.ID, plan.ID, plan.CustomerID,
 		string(mission.Authority), string(mission.Service),
 		string(mission.VehicleClass),
@@ -188,7 +195,7 @@ func insertMission(
 		mission.Breakdown.BaseMinor, mission.Breakdown.DistanceMinor,
 		mission.Breakdown.SurchargeMinor,
 		string(mission.FeeBeneficiary),
-		mission.TotalWeightGrams, mission.PackageCount,
+		mission.TotalWeightGrams, mission.PackageCount, mission.LoadingDurationSeconds,
 		stringOrDefault(mission.DeliveryMode, "PLATFORM"), mission.FallbackTrigger,
 		mission.PolicyVersion, mission.CustomerPriceGuaranteeMinor,
 		stringOrDefault(mission.CustodyState, "NOT_TRANSFERRED"),
@@ -410,6 +417,7 @@ func (s *Store) missions(
 		       m.vendor_funded_minor, m.platform_funded_minor,
 		       m.base_minor, m.distance_minor, m.surcharge_minor,
 		       m.fee_beneficiary, m.total_weight_grams, m.package_count,
+		       m.loading_duration_seconds,
 		       m.delivery_mode, m.fallback_trigger, m.policy_version,
 		       m.customer_price_guarantee_minor, m.custody_state,
 		       COALESCE(
@@ -458,6 +466,7 @@ func (s *Store) missions(
 			&mission.Breakdown.SurchargeMinor,
 			&mission.FeeBeneficiary,
 			&mission.TotalWeightGrams, &mission.PackageCount,
+			&mission.LoadingDurationSeconds,
 			&mission.DeliveryMode, &mission.FallbackTrigger, &mission.PolicyVersion,
 			&mission.CustomerPriceGuaranteeMinor, &mission.CustodyState,
 			&mission.GroupIDs,

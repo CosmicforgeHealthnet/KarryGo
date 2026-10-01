@@ -1,0 +1,3 @@
+# OTP/QR dependency outage
+
+Trigger: secure handover readiness is unavailable/partial or relay/read-back/consume errors exceed threshold. Inspect authority, stage, opaque challenge reference, expiry/attempt outcome, operation/correlation ID, and dependency readiness; never inspect or log raw OTP/QR material. Block secure completion for the affected path, keep the mission/order pending, and use the existing authority's idempotent status/read-back. Never generate a Vendor-local challenge, accept visual proof, bypass consume, or fall back to insecure completion. Escalate at customer promise breach or inconsistent consumed state. Verify authoritative `AVAILABLE` status, exactly one consume, matching mission projection, and no raw secret in logs.

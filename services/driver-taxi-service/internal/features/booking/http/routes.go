@@ -19,6 +19,11 @@ func RegisterBookingRoutes(
 	providerSigner *sharedauth.TokenSigner,
 	customerSigner *sharedauth.TokenSigner,
 	idempotencyStore *idempotency.Store,
+	// financialPrivacy resolves the provider's corporate visibility policy
+	// before any provider handler runs. Nil is valid and means "no Fleet
+	// integration", in which case every provider is independent and the
+	// response contract is unchanged.
+	financialPrivacy gin.HandlerFunc,
 ) {
 	handler := NewBookingHandler(bookings)
 
@@ -59,6 +64,12 @@ func RegisterBookingRoutes(
 
 	provider := group.Group("/provider")
 	provider.Use(sharedauth.BearerMiddleware(providerSigner, providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
+	// Registered after BearerMiddleware so the provider identity is already
+	// resolved, and before every provider route so no handler can answer
+	// before the visibility policy is known (Section 8 TAX-018).
+	if financialPrivacy != nil {
+		provider.Use(financialPrivacy)
+	}
 	provider.GET("/bookings", handler.ListActiveBookings)
 	provider.GET("/bookings/:id", handler.GetBookingForProvider)
 	provider.PUT("/bookings/:id/accept", handler.AcceptBooking)

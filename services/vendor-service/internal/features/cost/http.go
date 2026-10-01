@@ -536,14 +536,16 @@ func RegisterRoutes(root *gin.RouterGroup, h *Handler, enabled bool) {
 		return
 	}
 
-	policies := root.Group("/cost/policies")
+	commands := root.Group("")
+	commands.Use(idempotency.CommandMiddleware(h.idempotency))
+	policies := commands.Group("/cost/policies")
 	policies.GET("", h.listPolicies)
 	policies.POST("", h.createPolicy)
 	policies.GET("/:policyId", h.getPolicy)
 	policies.PUT("/:policyId", h.updatePolicy)
 	policies.POST("/:policyId/archive", h.archivePolicy)
 
-	recipeCost := root.Group("/recipe-cost")
+	recipeCost := commands.Group("/recipe-cost")
 	recipeCost.GET("/recipes/:recipeId", h.currentRecipeCost)
 	recipeCost.GET("/recipes/:recipeId/history", h.recipeCostHistory)
 	recipeCost.GET("/versions/:versionId", h.recipeCostPreview)
@@ -553,7 +555,7 @@ func RegisterRoutes(root *gin.RouterGroup, h *Handler, enabled bool) {
 	snapshots := root.Group("/cost/snapshots")
 	snapshots.GET("/:snapshotId/components", h.snapshotComponents)
 
-	productionCost := root.Group("/production-cost")
+	productionCost := commands.Group("/production-cost")
 	productionCost.POST("/batches/:batchId/expected", h.expectedProductionCost)
 	productionCost.POST("/batches/:batchId/actual", h.actualProductionCost)
 	productionCost.GET("/batches/:batchId", h.readProductionCost)

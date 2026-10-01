@@ -22,7 +22,9 @@ import (
 	walletusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/usecases"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/audit"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/financeauth"
+	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/outbox"
+	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -108,6 +110,12 @@ func main() {
 		ReferralWithdrawalMinKobo: cfg.ReferralWithdrawalMinKobo,
 	})
 	var workers []func(context.Context) error
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		notificationOutbox := walletclients.WalletNotificationOutbox{DB: db, Sender: notifications.Client{
+			BaseURL: cfg.NotificationURL, ServiceName: "payment-wallet-service", Secret: cfg.NotificationSecret,
+		}}
+		workers = append(workers, notificationOutbox.Run)
+	}
 	if cfg.FinanceWorkersEnabled && !cfg.FinanceExecutionKillSwitch {
 		gateway := financeintegration.PaystackGateway{Client: paystack}
 		workerConfig := financeusecases.WorkerConfig{
@@ -119,6 +127,24 @@ func main() {
 			return financeService.RunFinancialWorkers(workerCtx, gateway, workerConfig)
 		}, func(workerCtx context.Context) error {
 			return financeService.RunMaintenanceWorkers(workerCtx, workerConfig)
+		})
+	}
+	// Section 12 WAL-017. A corporate job whose settlement Fleet never
+	// instructs keeps the customer's money in escrow with no error anywhere --
+	// correct, and invisible. This sweep is what makes it visible. It moves no
+	// money and holds no authority to; entitlement stays Fleet's.
+	if cfg.ManagedReconciliationEnabled && !cfg.FinanceExecutionKillSwitch {
+		reconciliationWorker := &walletusecases.ManagedReconciliationWorker{
+			Store: repository,
+			Config: walletusecases.ManagedReconciliationConfig{
+				Grace:     cfg.ManagedReconciliationGrace,
+				Interval:  cfg.ManagedReconciliationInterval,
+				BatchSize: cfg.ManagedReconciliationBatch,
+			},
+		}
+		workers = append(workers, func(workerCtx context.Context) error {
+			reconciliationWorker.Run(workerCtx)
+			return nil
 		})
 	}
 	if cfg.FinanceOutboxEnabled {
@@ -150,6 +176,15 @@ func main() {
 		workers = append(workers, referralRelay.Run)
 	}
 
+	// Outbox and reconciliation health, in the same metric names every other
+	// service reports (OBS-006, OBS-007).
+	//
+	// The source descriptions live with the tables' writer, where a test can
+	// run them against the real migrated schema.
+	walletMetrics := outboxmetrics.NewReporter(db, events.MetricsInterval,
+		events.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
+	workers = append(workers, walletMetrics.Run)
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "payment-wallet-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -168,6 +203,7 @@ func main() {
 			},
 		},
 		Register: func(group *gin.RouterGroup) {
+			walletMetrics.RegisterRoutes(group)
 			wallethttp.RegisterRoutes(group, walletService, cfg.CustomerAccessTokenSecret, cfg.ProviderAccessTokenSecrets, cfg.ServiceSecrets)
 			if cfg.FinancePrivateAPIEnabled {
 				financehttp.RegisterPrivateRoutes(group.Group("/internal/finance"), financeService,

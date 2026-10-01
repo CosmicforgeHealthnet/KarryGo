@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "generated_for": "sections-46-47",
+  "secrets_included": false,
+  "process_modes": {"default": "all", "production_api": "api", "production_worker": "worker"},
+  "process_probe": {"status":"LOCAL_PASS","api":"health/ready/meta 200 and zero worker leases","worker":"no listener; PostgreSQL startup fail-closed","all":"health/ready 200","staging_deployment":"BLOCKED"},
+  "deployment": {"mechanism":"GitHub Actions to GHCR to SSH VPS Docker Compose","repository_status":"PASS","staging_status":"BLOCKED","api":"separate unit bound to 127.0.0.1:8112","worker":"separate unit with no published port","operator_runbook":"deploy/vendor-service/README.md"},
+  "kill_switch": "COMMERCE_GLOBAL_KILL_SWITCH stops new commerce mutations and new worker claims; reads, pending rows, outbox, audit and reconciliation state remain",
+  "gateway": {"status": "DEPENDENCY_GATED", "evidence": "services/api-gateway has no Vendor route mapping", "internal_routes_public": false},
+  "data_authority": {"postgresql": "AUTHORITATIVE", "redis": "NON_AUTHORITATIVE_REBUILDABLE"},
+  "dependencies": [
+    {"name":"PostgreSQL","requirement":"HARD","failure_state":"BLOCKED"},
+    {"name":"Redis","requirement":"OPTIONAL","failure_state":"DEGRADED"},
+    {"name":"Wallet","requirement":"PATH_HARD","failure_state":"BLOCKED_FOR_PAID_COMMERCE"},
+    {"name":"Dispatch","requirement":"PATH_HARD","failure_state":"BLOCKED_FOR_SELECTED_PATH"},
+    {"name":"Hauling","requirement":"PATH_HARD","failure_state":"BLOCKED_FOR_SELECTED_PATH"},
+    {"name":"Taxi Goods","requirement":"DISABLED_UNTIL_ENABLED","failure_state":"BLOCKED_WHEN_ENABLED_AND_UNHEALTHY"},
+    {"name":"Verification","requirement":"PATH_HARD","failure_state":"BLOCKED_FOR_ACTIVATION_OR_REVERIFY"},
+    {"name":"Notification","requirement":"OPTIONAL","failure_state":"DEGRADED"},
+    {"name":"Analytics","requirement":"OPTIONAL_PROJECTION","failure_state":"DEGRADED"},
+    {"name":"OTP/QR","requirement":"PATH_HARD","failure_state":"BLOCKED_NO_INSECURE_FALLBACK"}
+  ],
+  "backup": {"status":"DEPLOYMENT_DEPENDENCY","configured_evidence":false,"encryption_evidence":false,"rpo":null,"rto":null,"latest_success":null},
+  "restore_test": {"status":"NOT_EXECUTED","blocking":true},
+  "migration_startup_probe": {"status":"PASS_WITH_APPLICATION_STARTUP_LIMITATION","evidence":"dedicated packaged runner acquired an advisory lock and verified 116 records; empty database application migration context previously expired at migration 78","required_mode":"dedicated migration runner/job before API then Worker"},
+  "search": {"authority":"PROJECTION_ONLY","build_beside_live":true,"atomic_activation":true,"cache_ttl_safety_net":true},
+  "alerts": {"status":"SPECIFIED_NOT_DEPLOYED","conditions":["dead_letter_nonzero","oldest_job_age","oldest_outbox_age","wallet_unknown_age","logistics_unknown_age","reservation_leak","settlement_lag","verification_expiry_spike","secure_handover_unavailable","search_generation_stale","readiness_blocked"]},
+  "runbooks": ["WALLET_UNKNOWN_OUTCOME.md","LOGISTICS_UNKNOWN_MISSION.md","WORKER_DEAD_LETTER.md","STOCK_RESERVATION_LEAK.md","SETTLEMENT_LAG.md","VERIFICATION_EXPIRY_SPIKE.md","OTP_QR_DEPENDENCY_OUTAGE.md"]
+}

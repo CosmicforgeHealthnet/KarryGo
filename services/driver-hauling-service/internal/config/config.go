@@ -53,11 +53,19 @@ type Config struct {
 	ReferralIdentityPepper []byte
 
 	// Internal service clients
-	NotificationURL     string
-	NotificationSecret  []byte
-	PaymentURL          string
-	PaymentSecret       []byte
-	CashPaymentsEnabled bool
+	NotificationURL    string
+	NotificationSecret []byte
+
+	// Customer movement events. Disabled by default; enabling it requires the
+	// customer-service origin and the shared HMAC secret.
+	CustomerMovementEventsEnabled bool
+	CustomerServiceURL            string
+	CustomerServiceSecret         []byte
+	PaymentURL                    string
+	PaymentSecret                 []byte
+	MediaURL                      string
+	MediaToken                    string
+	CashPaymentsEnabled           bool
 
 	// RoutesAPIKey enables road-route lookups for the live trip map and the
 	// progress bar. It is a Google Cloud key with the Routes API enabled, and
@@ -67,21 +75,108 @@ type Config struct {
 
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a provider identity).
-	ServiceSecrets                  string
-	FleetIntegrationEnabled         bool
-	FleetIntegrationKillSwitch      bool
-	CommerceIntegrationEnabled      bool
-	CommerceIntegrationKillSwitch   bool
-	FleetAllowedCallers             string
-	OutboxWorkerEnabled             bool
-	FleetEventURL                   string
-	FleetEventSecret                []byte
-	PrivateExecutionEnabled         bool
+	ServiceSecrets                string
+	FleetIntegrationEnabled       bool
+	FleetIntegrationKillSwitch    bool
+	CommerceIntegrationEnabled    bool
+	CommerceIntegrationKillSwitch bool
+	FleetAllowedCallers           string
+	OutboxWorkerEnabled           bool
+
+	// MetricsAuthToken gates GET <api-base>/metrics. Empty means the route
+	// refuses every request: outbox backlog and dead-letter counts describe
+	// where the system is weak, and the safe default for that is closed.
+	MetricsAuthToken        string
+	FleetEventURL           string
+	FleetEventSecret        []byte
+	PrivateExecutionEnabled bool
+	// HaulingFleetProviderWorkEnabled mounts the provider-facing corporate
+	// surface (company assignments + organization offers). Default false:
+	// Section 10 gates activation behind certification, exactly as Taxi does.
+	HaulingFleetProviderWorkEnabled bool
+	// HaulingFleetCompletedWorkEnabled turns on canonical Fleet
+	// completed-work delivery for organization-managed jobs.
+	HaulingFleetCompletedWorkEnabled bool
+	// HaulingTypedFinancialVisibilityEnabled enforces Fleet's typed financial
+	// visibility policy on provider-facing responses, server-side.
+	HaulingTypedFinancialVisibilityEnabled bool
+	// HaulingManagedSettlementEnabled isolates corporate settlement from the
+	// legacy direct-to-provider payout. Default false until Section 12 exists.
+	HaulingManagedSettlementEnabled bool
+
 	FleetServiceURL                 string
 	FleetServiceCaller              string
 	FleetServiceSecret              []byte
 	FleetServiceTimeout             time.Duration
 	ProviderOrganizationModeEnabled bool
+
+	// ── Section 9 capability matching ─────────────────────────────────────
+	//
+	// The pair is a two-stage rollout, not two independent switches:
+	//
+	//	MATCHING=false                 legacy weight-and-type matching only
+	//	MATCHING=true, FAIL_CLOSED=false  SHADOW: decide and record, do not enforce
+	//	MATCHING=true, FAIL_CLOSED=true   ENFORCED: hard fit selects
+	//
+	// Shadow exists because enabling hard fit on an unsurveyed fleet would
+	// refuse nearly every candidate as CAPABILITY_UNKNOWN and be
+	// indistinguishable from a total outage. Run shadow, watch
+	// hauling_fleet_capability_completeness_percent, then enforce.
+	CapabilityMatchingEnabled bool
+	// FailClosedTruckLookup makes an unresolved truck ineligible instead of
+	// falling through to proximity-only matching. It has no effect unless
+	// CapabilityMatchingEnabled is also true.
+	FailClosedTruckLookup bool
+	// SupplyPreviewEnabled mounts the read-only planning surface Vendor's
+	// just-in-time orchestration reads before it commits.
+	SupplyPreviewEnabled bool
+	// CertificationRequiredProducts lists products that may only be served by
+	// a formally certified truck, comma-separated. A generic truck type never
+	// substitutes for a certificate for a product named here.
+	CertificationRequiredProducts string
+	// CapabilityMaintenanceInterval and MatchDecisionRetention drive the
+	// eligibility-expiry and evidence-retention sweeper.
+	CapabilityMaintenanceInterval time.Duration
+	MatchDecisionRetention        time.Duration
+
+	// ── Policy publication ingestion ──────────────────────────────────────
+	//
+	// PolicyIngestEnabled mounts the sink that turns a published network
+	// catalogue into an immutable local snapshot. Matching always reads the
+	// LOCAL snapshot, so this only changes where that snapshot comes from --
+	// the control plane never becomes a synchronous dependency of assignment.
+	PolicyIngestEnabled bool
+	// AdminServiceCaller / AdminServiceSecret / AdminAllowedHosts configure
+	// the authenticated read-back used when a catalogue travels as a
+	// reference. An empty host allowlist disables read-back, which parks
+	// referenced publications rather than rejecting them.
+	AdminServiceCaller string
+	AdminServiceSecret []byte
+	AdminAllowedHosts  string
+	// PolicyReconcileInterval is how often parked publications are retried.
+	PolicyReconcileInterval time.Duration
+
+	// ── Post-assignment recovery (Section 9) ──────────────────────────────
+	//
+	// RecoveryEnabled mounts Haulage's authority over a job whose assigned
+	// provider can no longer finish it. It is additive: with it off, a
+	// breakdown behaves exactly as it does today (the provider cancels and
+	// the booking re-enters matching), and no recovery case is ever opened.
+	RecoveryEnabled bool
+	// RecoveryEventsEnabled publishes recovery facts through the existing
+	// domain outbox. Separate from RecoveryEnabled because a deployment can
+	// legitimately want the recovery behaviour before it has an event
+	// consumer, and a load must never fail to recover because analytics is
+	// unavailable.
+	RecoveryEventsEnabled bool
+	// RecoveryEventTarget names the outbox delivery target.
+	RecoveryEventTarget string
+	// Section 13. AnalyticsEventsEnabled starts the worker that delivers
+	// analytics-addressed outbox rows to analytics-service. Off by default:
+	// analytics is advisory, and nothing about a load depends on it.
+	AnalyticsEventsEnabled bool
+	AnalyticsURL           string
+	AnalyticsSecret        []byte
 
 	// Matching config
 	BookingMatchTimeout int     // seconds a matched provider has to accept
@@ -141,28 +236,58 @@ func Load() Config {
 		ReferralServiceSecret:  []byte(os.Getenv("HAULING_REFERRAL_SERVICE_SECRET")),
 		ReferralIdentityPepper: []byte(os.Getenv("HAULING_REFERRAL_IDENTITY_PEPPER")),
 
-		NotificationURL:     os.Getenv("HAULING_NOTIFICATION_URL"),
-		NotificationSecret:  []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
-		PaymentURL:          os.Getenv("HAULING_PAYMENT_URL"),
-		PaymentSecret:       []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
-		CashPaymentsEnabled: getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
-		RoutesAPIKey:        os.Getenv("HAULING_ROUTES_API_KEY"),
+		NotificationURL:    os.Getenv("HAULING_NOTIFICATION_URL"),
+		NotificationSecret: []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),
 
-		ServiceSecrets:                  os.Getenv("HAULING_SERVICE_SECRETS"),
-		FleetIntegrationEnabled:         getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
-		FleetIntegrationKillSwitch:      getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
-		CommerceIntegrationEnabled:      getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", true),
-		CommerceIntegrationKillSwitch:   getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
-		FleetAllowedCallers:             getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
-		OutboxWorkerEnabled:             getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
-		FleetEventURL:                   os.Getenv("HAULING_FLEET_EVENT_URL"),
-		FleetEventSecret:                []byte(os.Getenv("HAULING_FLEET_EVENT_SECRET")),
-		PrivateExecutionEnabled:         getEnvBool("HAULING_PRIVATE_EXECUTION_ENABLED", false),
+		CustomerMovementEventsEnabled: getEnvBool("HAULING_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
+		CustomerServiceURL:            os.Getenv("HAULING_CUSTOMER_SERVICE_URL"),
+		CustomerServiceSecret:         []byte(os.Getenv("HAULING_CUSTOMER_SERVICE_SECRET")),
+		PaymentURL:                    os.Getenv("HAULING_PAYMENT_URL"),
+		PaymentSecret:                 []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
+		MediaURL:                      os.Getenv("HAULING_MEDIA_URL"),
+		MediaToken:                    os.Getenv("HAULING_MEDIA_TOKEN"),
+		CashPaymentsEnabled:           getEnvBool("HAULING_CASH_PAYMENTS_ENABLED", false),
+		RoutesAPIKey:                  os.Getenv("HAULING_ROUTES_API_KEY"),
+
+		ServiceSecrets:                         os.Getenv("HAULING_SERVICE_SECRETS"),
+		FleetIntegrationEnabled:                getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
+		FleetIntegrationKillSwitch:             getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
+		CommerceIntegrationEnabled:             getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
+		CommerceIntegrationKillSwitch:          getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
+		FleetAllowedCallers:                    getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
+		OutboxWorkerEnabled:                    getEnvBool("HAULING_OUTBOX_WORKER_ENABLED", false),
+		MetricsAuthToken:                       getEnv("HAULING_METRICS_AUTH_TOKEN", ""),
+		FleetEventURL:                          os.Getenv("HAULING_FLEET_EVENT_URL"),
+		FleetEventSecret:                       []byte(os.Getenv("HAULING_FLEET_EVENT_SECRET")),
+		PrivateExecutionEnabled:                getEnvBool("HAULING_PRIVATE_EXECUTION_ENABLED", false),
+		HaulingFleetProviderWorkEnabled:        getEnvBool("HAULING_FLEET_PROVIDER_WORK_ENABLED", false),
+		HaulingFleetCompletedWorkEnabled:       getEnvBool("HAULING_FLEET_COMPLETED_WORK_ENABLED", false),
+		HaulingTypedFinancialVisibilityEnabled: getEnvBool("HAULING_TYPED_FINANCIAL_VISIBILITY_ENABLED", true),
+		HaulingManagedSettlementEnabled:        getEnvBool("HAULING_MANAGED_SETTLEMENT_ENABLED", false),
+
 		FleetServiceURL:                 os.Getenv("FLEET_PARTNER_SERVICE_URL"),
 		FleetServiceCaller:              getEnv("FLEET_PARTNER_SERVICE_CALLER", "driver-hauling-service"),
 		FleetServiceSecret:              []byte(os.Getenv("FLEET_PARTNER_SERVICE_SECRET")),
 		FleetServiceTimeout:             time.Duration(getEnvInt("FLEET_PARTNER_SERVICE_TIMEOUT_SECONDS", 5)) * time.Second,
 		ProviderOrganizationModeEnabled: getEnvBool("PROVIDER_ORGANIZATION_MODE_ENABLED", false),
+
+		CapabilityMatchingEnabled:     getEnvBool("HAULING_CAPABILITY_MATCHING_ENABLED", false),
+		FailClosedTruckLookup:         getEnvBool("HAULING_FAIL_CLOSED_TRUCK_LOOKUP", false),
+		SupplyPreviewEnabled:          getEnvBool("HAULING_SUPPLY_PREVIEW_ENABLED", false),
+		CertificationRequiredProducts: os.Getenv("HAULING_CERTIFICATION_REQUIRED_PRODUCTS"),
+		RecoveryEnabled:               getEnvBool("HAULING_RECOVERY_ENABLED", false),
+		RecoveryEventsEnabled:         getEnvBool("HAULING_RECOVERY_EVENTS_ENABLED", false),
+		RecoveryEventTarget:           getEnv("HAULING_RECOVERY_EVENT_TARGET", "analytics-service"),
+		AnalyticsEventsEnabled:        getEnvBool("HAULING_ANALYTICS_EVENTS_ENABLED", false),
+		AnalyticsURL:                  os.Getenv("HAULING_ANALYTICS_URL"),
+		AnalyticsSecret:               []byte(os.Getenv("HAULING_ANALYTICS_SECRET")),
+		PolicyIngestEnabled:           getEnvBool("HAULING_POLICY_INGEST_ENABLED", false),
+		AdminServiceCaller:            getEnv("HAULING_ADMIN_SERVICE_CALLER", "driver-hauling-service"),
+		AdminServiceSecret:            []byte(os.Getenv("HAULING_ADMIN_SERVICE_SECRET")),
+		AdminAllowedHosts:             os.Getenv("HAULING_ADMIN_ALLOWED_HOSTS"),
+		PolicyReconcileInterval:       time.Duration(getEnvInt("HAULING_POLICY_RECONCILE_INTERVAL_SECONDS", 120)) * time.Second,
+		CapabilityMaintenanceInterval: time.Duration(getEnvInt("HAULING_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
+		MatchDecisionRetention:        time.Duration(getEnvInt("HAULING_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
 
 		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
@@ -220,6 +345,35 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0 {
 			problems = append(problems, "FLEET_PARTNER_SERVICE_URL, FLEET_PARTNER_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required when private execution is enabled")
 		}
+	}
+	if c.CommerceIntegrationEnabled && !c.CommerceIntegrationKillSwitch {
+		if strings.TrimSpace(c.MediaURL) == "" || strings.TrimSpace(c.MediaToken) == "" {
+			problems = append(problems, "HAULING_MEDIA_URL and HAULING_MEDIA_TOKEN are required when Commerce integration is enabled")
+		}
+	}
+	// Fail-closed without capability matching would be a flag that silently
+	// does nothing, which is worse than a refusal: an operator would believe
+	// unresolved trucks were being rejected while they were still matching.
+	if c.FailClosedTruckLookup && !c.CapabilityMatchingEnabled {
+		problems = append(problems, "HAULING_FAIL_CLOSED_TRUCK_LOOKUP requires HAULING_CAPABILITY_MATCHING_ENABLED")
+	}
+	// A preview answers from the capability store. Without it the endpoint
+	// could only ever return UNKNOWN, which would teach Vendor's planner to
+	// stop asking.
+	if c.SupplyPreviewEnabled && !c.CapabilityMatchingEnabled {
+		problems = append(problems, "HAULING_SUPPLY_PREVIEW_ENABLED requires HAULING_CAPABILITY_MATCHING_ENABLED")
+	}
+	// Recovery selects a replacement through the capability store. Without
+	// capability matching there is nothing for it to select against, and it
+	// would fall back to proximity alone -- which is precisely the fail-open
+	// Section 9 removed from the original matcher.
+	if c.RecoveryEnabled && !c.CapabilityMatchingEnabled {
+		problems = append(problems, "HAULING_RECOVERY_ENABLED requires HAULING_CAPABILITY_MATCHING_ENABLED")
+	}
+	// An events flag with no recovery behind it is a flag that silently does
+	// nothing, which is worse than a refusal at startup.
+	if c.RecoveryEventsEnabled && !c.RecoveryEnabled {
+		problems = append(problems, "HAULING_RECOVERY_EVENTS_ENABLED requires HAULING_RECOVERY_ENABLED")
 	}
 	if c.ProviderOrganizationModeEnabled {
 		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0 {
