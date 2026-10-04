@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand colors from doc §03 */
+  --color-midnight: #0B1F44;
+  --color-aurora:   #00C2A8;
+  --color-forge:    #A7B0BB;
+  --color-indigo:   #2D3A5B;
+
+  /* Typography scale from doc §03 */
+  --text-hero:       clamp(2.5rem, 6vw, 4.5rem);   /* 40-72px */
+  --text-section:    clamp(2rem, 4vw, 3.25rem);    /* 32-52px */
+  --text-card-title: clamp(1.25rem, 2vw, 1.75rem); /* 20-28px */
+  --text-body-lg:    clamp(1.0625rem, 1.5vw, 1.25rem);
+  --text-kicker:     0.8125rem;
+
+  /* Fonts */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #FFFFFF;
+  color: var(--color-midnight);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
