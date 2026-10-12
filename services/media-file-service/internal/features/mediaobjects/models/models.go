@@ -78,7 +78,10 @@ const (
 	// document a human uploaded. It is the only purpose for which textual
 	// content is accepted, and it is accepted on a positive inspection of the
 	// bytes, never on the caller's word — see validation.ValidateExportContent.
-	PurposeDataExport = "DATA_EXPORT"
+	PurposeDataExport      = "DATA_EXPORT"
+	PurposeProductImage    = "PRODUCT_IMAGE"
+	PurposeBrandImage      = "BRAND_IMAGE"
+	PurposePastryReference = "PASTRY_REFERENCE"
 )
 
 // Network evidence purposes (Section 16).
@@ -105,7 +108,7 @@ func ValidPurpose(purpose string) bool {
 	case PurposeCompanyDocument, PurposeBranchDocument, PurposeProviderDocument,
 		PurposeVehicleDocument, PurposeInsuranceDocument, PurposeComplianceDocument,
 		PurposeProofDocument, PurposeIncidentAttachment, PurposeDisputeAttachment,
-		PurposeApprovalAttachment, PurposeDataExport,
+		PurposeApprovalAttachment, PurposeDataExport, PurposeProductImage, PurposeBrandImage, PurposePastryReference,
 		PurposeVehicleInspection, PurposeCapabilityEvidence, PurposeReadinessEvidence,
 		PurposeCargoCondition, PurposeDamageEvidence, PurposeRecoveryTransfer,
 		PurposeSafetyIncident, PurposeLoadingEvidence:
@@ -199,7 +202,7 @@ func ValidVisibility(value string) bool {
 
 // RequiresPrivateVisibility reports the purposes that may only ever be private.
 func RequiresPrivateVisibility(purpose string) bool {
-	return purpose == PurposeDataExport || SensitiveEvidencePurpose(purpose)
+	return purpose == PurposeDataExport || purpose == PurposeProductImage || purpose == PurposeBrandImage || purpose == PurposePastryReference || SensitiveEvidencePurpose(purpose)
 }
 
 // Retention classes.

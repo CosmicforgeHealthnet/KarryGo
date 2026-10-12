@@ -225,7 +225,7 @@ func (s *Section21Service) AcceptScheduled(ctx context.Context, in ScheduledOrde
 		return ScheduledOrder{}, false, err
 	}
 	approvedQuote, err := s.checkout.Get(ctx, in.CustomerID, in.QuoteID)
-	if err != nil || approvedQuote.State != checkoutquote.StateApproved || approvedQuote.ApprovedAt == nil {
+	if err != nil || !approvedQuoteContainsBranch(approvedQuote, in.BusinessID, in.BranchID) {
 		return ScheduledOrder{}, false, ErrSection21CheckoutNeeded
 	}
 	var reservationID *string
@@ -689,6 +689,9 @@ func (s *Section21Service) SubmitRFQQuote(ctx context.Context, rfqID, vendorID, 
 		var raw, capraw, vendorRaw, paymentRaw, depositRaw, cancellationRaw []byte
 		err = tx.QueryRow(ctx, `SELECT r.id,r.quote_id,r.rfq_id,q.vendor_id,q.branch_id,r.revision,r.price_minor,r.currency,r.snapshot,r.capacity_requirement,r.vendor_terms,r.payment_policy,r.deposit_policy,r.cancellation_policy,r.expires_at,q.status FROM commerce_rfq_quote_revisions r JOIN commerce_rfq_quotes q ON q.id=r.quote_id WHERE r.rfq_id=$1 AND r.idempotency_key=$2 FOR UPDATE`, rfqID, key).Scan(&prior.ID, &prior.QuoteID, &prior.RFQID, &prior.VendorID, &prior.BranchID, &prior.Revision, &prior.PriceMinor, &prior.Currency, &raw, &capraw, &vendorRaw, &paymentRaw, &depositRaw, &cancellationRaw, &prior.ExpiresAt, &prior.Status)
 		if err == nil {
+			if prior.VendorID != vendorID || prior.BranchID != branchID {
+				return RFQQuoteRevision{}, ErrSection21Conflict
+			}
 			_ = json.Unmarshal(raw, &prior.Snapshot)
 			_ = json.Unmarshal(capraw, &prior.Capacity)
 			_ = json.Unmarshal(vendorRaw, &prior.VendorTerms)

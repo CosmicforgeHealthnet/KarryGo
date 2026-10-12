@@ -29,9 +29,10 @@ var routes = []struct{ method, path string }{
 	{"GET", "/crm/exports/{exportId}"},
 	{"POST", "/crm/exports/{exportId}/cancel"},
 	{"POST", "/crm/exports/{exportId}/download"},
+	{"POST", "/crm/exports/{exportId}/file"},
 }
 
-const routeCount = 10
+const routeCount = 11
 
 var permissions = []string{
 	"vendor.crm.intelligence.read",

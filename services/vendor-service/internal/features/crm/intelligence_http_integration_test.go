@@ -27,10 +27,10 @@ func (e *testEnv) section8hRouter(staffID, business string) *gin.Engine {
 	return router
 }
 
-// TestSection8HHTTP_RegisteredSurfaceIsExactlyTen is the router-side half of the
+// TestSection8HHTTP_RegisteredSurfaceIsExactlyEleven is the router-side half of the
 // OpenAPI parity check, and the guard against Section 8H growing a route that
 // writes a score or accepts a query.
-func TestSection8HHTTP_RegisteredSurfaceIsExactlyTen(t *testing.T) {
+func TestSection8HHTTP_RegisteredSurfaceIsExactlyEleven(t *testing.T) {
 	env := newTestEnv(t, allFlagsOn())
 	router := env.section8hRouter("vs_a", businessA)
 
@@ -49,6 +49,7 @@ func TestSection8HHTTP_RegisteredSurfaceIsExactlyTen(t *testing.T) {
 		"GET /api/v1/vendor/crm/exports/:exportId",
 		"POST /api/v1/vendor/crm/exports/:exportId/cancel",
 		"POST /api/v1/vendor/crm/exports/:exportId/download",
+		"POST /api/v1/vendor/crm/exports/:exportId/file",
 	}
 	if len(registered) != len(want) {
 		t.Fatalf("registered %d Section 8H routes; want exactly %d: %v", len(registered), len(want), registered)

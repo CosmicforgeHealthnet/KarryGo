@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/features/assets"
 	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
 	"cosmicforge/logistics/shared/go/journeyshare"
 	"os"
@@ -177,7 +178,7 @@ func main() {
 	}
 	var mediaAuthority vendors.MediaAuthority
 	if cfg.MediaURL != "" && cfg.MediaSecret != "" {
-		mediaAuthority = mediaAuthorityAdapter{client: mediaintegration.NewClient(cfg.MediaURL, cfg.MediaSecret, cfg.InternalServiceCallTimeout)}
+		mediaAuthority = mediaAuthorityAdapter{client: mediaintegration.NewClient(cfg.MediaURL, cfg.MediaSecret, cfg.InternalServiceCallTimeout).WithPublicURL(cfg.MediaPublicURL)}
 	}
 	vendorService.SetOnboardingDependencies(verificationAuthority, bankAuthority, mediaAuthority, authService)
 
@@ -302,13 +303,13 @@ func main() {
 	productionService := production.NewService(production.Options{DB: db, Scopes: productionScopeAdapter{evaluator: evaluator}, Audit: productionAuditAdapter{recorder: auditRecorder}, Events: events.NewDomainPublisher(outboxRepo), Flags: productionFlags})
 	productionHandler := production.NewHandler(productionService).UseIdempotency(idempotencyStore)
 	cloudKitchenService := cloudkitchen.NewService(db, productionService)
-	cloudKitchenHandler := cloudkitchen.NewHandler(cloudKitchenService).UseIdempotency(idempotencyStore)
+	cloudKitchenHandler := cloudkitchen.NewHandler(cloudKitchenService).UseIdempotency(idempotencyStore).UseCRM(crmService)
 	pastryService := pastry.NewService(db, productionService)
 	// Production owns job status while Pastry owns custom-cake milestones and
 	// commercial gating. This same-service adapter lets only explicitly mapped
 	// final production progress advance Pastry's READY milestone.
 	productionService.SetPastryMilestoneBridge(pastryService)
-	pastryHandler := pastry.NewHandler(pastryService, authService).UseIdempotency(idempotencyStore)
+	pastryHandler := pastry.NewHandler(pastryService, authService).UseIdempotency(idempotencyStore).UseCRM(crmService)
 	shopFlags := shop.Flags{
 		ShopEnabled:        cfg.Flags.CommerceShopEnabled,
 		WritesEnabled:      cfg.Flags.VendorShopCatalogueWritesEnabled,
@@ -326,6 +327,18 @@ func main() {
 		}(),
 	})
 	shopHandler := shop.NewHandler(shopService, idempotencyStore)
+	var assetMedia *mediaintegration.Client
+	if cfg.MediaURL != "" && cfg.MediaSecret != "" && cfg.MediaPublicURL != "" {
+		assetMedia = mediaintegration.NewClient(cfg.MediaURL, cfg.MediaSecret, cfg.InternalServiceCallTimeout).WithPublicURL(cfg.MediaPublicURL)
+	}
+	if assetMedia != nil {
+		vendorService.UseAssetValidator(assetMedia.ValidateAsset)
+		pastryService.UseAssetValidator(assetMedia.ValidateAsset)
+	}
+	assetHandler := assets.NewHandler(assets.Options{DB: db, Food: foodService, Shop: shopService, Vendors: vendorService, Production: productionService, Media: assetMedia,
+		Enabled:  map[string]bool{"FOOD_ITEM": cfg.Flags.CommerceFoodEnabled, "SHOP_PRODUCT": cfg.Flags.CommerceShopEnabled, "BRAND": true, "PASTRY_REQUEST": cfg.Flags.CommerceFoodEnabled},
+		Writable: map[string]bool{"FOOD_ITEM": cfg.Flags.VendorFoodCatalogueWritesEnabled && !cfg.Flags.CommerceGlobalKillSwitch, "SHOP_PRODUCT": cfg.Flags.VendorShopCatalogueWritesEnabled && !cfg.Flags.CommerceGlobalKillSwitch, "BRAND": !cfg.Flags.CommerceGlobalKillSwitch, "PASTRY_REQUEST": cfg.Flags.VendorFoodCatalogueWritesEnabled && !cfg.Flags.CommerceGlobalKillSwitch}})
+
 	inventoryFlags := inventory.Flags{
 		Enabled:       cfg.Flags.VendorInventoryEnabled,
 		WritesEnabled: cfg.Flags.VendorInventoryWritesEnabled,
@@ -1347,6 +1360,7 @@ func main() {
 			food.RegisterOperationsRoutes(protected, foodHandler, foodFlags)
 			production.RegisterRoutes(protected, productionHandler, productionFlags)
 			cloudkitchen.RegisterRoutes(protected, cloudKitchenHandler, productionFlags)
+			assets.RegisterRoutes(protected, assetHandler)
 			pastry.RegisterRoutes(protected, pastryHandler, productionFlags)
 			shop.RegisterRoutes(protected, shopHandler, shopFlags)
 			foodService.SetInventoryAvailabilityAuthority(

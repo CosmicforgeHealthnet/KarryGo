@@ -412,3 +412,43 @@ func (s *RoleService) publishStaffEvent(ctx context.Context, eventType, vendorID
 	}
 	_ = s.events.PublishStaffEvent(ctx, eventType, vendorID, staffID, payload)
 }
+
+// CurrentAccess returns only the authenticated actor's assignment grants.
+func (s *RoleService) CurrentAccess(ctx context.Context, staffID string) ([]CurrentAccessGrant, error) {
+	grants, err := s.evaluator.EffectivePermissions(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	catalogue, err := s.permissions.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	descriptions := make(map[string]staffmodels.Permission)
+	for _, p := range catalogue {
+		descriptions[p.Code] = p
+	}
+	result := make([]CurrentAccessGrant, 0, len(grants))
+	seen := make(map[string]bool)
+	for _, g := range grants {
+		scope := ""
+		if g.BranchID != nil {
+			scope = *g.BranchID
+		}
+		key := g.PermissionCode + ":" + scope
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		p := descriptions[g.PermissionCode]
+		result = append(result, CurrentAccessGrant{g.PermissionCode, g.BranchID, g.IsHighRisk, p.Description, p.Category})
+	}
+	return result, nil
+}
+
+type CurrentAccessGrant struct {
+	PermissionCode string  `json:"permission_code"`
+	BranchID       *string `json:"branch_id"`
+	IsHighRisk     bool    `json:"is_high_risk"`
+	Description    string  `json:"description"`
+	Category       string  `json:"category"`
+}

@@ -72,7 +72,7 @@ function Lines({ geo, className }: { geo: Geo; className: string }) {
     >
       {/* base lines (draw in) */}
       <g
-        stroke="#00C2A8"
+        stroke="var(--color-aurora)"
         strokeWidth="1.5"
         strokeOpacity="0.55"
         strokeLinecap="round"
@@ -101,7 +101,7 @@ function Lines({ geo, className }: { geo: Geo; className: string }) {
       </g>
 
       {/* travelling pulses */}
-      <g stroke="#5CF0DC" strokeWidth="3" strokeLinecap="round">
+      <g stroke="var(--color-aurora)" strokeWidth="3" strokeLinecap="round">
         {SERVICES.map((n, i) => (
           <path
             key={n.label}
@@ -125,7 +125,7 @@ function Lines({ geo, className }: { geo: Geo; className: string }) {
       </g>
 
       {/* end-point dots */}
-      <g fill="#00C2A8">
+      <g fill="var(--color-aurora)">
         {SERVICES.map((n, i) => (
           <circle
             key={n.label}
@@ -173,7 +173,7 @@ function NodeItem({
         style={delay(0.9 + index * 0.1)}
       >
         <span
-          className="eco-float grid h-10 w-10 sm:h-14 sm:w-14 place-items-center rounded-full border border-aurora/40 bg-midnight text-aurora shadow-[0_8px_24px_-6px_rgba(0,194,168,0.45)] transition-transform duration-300 hover:scale-110"
+          className="eco-float grid h-10 w-10 sm:h-14 sm:w-14 place-items-center rounded-full border border-aurora/40 bg-midnight text-aurora shadow-[0_8px_24px_-6px_rgba(0,194,168,0.18)] transition-transform duration-300 hover:scale-110"
           style={delay(index * 0.4)}
         >
           <Icon className="h-4 w-4 sm:h-6 sm:w-6" strokeWidth={1.75} />
@@ -212,6 +212,7 @@ export default function Ecosystem() {
       className="relative bg-white text-midnight py-14 sm:py-20 overflow-hidden"
     >
       <style>{`
+        @keyframes eco-halo { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.06); } }
         @keyframes eco-draw { to { stroke-dashoffset: 0; } }
         @keyframes eco-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1; } }
         @keyframes eco-show { to { opacity: 1; } }
@@ -263,13 +264,13 @@ export default function Ecosystem() {
       <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12 grid lg:grid-cols-12 gap-10 sm:gap-12 lg:gap-8 items-center">
         {/* Left: copy */}
         <div className="lg:col-span-5">
-          <p className="text-[#00A28C] text-[10px] sm:text-[11px] tracking-[0.24em] font-semibold uppercase">
+          <p className="text-aurora-ink text-[10px] sm:text-[11px] tracking-[0.24em] font-semibold uppercase">
             The Karryam Ecosystem
           </p>
 
           <h2 className="mt-4 sm:mt-5 text-[clamp(1.75rem,5vw,3rem)] font-bold leading-[1.1] tracking-tight">
             Everything that moves,{" "}
-            <span className="text-[#00A28C]">connected.</span>
+            <span className="text-aurora-ink">connected.</span>
           </h2>
 
           <p className="mt-4 sm:mt-5 max-w-md text-sm sm:text-[15px] leading-relaxed text-midnight/70">
@@ -280,7 +281,7 @@ export default function Ecosystem() {
 
           <a
             href="#services"
-            className="mt-6 sm:mt-8 inline-flex items-center gap-2 rounded-full border border-aurora px-5 sm:px-6 py-2.5 sm:py-3 text-[13px] font-semibold text-[#00A28C] hover:bg-aurora hover:text-midnight transition-colors"
+            className="mt-6 sm:mt-8 inline-flex items-center gap-2 rounded-full border border-aurora px-5 sm:px-6 py-2.5 sm:py-3 text-[13px] font-semibold text-aurora-ink hover:bg-aurora hover:text-midnight transition-colors"
           >
             Explore the ecosystem
             <ArrowRight size={14} strokeWidth={2.5} />
@@ -302,9 +303,9 @@ export default function Ecosystem() {
             <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
               <span
                 aria-hidden
-                className="absolute inset-0 rounded-xl bg-aurora/30 motion-safe:animate-ping [animation-duration:2.8s]"
+                className="absolute inset-0 rounded-xl bg-aurora/10 motion-safe:animate-[eco-halo_5s_ease-in-out_infinite]"
               />
-              <div className="relative flex items-center justify-center rounded-xl bg-midnight px-4 py-2.5 sm:px-7 sm:py-3.5 shadow-[0_12px_40px_-8px_rgba(0,194,168,0.55)] ring-1 ring-aurora/40">
+              <div className="relative flex items-center justify-center rounded-xl bg-midnight px-4 py-2.5 sm:px-7 sm:py-3.5 shadow-[0_12px_40px_-8px_rgba(0,194,168,0.20)] ring-1 ring-aurora/40">
                 <Image
                   src="/images/logo.png"
                   alt="Karryam"

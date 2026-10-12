@@ -4,6 +4,8 @@
   /* Brand colors from doc §03 */
   --color-midnight: #0B1F44;
   --color-aurora:   #00C2A8;
+  /* Dark teal for readable brand accents on white. */
+  --color-aurora-ink: #007D6D;
   --color-forge:    #A7B0BB;
   --color-indigo:   #2D3A5B;
 
@@ -35,4 +37,97 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+.hero-cta { transition: transform 180ms ease, filter 180ms ease; }
+.hero-cta-arrow { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (hover: hover) and (pointer: fine) {
+  .hero-cta:hover { transform: translateY(-1px); }
+  .hero-cta:hover .hero-cta-arrow { transform: translateX(3px); }
+}
+.hero-cta:active { transform: translateY(0); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy > * { animation: hero-reveal 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .hero-copy > :nth-child(2) { animation-delay: 70ms; }
+  .hero-copy > :nth-child(3) { animation-delay: 140ms; }
+  .hero-copy > :nth-child(4) { animation-delay: 210ms; }
+  .hero-copy > :nth-child(5) { animation-delay: 280ms; }
+  .hero-art { animation: hero-reveal 800ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both; }
+}
+@keyframes hero-reveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-cta, .hero-cta-arrow { transition: none; transform: none; }
+}
+/* Shared fleet, vendor and API partner card motion. */
+.partner-card {
+  transition: opacity 650ms cubic-bezier(0.22, 1, 0.36, 1), translate 650ms cubic-bezier(0.22, 1, 0.36, 1), transform 250ms ease, box-shadow 250ms ease;
+}
+.partner-arrow { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (prefers-reduced-motion: no-preference) {
+  .partner-card[data-reveal="pending"] { opacity: 0; translate: 0 16px; }
+  .partner-card[data-reveal="visible"] { opacity: 1; translate: 0 0; }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .partner-card:hover { transform: translateY(-3px); box-shadow: 0 18px 42px -24px rgba(11,31,68,0.28); }
+  .partner-cta:hover .partner-arrow { transform: translateX(3px); }
+}
+.partner-cta:focus-visible .partner-arrow { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) {
+  .partner-card, .partner-arrow { transition: none; transform: none; translate: none; opacity: 1; }
+  .partner-cta:focus-visible .partner-arrow { transform: none; }
+}
+/* Launch content stays visible; motion is limited to text interactions. */
+.launch-text-accent {
+  display: inline-block;
+  position: relative;
+}
+.launch-text-accent::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.15em;
+  width: 100%;
+  height: 2px;
+  background: var(--color-aurora);
+  opacity: 0.45;
+  transform: scaleX(0.25);
+  transform-origin: left;
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms ease;
+}
+.launch-copy h2:hover .launch-text-accent::after { transform: scaleX(1); opacity: 0.8; }
+.launch-arrow { transition: transform 220ms ease; }
+.launch-cta:hover .launch-arrow, .launch-cta:focus-visible .launch-arrow { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) {
+  .launch-text-accent::after, .launch-arrow { transition: none; }
+  .launch-cta:hover .launch-arrow, .launch-cta:focus-visible .launch-arrow { transform: none; }
+}
+/* FAQ transitions preserve native details keyboard behavior. */
+.faq-summary { transition: color 200ms ease; border-radius: 4px; }
+.faq-summary:hover, .faq-item[open] .faq-summary { color: var(--color-aurora-ink); }
+.faq-summary:focus-visible { outline: 2px solid var(--color-aurora-ink); outline-offset: 4px; }
+.interaction-arrow { transition: transform 220ms cubic-bezier(0.22,1,0.36,1); }
+.final-cta-form { transition: border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease; }
+.final-cta-form:focus-within { background-color: rgba(255,255,255,0.09); box-shadow: 0 0 0 3px rgba(0,194,168,0.12); }
+.final-cta-button { transition: filter 200ms ease, transform 200ms ease; }
+@media (prefers-reduced-motion: no-preference) {
+  .faq-item[open] .faq-answer { animation: faq-answer-in 250ms ease-out; }
+  @supports (interpolate-size: allow-keywords) {
+    .faq-item { interpolate-size: allow-keywords; }
+    .faq-item::details-content { height: 0; overflow: hidden; transition: height 300ms cubic-bezier(0.22,1,0.36,1), content-visibility 300ms allow-discrete; }
+    .faq-item[open]::details-content { height: auto; }
+  }
+}
+@keyframes faq-answer-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .faq-cta:hover .interaction-arrow, .final-cta-button:hover .interaction-arrow { transform: translateX(3px); }
+  .final-cta-button:hover { transform: translateY(-1px); }
+  .final-cta-button:active { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .faq-summary, .interaction-arrow, .final-cta-form, .final-cta-button { transition: none; }
 }

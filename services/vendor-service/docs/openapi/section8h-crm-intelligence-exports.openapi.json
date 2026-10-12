@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "KarryGo Vendor Service — Section 8H: CRM Intelligence and Secure Exports",
+    "title": "KarryGo Vendor Service \u2014 Section 8H: CRM Intelligence and Secure Exports",
     "version": "1.0.0",
     "description": "Deterministic CRM intelligence (RFM V1 and a churn risk heuristic) and secure, step-up protected CRM data exports.\n\nNO MACHINE LEARNING. Both models are versioned heuristics computed in Go from commercial facts this service was given. There is no model artefact, no training data, no probability and no generated explanation anywhere in this contract. A churn risk of 70 is a rank for follow-up; it is not a 70% chance of anything, and no field in this document should be read as one.\n\nA SCORE IS NOT PERMISSION. A relationship can be the most valuable in the book and still be one this vendor may not contact. Consent, privacy, marketing suppression, frequency and quiet hours are decided by Sections 8A, 8E and 8F, are not consulted to produce a score, and are not weakened by one.\n\nUNAVAILABLE IS NOT ZERO. A relationship with no observed commercial facts reports NOT_AVAILABLE with a reason code, and every numeric field is absent. A database CHECK makes a row asserting otherwise unstorable, and the segment field registry compiles score predicates so that a missing score matches no numeric comparison rather than matching every comparison against zero.\n\nEXPORTS RELEASE NOTHING UNTIL THEY ARE COMPLETE AND STILL LAWFUL. Generation, privacy re-certification, private upload and promotion happen in that order; READY has a database CHECK requiring a complete artifact; and access is decided live, per request, against a fresh step-up, returning a token that outlives neither the request nor the store's own short window."
   },
@@ -1094,6 +1094,80 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/crm/exports/{exportId}/file": {
+      "post": {
+        "operationId": "downloadExportFile",
+        "x-permission": "vendor.crm.exports.download",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "step_up_grant_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "step_up_grant_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Private export bytes; no-store. Fresh crm.export.download verification required for every attempt. Only a completion marker is retained for idempotency; bytes and tokens are never cached.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access or step-up denied"
+          },
+          "409": {
+            "description": "Export unavailable or attempt already used"
+          },
+          "503": {
+            "description": "Private storage unavailable"
           }
         }
       }

@@ -20,6 +20,7 @@ import (
 	uploadclients "cosmicforge/logistics/services/media-file-service/internal/features/uploads/clients"
 	uploadhttp "cosmicforge/logistics/services/media-file-service/internal/features/uploads/http"
 	uploadusecases "cosmicforge/logistics/services/media-file-service/internal/features/uploads/usecases"
+	"cosmicforge/logistics/services/media-file-service/internal/integrations/clamav"
 	"cosmicforge/logistics/services/media-file-service/internal/platform/ids"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/serviceapp"
@@ -134,6 +135,7 @@ func main() {
 				serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute),
 				cfg.PrivateAllowedCallers, cfg.PrivateMaxUploadBytes)
 			mediahttp.RegisterCustomerUploadRoute(group, mediaService, cfg.PrivateMaxUploadBytes)
+			mediahttp.RegisterVendorUploadRoute(group, mediaService, cfg.PrivateMaxUploadBytes)
 			logging.Success("media", "private media contract mounted")
 		},
 		Workers: workers,
@@ -174,6 +176,14 @@ func buildPrivateMediaService(cfg config.Config, db *pgxpool.Pool,
 		bucket = "local:" + dir
 	}
 
+	var scanner mediausecases.Scanner
+	if cfg.ScannerAddress != "" {
+		configured, err := clamav.New(cfg.ScannerNetwork, cfg.ScannerAddress, cfg.ScannerTimeout, cfg.PrivateMaxUploadBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+		scanner = configured
+	}
 	service := mediausecases.NewService(mediausecases.Options{
 		Pool:           db,
 		Objects:        mediarepositories.NewRepository(db),
@@ -181,10 +191,7 @@ func buildPrivateMediaService(cfg config.Config, db *pgxpool.Pool,
 		Events:         events.NewDomainPublisher(events.NewOutboxRepository(db)),
 		DownloadSecret: cfg.DownloadSecret,
 		StorageBucket:  bucket,
-		// Scanner is deliberately left nil. There is no production malware
-		// provider configured for this platform, and inventing one here would
-		// mean reporting SAFE without having looked. Objects stay PENDING and
-		// every consumer that requires SAFE blocks.
+		Scanner:        scanner,
 		Policy: mediausecases.Policy{
 			MaxSizeBytes:              cfg.PrivateMaxUploadBytes,
 			AllowedMIMETypes:          cfg.PrivateAllowedMIME,

@@ -81,6 +81,7 @@ type Config struct {
 	WalletURL, WalletSecret             string
 	VerificationURL, VerificationSecret string
 	MediaURL, MediaSecret               string
+	MediaPublicURL                      string
 	NotificationURL, NotificationSecret string
 	SupportURL, SupportSecret           string
 	AdminURL, AdminSecret               string
@@ -523,6 +524,7 @@ func Load() Config {
 		WalletURL: os.Getenv("VENDOR_WALLET_URL"), WalletSecret: os.Getenv("VENDOR_WALLET_SECRET"),
 		VerificationURL: os.Getenv("VENDOR_VERIFICATION_URL"), VerificationSecret: os.Getenv("VENDOR_VERIFICATION_SECRET"),
 		MediaURL: os.Getenv("VENDOR_MEDIA_URL"), MediaSecret: os.Getenv("VENDOR_MEDIA_SECRET"),
+		MediaPublicURL:  os.Getenv("VENDOR_MEDIA_PUBLIC_URL"),
 		NotificationURL: os.Getenv("VENDOR_NOTIFICATION_URL"), NotificationSecret: os.Getenv("VENDOR_NOTIFICATION_SECRET"),
 		SupportURL: os.Getenv("VENDOR_SUPPORT_URL"), SupportSecret: os.Getenv("VENDOR_SUPPORT_SECRET"),
 		AdminURL: os.Getenv("VENDOR_ADMIN_URL"), AdminSecret: os.Getenv("VENDOR_ADMIN_SECRET"),
@@ -672,6 +674,15 @@ func (c Config) Validate() error {
 			if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 				problems = append(problems, name+" must be an absolute HTTP(S) URL")
 			}
+		}
+	}
+	if raw := strings.TrimSpace(c.MediaPublicURL); raw != "" {
+		parsed, err := url.Parse(raw)
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.User != nil || strings.Trim(parsed.Path, "/") != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+			problems = append(problems, "VENDOR_MEDIA_PUBLIC_URL must be an HTTP(S) origin without credentials, path, query or fragment")
+		}
+		if c.MediaURL == "" || c.MediaSecret == "" {
+			problems = append(problems, "VENDOR_MEDIA_PUBLIC_URL requires the private Media URL and secret")
 		}
 	}
 	if c.Flags.VendorVerificationIntegrationEnabled {

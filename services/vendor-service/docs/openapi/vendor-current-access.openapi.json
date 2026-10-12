@@ -1,0 +1,24 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Current staff access",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/vendor/staff/me/access": {
+      "get": {
+        "summary": "Authenticated staff assignment grants; resource and step-up checks still apply",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own current permissions, branch_id null means vendor-wide"
+          }
+        }
+      }
+    }
+  }
+}

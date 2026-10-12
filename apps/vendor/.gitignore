@@ -1,0 +1,9 @@
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+tool/backend_ast*.json
+__pycache__/
+*.log
+
+.idea/
+*.iml

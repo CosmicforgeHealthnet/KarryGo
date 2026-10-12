@@ -872,6 +872,105 @@
         },
         "x-permission": "vendor.verification.submit"
       }
+    },
+    "/onboarding/document-uploads": {
+      "post": {
+        "operationId": "createOnboardingDocumentUpload",
+        "summary": "Authorize a private vendor onboarding document upload",
+        "x-permission": "vendor.onboarding.manage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "dimension",
+                  "subject_type",
+                  "subject_ref",
+                  "mime_type",
+                  "byte_size"
+                ],
+                "properties": {
+                  "dimension": {
+                    "$ref": "#/components/schemas/VerificationDimension"
+                  },
+                  "subject_type": {
+                    "type": "string",
+                    "enum": [
+                      "BUSINESS",
+                      "REPRESENTATIVE",
+                      "BRANCH",
+                      "BRAND",
+                      "CAPABILITY",
+                      "BRANCH_CAPABILITY"
+                    ]
+                  },
+                  "subject_ref": {
+                    "type": "string"
+                  },
+                  "mime_type": {
+                    "type": "string",
+                    "enum": [
+                      "image/jpeg",
+                      "image/png",
+                      "image/webp",
+                      "application/pdf"
+                    ]
+                  },
+                  "byte_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10485760
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Short-lived single-use upload grant. Redeem only at upload_url with X-Upload-Authorization-ID, X-Upload-Token, Content-Type, X-Declared-Size and X-Declared-Checksum-SHA256. No service credentials are exposed."
+          },
+          "503": {
+            "description": "Media authorization or public upload origin unavailable"
+          }
+        }
+      }
+    },
+    "/onboarding/document-uploads/{mediaRef}": {
+      "get": {
+        "operationId": "getOnboardingDocumentUploadStatus",
+        "summary": "Read tenant-owned private compliance upload receipt",
+        "x-permission": "vendor.onboarding.manage",
+        "parameters": [
+          {
+            "name": "mediaRef",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upload receipt without private file bytes or storage locations"
+          },
+          "404": {
+            "description": "Upload does not belong to this vendor"
+          },
+          "503": {
+            "description": "Media status unavailable"
+          }
+        }
+      }
     }
   },
   "security": [

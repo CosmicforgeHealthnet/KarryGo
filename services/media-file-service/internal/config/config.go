@@ -8,9 +8,12 @@ import (
 )
 
 type Config struct {
-	AppEnv    string
-	HTTPAddr  string
-	Migration bool
+	ScannerAddress string
+	ScannerNetwork string
+	ScannerTimeout time.Duration
+	AppEnv         string
+	HTTPAddr       string
+	Migration      bool
 
 	DatabaseURL string
 
@@ -101,6 +104,9 @@ func Load() Config {
 		UploadAuthorizationTTL: getEnvDuration("MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS", 15*time.Minute),
 		DownloadTTL:            getEnvDuration("MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS", 5*time.Minute),
 		PrivateMaxUploadBytes:  getEnvInt64("MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES", 25*1024*1024),
+		ScannerAddress:         getEnv("MEDIA_FILE_SCANNER_ADDRESS", ""),
+		ScannerNetwork:         getEnv("MEDIA_FILE_SCANNER_NETWORK", "tcp"),
+		ScannerTimeout:         getEnvDuration("MEDIA_FILE_SCANNER_TIMEOUT_SECONDS", 5*time.Second),
 		PrivateAllowedMIME: getEnvList("MEDIA_FILE_PRIVATE_ALLOWED_MIME_TYPES",
 			"application/pdf,image/jpeg,image/png,image/webp,text/csv,application/x-ndjson"),
 		// Purpose-specific ceiling for DATA_EXPORT, aligned with the Vendor

@@ -268,7 +268,108 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Scoped immutable picking snapshots, outcome status and saved quality/measurement evidence. Measurement.version is independent of outcome Version. QualityResult is an outcome status; QualityResults contains actually saved preference observations. Null Measurement means no stored variable evidence.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "Measurement": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "mode": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "estimated_quantity": {
+                                "type": "integer"
+                              },
+                              "unit_price_minor": {
+                                "type": "integer"
+                              },
+                              "estimated_amount_minor": {
+                                "type": "integer"
+                              },
+                              "tolerance_quantity": {
+                                "type": "integer"
+                              },
+                              "hard_max_quantity": {
+                                "type": "integer"
+                              },
+                              "reserved_upper_quantity": {
+                                "type": "integer"
+                              },
+                              "actual_quantity": {
+                                "type": "integer"
+                              },
+                              "final_amount_minor": {
+                                "type": "integer"
+                              },
+                              "pricing_denominator": {
+                                "type": "integer"
+                              },
+                              "version": {
+                                "type": "integer"
+                              }
+                            }
+                          },
+                          "QualityResult": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "QualityResults": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "preference_type": {
+                                  "type": "string"
+                                },
+                                "preference_value": {
+                                  "type": "string"
+                                },
+                                "result": {
+                                  "type": "string"
+                                },
+                                "observed_value": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "type": "integer"
+                                },
+                                "created_at": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "HasOutcome": {
+                            "type": "boolean"
+                          },
+                          "Version": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Read immutable Shop picking snapshots"
@@ -290,7 +391,108 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Scoped immutable picking snapshots, outcome status and saved quality/measurement evidence. Measurement.version is independent of outcome Version. QualityResult is an outcome status; QualityResults contains actually saved preference observations. Null Measurement means no stored variable evidence.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "Measurement": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "mode": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "estimated_quantity": {
+                                "type": "integer"
+                              },
+                              "unit_price_minor": {
+                                "type": "integer"
+                              },
+                              "estimated_amount_minor": {
+                                "type": "integer"
+                              },
+                              "tolerance_quantity": {
+                                "type": "integer"
+                              },
+                              "hard_max_quantity": {
+                                "type": "integer"
+                              },
+                              "reserved_upper_quantity": {
+                                "type": "integer"
+                              },
+                              "actual_quantity": {
+                                "type": "integer"
+                              },
+                              "final_amount_minor": {
+                                "type": "integer"
+                              },
+                              "pricing_denominator": {
+                                "type": "integer"
+                              },
+                              "version": {
+                                "type": "integer"
+                              }
+                            }
+                          },
+                          "QualityResult": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "QualityResults": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "preference_type": {
+                                  "type": "string"
+                                },
+                                "preference_value": {
+                                  "type": "string"
+                                },
+                                "result": {
+                                  "type": "string"
+                                },
+                                "observed_value": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "type": "integer"
+                                },
+                                "created_at": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "HasOutcome": {
+                            "type": "boolean"
+                          },
+                          "Version": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Read immutable Shop picking snapshots and current evidence"

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	vendorevents "cosmicforge/logistics/services/vendor-service/internal/events"
@@ -23,9 +24,10 @@ const (
 )
 
 var (
-	ErrNotFound  = errors.New("promotion campaign not found")
-	ErrForbidden = errors.New("promotion campaign forbidden")
-	ErrConflict  = errors.New("promotion campaign version conflict")
+	ErrNotFound     = errors.New("promotion campaign not found")
+	ErrForbidden    = errors.New("promotion campaign forbidden")
+	ErrConflict     = errors.New("promotion campaign version conflict")
+	ErrCouponExists = errors.New("coupon code is already in use")
 )
 
 type Service struct {
@@ -181,6 +183,13 @@ func (s *Service) Update(ctx context.Context, actor production.Actor, id string,
 	if current.Version != expectedVersion {
 		return Campaign{}, ErrConflict
 	}
+	current, err = s.loadChildren(ctx, tx, current)
+	if err != nil {
+		return Campaign{}, err
+	}
+	if current.Sponsor != Vendor || !canManageCampaign(scope, current) {
+		return Campaign{}, ErrForbidden
+	}
 	updated := Campaign{ID: current.ID, BusinessID: current.BusinessID, Name: strings.TrimSpace(input.Name), Type: input.Type,
 		Status: current.Status, Currency: strings.ToUpper(strings.TrimSpace(input.Currency)), PercentageBPS: input.PercentageBPS,
 		FixedMinor: input.FixedMinor, MaxDiscountMinor: input.MaxDiscountMinor, MinimumOrderMinor: input.MinimumOrderMinor,
@@ -298,7 +307,8 @@ func (s *Service) Get(ctx context.Context, actor production.Actor, id string) (C
 }
 
 func (s *Service) List(ctx context.Context, actor production.Actor) ([]Campaign, error) {
-	if _, err := s.authorize(ctx, actor, PermRead); err != nil {
+	scope, err := s.authorize(ctx, actor, PermRead)
+	if err != nil {
 		return nil, err
 	}
 	rows, err := s.db.Query(ctx, `SELECT `+campaignColumns+` FROM commerce_promotion_campaigns WHERE business_id=$1 ORDER BY priority,id`, actor.VendorID)
@@ -315,13 +325,16 @@ func (s *Service) List(ctx context.Context, actor production.Actor) ([]Campaign,
 		if c, scanErr = s.loadChildren(ctx, s.db, c); scanErr != nil {
 			return nil, scanErr
 		}
-		out = append(out, c)
+		if canReadCampaign(scope, c) {
+			out = append(out, c)
+		}
 	}
 	return out, rows.Err()
 }
 
 func (s *Service) SetStatus(ctx context.Context, actor production.Actor, id string, status Status, expectedVersion int64) (Campaign, error) {
-	if _, err := s.authorize(ctx, actor, PermManage); err != nil {
+	scope, err := s.authorize(ctx, actor, PermManage)
+	if err != nil {
 		return Campaign{}, err
 	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
@@ -338,6 +351,9 @@ func (s *Service) SetStatus(ctx context.Context, actor production.Actor, id stri
 	}
 	if current.Version != expectedVersion || !CanTransition(current.Status, status) {
 		return Campaign{}, ErrConflict
+	}
+	if !canManageCampaign(scope, current) {
+		return Campaign{}, ErrForbidden
 	}
 	row := tx.QueryRow(ctx, `UPDATE commerce_promotion_campaigns SET status=$1,version=version+1,updated_at=now() WHERE id=$2 AND business_id=$3 AND version=$4 RETURNING `+campaignColumns, status, id, actor.VendorID, expectedVersion)
 	updated, err := scanCampaign(row)
@@ -359,7 +375,8 @@ func (s *Service) SetStatus(ctx context.Context, actor production.Actor, id stri
 }
 
 func (s *Service) CreateCoupon(ctx context.Context, actor production.Actor, campaignID, code string, usageLimit, customerLimit *int64) (string, error) {
-	if _, err := s.authorize(ctx, actor, PermManage); err != nil {
+	scope, err := s.authorize(ctx, actor, PermManage)
+	if err != nil {
 		return "", err
 	}
 	digest := DigestCoupon(s.couponSecret, code)
@@ -369,6 +386,9 @@ func (s *Service) CreateCoupon(ctx context.Context, actor production.Actor, camp
 	c, err := s.Get(ctx, actor, campaignID)
 	if err != nil {
 		return "", err
+	}
+	if !canManageCampaign(scope, c) {
+		return "", ErrForbidden
 	}
 	if c.Status == Ended || c.Status == Archived || (usageLimit != nil && *usageLimit < 1) || (customerLimit != nil && *customerLimit < 1) {
 		return "", ErrCouponInvalid
@@ -380,6 +400,10 @@ func (s *Service) CreateCoupon(ctx context.Context, actor production.Actor, camp
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err = tx.Exec(ctx, `INSERT INTO commerce_promotion_coupons(id,campaign_id,business_id,code_digest,usage_limit,per_customer_usage_limit) VALUES($1,$2,$3,$4,$5,$6)`, id, c.ID, c.BusinessID, digest, usageLimit, customerLimit); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return "", ErrCouponExists
+		}
 		return "", err
 	}
 	if err = s.events.Publish(ctx, tx, "promotion.coupon.created", "promotion_campaign", c.ID, c.Version,

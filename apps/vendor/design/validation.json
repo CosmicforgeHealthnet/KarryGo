@@ -1,0 +1,176 @@
+{
+  "artboard": [
+    393,
+    852
+  ],
+  "screens": [
+    {
+      "id": "splash",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "welcome",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "catalogue",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "fulfilment",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "sign-in-phone",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "sign-in-email",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "code-phone",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "code-email",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "vendor-choice",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "signed-in",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "invalid-code",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "expired-code",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "verifying",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "network-error",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "access-unavailable",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    },
+    {
+      "id": "access-suspended",
+      "width": 393,
+      "height": 852,
+      "overflow": false,
+      "missingImages": 0,
+      "duplicateIds": [],
+      "textOverflow": []
+    }
+  ],
+  "responsive": [
+    {
+      "viewport": [
+        360,
+        800
+      ],
+      "screensChecked": 16
+    },
+    {
+      "viewport": [
+        375,
+        812
+      ],
+      "screensChecked": 16
+    }
+  ],
+  "prototype": [
+    "Phone \u2192 OTP \u2192 conditional vendor choice \u2192 signed in",
+    "Email \u2192 OTP \u2192 resend preview",
+    "Three onboarding slides \u2192 sign in",
+    "Skip onboarding \u2192 sign in"
+  ],
+  "browserErrors": [],
+  "pdfPages": 16
+}

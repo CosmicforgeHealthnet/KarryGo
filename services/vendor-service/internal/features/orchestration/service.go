@@ -761,8 +761,8 @@ func (s *Service) Override(ctx context.Context, request OverrideRequest) (Orches
 	if err != nil {
 		return Orchestration{}, err
 	}
-	if current.State.Committed() {
-		return current, ErrCommitted
+	if err = overrideStateError(current); err != nil {
+		return current, err
 	}
 	if s.gate != nil && !s.gate.Usable(request.Authority) {
 		return current, fmt.Errorf("%w: %s is not usable in this deployment",

@@ -553,6 +553,7 @@ func (s *PurchaseOrderService) GetApprovalPolicy(
 	}
 
 	policy.Rules = rules
+	policy.RulesComplete = scope.Global
 
 	return policy, nil
 }

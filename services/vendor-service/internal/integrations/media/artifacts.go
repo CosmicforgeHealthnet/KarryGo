@@ -353,3 +353,34 @@ func sha256Hex(content []byte) string {
 // the grant request, so replaying an idempotency key with a different request
 // is detected by the store rather than silently accepted.
 func fingerprintOf(body []byte) string { return sha256Hex(body) }
+
+func (s *ArtifactStore) ReadExportContent(ctx context.Context, businessID, ref, token string, maxBytes int64) ([]byte, error) {
+	if token == "" || ref == "" || maxBytes <= 0 {
+		return nil, fmt.Errorf("invalid export access")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL+privateBase+"/objects/"+url.PathEscape(ref)+"/content", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("X-Organization-ID", businessID)
+	request.Header.Set("X-Service-Nonce", randomNonce())
+	request.Header.Set("X-Download-Token", token)
+	if err = serviceauth.SignRequest(request, "vendor-service", s.secret, nil, time.Now()); err != nil {
+		return nil, err
+	}
+	client := *s.http
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("export content refused")
+	}
+	content, err := io.ReadAll(io.LimitReader(response.Body, maxBytes+1))
+	if err != nil || int64(len(content)) > maxBytes {
+		return nil, fmt.Errorf("export content too large or unavailable")
+	}
+	return content, nil
+}

@@ -125,6 +125,8 @@ func respond(c *gin.Context, value any, err error) {
 	status, code, message := http.StatusInternalServerError,
 		"ORCHESTRATION_UNAVAILABLE", "Fulfilment orchestration is temporarily unavailable."
 	switch {
+	case errors.Is(err, ErrForbidden):
+		status, code, message = http.StatusForbidden, "ORCHESTRATION_FORBIDDEN", "You may not use this surface."
 	case errors.Is(err, ErrDisabled):
 		status, code, message = http.StatusServiceUnavailable,
 			"ORCHESTRATION_DISABLED", "Just-in-time orchestration is not enabled."
@@ -155,10 +157,10 @@ func respond(c *gin.Context, value any, err error) {
 }
 
 func (h *Handler) get(c *gin.Context) {
-	if !h.allowed(c, PermissionOrchestrationRead) {
-		return
+	current, pickups, ok := h.scoped(c, PermissionOrchestrationRead, false)
+	if ok {
+		respond(c, gin.H{"orchestration": current, "pickups": pickups}, nil)
 	}
-	h.read(c)
 }
 
 // getInternal serves the same read to an authenticated service caller.
@@ -179,12 +181,8 @@ func (h *Handler) read(c *gin.Context) {
 }
 
 func (h *Handler) decisions(c *gin.Context) {
-	if !h.allowed(c, PermissionOrchestrationRead) {
-		return
-	}
-	current, err := h.repo.GetByGroup(c, c.Param("groupId"))
-	if err != nil {
-		respond(c, nil, err)
+	current, _, ok := h.scoped(c, PermissionOrchestrationRead, false)
+	if !ok {
 		return
 	}
 	events, err := h.repo.Decisions(c, current.ID, 0)
@@ -205,7 +203,7 @@ type overrideBody struct {
 // work is committed -- at that point an execution authority owns it, and
 // changing Vendor's record would only make the two disagree.
 func (h *Handler) override(c *gin.Context) {
-	if !h.allowed(c, PermissionOrchestrationOverride) {
+	if _, _, ok := h.scoped(c, PermissionOrchestrationOverride, true); !ok {
 		return
 	}
 	staff, _ := authctx.FromContext(c)

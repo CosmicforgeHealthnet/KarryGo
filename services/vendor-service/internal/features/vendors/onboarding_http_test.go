@@ -19,8 +19,8 @@ func TestRegisterOnboardingRoutesExposesExactSection7PublicSurface(t *testing.T)
 			count++
 		}
 	}
-	if count != 19 {
-		t.Fatalf("Section 7 public route count=%d want 19", count)
+	if count != 21 {
+		t.Fatalf("Section 7 public route count=%d want 21", count)
 	}
 }
 

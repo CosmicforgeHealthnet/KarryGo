@@ -130,8 +130,9 @@ import (
 // mission, stop and parcel evidence and exposes no customer or Vendor-staff
 // command surface.
 //
-// The figure is measured from production route registration, never targeted.
-const ExpectedRouteCount = 867
+// Four scoped scheduling reads and the two previously added onboarding upload
+// routes are included. The figure is measured from production registration.
+const ExpectedRouteCount = 873
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.

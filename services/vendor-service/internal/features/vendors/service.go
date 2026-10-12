@@ -31,15 +31,16 @@ type EventPublisher interface {
 }
 
 type Service struct {
-	db           *pgxpool.Pool
-	auth         Authorizer
-	audit        AuditRecorder
-	events       EventPublisher
-	verification VerificationAuthority
-	bank         BankAuthority
-	media        MediaAuthority
-	stepUp       StepUpConsumer
-	metrics      *Section7Metrics
+	assetValidator func(context.Context, string, string, string, string) error
+	db             *pgxpool.Pool
+	auth           Authorizer
+	audit          AuditRecorder
+	events         EventPublisher
+	verification   VerificationAuthority
+	bank           BankAuthority
+	media          MediaAuthority
+	stepUp         StepUpConsumer
+	metrics        *Section7Metrics
 }
 
 type ListOptions struct {
@@ -479,6 +480,22 @@ func (s *Service) UpdateBrand(ctx context.Context, actor Actor, businessID, id s
 	if err := validateBrand(in); err != nil {
 		return Brand{}, err
 	}
+	existing := map[string]bool{}
+	for _, ref := range before.MediaRefs {
+		existing[ref.MediaRef] = true
+	}
+	for _, ref := range in.MediaRefs {
+		if existing[ref.MediaRef] {
+			continue
+		}
+		if s.assetValidator == nil {
+			return Brand{}, apperrors.Unavailable("Brand image validation is unavailable.", nil)
+		}
+		if err = s.assetValidator(ctx, businessID, "BRAND", id, ref.MediaRef); err != nil {
+			return Brand{}, apperrors.BadRequest("Choose a validated image uploaded for this brand.", nil)
+		}
+	}
+
 	raw, _ := json.Marshal(in.MediaRefs)
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -1002,4 +1019,8 @@ func (s *Service) record(ctx context.Context, actor Actor, action, aggregate, id
 		return
 	}
 	_ = s.audit.Record(ctx, AuditEntry{ActorID: actor.StaffID, Action: action, AggregateType: aggregate, AggregateID: id, VendorID: actor.VendorID, BranchID: branch, Before: before, After: after, Reason: reason})
+}
+
+func (s *Service) UseAssetValidator(fn func(context.Context, string, string, string, string) error) {
+	s.assetValidator = fn
 }

@@ -1,0 +1,224 @@
+# Vendor frontend build guide
+
+Reviewed: 7 October 2026. Scope: repository backend features, public contracts, business flows and related Customer/Provider surfaces. No frontend code or live deployment testing was performed.
+
+## Using this guide
+
+Use this document to plan screens and flows, [API_REFERENCE.md](API_REFERENCE.md) for methods/paths/headers/DTOs and [API_INVENTORY.json](API_INVENTORY.json) for tooling. The reference retains each operation's original contract and schemas. Missing OpenAPI schemas require handler inspection; they do not prove a command needs no input.
+
+Evidence reviewed: `cmd/main.go` composition, auth registration, order lifecycle/HTTP, picking and handover handlers, readiness/orchestration registration, OpenAPI catalogue, existing frontend/UI requirements, lifecycle/ETA architecture, Section 32 traceability, implementation status and production certification. This inventories contracts and checks major flows against source; it does not independently certify every business feature.
+
+## Availability and documentation corrections
+
+- Implementation is not deployment proof. The 11 September production report says staging/production GO blocked. The newer 28 September commerce closure reports local lifecycle completion using explicit Wallet/logistics test doubles; external certification remains pending.
+- Older frontend handoff paragraphs say logistics OTP/QR does not exist. Section 32 and current handlers supersede that statement: Dispatch, Hauling, Taxi Goods and Vendor-owned custody integrations exist. Relays remain independently disabled by default until their authority deployment is certified.
+- Older Section 17 notes exclude Taxi. The newer commerce closure supports Taxi Goods/CAR. Render it when offered by the backend; ordinary passenger Taxi booking is separate.
+- Versioning is module-specific: order lifecycle/picking uses `If-Match`; many other commands use body `expected_version`. Do not use one global write schema.
+- Some successful commands return 204 without a body, including picking quality recording. Accept this alongside success envelopes and 202/pending operations.
+- Default-off readiness/orchestration modules may have no mounted routes. A 404 is not always an empty dataset.
+- Analytics belongs to Analytics Service. Taxonomy administration, indexing, callbacks and money-authority APIs are not Vendor frontend controls.
+
+## Navigation and screen map
+
+Recommended navigation: Overview, Orders, Catalogue, Stock, Purchasing, Production, Customers, Marketing, Delivery, Finance, Reports, Settings. This is a proposed frontend structure. Show features based on enabled business/branch capabilities and current staff permission/scope.
+
+Keep business/branch selection visible. A staff identity may belong to multiple vendors; role assignments can be branch-specific. Clear scoped caches and entity selections when switching business/branch. Obtain capability types from `GET /capability-types`; do not invent a hardcoded business-type vocabulary.
+
+Contract names below refer to files in `../openapi/`.
+
+| Area | Screens and functionality | Main contracts |
+|---|---|---|
+| Authentication/IAM | OTP login/resend, business choice, rotating sessions, logout, step-up, staff invitations/detail/suspension, roles/assignments, permissions | section5-auth-staff-iam |
+| Business settings | Business profile/capabilities, brands, branches, hours, service radius, operations settings, effective branch capability, pause/resume | section6-vendor-business |
+| Onboarding | Checklist/progress/blockers, representative, private document references, six verification dimensions/remediation, masked bank profile, activation request | section7-onboarding-verification |
+| Food catalogue | Menus/sections/items, variants/modifiers/options, ordering, prices/media, availability/schedules/operations | section9a-food-catalogue; section9b-food-operations |
+| Specialized food operations | Cloud Kitchen/Pastry production settings, scheduling, capacity and operational entities; use the detailed route families to define individual pages | sections10-11-production |
+| Shop catalogue/stock | Categories, products/SKUs/variants/attributes, prices/media, sellability, stock visibility/operations | section12a-shop-catalogue; section12b-shop-inventory |
+| Taxonomy | Vendor namespace/category browsing and catalogue mappings; operator administration excluded | section13-taxonomy |
+| Generic inventory | Items/branch balances, lots/expiry, receiving, ledger, adjustments/quarantine/disposal, transfers, stocktakes, reorder rules, reservations | section14-vendor-inventory |
+| Purchasing | Suppliers/products, purchase orders, approval queue, actual receipts/discrepancies, outstanding deliveries, supplier performance | section15-vendor-purchasing |
+| Production foundations | Ingredients, packaging materials, branch configurations, unit conversions | section16a-vendor-production-master |
+| Recipes/batches/cost | Recipe definitions/versions, batch planning/execution/consumption/output/waste, operational cost entries/allocations/snapshots | section16b-vendor-recipes; section16c-vendor-production-batches; section16d-vendor-operational-cost |
+| Orders | Scoped list/detail/history, accept/reject, Food preparation, Shop picking/quality/substitution/measurement, packing/readiness, cancellation and financial projection | section17e-parent-vendor-orders; section18-vendor-order-lifecycle; shop-picking-substitution-variable-measurement |
+| Readiness/orchestration | State/history, estimates, ready-soon/ready/delay/block; decisions and restricted authority override | Supplemental source routes in API reference |
+| Delivery | Own-delivery policy; fulfilment groups/parcels/missions, requirements/vehicle choice, consolidation/physical evidence | section17c-vendor-delivery-policy; fulfilment-group-parcel-mission; commerce-fulfilment-optimization |
+| Own rider | Availability, assigned/current missions, mission details/actions, controlled platform fallback | vendor-owned-hybrid-delivery-runtime |
+| Pickup custody | Mission handover read-back and provider-presented pickup OTP/QR confirmation | section32-handover |
+| CRM | Customer relationships/360, tags/segments, interactions/tasks, loyalty/tiers/adjustments, corporate accounts/sites/contacts, intelligence/private exports | section8a through section8h; section8-completion-crm |
+| Marketing | Campaign drafts/experiments, audience preview/preparation/snapshots/targets, execution/results, promotions/delivery funding | section8e; section8f; promotions-delivery-funding |
+| Scheduled/B2B | Scheduled orders/cancellation, vendor RFQ quotes, recurring schedule/status/occurrences | scheduled_group_rfq_recurring_commerce |
+| Finance | Wallet-authoritative overview/transactions, masked banks, withdrawal request/history/detail, order settlement/refund projection | vendor-finance |
+| Support | Commerce cases/reports, private evidence and resolution projection; check each route's caller security | commerce-support-cases |
+| Reports | Sales/AOV, stock/waste, suppliers, preparation/picking, delivery, CRM, reliability/aggregate intelligence | Analytics Service commerce-analytics-reporting-reliability contract |
+
+Customer-only surfaces include discovery/search, cart/preview, checkout, immutable quote approval, payment, order tracking/ETA, commercial changes, group ordering, RFQ acceptance and basket optimization. Their contracts provide integration context; they are not Vendor staff controls. Internal/operator contract entries must not be connected to frontend buttons.
+
+## Flow 1: sign-in and access
+
+1. Enter phone OR email -> `/auth/start` -> retain challenge id -> OTP verification. Confirm deployed phone delivery; older notes describe email-only delivery.
+2. If verify returns `requires_vendor_choice` and `available_vendor_ids`, show business choice and repeat verification using the same OTP/challenge plus `vendor_id`. This response has no tokens.
+3. Store access/refresh securely; send bearer access token on protected routes. Serialize refresh requests because successful refresh rotates and invalidates the old refresh token.
+4. Establish business and authorized branch scope. Permissions are capabilities, not role names. A permission catalogue is not the current user's effective permission set; a dedicated current-effective-access endpoint is not documented and needs resolution.
+5. Guarded action -> purpose-specific step-up start/verify -> single-use `step_up_grant_id` in actual command. Reacquire if expired/consumed.
+6. Handle mid-session suspension/permission change as authoritative. Logout clears tokens and scoped caches.
+
+States: loading, OTP entry/resend cooldown, invalid/expired code, channel unavailable, business choice, session expired/access revoked. Never wire `debug_otp` into production.
+
+## Flow 2: onboarding and activation
+
+Business/brand/branch/capability setup -> authoritative checklist/readiness -> representative -> private Media uploads -> document-reference attachment -> submit verification -> review/remediation -> activation request. A request does not authorize the client to mark a business active.
+
+Verification statuses: `NOT_STARTED`, `IN_PROGRESS`, `PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `EXPIRED`, `SUSPENDED`. Dimensions: `IDENTITY`, `BUSINESS`, `BANK`, `LOCATION`, `BRAND`, `FOOD_KITCHEN`. Applicable `PENDING_REVIEW` is activation-blocking. Do not add Vendor approve/verify controls.
+
+Bank fields are masked on reads; full account input is write-only. Bank replacement requires `finance.bank_change` step-up. Representative replacement after identity verification can require a separate purpose. Document edit/delete can be draft-only. Preserve versions and display blockers instead of a freely editable approval wizard.
+
+## Flow 3: catalogue, inventory and purchasing
+
+Select branch/capability -> configure Food menus/items/options or Shop products/SKUs -> upload authorized media -> set contract prices/availability/schedules -> inspect effective sellability. Saved does not mean purchasable. Show returned inactive/verification/stock refusal reasons. Vendor taxonomy maps existing categories rather than administering platform taxonomy.
+
+Shop-specific stock and generic inventory have separate existing contracts: do not duplicate their ledgers. Newer lifecycle evidence says Food orders do not claim an Inventory hold, so do not impose Shop reservation behavior on Food.
+
+Supplier/product setup -> purchase-order draft -> submit/approval -> receive actual goods -> discrepancy -> updated stock ledger. Receiving is one backend effect; do not add another frontend stock increment. Approval is not supplier payment. Transfers/stocktakes/adjustments need reasons and backend versions, not direct balance editing.
+
+## Flow 4: production
+
+Ingredients/packaging/conversions -> versioned recipe -> planned batch -> permitted execution stages -> authorized consumption/output/waste -> completion -> updated balances/cost snapshots. Display frozen recipe/cost versions when provided. Cloud Kitchen/Pastry capacity and scheduling remain their own capability-specific workflows. Cost figures are operational decision support, not audited accounting or editable history.
+
+## Flow 5: checkout reaches Vendor operations
+
+Customer discovery -> cart -> delivery preview -> checkout validation -> fulfilment plan -> immutable quote -> explicit approval -> ParentOrder and per-vendor/branch VendorOrders -> bound payment -> worker fulfilment activation -> Vendor execution -> custody/delivery -> settlement/refund projection.
+
+Preview creates no stock hold, payment or mission. Order creation happens before payment. Each VendorOrder has isolated lifecycle/payment: cancelling vendor A must not hide vendor B's successful delivery. ParentOrder state is derived and may be mixed. Order, fulfilment group, parcel and physical mission are different: one consolidated mission can carry multiple vendors' parcels and a purchase can split into missions.
+
+Preserve quote id/version/fingerprint; never submit a recomputed payable total as authority. Address/mode/service-level changes and costlier replacements can require a replacement quote and explicit customer approval. Operational replanning cannot silently increase the agreed charge.
+
+## Flow 6: order workspace and actions
+
+List: branch scope, status filters and authoritative pagination. Detail: reference/version, frozen line items/options/quantities, permitted customer fields, accepted promise, delivery responsibility, parcel/mission mapping, preparation/picking, timeline, ETA range and separate financial status.
+
+Typical Food overview: SENT_TO_VENDOR/PAID -> ACCEPTED -> PREPARING -> READY/READY_FOR_PICKUP -> authority pickup/delivery -> COMPLETED.
+
+Typical Shop overview: ACCEPTED -> PICKING -> PACKING -> READY_FOR_PICKUP -> authority pickup/delivery -> COMPLETED, with substitution/customer-decision branches. These are UX overviews, not unconditional transition permissions. Source has legacy paths and extra service guards. Accept from CREATED can lead directly to PREPARING; accept from PAID/SENT_TO_VENDOR leads to ACCEPTED. Read back actual result.
+
+Statuses: CREATED, PENDING_PAYMENT, PAID, SENT_TO_VENDOR, ACCEPTED, PREPARING, PICKING, SUBSTITUTION_REQUIRED, AWAITING_CUSTOMER, PACKING, READY, READY_FOR_PICKUP, HANDED_OVER, PICKED_UP, DELIVERING, DELIVERED, COMPLETED, CANCELLED, REJECTED, REFUND_PENDING, REFUNDED, PARTIALLY_REFUNDED.
+
+Lifecycle/picking sends current order version in If-Match and required Idempotency-Key. On conflict reload/reconcile. Action availability depends on permission, state and delivery responsibility. Platform pickup/transit/delivery advances from logistics authority; Vendor cannot use a mark-delivered shortcut. Own-rider completion also respects secure custody; the generic state machine alone is not bypass authorization.
+
+## Flow 7: Shop picking and substitutions
+
+Ordered picking queue -> frozen line/quality preferences -> picked/unavailable quantities -> quality result/actual measurement where applicable -> packing/readiness after blockers resolve. Quantity units and frozen price basis come from backend. Quality recording can return 204; measurement returns data.
+
+Unavailable line -> authorized replacement proposal -> authenticated customer decision -> read back order/case/commercial state. Respect EXACT_ONLY. Equal, cheaper and costlier replacements have distinct money paths. Costlier acceptance requires commercial-change/payment completion to become effective. Cheaper replacement does not prove an executed refund. Show unresolved customer/commercial decisions.
+
+Legacy substitution DTO includes proposed item/variant/catalogue refs, replacement snapshot, quantity, minor-unit price, reason and optional expiry. Match current contract/handler before implementing; arbitrary catalogue data is not financial authority.
+
+## Flow 8: readiness, delivery and custody
+
+Preparation/picking -> readiness start/estimate/ready-soon/ready/delay/block -> server orchestration -> provider assignment/arrival -> pickup custody -> delivery custody or permitted recovery. Render reasons/history and server decisions; do not dispatch providers from frontend. Readiness/orchestration routes are supplemental and default-off.
+
+Display server-selected Dispatch motorcycle, Taxi Goods car, Hauling van/truck or Vendor-owned execution. Requirements, manifest/parcel counts and pickup sequence are authoritative. NO_PROVIDER_QUEUED means finding a rider, not terminal failure.
+
+Pickup read: GET /api/v1/vendor/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/{stage}.
+
+Pickup relay: POST /api/v1/vendor/commerce/orders/{vendorOrderId}/missions/{missionId}/handover/pickup/confirm.
+
+Body: handover_ref, method, credential. Operation reference: Idempotency-Key. Confirm method vocabulary in authority contract. Staff receives/scans provider-presented pickup OTP/QR; this is separate from login OTP. Show verified only after canonical CONSUMED, not merely transport success.
+
+HANDOVER_OUTCOME_UNKNOWN means same-mission operation read-back. Handle HANDOVER_NOT_AVAILABLE, HANDOVER_SCOPE_INVALID, HANDOVER_REJECTED and HTTP 412 RECEIVER_SECURE_CHANNEL_REQUIRED. No offline completion. Never show receiver delivery credentials to Vendor staff or retain custody secrets in storage/logs/analytics.
+
+Own-rider availability -> assigned/current mission -> supported actions -> secure handover. Platform fallback is a controlled operation with reference read-back, not a client service picker. Split missions stay distinct. RETURNING, RETURNED, REPLACEMENT_REQUIRED, TRANSFER_PENDING and PROVIDER_TRANSFERRED do not themselves mean refund or charge. Prepared Food returns do not imply Shop restocking/resale.
+
+## Flow 9: CRM, campaigns and corporate accounts
+
+CRM relationships originate from authority events; no create-customer form using Customer Service id. Customer 360 is scoped and does not guarantee canonical phone/email/address; display_label can be absent. Consent/privacy are read-only authority states: no grant-consent or undo-redaction controls.
+
+Tags -> segment rule/preview -> evaluation -> freshness-aware membership. Unavailable metrics are not zero. Interactions/tasks have supported transitions/history. Loyalty/tier adjustment/reversal follows permission/version/step-up; integer points are not wallet funds.
+
+Campaign draft -> audience/experiment -> preview -> asynchronous preparation/snapshot -> target review -> enabled/eligible execution -> results. Preparation is not sending/consent. Corporate accounts/sites/cost centres/contacts have scoped activity/archive effects. Exports are private asynchronous artifacts, not public links.
+
+## Flow 10: scheduled, RFQ and recurring commerce
+
+Vendor scheduled orders/cancellation, RFQ quotation submission and recurring schedule/status/occurrences. Customer opens/counters/accepts/converts RFQs through normal quote/payment authority. Group participants use scoped participant tokens where declared; organizer payment is current scope. Participant split payment is not implemented.
+
+Basket optimization/recurring baskets can generate proposals without ordering/charging. Automatic buying, where supported, requires explicit customer authorization/spending limits. Vendor scheduling and customer recurring baskets are different surfaces.
+
+## Flow 11: finance, reporting and support
+
+Finance overview -> transactions/history -> masked bank choice -> finance.withdrawal step-up -> withdrawal request -> reference read-back. Wallet is authority. Keep unknown outcomes pending with original key/reference. Cancellation/delivery failure is not refund proof; never derive a wallet balance locally.
+
+Reports show window_start/window_end/data_as_of. Label demand/lost-opportunity as estimates and respect low-sample benchmark suppression. Reliability is a versioned operational score, not verification/star rating. Order Guarantee is FUTURE_DISABLED. Support uploads private evidence then attaches opaque mission/parcel-bound refs; resolution is authority-owned.
+
+## Shared implementation rules
+
+| Concern | Frontend behavior |
+|---|---|
+| Paths | Configure certified ingress. Vendor usually /api/v1/vendor, Customer commerce /api/v1/commerce. Relative OpenAPI paths use their servers base. Do not assume API Gateway currently mounts Vendor |
+| Responses | Parse success/data and error envelopes, accept 202/pending and 204/empty, preserve request id for support |
+| Fields | Match snake_case DTOs. Strict handlers reject unknown keys; do not invent missing request fields |
+| Money/quantity | Integer minor units and contract-defined quantity scales; display conversion does not change authority. Parse large integers safely in JavaScript |
+| Versions | Exact body version or If-Match per command. On 409 reload/reconcile |
+| Idempotency | New key per deliberate command; identical key/body on retry. Auth is not blanket idempotency-header controlled |
+| Permissions | Permission plus branch scope, not role name; catalogue alone is not effective access |
+| Pagination | Per-endpoint contract. Business lists use items/pagination {limit,offset,has_more}; some IAM/onboarding lists are unpaginated |
+| Media | Private upload -> opaque ref -> authorized attachment. Confirm public Vendor upload/access contract, never use internal HMAC from frontend |
+| Time/ETA | Preserve server timezone/windows; distinguish promise/prediction/actual. Render separate mission ranges and LOW/MEDIUM/HIGH confidence/freshness; missing ETA is unavailable evidence |
+| Realtime | Events are hints. Deduplicate source event/version, re-fetch on reconnect/gaps, use polling fallback. Confirm public subscription/auth transport |
+| 400/422 | Field validation and retained form input |
+| 401 | Serialized refresh or sign-in |
+| 403/404 | Controlled permission/scope/absence state; step-up only where required |
+| 409 | State/version/policy/idempotency conflict; read back rather than blindly retry |
+| 429 | Cooldown/backoff; honor Retry-After when present, do not assume it always exists |
+| 503/timeout | Disabled dependency or unknown operation; read back original tracked operation before retrying money/custody commands |
+
+Each screen needs applicable loading, empty, unavailable, forbidden, validation, conflict, pending and confirmed states. Optimistic UI cannot confirm stock, money, verification or custody. Persist drafts separately from submitted operations and clear tenant-scoped state on account changes.
+
+## Suggested build sequence
+
+1. API/session refresh, scoped state, errors, versions/idempotency, permissions strategy and shared UI primitives.
+2. Login/business picker, onboarding and business/branch/capability settings.
+3. Food/Shop catalogue and appropriate stock views.
+4. Orders/actions, preparation and Shop picking/substitution/measurement.
+5. Delivery policy, parcels/missions, certified pickup relay, readiness and own rider where enabled.
+6. Finance, purchasing and production workspaces.
+7. CRM/loyalty/corporate, campaigns/promotions, scheduled/RFQ, reports/support.
+
+This is a proposed sequence; the screen map retains the full backend scope.
+
+## Integration gaps to resolve
+
+- Vendor web, mobile or both? Existing handoffs reference Flutter and later Vendor Web; backend does not determine stack.
+- Certified public URL and enabled flag/dependency matrix: local tests and repository status are not deployed availability.
+- Current-session effective permissions/authorized branch bootstrap: no single documented endpoint.
+- First-owner/business provisioning: do not interpret staff OTP login as proven self-registration.
+- Public Vendor-compatible Media upload/access and Notification subscription authentication.
+- Sparse request/response schemas: complete them or use verified handler DTOs before generating a client.
+- Vendor authorization/facade for Analytics and each Support route.
+
+## Frontend acceptance checks
+
+- Multi-business sign-in, branch isolation, token rotation and mid-session revocation.
+- Onboarding displays authoritative blockers/review/remediation without Vendor approval controls.
+- Stale edits cannot overwrite; identical retries do not duplicate effects.
+- Replacement/measurement respects customer policy, frozen pricing and commercial approval.
+- Cancelling one allocation preserves sibling progress.
+- Money/custody timeouts stay pending until authority read-back; secrets never enter telemetry/storage.
+- Platform delivery is not advanced by Vendor shortcuts; pickup requires canonical consumption.
+- Split mission ETA and accepted promise stay distinct.
+- CRM consent/privacy and report freshness/suppression remain authoritative.
+- Disabled modules are controlled states; Customer/operator/internal endpoints never use Vendor staff credentials.
+
+## Source links
+
+- [Route composition](../../cmd/main.go)
+- [Order lifecycle](../../internal/features/orders/lifecycle.go)
+- [Order HTTP and If-Match](../../internal/features/orders/http.go)
+- [Picking HTTP](../../internal/features/orders/shop_picking_http.go)
+- [Pickup relay](../../internal/features/orders/handover_http.go)
+- [Readiness routes](../../internal/features/fulfilment_readiness/http.go)
+- [Orchestration routes](../../internal/features/orchestration/http.go)
+- [Existing frontend requirements](../FRONTEND_REQUIREMENTS.md)
+- [Existing UI requirements](../UI_UX_REQUIREMENTS.md)
+- [Implementation status](../IMPLEMENTATION_STATUS.md)
+- [Section 32 authority correction](../SECTION32_TRACEABILITY.md)
+- [Production certification](../FINAL_PRODUCTION_GO_CERTIFICATION.md)
+- [ETA architecture](../architecture/22_REALTIME_NOTIFICATIONS_CONFIDENCE_ETA.md)

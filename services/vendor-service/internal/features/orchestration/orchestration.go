@@ -164,6 +164,7 @@ const (
 
 // Sentinel errors.
 var (
+	ErrForbidden  = errors.New("orchestration: forbidden")
 	ErrValidation = errors.New("orchestration: validation failed")
 	ErrNotFound   = errors.New("orchestration: not found")
 	ErrVersion    = errors.New("orchestration: version conflict")

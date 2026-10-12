@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Scoped rider branch discovery",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/vendor/delivery/rider/branches": {
+      "get": {
+        "operationId": "getRiderBranches",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active branches within execute-assigned permission and current active rider role assignments. Minimal IDs and display names with pagination."
+          },
+          "403": {
+            "description": "Assigned delivery access required"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

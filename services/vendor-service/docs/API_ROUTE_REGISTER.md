@@ -64,6 +64,15 @@ Section 7 adds 19 public Vendor routes and 1 internal Vendor route: 20 new, 73 c
 
 Human-readable master catalogue of every Vendor Commerce route, across every affected service. `docs/openapi/` is the machine-readable authority; this index is cross-checked by the Section 5 and Section 6 route-parity contract tests.
 
+## Vendor onboarding upload routes
+
+| Method | Path |
+| --- | --- |
+| POST | /api/v1/vendor/onboarding/document-uploads |
+| GET | /api/v1/vendor/onboarding/document-uploads/{mediaRef} |
+
+These existing routes authorize compliance-document uploads only; they are not catalogue-media upload endpoints.
+
 ## Section 21 Prompt 1 commerce foundation
 
 The scheduled/bulk, group-ordering and core-RFQ operations are feature-flagged by `COMMERCE_BULK_RFQ_ENABLED`. Vendor quote/scheduling commands use Vendor staff IAM; customer group/RFQ commands use the Customer bearer; participant mutations use a short-lived, session-scoped token and `X-Group-Participant-Token`.
@@ -71,6 +80,10 @@ The machine-readable contract is `openapi/scheduled_group_rfq_recurring_commerce
 
 | Method | Path |
 |---|---|
+| GET | /api/v1/vendor/commerce/section21/scheduled-orders |
+| GET | /api/v1/vendor/commerce/section21/scheduled-orders/{id} |
+| GET | /api/v1/vendor/commerce/section21/recurring-schedules |
+| GET | /api/v1/vendor/commerce/section21/recurring-schedules/{scheduleId} |
 | POST | /api/v1/vendor/commerce/section21/scheduled-orders |
 | POST | /api/v1/vendor/commerce/section21/scheduled-orders/{id}/cancel |
 | POST | /api/v1/vendor/commerce/section21/rfqs/{rfqId}/quotes |
@@ -1969,3 +1982,27 @@ Customer access bearer only. CUSTOMER_FOOD_ENABLED/CUSTOMER_SHOP_ENABLED and mat
 | POST | `/api/v1/commerce/shop/search` | Customer bearer |
 | GET | `/api/v1/commerce/shop/search/suggestions` | Customer bearer |
 | GET | `/api/v1/commerce/carts/{cartId}/delivery-preview` | Customer bearer |
+
+### Pastry attached option-group discovery (11 October 2026)
+
+`GET /api/v1/vendor/pastry/products/:productId/option-groups` is mounted by pastry `attachedGroups`. It requires `vendor.pastry.read`, checks product business and staff branch scope, and returns attached groups ordered by position and group ID. Each row contains group_id, name, group_type, min_select, max_select, status, version, position and required. Existing attach/detach commands retain product expected_version checks. The updated vendor service must be deployed before Live attachment discovery is available.
+
+### Vendor RFQ discovery - 11 October 2026
+
+Added GET /api/v1/vendor/commerce/section21/rfqs, /rfqs/:rfqId and /rfqs/:rfqId/quotes under COMMERCE_BULK_RFQ_ENABLED. Requires vendor.orders.read and nonempty staff scope. Non-draft RFQs require explicit eligibility_scope.vendor_ids membership. Own quote revisions are vendor/branch scoped; requester identity and competitor quotes are excluded. Existing manage authorization remains required for submission. Idempotency replay rejects keys belonging to another vendor/branch. Deployed/database-backed verification remains pending.
+
+### Approved scheduling quote discovery - 11 October 2026
+
+Added GET /api/v1/vendor/commerce/section21/scheduling-quotes and /scheduling-quotes/:quoteId (branch_id required for detail). Reads require orders.read and vendor/branch scope; approval and expiry are checked and quote lines are projected to this vendor/branch only. Scheduling creation now requires the approved quote to actually contain its business/branch, closing an unbound-quote acceptance path. Existing manage authorization, checkout approval and production reservation authority remain intact. Routes use COMMERCE_BULK_RFQ_ENABLED; deploy the updated service before Live discovery.
+
+### Corporate recurring setup context - 11 October 2026
+
+GET /api/v1/vendor/commerce/section21/recurring-setup-contexts is mounted under COMMERCE_BULK_RFQ_ENABLED. Requires vendor.orders.read and vendor.crm.corporate.read; projects approved own-vendor FOOD quote contexts linked to an active, scoped corporate account through a privacy-safe canonical customer contact. Returns immutable checkout address and backend-defined schema_version=1 FIXED menu evidence. Quote-page pagination returns next_offset; zero eligible contexts can still have more pages. Recurring creation validates those bindings; exact existing-plan evidence can be reused and idempotency replay remains valid after quote expiry. Editing cannot replace typed context. No recurring customer purchase or payment authority is granted. Database/deployment verification remains outstanding.
+
+
+CRM export file access: POST `/api/v1/vendor/crm/exports/:exportId/file` uses `vendor.crm.exports.download`, fresh `crm.export.download` verification and an idempotency key. Returns CSV/JSONL bytes through server-only private Media access; saves only a completion marker. Export creation recovery fingerprints settings and staff, excluding the transient grant; replay still requires current scope and fresh create verification.
+
+
+Pastry reference bridge: GET `/api/v1/vendor/pastry/request-references` requires `vendor.pastry.manage` and the requested CRM read permission, intersects branch scope and returns paginated canonical customer references or active CRM corporate profile IDs. New references are revalidated and row-locked at creation; optional unlinked requests remain valid. See pastry-request-references.openapi.json. No nested requirement keys were introduced.
+
+Vendor asset media: POST /api/v1/vendor/media/uploads and GET /api/v1/vendor/media/objects/:mediaRef[/content] authorize actual product/brand/pastry records and staff scope. Private purpose/binding grants, SAFE-only use, bounded bytes/checksum, existing version-checked attachments. See vendor-asset-media.openapi.json and apps/vendor/docs/media.md.

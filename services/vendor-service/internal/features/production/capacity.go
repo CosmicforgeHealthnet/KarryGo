@@ -996,11 +996,11 @@ func (s *Service) ExpireHolds(ctx context.Context, limit int) (int, error) {
 
 // ReleaseInput describes a full or partial release.
 type ReleaseInput struct {
-	ExpectedVersion int64
+	ExpectedVersion int64 `json:"expected_version"`
 	// Partial, when set, releases only this many units from the named pools and
 	// leaves the reservation active. Empty means release everything.
-	Partial []AllocationRequest
-	Reason  string
+	Partial []AllocationRequest `json:"partial"`
+	Reason  string              `json:"reason"`
 }
 
 // Release frees capacity, wholly or partly.

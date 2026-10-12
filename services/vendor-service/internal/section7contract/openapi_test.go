@@ -12,6 +12,7 @@ var routes = []struct{ method, path string }{
 	{"GET", "/onboarding"}, {"GET", "/onboarding/progress"}, {"GET", "/onboarding/checklist"}, {"GET", "/onboarding/blockers"}, {"GET", "/onboarding/activation-readiness"}, {"POST", "/onboarding/submit"}, {"POST", "/onboarding/request-activation"},
 	{"GET", "/onboarding/representative"}, {"PUT", "/onboarding/representative"}, {"GET", "/onboarding/documents"}, {"POST", "/onboarding/documents"}, {"PATCH", "/onboarding/documents/{documentId}"}, {"DELETE", "/onboarding/documents/{documentId}"},
 	{"GET", "/onboarding/verifications"}, {"GET", "/onboarding/verifications/{dimension}"}, {"POST", "/onboarding/verifications/{dimension}/submit"}, {"POST", "/onboarding/verifications/{dimension}/resubmit"}, {"GET", "/onboarding/bank-profile"}, {"PUT", "/onboarding/bank-profile"},
+	{"POST", "/onboarding/document-uploads"}, {"GET", "/onboarding/document-uploads/{mediaRef}"},
 	{"POST", "/internal/vendor/v1/verification-events"},
 }
 

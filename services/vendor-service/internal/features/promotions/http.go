@@ -43,6 +43,8 @@ func promotionError(err error) error {
 		return apperrors.Forbidden("You may not manage this promotion.", err)
 	case errors.Is(err, ErrConflict), errors.Is(err, ErrInvalidState):
 		return apperrors.Conflict("The promotion changed or cannot enter that status.", err)
+	case errors.Is(err, ErrCouponExists):
+		return apperrors.Validation("This coupon code is already in use.", nil)
 	case errors.Is(err, ErrInvalidCampaign), errors.Is(err, ErrCouponInvalid):
 		return apperrors.Validation("Check the promotion values.", nil)
 	default:

@@ -93,7 +93,7 @@ func validateRecurringInput(in RecurringScheduleInput, now time.Time) (*time.Loc
 			return nil, "", ErrSection21Schedule
 		}
 	}
-	startDate := time.Date(in.StartsOn.In(loc).Year(), in.StartsOn.In(loc).Month(), in.StartsOn.In(loc).Day(), 0, 0, 0, 0, loc)
+	startDate := time.Date(in.StartsOn.Year(), in.StartsOn.Month(), in.StartsOn.Day(), 0, 0, 0, 0, loc)
 	todayDate := time.Date(now.In(loc).Year(), now.In(loc).Month(), now.In(loc).Day(), 0, 0, 0, 0, loc)
 	if startDate.Before(todayDate) {
 		return nil, "", ErrSection21Schedule
@@ -128,9 +128,12 @@ func (s *Section21Service) CreateRecurringSchedule(ctx context.Context, in Recur
 	defer tx.Rollback(ctx)
 	var existingID string
 	existed := tx.QueryRow(ctx, `SELECT id FROM commerce_recurring_schedules WHERE business_id=$1 AND idempotency_key=$2 FOR UPDATE`, in.BusinessID, in.IdempotencyKey).Scan(&existingID) == nil
-	err = tx.QueryRow(ctx, `INSERT INTO commerce_recurring_schedules(id,business_id,requester_id,corporate_ref,branch_id,weekdays,meal_time,timezone,headcount,allowance_minor,destination_snapshot,menu_rotation,production_requirement,tentative_vehicle_class,advance_horizon_days,starts_on,ends_on,idempotency_key) VALUES($1,$2,$3,$4,$5,$6::smallint[],$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),$15,$16,$17,$18) ON CONFLICT (business_id,idempotency_key) DO UPDATE SET id=commerce_recurring_schedules.id RETURNING id,business_id,requester_id,corporate_ref,branch_id,weekdays,meal_time::text,timezone,headcount,allowance_minor,destination_snapshot,menu_rotation,production_requirement,COALESCE(tentative_vehicle_class,''),advance_horizon_days,starts_on,ends_on,status,version,created_at,updated_at`, sid("crs_"), in.BusinessID, in.RequesterID, in.CorporateRef, in.BranchID, weekdaysParam, meal, in.Timezone, in.Headcount, in.AllowanceMinor, destination, rotation, productionRaw, vehicle, in.AdvanceHorizonDays, in.StartsOn.In(loc).Format("2006-01-02"), nullableDate(in.EndsOn, loc), in.IdempotencyKey).Scan(&out.ID, &out.BusinessID, &out.RequesterID, &out.CorporateRef, &out.BranchID, &weekdaysDB, &meal, &out.Timezone, &out.Headcount, &out.AllowanceMinor, &destinationRaw, &rotationRaw, &productionRawDB, &out.TentativeVehicleClass, &out.AdvanceHorizonDays, &out.StartsOn, &out.EndsOn, &out.Status, &out.Version, &out.CreatedAt, &out.UpdatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO commerce_recurring_schedules(id,business_id,requester_id,corporate_ref,branch_id,weekdays,meal_time,timezone,headcount,allowance_minor,destination_snapshot,menu_rotation,production_requirement,tentative_vehicle_class,advance_horizon_days,starts_on,ends_on,idempotency_key) VALUES($1,$2,$3,$4,$5,$6::smallint[],$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),$15,$16,$17,$18) ON CONFLICT (business_id,idempotency_key) DO UPDATE SET id=commerce_recurring_schedules.id RETURNING id,business_id,requester_id,corporate_ref,branch_id,weekdays,meal_time::text,timezone,headcount,allowance_minor,destination_snapshot,menu_rotation,production_requirement,COALESCE(tentative_vehicle_class,''),advance_horizon_days,starts_on,ends_on,status,version,created_at,updated_at`, sid("crs_"), in.BusinessID, in.RequesterID, in.CorporateRef, in.BranchID, weekdaysParam, meal, in.Timezone, in.Headcount, in.AllowanceMinor, destination, rotation, productionRaw, vehicle, in.AdvanceHorizonDays, in.StartsOn.Format("2006-01-02"), nullableDate(in.EndsOn, loc), in.IdempotencyKey).Scan(&out.ID, &out.BusinessID, &out.RequesterID, &out.CorporateRef, &out.BranchID, &weekdaysDB, &meal, &out.Timezone, &out.Headcount, &out.AllowanceMinor, &destinationRaw, &rotationRaw, &productionRawDB, &out.TentativeVehicleClass, &out.AdvanceHorizonDays, &out.StartsOn, &out.EndsOn, &out.Status, &out.Version, &out.CreatedAt, &out.UpdatedAt)
 	if err != nil {
 		return RecurringSchedule{}, false, err
+	}
+	if out.BranchID != in.BranchID || out.CorporateRef != in.CorporateRef || out.RequesterID != in.RequesterID {
+		return RecurringSchedule{}, false, ErrSection21Conflict
 	}
 	out.Weekdays = make([]int, len(weekdaysDB))
 	for i, day := range weekdaysDB {
@@ -158,7 +161,7 @@ func nullableDate(value *time.Time, loc *time.Location) any {
 	if value == nil {
 		return nil
 	}
-	return value.In(loc).Format("2006-01-02")
+	return value.Format("2006-01-02")
 }
 
 func (s *Section21Service) SetRecurringScheduleStatus(ctx context.Context, businessID, scheduleID, status string, expectedVersion int64) error {
@@ -201,6 +204,28 @@ func (s *Section21Service) UpdateRecurringSchedule(ctx context.Context, actor Ac
 	if err := s.AuthorizeStaff(ctx, actor, in.BranchID); err != nil {
 		return err
 	}
+	var existingBranch string
+	if err := s.db.QueryRow(ctx, `SELECT branch_id FROM commerce_recurring_schedules WHERE id=$1 AND business_id=$2`, scheduleID, actor.VendorID).Scan(&existingBranch); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrSection21NotFound
+		}
+		return err
+	}
+	if err := s.AuthorizeStaff(ctx, actor, existingBranch); err != nil {
+		return err
+	}
+
+	existing, err := scanRecurring(s.db.QueryRow(ctx, `SELECT `+recurringReadColumns+` FROM commerce_recurring_schedules WHERE business_id=$1 AND id=$2`, actor.VendorID, scheduleID))
+	if err != nil {
+		return err
+	}
+	_, oldTyped := existing.MenuRotation["schema_version"]
+	_, newTyped := in.MenuRotation["schema_version"]
+	if oldTyped || newTyped {
+		if !oldTyped || !newTyped || in.BranchID != existing.BranchID || in.RequesterID != existing.RequesterID || in.CorporateRef != existing.CorporateRef || !equalRecurringSnapshot(in.MenuRotation, existing.MenuRotation) || !equalRecurringSnapshot(in.DestinationSnapshot, existing.DestinationSnapshot) {
+			return ErrSection21Schedule
+		}
+	}
 	loc, meal, err := validateRecurringInput(in, s.now().UTC())
 	if err != nil {
 		return err
@@ -213,7 +238,7 @@ func (s *Section21Service) UpdateRecurringSchedule(ctx context.Context, actor Ac
 	rotation, _ := json.Marshal(in.MenuRotation)
 	productionRaw, _ := json.Marshal(in.ProductionRequirement)
 	vehicle := strings.ToUpper(strings.TrimSpace(in.TentativeVehicleClass))
-	tag, err := s.db.Exec(ctx, `UPDATE commerce_recurring_schedules SET branch_id=$3,weekdays=$4::smallint[],meal_time=$5,timezone=$6,headcount=$7,allowance_minor=$8,destination_snapshot=$9,menu_rotation=$10,production_requirement=$11,tentative_vehicle_class=NULLIF($12,''),advance_horizon_days=$13,starts_on=$14,ends_on=$15,version=version+1,updated_at=now() WHERE id=$1 AND business_id=$2 AND version=$16 AND status NOT IN ('CANCELLED','ENDED')`, scheduleID, actor.VendorID, in.BranchID, weekdays, meal, in.Timezone, in.Headcount, in.AllowanceMinor, destination, rotation, productionRaw, vehicle, in.AdvanceHorizonDays, in.StartsOn.In(loc).Format("2006-01-02"), nullableDate(in.EndsOn, loc), expectedVersion)
+	tag, err := s.db.Exec(ctx, `UPDATE commerce_recurring_schedules SET branch_id=$3,weekdays=$4::smallint[],meal_time=$5,timezone=$6,headcount=$7,allowance_minor=$8,destination_snapshot=$9,menu_rotation=$10,production_requirement=$11,tentative_vehicle_class=NULLIF($12,''),advance_horizon_days=$13,starts_on=$14,ends_on=$15,version=version+1,updated_at=now() WHERE id=$1 AND business_id=$2 AND version=$16 AND status NOT IN ('CANCELLED','ENDED')`, scheduleID, actor.VendorID, in.BranchID, weekdays, meal, in.Timezone, in.Headcount, in.AllowanceMinor, destination, rotation, productionRaw, vehicle, in.AdvanceHorizonDays, in.StartsOn.Format("2006-01-02"), nullableDate(in.EndsOn, loc), expectedVersion)
 	if err != nil {
 		return err
 	}
@@ -259,15 +284,8 @@ func (s *Section21Service) GenerateRecurringOccurrences(ctx context.Context, lim
 		if parseErr != nil {
 			return generated, ErrSection21Schedule
 		}
-		start := schedule.StartsOn.In(loc)
-		if start.Before(s.now().In(loc)) {
-			start = s.now().In(loc)
-		}
-		end := s.now().In(loc).AddDate(0, 0, int(schedule.AdvanceHorizonDays))
-		if schedule.EndsOn != nil && schedule.EndsOn.In(loc).Before(end) {
-			end = schedule.EndsOn.In(loc)
-		}
-		for day := start.Truncate(24 * time.Hour); !day.After(end) && generated < int64(limit); day = day.AddDate(0, 0, 1) {
+		start, end := recurringGenerationDates(schedule, s.now(), loc)
+		for day := start; !day.After(end) && generated < int64(limit); day = day.AddDate(0, 0, 1) {
 			localDay := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, loc)
 			weekday := int(localDay.Weekday())
 			if weekday == 0 {
@@ -303,6 +321,10 @@ func containsInt(values []int, needle int) bool {
 }
 
 func (s *Section21Service) insertRecurringOccurrence(ctx context.Context, schedule RecurringSchedule, key string, at, localDate time.Time) (bool, error) {
+	capacitySnapshot, cap, err := recurringOccurrenceCapacity(schedule, localDate)
+	if err != nil {
+		return false, err
+	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return false, err
@@ -310,7 +332,7 @@ func (s *Section21Service) insertRecurringOccurrence(ctx context.Context, schedu
 	defer tx.Rollback(ctx)
 	destination, _ := json.Marshal(schedule.DestinationSnapshot)
 	menu, _ := json.Marshal(schedule.MenuRotation)
-	productionRaw, _ := json.Marshal(schedule.ProductionRequirement)
+	productionRaw, _ := json.Marshal(capacitySnapshot)
 	var occurrenceID string
 	err = tx.QueryRow(ctx, `INSERT INTO commerce_recurring_occurrences(id,schedule_id,business_id,branch_id,occurrence_key,occurrence_at,local_date,timezone,headcount,allowance_minor,destination_snapshot,menu_snapshot,production_requirement,tentative_vehicle_class) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULLIF($14,'')) ON CONFLICT (schedule_id,occurrence_key) DO NOTHING RETURNING id`, sid("cro_"), schedule.ID, schedule.BusinessID, schedule.BranchID, key, at, localDate.Format("2006-01-02"), schedule.Timezone, schedule.Headcount, schedule.AllowanceMinor, destination, menu, productionRaw, schedule.TentativeVehicleClass).Scan(&occurrenceID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -319,8 +341,6 @@ func (s *Section21Service) insertRecurringOccurrence(ctx context.Context, schedu
 	if err != nil {
 		return false, err
 	}
-	var cap CapacityRequirement
-	_ = json.Unmarshal(productionRaw, &cap)
 	if cap.Required {
 		if s.production == nil || len(cap.Allocations) == 0 || cap.WindowStart.IsZero() || !cap.WindowEnd.After(cap.WindowStart) {
 			return false, ErrSection21Capacity
@@ -373,14 +393,7 @@ func (s *Section21Service) ListRecurringOccurrences(ctx context.Context, busines
 }
 
 func (s *Section21Service) ListRecurringOccurrencesByStaff(ctx context.Context, actor Actor, scheduleID string, limit int) ([]RecurringOccurrence, error) {
-	var branchID string
-	if err := s.db.QueryRow(ctx, `SELECT branch_id FROM commerce_recurring_schedules WHERE id=$1 AND business_id=$2`, scheduleID, actor.VendorID).Scan(&branchID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrSection21NotFound
-		}
-		return nil, err
-	}
-	if err := s.AuthorizeStaff(ctx, actor, branchID); err != nil {
+	if _, err := s.GetRecurringByStaff(ctx, actor, scheduleID); err != nil {
 		return nil, err
 	}
 	return s.ListRecurringOccurrences(ctx, actor.VendorID, scheduleID, limit)

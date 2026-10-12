@@ -614,6 +614,9 @@ func (s *Service) ReplaceItemMedia(ctx context.Context, actor Actor, scope Scope
 			if err != nil {
 				return Item{}, nil, coded(apperrors.Unavailable("Media reference could not be validated.", err), CodeMediaUnavailable)
 			}
+			if object.UploadPurpose == "PRODUCT_IMAGE" && (object.OwnerService != "vendor-service" || object.OwnerReference != actor.VendorID || object.BindingType != "ASSET" || object.BindingID != "FOOD_ITEM:"+itemID || object.Visibility != "PRIVATE" || object.SafetyStatus != "SAFE") {
+				return Item{}, nil, validation(apperrors.FieldViolation{Field: "media.media_ref", Message: "Choose a safe image uploaded for this food item."})
+			}
 			if object.ID != ref.MediaRef || object.UploadStatus != "COMPLETED" || object.DeletionState != "ACTIVE" ||
 				object.SafetyStatus == "UNSAFE" || object.SafetyStatus == "QUARANTINED" {
 				return Item{}, nil, validation(apperrors.FieldViolation{Field: "media.media_ref",

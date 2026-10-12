@@ -28,7 +28,7 @@ const SERVICES: Service[] = [
     image: "/images/ride.png",
     alt: "White car driving through a city",
     icon: Car,
-    chip: "bg-blue-500/10 text-blue-600",
+    chip: "bg-midnight/10 text-midnight",
   },
   {
     title: "Send",
@@ -36,7 +36,7 @@ const SERVICES: Service[] = [
     image: "/images/send.png",
     alt: "Dispatch rider on a motorbike",
     icon: Package,
-    chip: "bg-aurora/15 text-[#00A28C]",
+    chip: "bg-aurora/15 text-aurora-ink",
   },
   {
     title: "Truck",
@@ -44,7 +44,7 @@ const SERVICES: Service[] = [
     image: "/images/truck.png",
     alt: "Blue freight truck on the road",
     icon: Truck,
-    chip: "bg-indigo-500/10 text-indigo-600",
+    chip: "bg-indigo/10 text-indigo",
   },
   {
     title: "Food",
@@ -52,7 +52,7 @@ const SERVICES: Service[] = [
     image: "/images/food.png",
     alt: "Plated meal ready for delivery",
     icon: UtensilsCrossed,
-    chip: "bg-orange-500/10 text-orange-600",
+    chip: "bg-aurora/15 text-aurora-ink",
   },
   {
     title: "Shop",
@@ -60,7 +60,7 @@ const SERVICES: Service[] = [
     image: "/images/shop.png",
     alt: "Shopping bags with fresh groceries",
     icon: ShoppingBag,
-    chip: "bg-pink-500/10 text-pink-600",
+    chip: "bg-midnight/10 text-midnight",
   },
 ];
 
@@ -106,12 +106,25 @@ export default function Services() {
     >
       <style>{`
         @keyframes svc-rise {
-          from { opacity: 0; translate: 0 48px; }
+          from { opacity: 0; translate: 0 16px; }
           to { opacity: 1; translate: 0 0; }
         }
         @keyframes svc-float {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
+          50% { transform: translateY(-2px); }
+        }
+        @keyframes svc-shimmer {
+          from { background-position: 0% 50%; }
+          to { background-position: 200% 50%; }
+        }
+
+        .svc-shimmer {
+          background-image: linear-gradient(90deg, #0B1F44 0%, #0B1F44 35%, #00A28C 50%, #0B1F44 65%, #0B1F44 100%);
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: svc-shimmer 7s linear infinite;
         }
 
         .svc-text, .svc-card { opacity: 0; }
@@ -131,14 +144,14 @@ export default function Services() {
 
         .svc-card { transform: none; }
 
-        @media (min-width: 1024px) {
+        @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
           .svc-list { perspective: 1400px; perspective-origin: 50% 40%; }
           .svc-card {
             transform: rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0px));
             transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
           }
           .svc-card:hover {
-            transform: rotateY(0deg) translateZ(48px);
+            transform: rotateY(0deg) translateZ(20px);
             z-index: 10;
           }
         }
@@ -146,14 +159,16 @@ export default function Services() {
         @media (prefers-reduced-motion: reduce) {
           .svc-text, .svc-card { opacity: 1; animation: none !important; }
           .svc-float { animation: none !important; }
-          .svc-card { transition: none; }
+          .svc-shimmer { animation: none; background-image: none; color: inherit; }
+          .svc-card { transition: none; translate: none; }
+          .svc-card:hover { transform: rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0px)); }
         }
       `}</style>
 
       <div className="mx-auto max-w-[1440px] px-6 lg:px-12 grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
         <div className="lg:col-span-4">
           <p
-            className="svc-text text-[#00A28C] text-[11px] tracking-[0.24em] font-semibold uppercase"
+            className="svc-text text-aurora-ink text-[11px] tracking-[0.24em] font-semibold uppercase"
             style={vars({ "--d": "0s" })}
           >
             The Services
@@ -165,7 +180,7 @@ export default function Services() {
           >
             Five services.
             <br />
-            One ecosystem.
+            <span className="svc-shimmer">One ecosystem.</span>
           </h2>
 
           <p
@@ -181,7 +196,7 @@ export default function Services() {
 
           <a
             href="#ecosystem"
-            className="svc-text mt-8 inline-flex items-center gap-2 rounded-full border border-aurora px-6 py-3 text-[13px] font-semibold text-[#00A28C] hover:bg-aurora hover:text-midnight transition-colors"
+            className="svc-text mt-8 inline-flex items-center gap-2 rounded-full border border-aurora px-6 py-3 text-[13px] font-semibold text-aurora-ink hover:bg-aurora hover:text-midnight transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora-ink"
             style={vars({ "--d": "0.3s" })}
           >
             Explore all services
@@ -201,7 +216,7 @@ export default function Services() {
               })}
             >
               <article
-                className="svc-float h-full rounded-2xl bg-white p-2 ring-1 ring-midnight/5 shadow-[0_10px_30px_-12px_rgba(11,31,68,0.22)] transition-shadow duration-300 group-hover:shadow-[0_24px_50px_-14px_rgba(0,194,168,0.45)]"
+                className="svc-float h-full rounded-2xl bg-white p-2 ring-1 ring-midnight/5 shadow-[0_10px_30px_-12px_rgba(11,31,68,0.22)] transition-shadow duration-300 group-hover:shadow-[0_24px_50px_-14px_rgba(11,31,68,0.24)]"
                 style={vars({ "--f": `${i * 0.45}s` })}
               >
                 <div className="relative aspect-[4/4.6] overflow-hidden rounded-xl">
@@ -210,12 +225,12 @@ export default function Services() {
                     alt={alt}
                     fill
                     sizes="(min-width: 1024px) 12vw, 62vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-110"
+                    className="object-cover transition-transform duration-500 motion-safe:group-hover:scale-[1.035]"
                   />
                   {/* shine sweep */}
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full transition-transform duration-700 ease-out group-hover:translate-x-[300%]"
+                    className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full transition-transform duration-700 ease-out group-hover:translate-x-[300%]"
                   />
                 </div>
 

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network access (required for release builds to reach the backend) -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Camera capture -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Foreground location for GPS tracking while app is open -->

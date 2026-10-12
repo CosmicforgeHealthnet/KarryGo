@@ -16,11 +16,11 @@ export default function Hero() {
       {/* Background depth */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_80%,rgba(0,194,168,0.14),transparent_70%)] lg:bg-[radial-gradient(ellipse_60%_60%_at_70%_50%,rgba(0,194,168,0.14),transparent_70%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_80%,rgba(0,194,168,0.06),transparent_70%)] lg:bg-[radial-gradient(ellipse_60%_60%_at_70%_50%,rgba(0,194,168,0.06),transparent_70%)]"
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_0%_0%,rgba(30,64,175,0.30),transparent_70%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_50%_40%_at_0%_0%,rgba(45,58,91,0.25),transparent_70%)]"
       />
       <div
         aria-hidden
@@ -34,7 +34,7 @@ export default function Hero() {
       {/* pt-24 clears the fixed navbar (h-16 mobile / h-20 desktop) */}
       <div className="relative mx-auto w-full max-w-[1440px] px-5 sm:px-8 lg:px-12 pt-24 pb-8 lg:pb-12 grid lg:grid-cols-12 gap-6 sm:gap-10 lg:gap-4 items-center">
         {/* Left: copy */}
-        <div className="lg:col-span-5 flex flex-col">
+        <div className="hero-copy lg:col-span-5 flex flex-col">
           <p className="text-aurora text-[10px] sm:text-[11px] tracking-[0.24em] font-semibold uppercase">
             Movement Intelligence
           </p>
@@ -71,10 +71,10 @@ export default function Hero() {
             />
             <button
               type="submit"
-              className="shrink-0 inline-flex w-full items-center justify-center gap-2 rounded-full bg-aurora px-5 py-3 sm:w-auto sm:py-2.5 text-[13px] font-semibold text-midnight shadow-[0_0_24px_-6px_rgba(0,194,168,0.7)] hover:brightness-110 transition"
+              className="shrink-0 inline-flex w-full items-center justify-center gap-2 rounded-full bg-aurora px-5 py-3 sm:w-auto sm:py-2.5 text-[13px] font-semibold text-midnight hero-cta hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
             >
               Join the Waitlist
-              <ArrowRight size={14} strokeWidth={2.5} />
+              <ArrowRight aria-hidden size={14} strokeWidth={2.5} className="hero-cta-arrow" />
             </button>
           </form>
 
@@ -96,19 +96,15 @@ export default function Hero() {
         </div>
 
         {/* Right: hero image, blended into the background */}
-        <div className="lg:col-span-7 relative">
-          <div
-            aria-hidden
-            className="absolute left-1/2 top-1/2 h-[65%] w-[65%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-aurora/10 blur-2xl sm:blur-3xl"
-          />
+        <div className="hero-art lg:col-span-7 relative">
           <Image
-            src="/images/hero-movement-map.png"
+            src="/images/hero-movement-map-v2.png"
             alt="Karryam app connecting Ride, Send, Truck, Food and Shop with providers, vendors, fleets and API partners"
             width={1672}
             height={941}
             priority
             sizes="(min-width: 1024px) 58vw, 100vw"
-            className="relative mx-auto w-full max-w-[640px] h-auto lg:max-w-none lg:w-[108%] lg:-ml-[4%] select-none mix-blend-lighten [mask-image:radial-gradient(ellipse_72%_72%_at_50%_50%,#000_55%,transparent_100%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_50%,#000_55%,transparent_100%)]"
+            className="relative mx-auto w-full max-w-[640px] h-auto lg:max-w-none lg:w-[108%] lg:-ml-[4%] select-none"
           />
         </div>
       </div>

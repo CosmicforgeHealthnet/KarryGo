@@ -12,6 +12,7 @@ import "github.com/gin-gonic/gin"
 // than one feature importing another feature's HTTP package.
 func RegisterRoutes(group *gin.RouterGroup, handler *Handler) {
 	staff := group.Group("/staff")
+	staff.GET("/me/access", handler.CurrentAccess)
 	staff.GET("", handler.ListStaff)
 	staff.GET("/:id", handler.GetStaff)
 	staff.POST("", handler.InviteStaff)

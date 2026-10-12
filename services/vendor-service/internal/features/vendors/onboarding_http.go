@@ -23,6 +23,27 @@ type representativeRequest struct {
 	ExpectedVersion  int64    `json:"expected_version"`
 	StepUpGrantID    string   `json:"step_up_grant_id"`
 }
+type documentUploadRequest struct {
+	Dimension   VerificationDimension `json:"dimension"`
+	SubjectType string                `json:"subject_type"`
+	SubjectRef  string                `json:"subject_ref"`
+	MIMEType    string                `json:"mime_type"`
+	ByteSize    int64                 `json:"byte_size"`
+}
+
+func (h *Handler) CreateDocumentUpload(c *gin.Context) {
+	h.mutate(c, http.StatusCreated, func(a Actor, raw []byte) (any, error) {
+		var r documentUploadRequest
+		if e := strict(raw, &r); e != nil {
+			return nil, e
+		}
+		return h.service.AuthorizeOnboardingUpload(c, a, OnboardingUploadInput{
+			Dimension: r.Dimension, SubjectType: r.SubjectType, SubjectRef: r.SubjectRef,
+			MIMEType: r.MIMEType, ByteSize: r.ByteSize,
+		}, c.GetHeader("Idempotency-Key"))
+	})
+}
+
 type documentRequest struct {
 	RepresentativeID string                `json:"representative_id"`
 	BranchID         string                `json:"branch_id"`
@@ -210,6 +231,8 @@ func RegisterOnboardingRoutes(group *gin.RouterGroup, h *Handler) {
 	o.POST("/request-activation", h.RequestActivation)
 	o.GET("/representative", h.GetRepresentative)
 	o.PUT("/representative", h.PutRepresentative)
+	o.POST("/document-uploads", h.CreateDocumentUpload)
+	o.GET("/document-uploads/:mediaRef", h.DocumentUploadStatus)
 	o.GET("/documents", h.ListDocuments)
 	o.POST("/documents", h.CreateDocument)
 	o.PATCH("/documents/:documentId", h.UpdateDocument)
@@ -289,4 +312,17 @@ func RegisterInternalOnboardingRoutes(router *gin.Engine, h *Handler, verifier *
 	r := router.Group("/internal/vendor/v1")
 	r.Use(serviceauth.Middleware(verifier), h.internalAllow, h.internalNonce)
 	r.POST("/verification-events", h.VerificationEvent)
+}
+
+func (h *Handler) DocumentUploadStatus(c *gin.Context) {
+	actor, ok := h.readActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.OnboardingUploadStatus(c, actor, c.Param("mediaRef"))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
 }

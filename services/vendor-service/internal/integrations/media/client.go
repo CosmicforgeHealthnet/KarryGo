@@ -14,9 +14,10 @@ import (
 )
 
 type Client struct {
-	baseURL string
-	secret  []byte
-	http    *http.Client
+	baseURL   string
+	publicURL string
+	secret    []byte
+	http      *http.Client
 }
 
 func NewClient(baseURL, secret string, timeout time.Duration) *Client {
@@ -27,6 +28,15 @@ func NewClient(baseURL, secret string, timeout time.Duration) *Client {
 }
 
 type Object struct {
+	BindingType  string `json:"bindingType"`
+	BindingID    string `json:"bindingId"`
+	MIMEType     string `json:"detectedMime"`
+	FileName     string `json:"fileName"`
+	SizeBytes    int64  `json:"sizeBytes"`
+	Checksum     string `json:"checksumSha256"`
+	Visibility   string `json:"visibility"`
+	OwnerService string `json:"ownerService"`
+
 	ID             string `json:"mediaObjectId"`
 	OwnerReference string `json:"ownerReference"`
 	UploadPurpose  string `json:"uploadPurpose"`
@@ -47,10 +57,13 @@ func (c *Client) GetObject(ctx context.Context, businessID, ref string) (Object,
 		return Object{}, err
 	}
 	req.Header.Set("X-Organization-ID", businessID)
+	req.Header.Set("X-Service-Nonce", randomNonce())
 	if err = serviceauth.SignRequest(req, "vendor-service", c.secret, nil, time.Now()); err != nil {
 		return Object{}, err
 	}
-	response, err := c.http.Do(req)
+	client := *c.http
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := client.Do(req)
 	if err != nil {
 		return Object{}, err
 	}
@@ -66,7 +79,7 @@ func (c *Client) GetObject(ctx context.Context, businessID, ref string) (Object,
 	if err = json.Unmarshal(raw, &out); err != nil {
 		return Object{}, err
 	}
-	if out.Data.ID == "" || out.Data.SourceVersion < 1 {
+	if !out.Success || out.Data.ID != ref || out.Data.OwnerReference != businessID || out.Data.SourceVersion < 1 {
 		return Object{}, fmt.Errorf("media authority response is missing source metadata")
 	}
 	return out.Data, nil

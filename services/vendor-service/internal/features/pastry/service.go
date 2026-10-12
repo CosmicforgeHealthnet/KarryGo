@@ -22,8 +22,9 @@ const (
 )
 
 type Service struct {
-	db         *pgxpool.Pool
-	production *production.Service
+	assetValidator func(context.Context, string, string, string, string) error
+	db             *pgxpool.Pool
+	production     *production.Service
 }
 
 func NewService(db *pgxpool.Pool, p *production.Service) *Service {
@@ -322,17 +323,18 @@ func (s *Service) AttachGroup(ctx context.Context, product, group string, positi
 }
 
 type CustomRequestInput struct {
-	BranchID            string
-	CustomerRef         string
-	CorporateProfileRef string
-	Title               string
-	Notes               string
-	RequiredAt          *time.Time
-	ChangeCutoffAt      *time.Time
-	ChangePolicy        map[string]any
-	CancellationPolicy  map[string]any
-	Logistics           map[string]any
-	RiskFlags           []string
+	ValidateCRMReferences bool
+	BranchID              string
+	CustomerRef           string
+	CorporateProfileRef   string
+	Title                 string
+	Notes                 string
+	RequiredAt            *time.Time
+	ChangeCutoffAt        *time.Time
+	ChangePolicy          map[string]any
+	CancellationPolicy    map[string]any
+	Logistics             map[string]any
+	RiskFlags             []string
 }
 
 type changePolicyDefinition struct {
@@ -424,6 +426,11 @@ func (s *Service) CreateRequest(ctx context.Context, business string, in CustomR
 		return "", e
 	}
 	defer tx.Rollback(ctx)
+	if in.ValidateCRMReferences {
+		if e = lockRequestReferences(ctx, tx, business, in); e != nil {
+			return "", e
+		}
+	}
 	if _, e = tx.Exec(ctx, `INSERT INTO pastry_custom_requests(id,business_id,branch_id,customer_ref,corporate_profile_ref,title,notes,event_at,change_cutoff_at,change_policy,cancellation_policy,logistics,risk_flags) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8,$9,$10,$11,$12,$13)`, id, business, in.BranchID, in.CustomerRef, in.CorporateProfileRef, in.Title, in.Notes, in.RequiredAt, in.ChangeCutoffAt, changePolicy, cancellationPolicy, logistics, riskFlags); e != nil {
 		return "", e
 	}
@@ -805,6 +812,10 @@ func (s *Service) AddSpec(ctx context.Context, request string, spec map[string]a
 	if e = tx.QueryRow(ctx, `SELECT business_id,branch_id,status,version FROM pastry_custom_requests WHERE id=$1 FOR UPDATE`, request).Scan(&business, &branch, &status, &requestVersion); e != nil {
 		return "", 0, e
 	}
+	if e = s.validateReferenceMedia(ctx, tx, business, request, spec); e != nil {
+		return "", 0, e
+	}
+
 	if expectedVersion <= 0 || expectedVersion != requestVersion {
 		return "", 0, fmt.Errorf("stale request version")
 	}
@@ -1282,6 +1293,10 @@ func (s *Service) RequestChange(ctx context.Context, request, reason string, spe
 	if e = tx.QueryRow(ctx, `SELECT business_id,branch_id,version FROM pastry_custom_requests WHERE id=$1 FOR UPDATE`, request).Scan(&business, &branch, &requestVersion); e != nil {
 		return "", "", 0, e
 	}
+	if e = s.validateReferenceMedia(ctx, tx, business, request, spec); e != nil {
+		return "", "", 0, e
+	}
+
 	if expectedVersion <= 0 || expectedVersion != requestVersion {
 		return "", "", 0, fmt.Errorf("stale request version")
 	}
@@ -1657,3 +1672,56 @@ func (s *Service) TransitionMilestone(ctx context.Context, actor production.Acto
 }
 
 var _ = pgx.ErrNoRows
+
+func (s *Service) UseAssetValidator(fn func(context.Context, string, string, string, string) error) {
+	s.assetValidator = fn
+}
+func (s *Service) validateReferenceMedia(ctx context.Context, tx pgx.Tx, business, request string, spec map[string]any) error {
+	refs, _ := spec["reference_media"].([]any)
+	if len(refs) == 0 {
+		return nil
+	}
+	rows, err := tx.Query(ctx, `SELECT specification FROM pastry_specification_versions WHERE request_id=$1`, request)
+	if err != nil {
+		return err
+	}
+	existing := map[string]bool{}
+	for rows.Next() {
+		var raw []byte
+		if err = rows.Scan(&raw); err != nil {
+			rows.Close()
+			return err
+		}
+		var previous map[string]any
+		if json.Unmarshal(raw, &previous) != nil {
+			continue
+		}
+		saved, _ := previous["reference_media"].([]any)
+		for _, ref := range saved {
+			if id, ok := ref.(string); ok {
+				existing[id] = true
+			}
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, value := range refs {
+		ref, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("invalid reference media identifier")
+		}
+		if existing[ref] {
+			continue
+		}
+		if s.assetValidator == nil {
+			return apperrors.Unavailable("Reference file validation is unavailable.", nil)
+		}
+		if err = s.assetValidator(ctx, business, "PASTRY_REQUEST", request, ref); err != nil {
+			return apperrors.BadRequest("Choose a validated file uploaded for this pastry request.", nil)
+		}
+	}
+	return nil
+}

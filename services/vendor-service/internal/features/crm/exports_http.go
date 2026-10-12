@@ -141,24 +141,7 @@ type createExportRequest struct {
 
 // CreateExport queues a durable export job.
 func (h *ExportHandler) CreateExport(c *gin.Context) {
-	h.command(c, http.StatusAccepted, func(actor Actor, raw []byte) (any, error) {
-		scope, err := h.service.Authorize(c, actor, PermExportsCreate)
-		if err != nil {
-			return nil, err
-		}
-		var req createExportRequest
-		if err = decodeBody(raw, &req); err != nil {
-			return nil, err
-		}
-		export, err := h.service.CreateExport(c, actor, scope, CreateExportInput{
-			ExportType: req.ExportType, Format: req.Format, ScopeType: req.ScopeType,
-			BranchRef: req.BranchRef, RowLimit: req.RowLimit, Filter: req.Filter,
-			StepUpGrantID: req.StepUpGrantID, SessionID: actor.SessionID})
-		if err != nil {
-			return nil, err
-		}
-		return ExportViewOf(export), nil
-	})
+	h.createCommand(c)
 }
 
 type cancelExportRequest struct {
@@ -233,4 +216,5 @@ func RegisterExportRoutes(group *gin.RouterGroup, h *ExportHandler, flags Flags)
 	exports.GET("/:exportId", h.GetExport)
 	exports.POST("/:exportId/cancel", h.CancelExport)
 	exports.POST("/:exportId/download", h.DownloadExport)
+	exports.POST("/:exportId/file", h.DownloadFile)
 }

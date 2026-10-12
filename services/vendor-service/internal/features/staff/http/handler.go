@@ -144,3 +144,17 @@ func toStaffView(s staffmodels.Staff) staffView {
 		Version: s.Version, CreatedAt: s.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
+
+func (h *Handler) CurrentAccess(c *gin.Context) {
+	actor, ok := actorContext(c)
+	if !ok {
+		return
+	}
+	grants, err := h.roles.CurrentAccess(c.Request.Context(), actor.StaffID)
+	if err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	respondOK(c, gin.H{"staff_id": actor.StaffID, "vendor_id": actor.VendorID, "grants": grants})
+}

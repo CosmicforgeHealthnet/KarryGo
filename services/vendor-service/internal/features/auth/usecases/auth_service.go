@@ -155,7 +155,7 @@ func (s *AuthService) Start(ctx context.Context, in StartInput) (StartResult, er
 	// create multiple simultaneously valid credentials" even when the caller
 	// hits Start twice instead of the dedicated resend endpoint.
 	if existing, ok, err := s.challenges.GetActiveByIdentifier(ctx, identifierKey, vendorauthmodels.PurposeLogin); err == nil && ok {
-		if err := s.challenges.Resend(ctx, existing.ID, challenge.HashFor(s.otpSecret, otp, existing.Generation+1), s.now().Add(s.otpTTL)); err != nil {
+		if err := s.challenges.Resend(ctx, existing.ID, existing.HashFor(s.otpSecret, otp, existing.Generation+1), s.now().Add(s.otpTTL)); err != nil {
 			return StartResult{}, err
 		}
 		result := StartResult{ChallengeID: existing.ID, ExpiresIn: int64(s.otpTTL.Seconds())}

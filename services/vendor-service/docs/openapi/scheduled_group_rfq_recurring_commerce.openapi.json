@@ -365,6 +365,166 @@
           "201": {
             "description": "Corporate recurring schedule created"
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "BusinessID": {
+                    "type": "string"
+                  },
+                  "RequesterID": {
+                    "type": "string"
+                  },
+                  "CorporateRef": {
+                    "type": "string"
+                  },
+                  "BranchID": {
+                    "type": "string"
+                  },
+                  "Weekdays": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "MealTime": {
+                    "type": "string"
+                  },
+                  "Timezone": {
+                    "type": "string"
+                  },
+                  "Headcount": {
+                    "type": "integer"
+                  },
+                  "AllowanceMinor": {
+                    "type": "integer"
+                  },
+                  "DestinationSnapshot": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "MenuRotation": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "ProductionRequirement": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "capability": {
+                        "type": "string"
+                      },
+                      "branch_id": {
+                        "type": "string"
+                      },
+                      "window_start": {
+                        "type": "string"
+                      },
+                      "window_end": {
+                        "type": "string"
+                      },
+                      "allocations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "capacity_pool_id": {
+                              "type": "string"
+                            },
+                            "quantity": {
+                              "type": "integer"
+                            },
+                            "production_line_id": {
+                              "type": "string"
+                            },
+                            "item_family": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [],
+                    "additionalProperties": false
+                  },
+                  "TentativeVehicleClass": {
+                    "type": "string"
+                  },
+                  "AdvanceHorizonDays": {
+                    "type": "integer"
+                  },
+                  "StartsOn": {
+                    "type": "string"
+                  },
+                  "EndsOn": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "IdempotencyKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get__vendor_commerce_section21_recurring-schedules",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "x-permission": "vendor.orders.read",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing authorized schedule projection; exported Go field names preserved"
+          },
+          "403": {
+            "description": "Insufficient permission or branch scope"
+          },
+          "404": {
+            "description": "Not found within vendor and branch scope"
+          }
         }
       }
     },
@@ -385,6 +545,149 @@
         "responses": {
           "204": {
             "description": "Corporate recurring schedule updated"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "BusinessID": {
+                    "type": "string"
+                  },
+                  "RequesterID": {
+                    "type": "string"
+                  },
+                  "CorporateRef": {
+                    "type": "string"
+                  },
+                  "BranchID": {
+                    "type": "string"
+                  },
+                  "Weekdays": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "MealTime": {
+                    "type": "string"
+                  },
+                  "Timezone": {
+                    "type": "string"
+                  },
+                  "Headcount": {
+                    "type": "integer"
+                  },
+                  "AllowanceMinor": {
+                    "type": "integer"
+                  },
+                  "DestinationSnapshot": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "MenuRotation": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "ProductionRequirement": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "capability": {
+                        "type": "string"
+                      },
+                      "branch_id": {
+                        "type": "string"
+                      },
+                      "window_start": {
+                        "type": "string"
+                      },
+                      "window_end": {
+                        "type": "string"
+                      },
+                      "allocations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "capacity_pool_id": {
+                              "type": "string"
+                            },
+                            "quantity": {
+                              "type": "integer"
+                            },
+                            "production_line_id": {
+                              "type": "string"
+                            },
+                            "item_family": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [],
+                    "additionalProperties": false
+                  },
+                  "TentativeVehicleClass": {
+                    "type": "string"
+                  },
+                  "AdvanceHorizonDays": {
+                    "type": "integer"
+                  },
+                  "StartsOn": {
+                    "type": "string"
+                  },
+                  "EndsOn": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "IdempotencyKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get__vendor_commerce_section21_recurring-schedules_scheduleId",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "x-permission": "vendor.orders.read",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing authorized schedule projection; exported Go field names preserved"
+          },
+          "403": {
+            "description": "Insufficient permission or branch scope"
+          },
+          "404": {
+            "description": "Not found within vendor and branch scope"
           }
         }
       }
@@ -407,7 +710,8 @@
           "200": {
             "description": "Tenant-scoped future occurrences and proposals"
           }
-        }
+        },
+        "x-permission": "vendor.orders.read"
       }
     },
     "/vendor/commerce/section21/recurring-schedules/{scheduleId}/status": {
@@ -450,6 +754,113 @@
             "description": "Quote revision or counter-offer submitted"
           }
         }
+      },
+      "get": {
+        "operationId": "vendorRFQQuotes",
+        "summary": "Eligible vendor RFQ read",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rfqId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vendor-eligible RFQ data; quote history is vendor and branch scoped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ID": {
+                            "type": "string"
+                          },
+                          "QuoteID": {
+                            "type": "string"
+                          },
+                          "RFQID": {
+                            "type": "string"
+                          },
+                          "VendorID": {
+                            "type": "string"
+                          },
+                          "BranchID": {
+                            "type": "string"
+                          },
+                          "Currency": {
+                            "type": "string"
+                          },
+                          "Status": {
+                            "type": "string"
+                          },
+                          "Revision": {
+                            "type": "integer"
+                          },
+                          "PriceMinor": {
+                            "type": "integer"
+                          },
+                          "ExpiresAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "Snapshot": {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          "Capacity": {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          "VendorTerms": {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          "PaymentPolicy": {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          "DepositPolicy": {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          "CancellationPolicy": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Orders read access required."
+          },
+          "404": {
+            "description": "RFQ not visible to this vendor."
+          }
+        },
+        "description": "Requires vendor.orders.read with nonempty staff scope. RFQs must explicitly include the authenticated vendor in eligibility_scope.vendor_ids and cannot be drafts. Quote revisions are limited to the authenticated vendor and staff branch scope."
       }
     },
     "/vendor/commerce/section21/scheduled-orders": {
@@ -458,6 +869,165 @@
         "responses": {
           "201": {
             "description": "Scheduled order accepted"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "BusinessID": {
+                    "type": "string"
+                  },
+                  "CustomerID": {
+                    "type": "string"
+                  },
+                  "QuoteID": {
+                    "type": "string"
+                  },
+                  "VendorOrderID": {
+                    "type": "string"
+                  },
+                  "BranchID": {
+                    "type": "string"
+                  },
+                  "DesiredDeliveryAt": {
+                    "type": "string"
+                  },
+                  "DeliveryWindowStart": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "DeliveryWindowEnd": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "ProductionReadyBy": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "ExpectedReadyAt": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "FulfilmentPlanID": {
+                    "type": "string"
+                  },
+                  "TentativeVehicleClass": {
+                    "type": "string"
+                  },
+                  "BulkRequirement": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "Capacity": {
+                    "type": "object",
+                    "properties": {
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "capability": {
+                        "type": "string"
+                      },
+                      "branch_id": {
+                        "type": "string"
+                      },
+                      "window_start": {
+                        "type": "string"
+                      },
+                      "window_end": {
+                        "type": "string"
+                      },
+                      "allocations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "capacity_pool_id": {
+                              "type": "string"
+                            },
+                            "quantity": {
+                              "type": "integer"
+                            },
+                            "production_line_id": {
+                              "type": "string"
+                            },
+                            "item_family": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [],
+                    "additionalProperties": false
+                  },
+                  "SourceRef": {
+                    "type": "string"
+                  },
+                  "SourceVersion": {
+                    "type": "integer"
+                  },
+                  "IdempotencyKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get__vendor_commerce_section21_scheduled-orders",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "x-permission": "vendor.orders.read",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing authorized schedule projection; exported Go field names preserved"
+          },
+          "403": {
+            "description": "Insufficient permission or branch scope"
+          },
+          "404": {
+            "description": "Not found within vendor and branch scope"
           }
         }
       }
@@ -482,6 +1052,474 @@
           }
         }
       }
+    },
+    "/vendor/commerce/section21/scheduled-orders/{id}": {
+      "get": {
+        "operationId": "get__vendor_commerce_section21_scheduled-orders_id",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "x-permission": "vendor.orders.read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing authorized schedule projection; exported Go field names preserved"
+          },
+          "403": {
+            "description": "Insufficient permission or branch scope"
+          },
+          "404": {
+            "description": "Not found within vendor and branch scope"
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/rfqs": {
+      "get": {
+        "operationId": "listVendorRFQs",
+        "summary": "Eligible vendor RFQ read",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vendor-eligible RFQ data; quote history is vendor and branch scoped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "ID",
+                              "Status",
+                              "Currency",
+                              "Servings",
+                              "Version",
+                              "RequestedAt",
+                              "DeadlineAt",
+                              "ExpiresAt",
+                              "BudgetMinor",
+                              "DestinationSnapshot",
+                              "MenuRequirements",
+                              "PackagingRequirements",
+                              "DeliveryTerms",
+                              "Capacity"
+                            ],
+                            "properties": {
+                              "ID": {
+                                "type": "string"
+                              },
+                              "Status": {
+                                "type": "string"
+                              },
+                              "Currency": {
+                                "type": "string"
+                              },
+                              "Servings": {
+                                "type": "integer"
+                              },
+                              "Version": {
+                                "type": "integer"
+                              },
+                              "RequestedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "DeadlineAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "ExpiresAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "BudgetMinor": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "DestinationSnapshot": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "MenuRequirements": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "PackagingRequirements": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "DeliveryTerms": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "Capacity": {
+                                "type": "object",
+                                "additionalProperties": true
+                              }
+                            }
+                          }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "limit": {
+                              "type": "integer"
+                            },
+                            "offset": {
+                              "type": "integer"
+                            },
+                            "has_more": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Orders read access required."
+          },
+          "404": {
+            "description": "RFQ not visible to this vendor."
+          }
+        },
+        "description": "Requires vendor.orders.read with nonempty staff scope. RFQs must explicitly include the authenticated vendor in eligibility_scope.vendor_ids and cannot be drafts. Quote revisions are limited to the authenticated vendor and staff branch scope."
+      }
+    },
+    "/vendor/commerce/section21/rfqs/{rfqId}": {
+      "get": {
+        "operationId": "getVendorRFQ",
+        "summary": "Eligible vendor RFQ read",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rfqId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vendor-eligible RFQ data; quote history is vendor and branch scoped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "ID",
+                        "Status",
+                        "Currency",
+                        "Servings",
+                        "Version",
+                        "RequestedAt",
+                        "DeadlineAt",
+                        "ExpiresAt",
+                        "BudgetMinor",
+                        "DestinationSnapshot",
+                        "MenuRequirements",
+                        "PackagingRequirements",
+                        "DeliveryTerms",
+                        "Capacity"
+                      ],
+                      "properties": {
+                        "ID": {
+                          "type": "string"
+                        },
+                        "Status": {
+                          "type": "string"
+                        },
+                        "Currency": {
+                          "type": "string"
+                        },
+                        "Servings": {
+                          "type": "integer"
+                        },
+                        "Version": {
+                          "type": "integer"
+                        },
+                        "RequestedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "DeadlineAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "ExpiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "BudgetMinor": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "DestinationSnapshot": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "MenuRequirements": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "PackagingRequirements": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "DeliveryTerms": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "Capacity": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Orders read access required."
+          },
+          "404": {
+            "description": "RFQ not visible to this vendor."
+          }
+        },
+        "description": "Requires vendor.orders.read with nonempty staff scope. RFQs must explicitly include the authenticated vendor in eligibility_scope.vendor_ids and cannot be drafts. Quote revisions are limited to the authenticated vendor and staff branch scope."
+      }
+    },
+    "/vendor/commerce/section21/scheduling-quotes": {
+      "get": {
+        "operationId": "get_listSchedulingQuotes",
+        "description": "Orders-read scoped, current approved checkout quotes. Only authenticated vendor/authorized branch lines and their delivery address are exposed.",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branch_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eligible scheduling quote contexts."
+          },
+          "403": {
+            "description": "Orders read scope required."
+          },
+          "404": {
+            "description": "Quote not available to this vendor/branch."
+          }
+        }
+      }
+    },
+    "/vendor/commerce/section21/scheduling-quotes/{quoteId}": {
+      "get": {
+        "operationId": "get_getSchedulingQuote",
+        "description": "Orders-read scoped, current approved checkout quotes. Only authenticated vendor/authorized branch lines and their delivery address are exposed.",
+        "security": [
+          {
+            "VendorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branch_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "quoteId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eligible scheduling quote contexts."
+          },
+          "403": {
+            "description": "Orders read scope required."
+          },
+          "404": {
+            "description": "Quote not available to this vendor/branch."
+          }
+        }
+      }
+    },
+    "/commerce/section21/recurring-setup-contexts": {
+      "get": {
+        "operationId": "listRecurringSetupContexts",
+        "summary": "Scoped active corporate accounts linked to approved food quote customers; fixed immutable menu and checkout delivery address",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branch_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items plus quote-page pagination: limit, offset, next_offset and has_more",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/RecurringSetupContext"
+                          }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "limit": {
+                              "type": "integer"
+                            },
+                            "offset": {
+                              "type": "integer"
+                            },
+                            "next_offset": {
+                              "type": "integer"
+                            },
+                            "has_more": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Orders read or corporate read access denied"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -496,6 +1534,108 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Customer Service access token; the customer is derived from the token, never from the request."
+      }
+    },
+    "schemas": {
+      "RecurringFixedMenu": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "mode",
+          "source_quote_id",
+          "quote_version",
+          "currency",
+          "lines"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "FIXED"
+            ]
+          },
+          "source_quote_id": {
+            "type": "string"
+          },
+          "quote_version": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "description": "Exact own-vendor FOOD checkoutquote.LineSnapshot; immutable including quantity, catalogue revisions and price evidence",
+              "additionalProperties": true,
+              "required": [
+                "business_id",
+                "branch_id",
+                "domain",
+                "item_ref",
+                "quantity"
+              ],
+              "properties": {
+                "business_id": {
+                  "type": "string"
+                },
+                "branch_id": {
+                  "type": "string"
+                },
+                "domain": {
+                  "type": "string",
+                  "enum": [
+                    "FOOD"
+                  ]
+                },
+                "item_ref": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "RecurringSetupContext": {
+        "type": "object",
+        "properties": {
+          "BusinessID": {
+            "type": "string"
+          },
+          "BranchID": {
+            "type": "string"
+          },
+          "RequesterID": {
+            "type": "string"
+          },
+          "CorporateRef": {
+            "type": "string"
+          },
+          "OrganizationName": {
+            "type": "string"
+          },
+          "DestinationSnapshot": {
+            "type": "object",
+            "description": "Exact checkoutquote.AddressSnapshot from the approved quote; CRM organizational locations are excluded",
+            "additionalProperties": true
+          },
+          "MenuRotation": {
+            "$ref": "#/components/schemas/RecurringFixedMenu"
+          }
+        }
       }
     }
   }

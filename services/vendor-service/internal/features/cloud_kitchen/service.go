@@ -655,6 +655,9 @@ func (s *Service) CreatePlan(ctx context.Context, business string, p Plan) (stri
 		return "", err
 	}
 	defer tx.Rollback(ctx)
+	if err = lockCorporate(ctx, tx, business, p.BranchID, p.CorporateProfileRef); err != nil {
+		return "", err
+	}
 	if _, err = tx.Exec(ctx, `INSERT INTO cloud_kitchen_corporate_plans(id,business_id,branch_id,corporate_profile_ref,name,package_id,quantity,recurrence_type,weekdays,timezone,local_time,effective_from,effective_until,production_minutes,lead_time_minutes,reservation_horizon_days,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'DRAFT')`, id, business, p.BranchID, p.CorporateProfileRef, p.Name, p.PackageID, p.Quantity, p.RecurrenceType, p.Weekdays, p.Timezone, p.LocalTime, p.EffectiveFrom, p.EffectiveUntil, p.ProductionMinutes, p.LeadTimeMinutes, p.ReservationHorizonDays); err != nil {
 		return "", err
 	}
@@ -767,6 +770,15 @@ func (s *Service) UpdatePlan(ctx context.Context, business, id string, p Plan, s
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
+	var previousRef string
+	if err = tx.QueryRow(ctx, `SELECT corporate_profile_ref FROM cloud_kitchen_corporate_plans WHERE business_id=$1 AND id=$2 FOR UPDATE`, business, id).Scan(&previousRef); err != nil {
+		return 0, err
+	}
+	if previousRef != p.CorporateProfileRef {
+		if err = lockCorporate(ctx, tx, business, branch, p.CorporateProfileRef); err != nil {
+			return 0, err
+		}
+	}
 	tag, err := tx.Exec(ctx, `UPDATE cloud_kitchen_corporate_plans SET corporate_profile_ref=$3,name=$4,package_id=$5,quantity=$6,recurrence_type=$7,weekdays=$8,timezone=$9,local_time=$10::time,effective_from=$11,effective_until=$12,production_minutes=$13,lead_time_minutes=$14,reservation_horizon_days=$15,updated_at=now(),version=version+1 WHERE business_id=$1 AND id=$2 AND version=$16 AND status IN ('DRAFT','SUSPENDED')`, business, id, p.CorporateProfileRef, p.Name, p.PackageID, p.Quantity, p.RecurrenceType, p.Weekdays, p.Timezone, p.LocalTime, p.EffectiveFrom, p.EffectiveUntil, p.ProductionMinutes, p.LeadTimeMinutes, p.ReservationHorizonDays, version)
 	if err != nil {
 		return 0, err

@@ -2,6 +2,7 @@ package pastry
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/authctx"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/idempotency"
@@ -21,6 +22,7 @@ type StepUpConsumer interface {
 }
 
 type Handler struct {
+	crm         *crm.Service
 	s           *Service
 	stepUp      StepUpConsumer
 	idempotency *idempotency.Store
@@ -268,6 +270,41 @@ func (h *Handler) options(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
 }
+func (h *Handler) attachedGroups(c *gin.Context) {
+	a, scope, ok := h.auth(c, PermRead)
+	if !ok {
+		return
+	}
+	var branch string
+	if err := h.s.DB().QueryRow(c, `SELECT branch_id FROM pastry_products WHERE business_id=$1 AND id=$2`, a.VendorID, c.Param("productId")).Scan(&branch); err != nil || !scope.Covers(branch) {
+		httpx.RespondError(c, apperrors.NotFound("Product not found.", nil))
+		return
+	}
+	rows, err := h.s.DB().Query(c, `SELECT g.id,g.name,g.group_type,g.min_select,g.max_select,g.status,g.version,a.position,a.required FROM pastry_product_option_groups a JOIN pastry_option_groups g ON g.id=a.group_id JOIN pastry_products p ON p.id=a.product_id WHERE p.business_id=$1 AND g.business_id=$1 AND p.id=$2 ORDER BY a.position,g.id`, a.VendorID, c.Param("productId"))
+	if err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	defer rows.Close()
+	out := []gin.H{}
+	for rows.Next() {
+		var id, name, typ, status string
+		var min, max, position int
+		var version int64
+		var required bool
+		if err = rows.Scan(&id, &name, &typ, &min, &max, &status, &version, &position, &required); err != nil {
+			httpx.RespondError(c, err)
+			return
+		}
+		out = append(out, gin.H{"group_id": id, "name": name, "group_type": typ, "min_select": min, "max_select": max, "status": status, "version": version, "position": position, "required": required})
+	}
+	if err = rows.Err(); err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+
 func (h *Handler) attach(c *gin.Context) {
 	a, scope, ok := h.auth(c, PermManage)
 	if !ok {
@@ -320,7 +357,10 @@ func (h *Handler) request(c *gin.Context) {
 		httpx.RespondError(c, apperrors.BadRequest("Check your details.", nil))
 		return
 	}
-	id, e := h.s.CreateRequest(c, a.VendorID, CustomRequestInput{BranchID: in.BranchID, CustomerRef: in.CustomerRef, CorporateProfileRef: in.CorporateProfileRef, Title: in.Title, Notes: in.Notes, RequiredAt: in.EventAt, ChangeCutoffAt: in.ChangeCutoffAt, ChangePolicy: in.ChangePolicy, CancellationPolicy: in.CancellationPolicy, Logistics: in.Logistics, RiskFlags: in.RiskFlags})
+	if !h.validateRequestReferences(c, a, in.BranchID, in.CustomerRef, in.CorporateProfileRef) {
+		return
+	}
+	id, e := h.s.CreateRequest(c, a.VendorID, CustomRequestInput{ValidateCRMReferences: true, BranchID: in.BranchID, CustomerRef: in.CustomerRef, CorporateProfileRef: in.CorporateProfileRef, Title: in.Title, Notes: in.Notes, RequiredAt: in.EventAt, ChangeCutoffAt: in.ChangeCutoffAt, ChangePolicy: in.ChangePolicy, CancellationPolicy: in.CancellationPolicy, Logistics: in.Logistics, RiskFlags: in.RiskFlags})
 	if e != nil {
 		httpx.RespondError(c, e)
 		return
@@ -1306,9 +1346,11 @@ func RegisterRoutes(group *gin.RouterGroup, h *Handler, flags production.Flags) 
 	g.POST("/option-groups/:groupId/options", h.addOption)
 	g.PATCH("/options/:optionId", h.updateOption)
 	g.POST("/options/:optionId/archive", h.archiveOption)
+	g.GET("/products/:productId/option-groups", h.attachedGroups)
 	g.POST("/products/:productId/option-groups", h.attach)
 	g.DELETE("/products/:productId/option-groups/:groupId", h.detach)
 	g.POST("/custom-requests", h.request)
+	g.GET("/request-references", h.requestReferences)
 	g.GET("/custom-requests", h.requests)
 	g.GET("/custom-requests/:requestId", h.getRequest)
 	g.PATCH("/custom-requests/:requestId", h.updateRequest)

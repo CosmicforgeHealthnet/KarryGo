@@ -1,0 +1,130 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Pastry reference discovery",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/pastry/request-references": {
+      "get": {
+        "operationId": "listPastryRequestReferences",
+        "description": "Requires pastry.manage plus the requested CRM customer/corporate read permission. Returns active visible branch-eligible canonical customer references or CRM corporate profile IDs. New custom request references are revalidated at creation. Optional empty references create an unlinked request.",
+        "x-permission": "vendor.pastry.manage",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CUSTOMER",
+                "CORPORATE"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped reference choices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "has_more",
+                        "next_offset",
+                        "branch_id",
+                        "kind"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "reference",
+                              "display_label"
+                            ],
+                            "properties": {
+                              "reference": {
+                                "type": "string"
+                              },
+                              "display_label": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "next_offset": {
+                          "type": "integer"
+                        },
+                        "branch_id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "CUSTOMER",
+                            "CORPORATE"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or branch"
+          },
+          "403": {
+            "description": "Pastry/CRM scope or access denied"
+          },
+          "503": {
+            "description": "CRM feature unavailable"
+          }
+        }
+      }
+    }
+  }
+}

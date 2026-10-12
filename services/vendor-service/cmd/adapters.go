@@ -282,7 +282,7 @@ type foodMediaAdapter struct{ client *mediaintegration.Client }
 
 func (a foodMediaAdapter) GetObject(ctx context.Context, businessID, ref string) (food.MediaObject, error) {
 	o, err := a.client.GetObject(ctx, businessID, ref)
-	return food.MediaObject{ID: o.ID, OwnerReference: o.OwnerReference, UploadPurpose: o.UploadPurpose,
+	return food.MediaObject{BindingType: o.BindingType, BindingID: o.BindingID, Visibility: o.Visibility, OwnerService: o.OwnerService, ID: o.ID, OwnerReference: o.OwnerReference, UploadPurpose: o.UploadPurpose,
 		UploadStatus: o.UploadStatus, SafetyStatus: o.SafetyStatus, DeletionState: o.DeletionState,
 		SourceVersion: o.SourceVersion}, err
 }
@@ -324,7 +324,7 @@ type shopMediaAdapter struct{ client *mediaintegration.Client }
 
 func (a shopMediaAdapter) GetObject(ctx context.Context, businessID, ref string) (shop.MediaObject, error) {
 	o, err := a.client.GetObject(ctx, businessID, ref)
-	return shop.MediaObject{ID: o.ID, OwnerReference: o.OwnerReference, UploadPurpose: o.UploadPurpose,
+	return shop.MediaObject{BindingType: o.BindingType, BindingID: o.BindingID, Visibility: o.Visibility, OwnerService: o.OwnerService, ID: o.ID, OwnerReference: o.OwnerReference, UploadPurpose: o.UploadPurpose,
 		UploadStatus: o.UploadStatus, SafetyStatus: o.SafetyStatus, DeletionState: o.DeletionState,
 		SourceVersion: o.SourceVersion}, err
 }
@@ -522,4 +522,11 @@ func (a purchasingScopeAdapter) ResolveScope(
 	}
 
 	return scope, nil
+}
+
+func (a mediaAuthorityAdapter) AuthorizeOnboardingUpload(ctx context.Context, businessID string, in vendors.OnboardingUploadInput, key string) (vendors.OnboardingUploadGrant, error) {
+	grant, err := a.client.AuthorizeOnboardingUpload(ctx, businessID, string(in.Dimension), in.MIMEType, in.ByteSize, key)
+	return vendors.OnboardingUploadGrant{SessionID: grant.SessionID, MediaRef: grant.MediaRef,
+		URL: grant.URL, Token: grant.Token, ExpiresAt: grant.ExpiresAt,
+		MaxBytes: grant.MaxBytes, AllowedMIMETypes: grant.AllowedMIMETypes}, err
 }

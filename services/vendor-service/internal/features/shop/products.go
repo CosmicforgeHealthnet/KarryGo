@@ -238,7 +238,7 @@ func (s *Service) CreateProduct(ctx context.Context, actor Actor, scope Scope, i
 	return created, err
 }
 
-func normalizeOperatingModels(raw []string) ([]string, error) {
+func normalizeOperatingModels(raw []string, target ...string) ([]string, error) {
 	if len(raw) > MaxOperatingModels {
 		return nil, fieldError("operating_models", "Supply at most "+itoa(MaxOperatingModels)+" operating models.")
 	}
@@ -296,7 +296,7 @@ func replaceProductMedia(ctx context.Context, tx pgx.Tx, businessID, productID s
 // No network call happens inside a locked transaction: a slow media read must
 // never hold catalogue rows. A nil authority refuses attachment outright,
 // because an unverified reference is worse than no image.
-func (s *Service) validateMediaRefs(ctx context.Context, businessID string, raw []string) ([]string, error) {
+func (s *Service) validateMediaRefs(ctx context.Context, businessID string, raw []string, target ...string) ([]string, error) {
 	refs := []string{}
 	seen := map[string]bool{}
 	for _, entry := range raw {
@@ -322,6 +322,9 @@ func (s *Service) validateMediaRefs(ctx context.Context, businessID string, raw 
 		if err != nil {
 			return nil, coded(apperrors.Unavailable("Media references cannot be verified right now.", err),
 				CodeMediaUnavailable)
+		}
+		if object.UploadPurpose == "PRODUCT_IMAGE" && (len(target) != 1 || object.OwnerService != "vendor-service" || object.OwnerReference != businessID || object.BindingType != "ASSET" || object.BindingID != "SHOP_PRODUCT:"+target[0] || object.Visibility != "PRIVATE" || object.SafetyStatus != "SAFE") {
+			return nil, fieldError("media_refs", "Choose a safe image uploaded for this product.")
 		}
 		if object.UploadStatus != "COMPLETED" || object.DeletionState != "ACTIVE" {
 			return nil, coded(apperrors.Validation("Check your details.", []apperrors.FieldViolation{
@@ -449,7 +452,7 @@ func (s *Service) UpdateProduct(ctx context.Context, actor Actor, scope Scope, p
 	}
 	var mediaRefs []string
 	if in.MediaRefs != nil {
-		validated, err := s.validateMediaRefs(ctx, actor.VendorID, *in.MediaRefs)
+		validated, err := s.validateMediaRefs(ctx, actor.VendorID, *in.MediaRefs, productID)
 		if err != nil {
 			return Product{}, err
 		}

@@ -165,14 +165,25 @@ export default function Commerce() {
           </div>
 
           <div ref={cardRef} className="com-card relative">
-            <div className="com-right">
+            <div className="com-right relative">
               <Image
-                src="/images/commerce.png"
+                src="/images/commerce-v2.png"
                 alt="Karryam app with a delivery truck and grocery bags showing smart fulfilment"
-                width={1600}
-                height={1200}
+                width={1672}
+                height={941}
                 sizes="(min-width: 1024px) 58vw, 100vw"
                 className="relative mx-auto w-full h-auto max-w-[760px] select-none"
+              />
+              {/* Actual source artwork, positioned on the blank trailer panel. */}
+              <Image
+                src="/images/logo.png"
+                alt=""
+                aria-hidden
+                width={1228}
+                height={320}
+                sizes="(min-width: 1024px) 6vw, 10vw"
+                className="pointer-events-none absolute left-[60%] top-[56%] h-auto w-[9%] select-none"
+                style={{ transform: "skewY(-10deg)" }}
               />
             </div>
           </div>

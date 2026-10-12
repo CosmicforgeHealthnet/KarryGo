@@ -12,7 +12,7 @@ export default function FinalCta() {
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_45%_60%_at_0%_0%,rgba(30,64,175,0.30),transparent_70%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_45%_60%_at_0%_0%,rgba(45,58,91,0.25),transparent_70%)]"
       />
       <div
         aria-hidden
@@ -33,7 +33,7 @@ export default function FinalCta() {
           <form
             action="/waitlist"
             method="get"
-            className="mt-7 flex w-full max-w-[28rem] items-center rounded-full border border-white/15 bg-white/[0.06] p-1 backdrop-blur focus-within:border-aurora/60 transition-colors"
+            className="final-cta-form mt-7 flex w-full max-w-[28rem] items-center rounded-full border border-white/15 bg-white/[0.06] p-1 backdrop-blur focus-within:border-aurora/60 transition-colors"
           >
             <label htmlFor="cta-email" className="sr-only">
               Email address
@@ -43,15 +43,16 @@ export default function FinalCta() {
               type="email"
               name="email"
               required
+              autoComplete="email"
               placeholder="Enter your email address"
               className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-[13px] text-white placeholder:text-white/45 outline-none"
             />
             <button
               type="submit"
-              className="shrink-0 inline-flex items-center gap-2 rounded-full bg-aurora px-5 py-2.5 text-[13px] font-semibold text-midnight shadow-[0_0_24px_-6px_rgba(0,194,168,0.7)] hover:brightness-110 transition"
+              className="final-cta-button shrink-0 inline-flex items-center gap-2 rounded-full bg-aurora px-5 py-2.5 text-[13px] font-semibold text-midnight shadow-sm hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
             >
               Join the Waitlist
-              <ArrowRight size={14} strokeWidth={2.5} />
+              <ArrowRight aria-hidden size={14} strokeWidth={2.5} className="interaction-arrow" />
             </button>
           </form>
         </div>

@@ -79,6 +79,10 @@ type EventPublisher interface {
 
 // MediaObject is the Media File Service's answer about one reference.
 type MediaObject struct {
+	BindingType    string
+	BindingID      string
+	Visibility     string
+	OwnerService   string
 	ID             string
 	OwnerReference string
 	UploadPurpose  string

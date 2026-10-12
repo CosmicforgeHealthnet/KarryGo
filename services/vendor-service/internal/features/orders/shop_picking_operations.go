@@ -30,10 +30,24 @@ func (s *Service) PickingQueue(ctx context.Context, actor Actor, vendorOrderID s
 	rows, err := s.store.db.Query(ctx, `SELECT l.parent_order_id,l.vendor_order_id,l.id,l.quantity,l.variant_ref,l.sell_unit_ref,
 		COALESCE(p.measurement_mode,'FIXED_UNIT'),COALESCE(p.estimated_variable_quantity,0),
 		COALESCE(p.substitution_policy,'EXACT_ONLY'),COALESCE(p.quality_preference_snapshot,'[]'::jsonb),COALESCE(p.preselected_replacement_ref,''),
-		COALESCE(o.picked_quantity,0),COALESCE(o.picking_state,'PENDING'),COALESCE(o.version,1),v.version
+		COALESCE(o.picked_quantity,0),COALESCE(o.picking_state,'PENDING'),COALESCE(o.version,1),v.version,
+ o.order_line_id IS NOT NULL,o.quality_result,
+ CASE WHEN vm.id IS NULL THEN NULL ELSE jsonb_build_object(
+ 'mode',vm.measurement_mode,'estimated_quantity',vm.estimated_quantity,
+ 'unit_price_minor',vm.unit_price_minor,'estimated_amount_minor',vm.estimated_amount_minor,
+ 'tolerance_quantity',vm.tolerance_quantity,'hard_max_quantity',vm.hard_max_quantity,
+ 'reserved_upper_quantity',vm.reserved_upper_quantity,'actual_quantity',vm.actual_quantity,
+ 'final_amount_minor',vm.final_amount_minor,'state',vm.financial_state,'version',vm.version,
+ 'pricing_denominator',CASE WHEN l.pricing_basis='VARIABLE_MEASURE' THEN l.expected_measure_quantity ELSE 0 END) END,
+ COALESCE((SELECT jsonb_agg(jsonb_build_object('preference_type',qp.preference_type,
+ 'preference_value',qp.preference_value,'result',qr.result,'observed_value',qr.observed_value,
+ 'reason',qr.reason,'version',qr.version,'created_at',qr.created_at) ORDER BY qp.preference_type)
+ FROM commerce_order_line_quality_results qr JOIN commerce_order_line_quality_preferences qp ON qp.id=qr.preference_id
+ WHERE qr.order_line_id=l.id),'[]'::jsonb)
 		FROM commerce_vendor_order_lines l JOIN commerce_vendor_orders v ON v.id=l.vendor_order_id
 		LEFT JOIN commerce_shop_picking_snapshots p ON p.order_line_id=l.id
 		LEFT JOIN commerce_vendor_order_line_outcomes o ON o.order_line_id=l.id
+ LEFT JOIN commerce_variable_measurements vm ON vm.order_line_id=l.id AND vm.vendor_order_id=l.vendor_order_id
 		WHERE l.vendor_order_id=$1 ORDER BY l.id`, order.ID)
 	if err != nil {
 		return nil, err
@@ -43,9 +57,9 @@ func (s *Service) PickingQueue(ctx context.Context, actor Actor, vendorOrderID s
 	for rows.Next() {
 		var p ShopPickingLine
 		var policy string
-		var raw json.RawMessage
+		var raw, measurementRaw, qualityRaw json.RawMessage
 		var state string
-		if err = rows.Scan(&p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.OrderedQuantity, &p.VariantRef, &p.SellUnitRef, &p.MeasurementMode, &p.EstimatedVariableQuantity, &policy, &raw, &p.PreselectedReplacementRef, &p.QuantityFound, &state, &p.Version, &p.ExpectedVendorOrderVersion); err != nil {
+		if err = rows.Scan(&p.ParentOrderID, &p.VendorOrderID, &p.OrderLineID, &p.OrderedQuantity, &p.VariantRef, &p.SellUnitRef, &p.MeasurementMode, &p.EstimatedVariableQuantity, &policy, &raw, &p.PreselectedReplacementRef, &p.QuantityFound, &state, &p.Version, &p.ExpectedVendorOrderVersion, &p.HasOutcome, &p.QualityResult, &measurementRaw, &qualityRaw); err != nil {
 			return nil, err
 		}
 		p.RemainingQuantity = p.OrderedQuantity - p.QuantityFound
@@ -53,6 +67,15 @@ func (s *Service) PickingQueue(ctx context.Context, actor Actor, vendorOrderID s
 		p.State = PickingState(state)
 		if len(raw) > 0 && string(raw) != "[]" {
 			_ = json.Unmarshal(raw, &p.QualityPreferences)
+		}
+		if len(measurementRaw) > 0 && string(measurementRaw) != "null" {
+			p.Measurement = &PickingMeasurement{}
+			if err = json.Unmarshal(measurementRaw, p.Measurement); err != nil {
+				return nil, err
+			}
+		}
+		if err = json.Unmarshal(qualityRaw, &p.QualityResults); err != nil {
+			return nil, err
 		}
 		result = append(result, p)
 	}
@@ -105,7 +128,7 @@ func (s *Service) RecordQualityResult(ctx context.Context, actor Actor, vendorOr
 		 WHERE p.order_line_id=$1
 		ON CONFLICT(preference_id) DO UPDATE SET
 			result=EXCLUDED.result,observed_value=EXCLUDED.observed_value,
-			reason=EXCLUDED.reason,picker_ref=EXCLUDED.picker_ref`,
+			reason=EXCLUDED.reason,picker_ref=EXCLUDED.picker_ref,version=commerce_order_line_quality_results.version+1`,
 		lineID, result, observed, reason, actor.StaffID)
 	if err != nil {
 		return err

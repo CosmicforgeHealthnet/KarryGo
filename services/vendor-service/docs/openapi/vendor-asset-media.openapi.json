@@ -1,0 +1,154 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor asset media",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/vendor/media/uploads": {
+      "post": {
+        "operationId": "post_2a0645a7a0b5",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized upload grant, scoped metadata or validated file content"
+          },
+          "403": {
+            "description": "Staff scope denied"
+          },
+          "503": {
+            "description": "Media or safety validation unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target_type": {
+                    "type": "string"
+                  },
+                  "target_ref": {
+                    "type": "string"
+                  },
+                  "file_name": {
+                    "type": "string"
+                  },
+                  "mime_type": {
+                    "type": "string"
+                  },
+                  "byte_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "target_type",
+                  "target_ref",
+                  "file_name",
+                  "mime_type",
+                  "byte_size"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/media/objects/{mediaRef}": {
+      "get": {
+        "operationId": "get_447876907d9a",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mediaRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized upload grant, scoped metadata or validated file content"
+          },
+          "403": {
+            "description": "Staff scope denied"
+          },
+          "503": {
+            "description": "Media or safety validation unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/vendor/media/objects/{mediaRef}/content": {
+      "get": {
+        "operationId": "get_026ee68482e1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mediaRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized upload grant, scoped metadata or validated file content"
+          },
+          "403": {
+            "description": "Staff scope denied"
+          },
+          "503": {
+            "description": "Media or safety validation unavailable"
+          }
+        }
+      }
+    }
+  }
+}

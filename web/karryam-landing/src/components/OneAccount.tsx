@@ -46,8 +46,8 @@ export default function OneAccount() {
     const r = e.currentTarget.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width - 0.5;
     const py = (e.clientY - r.top) / r.height - 0.5;
-    img.style.setProperty("--ry", `${(px * 10).toFixed(2)}deg`);
-    img.style.setProperty("--rx", `${(-py * 8).toFixed(2)}deg`);
+    img.style.setProperty("--ry", `${(px * 4).toFixed(2)}deg`);
+    img.style.setProperty("--rx", `${(-py * 3).toFixed(2)}deg`);
   };
 
   const onLeave = () => {
@@ -66,16 +66,16 @@ export default function OneAccount() {
     >
       <style>{`
         @keyframes acc-rise {
-          from { opacity: 0; translate: 0 40px; }
+          from { opacity: 0; translate: 0 14px; }
           to { opacity: 1; translate: 0 0; }
         }
         @keyframes acc-slide {
-          from { opacity: 0; translate: -28px 0; }
+          from { opacity: 0; translate: -12px 0; }
           to { opacity: 1; translate: 0 0; }
         }
         @keyframes acc-pop {
-          0% { opacity: 0; scale: 0.4; }
-          70% { opacity: 1; scale: 1.18; }
+          0% { opacity: 0; scale: 0.94; }
+          70% { opacity: 1; scale: 1; }
           100% { opacity: 1; scale: 1; }
         }
         @keyframes acc-tick { to { stroke-dashoffset: 0; } }
@@ -85,11 +85,11 @@ export default function OneAccount() {
         }
         @keyframes acc-float {
           0%, 100% { translate: 0 0; }
-          50% { translate: 0 -12px; }
+          50% { translate: 0 -3px; }
         }
         @keyframes acc-float-sm {
           0%, 100% { translate: 0 0; }
-          50% { translate: 0 -6px; }
+          50% { translate: 0 -2px; }
         }
         @keyframes acc-breathe {
           0%, 100% { transform: scale(1); opacity: 0.7; }
@@ -116,7 +116,7 @@ export default function OneAccount() {
           animation-delay: var(--d, 0s);
         }
         [data-inview="true"] .acc-pop {
-          animation: acc-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          animation: acc-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
           animation-delay: calc(var(--d, 0s) + 0.1s);
         }
         [data-inview="true"] .acc-tick path {
@@ -167,15 +167,15 @@ export default function OneAccount() {
 
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_75%,rgba(0,194,168,0.16),transparent_70%)] lg:bg-[radial-gradient(ellipse_55%_60%_at_75%_50%,rgba(0,194,168,0.16),transparent_70%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_75%,rgba(0,194,168,0.05),transparent_70%)] lg:bg-[radial-gradient(ellipse_55%_60%_at_75%_50%,rgba(0,194,168,0.05),transparent_70%)]"
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_70%_40%_at_0%_100%,rgba(30,64,175,0.28),transparent_70%)] lg:bg-[radial-gradient(ellipse_45%_45%_at_0%_100%,rgba(30,64,175,0.28),transparent_70%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_70%_40%_at_0%_100%,rgba(45,58,91,0.20),transparent_70%)] lg:bg-[radial-gradient(ellipse_45%_45%_at_0%_100%,rgba(45,58,91,0.20),transparent_70%)]"
       />
       <div
         aria-hidden
-        className="acc-dots absolute inset-0 opacity-[0.05] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:28px_28px] [mask-image:linear-gradient(to_bottom,transparent,black_30%,black_70%,transparent)]"
+        className="absolute inset-0 opacity-[0.05] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:28px_28px] [mask-image:linear-gradient(to_bottom,transparent,black_30%,black_70%,transparent)]"
       />
 
       <div className="relative mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12 grid lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-8 items-center">
@@ -194,7 +194,7 @@ export default function OneAccount() {
           >
             Track everything.
             <br />
-            <span className="acc-shimmer text-aurora">In one place.</span>
+            <span className="text-aurora">In one place.</span>
           </h2>
 
           <p
@@ -237,20 +237,14 @@ export default function OneAccount() {
           onMouseMove={onMove}
           onMouseLeave={onLeave}
         >
-          <div
-            aria-hidden
-            className="absolute left-1/2 top-1/2 h-[65%] w-[65%] -translate-x-1/2 -translate-y-1/2"
-          >
-            <div className="acc-glow h-full w-full rounded-full bg-aurora/10 blur-2xl sm:blur-3xl" />
-          </div>
           <Image
             ref={imgRef}
-            src="/images/one-account.png"
-            alt="Karryam Activity screen showing ride, parcel, food and truck orders in one timeline"
+            src="/images/one-account-v2.png"
+            alt="Karryam fleet tracking screen with live shipment status and fleet performance"
             width={1672}
             height={941}
             sizes="(min-width: 1024px) 58vw, 100vw"
-            className="acc-img relative mx-auto w-full max-w-[640px] lg:max-w-none h-auto select-none mix-blend-lighten [mask-image:radial-gradient(ellipse_72%_72%_at_50%_50%,#000_55%,transparent_100%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_50%,#000_55%,transparent_100%)]"
+            className="acc-img relative mx-auto w-full max-w-[640px] lg:max-w-none h-auto select-none"
           />
         </div>
       </div>

@@ -153,12 +153,7 @@ export default function Navbar() {
               </li>
             ))}
             <li className="pt-3 pb-2 flex flex-col gap-3">
-              {/* <a
-                href="/login"
-                className="block text-center py-3 rounded-full border border-white/15"
-              >
-                Login
-              </a> */}
+            
               <a
                 href="/waitlist"
                 className="flex items-center justify-center gap-2 bg-aurora text-midnight font-semibold px-5 py-3 rounded-full"

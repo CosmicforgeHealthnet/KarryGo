@@ -1,5 +1,7 @@
+"use client";
+
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Check } from "lucide-react";
 
 type Props = {
@@ -34,11 +36,31 @@ export default function PartnerCard({
   backgroundImage,
 }: Props) {
   const dark = tone === "dark";
+  const ref = useRef<HTMLElement>(null);
+  const [reveal, setReveal] = useState("visible");
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !window.IntersectionObserver || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) return;
+    setReveal("pending");
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setReveal("visible");
+        observer.disconnect();
+      }
+    }, { threshold: 0.1 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <article
       id={id}
-      className={`relative scroll-mt-24 overflow-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-9 ring-1 ${
+      ref={ref}
+      data-reveal={reveal}
+      className={`partner-card relative scroll-mt-24 overflow-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-9 ring-1 ${
         dark
           ? "bg-midnight text-white ring-white/10"
           : "bg-gradient-to-br from-white to-[#EAF4F8] text-midnight ring-midnight/5 shadow-[0_24px_60px_-28px_rgba(11,31,68,0.25)]"
@@ -69,7 +91,7 @@ export default function PartnerCard({
       {dark && !backgroundImage && (
         <div
           aria-hidden
-          className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_85%_60%,rgba(0,194,168,0.22),transparent_70%)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_85%_60%,rgba(0,194,168,0.08),transparent_70%)]"
         />
       )}
 
@@ -88,7 +110,7 @@ export default function PartnerCard({
         <div className={image ? "" : "max-w-[24rem]"}>
           <p
             className={`text-[10px] sm:text-[11px] tracking-[0.24em] font-semibold uppercase ${
-              dark ? "text-aurora" : "text-[#00A28C]"
+              dark ? "text-aurora" : "text-aurora-ink"
             }`}
           >
             {eyebrow}
@@ -112,7 +134,7 @@ export default function PartnerCard({
                 <li key={p} className="flex items-center gap-2.5">
                   <span
                     className={`grid h-4 w-4 shrink-0 place-items-center rounded-full bg-aurora/15 ${
-                      dark ? "text-aurora" : "text-[#00A28C]"
+                      dark ? "text-aurora" : "text-aurora-ink"
                     }`}
                   >
                     <Check size={10} strokeWidth={3} />
@@ -131,14 +153,14 @@ export default function PartnerCard({
 
           <a
             href={href}
-            className={`mt-6 sm:mt-7 inline-flex items-center gap-2 rounded-full px-5 py-3 sm:py-2.5 text-[12px] font-semibold transition ${
+            className={`partner-cta mt-6 sm:mt-7 inline-flex items-center gap-2 rounded-full px-5 py-3 sm:py-2.5 text-[12px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora ${
               dark
-                ? "bg-aurora text-midnight shadow-[0_0_24px_-6px_rgba(0,194,168,0.7)] hover:brightness-110"
-                : "border border-aurora text-[#00A28C] hover:bg-aurora hover:text-midnight"
+                ? "bg-aurora text-midnight shadow-sm hover:brightness-110"
+                : "border border-aurora text-aurora-ink hover:bg-aurora hover:text-midnight"
             }`}
           >
             {cta}
-            <ArrowRight size={13} strokeWidth={2.5} />
+            <ArrowRight aria-hidden size={13} strokeWidth={2.5} className="partner-arrow" />
           </a>
         </div>
 

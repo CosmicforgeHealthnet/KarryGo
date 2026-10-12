@@ -60,6 +60,19 @@ export default function Trust() {
           70% { opacity: 1; scale: 1.15; }
           100% { opacity: 1; scale: 1; }
         }
+        @keyframes trs-shimmer {
+          from { background-position: 0% 50%; }
+          to { background-position: 200% 50%; }
+        }
+
+        .trs-shimmer {
+          background-image: linear-gradient(90deg, #0B1F44 0%, #0B1F44 35%, #00A28C 50%, #0B1F44 65%, #0B1F44 100%);
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: trs-shimmer 7s linear infinite;
+        }
 
         .trs-rise, .trs-pop { opacity: 0; }
 
@@ -74,6 +87,7 @@ export default function Trust() {
 
         @media (prefers-reduced-motion: reduce) {
           .trs-rise, .trs-pop { opacity: 1; animation: none !important; }
+          .trs-shimmer { animation: none; background-image: none; color: inherit; }
         }
       `}</style>
 
@@ -92,7 +106,7 @@ export default function Trust() {
           >
             Your safety.
             <br />
-            Our priority.
+            <span className="trs-shimmer">Our priority.</span>
           </h2>
 
           <p

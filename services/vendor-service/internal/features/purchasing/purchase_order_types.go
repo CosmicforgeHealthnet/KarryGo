@@ -51,8 +51,9 @@ type StepUpConsumer interface {
 }
 
 type ApprovalPolicy struct {
-	ID         string `json:"id"`
-	BusinessID string `json:"business_id"`
+	RulesComplete bool   `json:"rules_complete"`
+	ID            string `json:"id"`
+	BusinessID    string `json:"business_id"`
 
 	Name string `json:"name"`
 

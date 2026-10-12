@@ -39,8 +39,8 @@ export default function Providers() {
     const r = e.currentTarget.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width - 0.5;
     const py = (e.clientY - r.top) / r.height - 0.5;
-    card.style.setProperty("--ry", `${(px * 9).toFixed(2)}deg`);
-    card.style.setProperty("--rx", `${(-py * 7).toFixed(2)}deg`);
+    card.style.setProperty("--ry", `${(px * 4).toFixed(2)}deg`);
+    card.style.setProperty("--rx", `${(-py * 3).toFixed(2)}deg`);
   };
 
   const onLeave = () => {
@@ -59,11 +59,11 @@ export default function Providers() {
     >
       <style>{`
         @keyframes prv-rise {
-          from { opacity: 0; translate: 0 36px; }
+          from { opacity: 0; translate: 0 14px; }
           to { opacity: 1; translate: 0 0; }
         }
         @keyframes prv-zoom {
-          from { opacity: 0; translate: 0 40px; scale: 0.93; }
+          from { opacity: 0; translate: 0 16px; scale: 0.98; }
           to { opacity: 1; translate: 0 0; scale: 1; }
         }
         @keyframes prv-sweep {
@@ -102,7 +102,7 @@ export default function Providers() {
         {/* Providers */}
         <div className="lg:col-span-4">
           <p
-            className="prv-rise text-[#00A28C] text-[11px] tracking-[0.24em] font-semibold uppercase"
+            className="prv-rise text-aurora-ink text-[11px] tracking-[0.24em] font-semibold uppercase"
             style={vars({ "--d": "0s" })}
           >
             For Providers
@@ -126,7 +126,7 @@ export default function Providers() {
 
           <a
             href="/waitlist"
-            className="prv-rise group mt-8 inline-flex items-center gap-2 rounded-full bg-aurora px-6 py-3 text-[13px] font-semibold text-midnight shadow-[0_0_24px_-6px_rgba(0,194,168,0.7)] hover:brightness-110 hover:shadow-[0_0_34px_-4px_rgba(0,194,168,0.9)] transition"
+            className="prv-rise group mt-8 inline-flex items-center gap-2 rounded-full bg-aurora px-6 py-3 text-[13px] font-semibold text-midnight shadow-sm hover:brightness-110 transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
             style={vars({ "--d": "0.3s" })}
           >
             Join as a Provider
@@ -158,7 +158,7 @@ export default function Providers() {
                 {/* one-time light sweep */}
                 <span
                   aria-hidden
-                  className="prv-sweep pointer-events-none absolute inset-y-0 -left-1/3 w-1/4 -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                  className="prv-sweep pointer-events-none absolute inset-y-0 -left-1/3 w-1/4 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent"
                   style={{ translate: "-120% 0" }}
                 />
               </div>
@@ -169,7 +169,7 @@ export default function Providers() {
         {/* Fleets */}
         <div className="lg:col-span-4 lg:pl-6">
           <p
-            className="prv-rise text-[#00A28C] text-[11px] tracking-[0.24em] font-semibold uppercase"
+            className="prv-rise text-aurora-ink text-[11px] tracking-[0.24em] font-semibold uppercase"
             style={vars({ "--d": "0.6s" })}
           >
             For Fleets
@@ -194,7 +194,7 @@ export default function Providers() {
 
           <a
             href="#fleet"
-            className="prv-rise group mt-8 inline-flex items-center gap-2 rounded-full border border-aurora px-6 py-3 text-[13px] font-semibold text-[#00A28C] hover:bg-aurora hover:text-midnight transition-colors"
+            className="prv-rise group mt-8 inline-flex items-center gap-2 rounded-full border border-aurora px-6 py-3 text-[13px] font-semibold text-aurora-ink hover:bg-aurora hover:text-midnight transition-colors"
             style={vars({ "--d": "0.9s" })}
           >
             Explore Fleet

@@ -22,7 +22,26 @@ const (
 	AvailabilityOut     Availability = "OUT_OF_STOCK"
 )
 
+type PickingMeasurement struct {
+	VariableMeasurement
+	Version int64 `json:"version"`
+}
+type PickingQualityResult struct {
+	PreferenceType  string        `json:"preference_type"`
+	PreferenceValue string        `json:"preference_value"`
+	Result          QualityResult `json:"result"`
+	ObservedValue   string        `json:"observed_value"`
+	Reason          string        `json:"reason"`
+	Version         int64         `json:"version"`
+	CreatedAt       time.Time     `json:"created_at"`
+}
+
 type ShopPickingLine struct {
+	Measurement    *PickingMeasurement
+	QualityResult  *QualityResult
+	QualityResults []PickingQualityResult
+	HasOutcome     bool
+
 	ParentOrderID, VendorOrderID, OrderLineID         string
 	OrderedQuantity, QuantityFound, RemainingQuantity int64
 	VariantRef, SellUnitRef                           string

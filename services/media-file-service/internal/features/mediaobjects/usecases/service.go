@@ -472,6 +472,19 @@ func (s *Service) validateAuthorizeInput(input *AuthorizeUploadInput) error {
 	case !models.ValidRetentionClass(input.RetentionClass):
 		return invalid("RETENTION_UNSUPPORTED", "That retention class is not supported.")
 	}
+	if input.UploadPurpose == models.PurposeProductImage || input.UploadPurpose == models.PurposeBrandImage || input.UploadPurpose == models.PurposePastryReference {
+		if input.Caller.Service != "vendor-service" || input.OwnerType != "VENDOR_BUSINESS" || input.OwnerReference != input.Caller.OrganizationID || input.BindingType != models.BindingAsset || input.BindingID == "" {
+			return invalid("VENDOR_ASSET_SCOPE_REQUIRED", "Vendor assets require a scoped record binding.")
+		}
+		if input.MaxSizeBytes <= 0 || input.MaxSizeBytes > 10<<20 {
+			return invalid("VENDOR_ASSET_SIZE", "Vendor assets must be at most 10 MB.")
+		}
+		for _, mime := range input.AllowedMIMETypes {
+			if mime != "image/jpeg" && mime != "image/png" && mime != "image/webp" && !(input.UploadPurpose == models.PurposePastryReference && mime == "application/pdf") {
+				return invalid("VENDOR_ASSET_MIME", "Unsupported vendor asset type.")
+			}
+		}
+	}
 	if err := validateBindings(input); err != nil {
 		return err
 	}
@@ -560,6 +573,37 @@ func (s *Service) CompleteCustomerUpload(ctx context.Context, input CompleteUplo
 	}
 	input.Caller = Caller{Service: "customer-service", OrganizationID: authorization.OrganizationID}
 	return s.CompleteUpload(ctx, input)
+}
+
+func (s *Service) CompleteVendorUpload(ctx context.Context, input CompleteUploadInput) (*models.Object, error) {
+	authorization, err := s.opts.Objects.AuthorizationByID(ctx, input.AuthorizationID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if !vendorUploadAuthorization(authorization) {
+		return nil, ErrNotFound
+	}
+	if authorization.UploadPurpose != models.PurposeComplianceDocument {
+		object, readErr := s.GetObject(ctx, Caller{Service: "vendor-service", OrganizationID: authorization.OrganizationID}, authorization.MediaObjectID)
+		if readErr != nil || object.BindingType != models.BindingAsset || object.BindingID == "" || object.UploadPurpose != authorization.UploadPurpose {
+			return nil, ErrNotFound
+		}
+	}
+	input.Caller = Caller{Service: "vendor-service", OrganizationID: authorization.OrganizationID}
+	return s.CompleteUpload(ctx, input)
+}
+
+func vendorUploadAuthorization(a *models.UploadAuthorization) bool {
+	if a == nil || a.CallerService != "vendor-service" || a.OwnerService != "vendor-service" || a.OwnerType != "VENDOR_BUSINESS" || a.OwnerReference == "" || a.OrganizationID != a.OwnerReference || a.Visibility != models.VisibilityPrivate {
+		return false
+	}
+	if a.UploadPurpose == models.PurposeComplianceDocument {
+		return true
+	}
+	return (a.UploadPurpose == models.PurposeProductImage || a.UploadPurpose == models.PurposeBrandImage || a.UploadPurpose == models.PurposePastryReference)
 }
 
 // CompleteUpload stores and validates the bytes for one authorized upload.

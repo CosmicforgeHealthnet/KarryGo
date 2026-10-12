@@ -15,7 +15,7 @@ import (
 )
 
 const specPath = "../../docs/openapi/sections10-11-production.openapi.json"
-const expectedOperations = 127
+const expectedOperations = 128
 
 type operation struct {
 	OperationID string                     `json:"operationId"`

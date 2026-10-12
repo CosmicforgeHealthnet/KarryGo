@@ -759,6 +759,7 @@ func RegisterRoutes(root *gin.RouterGroup, h *Handler, enabled bool) {
 	missions.GET("/fallbacks/:operationRef", h.getHybridFallback)
 
 	rider := root.Group("/delivery/rider")
+	rider.GET("/branches", h.riderBranches)
 	rider.GET("/availability", h.getRiderAvailability)
 	rider.PUT("/availability", h.setRiderAvailability)
 	rider.GET("/missions", h.listRiderMissions)

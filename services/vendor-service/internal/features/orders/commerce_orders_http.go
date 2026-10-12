@@ -3,6 +3,7 @@ package orders
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +20,7 @@ func section21Error(err error) error {
 	switch {
 	case errors.Is(err, ErrSection21NotFound):
 		return apperrors.NotFound("Resource not found.", err)
-	case errors.Is(err, ErrSection21Forbidden):
+	case errors.Is(err, ErrSection21Forbidden), errors.Is(err, ErrForbidden):
 		return apperrors.Forbidden("You may not act on this resource.", err)
 	case errors.Is(err, ErrSection21Expired):
 		return apperrors.Conflict("This resource is closed or expired.", err)
@@ -380,7 +381,7 @@ func (h *section21Handler) createRecurringSchedule(c *gin.Context) {
 		respondSection21(c, err)
 		return
 	}
-	out, created, err := h.service.CreateRecurringSchedule(c.Request.Context(), request.RecurringScheduleInput)
+	out, created, err := h.service.CreateRecurringByStaff(c.Request.Context(), actor, request.RecurringScheduleInput)
 	if err != nil {
 		respondSection21(c, err)
 		return
@@ -444,6 +445,142 @@ func (h *section21Handler) listRecurringOccurrences(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
 }
 
+func scheduledReadFilter(c *gin.Context) ScheduledReadFilter {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	return normalizeScheduledFilter(ScheduledReadFilter{BranchID: c.Query("branch_id"), Limit: limit, Offset: offset})
+}
+func (h *section21Handler) listScheduled(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	f := scheduledReadFilter(c)
+	rows, err := h.service.ListScheduledByStaff(c.Request.Context(), actor, f)
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	more := len(rows) > f.Limit
+	if more {
+		rows = rows[:f.Limit]
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": rows, "pagination": gin.H{"limit": f.Limit, "offset": f.Offset, "has_more": more}}})
+}
+func (h *section21Handler) getScheduled(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	out, err := h.service.GetScheduledByStaff(c.Request.Context(), actor, c.Param("id"))
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+func (h *section21Handler) listRecurringSchedules(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	f := scheduledReadFilter(c)
+	rows, err := h.service.ListRecurringByStaff(c.Request.Context(), actor, f)
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	more := len(rows) > f.Limit
+	if more {
+		rows = rows[:f.Limit]
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": rows, "pagination": gin.H{"limit": f.Limit, "offset": f.Offset, "has_more": more}}})
+}
+func (h *section21Handler) getRecurringSchedule(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	out, err := h.service.GetRecurringByStaff(c.Request.Context(), actor, c.Param("scheduleId"))
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+
+func (h *section21Handler) listVendorRFQs(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	f := scheduledReadFilter(c)
+	rows, err := h.service.ListVendorRFQs(c.Request.Context(), actor, f)
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	more := len(rows) > f.Limit
+	if more {
+		rows = rows[:f.Limit]
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": rows, "pagination": gin.H{"limit": f.Limit, "offset": f.Offset, "has_more": more}}})
+}
+func (h *section21Handler) getVendorRFQ(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	out, err := h.service.GetVendorRFQ(c.Request.Context(), actor, c.Param("rfqId"))
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+func (h *section21Handler) vendorRFQQuotes(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	out, err := h.service.ListVendorRFQQuotes(c.Request.Context(), actor, c.Param("rfqId"))
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+
+func (h *section21Handler) listSchedulingQuotes(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	f := scheduledReadFilter(c)
+	out, err := h.service.ListSchedulingQuotes(c.Request.Context(), actor, f)
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	more := len(out) > f.Limit
+	if more {
+		out = out[:f.Limit]
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": out, "pagination": gin.H{"limit": f.Limit, "offset": f.Offset, "has_more": more}}})
+}
+func (h *section21Handler) getSchedulingQuote(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	out, err := h.service.GetSchedulingQuote(c.Request.Context(), actor, c.Param("quoteId"), c.Query("branch_id"))
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+
 // RegisterSection21VendorRoutes mounts staff-only scheduled/bulk and vendor
 // RFQ quote operations beneath the existing protected Vendor router.
 func RegisterSection21VendorRoutes(root *gin.RouterGroup, service *Section21Service, enabled bool) {
@@ -452,8 +589,18 @@ func RegisterSection21VendorRoutes(root *gin.RouterGroup, service *Section21Serv
 	}
 	h := &section21Handler{service: service}
 	g := root.Group("/commerce/section21")
+	g.GET("/recurring-setup-contexts", h.listRecurringSetupContexts)
+	g.GET("/scheduling-quotes", h.listSchedulingQuotes)
+	g.GET("/scheduling-quotes/:quoteId", h.getSchedulingQuote)
+	g.GET("/scheduled-orders", h.listScheduled)
+	g.GET("/scheduled-orders/:id", h.getScheduled)
+	g.GET("/recurring-schedules", h.listRecurringSchedules)
+	g.GET("/recurring-schedules/:scheduleId", h.getRecurringSchedule)
 	g.POST("/scheduled-orders", h.createScheduled)
 	g.POST("/scheduled-orders/:id/cancel", h.cancelScheduled)
+	g.GET("/rfqs", h.listVendorRFQs)
+	g.GET("/rfqs/:rfqId", h.getVendorRFQ)
+	g.GET("/rfqs/:rfqId/quotes", h.vendorRFQQuotes)
 	g.POST("/rfqs/:rfqId/quotes", h.quoteRFQ)
 	g.POST("/recurring-schedules", h.createRecurringSchedule)
 	g.PUT("/recurring-schedules/:scheduleId", h.updateRecurringSchedule)
@@ -486,4 +633,18 @@ func RegisterSection21CustomerRoutes(router *gin.Engine, service *Section21Servi
 	g.POST("/groups/:groupId/join", h.joinGroup)
 	g.PUT("/groups/:groupId/selections/:selectionId", h.selection)
 	g.DELETE("/groups/:groupId/selections/:selectionId", h.deleteSelection)
+}
+
+func (h *section21Handler) listRecurringSetupContexts(c *gin.Context) {
+	actor, ok := section21Staff(c)
+	if !ok {
+		return
+	}
+	f := scheduledReadFilter(c)
+	out, more, err := h.service.ListRecurringSetupContexts(c.Request.Context(), actor, f)
+	if err != nil {
+		respondSection21(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": out, "pagination": gin.H{"limit": f.Limit, "offset": f.Offset, "has_more": more, "next_offset": f.Offset + f.Limit}}})
 }

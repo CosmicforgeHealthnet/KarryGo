@@ -1,6 +1,7 @@
 package cloudkitchen
 
 import (
+	"cosmicforge/logistics/services/vendor-service/internal/features/crm"
 	"encoding/json"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/production"
@@ -15,6 +16,7 @@ import (
 )
 
 type Handler struct {
+	crm         *crm.Service
 	service     *Service
 	idempotency *idempotency.Store
 }
@@ -305,6 +307,9 @@ func (h *Handler) createPlan(c *gin.Context) {
 		httpx.RespondError(c, apperrors.BadRequest("Check your details.", nil))
 		return
 	}
+	if !h.validateCorporate(c, a, p.BranchID, p.CorporateProfileRef) {
+		return
+	}
 	id, err := h.service.CreatePlan(c, a.VendorID, p)
 	if err != nil {
 		httpx.RespondError(c, err)
@@ -572,6 +577,14 @@ func (h *Handler) updatePlan(c *gin.Context) {
 		httpx.RespondError(c, apperrors.BadRequest("Check the corporate plan details and version.", nil))
 		return
 	}
+	var branch, savedReference string
+	if err := h.service.DB().QueryRow(c, `SELECT branch_id,corporate_profile_ref FROM cloud_kitchen_corporate_plans WHERE business_id=$1 AND id=$2`, a.VendorID, c.Param("planId")).Scan(&branch, &savedReference); err != nil || !scope.Covers(branch) {
+		httpx.RespondError(c, apperrors.NotFound("Corporate plan not found.", nil))
+		return
+	}
+	if in.CorporateProfileRef != savedReference && !h.validateCorporate(c, a, branch, in.CorporateProfileRef) {
+		return
+	}
 	version, err := h.service.UpdatePlan(c, a.VendorID, c.Param("planId"), in, scope)
 	if err != nil {
 		httpx.RespondError(c, err)
@@ -729,6 +742,8 @@ func RegisterRoutes(group *gin.RouterGroup, h *Handler, flags production.Flags) 
 	}
 	g := group.Group("/cloud-kitchen")
 	g.Use(idempotency.CommandMiddleware(h.idempotency))
+	g.GET("/context/:branchId", h.context)
+	g.GET("/corporate-references", h.corporateReferences)
 	g.GET("/settings/:branchId", h.settings)
 	g.PUT("/settings/:branchId", h.putSettings)
 	g.GET("/bulk-packages", h.listPackages)
