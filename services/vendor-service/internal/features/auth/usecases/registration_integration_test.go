@@ -2,12 +2,15 @@ package vendorauthusecases_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/database"
 	repo "cosmicforge/logistics/services/vendor-service/internal/features/auth/repositories"
 	auth "cosmicforge/logistics/services/vendor-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/vendor-service/internal/features/registration"
+	"cosmicforge/logistics/services/vendor-service/internal/features/vendors"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -39,7 +42,7 @@ func (b *registrationBridge) RegisterOwner(ctx context.Context, userID string, i
 }
 
 func TestSelfRegistrationRequiresOTPAndCreatesOnlyDraftOwner(t *testing.T) {
-	pool := testPool(t)
+	pool := registrationPool(t)
 	ctx := context.Background()
 	staff := newFakeStaffResolver()
 	bridge := &registrationBridge{pool: pool, service: registration.NewService(pool, true), staff: staff}
@@ -95,7 +98,7 @@ func TestSelfRegistrationRequiresOTPAndCreatesOnlyDraftOwner(t *testing.T) {
 }
 
 func TestSelfRegistrationConcurrentRetriesAndSuspension(t *testing.T) {
-	pool := testPool(t)
+	pool := registrationPool(t)
 	ctx := context.Background()
 	user, err := repo.NewUserRepository(pool).UpsertByEmail(ctx, uuid.NewString()+"@example.com")
 	if err != nil {
@@ -130,4 +133,64 @@ func TestSelfRegistrationConcurrentRetriesAndSuspension(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT status FROM vendor_staff WHERE user_id=$1`, user.ID).Scan(&status); err != nil || status != "suspended" {
 		t.Fatal("registration bypassed suspension")
 	}
+}
+
+type registrationBusinessAuthorizer struct{}
+
+func (registrationBusinessAuthorizer) Authorize(context.Context, string, string, *string) (bool, error) {
+	return true, nil
+}
+
+func TestSelfRegistrationContactOnlyThenBusinessSetup(t *testing.T) {
+	pool := registrationPool(t)
+	ctx := context.Background()
+	staff := newFakeStaffResolver()
+	bridge := &registrationBridge{pool: pool, service: registration.NewService(pool, true), staff: staff}
+	service := auth.NewAuthService(auth.Options{
+		Users: repo.NewUserRepository(pool), Challenges: repo.NewOTPChallengeRepository(pool), Sessions: repo.NewSessionRepository(pool), StepUps: repo.NewStepUpRepository(pool), Staff: staff, Registration: bridge,
+		AccessTokenSecret: []byte("test-access-secret"), RefreshTokenSecret: []byte("test-refresh-secret"), OTPSecret: []byte("test-otp-secret"), AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 24 * time.Hour, OTPTTL: 5 * time.Minute, OTPMaxAttempts: 5, OTPMaxResends: 3, OTPDebug: true,
+	})
+	email := uuid.NewString() + "@example.com"
+	start, err := service.Start(ctx, auth.StartInput{Email: email})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Register(ctx, auth.VerifyInput{Email: email, OTP: start.DebugOTP, ChallengeID: start.ChallengeID}, auth.RegistrationInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Tokens == nil {
+		t.Fatal("account-only registration returned no session")
+	}
+	var count int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM vendor_businesses WHERE id=$1`, result.Tokens.VendorID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("registration invented business details: count=%d err=%v", count, err)
+	}
+	businesses := vendors.NewService(pool, registrationBusinessAuthorizer{}, nil, nil)
+	business, err := businesses.CreateBusiness(ctx, vendors.Actor{VendorID: result.Tokens.VendorID, StaffID: result.Tokens.StaffID}, vendors.Business{LegalName: "Registered kitchen", Currency: "NGN", Timezone: "UTC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if business.ID != result.Tokens.VendorID || business.OwnerRef != result.Tokens.StaffID || business.Status != vendors.BusinessDraft {
+		t.Fatal("business setup lost the verified owner scope or activated business")
+	}
+}
+
+func registrationPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	dsn := os.Getenv("VENDOR_SERVICE_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("VENDOR_SERVICE_TEST_DATABASE_URL not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err = database.ApplyMigrations(ctx, pool, "../../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	return pool
 }

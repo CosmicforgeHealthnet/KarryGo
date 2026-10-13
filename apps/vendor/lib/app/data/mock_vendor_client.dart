@@ -129,6 +129,13 @@ class MockVendorClient extends http.BaseClient {
         parts[1],
         () => MockOnboardingStore(parts[1], onboardingScenario),
       );
+      if ((request.method == 'GET' &&
+              store.needsBusiness &&
+              request.url.path == '/api/v1/vendor/businesses/${parts[1]}') ||
+          (request.method == 'POST' &&
+              request.url.path == '/api/v1/vendor/businesses')) {
+        return store.handle(request, body);
+      }
       final dashboard = _dashboards.putIfAbsent(
         parts[1],
         () => MockDashboardData(store, dashboardScenario),
@@ -779,12 +786,17 @@ class MockVendorClient extends http.BaseClient {
         }
         if (request.url.path == '/api/v1/vendor/auth/register/verify') {
           final name = body['legal_name']?.toString().trim() ?? '';
-          if (name.length < 2 ||
-              name.length > 200 ||
-              !RegExp(
-                r'^[A-Z]{3}$',
-              ).hasMatch(body['currency']?.toString() ?? '') ||
-              (body['timezone']?.toString().isEmpty ?? true)) {
+          final withBusiness =
+              body['legal_name'] != null ||
+              body['currency'] != null ||
+              body['timezone'] != null;
+          if (withBusiness &&
+              (name.length < 2 ||
+                  name.length > 200 ||
+                  !RegExp(
+                    r'^[A-Z]{3}$',
+                  ).hasMatch(body['currency']?.toString() ?? '') ||
+                  (body['timezone']?.toString().isEmpty ?? true))) {
             return _error(
               422,
               'VALIDATION_ERROR',
@@ -795,10 +807,13 @@ class MockVendorClient extends http.BaseClient {
             vendorIds.first,
             MockOnboardingScenario.draft,
           );
-          store.business['legal_name'] = name;
-          store.business['trading_name'] = null;
-          store.business['currency'] = body['currency'];
-          store.business['timezone'] = body['timezone'];
+          store.needsBusiness = !withBusiness;
+          if (withBusiness) {
+            store.business['legal_name'] = name;
+            store.business['trading_name'] = null;
+            store.business['currency'] = body['currency'];
+            store.business['timezone'] = body['timezone'];
+          }
           _businesses[vendorIds.first] = store;
           _consumed = true;
           return _ok(_tokens(vendorIds.first));

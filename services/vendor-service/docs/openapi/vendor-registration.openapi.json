@@ -8,7 +8,7 @@
     "/api/v1/vendor/auth/register/verify": {
       "post": {
         "operationId": "registerVendorOwner",
-        "description": "Verify a login challenge before creating a draft business and its owner. Existing staff retain their existing access. Start and resend use the ordinary authentication endpoints.",
+        "description": "Verify a contact and create its owner account. Business details are entered through POST /api/v1/vendor/businesses during onboarding. Optional business fields remain accepted for compatibility with older staging APKs.",
         "requestBody": {
           "required": true,
           "content": {
@@ -43,10 +43,7 @@
                 },
                 "required": [
                   "otp",
-                  "challenge_id",
-                  "legal_name",
-                  "currency",
-                  "timezone"
+                  "challenge_id"
                 ],
                 "additionalProperties": false
               }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/material.dart';
 import '../../../app/vendor_runtime.dart';
 import '../../../core/theme/vendor_theme.dart';
@@ -35,12 +36,11 @@ class _VendorWorkspaceScreenState extends State<VendorWorkspaceScreen> {
     });
     try {
       final app = widget.runtime.backend;
-      final results = await Future.wait([
-        app.businessApi.getBusinessesBusinessId(
-          businessId: app.scope.vendorId!,
-        ),
-        app.onboardingApi.getOnboarding(),
-      ]);
+      final business = await app.businessApi.getBusinessesBusinessId(
+        businessId: app.scope.vendorId!,
+      );
+      final overview = await app.onboardingApi.getOnboarding();
+      final results = [business, overview];
       if (mounted) {
         setState(
           () => _active =
@@ -57,6 +57,16 @@ class _VendorWorkspaceScreenState extends State<VendorWorkspaceScreen> {
                     'CLOSED',
                   }.contains(results[0].object['status'])),
         );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          if (e.statusCode == 404) {
+            _active = false;
+          } else {
+            _error = e.message;
+          }
+        });
       }
     } catch (_) {
       if (mounted) {

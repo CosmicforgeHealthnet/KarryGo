@@ -22,9 +22,6 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
   late final TextEditingController _phone, _email;
   late bool _useEmail;
   bool _registering = false;
-  final _businessName = TextEditingController();
-  final _currency = TextEditingController(text: 'NGN');
-  final _timezone = TextEditingController(text: 'Africa/Lagos');
   VendorRuntime get runtime => widget.runtime;
   @override
   void initState() {
@@ -32,11 +29,6 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
     _useEmail = runtime.useEmail;
     final draft = runtime.registrationDraft;
     _registering = draft != null;
-    _businessName.text =
-        draft?['legal_name']?.toString() ??
-        (runtime.mode == VendorDataMode.mock ? 'Karryam Test Kitchen' : '');
-    _currency.text = draft?['currency']?.toString() ?? 'NGN';
-    _timezone.text = draft?['timezone']?.toString() ?? 'Africa/Lagos';
     _phone = TextEditingController(
       text: !runtime.useEmail && runtime.identifier.isNotEmpty
           ? runtime.identifier
@@ -55,9 +47,6 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
 
   @override
   void dispose() {
-    _businessName.dispose();
-    _currency.dispose();
-    _timezone.dispose();
     _phone.dispose();
     _email.dispose();
     super.dispose();
@@ -69,13 +58,7 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
     runtime.start(
       (_useEmail ? _email : _phone).text,
       email: _useEmail,
-      registration: _registering
-          ? {
-              'legal_name': _businessName.text.trim(),
-              'currency': _currency.text.trim().toUpperCase(),
-              'timezone': _timezone.text.trim(),
-            }
-          : null,
+      registration: _registering ? <String, dynamic>{} : null,
     );
   }
 
@@ -83,7 +66,7 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
   Widget build(BuildContext context) => VendorScreenFrame(
     modeLabel: runtime.mode.name,
     onSettings: runtime.busy ? null : widget.onSettings,
-    onBack: runtime.busy ? null : runtime.showIntro,
+    onBack: null,
     body: SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
       child: Form(
@@ -175,72 +158,6 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
             ),
             const SizedBox(height: 22),
 
-            AnimatedSize(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              child: _registering
-                  ? Column(
-                      children: [
-                        TextFormField(
-                          controller: _businessName,
-                          enabled: !runtime.busy,
-                          decoration: const InputDecoration(
-                            labelText: 'Legal business name',
-                          ),
-                          textCapitalization: TextCapitalization.words,
-                          validator: (value) =>
-                              (value?.trim().length ?? 0) < 2 ||
-                                  (value?.trim().length ?? 0) > 200
-                              ? 'Enter your legal business name (2-200 characters).'
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _currency,
-                                enabled: !runtime.busy,
-                                decoration: const InputDecoration(
-                                  labelText: 'Currency',
-                                ),
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                validator: (value) =>
-                                    RegExp(r'^[A-Z]{3}$').hasMatch(
-                                      value?.trim().toUpperCase() ?? '',
-                                    )
-                                    ? null
-                                    : 'Use a three-letter currency code.',
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: _timezone,
-                                enabled: !runtime.busy,
-                                decoration: const InputDecoration(
-                                  labelText: 'Timezone',
-                                ),
-                                validator: (value) =>
-                                    (value?.trim().isEmpty ?? true)
-                                    ? 'Enter your business timezone.'
-                                    : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Your business starts as a draft. Complete setup after verifying your code.',
-                          style: TextStyle(fontSize: 12, height: 1.5),
-                        ),
-                      ],
-                    )
-                  : const SizedBox.shrink(),
-            ),
             if (runtime.error != null) ...[
               const SizedBox(height: 16),
               InlineNotice(
