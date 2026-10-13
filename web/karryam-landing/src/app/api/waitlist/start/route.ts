@@ -20,8 +20,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) {
+    console.error("waitlist unavailable: DATABASE_URL is missing in this deployment");
+    return NextResponse.json(
+      { error: "Registration is temporarily unavailable. Please try again later." },
+      { status: 503 },
+    );
+  }
+
   try {
-    const sql = neon(process.env.DATABASE_URL!);
+    const sql = neon(databaseUrl);
     const { email, segment } = result.data;
     await sql`
       insert into waitlist (email, segment)

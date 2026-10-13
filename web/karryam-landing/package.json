@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prebuild": "node scripts/check-production-env.mjs",
+    "test:deploy": "node --test scripts/check-production-env.test.mjs",
+    "waitlist:check": "node scripts/check-waitlist-db.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
