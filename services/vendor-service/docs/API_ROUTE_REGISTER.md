@@ -2006,3 +2006,8 @@ CRM export file access: POST `/api/v1/vendor/crm/exports/:exportId/file` uses `v
 Pastry reference bridge: GET `/api/v1/vendor/pastry/request-references` requires `vendor.pastry.manage` and the requested CRM read permission, intersects branch scope and returns paginated canonical customer references or active CRM corporate profile IDs. New references are revalidated and row-locked at creation; optional unlinked requests remain valid. See pastry-request-references.openapi.json. No nested requirement keys were introduced.
 
 Vendor asset media: POST /api/v1/vendor/media/uploads and GET /api/v1/vendor/media/objects/:mediaRef[/content] authorize actual product/brand/pastry records and staff scope. Private purpose/binding grants, SAFE-only use, bounded bytes/checksum, existing version-checked attachments. See vendor-asset-media.openapi.json and apps/vendor/docs/media.md.
+
+
+### Public vendor self-registration
+
+`POST /api/v1/vendor/auth/register/verify` accepts one contact identifier, challenge_id, otp, optional device_id, and the existing business fields legal_name, currency and timezone. The ordinary auth start/resend routes issue the challenge. Only successful OTP validation reaches owner registration. Owner, role assignment, draft business, audit and business-created outbox event are committed together. Concurrent retries reuse existing affiliations; no caller can select or take over a business through registration. Existing suspended access remains suspended. See `openapi/vendor-registration.openapi.json`.

@@ -17,6 +17,7 @@ func RegisterRoutes(group *gin.RouterGroup, handler *Handler, signer *sharedauth
 	auth := group.Group("/auth")
 	auth.POST("/start", handler.Start)
 	auth.POST("/verify", handler.Verify)
+	auth.POST("/register/verify", handler.Register)
 	auth.POST("/resend", handler.Resend)
 	auth.POST("/refresh", handler.Refresh)
 	auth.POST("/logout", handler.Logout)

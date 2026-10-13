@@ -21,11 +21,22 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _phone, _email;
   late bool _useEmail;
+  bool _registering = false;
+  final _businessName = TextEditingController();
+  final _currency = TextEditingController(text: 'NGN');
+  final _timezone = TextEditingController(text: 'Africa/Lagos');
   VendorRuntime get runtime => widget.runtime;
   @override
   void initState() {
     super.initState();
     _useEmail = runtime.useEmail;
+    final draft = runtime.registrationDraft;
+    _registering = draft != null;
+    _businessName.text =
+        draft?['legal_name']?.toString() ??
+        (runtime.mode == VendorDataMode.mock ? 'Karryam Test Kitchen' : '');
+    _currency.text = draft?['currency']?.toString() ?? 'NGN';
+    _timezone.text = draft?['timezone']?.toString() ?? 'Africa/Lagos';
     _phone = TextEditingController(
       text: !runtime.useEmail && runtime.identifier.isNotEmpty
           ? runtime.identifier
@@ -44,6 +55,9 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
 
   @override
   void dispose() {
+    _businessName.dispose();
+    _currency.dispose();
+    _timezone.dispose();
     _phone.dispose();
     _email.dispose();
     super.dispose();
@@ -52,7 +66,17 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
   void _submit() {
     if (!runtime.canRequest || !_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    runtime.start((_useEmail ? _email : _phone).text, email: _useEmail);
+    runtime.start(
+      (_useEmail ? _email : _phone).text,
+      email: _useEmail,
+      registration: _registering
+          ? {
+              'legal_name': _businessName.text.trim(),
+              'currency': _currency.text.trim().toUpperCase(),
+              'timezone': _timezone.text.trim(),
+            }
+          : null,
+    );
   }
 
   @override
@@ -67,9 +91,13 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _SignInIntro(),
+            _SignInIntro(registering: _registering),
             const SizedBox(height: 12),
-            const Text('Use your registered phone number or email.'),
+            Text(
+              _registering
+                  ? 'Verify your contact to create your vendor account.'
+                  : 'Use your registered phone number or email.',
+            ),
             const SizedBox(height: 22),
             Container(
               padding: const EdgeInsets.all(4),
@@ -147,6 +175,72 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
             ),
             const SizedBox(height: 22),
 
+            AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: _registering
+                  ? Column(
+                      children: [
+                        TextFormField(
+                          controller: _businessName,
+                          enabled: !runtime.busy,
+                          decoration: const InputDecoration(
+                            labelText: 'Legal business name',
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                          validator: (value) =>
+                              (value?.trim().length ?? 0) < 2 ||
+                                  (value?.trim().length ?? 0) > 200
+                              ? 'Enter your legal business name (2-200 characters).'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _currency,
+                                enabled: !runtime.busy,
+                                decoration: const InputDecoration(
+                                  labelText: 'Currency',
+                                ),
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: (value) =>
+                                    RegExp(r'^[A-Z]{3}$').hasMatch(
+                                      value?.trim().toUpperCase() ?? '',
+                                    )
+                                    ? null
+                                    : 'Use a three-letter currency code.',
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _timezone,
+                                enabled: !runtime.busy,
+                                decoration: const InputDecoration(
+                                  labelText: 'Timezone',
+                                ),
+                                validator: (value) =>
+                                    (value?.trim().isEmpty ?? true)
+                                    ? 'Enter your business timezone.'
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Your business starts as a draft. Complete setup after verifying your code.',
+                          style: TextStyle(fontSize: 12, height: 1.5),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
             if (runtime.error != null) ...[
               const SizedBox(height: 16),
               InlineNotice(
@@ -168,15 +262,25 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
               ? 'Try again in ${runtime.retrySeconds}s'
               : runtime.busy
               ? 'Sending your code…'
+              : _registering
+              ? 'Create account'
               : 'Send verification code',
           busy: runtime.busy,
           onPressed: runtime.canRequest ? _submit : null,
         ),
         const SizedBox(height: 14),
-        const Text(
-          'Vendor access is managed by your business.\nIf you need access, contact your business owner.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, height: 1.6),
+        TextButton(
+          onPressed: runtime.busy
+              ? null
+              : () => setState(() {
+                  _registering = !_registering;
+                  runtime.error = null;
+                }),
+          child: Text(
+            _registering
+                ? 'Already have an account? Sign in'
+                : 'New to Karryam? Create account',
+          ),
         ),
       ],
     ),
@@ -235,11 +339,20 @@ class _VendorCodeScreenState extends State<VendorCodeScreen> {
   final _code = TextEditingController();
   final _focus = FocusNode();
   String? _challenge;
+  String? _lastTestCode;
+  String? get _testCode {
+    final value = runtime.auth.challenge?.debugOtp;
+    if (value != null && RegExp(r'^\d{6}$').hasMatch(value)) return value;
+    return runtime.mode == VendorDataMode.mock ? MockVendorClient.code : null;
+  }
+
   VendorRuntime get runtime => widget.runtime;
   @override
   void initState() {
     super.initState();
     _challenge = runtime.auth.challenge?.challengeId;
+    _lastTestCode = _testCode;
+    _code.text = _testCode ?? '';
     _code.addListener(_update);
     _focus.addListener(_update);
   }
@@ -252,9 +365,11 @@ class _VendorCodeScreenState extends State<VendorCodeScreen> {
   void didUpdateWidget(covariant VendorCodeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     final challenge = runtime.auth.challenge?.challengeId;
-    if (_challenge != challenge) {
+    final testCode = _testCode;
+    if (_challenge != challenge || _lastTestCode != testCode) {
       _challenge = challenge;
-      _code.clear();
+      _lastTestCode = testCode;
+      _code.text = testCode ?? '';
     }
   }
 
@@ -305,13 +420,19 @@ class _VendorCodeScreenState extends State<VendorCodeScreen> {
               Text(
                 expired
                     ? 'Your code\nhas expired.'
+                    : _testCode != null
+                    ? 'Verify your\nsign-in.'
                     : runtime.useEmail
                     ? 'Check your\nemail.'
                     : 'Check your\nmessages.',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 14),
-              const Text('Enter the 6-digit code sent to'),
+              Text(
+                _testCode != null
+                    ? 'Test sign-in for'
+                    : 'Enter the 6-digit code sent to',
+              ),
               const SizedBox(height: 4),
               Text(
                 runtime.maskedIdentifier,
@@ -450,11 +571,12 @@ class _VendorCodeScreenState extends State<VendorCodeScreen> {
                   ),
                 ],
               ),
-              if (runtime.mode == VendorDataMode.mock)
-                const Padding(
-                  padding: EdgeInsets.only(top: 12),
+              if (_testCode != null && !expired)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
                   child: InlineNotice(
-                    message: 'Mock mode · Test code: ${MockVendorClient.code}',
+                    message:
+                        'Test code: $_testCode. Filled in for staging testing.',
                   ),
                 ),
               const SizedBox(height: 20),
@@ -493,8 +615,10 @@ class _VendorCodeScreenState extends State<VendorCodeScreen> {
                 : null,
           ),
           const SizedBox(height: 14),
-          const Text(
-            'Use the latest code sent to you.\nYou can paste it directly into the code field.',
+          Text(
+            _testCode != null
+                ? 'Test code filled in. Tap Verify and continue.'
+                : 'Use the latest code sent to you.\nYou can paste it directly into the code field.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 11, height: 1.6),
           ),
@@ -807,7 +931,8 @@ class VendorConnectionScreen extends StatelessWidget {
 }
 
 class _SignInIntro extends StatelessWidget {
-  const _SignInIntro();
+  const _SignInIntro({this.registering = false});
+  final bool registering;
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 170,
@@ -879,7 +1004,7 @@ class _SignInIntro extends StatelessWidget {
               Text.rich(
                 TextSpan(
                   children: [
-                    TextSpan(text: 'Sign in to\n'),
+                    TextSpan(text: registering ? 'Join\n' : 'Sign in to\n'),
                     TextSpan(
                       text: 'Karryam.',
                       style: TextStyle(

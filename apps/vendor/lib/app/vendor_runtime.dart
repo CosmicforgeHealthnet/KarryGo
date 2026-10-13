@@ -202,8 +202,15 @@ class VendorRuntime extends ChangeNotifier {
     _emit();
   }
 
-  Future<void> start(String contact, {required bool email}) async {
+  Map<String, dynamic>? registrationDraft;
+
+  Future<void> start(
+    String contact, {
+    required bool email,
+    Map<String, dynamic>? registration,
+  }) async {
     if (!canRequest) return;
+    registrationDraft = registration == null ? null : Map.of(registration);
     useEmail = email;
     identifier = email
         ? contact.trim()
@@ -212,6 +219,7 @@ class VendorRuntime extends ChangeNotifier {
       final challenge = await auth.start(
         phone: email ? null : identifier,
         email: email ? identifier : null,
+        registration: registration,
       );
       if (_disposed) return;
       _expiresAt = DateTime.now().add(Duration(seconds: challenge.expiresIn));

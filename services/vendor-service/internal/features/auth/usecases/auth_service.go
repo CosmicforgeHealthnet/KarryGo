@@ -55,13 +55,24 @@ type NotificationSender interface {
 	SendOTP(ctx context.Context, identifierType, identifierValue, purpose, otp string) error
 }
 
+type RegistrationInput struct {
+	LegalName string
+	Currency  string
+	Timezone  string
+}
+
+type OwnerRegistration interface {
+	RegisterOwner(context.Context, string, RegistrationInput) error
+}
+
 type AuthService struct {
-	users      *vendorauthrepositories.UserRepository
-	challenges *vendorauthrepositories.OTPChallengeRepository
-	sessions   *vendorauthrepositories.SessionRepository
-	stepUps    *vendorauthrepositories.StepUpRepository
-	staff      StaffResolver
-	notifier   NotificationSender
+	users        *vendorauthrepositories.UserRepository
+	challenges   *vendorauthrepositories.OTPChallengeRepository
+	sessions     *vendorauthrepositories.SessionRepository
+	stepUps      *vendorauthrepositories.StepUpRepository
+	staff        StaffResolver
+	registration OwnerRegistration
+	notifier     NotificationSender
 
 	accessSigner  *sharedauth.TokenSigner
 	otpSecret     []byte
@@ -78,12 +89,13 @@ type AuthService struct {
 }
 
 type Options struct {
-	Users      *vendorauthrepositories.UserRepository
-	Challenges *vendorauthrepositories.OTPChallengeRepository
-	Sessions   *vendorauthrepositories.SessionRepository
-	StepUps    *vendorauthrepositories.StepUpRepository
-	Staff      StaffResolver
-	Notifier   NotificationSender
+	Users        *vendorauthrepositories.UserRepository
+	Challenges   *vendorauthrepositories.OTPChallengeRepository
+	Sessions     *vendorauthrepositories.SessionRepository
+	StepUps      *vendorauthrepositories.StepUpRepository
+	Staff        StaffResolver
+	Registration OwnerRegistration
+	Notifier     NotificationSender
 
 	AccessTokenSecret  []byte
 	RefreshTokenSecret []byte
@@ -101,7 +113,7 @@ type Options struct {
 func NewAuthService(opts Options) *AuthService {
 	return &AuthService{
 		users: opts.Users, challenges: opts.Challenges, sessions: opts.Sessions, stepUps: opts.StepUps,
-		staff: opts.Staff, notifier: opts.Notifier,
+		staff: opts.Staff, notifier: opts.Notifier, registration: opts.Registration,
 		accessSigner:  sharedauth.NewTokenSigner(opts.AccessTokenSecret),
 		otpSecret:     opts.OTPSecret,
 		refreshSecret: opts.RefreshTokenSecret,
@@ -250,6 +262,20 @@ type VerifyResult struct {
 }
 
 func (s *AuthService) Verify(ctx context.Context, in VerifyInput) (VerifyResult, error) {
+	return s.verify(ctx, in, nil)
+}
+
+func (s *AuthService) Register(ctx context.Context, in VerifyInput, registration RegistrationInput) (VerifyResult, error) {
+	if s.registration == nil {
+		return VerifyResult{}, apperrors.Forbidden("Self-registration is unavailable on this server.", nil)
+	}
+	if in.VendorID != "" {
+		return VerifyResult{}, apperrors.Validation("Registration cannot select an existing business.", nil)
+	}
+	return s.verify(ctx, in, &registration)
+}
+
+func (s *AuthService) verify(ctx context.Context, in VerifyInput, registration *RegistrationInput) (VerifyResult, error) {
 	_, _, identifierKey, err := normalizeIdentifier(in.Phone, in.Email)
 	if err != nil {
 		return VerifyResult{}, err
@@ -279,6 +305,12 @@ func (s *AuthService) Verify(ctx context.Context, in VerifyInput) (VerifyResult,
 	user, err := s.upsertUser(ctx, in.Phone, in.Email)
 	if err != nil {
 		return VerifyResult{}, err
+	}
+
+	if registration != nil {
+		if err := s.registration.RegisterOwner(ctx, user.ID, *registration); err != nil {
+			return VerifyResult{}, err
+		}
 	}
 
 	var target StaffAffiliation

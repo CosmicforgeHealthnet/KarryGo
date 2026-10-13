@@ -123,6 +123,45 @@ func (h *Handler) Verify(c *gin.Context) {
 	})
 }
 
+func (h *Handler) Register(c *gin.Context) {
+	var req struct {
+		verifyRequest
+		LegalName string `json:"legal_name"`
+		Currency  string `json:"currency"`
+		Timezone  string `json:"timezone"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.RespondError(c, apperrors.BadRequest("Check your details.", err))
+		return
+	}
+	key := rateLimitKey(c, req.Phone+req.Email)
+	if err := h.limiter.Allow(c.Request.Context(), "auth_verify", key, h.limits.VerifyMax, time.Duration(h.limits.VerifyWindowSeconds)*time.Second); err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+
+	var deviceID *string
+	if req.DeviceID != "" {
+		deviceID = &req.DeviceID
+	}
+	result, err := h.auth.Register(c.Request.Context(), vendorauthusecases.VerifyInput{
+		Phone: req.Phone, Email: req.Email, OTP: req.OTP, ChallengeID: req.ChallengeID, VendorID: req.VendorID,
+		DeviceID: deviceID, UserAgent: c.Request.UserAgent(), IPAddress: c.ClientIP(),
+	}, vendorauthusecases.RegistrationInput{LegalName: req.LegalName, Currency: req.Currency, Timezone: req.Timezone})
+	if err != nil {
+		httpx.RespondError(c, err)
+		return
+	}
+	if result.RequiresVendorChoice {
+		respondOK(c, verifyResponse{RequiresVendorChoice: true, AvailableVendorIDs: result.AvailableVendorIDs})
+		return
+	}
+	respondOK(c, verifyResponse{
+		AccessToken: result.Tokens.AccessToken, RefreshToken: result.Tokens.RefreshToken, ExpiresIn: result.Tokens.ExpiresIn,
+		StaffID: result.Tokens.StaffID, VendorID: result.Tokens.VendorID,
+	})
+}
+
 func (h *Handler) Refresh(c *gin.Context) {
 	var req refreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

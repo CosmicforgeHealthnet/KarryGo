@@ -17,6 +17,7 @@ class VendorAuthController extends ChangeNotifier {
   bool busy = false;
   Object? error;
   String? _phone, _email, _pendingOtp, _deviceId;
+  JsonObject? _registration;
   int _generation = 0;
   bool _disposed = false;
   void _notify() {
@@ -37,6 +38,7 @@ class VendorAuthController extends ChangeNotifier {
     if (value == null) {
       _generation++;
       challenge = null;
+      _registration = null;
       _pendingOtp = null;
       availableVendorIds = const [];
     }
@@ -63,25 +65,29 @@ class VendorAuthController extends ChangeNotifier {
     }
   }
 
-  Future<VendorChallenge> start({String? phone, String? email}) =>
-      _run(() async {
-        if ((phone == null) == (email == null)) {
-          throw ArgumentError('Provide phone OR email');
-        }
-        _phone = phone;
-        _email = email;
-        _pendingOtp = null;
-        availableVendorIds = const [];
-        challenge = null;
-        final result = await api.request(
-          'POST',
-          '/api/v1/vendor/auth/start',
-          body: VendorPayload(_identifier()),
-        );
-        challenge = VendorChallenge.fromJson(result.object);
-        phase = VendorAuthPhase.challenge;
-        return challenge!;
-      });
+  Future<VendorChallenge> start({
+    String? phone,
+    String? email,
+    JsonObject? registration,
+  }) => _run(() async {
+    if ((phone == null) == (email == null)) {
+      throw ArgumentError('Provide phone OR email');
+    }
+    _registration = registration;
+    _phone = phone;
+    _email = email;
+    _pendingOtp = null;
+    availableVendorIds = const [];
+    challenge = null;
+    final result = await api.request(
+      'POST',
+      '/api/v1/vendor/auth/start',
+      body: VendorPayload(_identifier()),
+    );
+    challenge = VendorChallenge.fromJson(result.object);
+    phase = VendorAuthPhase.challenge;
+    return challenge!;
+  });
   Future<VendorChallenge> resend() => _run(() async {
     if (challenge == null) throw StateError('Start a challenge first');
     final result = await api.request(
@@ -120,9 +126,12 @@ class VendorAuthController extends ChangeNotifier {
     final generation = _generation;
     final result = await api.request(
       'POST',
-      '/api/v1/vendor/auth/verify',
+      _registration != null && vendorId == null
+          ? '/api/v1/vendor/auth/register/verify'
+          : '/api/v1/vendor/auth/verify',
       body: VendorPayload({
         ..._identifier(),
+        if (vendorId == null && _registration != null) ..._registration!,
         'otp': otp,
         'challenge_id': challenge!.challengeId,
         'vendor_id': ?vendorId,
