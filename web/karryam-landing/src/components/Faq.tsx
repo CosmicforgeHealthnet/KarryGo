@@ -12,7 +12,7 @@ const FAQS = [
   },
   {
     q: "Is Karryam available in my city?",
-    a: "We are starting in selected Nigerian markets, beginning with Lagos, Abuja and Port Harcourt, with more cities to follow. Join the waitlist so we know where to launch next.",
+    a: "We are starting in selected Nigerian markets, highlighting Lagos, Abuja (FCT), Port Harcourt (Rivers State) and Oyo State. Other states may follow; being listed does not mean a service is live there. Join the waitlist for updates.",
   },
   {
     q: "How do I join the waitlist?",
