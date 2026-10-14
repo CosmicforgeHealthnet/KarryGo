@@ -182,7 +182,7 @@ export default function Launch() {
           <div className="launch-map-wrap relative">
             <Image
               src="/images/nigeria-map.png"
-              alt="Glowing map of Nigeria with Karryam launch cities"
+              alt="Illustrated map of Nigeria showing selected Karryam markets"
               width={1200}
               height={1000}
               sizes="(min-width: 1024px) 60vw, 100vw"
