@@ -2,8 +2,11 @@ package walletclients
 
 import (
 	"context"
+	"cosmicforge/logistics/services/payment-wallet-service/internal/database"
 	"errors"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"cosmicforge/logistics/shared/go/notifications"
@@ -32,6 +35,10 @@ func TestWalletNotificationOutboxCommitsRetriesAndDeduplicates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	_, file, _, _ := runtime.Caller(0)
+	if err = database.ApplyMigrations(ctx, db, filepath.Join(filepath.Dir(file), "../../../../migrations")); err != nil {
+		t.Fatal(err)
+	}
 	intentID, ref, customer := uuid.NewString(), "pay_"+uuid.NewString(), uuid.NewString()
 	if _, err = db.Exec(ctx, `INSERT INTO payment_intents(id,reference,source_service,source_reference,customer_id,amount_kobo,payment_method,status)
 	 VALUES($1,$2,'test',$3,$4,1000,'card','pending')`, intentID, ref, uuid.NewString(), customer); err != nil {

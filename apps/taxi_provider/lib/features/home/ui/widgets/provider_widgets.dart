@@ -1,4 +1,4 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import '../../../../core/theme/karryam_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/format/money_format.dart';
@@ -18,33 +18,33 @@ class RouteSummary extends StatelessWidget {
       children: [
         Column(
           children: [
-            const Icon(
+            Icon(
               Icons.radio_button_checked,
               size: 16,
-              color: CosmicforgeLogisticsColors.success,
+              color: KarryamColors.of(context).success,
             ),
             SizedBox(
               height: 26,
               child: CustomPaint(
-                size: const Size(2, 26),
+                size: Size(2, 26),
                 painter: _DottedLinePainter(),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.location_on,
               size: 16,
-              color: CosmicforgeLogisticsColors.warning,
+              color: KarryamColors.of(context).warning,
             ),
           ],
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _line(booking.pickup?.address ?? 'Pick-up'),
-              const SizedBox(height: 22),
-              _line(booking.dropoff?.address ?? 'Destination'),
+              _line(context, booking.pickup?.address ?? 'Pick-up'),
+              SizedBox(height: 22),
+              _line(context, booking.dropoff?.address ?? 'Destination'),
             ],
           ),
         ),
@@ -52,12 +52,12 @@ class RouteSummary extends StatelessWidget {
     );
   }
 
-  Widget _line(String text) => Text(
+  Widget _line(BuildContext context, String text) => Text(
     text,
     maxLines: 2,
     overflow: TextOverflow.ellipsis,
-    style: const TextStyle(
-      color: CosmicforgeLogisticsColors.text,
+    style: TextStyle(
+      color: KarryamColors.of(context).text,
       fontSize: 13,
       fontWeight: FontWeight.w600,
     ),
@@ -68,7 +68,7 @@ class _DottedLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = CosmicforgeLogisticsColors.primarySoft
+      ..color = KarryamColors.teal
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
     const dash = 3.0;
@@ -98,11 +98,11 @@ class JobTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: isParcel
-            ? CosmicforgeLogisticsColors.warningSoft
-            : CosmicforgeLogisticsColors.primaryTint,
+            ? KarryamColors.of(context).warningSoft
+            : KarryamColors.of(context).primaryTint,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -112,16 +112,16 @@ class JobTypeBadge extends StatelessWidget {
             isParcel ? Icons.inventory_2_rounded : Icons.person_rounded,
             size: 13,
             color: isParcel
-                ? CosmicforgeLogisticsColors.warning
-                : CosmicforgeLogisticsColors.primary,
+                ? KarryamColors.of(context).warning
+                : KarryamColors.of(context).primary,
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             isParcel ? 'Package' : 'Passenger',
             style: TextStyle(
               color: isParcel
-                  ? CosmicforgeLogisticsColors.warning
-                  : CosmicforgeLogisticsColors.primary,
+                  ? KarryamColors.of(context).warning
+                  : KarryamColors.of(context).primary,
               fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
@@ -143,18 +143,21 @@ class JobStatsRow extends StatelessWidget {
     return Row(
       children: [
         _stat(
+          context,
           Icons.route_rounded,
           booking.distanceKm == null
               ? '--'
               : '${booking.distanceKm!.toStringAsFixed(1)} km',
         ),
         _stat(
+          context,
           Icons.schedule_rounded,
           booking.durationMinutes == null
               ? '--'
               : '${booking.durationMinutes} min',
         ),
         _stat(
+          context,
           Icons.payments_rounded,
           booking.displayFareKobo > 0
               ? formatNaira(booking.displayFareKobo)
@@ -164,17 +167,17 @@ class JobStatsRow extends StatelessWidget {
     );
   }
 
-  Widget _stat(IconData icon, String label) => Expanded(
+  Widget _stat(BuildContext context, IconData icon, String label) => Expanded(
     child: Row(
       children: [
-        Icon(icon, size: 15, color: CosmicforgeLogisticsColors.textMuted),
-        const SizedBox(width: 5),
+        Icon(icon, size: 15, color: KarryamColors.of(context).textMuted),
+        SizedBox(width: 5),
         Flexible(
           child: Text(
             label,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: CosmicforgeLogisticsColors.text,
+            style: TextStyle(
+              color: KarryamColors.of(context).text,
               fontSize: 12.5,
               fontWeight: FontWeight.w700,
             ),
@@ -208,25 +211,33 @@ class PrimaryActionButton extends StatelessWidget {
       child: FilledButton(
         onPressed: isLoading ? null : onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: color ?? CosmicforgeLogisticsColors.primary,
-          disabledBackgroundColor: CosmicforgeLogisticsColors.primarySoft,
+          backgroundColor: color ?? KarryamColors.of(context).primary,
+          disabledBackgroundColor: KarryamColors.of(context).primarySoft,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: color == null
+                      ? KarryamColors.of(context).onPrimary
+                      : (KarryamColors.of(context).dark
+                            ? KarryamColors.navy
+                            : Colors.white),
                 ),
               )
             : Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: color == null
+                      ? KarryamColors.of(context).onPrimary
+                      : (KarryamColors.of(context).dark
+                            ? KarryamColors.navy
+                            : Colors.white),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -253,15 +264,18 @@ class InlineBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = isError
-        ? CosmicforgeLogisticsColors.danger
-        : CosmicforgeLogisticsColors.info;
+        ? KarryamColors.of(context).danger
+        : KarryamColors.of(context).info;
     final bg = isError
-        ? CosmicforgeLogisticsColors.dangerSoft
-        : CosmicforgeLogisticsColors.infoSoft;
+        ? KarryamColors.of(context).dangerSoft
+        : KarryamColors.of(context).infoSoft;
 
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Row(
         children: [
           Icon(
@@ -269,12 +283,9 @@ class InlineBanner extends StatelessWidget {
             size: 18,
             color: fg,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: fg, fontSize: 12.5),
-            ),
+            child: Text(message, style: TextStyle(color: fg, fontSize: 12.5)),
           ),
           if (onDismiss != null)
             InkWell(

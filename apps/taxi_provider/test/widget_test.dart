@@ -30,7 +30,7 @@ void main() {
     await tester.pumpWidget(TaxiProviderApp(authController: auth));
     await tester.pumpAndSettle();
 
-    expect(find.text('Drive with Karry Go'), findsOneWidget);
+    expect(find.text('DRIVE WITH KARRYAM'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
   });
 

@@ -3,6 +3,8 @@ package bookingusecases
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -305,5 +307,40 @@ func TestFareKobo_FallsBackToEstimate(t *testing.T) {
 func TestFareKobo_ZeroWhenNeitherSet(t *testing.T) {
 	if got := fareKobo(bookingmodels.Booking{}); got != 0 {
 		t.Errorf("fareKobo = %d, want 0", got)
+	}
+}
+
+func TestHoldFailureError_WalletRefusalIsADefinitePaymentFailure(t *testing.T) {
+	// What Wallet answers when the passenger cannot cover the fare.
+	refusal := &walletclient.RequestError{Status: http.StatusConflict, Code: "conflict",
+		Message: "Wallet balance is not enough for this payment."}
+
+	got := holdFailureError(fmt.Errorf("pay from wallet: %w", refusal))
+	if got.Status != http.StatusConflict || got.Code != CodePaymentFailed {
+		t.Fatalf("got %d %q, want 409 %q", got.Status, got.Code, CodePaymentFailed)
+	}
+	if got.Retryable {
+		t.Error("a definite refusal must not be marked retryable")
+	}
+	if got.Message == "Something went wrong. Please try again." || got.Message == "Payment could not be processed. Try again." {
+		t.Errorf("refusal surfaced the generic message %q", got.Message)
+	}
+	if !errors.Is(got, refusal) {
+		t.Error("the wallet refusal must be kept as the cause")
+	}
+}
+
+func TestHoldFailureError_UnknownOutcomesStayRetryableUnavailable(t *testing.T) {
+	for name, err := range map[string]error{
+		"transport":    errors.New("dial tcp: connection refused"),
+		"wallet 5xx":   &walletclient.RequestError{Status: http.StatusInternalServerError, Code: "internal"},
+		"wallet 503":   &walletclient.RequestError{Status: http.StatusServiceUnavailable, Code: "unavailable"},
+		"rate limited": &walletclient.RequestError{Status: http.StatusTooManyRequests, Code: "rate_limited"},
+		"timeout":      &walletclient.RequestError{Status: http.StatusRequestTimeout},
+	} {
+		got := holdFailureError(err)
+		if got.Status != http.StatusServiceUnavailable || !got.Retryable {
+			t.Errorf("%s: got %d retryable=%v, want retryable 503", name, got.Status, got.Retryable)
+		}
 	}
 }

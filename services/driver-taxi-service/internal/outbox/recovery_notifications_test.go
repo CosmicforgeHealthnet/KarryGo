@@ -250,8 +250,14 @@ func notificationCopy(t *testing.T, db *pgxpool.Pool, aggregateID, event string)
 
 // Migration 020 rolls back to 019's copy rules and reapplies cleanly.
 func TestMigration020DownRestoresTheEarlierCopyRules(t *testing.T) {
-	db := testDB(t)
+	pool := testDB(t)
 	ctx := context.Background()
+	// Roll back all DDL so later migrations remain intact for other tests.
+	db, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Rollback(context.Background()) })
 	read := func(name string) string {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "migrations", name))
 		if err != nil {
@@ -273,7 +279,6 @@ func TestMigration020DownRestoresTheEarlierCopyRules(t *testing.T) {
 		return n
 	}
 	up := read("020_network_lifecycle_and_recovery_notifications.up.sql")
-	t.Cleanup(func() { _, _ = db.Exec(context.Background(), up) })
 
 	if _, err := db.Exec(ctx, read("020_network_lifecycle_and_recovery_notifications.down.sql")); err != nil {
 		t.Fatalf("down: %v", err)

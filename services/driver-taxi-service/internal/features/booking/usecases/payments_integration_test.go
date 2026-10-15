@@ -3,6 +3,7 @@ package bookingusecases
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,6 +12,8 @@ import (
 	bookingrepositories "cosmicforge/logistics/services/taxi-service/internal/features/booking/repositories"
 	availabilitymodels "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/models"
 	availabilityrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/repositories"
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 var (
@@ -90,6 +93,34 @@ func TestAcceptBooking_BlocksOnHoldFailureAndNeverTransitions(t *testing.T) {
 	}
 	if final.PaymentStatus != bookingmodels.PaymentUnpaid {
 		t.Errorf("payment_status = %q, want unchanged unpaid", final.PaymentStatus)
+	}
+}
+
+// TestAcceptBooking_WalletRefusalReachesTheDriverAsPaymentFailed is the QA
+// 2026-10-15 finding 1 regression: Wallet answers an unfunded hold with a 409
+// RequestError, and the driver must see a definite 409 payment_failed, not a
+// retryable 503 "Something went wrong".
+func TestAcceptBooking_WalletRefusalReachesTheDriverAsPaymentFailed(t *testing.T) {
+	db := lifecycleTestDB(t)
+	pc := &fakePaymentClient{payErr: &walletclient.RequestError{Status: http.StatusConflict,
+		Code: "conflict", Message: "Wallet balance is not enough for this payment."}}
+	svc := newPaymentTestService(db, pc)
+	bookingID, providerID := seedAwaitingAcceptanceWithPayment(t, db, "intent-refused-test")
+
+	_, err := svc.AcceptBooking(context.Background(), bookingID, providerID)
+	appErr := apperrors.From(err)
+	if appErr.Status != http.StatusConflict || appErr.Code != CodePaymentFailed {
+		t.Fatalf("got %d %q (%v), want 409 %q", appErr.Status, appErr.Code, err, CodePaymentFailed)
+	}
+	final, ferr := svc.GetByIDForProvider(context.Background(), bookingID, providerID)
+	if ferr != nil {
+		t.Fatalf("GetByIDForProvider: %v", ferr)
+	}
+	if final.Status != bookingmodels.StatusAwaitingAccept || final.PaymentStatus != bookingmodels.PaymentUnpaid {
+		t.Errorf("booking = %q/%q, want unchanged awaiting_acceptance/unpaid", final.Status, final.PaymentStatus)
+	}
+	if len(pc.refundCalls) != 0 {
+		t.Errorf("a refused hold moved no money, so nothing may be refunded; got %d refunds", len(pc.refundCalls))
 	}
 }
 

@@ -1,5 +1,7 @@
+import '../../../core/theme/appearance_controller.dart';
+import '../../../core/widgets/driver_state_art.dart';
+import '../../../core/theme/karryam_theme.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
 
 import '../../auth/data/provider_auth_api.dart';
@@ -26,7 +28,7 @@ class ProviderProfileScreen extends StatefulWidget {
 }
 
 class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
-  List<ProviderVehicle> _vehicles = const [];
+  List<ProviderVehicle> _vehicles = [];
   bool _loadingVehicles = true;
 
   @override
@@ -37,7 +39,14 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
 
   Future<void> _loadVehicles() async {
     final token = widget.authController.state.accessToken;
-    if (token == null) return;
+    if (token == null) {
+      setState(() => _loadingVehicles = false);
+      return;
+    }
+    setState(() {
+      _loadingVehicles = true;
+      _vehicleError = null;
+    });
     try {
       final vehicles = await widget.authApi.listVehicles(accessToken: token);
       if (!mounted) return;
@@ -45,9 +54,12 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
         _vehicles = vehicles;
         _loadingVehicles = false;
       });
-    } on ApiException {
+    } on ApiException catch (error) {
       if (!mounted) return;
-      setState(() => _loadingVehicles = false);
+      setState(() {
+        _loadingVehicles = false;
+        _vehicleError = error.message;
+      });
     }
   }
 
@@ -55,20 +67,18 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text(
-          'You will stop receiving trips until you sign in again.',
-        ),
+        title: Text('Sign out?'),
+        content: Text('You will stop receiving trips until you sign in again.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text(
+            child: Text(
               'Sign out',
-              style: TextStyle(color: CosmicforgeLogisticsColors.danger),
+              style: TextStyle(color: KarryamColors.of(context).danger),
             ),
           ),
         ],
@@ -83,302 +93,457 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = widget.authController.state.provider;
-
+    final colors = KarryamColors.of(context);
     return Scaffold(
-      backgroundColor: CosmicforgeLogisticsColors.surface,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          children: [
-            const Text(
-              'Profile',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: CosmicforgeLogisticsColors.text,
+        child: RefreshIndicator(
+          onRefresh: _loadVehicles,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            children: [
+              Text(
+                'YOUR ACCOUNT',
+                style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: 11,
+                  letterSpacing: 2,
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
-
-            if (provider != null) _IdentityCard(provider: provider),
-
-            const SizedBox(height: 18),
-            const _SectionLabel('Work preferences'),
-            const SizedBox(height: 8),
-            _ParcelToggle(
-              value: provider?.acceptsParcels ?? false,
-              onChanged: widget.homeController.setAcceptsParcels,
-            ),
-
-            const SizedBox(height: 22),
-            const _SectionLabel('Your vehicles'),
-            const SizedBox(height: 8),
-            if (_loadingVehicles)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_vehicles.isEmpty)
-              const _Card(
-                child: Text(
-                  'No vehicle registered yet. You need an active vehicle '
-                  'before you can go online.',
-                  style: TextStyle(
-                    color: CosmicforgeLogisticsColors.textMuted,
-                    fontSize: 13,
+              const SizedBox(height: 16),
+              const Text(
+                'Behind every trip.\nThere’s you.',
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (provider != null) ...[
+                _DriverPass(provider: provider),
+                _section('Personal details'),
+                _panel(
+                  Column(
+                    children: [
+                      _detail(
+                        Icons.person_outline,
+                        'Full name',
+                        provider.fullName,
+                      ),
+                      _detail(
+                        Icons.phone_outlined,
+                        'Registered phone',
+                        provider.phone,
+                      ),
+                      _detail(
+                        Icons.alternate_email,
+                        'Email address',
+                        provider.email.isEmpty
+                            ? 'Not provided'
+                            : provider.email,
+                      ),
+                    ],
                   ),
                 ),
-              )
-            else
-              for (final vehicle in _vehicles)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _VehicleCard(vehicle: vehicle),
-                ),
-
-            const SizedBox(height: 28),
-            OutlinedButton(
-              onPressed: _confirmLogout,
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 48),
-                side: const BorderSide(color: CosmicforgeLogisticsColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
+              ],
+              _section('Your vehicles'),
+              if (_loadingVehicles)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_vehicleError != null)
+                _panel(
+                  Column(
+                    children: [
+                      Text(_vehicleError!),
+                      TextButton(
+                        onPressed: _loadVehicles,
+                        child: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_vehicles.isEmpty)
+                _panel(
+                  const Text(
+                    'No vehicle registered yet. You need an active vehicle before you can go online.',
+                  ),
+                )
+              else
+                for (final vehicle in _vehicles)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _VehiclePass(vehicle: vehicle),
+                  ),
+              _section('App settings'),
+              const AppearanceSetting(),
+              _section('How you work'),
+              _panel(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Parcel deliveries',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        provider?.acceptsParcels == true
+                            ? 'Open to parcel requests'
+                            : 'Passenger rides only',
+                      ),
+                      value: provider?.acceptsParcels ?? false,
+                      onChanged: _savingPreference ? null : _setParcels,
+                    ),
+                    const Text(
+                      'Choose whether to receive package delivery requests alongside passenger rides.',
+                      style: TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                    if (widget.homeController.state.error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          widget.homeController.state.error!,
+                          style: TextStyle(color: colors.danger),
+                        ),
+                      ),
+                    const Divider(height: 28),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.verified_user_outlined,
+                          size: 18,
+                          color: colors.primarySoft,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Pickup and handover codes protect each delivery.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              child: const Text(
-                'Sign out',
-                style: TextStyle(
-                  color: CosmicforgeLogisticsColors.danger,
-                  fontWeight: FontWeight.w700,
+              if (provider != null) ...[
+                _section('Account standing'),
+                _panel(
+                  Column(
+                    children: [
+                      _detail(
+                        Icons.shield_outlined,
+                        'Account status',
+                        _status(provider.accountStatus),
+                      ),
+                      _detail(
+                        Icons.fact_check_outlined,
+                        'Onboarding',
+                        _status(provider.onboardingStatus),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              OutlinedButton(
+                onPressed: _confirmLogout,
+                child: Text('Sign out', style: TextStyle(color: colors.danger)),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: KarryamColors.navy,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  children: [
+                    Image.asset('assets/branding/karryam-logo.png', width: 116),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Movement intelligence.\nA brighter tomorrow.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFFCED2DA), fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _IdentityCard extends StatelessWidget {
-  const _IdentityCard({required this.provider});
+  bool _savingPreference = false;
+  String? _vehicleError;
+  Future<void> _setParcels(bool value) async {
+    setState(() => _savingPreference = true);
+    try {
+      await widget.homeController.setAcceptsParcels(value);
+    } finally {
+      if (mounted) setState(() => _savingPreference = false);
+    }
+  }
 
-  final TaxiProvider provider;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: CosmicforgeLogisticsColors.primaryTint,
-            child: Text(
-              provider.initial,
-              style: const TextStyle(
-                color: CosmicforgeLogisticsColors.primary,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
+  Widget _section(String text) => Padding(
+    padding: const EdgeInsets.only(top: 28, bottom: 14),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+    ),
+  );
+  Widget _panel(Widget child) => Card(
+    child: Padding(padding: const EdgeInsets.all(18), child: child),
+  );
+  Widget _detail(IconData icon, String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: KarryamColors.of(context).surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: KarryamColors.of(context).textMuted,
+                  fontSize: 12,
+                ),
               ),
-            ),
+              const SizedBox(height: 5),
+              Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  provider.fullName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: CosmicforgeLogisticsColors.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  provider.phone,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: CosmicforgeLogisticsColors.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      size: 15,
-                      color: CosmicforgeLogisticsColors.warning,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      provider.rating > 0
-                          ? provider.rating.toStringAsFixed(2)
-                          : 'No ratings yet',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: CosmicforgeLogisticsColors.text,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      '${provider.totalTrips} trips',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: CosmicforgeLogisticsColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ParcelToggle extends StatelessWidget {
-  const _ParcelToggle({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Accept packages',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: CosmicforgeLogisticsColors.text,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value
-                      ? 'You can be matched to package deliveries as well as rides.'
-                      : 'You will only be matched to passenger rides.',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: CosmicforgeLogisticsColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _VehicleCard extends StatelessWidget {
-  const _VehicleCard({required this.vehicle});
-
-  final ProviderVehicle vehicle;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      child: Row(
-        children: [
-          const Icon(
-            Icons.directions_car_filled_rounded,
-            color: CosmicforgeLogisticsColors.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  vehicle.descriptor,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: CosmicforgeLogisticsColors.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${vehicle.plateNumber} · ${vehicle.vehicleClass}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: CosmicforgeLogisticsColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: vehicle.isActive
-                  ? CosmicforgeLogisticsColors.successSoft
-                  : CosmicforgeLogisticsColors.warningSoft,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              vehicle.isActive ? 'Active' : vehicle.status,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: vehicle.isActive
-                    ? CosmicforgeLogisticsColors.success
-                    : CosmicforgeLogisticsColors.warning,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: const TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w800,
-      color: CosmicforgeLogisticsColors.text,
+        ),
+      ],
     ),
   );
 }
 
-class _Card extends StatelessWidget {
-  const _Card({required this.child});
+String _status(String value) {
+  if (value.trim().isEmpty) return 'Not available';
+  return value
+      .replaceAll('_', ' ')
+      .split(' ')
+      .map(
+        (word) => word.isEmpty
+            ? ''
+            : word[0].toUpperCase() + word.substring(1).toLowerCase(),
+      )
+      .join(' ');
+}
 
-  final Widget child;
-
+class _DriverPass extends StatelessWidget {
+  const _DriverPass({required this.provider});
+  final TaxiProvider provider;
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CosmicforgeLogisticsColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CosmicforgeLogisticsColors.border),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(22),
+    decoration: BoxDecoration(
+      color: KarryamColors.navy,
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: .12),
+          blurRadius: 24,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    ),
+    child: DefaultTextStyle(
+      style: const TextStyle(fontFamily: 'Inter', color: Colors.white),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Image.asset('assets/branding/karryam-logo.png', width: 100),
+              const SizedBox(width: 12),
+              const Text(
+                'DRIVER',
+                style: TextStyle(
+                  color: KarryamColors.teal,
+                  fontSize: 10,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: provider.profilePhotoUrl?.isNotEmpty == true
+                      ? Image.network(
+                          provider.profilePhotoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _initial(),
+                        )
+                      : _initial(),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.fullName,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      provider.acceptsParcels
+                          ? 'Passenger rides & deliveries'
+                          : 'Passenger rides',
+                      style: const TextStyle(
+                        color: Color(0xFFCED2DA),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 40, color: Color(0xFF3C4C69)),
+          Wrap(
+            spacing: 28,
+            runSpacing: 16,
+            children: [
+              _metric(
+                provider.rating > 0
+                    ? '${provider.rating.toStringAsFixed(2)} ★'
+                    : '—',
+                provider.rating > 0 ? 'Driver rating' : 'No ratings yet',
+              ),
+              _metric('${provider.totalTrips}', 'Completed trips'),
+              _metric(_status(provider.accountStatus), 'Account'),
+            ],
+          ),
+        ],
       ),
-      child: child,
-    );
-  }
+    ),
+  );
+  Widget _initial() => Container(
+    color: const Color(0xFF193F54),
+    alignment: Alignment.center,
+    child: Text(
+      provider.initial,
+      style: const TextStyle(color: Color(0xFF99E7DC), fontSize: 26),
+    ),
+  );
+  Widget _metric(String value, String label) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        value,
+        style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 10, color: Color(0xFFCED2DA)),
+      ),
+    ],
+  );
+}
+
+class _VehiclePass extends StatelessWidget {
+  const _VehiclePass({required this.vehicle});
+  final ProviderVehicle vehicle;
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.directions_car_outlined,
+                color: KarryamColors.teal,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _status(vehicle.status),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const DriverStateArt(kind: DriverArt.offline, height: 115),
+          Text(
+            vehicle.make.isEmpty ? 'VEHICLE' : vehicle.make.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 2,
+              color: KarryamColors.of(context).textMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            vehicle.model.isEmpty ? vehicle.vehicleClass : vehicle.model,
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Chip(label: Text(vehicle.plateNumber)),
+              Chip(
+                label: Text(
+                  vehicle.color.isEmpty ? 'Color not provided' : vehicle.color,
+                ),
+              ),
+              Chip(label: Text('${vehicle.seats} seats')),
+            ],
+          ),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text(
+              'Vehicle registration',
+              style: TextStyle(fontSize: 14),
+            ),
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Vehicle class'),
+                subtitle: Text(vehicle.vehicleClass),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Status'),
+                subtitle: Text(_status(vehicle.status)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }

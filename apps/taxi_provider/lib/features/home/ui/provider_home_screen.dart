@@ -1,4 +1,4 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import '../../../core/theme/karryam_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../auth/data/provider_auth_api.dart';
@@ -31,7 +31,19 @@ class ProviderHomeScreen extends StatefulWidget {
   State<ProviderHomeScreen> createState() => _ProviderHomeScreenState();
 }
 
-class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
+class _ProviderHomeScreenState extends State<ProviderHomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _transition = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+    value: 1,
+  );
+  @override
+  void dispose() {
+    _transition.dispose();
+    super.dispose();
+  }
+
   int _tab = 0;
 
   @override
@@ -54,31 +66,42 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
         }
 
         return Scaffold(
-          backgroundColor: CosmicforgeLogisticsColors.surface,
-          body: IndexedStack(
-            index: _tab,
-            children: [
-              ProviderDashboardScreen(
-                controller: widget.controller,
-                authController: widget.authController,
-              ),
-              ProviderEarningsScreen(
-                api: widget.api,
-                authController: widget.authController,
-              ),
-              ProviderProfileScreen(
-                authApi: widget.authApi,
-                authController: widget.authController,
-                homeController: widget.controller,
-              ),
-            ],
+          backgroundColor: KarryamColors.of(context).surface,
+          body: FadeTransition(
+            opacity: CurvedAnimation(
+              parent: _transition,
+              curve: Curves.easeOutCubic,
+            ),
+            child: IndexedStack(
+              index: _tab,
+              children: [
+                ProviderDashboardScreen(
+                  controller: widget.controller,
+                  authController: widget.authController,
+                ),
+                ProviderEarningsScreen(
+                  api: widget.api,
+                  authController: widget.authController,
+                ),
+                ProviderProfileScreen(
+                  authApi: widget.authApi,
+                  authController: widget.authController,
+                  homeController: widget.controller,
+                ),
+              ],
+            ),
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _tab,
-            onDestinationSelected: (i) => setState(() => _tab = i),
-            backgroundColor: Colors.white,
-            indicatorColor: CosmicforgeLogisticsColors.primaryTint,
-            destinations: const [
+            onDestinationSelected: (i) {
+              setState(() => _tab = i);
+              if (!MediaQuery.disableAnimationsOf(context)) {
+                _transition.forward(from: .35);
+              }
+            },
+            backgroundColor: KarryamColors.of(context).card,
+            indicatorColor: KarryamColors.of(context).primaryTint,
+            destinations: [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home_rounded),

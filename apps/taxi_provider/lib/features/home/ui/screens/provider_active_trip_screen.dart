@@ -1,4 +1,7 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import '../../../../core/widgets/driver_map.dart';
+import '../../../../core/widgets/driver_state_art.dart';
+import '../../../../core/theme/karryam_theme.dart';
+import '../../../../core/widgets/driver_code_sheet.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/format/money_format.dart';
@@ -28,14 +31,14 @@ class ProviderActiveTripScreen extends StatelessWidget {
     final code = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CosmicforgeLogisticsCodeEntrySheet(
+      backgroundColor: KarryamColors.of(context).card,
+      builder: (_) => DriverCodeSheet(
         title: delivery ? 'Scan the delivery code' : 'Scan the pickup code',
         subtitle: delivery
             ? 'Ask the person receiving the package to show their code.'
             : booking.isParcel
-                  ? 'Ask the sender to show their code before you take the package.'
-                  : 'Ask your passenger to show their code before you set off.',
+            ? 'Ask the sender to show their code before you take the package.'
+            : 'Ask your passenger to show their code before you set off.',
       ),
     );
     if (code == null || code.isEmpty) return;
@@ -47,7 +50,52 @@ class ProviderActiveTripScreen extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(delivery ? 'Delivery confirmed.' : 'Pickup confirmed.'),
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _complete(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final success = await controller.completeTrip();
+    if (!success ||
+        !navigator.mounted ||
+        controller.state.activeBooking != null) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: navigator.context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const DriverStateArt(kind: DriverArt.complete),
+              Text(
+                booking.isParcel ? 'Delivery complete' : 'Trip complete',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Another connection made. Ready for the next one?',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text('Back to Home'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -55,44 +103,44 @@ class ProviderActiveTripScreen extends StatelessWidget {
   Future<void> _confirmCancel(BuildContext context) async {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
+      backgroundColor: KarryamColors.of(context).card,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'Cancel this trip?',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: CosmicforgeLogisticsColors.text,
+                  color: KarryamColors.of(context).text,
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
+              SizedBox(height: 8),
+              Text(
                 'The customer will be told, and it counts against your '
                 'cancellation rate.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: CosmicforgeLogisticsColors.textMuted,
+                  color: KarryamColors.of(context).textMuted,
                   fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               PrimaryActionButton(
                 label: 'Yes, cancel',
-                color: CosmicforgeLogisticsColors.danger,
+                color: KarryamColors.of(context).danger,
                 onPressed: () => Navigator.of(sheetContext).pop(true),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.of(sheetContext).pop(false),
-                child: const Text('Keep the trip'),
+                child: Text('Keep the trip'),
               ),
             ],
           ),
@@ -125,9 +173,11 @@ class ProviderActiveTripScreen extends StatelessWidget {
       case BookingStatus.arrivedAtPickup:
         if (booking.awaitingPickupVerification) {
           return (
-            label: booking.isParcel ? 'Scan sender code' : 'Scan passenger code',
+            label: booking.isParcel
+                ? 'Scan sender code'
+                : 'Scan passenger code',
             onTap: () => _scanAndVerify(context, delivery: false),
-            color: CosmicforgeLogisticsColors.success,
+            color: KarryamColors.of(context).success,
           );
         }
         return (label: 'Start trip', onTap: controller.startTrip, color: null);
@@ -136,13 +186,13 @@ class ProviderActiveTripScreen extends StatelessWidget {
           return (
             label: 'Scan receiver code',
             onTap: () => _scanAndVerify(context, delivery: true),
-            color: CosmicforgeLogisticsColors.success,
+            color: KarryamColors.of(context).success,
           );
         }
         return (
           label: booking.isParcel ? 'Complete delivery' : 'End trip',
-          onTap: controller.completeTrip,
-          color: CosmicforgeLogisticsColors.success,
+          onTap: () => _complete(context),
+          color: KarryamColors.of(context).success,
         );
       default:
         return (label: 'Updating trip...', onTap: null, color: null);
@@ -152,12 +202,14 @@ class ProviderActiveTripScreen extends StatelessWidget {
   String get _heading => switch (booking.status) {
     BookingStatus.accepted => 'Trip accepted',
     BookingStatus.enRoutePickup => 'Heading to pickup',
-    BookingStatus.arrivedAtPickup => booking.awaitingPickupVerification
-        ? 'Confirm before you set off'
-        : 'Ready to start',
-    BookingStatus.inProgress => booking.awaitingDeliveryVerification
-        ? 'Confirm the hand-over'
-        : (booking.isParcel ? 'Delivering' : 'Trip in progress'),
+    BookingStatus.arrivedAtPickup =>
+      booking.awaitingPickupVerification
+          ? 'Confirm before you set off'
+          : 'Ready to start',
+    BookingStatus.inProgress =>
+      booking.awaitingDeliveryVerification
+          ? 'Confirm the hand-over'
+          : (booking.isParcel ? 'Delivering' : 'Trip in progress'),
     _ => 'Trip',
   };
 
@@ -167,14 +219,16 @@ class ProviderActiveTripScreen extends StatelessWidget {
           ? 'Head to the sender to collect the package.'
           : 'Head to your passenger.',
     BookingStatus.enRoutePickup => 'Let them know when you get there.',
-    BookingStatus.arrivedAtPickup => booking.awaitingPickupVerification
-        ? 'Scan the code on their screen to unlock the trip.'
-        : 'You can set off now.',
-    BookingStatus.inProgress => booking.awaitingDeliveryVerification
-        ? 'Scan the receiver\'s code to complete the delivery.'
-        : (booking.isParcel
-              ? 'Take the package to the drop-off.'
-              : 'Drive safely.'),
+    BookingStatus.arrivedAtPickup =>
+      booking.awaitingPickupVerification
+          ? 'Scan the code on their screen to unlock the trip.'
+          : 'You can set off now.',
+    BookingStatus.inProgress =>
+      booking.awaitingDeliveryVerification
+          ? 'Scan the receiver\'s code to complete the delivery.'
+          : (booking.isParcel
+                ? 'Take the package to the drop-off.'
+                : 'Drive safely.'),
     _ => '',
   };
 
@@ -187,78 +241,89 @@ class ProviderActiveTripScreen extends StatelessWidget {
     final canCancel = booking.status != BookingStatus.inProgress;
 
     return Scaffold(
-      backgroundColor: CosmicforgeLogisticsColors.surface,
+      backgroundColor: KarryamColors.of(context).surface,
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
                 children: [
                   Row(
                     children: [
                       Expanded(
                         child: Text(
                           _heading,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: CosmicforgeLogisticsColors.text,
+                            color: KarryamColors.of(context).text,
                           ),
                         ),
                       ),
                       JobTypeBadge(isParcel: booking.isParcel),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Text(
                     _subheading,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: CosmicforgeLogisticsColors.textMuted,
+                      color: KarryamColors.of(context).textMuted,
                     ),
                   ),
 
                   if (state.error != null) ...[
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     InlineBanner(
                       message: state.error!,
                       onDismiss: controller.clearError,
                     ),
                   ],
 
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: SizedBox(
+                      height: 220,
+                      child: DriverMap(booking: booking),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  if (booking.awaitingPickupVerification ||
+                      booking.awaitingDeliveryVerification)
+                    DriverStateArt(kind: DriverArt.verifying, height: 100),
                   _Card(child: RouteSummary(booking: booking)),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   _Card(child: JobStatsRow(booking: booking)),
 
                   if (booking.isParcel) ...[
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _Card(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Package',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: CosmicforgeLogisticsColors.text,
+                              color: KarryamColors.of(context).text,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          _row('What', booking.packageDesc),
+                          SizedBox(height: 6),
+                          _row(context, 'What', booking.packageDesc),
                           if (booking.packageSize.isNotEmpty)
-                            _row('Size', booking.packageSize),
-                          _row('Receiver', booking.receiverName),
-                          _row('Phone', booking.receiverPhone),
+                            _row(context, 'Size', booking.packageSize),
+                          _row(context, 'Receiver', booking.receiverName),
+                          _row(context, 'Phone', booking.receiverPhone),
                           if (booking.isFragile)
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.only(top: 6),
                               child: Text(
                                 'Handle with care — marked fragile.',
                                 style: TextStyle(
-                                  color: CosmicforgeLogisticsColors.warning,
+                                  color: KarryamColors.of(context).warning,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -270,23 +335,23 @@ class ProviderActiveTripScreen extends StatelessWidget {
                   ],
 
                   if (booking.rideNotes.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _Card(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.sticky_note_2_rounded,
                             size: 16,
-                            color: CosmicforgeLogisticsColors.textMuted,
+                            color: KarryamColors.of(context).textMuted,
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               booking.rideNotes,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
-                                color: CosmicforgeLogisticsColors.text,
+                                color: KarryamColors.of(context).text,
                               ),
                             ),
                           ),
@@ -295,26 +360,26 @@ class ProviderActiveTripScreen extends StatelessWidget {
                     ),
                   ],
 
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   _Card(
                     child: Row(
                       children: [
-                        const Text(
+                        Text(
                           'Fare',
                           style: TextStyle(
-                            color: CosmicforgeLogisticsColors.textMuted,
+                            color: KarryamColors.of(context).textMuted,
                             fontSize: 13,
                           ),
                         ),
-                        const Spacer(),
+                        Spacer(),
                         Text(
                           booking.displayFareKobo > 0
                               ? formatNaira(booking.displayFareKobo)
                               : '--',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: CosmicforgeLogisticsColors.text,
+                            color: KarryamColors.of(context).text,
                           ),
                         ),
                       ],
@@ -325,7 +390,7 @@ class ProviderActiveTripScreen extends StatelessWidget {
             ),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 20),
               child: Column(
                 children: [
                   PrimaryActionButton(
@@ -335,15 +400,15 @@ class ProviderActiveTripScreen extends StatelessWidget {
                     color: action.color,
                   ),
                   if (canCancel) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     TextButton(
                       onPressed: state.isActionLoading
                           ? null
                           : () => _confirmCancel(context),
-                      child: const Text(
+                      child: Text(
                         'Cancel trip',
                         style: TextStyle(
-                          color: CosmicforgeLogisticsColors.danger,
+                          color: KarryamColors.of(context).danger,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -358,18 +423,18 @@ class ProviderActiveTripScreen extends StatelessWidget {
     );
   }
 
-  Widget _row(String label, String value) {
-    if (value.trim().isEmpty) return const SizedBox.shrink();
+  Widget _row(BuildContext context, String label, String value) {
+    if (value.trim().isEmpty) return SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: EdgeInsets.only(top: 4),
       child: Row(
         children: [
           SizedBox(
             width: 78,
             child: Text(
               label,
-              style: const TextStyle(
-                color: CosmicforgeLogisticsColors.textMuted,
+              style: TextStyle(
+                color: KarryamColors.of(context).textMuted,
                 fontSize: 12.5,
               ),
             ),
@@ -377,8 +442,8 @@ class ProviderActiveTripScreen extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                color: CosmicforgeLogisticsColors.text,
+              style: TextStyle(
+                color: KarryamColors.of(context).text,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -398,11 +463,11 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: CosmicforgeLogisticsColors.card,
+        color: KarryamColors.of(context).card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CosmicforgeLogisticsColors.border),
+        border: Border.all(color: KarryamColors.of(context).border),
       ),
       child: child,
     );

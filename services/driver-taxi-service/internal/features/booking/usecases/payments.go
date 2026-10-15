@@ -24,7 +24,8 @@ package bookingusecases
 
 import (
 	"context"
-	"strings"
+	"errors"
+	"net/http"
 	"time"
 
 	bookingmodels "cosmicforge/logistics/services/taxi-service/internal/features/booking/models"
@@ -173,13 +174,30 @@ func (s *BookingService) refundIfHeld(ctx context.Context, booking bookingmodels
 	return err
 }
 
-// paymentErrorMessage maps a wallet-client failure (usually a bubbled-up
-// apperrors.Error from the internal HTTP call, e.g. insufficient balance)
-// to passenger-facing wording, falling back to a generic message for a
-// transport-level failure that carries no useful detail to show.
-func paymentErrorMessage(err error) string {
-	if appErr := apperrors.From(err); appErr != nil && strings.TrimSpace(appErr.Message) != "" {
-		return appErr.Message
+// holdFailureError turns a failed escrow hold into the error the accepting
+// driver sees. Two outcomes must stay distinct:
+//
+//   - Wallet answered and refused (a 4xx RequestError -- most often the
+//     passenger's balance does not cover the fare). The outcome is definite:
+//     no money moved and retrying the same accept cannot succeed, so this is
+//     a 409 payment_failed with wording the driver can act on, never a 503
+//     telling them to try again.
+//   - Wallet could not be reached or failed itself (transport error, 5xx,
+//     408/429). The outcome is unknown, so it stays a retryable 503.
+//
+// Wallet's own message is kept only as the cause (logs), because it is
+// written for the passenger, not the driver.
+func holdFailureError(err error) *apperrors.Error {
+	var refusal *walletclient.RequestError
+	if errors.As(err, &refusal) && refusal.Status >= http.StatusBadRequest &&
+		refusal.Status < http.StatusInternalServerError &&
+		refusal.Status != http.StatusRequestTimeout && refusal.Status != http.StatusTooManyRequests {
+		return apperrors.New(http.StatusConflict, CodePaymentFailed,
+			"The passenger's wallet payment was declined, so this ride can't be accepted.", err)
 	}
-	return "Payment could not be processed. Try again."
+	return apperrors.Unavailable("Payment could not be processed. Try again.", err)
 }
+
+// CodePaymentFailed is the error code an accept carries when Wallet
+// definitively refused the escrow hold.
+const CodePaymentFailed apperrors.Code = "payment_failed"

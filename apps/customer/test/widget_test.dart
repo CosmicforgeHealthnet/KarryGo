@@ -187,7 +187,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Car Ride'), findsOneWidget);
+    expect(find.text('Book a Taxi'), findsOneWidget);
   });
 
   testWidgets('phone continue is disabled until a number is entered', (

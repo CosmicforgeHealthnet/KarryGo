@@ -1,4 +1,6 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import '../../../../core/widgets/driver_map.dart';
+import '../../../../core/widgets/driver_state_art.dart';
+import '../../../../core/theme/karryam_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../../auth/state/provider_auth_controller.dart';
@@ -20,229 +22,226 @@ class ProviderDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = controller.state;
-    final provider = authController.state.provider;
-
+    final colors = KarryamColors.of(context);
     return Scaffold(
-      backgroundColor: CosmicforgeLogisticsColors.surface,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: CosmicforgeLogisticsColors.primary,
-          onRefresh: controller.refreshBookings,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hi, ${provider?.firstName.isNotEmpty == true ? provider!.firstName : 'Driver'}',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: CosmicforgeLogisticsColors.text,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: DriverMap(
+                    booking: state.offers.firstOrNull,
+                    online: state.online,
+                  ),
+                ),
+                Positioned(
+                  top: 16,
+                  left: 20,
+                  right: 20,
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: colors.card,
+                        foregroundColor: colors.text,
+                        child: Text(
+                          authController.state.provider?.initial ?? 'D',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.card,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: .08),
+                                blurRadius: 16,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'Karryam Driver',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.text,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          state.online
-                              ? 'You are online and can receive trips.'
-                              : 'You are offline.',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: CosmicforgeLogisticsColors.textMuted,
-                          ),
+                      ),
+                    ],
+                  ),
+                ),
+                DraggableScrollableSheet(
+                  initialChildSize: .43,
+                  minChildSize: .30,
+                  maxChildSize: .87,
+                  builder: (context, scrollController) => Container(
+                    decoration: BoxDecoration(
+                      color: colors.card,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .12),
+                          blurRadius: 30,
+                          offset: const Offset(0, -5),
                         ),
                       ],
                     ),
-                  ),
-                  if (provider != null)
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: CosmicforgeLogisticsColors.primaryTint,
-                      child: Text(
-                        provider.initial,
-                        style: const TextStyle(
-                          color: CosmicforgeLogisticsColors.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    child: RefreshIndicator(
+                      onRefresh: controller.refreshBookings,
+                      child: ListView(
+                        controller: scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 36,
+                              height: 4,
+                              margin: const EdgeInsets.only(bottom: 22),
+                              decoration: BoxDecoration(
+                                color: colors.border,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: colors.primaryTint,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  state.online
+                                      ? Icons.route
+                                      : Icons.power_settings_new,
+                                  color: colors.primarySoft,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      state.online
+                                          ? 'You’re online'
+                                          : 'You’re offline',
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      state.online
+                                          ? 'Ready for your next opportunity.'
+                                          : 'Your next opportunity is out there.',
+                                      style: TextStyle(
+                                        color: colors.textMuted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          FilledButton.icon(
+                            onPressed: state.isTogglingOnline
+                                ? null
+                                : () => controller.setOnline(!state.online),
+                            icon: state.isTogglingOnline
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.power_settings_new),
+                            label: Text(
+                              state.online ? 'Go offline' : 'Go online',
+                            ),
+                          ),
+                          if (state.error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: InlineBanner(
+                                message: state.error!,
+                                onDismiss: controller.clearError,
+                              ),
+                            ),
+                          if (state.notice != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: InlineBanner(
+                                message: state.notice!,
+                                isError: false,
+                                onDismiss: controller.clearNotice,
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                          if (state.offers.isEmpty) ...[
+                            DriverStateArt(
+                              kind: state.online
+                                  ? DriverArt.searching
+                                  : DriverArt.offline,
+                              height: 100,
+                            ),
+                            Text(
+                              state.online
+                                  ? 'Looking for your next trip'
+                                  : 'Ready when you are',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              state.online
+                                  ? 'New requests will appear here.'
+                                  : 'Go online to receive nearby requests.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: colors.textMuted),
+                            ),
+                          ] else
+                            for (final offer in state.offers)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: KarryamEntrance(
+                                  key: ValueKey(offer.id),
+                                  child: _OfferCard(
+                                    booking: offer,
+                                    busy: state.isActionLoading,
+                                    onAccept: () =>
+                                        controller.acceptOffer(offer.id),
+                                    onReject: () =>
+                                        controller.rejectOffer(offer.id),
+                                  ),
+                                ),
+                              ),
+                        ],
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              _OnlineCard(controller: controller, state: state),
-
-              if (state.error != null) ...[
-                const SizedBox(height: 14),
-                InlineBanner(
-                  message: state.error!,
-                  onDismiss: controller.clearError,
+                  ),
                 ),
               ],
-              if (state.notice != null) ...[
-                const SizedBox(height: 14),
-                InlineBanner(
-                  message: state.notice!,
-                  isError: false,
-                  onDismiss: controller.clearNotice,
-                ),
-              ],
-
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  const Text(
-                    'Trip requests',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: CosmicforgeLogisticsColors.text,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (state.offers.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: CosmicforgeLogisticsColors.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${state.offers.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              if (state.offers.isEmpty)
-                _EmptyOffers(online: state.online)
-              else
-                for (final offer in state.offers)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _OfferCard(
-                      booking: offer,
-                      busy: state.isActionLoading,
-                      onAccept: () => controller.acceptOffer(offer.id),
-                      onReject: () => controller.rejectOffer(offer.id),
-                    ),
-                  ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
-    );
-  }
-}
-
-class _OnlineCard extends StatelessWidget {
-  const _OnlineCard({required this.controller, required this.state});
-
-  final ProviderHomeController controller;
-  final ProviderHomeState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: CosmicforgeLogisticsColors.radialBlue,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  state.online ? 'Online' : 'Offline',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  state.online
-                      ? 'We are sending you nearby trips.'
-                      : 'Go online to start receiving trips.',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (state.isTogglingOnline)
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          else
-            Switch.adaptive(
-              value: state.online,
-              onChanged: controller.setOnline,
-              activeThumbColor: Colors.white,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyOffers extends StatelessWidget {
-  const _EmptyOffers({required this.online});
-
-  final bool online;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-      decoration: BoxDecoration(
-        color: CosmicforgeLogisticsColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: CosmicforgeLogisticsColors.border),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            online ? Icons.hourglass_empty_rounded : Icons.power_settings_new_rounded,
-            size: 34,
-            color: CosmicforgeLogisticsColors.primarySoft,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            online
-                ? 'No requests yet. We will show them here as they come in.'
-                : 'You are offline, so no requests will reach you.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: CosmicforgeLogisticsColors.textMuted,
-              fontSize: 13,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -264,11 +263,11 @@ class _OfferCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: CosmicforgeLogisticsColors.card,
+        color: KarryamColors.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: CosmicforgeLogisticsColors.border),
+        border: Border.all(color: KarryamColors.of(context).border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,83 +277,81 @@ class _OfferCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '#${booking.shortId}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: CosmicforgeLogisticsColors.textMuted,
+                    color: KarryamColors.of(context).textMuted,
                   ),
                 ),
               ),
               JobTypeBadge(isParcel: booking.isParcel),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           RouteSummary(booking: booking),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           JobStatsRow(booking: booking),
 
           if (booking.isParcel && booking.packageDesc.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Text(
               'Package: ${booking.packageDesc}'
               '${booking.isFragile ? ' · fragile' : ''}',
-              style: const TextStyle(
-                color: CosmicforgeLogisticsColors.textMuted,
+              style: TextStyle(
+                color: KarryamColors.of(context).textMuted,
                 fontSize: 12,
               ),
             ),
           ],
           if (booking.rideNotes.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Note: ${booking.rideNotes}',
-              style: const TextStyle(
-                color: CosmicforgeLogisticsColors.textMuted,
+              style: TextStyle(
+                color: KarryamColors.of(context).textMuted,
                 fontSize: 12,
               ),
             ),
           ],
 
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: busy ? null : onReject,
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 46),
-                    side: const BorderSide(
-                      color: CosmicforgeLogisticsColors.border,
-                    ),
+                    minimumSize: Size(0, 46),
+                    side: BorderSide(color: KarryamColors.of(context).border),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Decline',
                     style: TextStyle(
-                      color: CosmicforgeLogisticsColors.danger,
+                      color: KarryamColors.of(context).danger,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 flex: 2,
                 child: FilledButton(
                   onPressed: busy ? null : onAccept,
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 46),
-                    backgroundColor: CosmicforgeLogisticsColors.success,
+                    minimumSize: Size(0, 46),
+                    backgroundColor: KarryamColors.of(context).primary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Accept',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: KarryamColors.of(context).onPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

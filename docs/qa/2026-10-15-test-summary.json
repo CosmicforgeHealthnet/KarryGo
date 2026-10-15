@@ -1,0 +1,20 @@
+{
+  "taxi-verified": {
+    "pass": 587
+  },
+  "payment-final": {
+    "pass": 219
+  },
+  "customer-backend": {
+    "pass": 91
+  },
+  "notification": {
+    "pass": 19
+  },
+  "flutter": {
+    "success": 19
+  },
+  "customer-flutter-final": {
+    "success": 73
+  }
+}

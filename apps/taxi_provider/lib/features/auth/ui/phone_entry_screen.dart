@@ -1,4 +1,4 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import '../../../core/theme/karryam_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -32,7 +32,11 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
 
   void _submit() {
     final raw = _phoneCtrl.text.trim();
-    if (raw.isEmpty) return;
+    if (widget.controller.state.isLoading) return;
+    if (raw.isEmpty) {
+      widget.controller.startAuth(raw);
+      return;
+    }
     // The service normalises to +234 itself, but sending a bare local number
     // makes the round trip depend on that; normalise the obvious case here.
     final phone = raw.startsWith('0')
@@ -46,45 +50,49 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     final state = widget.controller.state;
 
     return Scaffold(
-      backgroundColor: CosmicforgeLogisticsColors.surface,
+      backgroundColor: KarryamColors.of(context).surface,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 40),
+              SizedBox(height: 40),
               Container(
-                width: 64,
-                height: 64,
+                height: 150,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: CosmicforgeLogisticsColors.primaryTint,
-                  borderRadius: BorderRadius.circular(18),
+                  color: KarryamColors.navy,
+                  borderRadius: BorderRadius.circular(22),
                 ),
-                child: const Icon(
-                  Icons.local_taxi_rounded,
-                  size: 32,
-                  color: CosmicforgeLogisticsColors.primary,
+                child: Image.asset(
+                  'assets/branding/karryam-logo.png',
+                  width: 205,
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Drive with Karry Go',
+              SizedBox(height: 24),
+              Text(
+                'Good to have you here.',
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'DRIVE WITH KARRYAM',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: CosmicforgeLogisticsColors.text,
+                  color: KarryamColors.of(context).text,
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text(
+              SizedBox(height: 6),
+              Text(
                 'Sign in with the phone number on your driver account.',
                 style: TextStyle(
                   fontSize: 14,
-                  color: CosmicforgeLogisticsColors.textMuted,
+                  color: KarryamColors.of(context).textMuted,
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
               TextField(
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
@@ -95,52 +103,53 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                 decoration: InputDecoration(
                   hintText: '+234 809 999 0001',
                   filled: true,
-                  fillColor: CosmicforgeLogisticsColors.card,
-                  prefixIcon: const Icon(Icons.phone_rounded),
+                  fillColor: KarryamColors.of(context).card,
+                  prefixIcon: Icon(Icons.phone_rounded),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: CosmicforgeLogisticsColors.border,
+                    borderSide: BorderSide(
+                      color: KarryamColors.of(context).border,
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: CosmicforgeLogisticsColors.border,
+                    borderSide: BorderSide(
+                      color: KarryamColors.of(context).border,
                     ),
                   ),
                 ),
               ),
               if (state.error != null) ...[
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _ErrorBanner(message: state.error!),
               ],
-              const Spacer(),
+              SizedBox(height: 28),
               SizedBox(
                 height: 52,
                 child: FilledButton(
                   onPressed: state.isLoading ? null : _submit,
                   style: FilledButton.styleFrom(
-                    backgroundColor: CosmicforgeLogisticsColors.primary,
-                    disabledBackgroundColor:
-                        CosmicforgeLogisticsColors.primarySoft,
+                    backgroundColor: KarryamColors.of(context).primary,
+                    disabledBackgroundColor: KarryamColors.of(
+                      context,
+                    ).primarySoft,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: state.isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: KarryamColors.of(context).onPrimary,
                           ),
                         )
-                      : const Text(
+                      : Text(
                           'Continue',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: KarryamColors.of(context).onPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
@@ -163,24 +172,24 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: CosmicforgeLogisticsColors.dangerSoft,
+        color: KarryamColors.of(context).dangerSoft,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.error_outline_rounded,
             size: 18,
-            color: CosmicforgeLogisticsColors.danger,
+            color: KarryamColors.of(context).danger,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
-                color: CosmicforgeLogisticsColors.danger,
+              style: TextStyle(
+                color: KarryamColors.of(context).danger,
                 fontSize: 12.5,
               ),
             ),

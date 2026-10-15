@@ -1,0 +1,86 @@
+{
+  "project_info": {
+    "project_number": "461709902538",
+    "project_id": "logistics-93b9f",
+    "storage_bucket": "logistics-93b9f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:461709902538:android:23fdca11efc22d6f876a33",
+        "android_client_info": {
+          "package_name": "com.cosmicforge.logistics.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCICfkmDo5PqVYbjfQdC6IQGArhcM1CsGk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:461709902538:android:b8e207f3a842ebcf876a33",
+        "android_client_info": {
+          "package_name": "com.cosmicforge.logistics.dispatch_provider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCICfkmDo5PqVYbjfQdC6IQGArhcM1CsGk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:461709902538:android:d923f7811bf94fdf876a33",
+        "android_client_info": {
+          "package_name": "com.cosmicforge.logistics.taxiprovider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCICfkmDo5PqVYbjfQdC6IQGArhcM1CsGk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:461709902538:android:7c2bceec7d83df27876a33",
+        "android_client_info": {
+          "package_name": "com.cosmicforge.logistics.truckprovider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCICfkmDo5PqVYbjfQdC6IQGArhcM1CsGk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

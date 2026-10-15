@@ -14,7 +14,6 @@ import (
 	providerprofilemodels "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/models"
 	"cosmicforge/logistics/services/taxi-service/internal/outbox"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
-	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/walletclient"
@@ -526,7 +525,7 @@ func (s *BookingService) AcceptBooking(ctx context.Context, bookingID, providerI
 	}
 
 	if err := s.holdPayment(ctx, existing); err != nil {
-		return bookingmodels.Booking{}, apperrors.Unavailable(paymentErrorMessage(err), err)
+		return bookingmodels.Booking{}, holdFailureError(err)
 	}
 
 	booking, err := s.withTransition(ctx, bookingID, providerID, "", "", outbox.EventBookingAccepted,

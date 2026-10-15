@@ -1,5 +1,5 @@
+import '../../../core/theme/karryam_theme.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/format/money_format.dart';
@@ -27,6 +27,7 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   bool _loading = true;
   String? _error;
   int _days = 7;
+  int _request = 0;
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   }
 
   Future<void> _load() async {
+    final request = ++_request;
     final token = widget.authController.state.accessToken;
     if (token == null) return;
     setState(() {
@@ -48,13 +50,13 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
         from: now.subtract(Duration(days: _days)),
         until: now,
       );
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _insights = EarningsInsights.fromJson(data);
         _loading = false;
       });
     } on ApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _error = e.message;
         _loading = false;
@@ -65,26 +67,28 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CosmicforgeLogisticsColors.surface,
+      backgroundColor: KarryamColors.of(context).surface,
       body: SafeArea(
         child: RefreshIndicator(
-          color: CosmicforgeLogisticsColors.primary,
+          color: KarryamColors.of(context).primary,
           onRefresh: _load,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 32),
             children: [
-              const Text(
-                'Earnings',
+              Text(
+                'Every trip adds up.',
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: CosmicforgeLogisticsColors.text,
+                  color: KarryamColors.of(context).text,
                 ),
               ),
-              const SizedBox(height: 14),
-              Row(
+              SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  for (final option in const [1, 7, 30]) ...[
+                  for (final option in [1, 7, 30]) ...[
                     _RangeChip(
                       label: option == 1 ? 'Today' : 'Last $option days',
                       selected: _days == option,
@@ -93,28 +97,28 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                         _load();
                       },
                     ),
-                    if (option != 30) const SizedBox(width: 8),
+                    if (option != 30) SizedBox(width: 8),
                   ],
                 ],
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
 
               if (_loading)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 60),
                   child: Center(child: CircularProgressIndicator()),
                 )
               else if (_error != null)
                 Text(
                   _error!,
-                  style: const TextStyle(
-                    color: CosmicforgeLogisticsColors.danger,
+                  style: TextStyle(
+                    color: KarryamColors.of(context).danger,
                     fontSize: 13,
                   ),
                 )
               else if (_insights != null) ...[
                 _GrossCard(insights: _insights!),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _StatGrid(insights: _insights!),
               ],
             ],
@@ -142,18 +146,20 @@ class _RangeChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
           color: selected
-              ? CosmicforgeLogisticsColors.primary
-              : CosmicforgeLogisticsColors.card,
+              ? KarryamColors.of(context).primary
+              : KarryamColors.of(context).card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: CosmicforgeLogisticsColors.border),
+          border: Border.all(color: KarryamColors.of(context).border),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : CosmicforgeLogisticsColors.text,
+            color: selected
+                ? KarryamColors.of(context).onPrimary
+                : KarryamColors.of(context).text,
             fontSize: 12.5,
             fontWeight: FontWeight.w700,
           ),
@@ -172,9 +178,9 @@ class _GrossCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: CosmicforgeLogisticsColors.radialBlue,
+        gradient: KarryamColors.of(context).radialBlue,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -187,16 +193,16 @@ class _GrossCard extends StatelessWidget {
               fontSize: 13,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             formatNaira(insights.grossEarningsKobo),
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 30,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             '${insights.tripsCompleted} completed '
             '${insights.tripsCompleted == 1 ? 'trip' : 'trips'}',
@@ -206,7 +212,7 @@ class _GrossCard extends StatelessWidget {
             ),
           ),
           if (!insights.isLedger) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Text(
               'Trip totals, not a withdrawable balance.',
               style: TextStyle(
@@ -229,6 +235,11 @@ class _StatGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tiles = <(String, String)>[
+      ('Completed trips', '${insights.tripsCompleted}'),
+      (
+        'Active trip time',
+        '${(insights.activeTripTimeSeconds / 3600).toStringAsFixed(1)} h',
+      ),
       ('Online', '${insights.onlineHours.toStringAsFixed(1)} h'),
       if (insights.utilizationPercent != null)
         ('Utilisation', '${insights.utilizationPercent!.toStringAsFixed(0)}%'),
@@ -254,27 +265,27 @@ class _StatGrid extends StatelessWidget {
           SizedBox(
             width: (MediaQuery.sizeOf(context).width - 52) / 2,
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: CosmicforgeLogisticsColors.card,
+                color: KarryamColors.of(context).card,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: CosmicforgeLogisticsColors.border),
+                border: Border.all(color: KarryamColors.of(context).border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     tile.$1,
-                    style: const TextStyle(
-                      color: CosmicforgeLogisticsColors.textMuted,
+                    style: TextStyle(
+                      color: KarryamColors.of(context).textMuted,
                       fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Text(
                     tile.$2,
-                    style: const TextStyle(
-                      color: CosmicforgeLogisticsColors.text,
+                    style: TextStyle(
+                      color: KarryamColors.of(context).text,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),

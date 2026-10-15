@@ -246,6 +246,24 @@ class ProviderApi {
     );
   }
 
+  // ─── Push ──────────────────────────────────────────────────────────────────
+
+  /// Registers this device's FCM token so trip offers reach the driver while
+  /// the app is backgrounded or closed. The taxi service brokers the signed
+  /// call to notification-service.
+  Future<void> registerDevice({
+    required String accessToken,
+    required String token,
+    required String platform,
+  }) async {
+    await _sendJson(
+      'POST',
+      '/provider/notifications/devices',
+      accessToken: accessToken,
+      body: {'token': token, 'platform': platform, 'app': 'taxi_provider'},
+    );
+  }
+
   void close() => _client.close();
 
   Future<Map<String, dynamic>> _sendJson(

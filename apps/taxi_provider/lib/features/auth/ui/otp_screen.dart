@@ -1,4 +1,4 @@
-import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
+import '../../../core/theme/karryam_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,64 +32,64 @@ class _OtpScreenState extends State<OtpScreen> {
     final debugOtp = state.challenge?.debugOtp;
 
     return Scaffold(
-      backgroundColor: CosmicforgeLogisticsColors.surface,
+      backgroundColor: KarryamColors.of(context).surface,
       appBar: AppBar(
-        backgroundColor: CosmicforgeLogisticsColors.surface,
+        backgroundColor: KarryamColors.of(context).surface,
         elevation: 0,
         leading: IconButton(
           onPressed: widget.controller.backToPhoneEntry,
-          icon: const Icon(Icons.arrow_back_rounded),
-          color: CosmicforgeLogisticsColors.text,
+          icon: Icon(Icons.arrow_back_rounded),
+          color: KarryamColors.of(context).text,
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Enter your code',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: CosmicforgeLogisticsColors.text,
+                  color: KarryamColors.of(context).text,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(
                 'We sent a 6-digit code to ${state.phone}.',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: CosmicforgeLogisticsColors.textMuted,
+                  color: KarryamColors.of(context).textMuted,
                 ),
               ),
 
               if (kDebugMode && debugOtp != null) ...[
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: CosmicforgeLogisticsColors.primaryTint,
+                    color: KarryamColors.of(context).primaryTint,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
                     children: [
-                      const Text(
+                      Text(
                         'Your OTP code',
                         style: TextStyle(
                           fontSize: 12,
-                          color: CosmicforgeLogisticsColors.textMuted,
+                          color: KarryamColors.of(context).textMuted,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         debugOtp,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 6,
-                          color: CosmicforgeLogisticsColors.primary,
+                          color: KarryamColors.of(context).primary,
                         ),
                       ),
                     ],
@@ -97,14 +97,14 @@ class _OtpScreenState extends State<OtpScreen> {
                 ),
               ],
 
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               TextField(
                 controller: _otpCtrl,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 maxLength: 6,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 10,
@@ -114,34 +114,34 @@ class _OtpScreenState extends State<OtpScreen> {
                   counterText: '',
                   hintText: '••••••',
                   filled: true,
-                  fillColor: CosmicforgeLogisticsColors.card,
+                  fillColor: KarryamColors.of(context).card,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: CosmicforgeLogisticsColors.border,
+                    borderSide: BorderSide(
+                      color: KarryamColors.of(context).border,
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: CosmicforgeLogisticsColors.border,
+                    borderSide: BorderSide(
+                      color: KarryamColors.of(context).border,
                     ),
                   ),
                 ),
               ),
 
               if (state.error != null) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Text(
                   state.error!,
-                  style: const TextStyle(
-                    color: CosmicforgeLogisticsColors.danger,
+                  style: TextStyle(
+                    color: KarryamColors.of(context).danger,
                     fontSize: 12.5,
                   ),
                 ),
               ],
 
-              const Spacer(),
+              SizedBox(height: 28),
               SizedBox(
                 height: 52,
                 child: FilledButton(
@@ -149,26 +149,27 @@ class _OtpScreenState extends State<OtpScreen> {
                       ? null
                       : () => widget.controller.verifyOtp(_otpCtrl.text),
                   style: FilledButton.styleFrom(
-                    backgroundColor: CosmicforgeLogisticsColors.primary,
-                    disabledBackgroundColor:
-                        CosmicforgeLogisticsColors.primarySoft,
+                    backgroundColor: KarryamColors.of(context).primary,
+                    disabledBackgroundColor: KarryamColors.of(
+                      context,
+                    ).primarySoft,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: state.isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: KarryamColors.of(context).onPrimary,
                           ),
                         )
-                      : const Text(
+                      : Text(
                           'Verify',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: KarryamColors.of(context).onPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),

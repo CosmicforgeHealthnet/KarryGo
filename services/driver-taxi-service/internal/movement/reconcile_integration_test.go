@@ -43,6 +43,11 @@ func (f *fakeProjection) ProjectedVersions(_ context.Context, refs []string) (ma
 func TestPostgresReconcileRepublishesOnlyWhatTheProjectionLacks(t *testing.T) {
 	db := reconcilePool(t)
 	ctx := context.Background()
+	// Exclude fixtures left by other packages in the shared test database.
+	var since time.Time
+	if err := db.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&since); err != nil {
+		t.Fatal(err)
+	}
 	market, zone, code := uuid.NewString(), uuid.NewString(), "RC-"+uuid.NewString()[:8]
 	if _, err := db.Exec(ctx, `INSERT INTO markets(id,country,name,code) VALUES($1,'NG','Reconcile',$2)`, market, code); err != nil {
 		t.Fatal(err)
@@ -76,7 +81,7 @@ func TestPostgresReconcileRepublishesOnlyWhatTheProjectionLacks(t *testing.T) {
 	// The projection already holds the second booking at Taxi's own version.
 	projection := &fakeProjection{versions: map[string]int64{current: 1}}
 	reconciler := &Reconciler{Pool: db, Writer: &Writer{Enabled: true}, Reader: projection, Batch: 500}
-	result, err := reconciler.Reconcile(ctx, time.Now().Add(-time.Hour))
+	result, err := reconciler.Reconcile(ctx, since)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +116,7 @@ func TestPostgresReconcileRepublishesOnlyWhatTheProjectionLacks(t *testing.T) {
 
 	// A second pass with the projection now up to date republishes nothing.
 	projection.versions[missing] = envelope.SourceVersion
-	second, err := reconciler.Reconcile(ctx, time.Now().Add(-time.Hour))
+	second, err := reconciler.Reconcile(ctx, since)
 	if err != nil || second.Republished != 0 {
 		t.Fatalf("second pass republished %d (%v)", second.Republished, err)
 	}
