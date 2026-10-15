@@ -38,6 +38,7 @@ class VendorRuntime extends ChangeNotifier {
   final VendorSessionStore? liveSessionStore;
   final http.Client Function()? liveClientFactory;
   final Duration mockLatency;
+  bool introCompleted = false;
   bool balancesVisible = true;
   void toggleBalances() {
     balancesVisible = !balancesVisible;
@@ -88,6 +89,12 @@ class VendorRuntime extends ChangeNotifier {
       if (liveOrigin.isEmpty) {
         liveOrigin = await preferences.read('vendor.settings.origin') ?? '';
       }
+      final savedMode = await preferences.read('vendor.settings.mode');
+      mode =
+          VendorDataMode.values
+              .where((value) => value.name == savedMode)
+              .firstOrNull ??
+          VendorDataMode.mock;
     } catch (_) {
       error = 'Your saved settings could not be loaded.';
     }
@@ -103,6 +110,7 @@ class VendorRuntime extends ChangeNotifier {
     _expiresAt = null;
     _retryAt = null;
     selectedVendorId = null;
+    registrationDraft = null;
     identifier = '';
     _ticker?.cancel();
     _emit();
@@ -142,6 +150,7 @@ class VendorRuntime extends ChangeNotifier {
       if (_disposed) return;
       final toured = await preferences.read('vendor.intro.completed') == 'true';
       if (_disposed) return;
+      introCompleted = toured || auth.session != null;
       page = auth.session != null
           ? VendorPage.signedIn
           : toured
@@ -160,14 +169,20 @@ class VendorRuntime extends ChangeNotifier {
 
   Future<void> changeMode(VendorDataMode next, {String? origin}) async {
     if (busy) return;
+    final creatingAccount = registrationDraft != null;
     if (next == VendorDataMode.live) {
       final value = (origin ?? liveOrigin).trim();
       VendorAppConfig(origin: value);
       await preferences.write('vendor.settings.origin', value);
       liveOrigin = value;
     }
+    await preferences.write('vendor.settings.mode', next.name);
     mode = next;
     await _connect();
+    if (creatingAccount && page == VendorPage.signIn && auth.session == null) {
+      registrationDraft = <String, dynamic>{};
+      _emit();
+    }
   }
 
   Future<void> changeScenario(MockAuthScenario next) async {
@@ -176,8 +191,10 @@ class VendorRuntime extends ChangeNotifier {
     await _connect();
   }
 
-  Future<void> finishIntro() async {
+  Future<void> finishIntro({bool registering = true}) async {
     if (busy) return;
+    introCompleted = true;
+    registrationDraft = registering ? <String, dynamic>{} : null;
     page = VendorPage.signIn;
     _emit();
     try {
@@ -202,8 +219,15 @@ class VendorRuntime extends ChangeNotifier {
     _emit();
   }
 
-  Future<void> start(String contact, {required bool email}) async {
+  Map<String, dynamic>? registrationDraft;
+
+  Future<void> start(
+    String contact, {
+    required bool email,
+    Map<String, dynamic>? registration,
+  }) async {
     if (!canRequest) return;
+    registrationDraft = registration == null ? null : Map.of(registration);
     useEmail = email;
     identifier = email
         ? contact.trim()
@@ -212,6 +236,7 @@ class VendorRuntime extends ChangeNotifier {
       final challenge = await auth.start(
         phone: email ? null : identifier,
         email: email ? identifier : null,
+        registration: registration,
       );
       if (_disposed) return;
       _expiresAt = DateTime.now().add(Duration(seconds: challenge.expiresIn));
@@ -262,6 +287,13 @@ class VendorRuntime extends ChangeNotifier {
       selectedVendorId = auth.availableVendorIds.firstOrNull;
       page = VendorPage.vendorChoice;
     } else {
+      introCompleted = true;
+      registrationDraft = null;
+      unawaited(
+        preferences
+            .write('vendor.intro.completed', 'true')
+            .catchError((Object _) {}),
+      );
       _expiresAt = null;
       page = VendorPage.signedIn;
     }

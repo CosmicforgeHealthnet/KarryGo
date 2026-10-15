@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { ArrowRight, MapPin } from "lucide-react";
-
-const CITIES = ["Lagos", "Abuja", "Port Harcourt", "and more..."];
+import { ArrowRight, ChevronDown, MapPin } from "lucide-react";
+import { FEATURED_LOCATIONS, NIGERIA_STATES_AND_FCT } from "@/lib/nigeria-locations";
 
 type MotionState = "idle" | "armed" | "in";
 
@@ -80,6 +79,7 @@ const MOTION_CSS = `
 export default function Launch() {
   const ref = useRef<HTMLElement>(null);
   const [state, setState] = useState<MotionState>("idle");
+  const [showAllLocations, setShowAllLocations] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -182,7 +182,7 @@ export default function Launch() {
           <div className="launch-map-wrap relative">
             <Image
               src="/images/nigeria-map.png"
-              alt="Glowing map of Nigeria with Karryam launch cities"
+              alt="Illustrated map of Nigeria showing selected Karryam markets"
               width={1200}
               height={1000}
               sizes="(min-width: 1024px) 60vw, 100vw"
@@ -191,36 +191,58 @@ export default function Launch() {
           </div>
 
           <ul className="relative mt-6 flex flex-col gap-2.5 sm:absolute sm:right-0 sm:top-1/2 sm:mt-0 sm:w-[200px] sm:-translate-y-1/2">
-            {CITIES.map((city, i) => {
-              const last = i === CITIES.length - 1;
-              return (
-                <li
-                  key={city}
-                  style={index(i)}
-                  className="launch-city relative overflow-hidden flex items-center gap-3 rounded-xl border border-white/10 bg-midnight/70 px-4 py-2.5 backdrop-blur"
-                >
-                  {last ? (
-                    <span className="h-[14px] w-[14px]" aria-hidden />
-                  ) : (
-                    <span className="launch-pin" aria-hidden>
-                      <MapPin
-                        size={14}
-                        className="text-aurora"
-                        strokeWidth={2}
-                      />
-                    </span>
-                  )}
-                  <span
-                    className={`text-[13px] ${
-                      last ? "text-white/60" : "font-semibold text-white"
-                    }`}
-                  >
-                    {city}
-                  </span>
-                </li>
-              );
-            })}
+            {FEATURED_LOCATIONS.map((location, i) => (
+              <li
+                key={location}
+                style={index(i)}
+                className="launch-city relative overflow-hidden flex items-center gap-3 rounded-xl border border-white/10 bg-midnight/70 px-4 py-2.5 backdrop-blur"
+              >
+                <span className="launch-pin" aria-hidden>
+                  <MapPin size={14} className="text-aurora" strokeWidth={2} />
+                </span>
+                <span className="text-[13px] font-semibold text-white">{location}</span>
+              </li>
+            ))}
+            <li
+              style={index(FEATURED_LOCATIONS.length)}
+              className="launch-city relative overflow-hidden rounded-xl border border-white/10 bg-midnight/70 backdrop-blur"
+            >
+              <button
+                type="button"
+                aria-expanded={showAllLocations}
+                aria-controls="launch-all-states"
+                onClick={() => setShowAllLocations((value) => !value)}
+                className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-[13px] text-white/70 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-aurora"
+              >
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-aurora transition-transform ${showAllLocations ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
+                <span>{showAllLocations ? "Show less" : "and more..."}</span>
+              </button>
+            </li>
           </ul>
+          <div
+            id="launch-all-states"
+            hidden={!showAllLocations}
+            className="relative mt-6 rounded-2xl border border-white/15 bg-midnight/90 px-4 py-5 sm:px-6"
+          >
+            <h3 className="text-base font-semibold text-white">
+              All 36 Nigerian states + FCT
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-white/65">
+              Explore locations across Nigeria. This list is for geographic interest,
+              not a promise that Karryam services are already live in every state.
+            </p>
+            <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-white/85 sm:grid-cols-3 lg:grid-cols-4">
+              {NIGERIA_STATES_AND_FCT.map((location) => (
+                <li key={location} className="break-words leading-relaxed">
+                  {location}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </section>

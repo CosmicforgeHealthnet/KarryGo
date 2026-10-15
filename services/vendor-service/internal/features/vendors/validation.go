@@ -159,3 +159,5 @@ func validateSettings(s OperationsSettings) error {
 	}
 	return nil
 }
+
+func ValidateBusiness(b Business) error { return validateBusiness(b) }

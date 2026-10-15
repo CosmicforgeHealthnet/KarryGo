@@ -1,0 +1,70 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vendor self-registration",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/vendor/auth/register/verify": {
+      "post": {
+        "operationId": "registerVendorOwner",
+        "description": "Verify a contact and create its owner account. Business details are entered through POST /api/v1/vendor/businesses during onboarding. Optional business fields remain accepted for compatibility with older staging APKs.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "otp": {
+                    "type": "string"
+                  },
+                  "challenge_id": {
+                    "type": "string"
+                  },
+                  "device_id": {
+                    "type": "string"
+                  },
+                  "legal_name": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "otp",
+                  "challenge_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated session or existing vendor selection"
+          },
+          "401": {
+            "description": "Invalid or consumed verification code"
+          },
+          "403": {
+            "description": "Registration disabled or existing access suspended"
+          },
+          "422": {
+            "description": "Invalid business details"
+          }
+        }
+      }
+    }
+  }
+}

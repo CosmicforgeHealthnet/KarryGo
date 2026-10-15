@@ -24,6 +24,7 @@ class BusinessOnboardingController extends ChangeNotifier {
   JsonObject get representative => overview['representative'] is Map
       ? jsonObject(overview['representative'])
       : {};
+  bool get needsBusiness => loaded && business.isEmpty;
   bool get activated =>
       business['status'] == 'ACTIVE' && overview['status'] == 'ACTIVATED';
   bool get submitted => [
@@ -121,12 +122,29 @@ class BusinessOnboardingController extends ChangeNotifier {
   }
 
   Future<void> load() => run(() async {
-    final results = await Future.wait([
-      request(
+    VendorResponse businessResponse;
+    try {
+      businessResponse = await request(
         'GET',
         '/api/v1/vendor/businesses/{businessId}',
         params: {'businessId': businessId},
-      ),
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      business = {};
+      overview = {};
+      readiness = {};
+      branches = [];
+      brands = [];
+      capabilities = [];
+      documents = [];
+      verifications = [];
+      bank = {};
+      loaded = true;
+      return;
+    }
+    final results = await Future.wait([
+      Future.value(businessResponse),
       request('GET', '/api/v1/vendor/onboarding'),
       request('GET', '/api/v1/vendor/onboarding/activation-readiness'),
       all('/api/v1/vendor/businesses/{businessId}/branches', {

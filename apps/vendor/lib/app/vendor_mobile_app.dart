@@ -85,6 +85,7 @@ class _VendorMobileAppState extends State<VendorMobileApp> {
               VendorPage.splash => const _SplashScreen(),
               VendorPage.onboarding => VendorOnboardingScreen(
                 onFinish: _runtime.finishIntro,
+                onSignIn: () => _runtime.finishIntro(registering: false),
                 onSettings: settings,
                 modeLabel: _runtime.mode.name,
               ),

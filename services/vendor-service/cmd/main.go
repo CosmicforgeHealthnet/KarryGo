@@ -55,6 +55,7 @@ import (
 	verificationintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/verification"
 	walletintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/wallet"
 
+	"cosmicforge/logistics/services/vendor-service/internal/features/registration"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/networkanalytics"
@@ -162,6 +163,7 @@ func main() {
 	authService := vendorauthusecases.NewAuthService(vendorauthusecases.Options{
 		Users: userRepo, Challenges: challengeRepo, Sessions: sessionRepo, StepUps: stepUpRepo,
 		Staff: staffResolverAdapter{staff: staffRepo}, Notifier: otpNotifier,
+		Registration: registration.NewService(db, cfg.Flags.VendorOnboardingWritesEnabled && !cfg.Flags.CommerceGlobalKillSwitch),
 
 		AccessTokenSecret: cfg.Auth.AccessTokenSecret, RefreshTokenSecret: cfg.Auth.RefreshTokenSecret, OTPSecret: cfg.Auth.OTPSecret,
 		AccessTokenTTL: cfg.Auth.AccessTokenTTL, RefreshTokenTTL: cfg.Auth.RefreshTokenTTL,

@@ -8,10 +8,12 @@ class VendorOnboardingScreen extends StatefulWidget {
   const VendorOnboardingScreen({
     super.key,
     required this.onFinish,
+    this.onSignIn,
     required this.onSettings,
     required this.modeLabel,
   });
   final VoidCallback onFinish, onSettings;
+  final VoidCallback? onSignIn;
   final String modeLabel;
   @override
   State<VendorOnboardingScreen> createState() => _VendorOnboardingScreenState();
@@ -104,7 +106,7 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
             label: [
               'Explore Karryam',
               'Continue',
-              'Sign in to your business',
+              'Create your account',
             ][_index],
             onPressed: _next,
           ),
@@ -118,7 +120,7 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
                 style: TextStyle(fontSize: 12),
               ),
               TextButton(
-                onPressed: widget.onFinish,
+                onPressed: widget.onSignIn ?? widget.onFinish,
                 child: const Text('Sign in'),
               ),
             ],

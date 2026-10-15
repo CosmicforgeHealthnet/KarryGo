@@ -51,3 +51,6 @@ Verification Compliance runs at http://127.0.0.1:8111 with dedicated vendor_veri
 
 
 Orders and Finance dashboard routes are enabled in the local Vendor runtime. Orders also enables its required checkout, fulfilment planning and quote-lock prerequisites; fulfilment workers and external logistics integrations remain disabled. Authenticated reads of Finance overview, Finance transactions and Vendor orders returned HTTP 200. These read routes do not require business activation; menu publication and customer ordering still require the active business/branch/capability graph.
+
+
+Vendor self-registration verifies the contact's OTP before creating an owner account and its authenticated vendor scope. New signup asks only for phone or email. Business fields are entered through the existing POST /api/v1/vendor/businesses contract in the first onboarding step. Older staging APKs may still pass business fields to registration; that compatibility path creates a DRAFT business. Neither path approves compliance or activates commerce. Registration cannot bypass suspension or accept a caller-selected vendor scope. Completed introductions and successful sign-ins persist the intro-completed preference so returning users skip the slides automatically. No new database migration is needed.

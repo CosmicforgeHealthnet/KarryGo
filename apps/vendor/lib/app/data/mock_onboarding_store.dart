@@ -176,6 +176,7 @@ class MockOnboardingStore {
   final Map<String, String> _grants = {};
   final Map<String, DateTime> _grantExpiry = {};
   final Set<String> _completedUploads = {};
+  bool needsBusiness = false;
   String status = 'NOT_STARTED';
   String? _challenge, _purpose;
   DateTime? _challengeExpires;
@@ -370,7 +371,9 @@ class MockOnboardingStore {
       if (path.endsWith('/branches')) return ok({'items': branches});
       if (path.endsWith('/brands')) return ok({'items': brands});
       if (path.endsWith('/capabilities')) return ok({'items': capabilities});
-      if (path.endsWith('/businesses/$vendorId')) return ok(business);
+      if (path.endsWith('/businesses/$vendorId')) {
+        return needsBusiness ? error(404, 'Business not found.') : ok(business);
+      }
       return error(404, 'Resource not found.');
     }
     final key =
@@ -395,6 +398,24 @@ class MockOnboardingStore {
       return ok(data, status: status);
     }
 
+    if (method == 'POST' && path == '/api/v1/vendor/businesses') {
+      if (!needsBusiness) {
+        return error(
+          409,
+          'Your business details already exist. Refresh to continue.',
+        );
+      }
+      if ((body['legal_name']?.toString().trim().length ?? 0) < 2 ||
+          !RegExp(r'^[A-Z]{3}$').hasMatch(body['currency']?.toString() ?? '') ||
+          (body['timezone']?.toString().isEmpty ?? true)) {
+        return error(422, 'Check your business details.');
+      }
+      business.addAll(body);
+      business['status'] = 'DRAFT';
+      business['version'] = 1;
+      needsBusiness = false;
+      return commit(business, status: 201);
+    }
     bool version(Map<String, dynamic> old) =>
         body['expected_version'] == (old['version'] ?? 0);
     if (path.contains('/branches/')) {

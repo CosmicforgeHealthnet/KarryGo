@@ -106,7 +106,12 @@ class _BusinessOnboardingScreenState extends State<BusinessOnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(controller.load());
+    unawaited(_initialize());
+  }
+
+  Future<void> _initialize() async {
+    await controller.load();
+    if (mounted && controller.needsBusiness) await _edit('business');
   }
 
   @override
@@ -129,8 +134,9 @@ class _BusinessOnboardingScreenState extends State<BusinessOnboardingScreen> {
       ),
     );
     if (mounted) await controller.load();
-    if (mounted && controller.submitted && !controller.blocked)
+    if (mounted && controller.submitted && !controller.blocked) {
       widget.onSubmitted?.call();
+    }
   }
 
   Future<void> _submit(bool activation) async {
@@ -207,6 +213,13 @@ class _BusinessOnboardingScreenState extends State<BusinessOnboardingScreen> {
                 const SizedBox(height: 16),
                 PrimaryAction(label: 'Try again', onPressed: controller.load),
               ],
+            ] else if (controller.needsBusiness) ...[
+              const SetupChapterHeader(kind: 'business'),
+              const SizedBox(height: 24),
+              PrimaryAction(
+                label: 'Set up your business',
+                onPressed: controller.busy ? null : () => _edit('business'),
+              ),
             ] else ...[
               Text(
                 controller.activated
@@ -484,6 +497,10 @@ class _SetupFormState extends State<_SetupForm> {
 
   String _initialValue(String key, Object? initial) {
     final value = (initial ?? _record[key])?.toString() ?? '';
+    if (value.isEmpty && widget.kind == 'business' && c.needsBusiness) {
+      if (key == 'currency') return 'NGN';
+      if (key == 'timezone') return 'Africa/Lagos';
+    }
     if (!_mock || value.isNotEmpty) return value;
     return switch (key) {
       'legal_name' => 'Karryam Demo Business',
@@ -689,18 +706,26 @@ class _SetupFormState extends State<_SetupForm> {
     final version = (_record['version'] as num?)?.toInt() ?? 0;
     switch (widget.kind) {
       case 'business':
-        await _saved('PATCH', '/api/v1/vendor/businesses/{businessId}', {
-          for (final key in [
-            'legal_name',
-            'trading_name',
-            'support_email',
-            'support_phone',
-            'currency',
-            'timezone',
-          ])
-            key: _text(key),
-          'expected_version': version,
-        }, params: params);
+        final creating = c.needsBusiness;
+        await _saved(
+          creating ? 'POST' : 'PATCH',
+          creating
+              ? '/api/v1/vendor/businesses'
+              : '/api/v1/vendor/businesses/{businessId}',
+          {
+            for (final key in [
+              'legal_name',
+              'trading_name',
+              'support_email',
+              'support_phone',
+              'currency',
+              'timezone',
+            ])
+              key: _text(key),
+            if (!creating) 'expected_version': version,
+          },
+          params: creating ? const {} : params,
+        );
       case 'representative':
         final replacing = c.verifications.any(
           (v) => v['dimension'] == 'IDENTITY' && v['status'] == 'VERIFIED',
@@ -1510,16 +1535,18 @@ class _SetupFormState extends State<_SetupForm> {
       if (subject['type'] == type &&
           (r['subject_ref'] == null ||
               r['subject_ref'] == '' ||
-              r['subject_ref'] == subject['id']))
+              r['subject_ref'] == subject['id'])) {
         return subject;
+      }
     }
     return null;
   }
 
   void _chooseRequirement(JsonObject r) {
     final subject = _requirementSubject(r);
-    if (subject == null || r['dimension'] == null || r['dimension'] == '')
+    if (subject == null || r['dimension'] == null || r['dimension'] == '') {
       return;
+    }
     setState(() {
       _dimension = r['dimension'].toString();
       _subject = '${subject['type']}:${subject['id']}';
