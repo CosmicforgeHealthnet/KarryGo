@@ -202,7 +202,7 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen>
         _cameraError == null &&
         !_busy;
     final guideSize =
-        (MediaQuery.sizeOf(context).width - 40).clamp(200.0, 320.0);
+        (MediaQuery.sizeOf(context).width - 40).clamp(200.0, 320.0).toDouble();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
