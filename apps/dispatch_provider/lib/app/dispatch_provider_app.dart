@@ -210,6 +210,10 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
 
   void _stopRealtimeAndPush() {
     _realtimeListener?.stop();
+    _fcmTokenRefreshSub?.cancel();
+    _fcmTokenRefreshSub = null;
+    _fcmForegroundSub?.cancel();
+    _fcmForegroundSub = null;
     _notificationController.clear();
   }
 
@@ -300,10 +304,25 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     return refreshed;
   }
 
+  void _resetProviderSessionState() {
+    _requestsController.resetSession();
+    _tripsController.resetSession();
+    _availabilityController.resetSession();
+    _walletController.resetSession();
+    _verificationController.resetSession();
+    _profileController.clearLocalState();
+    _selectedOperationType = null;
+    _profileDetailsData = null;
+    _emergencyContactData = null;
+    _guarantorData = null;
+    _selfiePath = null;
+    _phone = '';
+    _isLoginMode = false;
+  }
+
   Future<void> _handleSessionExpired() async {
     await _authController.clearSession();
-    _requestsController.resetSession();
-    _profileController.clearLocalState();
+    _resetProviderSessionState();
     if (mounted) {
       _go(_DispatchScreen.login);
     }
@@ -751,18 +770,16 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   Future<void> _handleLogout() async {
     debugPrint('[AUTH] User initiated logout');
     await _authController.logout();
-    _requestsController.resetSession();
+    _resetProviderSessionState();
     if (!mounted) return;
-    _profileController.clearLocalState();
     _go(_DispatchScreen.login);
   }
 
   Future<void> _handleAccountDeleted() async {
     debugPrint('[AUTH] Account deleted — clearing local session');
     await _authController.clearSession();
-    _requestsController.resetSession();
+    _resetProviderSessionState();
     if (!mounted) return;
-    _profileController.clearLocalState();
     _go(_DispatchScreen.login);
   }
 
