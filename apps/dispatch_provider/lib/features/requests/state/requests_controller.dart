@@ -18,6 +18,7 @@ class RequestsController extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   DateTime? _lastSuccessfulRefresh;
+  String? _snapshotToken;
   static const _offerFreshnessWindow = Duration(seconds: 20);
 
   Timer? _pollTimer;
@@ -31,6 +32,9 @@ class RequestsController extends ChangeNotifier {
   bool get canAcceptOffers =>
       _error == null &&
       _lastSuccessfulRefresh != null &&
+      _snapshotToken != null &&
+      _snapshotToken == _token() &&
+      (shouldPoll == null || shouldPoll!()) &&
       DateTime.now().difference(_lastSuccessfulRefresh!) <= _offerFreshnessWindow;
 
   RequestsController({
@@ -79,6 +83,7 @@ class RequestsController extends ChangeNotifier {
         success: (merged) {
           _requests = merged;
           _lastSuccessfulRefresh = DateTime.now();
+          _snapshotToken = token;
           _error = null;
         },
         failure: (error) {
@@ -113,6 +118,10 @@ class RequestsController extends ChangeNotifier {
 
     final token = _token();
     if (token == null || token.isEmpty) {
+      _lastSuccessfulRefresh = null;
+      _snapshotToken = null;
+      _error = 'Please sign in again to view current opportunities.';
+      notifyListeners();
       return ApiFailure(
         const ApiException(
           code: ApiErrorCode.unauthorized,
@@ -140,6 +149,7 @@ class RequestsController extends ChangeNotifier {
       success: (merged) {
         _requests = merged;
         _lastSuccessfulRefresh = DateTime.now();
+        _snapshotToken = token;
         _error = null;
       },
       failure: (error) {
@@ -309,6 +319,20 @@ class RequestsController extends ChangeNotifier {
 
   void clearActiveRequest() {
     _activeRequest = null;
+    notifyListeners();
+  }
+
+  /// Call on logout, account deletion and session expiry. Invalidates
+  /// in-flight responses so one provider never sees another's offers.
+  void resetSession() {
+    _stateGeneration++;
+    stopPolling();
+    _requests = [];
+    _activeRequest = null;
+    _isLoading = false;
+    _error = null;
+    _lastSuccessfulRefresh = null;
+    _snapshotToken = null;
     notifyListeners();
   }
 
