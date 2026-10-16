@@ -90,6 +90,16 @@ func (s *NotificationService) Send(ctx context.Context, request notifications.Re
 	if err != nil {
 		return SendResult{}, err
 	}
+	if len(resolved.channels) == 1 && resolved.channels[0] == notifications.ChannelEmail {
+		if s.email == nil {
+			return SendResult{}, apperrors.Unavailable("Email delivery is not configured.", nil)
+		}
+		if sender, ok := s.email.(interface{ Ready() error }); ok {
+			if err := sender.Ready(); err != nil {
+				return SendResult{}, apperrors.Unavailable("Email delivery is not configured.", err)
+			}
+		}
+	}
 	message, deliveries, duplicate, err := s.repository.CreateMessageWithDeliveries(ctx, messagerepositories.CreateMessageInput{
 		Request:     request,
 		Channels:    resolved.channels,

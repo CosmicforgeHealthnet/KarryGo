@@ -2,6 +2,7 @@ package messageclients
 
 import (
 	"context"
+	"errors"
 	"log"
 )
 
@@ -28,4 +29,12 @@ func (s *LoggingEmailSender) SendEmail(ctx context.Context, message EmailMessage
 	log.Printf("notification_email recipient_configured=%t subject=%q", message.To != "", message.Subject)
 	providerID := "logged-email"
 	return ProviderResult{Provider: "logging_email", ProviderMessageID: &providerID}, nil
+}
+
+// UnavailableEmailSender never records an unsent email as a success.
+type UnavailableEmailSender struct{}
+
+func (UnavailableEmailSender) Ready() error { return errors.New("email delivery is not configured") }
+func (s UnavailableEmailSender) SendEmail(context.Context, EmailMessage) (ProviderResult, error) {
+	return ProviderResult{Provider: "unavailable_email", Retryable: false}, s.Ready()
 }

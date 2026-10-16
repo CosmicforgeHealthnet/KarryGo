@@ -216,7 +216,7 @@ The defaults below match the bootstrap script and `infra/docker-compose.yml`. Se
 | `NOTIFICATION_SERVICE_SECRETS` | `customer-service=development-customer-notification-secret` | HMAC secrets per sending service (`name=secret,...`) |
 | `NOTIFICATION_REALTIME_TOKEN_SECRET` | `development-notification-realtime-token-secret` | Signs/verifies websocket realtime tokens |
 | `FIREBASE_PROJECT_ID` / `GOOGLE_APPLICATION_CREDENTIALS` | _(empty — logging push sender)_ | Enables real FCM push when set |
-| `NOTIFICATION_SMTP_HOST` (+ `_PORT`/`_USERNAME`/`_PASSWORD`/`_FROM`) | _(empty — logging email sender)_ | Enables real SMTP email when set |
+| `NOTIFICATION_SMTP_HOST` (+ `_PORT`/`_USERNAME`/`_PASSWORD` and `NOTIFICATION_EMAIL_FROM`) | _(empty — logging email sender)_ | Enables real SMTP email when set |
 | `NOTIFICATION_WORKER_CONCURRENCY` | `5` | Delivery worker goroutines |
 | `NOTIFICATION_MAX_ATTEMPTS` | `5` | Retry attempts before dead-letter |
 | `MIGRATION` | `false` | Set `true` to apply migrations on startup |

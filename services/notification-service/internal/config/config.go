@@ -32,6 +32,7 @@ type Config struct {
 }
 
 type SMTPConfig struct {
+	Timeout  time.Duration
 	Host     string
 	Port     int
 	Username string
@@ -60,6 +61,7 @@ func Load() Config {
 
 		EmailProvider: getEnv("NOTIFICATION_EMAIL_PROVIDER", "smtp"),
 		SMTP: SMTPConfig{
+			Timeout:  time.Duration(getEnvInt("NOTIFICATION_SMTP_TIMEOUT_SECONDS", 15)) * time.Second,
 			Host:     os.Getenv("NOTIFICATION_SMTP_HOST"),
 			Port:     getEnvInt("NOTIFICATION_SMTP_PORT", 587),
 			Username: os.Getenv("NOTIFICATION_SMTP_USERNAME"),

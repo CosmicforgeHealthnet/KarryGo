@@ -290,3 +290,14 @@ type fakeRealtimeSender struct{}
 func (s *fakeRealtimeSender) SendRealtime(ctx context.Context, message messageclients.RealtimeMessage) error {
 	return nil
 }
+
+func TestEmailOnlyRequestRejectsUnavailableSenderBeforeQueueing(t *testing.T) {
+	repo := newFakeRepository()
+	queue := &fakeQueue{}
+	service := newTestService(repo, queue)
+	service.email = messageclients.UnavailableEmailSender{}
+	_, err := service.Send(context.Background(), notifications.Request{IDempotencyKey: "otp-1", SourceService: "vendor-service", EventType: "vendor.auth.login.otp", Recipient: notifications.Recipient{Type: "vendor_user", ID: "user@example.com", Email: "user@example.com"}, Channels: []string{notifications.ChannelEmail}, Title: "Code", Body: "Verification"})
+	if err == nil || len(repo.messages) != 0 || len(queue.enqueued) != 0 {
+		t.Fatal("unavailable email accepted or queued")
+	}
+}

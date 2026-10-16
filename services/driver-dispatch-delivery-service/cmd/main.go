@@ -34,6 +34,7 @@ import (
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
+	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -85,20 +86,15 @@ func main() {
 		Token:       cfg.MediaFileServiceToken,
 	})
 
-	var emailClient authclients.EmailClient
-	if cfg.SMTPHost != "" && cfg.SMTPUser != "" && cfg.SMTPPassword != "" && cfg.SMTPFrom != "" {
-		emailClient = &authclients.CpanelEmailClient{
-			Host:     cfg.SMTPHost,
-			Port:     cfg.SMTPPort,
-			TLSMode:  cfg.SMTPTLSMode,
-			User:     cfg.SMTPUser,
-			Password: cfg.SMTPPassword,
-			From:     cfg.SMTPFrom,
-		}
-		log.Printf("dispatch rider otp email smtp configured host=%s port=%d tls_mode=%q from=%s", cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPTLSMode, cfg.SMTPFrom)
+	var emailClient authclients.EmailClient = authclients.NoopEmailClient{}
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		emailClient = authclients.NewNotificationEmailClient(notifications.Client{
+			BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service",
+			Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
+		})
+		log.Print("dispatch email delivery uses notification-service")
 	} else {
-		emailClient = authclients.NoopEmailClient{}
-		log.Printf("dispatch rider otp email smtp not configured; email OTP delivery will be skipped when optional and fail when required")
+		log.Print("dispatch email delivery is unavailable: notification-service connection is not configured")
 	}
 
 	var membershipReader providercompat.Reader

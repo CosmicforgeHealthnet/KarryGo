@@ -14,6 +14,7 @@ package vendorauthclients
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/notifications"
@@ -65,7 +66,7 @@ func (n *OTPNotifier) SendOTP(ctx context.Context, identifierType, identifierVal
 	}
 
 	_, err := n.client.Send(ctx, notifications.Request{
-		IDempotencyKey: notifications.IdempotencyKey(sourceService, "vendor.auth."+purpose+".otp", identifierValue),
+		IDempotencyKey: notifications.IdempotencyKey(sourceService, "vendor.auth."+purpose+".otp", uuid.NewString()),
 		SourceService:  sourceService,
 		EventType:      "vendor.auth." + purpose + ".otp",
 		Recipient:      notifications.Recipient{Type: "vendor_user", ID: identifierValue, Email: identifierValue},

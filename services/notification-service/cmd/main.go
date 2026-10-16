@@ -75,7 +75,6 @@ func main() {
 		APIBase:     "/api/v1/notifications",
 		Capabilities: []string{
 			"push notifications",
-			"sms notifications",
 			"email notifications",
 			"in-app notifications",
 			"retry handling",
@@ -93,7 +92,9 @@ func main() {
 	})
 }
 
-func logConnectivity(ctx context.Context, databaseURL string, redisAddr string, db interface{ Ping(context.Context) error }, redisClient interface{ Ping(context.Context) *redis.StatusCmd }) {
+func logConnectivity(ctx context.Context, databaseURL string, redisAddr string, db interface{ Ping(context.Context) error }, redisClient interface {
+	Ping(context.Context) *redis.StatusCmd
+}) {
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -118,8 +119,11 @@ func buildPushSender(cfg config.Config) messageclients.PushSender {
 }
 
 func buildEmailSender(cfg config.Config) messageclients.EmailSender {
-	if cfg.EmailProvider != "smtp" || cfg.SMTP.Host == "" || cfg.SMTP.Username == "" || cfg.SMTP.Password == "" || cfg.SMTP.From == "" {
+	if cfg.EmailProvider == "smtp" {
+		return messageclients.NewSMTPEmailSender(cfg.SMTP)
+	}
+	if cfg.EmailProvider == "logging" && (cfg.AppEnv == "development" || cfg.AppEnv == "test") {
 		return messageclients.NewLoggingEmailSender()
 	}
-	return messageclients.NewSMTPEmailSender(cfg.SMTP)
+	return messageclients.UnavailableEmailSender{}
 }

@@ -35,7 +35,8 @@ func (NoopEmailClient) SendEmail(_ context.Context, _, _, _, _ string) error {
 // covering both the TLS dial and all subsequent SMTP commands.
 const smtpDeadline = 15 * time.Second
 
-// CpanelEmailClient delivers OTP email via cPanel/Exim SMTP. It supports
+// Deprecated: runtime email delivery uses NotificationEmailClient.
+// CpanelEmailClient remains for compatibility with existing adapters and tests. It supports
 // implicit TLS (usually port 465) and STARTTLS (usually port 587).
 type CpanelEmailClient struct {
 	Host     string // SMTP hostname, e.g. "mail.example.com"

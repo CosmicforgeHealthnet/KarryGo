@@ -277,14 +277,6 @@ type Config struct {
 	OTPMaxAttempts     int
 	OTPLockoutTTL      time.Duration
 	OTPDebug           bool
-
-	// SMTP fields for OTP email delivery.
-	SMTPHost     string
-	SMTPPort     int
-	SMTPTLSMode  string
-	SMTPUser     string
-	SMTPPassword string
-	SMTPFrom     string
 }
 
 func Load() (Config, error) {
@@ -463,12 +455,7 @@ func Load() (Config, error) {
 		OTPMaxAttempts:           getEnvInt("DISPATCH_RIDER_OTP_MAX_ATTEMPTS", 3),
 		OTPLockoutTTL:            time.Duration(getEnvInt("DISPATCH_RIDER_OTP_LOCKOUT_MINUTES", 30)) * time.Minute,
 		OTPDebug:                 getEnvBool("DISPATCH_RIDER_DEBUG_OTP", false),
-		SMTPHost:                 getEnv("SMTP_HOST", ""),
-		SMTPPort:                 getEnvInt("SMTP_PORT", 465),
-		SMTPTLSMode:              getEnv("SMTP_TLS_MODE", ""),
-		SMTPUser:                 getEnv("SMTP_USER", ""),
-		SMTPPassword:             os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:                 getEnv("SMTP_FROM", ""),
+
 		// Notification-service integration is optional: when unset, lifecycle
 		// notifications no-op and the app notification proxy routes are skipped.
 		NotificationURL:               getEnv("DISPATCH_NOTIFICATION_URL", ""),
