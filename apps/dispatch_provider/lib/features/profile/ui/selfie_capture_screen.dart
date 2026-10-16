@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import '../../verification/state/verification_controller.dart';
 import 'selfie_review_screen.dart';
+import 'selfie_image_quality.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Figma 06 — Selfie capture (dark full-screen)
@@ -52,6 +53,16 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen> {
         return;
       }
 
+      // Reject corrupt/blank pictures before entering the review screen.
+      final quality = await SelfieImageQuality.check(x.path);
+      if (!mounted) return;
+      if (!quality.isUsable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(quality.problem!)),
+        );
+        return;
+      }
+
       final r = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (_) => SelfieReviewScreen(
@@ -63,15 +74,22 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen> {
       if (!mounted) return;
       if (r == true) Navigator.of(context).pop(true);
       // r == false → user tapped Retake; stay on this screen.
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final permissionDenied = error.code.contains('denied');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(permissionDenied
+              ? 'Allow Karryam camera access in phone Settings and try again.'
+              : 'Camera could not open. Close other camera apps and retry.'),
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Camera unavailable. Please grant camera permission in Settings.',
-          ),
-        ),
+        const SnackBar(content: Text('Unable to capture the selfie. Try again.')),
       );
     }
   }
@@ -137,7 +155,7 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen> {
 
               // ── Caption ──
               const Text(
-                'Position your face in the circle',
+                'Tap the shutter to open the camera. Center your face in its preview.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
