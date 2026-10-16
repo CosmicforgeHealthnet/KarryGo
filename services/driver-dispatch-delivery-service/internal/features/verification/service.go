@@ -286,7 +286,7 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 	if err != nil {
 		message := err.Error()
 		_, _ = s.repository.UpdateFaceCheckResult(ctx, FaceCheckResultInput{ID: check.ID, ErrorMessage: &message})
-		return FaceSubmissionResponse{}, apperrors.Internal("Smile Identity API unavailable.", err)
+		return FaceSubmissionResponse{}, apperrors.Unavailable("Face verification is temporarily unavailable. Please try again later.", err)
 	}
 
 	result := "fail"
