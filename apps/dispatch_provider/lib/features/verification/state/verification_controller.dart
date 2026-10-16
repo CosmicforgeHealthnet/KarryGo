@@ -14,6 +14,7 @@ class VerificationController extends ChangeNotifier {
   VerificationController({required this.api, required this.getAccessToken});
 
   bool _isLoading = false;
+  int _sessionGeneration = 0;
   bool get isLoading => _isLoading;
 
   String? _errorMessage;
@@ -26,6 +27,24 @@ class VerificationController extends ChangeNotifier {
   VerificationDraft? get draft => VerificationMock.identityDraft;
 
   String get _token => getAccessToken() ?? '';
+
+  bool _sameSession(int generation, String token) =>
+      generation == _sessionGeneration && token == _token;
+
+  void resetSession() {
+    _sessionGeneration++;
+    _latestStatus = null;
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  ApiFailure<T> _sessionChanged<T>() => ApiFailure(
+        const ApiException(
+          code: ApiErrorCode.unauthorized,
+          message: 'Account changed during verification. Please sign in.',
+        ),
+      );
 
   void _setLoading(bool value) {
     _isLoading = value;
@@ -68,13 +87,16 @@ class VerificationController extends ChangeNotifier {
       return const ApiSuccess({'mock': true});
     }
 
+    final generation = _sessionGeneration;
+    final token = _token;
     final result = await api.submitIdentity(
-      accessToken: _token,
+      accessToken: token,
       govtIdType: govtIdType,
       govtIdNumber: govtIdNumber,
       govtIdFilePath: govtIdFilePath,
       profilePhotoFilePath: profilePhotoFilePath,
     );
+    if (!_sameSession(generation, token)) return _sessionChanged();
 
     return result.when(
       success: (data) {
@@ -118,13 +140,16 @@ class VerificationController extends ChangeNotifier {
       return const ApiSuccess({'mock': true});
     }
 
+    final generation = _sessionGeneration;
+    final token = _token;
     final result = await api.submitLicence(
-      accessToken: _token,
+      accessToken: token,
       licenceNumber: licenceNumber,
       expiryYear: expiryYear,
       expiryMonth: expiryMonth,
       licenceFilePath: licenceFilePath,
     );
+    if (!_sameSession(generation, token)) return _sessionChanged();
 
     return result.when(
       success: (data) {
@@ -155,10 +180,13 @@ class VerificationController extends ChangeNotifier {
       return const ApiSuccess({'mock': true});
     }
 
+    final generation = _sessionGeneration;
+    final token = _token;
     final result = await api.submitFace(
-      accessToken: _token,
+      accessToken: token,
       selfieFilePath: selfieFilePath,
     );
+    if (!_sameSession(generation, token)) return _sessionChanged();
 
     return result.when(
       success: (data) {
@@ -181,7 +209,11 @@ class VerificationController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    api.getVerificationStatus(accessToken: _token).then((result) {
+    final generation = _sessionGeneration;
+    final token = _token;
+    if (token.isEmpty) return;
+    api.getVerificationStatus(accessToken: token).then((result) {
+      if (!_sameSession(generation, token)) return;
       result.when(
         success: (data) {
           _latestStatus = data;
@@ -204,7 +236,10 @@ class VerificationController extends ChangeNotifier {
       return ApiSuccess(data);
     }
 
-    final result = await api.getVerificationStatus(accessToken: _token);
+    final generation = _sessionGeneration;
+    final token = _token;
+    final result = await api.getVerificationStatus(accessToken: token);
+    if (!_sameSession(generation, token)) return _sessionChanged();
 
     return result.when(
       success: (data) {
