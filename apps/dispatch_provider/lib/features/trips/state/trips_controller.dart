@@ -18,6 +18,7 @@ class TripsController extends ChangeNotifier {
   bool _isLoading = false;
   bool _isActionLoading = false;
   String? _error;
+  int _sessionGeneration = 0;
 
   Timer? _activePollTimer;
   bool _activePollInFlight = false;
@@ -46,6 +47,25 @@ class TripsController extends ChangeNotifier {
   }
 
   String? _token() => getAccessToken();
+
+  bool _sameSession(int generation, String token) =>
+      generation == _sessionGeneration && token == _token();
+
+  /// Remove previous provider's journeys and secrets on logout/account switch.
+  /// Any outstanding reads are discarded using the generation check.
+  void resetSession() {
+    _sessionGeneration++;
+    stopActivePolling();
+    _stopPickupCredentialPolling();
+    _trips = [];
+    _activeTrip = null;
+    _pickupCredential = null;
+    _isLoading = false;
+    _isActionLoading = false;
+    _isResendingPickupCredential = false;
+    _error = null;
+    notifyListeners();
+  }
 
   // ── Active-trip polling ───────────────────────────────────────────────────
 
@@ -111,11 +131,13 @@ class TripsController extends ChangeNotifier {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
+    final generation = _sessionGeneration;
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     final result = await api.listTrips(accessToken: token);
+    if (!_sameSession(generation, token)) return _unauthorized();
     result.when(
       success: (list) {
         _trips = list;
@@ -143,7 +165,9 @@ class TripsController extends ChangeNotifier {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
+    final generation = _sessionGeneration;
     final result = await api.getActiveTrip(accessToken: token);
+    if (!_sameSession(generation, token)) return _unauthorized();
     result.when(
       success: (trip) {
         _activeTrip = trip;
@@ -166,7 +190,9 @@ class TripsController extends ChangeNotifier {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
+    final generation = _sessionGeneration;
     final result = await api.getTrip(accessToken: token, id: id);
+    if (!_sameSession(generation, token)) return _unauthorized();
     result.when(
       success: (trip) {
         final idx = _trips.indexWhere((t) => t.id == id);
@@ -234,7 +260,9 @@ class TripsController extends ChangeNotifier {
   Future<void> fetchPickupCredential(String id) async {
     final token = _token();
     if (token == null || token.isEmpty) return;
+    final generation = _sessionGeneration;
     final result = await api.getPickupCredential(accessToken: token, id: id);
+    if (!_sameSession(generation, token)) return;
     result.when(
       success: (credential) {
         _pickupCredential = credential;
@@ -296,7 +324,9 @@ class TripsController extends ChangeNotifier {
     final token = _token();
     if (token == null || token.isEmpty) return;
 
+    final generation = _sessionGeneration;
     final result = await api.getPickupCredential(accessToken: token, id: tripId);
+    if (!_sameSession(generation, token)) return;
     result.when(
       success: (credential) {
         final prev = _pickupCredential;
