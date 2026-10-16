@@ -31,11 +31,45 @@ android {
         versionName = flutter.versionName
     }
 
+    // Release signing material is injected through environment variables,
+    // never stored in this repository or substituted with debug keys.
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("KARRYAM_ANDROID_KEYSTORE_PATH")
+            val keystorePassword = System.getenv("KARRYAM_ANDROID_STORE_PASSWORD")
+            val releaseAlias = System.getenv("KARRYAM_ANDROID_KEY_ALIAS")
+            val releaseKeyPassword = System.getenv("KARRYAM_ANDROID_KEY_PASSWORD")
+            if (!keystorePath.isNullOrBlank() &&
+                !keystorePassword.isNullOrBlank() &&
+                !releaseAlias.isNullOrBlank() &&
+                !releaseKeyPassword.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = releaseAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    val requestsRelease = gradle.startParameter.taskNames.any {
+        it.contains("Release", ignoreCase = true) && !it.contains("UnitTest", ignoreCase = true)
+    }
+    if (requestsRelease) {
+        val requiredKeys = listOf(
+            "KARRYAM_ANDROID_KEYSTORE_PATH",
+            "KARRYAM_ANDROID_STORE_PASSWORD",
+            "KARRYAM_ANDROID_KEY_ALIAS",
+            "KARRYAM_ANDROID_KEY_PASSWORD",
+        )
+        val missing = requiredKeys.filter { System.getenv(it).isNullOrBlank() }
+        check(missing.isEmpty()) {
+            "Release signing is not configured. Missing: " + missing.joinToString(", ")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
