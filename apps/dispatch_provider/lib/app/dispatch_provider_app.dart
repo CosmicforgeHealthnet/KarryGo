@@ -357,8 +357,9 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
           return Stack(
             children: [
               if (child != null) child,
-              // Global MOCK / LIVE toggle — appears on every screen.
-              Positioned(
+              // Test-mode switch is development-only, never in releases.
+              if (!kReleaseMode)
+                Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
                 right: 12,
                 child: const MockBadge(),
