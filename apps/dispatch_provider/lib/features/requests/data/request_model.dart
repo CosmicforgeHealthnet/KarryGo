@@ -139,7 +139,9 @@ class RequestModel {
     return m < 0 ? 0 : m;
   }
 
-  bool get isAcceptable => lifecycle == RequestLifecycleState.available;
+  bool get isAcceptable =>
+      lifecycle == RequestLifecycleState.available &&
+      (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
 
   static String _groupThousands(String whole) {
     final buf = StringBuffer();
