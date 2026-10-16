@@ -247,18 +247,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
               width: double.infinity,
               height: 52,
               child: FilledButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text("We'll notify you when new requests arrive."),
-                    ),
-                  );
-                },
-                icon:
-                    const Icon(Icons.notifications_active_outlined, size: 18),
+                onPressed: _ctrl.isLoading ? null : _load,
+                icon: const Icon(Icons.refresh, size: 18),
                 label: const Text(
-                  'Keep me notified',
+                  'Refresh opportunities',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -270,24 +262,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Service area settings coming soon.'),
-                  ),
-                );
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: colors.brandTeal600,
-                textStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              child: const Text('Adjust my service areas'),
             ),
           ],
         ),
