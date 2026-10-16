@@ -18,9 +18,11 @@ type PushMessage struct {
 }
 
 type EmailMessage struct {
-	To      string
-	Subject string
-	Body    string
+	To            string
+	Subject       string
+	Body          string
+	SourceService string
+	EventType     string
 }
 
 type RealtimeMessage struct {

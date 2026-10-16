@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>{{.Subject}}</title>
+  <style>
+    body, table, td { margin: 0; padding: 0; }
+    table { border-collapse: collapse; }
+    img { border: 0; display: block; }
+    .message-copy { overflow-wrap: anywhere; word-break: break-word; }
+    @media only screen and (max-width: 600px) {
+      .outer-pad { padding: 20px 12px !important; }
+      .content-pad { padding: 32px 24px !important; }
+      .header-pad { padding: 28px 24px !important; }
+      .headline { font-size: 30px !important; line-height: 38px !important; }
+      .code { font-size: 30px !important; letter-spacing: 4px !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .email-bg { background-color: #0b1421 !important; }
+      .email-card { background-color: #142032 !important; }
+      .headline, .strong-copy { color: #f3f6fb !important; }
+      .muted-copy, .message-copy { color: #b9c7d8 !important; }
+      .code-panel { background-color: #102f38 !important; border-color: #24585b !important; }
+      .code { color: #63e5d5 !important; }
+      .divider { border-color: #2a394c !important; }
+    }
+  </style>
+</head>
+<body class="email-bg" style="margin:0;padding:0;background-color:#f1f5f8;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;-webkit-text-size-adjust:100%;">
+  <div style="display:none;font-size:1px;color:#f1f5f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{{.Preheader}}</div>
+  <table role="presentation" width="100%" class="email-bg" style="table-layout:fixed;background-color:#f1f5f8;">
+    <tr><td align="center" class="outer-pad" style="padding:48px 20px;">
+      <!--[if mso]><table role="presentation" width="560" align="center"><tr><td><![endif]-->
+      <table role="presentation" width="100%" class="email-card" style="table-layout:fixed;max-width:560px;background-color:#ffffff;border-radius:24px;overflow:hidden;">
+        <tr><td class="header-pad" bgcolor="#071d3b" style="padding:32px 40px;background-color:#071d3b;border-radius:24px 24px 0 0;">
+          <img src="cid:karryam-logo" width="164" height="41" alt="Karryam" style="width:164px;height:auto;color:#ffffff;font-size:24px;font-weight:700;">
+          <p style="margin:24px 0 0;color:#70dfd5;font-size:10px;font-weight:700;line-height:16px;letter-spacing:2px;">{{.Account}}</p>
+        </td></tr>
+        <tr><td class="content-pad" style="padding:40px;">
+          <h1 class="headline" style="margin:0 0 16px;color:#0b2343;font-size:36px;line-height:44px;font-weight:700;letter-spacing:-1px;">{{.Heading}}</h1>
+          {{if .Verification}}
+          <p class="muted-copy" style="margin:0;color:#586b80;font-size:16px;line-height:26px;">{{.Intro}}</p>
+          <table role="presentation" width="100%" style="table-layout:fixed;border-collapse:separate;border-spacing:0;margin-top:28px;margin-bottom:20px;">
+            <tr><td align="center" class="code-panel" style="padding:24px 12px;background-color:#eefaf8;border:1px solid #cdebe5;border-radius:16px;">
+              <p class="muted-copy" style="margin:0 0 12px;color:#56756f;font-size:11px;line-height:16px;font-weight:700;letter-spacing:1.5px;">YOUR VERIFICATION CODE</p>
+              <p class="code" dir="ltr" style="margin:0;color:#087c70;font-family:Inter,'Segoe UI',Arial,sans-serif;font-size:40px;line-height:52px;font-weight:700;letter-spacing:7px;">{{.Code}}</p>
+            </td></tr>
+          </table>
+          <p class="muted-copy" style="margin:0;color:#586b80;font-size:14px;line-height:23px;">This code expires shortly. <strong class="strong-copy" style="color:#243c55;">Never share it with anyone.</strong></p>
+          <table role="presentation" width="100%" style="margin-top:28px;">
+            <tr><td class="divider" style="padding-top:24px;border-top:1px solid #e6edf2;">
+              <p class="strong-copy" style="margin:0 0 6px;color:#243c55;font-size:14px;line-height:22px;font-weight:700;">Didn't request this?</p>
+              <p class="muted-copy" style="margin:0;color:#687a8d;font-size:13px;line-height:22px;">You can ignore this email. Only enter this code in the Karryam app when you requested it.</p>
+            </td></tr>
+          </table>
+          {{else}}
+          <div class="message-copy" style="color:#586b80;font-size:16px;line-height:27px;white-space:pre-wrap;">{{.Body}}</div>
+          {{end}}
+        </td></tr>
+        <tr><td class="content-pad divider" style="padding:24px 40px;border-top:1px solid #e6edf2;">
+          <p class="strong-copy" style="margin:0 0 4px;color:#243c55;font-size:13px;line-height:20px;font-weight:700;">Karryam</p>
+          <p class="muted-copy" style="margin:0;color:#79899a;font-size:12px;line-height:20px;">An automated message. Please don't reply to this email.</p>
+        </td></tr>
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>

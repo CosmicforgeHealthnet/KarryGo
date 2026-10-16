@@ -108,3 +108,26 @@ means queued, not inbox delivery. Actual delivery status is recorded by the work
 Logging email requires an explicit `NOTIFICATION_EMAIL_PROVIDER=logging` and
 `APP_ENV=development` or `test`. Staging/production never treat the logging sender
 as delivered email. Push configuration and other callers are unchanged.
+
+SMTP messages include an HTML Karryam layout and an unchanged plain-text fallback.
+The transparent logo from `web/karryam-landing/public/images/logo.png` is embedded
+as an inline MIME image; displaying it does not require a public asset URL.
+The layout supports small screens and a dark color scheme in compatible clients.
+Vendor authentication and Dispatch authentication events use a prominent code
+panel; Vendor step-up events use action-confirmation copy. Other notifications
+retain their supplied subject and body inside the shared layout. If an existing
+authentication body cannot be recognized, it falls back to the full message
+rather than hiding or inventing a code. Expiry wording stays non-numeric because
+the current notification contract does not carry the configured OTP lifetime.
+Message text is HTML-escaped, and subjects are MIME-encoded.
+
+Generate standalone sample previews without SMTP or real accounts:
+
+```bash
+NOTIFICATION_EMAIL_PREVIEW_DIR="$PWD/build/email-previews" \
+  go test ./internal/features/messages/clients -run TestEmailVariantsAndPreviews
+```
+
+These are browser previews, not certification of rendering in every mail client.
+Only Notification needs rebuilding to apply this layout; no database migration,
+new API fields, or mobile build is required.

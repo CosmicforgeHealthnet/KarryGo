@@ -278,11 +278,34 @@ func (s *fakePushSender) SendPush(ctx context.Context, message messageclients.Pu
 	return messageclients.ProviderResult{Provider: "fake_push", ProviderMessageID: &providerID}, nil
 }
 
-type fakeEmailSender struct{}
+type fakeEmailSender struct{ messages []messageclients.EmailMessage }
 
 func (s *fakeEmailSender) SendEmail(ctx context.Context, message messageclients.EmailMessage) (messageclients.ProviderResult, error) {
+	s.messages = append(s.messages, message)
 	providerID := "email-1"
 	return messageclients.ProviderResult{Provider: "fake_email", ProviderMessageID: &providerID}, nil
+}
+
+func TestEmailDeliveryPreservesAuthenticationContext(t *testing.T) {
+	repo := newFakeRepository()
+	queue := &fakeQueue{}
+	service := newTestService(repo, queue)
+	_, err := service.Send(context.Background(), notifications.Request{
+		IDempotencyKey: "vendor-email-template", SourceService: "vendor-service",
+		EventType: "vendor.auth.login.otp", Channels: []string{notifications.ChannelEmail},
+		Recipient: notifications.Recipient{Type: "vendor_user", ID: "owner@example.com", Email: "owner@example.com"},
+		Title:     "Your verification code", Body: "Your verification code is 012345.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.ProcessDelivery(context.Background(), queue.enqueued[0]); err != nil {
+		t.Fatal(err)
+	}
+	messages := service.email.(*fakeEmailSender).messages
+	if len(messages) != 1 || messages[0].SourceService != "vendor-service" || messages[0].EventType != "vendor.auth.login.otp" || messages[0].Body != "Your verification code is 012345." {
+		t.Fatalf("authentication context lost at delivery: %+v", messages)
+	}
 }
 
 type fakeRealtimeSender struct{}

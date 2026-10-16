@@ -54,6 +54,10 @@ func (s *SMTPEmailSender) SendEmail(ctx context.Context, message EmailMessage) (
 		return ProviderResult{Provider: "smtp", Retryable: false}, fmt.Errorf("recipient email is invalid")
 	}
 	from, _ := mail.ParseAddress(s.cfg.From)
+	payload, err := formatEmail(from.String(), message)
+	if err != nil {
+		return ProviderResult{Provider: "smtp", Retryable: false}, err
+	}
 	timeout := s.cfg.Timeout
 	if timeout <= 0 {
 		timeout = 15 * time.Second
@@ -80,7 +84,7 @@ func (s *SMTPEmailSender) SendEmail(ctx context.Context, message EmailMessage) (
 	if err != nil {
 		return failure(err)
 	}
-	_, err = writer.Write([]byte(formatEmail(from.String(), message)))
+	_, err = writer.Write(payload)
 	if closeErr := writer.Close(); err == nil {
 		err = closeErr
 	}
@@ -128,10 +132,4 @@ func (s *SMTPEmailSender) connect(ctx context.Context) (*smtp.Client, error) {
 		}
 	}
 	return client, nil
-}
-
-func formatEmail(from string, message EmailMessage) string {
-	clean := func(value string) string { return strings.NewReplacer("\r", " ", "\n", " ").Replace(value) }
-	return strings.Join([]string{"From: " + clean(from), "To: " + clean(message.To),
-		"Subject: " + clean(message.Subject), "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "", message.Body}, "\r\n")
 }
