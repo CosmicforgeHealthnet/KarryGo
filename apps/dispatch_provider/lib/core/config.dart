@@ -81,42 +81,29 @@ class AppConfig {
   /// [developmentDefaultApiBaseUrl] when not set.
   static String get apiBaseUrl {
     final configured = _configuredApiBaseUrl.trim();
-    return _resolvedUrl(
-      configured,
-      developmentDefaultApiBaseUrl,
-      'DISPATCH_PROVIDER_API_BASE_URL',
-    );
+    return _resolvedUrl(configured, developmentDefaultApiBaseUrl,
+        'DISPATCH_PROVIDER_API_BASE_URL');
   }
 
   /// The resolved wallet service base URL.
   static String get walletBaseUrl {
     final configured = _configuredWalletBaseUrl.trim();
-    return _resolvedUrl(
-      configured,
-      developmentDefaultWalletBaseUrl,
-      'DISPATCH_PROVIDER_WALLET_BASE_URL',
-    );
+    return _resolvedUrl(configured, developmentDefaultWalletBaseUrl,
+        'DISPATCH_PROVIDER_WALLET_BASE_URL');
   }
 
   /// The resolved notification websocket URL (realtime fast path).
   static String get notificationWsUrl {
     final configured = _configuredNotificationWsUrl.trim();
-    return _resolvedUrl(
-      configured,
-      developmentDefaultNotificationWsUrl,
-      'NOTIFICATION_WS_URL',
-      websocket: true,
-    );
+    return _resolvedUrl(configured, developmentDefaultNotificationWsUrl,
+        'NOTIFICATION_WS_URL', websocket: true);
   }
 
   /// The resolved support-dispute-service base URL.
   static String get supportBaseUrl {
     final configured = _configuredSupportBaseUrl.trim();
-    return _resolvedUrl(
-      configured,
-      developmentDefaultSupportBaseUrl,
-      'SUPPORT_API_BASE_URL',
-    );
+    return _resolvedUrl(configured, developmentDefaultSupportBaseUrl,
+        'SUPPORT_API_BASE_URL');
   }
 
   /// Short human-readable label describing which backend mode is active.
@@ -149,8 +136,8 @@ class AppConfig {
     return url.contains('localhost') || url.contains('127.0.0.1');
   }
 
-  /// Release artifacts cannot silently use a developer's private network.
-  /// Keep local HTTP access available only for explicit debug/test builds.
+  /// A distributable app must never silently connect to a developer's LAN.
+  /// Local HTTP remains available for debug/test builds only.
   static String _resolvedUrl(
     String configured,
     String developmentFallback,
@@ -182,23 +169,10 @@ class AppConfig {
     if (host == 'localhost' ||
         host.endsWith('.localhost') ||
         host.endsWith('.local') ||
-        host == '::1') {
-      return false;
-    }
-    if (RegExp(r'^[0-9.]+
-    return true;
-  }
-
-  static String _stripTrailingSlashes(String value) {
-    var normalized = value.trim();
-    while (normalized.endsWith('/') && normalized.length > 1) {
-      normalized = normalized.substring(0, normalized.length - 1);
-    }
-    return normalized;
-  }
-}
-).hasMatch(host) || host.contains(':')) {
-      // Require a DNS name; do not ship builds pointing at private LAN IPs.
+        host == '::1' ||
+        host.contains(':') ||
+        RegExp(r'^[0-9.]+$').hasMatch(host)) {
+      // Require a DNS hostname rather than a private or literal IP address.
       return false;
     }
     return true;
