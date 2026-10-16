@@ -97,6 +97,7 @@ class RequestsApi {
         accessToken: accessToken,
         path: '/api/v1/provider/assignment-offers',
         logTag: 'REQUESTS:assignment',
+        optionalFeature: true,
       );
 
   // ── Commerce: GET /api/v1/provider/organization-offers ───────────────────
@@ -109,6 +110,7 @@ class RequestsApi {
         path: '/api/v1/provider/organization-offers',
         logTag: 'REQUESTS:commerce',
         listKey: 'offers',
+        optionalFeature: true,
       );
 
   // ── Commerce: GET /api/v1/provider/company-assignments ───────────────────
@@ -121,6 +123,7 @@ class RequestsApi {
         path: '/api/v1/provider/company-assignments',
         logTag: 'REQUESTS:assignments',
         listKey: 'assignments',
+        optionalFeature: true,
       );
 
   /// Shared list reader. Handles both a bare array under `data` and an
@@ -130,6 +133,7 @@ class RequestsApi {
     required String path,
     required String logTag,
     String? listKey,
+    bool optionalFeature = false,
   }) async {
     final uri = config.uri(path);
     _debugLog('[$logTag] GET $uri');
@@ -139,9 +143,9 @@ class RequestsApi {
           .timeout(const Duration(seconds: 15));
       _debugLog('[$logTag] status=${response.statusCode}');
 
-      // 404 = feature flag off; 503 = same. Both mean "no data from this
-      // source" — not an error the user needs to see.
-      if (response.statusCode == 404 || response.statusCode == 503) {
+      // Only an optional endpoint's 404 can mean the feature is disabled.
+      // A 503 is a real outage and must never be presented as an empty inbox.
+      if (optionalFeature && response.statusCode == 404) {
         return const ApiSuccess([]);
       }
 
