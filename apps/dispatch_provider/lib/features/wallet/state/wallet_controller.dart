@@ -12,6 +12,7 @@ class WalletController extends ChangeNotifier {
   BankAccount? _bankAccount;
   bool _isLoading = false;
   String? _error;
+  int _sessionGeneration = 0;
 
   ProviderEarnings? get earnings => _earnings;
   BankAccount? get bankAccount => _bankAccount;
@@ -38,17 +39,35 @@ class WalletController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear sensitive account data when credentials or provider identity change.
+  void resetSession() {
+    _sessionGeneration++;
+    _earnings = null;
+    _bankAccount = null;
+    _pinSet = null;
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
+  bool _sameSession(int generation, String token) =>
+      generation == _sessionGeneration && token == _token();
+
   // ── Load earnings ─────────────────────────────────────────────────────────
 
   Future<ApiResult<ProviderEarnings>> loadEarnings() async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
 
+    final generation = _sessionGeneration;
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     final result = await api.getEarnings(accessToken: token);
+    if (!_sameSession(generation, token)) {
+      return _unauthorized();
+    }
     result.when(
       success: (data) {
         _earnings = data;
@@ -89,6 +108,7 @@ class WalletController extends ChangeNotifier {
   }) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
+    final generation = _sessionGeneration;
     final result = await api.registerBankAccount(
       accessToken: token,
       bankCode: bankCode,
@@ -96,6 +116,7 @@ class WalletController extends ChangeNotifier {
       accountNumber: accountNumber,
       currency: currency,
     );
+    if (!_sameSession(generation, token)) return _unauthorized();
     result.when(
       success: (data) {
         _bankAccount = data;
@@ -121,7 +142,9 @@ class WalletController extends ChangeNotifier {
   Future<ApiResult<bool>> loadPinStatus() async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
+    final generation = _sessionGeneration;
     final result = await api.getPinStatus(accessToken: token);
+    if (!_sameSession(generation, token)) return _unauthorized();
     result.when(
       success: (isSet) {
         _pinSet = isSet;
@@ -138,7 +161,9 @@ class WalletController extends ChangeNotifier {
   Future<ApiResult<bool>> setupPin(String pin) async {
     final token = _token();
     if (token == null || token.isEmpty) return _unauthorized();
+    final generation = _sessionGeneration;
     final result = await api.setPin(accessToken: token, pin: pin);
+    if (!_sameSession(generation, token)) return _unauthorized();
     result.when(
       success: (_) {
         _pinSet = true;
