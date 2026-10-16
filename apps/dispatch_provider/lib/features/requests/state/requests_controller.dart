@@ -17,6 +17,8 @@ class RequestsController extends ChangeNotifier {
   RequestModel? _activeRequest;
   bool _isLoading = false;
   String? _error;
+  DateTime? _lastSuccessfulRefresh;
+  static const _offerFreshnessWindow = Duration(seconds: 20);
 
   Timer? _pollTimer;
   bool _pollInFlight = false;
@@ -26,6 +28,10 @@ class RequestsController extends ChangeNotifier {
   RequestModel? get activeRequest => _activeRequest;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get canAcceptOffers =>
+      _error == null &&
+      _lastSuccessfulRefresh != null &&
+      DateTime.now().difference(_lastSuccessfulRefresh!) <= _offerFreshnessWindow;
 
   RequestsController({
     required this.api,
@@ -67,9 +73,20 @@ class RequestsController extends ChangeNotifier {
     _pollInFlight = true;
     final generation = _stateGeneration;
     try {
-      final merged = await _fetchAll(token);
-      if (generation != _stateGeneration) return;
-      _requests = merged;
+      final result = await _fetchAll(token);
+      if (generation != _stateGeneration || token != _token()) return;
+      result.when(
+        success: (merged) {
+          _requests = merged;
+          _lastSuccessfulRefresh = DateTime.now();
+          _error = null;
+        },
+        failure: (error) {
+          // Keep the last good snapshot for diagnostics, never mark it fresh.
+          _error = 'Unable to refresh opportunities. Retry to see current requests. '
+              '${error.message}';
+        },
+      );
       notifyListeners();
     } finally {
       _pollInFlight = false;
@@ -77,7 +94,8 @@ class RequestsController extends ChangeNotifier {
   }
 
   void clearError() {
-    _error = null;
+    // Only a successful API response clears an error; user taps cannot mark
+    // cached offers as current.
     notifyListeners();
   }
 
@@ -102,21 +120,41 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
+    final generation = ++_stateGeneration;
     _isLoading = true;
+    // Do not unlock acceptance while a refresh is in progress.
+    _lastSuccessfulRefresh = null;
     _error = null;
     notifyListeners();
 
-    final merged = await _fetchAll(token);
-    _requests = merged;
+    final result = await _fetchAll(token);
+    if (generation != _stateGeneration || token != _token()) {
+      return ApiFailure(
+        const ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'Session or request list changed. Refresh and try again.',
+        ),
+      );
+    }
+    result.when(
+      success: (merged) {
+        _requests = merged;
+        _lastSuccessfulRefresh = DateTime.now();
+        _error = null;
+      },
+      failure: (error) {
+        _error = 'Unable to refresh opportunities. Retry to see current requests. '
+            '${error.message}';
+      },
+    );
     _isLoading = false;
     notifyListeners();
-    return ApiSuccess(merged);
+    return result;
   }
 
-  /// Fetch all four sources in parallel. Fail-open per source: a 404 or 503
-  /// from one endpoint (flag off) leaves that source empty without breaking
-  /// the others.
-  Future<List<RequestModel>> _fetchAll(String token) async {
+  /// Fetch all four sources in parallel. Optional disabled endpoints may be
+  /// empty; a transport/server failure must not masquerade as a fresh list.
+  Future<ApiResult<List<RequestModel>>> _fetchAll(String token) async {
     final results = await Future.wait<ApiResult<List<RequestModel>>>([
       api.listBroadcasts(accessToken: token),
       api.listAssignmentOffers(accessToken: token),
@@ -125,17 +163,17 @@ class RequestsController extends ChangeNotifier {
     ]);
 
     final merged = <RequestModel>[];
+    ApiException? firstFailure;
     for (final result in results) {
       result.when(
         success: (list) => merged.addAll(list),
         failure: (err) {
-          // 404 / 503 are the "flag off" signals — treat as empty, not error.
-          if (err.statusCode != 404 && err.statusCode != 503) {
-            _debugLog('[REQUESTS] source failed: ${err.message}');
-          }
+          firstFailure ??= err;
+          _debugLog('[REQUESTS] source failed: ${err.message}');
         },
       );
     }
+    if (firstFailure != null) return ApiFailure(firstFailure!);
 
     // Stable ordering: assignments first (directed at you), then commerce,
     // then broadcast. Within a group, soonest-to-expire first.
@@ -149,7 +187,7 @@ class RequestsController extends ChangeNotifier {
       if (be == null) return -1;
       return ae.compareTo(be);
     });
-    return merged;
+    return ApiSuccess(merged);
   }
 
   static int _sourceRank(RequestSource s) => switch (s) {
@@ -202,6 +240,18 @@ class RequestsController extends ChangeNotifier {
         const ApiException(
           code: ApiErrorCode.unauthorized,
           message: 'No access token available.',
+        ),
+      );
+    }
+    // Cached or partially failed source data must not authorize a new job.
+    if (!canAcceptOffers ||
+        !_requests.any((candidate) =>
+            candidate.id == request.id && candidate.kind == request.kind) ||
+        !request.isAcceptable) {
+      return ApiFailure(
+        const ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This offer may have changed. Refresh opportunities before accepting.',
         ),
       );
     }
