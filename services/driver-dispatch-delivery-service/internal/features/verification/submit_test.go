@@ -389,8 +389,8 @@ func TestFaceValidationPreconditionConflictAndProviderErrors(t *testing.T) {
 		repo := seededFaceReadyRepo(t)
 		router, tokens := buildVerificationSubmitTestRouter(repo, &captureUploader{}, &fakeFaceMatcher{err: errors.New("smile down")}, &captureEvents{})
 		w := doMultipartProviderRequest(t, router, tokens, http.MethodPost, "/api/v1/provider/verification/face", nil, selfieFiles(testJPEG, "image/jpeg"))
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want 500; body = %s", w.Code, w.Body.String())
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want 503; body = %s", w.Code, w.Body.String())
 		}
 		if len(repo.faceChecks) != 1 || repo.faceChecks[0].ErrorMessage == nil {
 			t.Fatalf("face check error was not stored: %+v", repo.faceChecks)
