@@ -21,6 +21,7 @@ class AvailabilityController extends ChangeNotifier {
   bool _isChangingStatus = false;
   bool _isSendingLocation = false;
   String? _errorMessage;
+  int _sessionGeneration = 0;
 
   StreamSubscription<Position>? _positionSub;
 
@@ -53,6 +54,23 @@ class AvailabilityController extends ChangeNotifier {
   }
 
   String? _token() => getAccessToken();
+
+  bool _sameSession(int generation, String token) =>
+      generation == _sessionGeneration && token == _token();
+
+  /// Stop the GPS stream and clear the previous provider's availability.
+  void resetSession() {
+    _sessionGeneration++;
+    _stopLocationUpdates();
+    _availability = null;
+    _currentSession = null;
+    _lastLocation = null;
+    _isLoading = false;
+    _isChangingStatus = false;
+    _isSendingLocation = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
 
   // ── Location permission ───────────────────────────────────────────────────
 
@@ -206,11 +224,18 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+    final generation = _sessionGeneration;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     final result = await api.getAvailability(accessToken: token);
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Account changed while loading availability.',
+      ));
+    }
     result.when(
       success: (data) {
         _availability = data;
@@ -274,8 +299,15 @@ class AvailabilityController extends ChangeNotifier {
       );
     }
 
+    final generation = _sessionGeneration;
     // Check GPS permission before attempting to go online.
     final permissionError = await _ensureLocationPermission();
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Account changed before going online.',
+      ));
+    }
     if (permissionError != null) {
       return ApiFailure(
         ApiException(code: ApiErrorCode.unknown, message: permissionError),
@@ -291,6 +323,12 @@ class AvailabilityController extends ChangeNotifier {
       accessToken: token,
       status: 'online',
     );
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Account changed while going online.',
+      ));
+    }
     result.when(
       success: (data) {
         _availability = data;
@@ -349,6 +387,7 @@ class AvailabilityController extends ChangeNotifier {
       );
     }
 
+    final generation = _sessionGeneration;
     // Stop GPS immediately when going offline regardless of backend result.
     _stopLocationUpdates();
 
@@ -361,6 +400,12 @@ class AvailabilityController extends ChangeNotifier {
       accessToken: token,
       status: 'offline',
     );
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Account changed while going offline.',
+      ));
+    }
     result.when(
       success: (data) {
         _availability = data;
@@ -390,7 +435,14 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+    final generation = _sessionGeneration;
     final result = await api.getCurrentSession(accessToken: token);
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Account changed while loading availability session.',
+      ));
+    }
     result.when(
       success: (session) {
         _currentSession = session;
@@ -449,6 +501,7 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+    final generation = _sessionGeneration;
     final result = await api.updateLocation(
       accessToken: token,
       lat: lat,
@@ -457,6 +510,12 @@ class AvailabilityController extends ChangeNotifier {
       speed: speed,
       accuracy: accuracy,
     );
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Location session changed.',
+      ));
+    }
     result.when(
       success: (loc) {
         _lastLocation = loc;
@@ -487,7 +546,14 @@ class AvailabilityController extends ChangeNotifier {
         ),
       );
     }
+    final generation = _sessionGeneration;
     final result = await api.getLocation(accessToken: token);
+    if (!_sameSession(generation, token)) {
+      return ApiFailure(const ApiException(
+        code: ApiErrorCode.unauthorized,
+        message: 'Location session changed.',
+      ));
+    }
     result.when(
       success: (loc) {
         _lastLocation = loc;
