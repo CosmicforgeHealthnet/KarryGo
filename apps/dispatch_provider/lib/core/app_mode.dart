@@ -17,13 +17,18 @@ class AppModeConfig extends ChangeNotifier {
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  AppMode _current = AppMode.mock;
-  AppMode get current => _current;
-  bool get isMock => _current == AppMode.mock;
-  bool get isLive => _current == AppMode.live;
+  AppMode _current = kReleaseMode ? AppMode.live : AppMode.mock;
+  AppMode get current => kReleaseMode ? AppMode.live : _current;
+  bool get isMock => !kReleaseMode && current == AppMode.mock;
+  bool get isLive => current == AppMode.live;
 
   /// Loads the persisted mode. Call this before runApp().
   Future<void> load() async {
+    // Production builds must never restore a previously persisted MOCK state.
+    if (kReleaseMode) {
+      _current = AppMode.live;
+      return;
+    }
     try {
       final raw = await _storage.read(key: _storageKey);
       final parsed = _parse(raw);
@@ -37,6 +42,8 @@ class AppModeConfig extends ChangeNotifier {
   }
 
   Future<void> setMode(AppMode mode) async {
+    // Avoid runtime demo/live switching in any release artifact.
+    if (kReleaseMode) return;
     if (_current == mode) return;
     _current = mode;
     notifyListeners();
@@ -48,6 +55,7 @@ class AppModeConfig extends ChangeNotifier {
   }
 
   void toggle() {
+    if (kReleaseMode) return;
     setMode(isMock ? AppMode.live : AppMode.mock);
   }
 
