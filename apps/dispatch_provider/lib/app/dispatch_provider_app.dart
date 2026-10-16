@@ -302,6 +302,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
 
   Future<void> _handleSessionExpired() async {
     await _authController.clearSession();
+    _requestsController.resetSession();
     _profileController.clearLocalState();
     if (mounted) {
       _go(_DispatchScreen.login);
@@ -750,6 +751,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   Future<void> _handleLogout() async {
     debugPrint('[AUTH] User initiated logout');
     await _authController.logout();
+    _requestsController.resetSession();
     if (!mounted) return;
     _profileController.clearLocalState();
     _go(_DispatchScreen.login);
@@ -758,6 +760,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   Future<void> _handleAccountDeleted() async {
     debugPrint('[AUTH] Account deleted — clearing local session');
     await _authController.clearSession();
+    _requestsController.resetSession();
     if (!mounted) return;
     _profileController.clearLocalState();
     _go(_DispatchScreen.login);
