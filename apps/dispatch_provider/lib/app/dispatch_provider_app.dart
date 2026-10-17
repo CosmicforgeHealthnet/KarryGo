@@ -70,6 +70,7 @@ enum _DispatchScreen {
   photoUpload,
   setupReview,
   verificationPending,
+  connectionProblem,
   home,
   // Legacy — kept so imports don't break. Not routed in the active flow.
   accountType,
@@ -95,6 +96,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   String _phone = '';
   String? _selectedOperationType;
   bool _isLoginMode = false;
+  String _connectionProblemMessage = 'Unable to check your account right now.';
 
   late final TokenStorage _tokenStorage;
   late final DispatchAuthController _authController;
@@ -552,6 +554,41 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         verificationController: _verificationController,
       ),
 
+      _DispatchScreen.connectionProblem => Scaffold(
+        appBar: AppBar(title: const Text('Connection unavailable')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 56),
+                const SizedBox(height: 18),
+                const Text(
+                  'Account access could not be confirmed',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _connectionProblemMessage,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _retryProfileAccess,
+                  child: const Text('Try again'),
+                ),
+                TextButton(
+                  onPressed: _handleLogout,
+                  child: const Text('Sign in with another account'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+
       _DispatchScreen.home => DashboardScreen(
         profileController: _profileController,
         verificationController: _verificationController,
@@ -634,7 +671,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
 
     bool profileSuccess = false;
     bool isUnauthorized = false;
-    bool isNetworkError = false;
+    bool isTransientError = false;
 
     profileResult.when(
       success: (profile) {
@@ -653,17 +690,14 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
           '[AUTH] Profile load failed: code=${error.code} message=${error.message}',
         );
         isUnauthorized = error.code == ApiErrorCode.unauthorized;
-        isNetworkError = error.code == ApiErrorCode.network;
+        isTransientError = error.isRetryable;
       },
     );
 
     if (profileSuccess) return;
 
-    if (isNetworkError) {
-      debugPrint(
-        '[AUTH] Network error during session restore → Home (tokens preserved)',
-      );
-      _go(_DispatchScreen.home);
+    if (isTransientError) {
+      _showProfileConnectionProblem();
       return;
     }
 
@@ -702,6 +736,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         if (!mounted) return;
 
         bool retrySuccess = false;
+        bool retryTransientError = false;
         retryResult.when(
           success: (profile) {
             retrySuccess = true;
@@ -715,6 +750,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
             }
           },
           failure: (error) {
+            retryTransientError = error.isRetryable;
             debugPrint(
               '[AUTH] Profile load after refresh failed: ${error.message}',
             );
@@ -722,6 +758,10 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         );
 
         if (retrySuccess) return;
+        if (retryTransientError) {
+          _showProfileConnectionProblem();
+          return;
+        }
       }
     }
 
@@ -729,6 +769,33 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       '[AUTH] Session restore failed — refresh exhausted → clearing tokens → Login',
     );
     await _handleSessionExpired();
+  }
+
+  void _showProfileConnectionProblem() {
+    _connectionProblemMessage =
+        'Your data has not been confirmed by the server. '
+        'Check your internet connection and retry. '
+        'We have kept your session so you do not need another OTP.';
+    if (mounted) _go(_DispatchScreen.connectionProblem);
+  }
+
+  Future<void> _retryProfileAccess() async {
+    final result = await _profileController.loadMe();
+    if (!mounted) return;
+    result.when(
+      success: (profile) {
+        _go(profile.onboardingComplete
+            ? _DispatchScreen.home
+            : _DispatchScreen.welcomeBack);
+      },
+      failure: (error) {
+        if (error.isAuthFailure) {
+          _handleSessionExpired();
+        } else {
+          _showProfileConnectionProblem();
+        }
+      },
+    );
   }
 
   Future<void> _handlePostVerify() async {
@@ -762,7 +829,11 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         debugPrint(
           '[AUTH_FLOW] /provider/me failed | code=${error.code} message=${error.message}',
         );
-        _go(_DispatchScreen.home);
+        if (error.isAuthFailure) {
+          _handleSessionExpired();
+        } else {
+          _showProfileConnectionProblem();
+        }
       },
     );
   }
