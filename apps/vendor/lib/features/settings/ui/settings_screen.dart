@@ -895,8 +895,18 @@ class _SettingsRecordScreenState extends State<SettingsRecordScreen> {
                             SettingsFact('Trading name', row['trading_name']),
                             SettingsFact('Support email', row['support_email']),
                             SettingsFact('Support phone', row['support_phone']),
-                            SettingsFact('Currency', row['currency']),
-                            SettingsFact('Timezone', row['timezone']),
+                            SettingsFact(
+                              'Currency',
+                              row['currency'] == 'NGN'
+                                  ? 'Nigerian Naira (₦)'
+                                  : row['currency'],
+                            ),
+                            SettingsFact(
+                              'Timezone',
+                              row['timezone'] == 'Africa/Lagos'
+                                  ? 'Lagos time (WAT)'
+                                  : row['timezone'],
+                            ),
                           ]
                         : widget.kind == SettingsKind.brands
                         ? [

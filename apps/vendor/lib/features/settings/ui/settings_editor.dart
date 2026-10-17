@@ -486,8 +486,19 @@ class _SettingsEditorState extends State<SettingsEditor> {
                 _field('trading_name', 'Trading name', maxLength: 200),
                 _field('support_email', 'Support email'),
                 _field('support_phone', 'Support phone'),
-                _field('currency', 'Currency', required: true),
-                _field('timezone', 'Timezone', required: true),
+                // Nigeria only: naira and Lagos time are kept as they are.
+                Offstage(
+                  child: Column(
+                    children: [
+                      _field('currency', 'Currency', required: true),
+                      _field('timezone', 'Timezone', required: true),
+                    ],
+                  ),
+                ),
+                const Text(
+                  'Prices are in Nigerian Naira (₦) and times use Lagos time (WAT).',
+                ),
+                const SizedBox(height: 12),
                 const Text(
                   'Profile changes may require updated business verification.',
                 ),
@@ -557,7 +568,9 @@ class _SettingsEditorState extends State<SettingsEditor> {
                   enabled: !_saving,
                   onChanged: () => setState(() => _dirty = true),
                 ),
-                _field('timezone', 'Timezone', required: true),
+                Offstage(
+                  child: _field('timezone', 'Timezone', required: true),
+                ),
               ],
               if (kind == SettingsKind.staff) ...[
                 Row(
