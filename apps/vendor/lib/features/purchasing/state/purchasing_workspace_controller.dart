@@ -136,7 +136,14 @@ class PurchasingWorkspaceController extends ChangeNotifier {
         path,
         params: parameters,
         query: {
-          'branch_id': ?branchId,
+          // Suppliers and their categories belong to the whole business. The
+          // server's branch filter means "already supplies this branch", which
+          // hid every new supplier before any product was added to it.
+          if (![
+            '$purchasingBase/suppliers',
+            '$purchasingBase/supplier-categories',
+          ].contains(path))
+            'branch_id': ?branchId,
           if (status != null && status.isNotEmpty) 'status': status,
           if ([
                 '$purchasingBase/suppliers',

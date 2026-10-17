@@ -642,7 +642,7 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
           }
           if (balances.isEmpty) {
             throw StateError(
-              'No generic inventory items are available for this branch. Set up production inventory before linking a supplier product.',
+              'This branch has no stock items yet. In Production materials, mark an ingredient or packaging as stock-tracked for this branch, then link it here.',
             );
           }
           // Newer servers include the item name on each balance; older ones
@@ -739,6 +739,11 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
             '$purchasingBase/suppliers',
             query: {'branch_id': widget.branchId!},
           )).where((r) => r['status'] == 'ACTIVE').toList();
+          if (suppliers.isEmpty) {
+            throw StateError(
+              'No supplier sells to this branch yet. Open Suppliers, choose a supplier and add the products they supply to this branch, then create the order.',
+            );
+          }
           fields.add(
             PurchaseField(
               'supplier_id',
@@ -886,7 +891,7 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
       if (mounted) {
         await showOrderFeedback(
           context,
-          title: 'Could not open editor',
+          title: "This can't be opened yet",
           message: e is StateError
               ? e.message
               : 'The required purchasing references could not be loaded.',
