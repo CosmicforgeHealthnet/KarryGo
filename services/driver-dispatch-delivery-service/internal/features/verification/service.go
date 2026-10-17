@@ -65,7 +65,7 @@ func NewService(repository Repository, faceClient FaceMatcher, options ...Servic
 	for _, option := range options {
 		option(service)
 	}
-	if service.faceClient == nil {
+	if service.faceClient == nil && !service.inHouseManualReview {
 		service.faceClient = NewStubSmileIdentityClient()
 	}
 	if service.uploader == nil {
@@ -422,6 +422,14 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 	}
 	if err := validateAdminReviewInput(input); err != nil {
 		return AdminReviewResponse{}, err
+	}
+
+	// A rider should reach the admin exactly once. In-house identity and
+	// face approval must be a single atomic final-case decision.
+	if s.inHouseManualReview && input.Action == AdminActionApprove &&
+		(input.Step == StepIdentity || input.Step == StepFace || input.Step == StepLicence) {
+		return AdminReviewResponse{}, apperrors.Conflict(
+			"Use the final-review endpoint to approve the complete verification case once.", nil)
 	}
 
 	// Enforce manual-review-only steps.
