@@ -93,15 +93,15 @@ func (r *PostgresRepository) ApproveInHouseCase(ctx context.Context, providerID,
 
 	// The most recent selfie must still belong to the reviewed identity
 	// document and be pending a human decision. No automatic match result.
-	var checkID, selfieRef, checkIDDocRef, providerUsed, checkStatus string
+	var checkID, faceCheckStepID, selfieRef, checkIDDocRef, providerUsed, checkStatus string
 	if err := tx.QueryRow(ctx, `
-		SELECT id::text, selfie_url, id_doc_url, provider_used, COALESCE(result,'')
+		SELECT id::text, step_id::text, selfie_url, id_doc_url, provider_used, COALESCE(result,'')
 		FROM face_checks WHERE provider_id = $1
 		ORDER BY checked_at DESC, id DESC LIMIT 1 FOR UPDATE
-	`, providerID).Scan(&checkID, &selfieRef, &checkIDDocRef, &providerUsed, &checkStatus); err != nil {
+	`, providerID).Scan(&checkID, &faceCheckStepID, &selfieRef, &checkIDDocRef, &providerUsed, &checkStatus); err != nil {
 		return nil, err
 	}
-	if selfieRef == "" || checkIDDocRef != idRef ||
+	if selfieRef == "" || faceCheckStepID != face.id || checkIDDocRef != idRef ||
 		providerUsed != "karryam_manual_review" || checkStatus != "pending_review" {
 		return nil, ErrFinalReviewNotReady
 	}
@@ -135,6 +135,29 @@ func (r *PostgresRepository) ApproveInHouseCase(ctx context.Context, providerID,
 	`, checkID)
 	if err != nil { return nil, err }
 	if tag.RowsAffected() != 1 { return nil, ErrFinalReviewNotReady }
+
+	var remaining int
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(*) FROM verification_steps
+		WHERE provider_id = $1 AND is_optional = false AND status != 'approved'
+	`, providerID).Scan(&remaining); err != nil { return nil, err }
+	if remaining != 0 { return nil, ErrFinalReviewNotReady }
+
+	// Mark the rider verified in the SAME transaction as both ID and face
+	// decisions. A crash cannot leave half the case approved.
+	verified, err := tx.Exec(ctx, `
+		UPDATE providers SET verification_status = 'verified', updated_at = now()
+		WHERE id = $1 AND is_active = true AND verification_status != 'suspended'
+	`, providerID)
+	if err != nil { return nil, err }
+	if verified.RowsAffected() != 1 { return nil, ErrFinalReviewNotReady }
+	_, err = tx.Exec(ctx, `
+		INSERT INTO verification_audit
+		(provider_id, step, action, from_status, to_status, performed_by, notes)
+		VALUES ($1, 'all', 'fully_approved', 'pending', 'approved', $2, $3)
+	`, providerID, reviewerID, notes)
+	if err != nil { return nil, err }
+
 	if err := tx.Commit(ctx); err != nil { return nil, err }
 	return approveSteps, nil
 }
