@@ -19,6 +19,21 @@ class RequestsController extends ChangeNotifier {
   RequestModel? _activeRequest;
   bool _isLoading = false;
   String? _error;
+  DateTime? _lastHealthyRefresh;
+  String? _snapshotToken;
+  static const _maxOfferAge = Duration(seconds: 20);
+  final Set<String> _actionsInFlight = {};
+  int _sessionGeneration = 0;
+
+  /// A displayed cached request is never sufficient authorization to accept.
+  bool get canAcceptOffers =>
+      AppModeConfig.instance.isMock ||
+      (_error == null &&
+       _lastHealthyRefresh != null &&
+       _snapshotToken != null &&
+       _snapshotToken == _token() &&
+       (shouldPoll == null || shouldPoll!()) &&
+       DateTime.now().difference(_lastHealthyRefresh!) <= _maxOfferAge);
 
   Timer? _pollTimer;
   bool _pollInFlight = false;
@@ -111,8 +126,15 @@ class RequestsController extends ChangeNotifier {
     final generation = _stateGeneration;
     try {
       final merged = await _fetchAll(token);
-      if (generation != _stateGeneration) return;
+      if (generation != _stateGeneration ||
+          token != _token() || _disposed) return;
       _requests = merged;
+      if (_error == null) {
+        _snapshotToken = token;
+        _lastHealthyRefresh = DateTime.now();
+      } else {
+        _lastHealthyRefresh = null;
+      }
       _scheduleExpiry();
       _notify();
     } finally {
@@ -121,6 +143,8 @@ class RequestsController extends ChangeNotifier {
   }
 
   void clearError() {
+    // Dismissing an error must never re-authorize previously cached offers.
+    _lastHealthyRefresh = null;
     _error = null;
     _notify();
   }
@@ -148,17 +172,33 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
+    final generation = _stateGeneration;
     _isLoading = true;
     _error = null;
+    _lastHealthyRefresh = null;
     _notify();
 
     final merged = await _fetchAll(token);
-    if (_disposed) return ApiSuccess(merged);
+    if (_disposed || generation != _stateGeneration || token != _token()) {
+      _isLoading = false;
+      return const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'Your session changed. Reload opportunities.',
+        ),
+      );
+    }
     _requests = merged;
+    if (_error == null) {
+      _snapshotToken = token;
+      _lastHealthyRefresh = DateTime.now();
+    }
     _scheduleExpiry();
     _isLoading = false;
     _notify();
-    if (_error != null && merged.isEmpty) {
+    // Source-level partial failure is a degraded, unverified list, never
+    // a successful fresh inbox. Keep it visible for context, not acceptance.
+    if (_error != null) {
       return ApiFailure(
         _loadFailure ??
             ApiException(code: ApiErrorCode.network, message: _error!),
@@ -267,7 +307,7 @@ class RequestsController extends ChangeNotifier {
   // ── Accept ────────────────────────────────────────────────────────────────
 
   Future<ApiResult<bool>> accept(RequestModel request) async {
-    if (request.isExpired)
+    if (!request.isAcceptable)
       return const ApiFailure(
         ApiException(
           code: ApiErrorCode.conflict,
@@ -292,18 +332,54 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    _debugLog('[REQUESTS] accepting ${request.source.label} ${request.id}');
-    final result = await api.accept(accessToken: token, request: request);
-    result.when(
-      success: (_) {
-        _removeHandled(request);
-        _activeRequest = request;
-        _notify();
-      },
-      failure: (err) =>
-          _debugLog('[REQUESTS] accept ${request.id} failed: ${err.message}'),
-    );
-    return result;
+    if (!canAcceptOffers ||
+        !requests.any((r) =>
+            r.kind == request.kind && r.id == request.id &&
+            r.version == request.version)) {
+      return const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This offer may have changed. Refresh before accepting.',
+        ),
+      );
+    }
+    final key = '${_sessionGeneration}:${request.kind.name}:${request.id}';
+    if (!_actionsInFlight.add(key)) {
+      return const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This request is already being processed.',
+        ),
+      );
+    }
+    final generation = _sessionGeneration;
+    try {
+      _debugLog('[REQUESTS] accepting ${request.source.label} ${request.id}');
+      final result = await api.accept(accessToken: token, request: request);
+      if (generation != _sessionGeneration ||
+          token != _token() || _disposed) {
+        return const ApiFailure(
+          ApiException(
+            code: ApiErrorCode.conflict,
+            message: 'Account changed. Refresh your current trips.',
+          ),
+        );
+      }
+      result.when(
+        success: (_) {
+          _removeHandled(request);
+          _lastHealthyRefresh = null;
+          _activeRequest = request;
+          _notify();
+        },
+        failure: (err) => _debugLog(
+          '[REQUESTS] accept ${request.id} failed: ${err.message}',
+        ),
+      );
+      return result;
+    } finally {
+      _actionsInFlight.remove(key);
+    }
   }
 
   // ── Reject / decline ──────────────────────────────────────────────────────
@@ -325,25 +401,71 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    _debugLog('[REQUESTS] rejecting ${request.source.label} ${request.id}');
-    final result = await api.reject(
-      accessToken: token,
-      request: request,
-      reason: reason,
-    );
-    result.when(
-      success: (_) {
-        _removeHandled(request);
-        _notify();
-      },
-      failure: (err) =>
-          _debugLog('[REQUESTS] reject ${request.id} failed: ${err.message}'),
-    );
-    return result;
+    final key = '${_sessionGeneration}:${request.kind.name}:${request.id}';
+    if (!_actionsInFlight.add(key)) {
+      return const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This request is already being processed.',
+        ),
+      );
+    }
+    final generation = _sessionGeneration;
+    try {
+      _debugLog('[REQUESTS] rejecting ${request.source.label} ${request.id}');
+      final result = await api.reject(
+        accessToken: token,
+        request: request,
+        reason: reason,
+      );
+      if (generation != _sessionGeneration ||
+          token != _token() || _disposed) {
+        return const ApiFailure(
+          ApiException(
+            code: ApiErrorCode.conflict,
+            message: 'Account changed. Refresh opportunities.',
+          ),
+        );
+      }
+      result.when(
+        success: (_) {
+          _removeHandled(request);
+          _lastHealthyRefresh = null;
+          _notify();
+        },
+        failure: (err) => _debugLog(
+          '[REQUESTS] reject ${request.id} failed: ${err.message}',
+        ),
+      );
+      return result;
+    } finally {
+      _actionsInFlight.remove(key);
+    }
   }
 
   void clearActiveRequest() {
     _activeRequest = null;
+    _notify();
+  }
+
+  /// Drop private request data on account switch/logout, including data
+  /// that an in-flight background poll may otherwise restore.
+  void resetSession() {
+    _sessionGeneration++;
+    _stateGeneration++;
+    _fetchGeneration++;
+    stopPolling();
+    _expiryTimer?.cancel();
+    _sourceCache.clear();
+    _handled.clear();
+    _actionsInFlight.clear();
+    _requests = [];
+    _activeRequest = null;
+    _isLoading = false;
+    _error = null;
+    _loadFailure = null;
+    _lastHealthyRefresh = null;
+    _snapshotToken = null;
     _notify();
   }
 
