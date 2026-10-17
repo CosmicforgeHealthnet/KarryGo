@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AppConfig — single source of truth for the backend base URL.
 //
@@ -79,31 +81,29 @@ class AppConfig {
   /// [developmentDefaultApiBaseUrl] when not set.
   static String get apiBaseUrl {
     final configured = _configuredApiBaseUrl.trim();
-    if (configured.isNotEmpty) {
-      return _stripTrailingSlashes(configured);
-    }
-    return developmentDefaultApiBaseUrl;
+    return _resolvedUrl(configured, developmentDefaultApiBaseUrl,
+        'DISPATCH_PROVIDER_API_BASE_URL');
   }
 
   /// The resolved wallet service base URL.
   static String get walletBaseUrl {
     final configured = _configuredWalletBaseUrl.trim();
-    if (configured.isNotEmpty) return _stripTrailingSlashes(configured);
-    return developmentDefaultWalletBaseUrl;
+    return _resolvedUrl(configured, developmentDefaultWalletBaseUrl,
+        'DISPATCH_PROVIDER_WALLET_BASE_URL');
   }
 
   /// The resolved notification websocket URL (realtime fast path).
   static String get notificationWsUrl {
     final configured = _configuredNotificationWsUrl.trim();
-    if (configured.isNotEmpty) return _stripTrailingSlashes(configured);
-    return developmentDefaultNotificationWsUrl;
+    return _resolvedUrl(configured, developmentDefaultNotificationWsUrl,
+        'NOTIFICATION_WS_URL', websocket: true);
   }
 
   /// The resolved support-dispute-service base URL.
   static String get supportBaseUrl {
     final configured = _configuredSupportBaseUrl.trim();
-    if (configured.isNotEmpty) return _stripTrailingSlashes(configured);
-    return developmentDefaultSupportBaseUrl;
+    return _resolvedUrl(configured, developmentDefaultSupportBaseUrl,
+        'SUPPORT_API_BASE_URL');
   }
 
   /// Short human-readable label describing which backend mode is active.
@@ -134,6 +134,48 @@ class AppConfig {
   static bool get isLocalhostUrl {
     final url = apiBaseUrl;
     return url.contains('localhost') || url.contains('127.0.0.1');
+  }
+
+  /// A distributable app must never silently connect to a developer's LAN.
+  /// Local HTTP remains available for debug/test builds only.
+  static String _resolvedUrl(
+    String configured,
+    String developmentFallback,
+    String environmentKey, {
+    bool websocket = false,
+  }) {
+    if (kReleaseMode && configured.isEmpty) {
+      throw StateError('$environmentKey must be supplied for release builds.');
+    }
+    final value = _stripTrailingSlashes(
+      configured.isEmpty ? developmentFallback : configured,
+    );
+    if (kReleaseMode && !_isSecurePublicUrl(value, websocket: websocket)) {
+      throw StateError('$environmentKey must use a public secure endpoint.');
+    }
+    return value;
+  }
+
+  static bool _isSecurePublicUrl(String raw, {bool websocket = false}) {
+    final uri = Uri.tryParse(raw);
+    if (uri == null ||
+        uri.scheme != (websocket ? 'wss' : 'https') ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasFragment) {
+      return false;
+    }
+    final host = uri.host.toLowerCase();
+    if (host == 'localhost' ||
+        host.endsWith('.localhost') ||
+        host.endsWith('.local') ||
+        host == '::1' ||
+        host.contains(':') ||
+        RegExp(r'^[0-9.]+$').hasMatch(host)) {
+      // Require a DNS hostname rather than a private or literal IP address.
+      return false;
+    }
+    return true;
   }
 
   static String _stripTrailingSlashes(String value) {
