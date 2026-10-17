@@ -29,6 +29,7 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen>
   CameraController? _camera;
   bool _initializing = true;
   bool _busy = false;
+  bool _appResumed = true;
   String? _cameraError;
   int _generation = 0;
 
@@ -49,7 +50,13 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen>
         _cameraError = null;
       });
     }
-    if (previous != null) await previous.dispose();
+    if (previous != null) {
+      try {
+        await previous.dispose();
+      } catch (_) {
+        // Another lifecycle event may already have disposed the camera.
+      }
+    }
 
     CameraController? next;
     try {
@@ -95,6 +102,7 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appResumed = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       ++_generation;
@@ -144,7 +152,14 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen>
     } catch (_) {
       if (mounted) _showMessage('Unable to read this photo. Please retake it.');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        // If the app was backgrounded while review was open, rebuild the
+        // preview so Retake does not leave a permanently black camera.
+        if (_camera == null && _appResumed) {
+          unawaited(_openFrontCamera());
+        }
+      }
     }
   }
 
