@@ -47,7 +47,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       case _OpportunityTab.all:
         return all;
       case _OpportunityTab.nearby:
-        return all.where((r) => r.distanceKm < 5.0).toList();
+        return all.where((r) => r.hasDistance && r.distanceKm <= 5.0).toList();
       case _OpportunityTab.assignments:
         return all
             .where((r) => r.source == RequestSource.assignment)
