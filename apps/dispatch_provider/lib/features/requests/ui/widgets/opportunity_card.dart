@@ -25,8 +25,7 @@ class OpportunityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.palette;
     final lifecycle = request.lifecycle;
-    final isDimmed = lifecycle == RequestLifecycleState.expired ||
-        lifecycle == RequestLifecycleState.taken;
+    final isDimmed = !request.isAcceptable;
     final isRequoted = lifecycle == RequestLifecycleState.requoted;
     final showInlineActions = _shouldShowInlineActions();
 
