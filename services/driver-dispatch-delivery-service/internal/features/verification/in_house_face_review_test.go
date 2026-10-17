@@ -26,7 +26,7 @@ func (m *forbiddenExternalMatcher) MatchFace(context.Context, string, string) (F
 	return FaceMatchResult{Passed: true, MatchScore: 100}, nil
 }
 
-func newInHouseRouter(repo *fakeVerificationRepository, matcher FaceMatcher) (*gin.Engine, *authusecases.TokenUsecase, *captureEvents) {
+func newInHouseRouter(repo Repository, matcher FaceMatcher) (*gin.Engine, *authusecases.TokenUsecase, *captureEvents) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpx.RequestID(), httpx.Recovery(), httpx.ErrorHandler())
@@ -163,4 +163,112 @@ func TestInHouseEvidenceEndpointAdminsOnly(t *testing.T) {
 		!strings.Contains(w.Body.String(), "government_id_reference") {
 		t.Fatalf("admin evidence read=%d body=%s", w.Code, w.Body.String())
 	}
+}
+
+
+type fakeFinalCaseRepository struct {
+	*fakeVerificationRepository
+	approved int
+}
+
+func (r *fakeFinalCaseRepository) ApproveInHouseCase(_ context.Context, providerID, reviewerID, notes string) ([]Step, error) {
+	r.approved++
+	for _, step := range []Step{StepIdentity, StepFace} {
+		current := r.steps[providerID][step]
+		current.Status = StatusApproved
+		current.ReviewerID = &reviewerID
+		r.steps[providerID][step] = current
+	}
+	approved := "manual_approved"
+	r.faceChecks[len(r.faceChecks)-1].Result = &approved
+	return []Step{StepIdentity, StepFace}, nil
+}
+
+func TestOneFinalReviewDossierAndOneAdminDecision(t *testing.T) {
+	repo := seededFaceReadyRepo(t)
+	wrapped := &fakeFinalCaseRepository{fakeVerificationRepository: repo}
+	matcher := &forbiddenExternalMatcher{}
+	router, tokens, _ := newInHouseRouter(wrapped, matcher)
+	w := doMultipartProviderRequest(t, router, tokens, http.MethodPost,
+		"/api/v1/provider/verification/face", nil,
+		selfieFiles(testGradientSelfie(t), "image/jpeg"))
+	if w.Code != http.StatusOK { t.Fatalf("selfie upload status=%d body=%s", w.Code, w.Body.String()) }
+	vehicle := repo.steps[testProviderID][StepVehicle]
+	vehicle.Status = StatusApproved
+	repo.steps[testProviderID][StepVehicle] = vehicle
+	repo.documents = append(repo.documents, VerificationDocument{
+		ProviderID: testProviderID, StepID: repo.steps[testProviderID][StepIdentity].ID,
+		DocumentType: "profile_photo", FileURL: "local-private://verifications/example/identity/photo.jpg",
+	})
+
+	adminToken := mustRoleToken(t, tokens, RolePlatformAdmin)
+	path := "/api/v1/admin/verification/" + testProviderID
+	get := httptest.NewRequest(http.MethodGet, path+"/dossier", nil)
+	get.Header.Set("Authorization", "Bearer "+adminToken)
+	view := httptest.NewRecorder()
+	router.ServeHTTP(view, get)
+	if view.Code != http.StatusOK || !strings.Contains(view.Body.String(), "\"ready_for_review\":true") {
+		t.Fatalf("dossier code=%d data=%s", view.Code, view.Body.String())
+	}
+	if !strings.Contains(view.Body.String(), "\"pending_manual\"") {
+		t.Fatal("dossier must disclose unresolved manual biometric checks")
+	}
+
+	decision := `{"action":"approve","notes":"Compared the original government ID portrait with the current submitted selfie."}`
+	post := httptest.NewRequest(http.MethodPost, path+"/final-review", strings.NewReader(decision))
+	post.Header.Set("Authorization", "Bearer "+adminToken)
+	post.Header.Set("Content-Type", "application/json")
+	result := httptest.NewRecorder()
+	router.ServeHTTP(result, post)
+	if result.Code != http.StatusOK {
+		t.Fatalf("final review status=%d body=%s", result.Code, result.Body.String())
+	}
+	if wrapped.approved != 1 || repo.steps[testProviderID][StepIdentity].Status != StatusApproved ||
+		repo.steps[testProviderID][StepFace].Status != StatusApproved || matcher.called {
+		t.Fatalf("single reviewer action failed; count=%d matcher called=%v", wrapped.approved, matcher.called)
+	}
+}
+
+func TestOneFinalReviewCannotApproveWhileAutomatedChecksFail(t *testing.T) {
+	repo := seededFaceReadyRepo(t)
+	wrapped := &fakeFinalCaseRepository{fakeVerificationRepository: repo}
+	router, tokens, _ := newInHouseRouter(wrapped, &forbiddenExternalMatcher{})
+	adminToken := mustRoleToken(t, tokens, RolePlatformAdmin)
+	path := "/api/v1/admin/verification/" + testProviderID + "/final-review"
+	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(
+		`{"action":"approve","notes":"Reviewed identity and selfie documentary evidence."}`))
+	request.Header.Set("Authorization", "Bearer "+adminToken)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusPreconditionFailed || wrapped.approved != 0 {
+		t.Fatalf("incomplete case was approved: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestFinalReviewRejectsUnauthorizedOrRiderCaller(t *testing.T) {
+	repo := seededFaceReadyRepo(t)
+	router, tokens, _ := newInHouseRouter(repo, &forbiddenExternalMatcher{})
+	path := "/api/v1/admin/verification/" + testProviderID + "/final-review"
+	for _, tc := range []struct{ name, token string; expected int } {
+		{"anonymous", "", http.StatusUnauthorized},
+		{"rider", riderTokenForFinalReview(t, tokens), http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(
+				`{"action":"approve","notes":"Checked full original identity and selfie."}`))
+			request.Header.Set("Content-Type", "application/json")
+			if tc.token != "" { request.Header.Set("Authorization", "Bearer "+tc.token) }
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != tc.expected { t.Fatalf("status=%d want=%d", response.Code, tc.expected) }
+		})
+	}
+}
+
+func riderTokenForFinalReview(t *testing.T, tokens *authusecases.TokenUsecase) string {
+	t.Helper()
+	token, _, err := tokens.GenerateAccessToken(testProviderID, "+2348000000001", "33333333-3333-3333-3333-333333333333")
+	if err != nil { t.Fatal(err) }
+	return token
 }
