@@ -273,6 +273,7 @@ class OpportunityCard extends StatelessWidget {
   ///   • the rider can act on it directly (assignment / commerce), OR
   ///   • the offer was requoted (rider needs to explicitly re-accept).
   bool _shouldShowInlineActions() {
+    if (!request.isAcceptable) return false;
     if (request.lifecycle == RequestLifecycleState.requoted) return true;
     if (request.lifecycle != RequestLifecycleState.available) return false;
     return request.source == RequestSource.assignment ||
@@ -291,7 +292,7 @@ class OpportunityCard extends StatelessWidget {
             child: SizedBox(
               height: 48,
               child: FilledButton(
-                onPressed: onAccept,
+                onPressed: request.isAcceptable ? onAccept : null,
                 style: FilledButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
