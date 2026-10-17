@@ -41,6 +41,7 @@ func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handl
 	adminVerification := engine.Group("/api/v1/admin/verification")
 	adminVerification.Use(authhttp.DispatchRiderAuthRequired(tokens), requirePlatformAdminRole())
 	adminVerification.GET("/:provider_id/face-evidence", handler.GetAdminFaceEvidence)
+	adminVerification.GET("/:provider_id/face-evidence/:kind", handler.GetAdminFaceAsset)
 	adminVerification.PATCH("/:provider_id/review", handler.AdminReview)
 	adminVerification.PATCH("/:provider_id/suspend", handler.SuspendProvider)
 }
@@ -137,6 +138,21 @@ func (h *Handler) GetAdminFaceEvidence(c *gin.Context) {
 		return
 	}
 	respondOK(c, result)
+}
+
+// GetAdminFaceAsset serves private ID/selfie bytes to authorized admins.
+func (h *Handler) GetAdminFaceAsset(c *gin.Context) {
+	content, mimeType, err := h.service.GetAdminFaceAsset(
+		c.Request.Context(), c.Param("provider_id"), c.Param("kind"),
+	)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store, private")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
+	c.Data(http.StatusOK, mimeType, content)
 }
 
 func (h *Handler) AdminReview(c *gin.Context) {
