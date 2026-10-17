@@ -12,6 +12,17 @@ services:
     container_name: karrygo-fleet-partner-api
     env_file:
       - /opt/karrygo/fleet-partner-service/fleet.service.env
+    environment:
+      # The API applies fleet's table changes at startup (its own tracked
+      # runner). Only the API: the worker below has it switched off, because
+      # the runner takes no lock and two processes racing on the same new
+      # migration would make one of them fail.
+      MIGRATION: 'true'
+    volumes:
+      # fleet's API refuses to start unless a .env file exists in its working
+      # folder (godotenv.Load is fatal in cmd/main.go). Its real settings come
+      # from env_file above; this EMPTY file only satisfies that check.
+      - /opt/karrygo/platform/compose/empty-dotenv:/srv/fleet-partner-service/.env:ro
     # Reachable only from the server itself (nginx: fleet-api.staging.karryam.com).
     ports:
       - "127.0.0.1:8113:8113"
@@ -34,6 +45,8 @@ services:
     entrypoint: ["/bin/fleet-partner-worker"]
     env_file:
       - /opt/karrygo/fleet-partner-service/fleet.service.env
+    environment:
+      MIGRATION: 'false'
     mem_limit: 384m
 
 networks:

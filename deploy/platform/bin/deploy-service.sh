@@ -47,6 +47,20 @@ if [ "${#deps[@]}" -gt 0 ]; then
   RELEASE_OVERRIDE="$NEW_RELEASE" svc_compose up -d --wait "${deps[@]}"
 fi
 
+# Helpers that are neither program, database nor Redis (e.g. media's virus
+# scanner). Started if missing, never recreated when already running; they can
+# take minutes to become healthy, so the deploy does not wait for them.
+helpers="$(awk '
+  /^services:/ { in_services = 1; next }
+  /^[^ #]/     { in_services = 0 }
+  in_services && /^  [a-z][a-z0-9_-]*:/ { s = $1; sub(":", "", s); if (s != "app" && s != "worker" && s != "db" && s != "redis") print s }
+' "$SVC_COMPOSE")"
+if [ -n "$helpers" ]; then
+  log "making sure $(echo $helpers) is running"
+  # shellcheck disable=SC2086
+  RELEASE_OVERRIDE="$NEW_RELEASE" svc_compose up -d --no-recreate $helpers
+fi
+
 # 4. Database tables.
 if [ "$SVC_MIGRATE" = "script" ]; then
   log "preparing database tables (migrate.sh, setting $SVC_DB_URL_VAR)"
