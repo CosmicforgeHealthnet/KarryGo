@@ -266,7 +266,7 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    final key = '${request.kind.name}:${request.id}';
+    final key = '${_stateGeneration}:${request.kind.name}:${request.id}';
     if (!_actionsInFlight.add(key)) {
       return ApiFailure(
         const ApiException(
@@ -325,7 +325,7 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    final key = '${request.kind.name}:${request.id}';
+    final key = '${_stateGeneration}:${request.kind.name}:${request.id}';
     if (!_actionsInFlight.add(key)) {
       return ApiFailure(
         const ApiException(
