@@ -139,8 +139,11 @@ class RequestModel {
     return m < 0 ? 0 : m;
   }
 
+  /// A revised offer may be accepted using its new backend version, but
+  /// expiration always wins over a stale lifecycle label.
   bool get isAcceptable =>
-      lifecycle == RequestLifecycleState.available &&
+      (lifecycle == RequestLifecycleState.available ||
+       lifecycle == RequestLifecycleState.requoted) &&
       (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
 
   static String _groupThousands(String whole) {
