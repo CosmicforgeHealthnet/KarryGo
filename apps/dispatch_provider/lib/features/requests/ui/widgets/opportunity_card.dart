@@ -14,15 +14,15 @@ class OpportunityCard extends StatelessWidget {
     required this.onDecline,
     this.busy = false,
     this.detailed = false,
+    this.actionsAvailable = true,
   });
   final RequestModel request;
   final VoidCallback onTap, onAccept, onDecline;
-  final bool busy, detailed;
+  final bool busy, detailed, actionsAvailable;
   @override
   Widget build(BuildContext context) {
     final c = context.palette;
-    final unavailable =
-        request.isExpired || request.lifecycle == RequestLifecycleState.taken;
+    final unavailable = !request.isAcceptable;
     final updated = request.lifecycle == RequestLifecycleState.requoted;
     final status = request.isExpired
         ? 'Expired'
@@ -195,7 +195,7 @@ class OpportunityCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: busy ? null : onDecline,
+                      onPressed: busy || !actionsAvailable ? null : onDecline,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: c.danger,
                         side: BorderSide(color: c.danger.withValues(alpha: .3)),
@@ -207,7 +207,7 @@ class OpportunityCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: FilledButton(
-                      onPressed: busy ? null : onAccept,
+                      onPressed: busy || !actionsAvailable ? null : onAccept,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
