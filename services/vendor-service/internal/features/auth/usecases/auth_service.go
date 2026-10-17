@@ -326,7 +326,7 @@ func (s *AuthService) verify(ctx context.Context, in VerifyInput, registration *
 		}
 		switch len(affiliations) {
 		case 0:
-			return VerifyResult{}, apperrors.Forbidden("You do not have active staff access to any vendor business.", nil)
+			return VerifyResult{}, apperrors.Forbidden("No active business is linked to this account. Create a business account or ask the business owner to invite you.", nil)
 		case 1:
 			target = affiliations[0]
 		default:

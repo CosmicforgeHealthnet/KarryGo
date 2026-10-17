@@ -103,8 +103,8 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: _selected != null
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.9),
+                          ? Color(0xFF081F44)
+                          : Color(0xFF081F44).withValues(alpha: 0.9),
                     ),
                   ),
                 ),

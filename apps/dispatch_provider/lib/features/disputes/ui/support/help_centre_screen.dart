@@ -1,8 +1,10 @@
+import '../../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
 import '../../state/rider_dispute_controller.dart';
-import '../support/chat_unavailable_screen.dart';
+import '../dispute_chat_screen.dart';
+import '../../../../shared/widgets/async_content.dart';
 import 'case_list_screen.dart';
 import 'faq_category_screen.dart';
 
@@ -45,11 +47,7 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
       'Bugs, performance',
       Icons.phone_android_outlined,
     ),
-    (
-      'Safety & Conduct',
-      'Safety policies, reporting',
-      Icons.shield_outlined,
-    ),
+    ('Safety & Conduct', 'Safety policies, reporting', Icons.shield_outlined),
   ];
 
   @override
@@ -72,27 +70,41 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
   void _openCases() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CaseListScreen(
-          disputeController: widget.disputeController,
-        ),
+        builder: (_) =>
+            CaseListScreen(disputeController: widget.disputeController),
       ),
     );
   }
 
-  /// Chat entry point.
-  ///
-  /// For now this routes to the "Chat unavailable" screen (Figma 12),
-  /// which is the correct UX while support agents are offline.
-  ///
-  /// When you enable live chat:
-  ///   1. Call `widget.disputeController.openSupportChat()`
-  ///   2. If it returns a `Complaint`, push `DisputeChatScreen`
-  ///   3. If null (error), fall back to `ChatUnavailableScreen`
-  void _openChat() {
-    Navigator.of(context).push(
+  bool _openingChat = false;
+  Future<void> _openChat() async {
+    if (_openingChat) return;
+    setState(() => _openingChat = true);
+    final complaint = await widget.disputeController.openSupportChat();
+    if (!mounted) return;
+    setState(() => _openingChat = false);
+    if (complaint == null) {
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        useSafeArea: true,
+        builder: (_) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: ActionNotice(
+            message:
+                widget.disputeController.supportChatError ??
+                'Support could not be opened. Please retry.',
+            isError: true,
+          ),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChatUnavailableScreen(
-          disputeController: widget.disputeController,
+        builder: (_) => DisputeChatScreen(
+          complaint: complaint,
+          controller: widget.disputeController,
         ),
       ),
     );
@@ -112,17 +124,8 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -138,15 +141,21 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
                   ),
                   // Chat icon
                   GestureDetector(
-                    onTap: _openChat,
+                    onTap: _openingChat ? null : _openChat,
                     behavior: HitTestBehavior.opaque,
                     child: Padding(
                       padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        size: 22,
-                        color: c.brandTeal500,
-                      ),
+                      child: _openingChat
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 22,
+                              color: c.brandTeal500,
+                            ),
                     ),
                   ),
                   // My cases
@@ -217,8 +226,7 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
                       ),
                       filled: true,
                       fillColor: c.inputFill,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -229,8 +237,10 @@ class _HelpCentreScreenState extends State<HelpCentreScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: c.brandTeal500, width: 1.6),
+                        borderSide: BorderSide(
+                          color: c.brandTeal500,
+                          width: 1.6,
+                        ),
                       ),
                     ),
                   ),
@@ -320,11 +330,7 @@ class _CategoryCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 22,
-              color: c.textMuted,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 22, color: c.textMuted),
           ],
         ),
       ),

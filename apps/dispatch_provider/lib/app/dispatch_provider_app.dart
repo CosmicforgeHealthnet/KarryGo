@@ -1,3 +1,7 @@
+import 'package:flutter/services.dart';
+import '../features/requests/ui/requests_screen.dart';
+import '../features/offline/state/offline_updates_controller.dart';
+import '../features/missions/ui/delivery_operations_screen.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +9,10 @@ import 'package:flutter/material.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
 import '../core/config.dart';
+import '../core/app_mode.dart';
+import '../core/network/mode_http_client.dart';
+import '../core/network/provider_session.dart';
+import 'package:http/http.dart' as http;
 import '../core/network/api_connectivity_check.dart';
 import '../core/network/authenticated_api_client.dart';
 import '../core/storage/token_storage.dart';
@@ -32,6 +40,8 @@ import '../features/auth/ui/welcome_back_screen.dart';
 import '../features/onboarding/ui/onboarding_screen.dart';
 import '../features/home/ui/dashboard_screen.dart';
 import '../features/profile/data/provider_profile_api.dart';
+import '../features/profile/mock/profile_mock.dart';
+import '../features/verification/mock/verification_mock.dart';
 import '../features/profile/state/provider_profile_controller.dart';
 import '../features/vehicle/data/vehicle_api.dart';
 import '../features/vehicle/state/vehicle_controller.dart';
@@ -49,14 +59,15 @@ import '../features/notifications/ui/notifications_screen.dart';
 import '../features/requests/data/requests_api.dart';
 import '../features/requests/state/requests_controller.dart';
 import '../features/trips/data/trips_api.dart';
-import '../features/trips/data/trip_model.dart';
 import '../features/trips/state/trips_controller.dart';
 import '../features/wallet/data/wallet_api.dart';
 import '../features/wallet/state/wallet_controller.dart';
 import '../shared/widgets/mock_badge.dart';
+import '../shared/widgets/async_content.dart';
 
 enum _DispatchScreen {
   splash,
+  connectionRecovery,
   login,
   onboarding,
   phoneEntry,
@@ -80,23 +91,58 @@ enum _DispatchScreen {
 
 class DispatchProviderApp extends StatefulWidget {
   const DispatchProviderApp({super.key, required this.themeController});
+  final ThemeController themeController;
+  @override
+  State<DispatchProviderApp> createState() => _ProviderRootState();
+}
+
+class _ProviderRootState extends State<DispatchProviderApp> {
+  int _generation = 0;
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: AppModeConfig.instance,
+    builder: (context, _) => _DispatchSessionApp(
+      key: ValueKey(
+        '${AppModeConfig.instance.current.name}:${AppModeConfig.instance.mockEntry.name}:${AppModeConfig.instance.previewRevision}:$_generation',
+      ),
+      themeController: widget.themeController,
+      onReset: () {
+        if (mounted) setState(() => _generation++);
+      },
+    ),
+  );
+}
+
+class _DispatchSessionApp extends StatefulWidget {
+  const _DispatchSessionApp({
+    super.key,
+    required this.themeController,
+    required this.onReset,
+  });
+  final VoidCallback onReset;
 
   /// Owns the app's [ThemeMode] and persists the choice. Loaded in main()
   /// before runApp so the first frame already has the right brightness.
   final ThemeController themeController;
 
   @override
-  State<DispatchProviderApp> createState() => _DispatchProviderAppState();
+  State<_DispatchSessionApp> createState() => _DispatchProviderAppState();
 }
 
-class _DispatchProviderAppState extends State<DispatchProviderApp> {
+class _DispatchProviderAppState extends State<_DispatchSessionApp> {
   _DispatchScreen _screen = _DispatchScreen.splash;
 
   String _phone = '';
+  String? _connectionError;
+  bool _hasSeenIntroduction = false;
+  bool _introStartsSignup = false;
   String? _selectedOperationType;
   bool _isLoginMode = false;
 
   late final TokenStorage _tokenStorage;
+  late final OfflineUpdatesController _offlineUpdates;
+  late final http.Client _authenticatedClient;
+  late final ModeHttpClient _transport;
   late final DispatchAuthController _authController;
   late final ProviderProfileController _profileController;
   late final VerificationController _verificationController;
@@ -134,14 +180,23 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     }());
 
     _tokenStorage = TokenStorage();
+    _transport = ModeHttpClient();
     _authController = DispatchAuthController(
-      api: DispatchAuthApi(apiConfig),
+      api: DispatchAuthApi(apiConfig, client: _transport),
       tokenStorage: _tokenStorage,
     );
     final authenticatedClient = AuthenticatedApiClient(
+      inner: _transport,
       getAccessToken: () => _authController.accessToken,
       refreshSession: _refreshProtectedSession,
       onSessionExpired: _handleSessionExpired,
+    );
+    _authenticatedClient = authenticatedClient;
+    _offlineUpdates = OfflineUpdatesController(
+      client: authenticatedClient,
+      origin: apiBaseUrl,
+      token: () => _authController.accessToken,
+      providerId: () => _authController.providerId,
     );
     _profileController = ProviderProfileController(
       api: ProviderProfileApi(apiConfig, client: authenticatedClient),
@@ -157,6 +212,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     );
     _availabilityController = AvailabilityController(
       api: AvailabilityApi(apiConfig, client: authenticatedClient),
+      offlineUpdates: _offlineUpdates,
       getAccessToken: () => _authController.accessToken,
     );
     _requestsController = RequestsController(
@@ -191,6 +247,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   }
 
   void _startRealtimeAndPush() {
+    if (AppModeConfig.instance.isMock) return;
     _realtimeListener ??= RiderRealtimeListener(
       api: _notificationApi,
       wsUrl: AppConfig.notificationWsUrl,
@@ -241,12 +298,14 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   void _openNotifications() {
     _navigatorKey.currentState?.push(
       MaterialPageRoute(
-        builder: (_) => NotificationsScreen(controller: _notificationController),
+        builder: (_) =>
+            NotificationsScreen(controller: _notificationController),
       ),
     );
   }
 
   void _logBackendHealth() {
+    if (AppModeConfig.instance.isMock) return;
     assert(() {
       debugPrint('[CONFIG] Backend mode hint: ${AppConfig.backendModeHint}');
       return true;
@@ -295,6 +354,8 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       },
       failure: (error) {
         debugPrint('[AUTH] Protected refresh failed: ${error.message}');
+        if (error.code != ApiErrorCode.unauthorized && error.statusCode != 401)
+          throw error;
       },
     );
     return refreshed;
@@ -354,19 +415,90 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         darkTheme: DispatchTheme.dark,
         themeMode: widget.themeController.mode,
         builder: (context, child) {
-          return Stack(
-            children: [
-              if (child != null) child,
-              // Global MOCK / LIVE toggle — appears on every screen.
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                right: 12,
-                child: const MockBadge(),
-              ),
-            ],
+          return ProviderSession(
+            client: _authenticatedClient,
+            offlineUpdates: _offlineUpdates,
+            completedSetupSteps: () {
+              final p = _profileController.profile;
+              return {
+                if ((p?.fullName?.isNotEmpty ?? false) &&
+                    (p?.state?.isNotEmpty ?? false) &&
+                    (p?.city?.isNotEmpty ?? false))
+                  1,
+                if ((p?.operationType?.isNotEmpty ?? false) ||
+                    (_selectedOperationType?.isNotEmpty ?? false))
+                  2,
+                if (p?.hasEmergencyContact ?? false) 3,
+                if (p?.hasGuarantor ?? false) 4,
+                if (p?.profilePhotoUrl?.isNotEmpty ?? false) 5,
+                if (p?.onboardingComplete ?? false) 6,
+              };
+            },
+            openCurrentDelivery: _openCurrentDelivery,
+            openNotifications: _openNotifications,
+            openOpportunities: () {
+              _navigatorKey.currentState?.push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      RequestsScreen(requestsController: _requestsController),
+                ),
+              );
+            },
+            themeController: widget.themeController,
+            accessToken: () => _authController.accessToken,
+            refreshProfile: () async {
+              await _profileController.loadMe();
+            },
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              key: const Key('dispatch-system-ui'),
+              value: DispatchTheme.systemUiStyle(Theme.of(context).brightness),
+              child: child ?? const SizedBox.shrink(),
+            ),
           );
         },
-        home: _buildScreen(),
+        home: Builder(
+          builder: (context) => Stack(
+            fit: StackFit.expand,
+            children: [
+              AnimatedSwitcher(
+                duration: Duration(
+                  milliseconds:
+                      (MediaQuery.maybeOf(context)?.disableAnimations ?? false)
+                      ? 0
+                      : 300,
+                ),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(.025, .015),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(_screen),
+                  child: _buildScreen(),
+                ),
+              ),
+              if (_screen != _DispatchScreen.home)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 12,
+                  width: 48,
+                  height: 48,
+                  child: const MockBadge(),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -374,6 +506,34 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   Widget _buildScreen() {
     return switch (_screen) {
       _DispatchScreen.splash => SplashScreen(onDone: _checkSavedSession),
+      _DispatchScreen.connectionRecovery => Scaffold(
+        appBar: AppBar(title: const Text('Reconnect')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ActionNotice(
+                  message:
+                      _connectionError ?? 'We could not load your account.',
+                  isError: true,
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => _go(_DispatchScreen.splash),
+                  child: const Text('Try again'),
+                ),
+                TextButton(
+                  onPressed: _handleLogout,
+                  child: const Text('Sign out'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
 
       _DispatchScreen.login => LoginScreen(
         controller: _authController,
@@ -382,11 +542,29 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
           _isLoginMode = true;
           _go(_DispatchScreen.otpVerification);
         },
-        onCreateAccountTap: () => _go(_DispatchScreen.onboarding),
+        onCreateAccountTap: () {
+          _introStartsSignup = true;
+          _go(
+            _hasSeenIntroduction
+                ? _DispatchScreen.phoneEntry
+                : _DispatchScreen.onboarding,
+          );
+        },
       ),
 
       _DispatchScreen.onboarding => OnboardingScreen(
-        onDone: () => _go(_DispatchScreen.phoneEntry),
+        onDone: () async {
+          _hasSeenIntroduction = true;
+          try {
+            await _tokenStorage.markIntroductionSeen();
+          } catch (_) {}
+          if (mounted)
+            _go(
+              (_introStartsSignup || AppModeConfig.instance.isMock)
+                  ? _DispatchScreen.phoneEntry
+                  : _DispatchScreen.login,
+            );
+        },
       ),
 
       _DispatchScreen.phoneEntry => PhoneEntryScreen(
@@ -439,9 +617,18 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       _DispatchScreen.operationMode => OperationModeScreen(
         onContinue: (mode) {
           // Backend accepts only 'individual' or 'fleet'.
-          final backendValue =
-              mode == 'fleet_operator' ? 'fleet' : 'individual';
+          final backendValue = mode == 'fleet_operator'
+              ? 'fleet'
+              : 'individual';
           _selectedOperationType = backendValue;
+          unawaited(
+            _tokenStorage
+                .saveOperationDraft(
+                  _authController.providerId ?? '',
+                  backendValue,
+                )
+                .catchError((Object _) {}),
+          );
           // NOTE: We do NOT call updateMe here — the backend rejects
           // operation_type on PATCH /provider/me (read-only field). The value
           // stays in memory until submitOnboarding on step 6, where it is
@@ -527,7 +714,9 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       ),
 
       _DispatchScreen.verificationPending => VerificationPendingScreen(
-        onGoToDashboard: () => _go(_DispatchScreen.home),
+        onGoToDashboard: () {
+          _go(_DispatchScreen.home);
+        },
         verificationController: _verificationController,
       ),
 
@@ -572,6 +761,59 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   }
 
   Future<void> _checkSavedSession() async {
+    if (AppModeConfig.instance.isMock) {
+      ProfileMock.reset();
+      VerificationMock.reset();
+      try {
+        _hasSeenIntroduction = await _tokenStorage.hasSeenIntroduction();
+      } catch (_) {}
+      if (!mounted) return;
+      final entry = AppModeConfig.instance.mockEntry;
+      final journey = AppModeConfig.instance.mockJourney;
+      if (journey['profile'] is Map) {
+        ProfileMock.restore(
+          Map<String, dynamic>.from(journey['profile'] as Map),
+        );
+      }
+      _selectedOperationType = journey['operation_type'] as String?;
+      _selfiePath = journey['selfie_path'] as String?;
+      final savedScreen = journey['screen'] as String?;
+      if (entry == MockEntry.introduction && savedScreen == null) {
+        _introStartsSignup = true;
+        _go(_DispatchScreen.onboarding);
+        return;
+      }
+      _authController.restoreTokens(
+        accessToken: 'mock-access',
+        refreshToken: 'mock-refresh',
+        providerId: 'mock-provider-1',
+      );
+      if (entry == MockEntry.dashboard && savedScreen == null) {
+        ProfileMock.seedDashboard();
+        VerificationMock.jumpTo(VerificationMockStage.verified);
+      }
+      if (ProfileMock.profile.verificationStatus == 'verified') {
+        VerificationMock.jumpTo(VerificationMockStage.verified);
+      }
+      await _profileController.loadMe();
+      if (!mounted) return;
+      final resume = _DispatchScreen.values
+          .where(
+            (screen) =>
+                screen.name == savedScreen &&
+                screen != _DispatchScreen.splash &&
+                screen != _DispatchScreen.otpVerification &&
+                screen != _DispatchScreen.connectionRecovery,
+          )
+          .firstOrNull;
+      _go(
+        resume ??
+            (entry == MockEntry.dashboard
+                ? _DispatchScreen.home
+                : _DispatchScreen.setupHub),
+      );
+      return;
+    }
     debugPrint('[AUTH] Checking saved session...');
     late final SavedTokens saved;
     try {
@@ -584,8 +826,16 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
 
     if (!saved.hasAny ||
         (saved.accessToken == null && saved.refreshToken == null)) {
-      debugPrint('[AUTH] No saved tokens → Login');
-      _go(_DispatchScreen.login);
+      try {
+        _hasSeenIntroduction = await _tokenStorage.hasSeenIntroduction();
+      } catch (_) {}
+      if (!mounted) return;
+      _introStartsSignup = !_hasSeenIntroduction;
+      _go(
+        _hasSeenIntroduction
+            ? _DispatchScreen.login
+            : _DispatchScreen.onboarding,
+      );
       return;
     }
 
@@ -595,6 +845,12 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       refreshToken: saved.refreshToken,
       providerId: saved.providerId,
     );
+    try {
+      _selectedOperationType = await _tokenStorage.readOperationDraft(
+        saved.providerId ?? '',
+      );
+    } catch (_) {}
+    if (!mounted) return;
 
     if ((saved.accessToken == null || saved.accessToken!.isEmpty) &&
         saved.refreshToken != null) {
@@ -624,7 +880,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         if (profile.onboardingComplete) {
           _go(_DispatchScreen.home);
         } else {
-          _go(_DispatchScreen.welcomeBack);
+          _go(_DispatchScreen.setupHub);
         }
       },
       failure: (error) {
@@ -642,7 +898,9 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       debugPrint(
         '[AUTH] Network error during session restore → Home (tokens preserved)',
       );
-      _go(_DispatchScreen.home);
+      _connectionError =
+          'We could not load your account. Check your connection and try again.';
+      _go(_DispatchScreen.connectionRecovery);
       return;
     }
 
@@ -654,6 +912,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
       bool refreshed = false;
       String? newAccess;
       String? newRefresh;
+      bool temporaryRefreshFailure = false;
 
       refreshResult.when(
         success: (data) {
@@ -662,10 +921,19 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
           newRefresh = data.refreshToken;
         },
         failure: (error) {
+          temporaryRefreshFailure =
+              error.code != ApiErrorCode.unauthorized &&
+              error.statusCode != 401;
           debugPrint('[AUTH] Refresh failed: ${error.message}');
         },
       );
 
+      if (temporaryRefreshFailure) {
+        _connectionError =
+            'Your session could not be refreshed. Check your connection and try again.';
+        _go(_DispatchScreen.connectionRecovery);
+        return;
+      }
       if (refreshed && newAccess != null) {
         try {
           await _tokenStorage.saveTokens(
@@ -690,7 +958,7 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
             if (profile.onboardingComplete) {
               _go(_DispatchScreen.home);
             } else {
-              _go(_DispatchScreen.welcomeBack);
+              _go(_DispatchScreen.setupHub);
             }
           },
           failure: (error) {
@@ -701,9 +969,18 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         );
 
         if (retrySuccess) return;
+        _connectionError =
+            'Your session was restored, but account details could not be loaded. Please retry.';
+        _go(_DispatchScreen.connectionRecovery);
+        return;
       }
     }
 
+    if (!isUnauthorized) {
+      _connectionError = 'Your account could not be loaded. Please retry.';
+      _go(_DispatchScreen.connectionRecovery);
+      return;
+    }
     debugPrint(
       '[AUTH] Session restore failed — refresh exhausted → clearing tokens → Login',
     );
@@ -711,6 +988,12 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
   }
 
   Future<void> _handlePostVerify() async {
+    try {
+      _selectedOperationType = await _tokenStorage.readOperationDraft(
+        _authController.providerId ?? '',
+      );
+    } catch (_) {}
+    if (!mounted) return;
     debugPrint('[AUTH_FLOW] post verify | isLoginMode=$_isLoginMode');
 
     if (!_isLoginMode) {
@@ -734,14 +1017,15 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
         if (profile.onboardingComplete) {
           _go(_DispatchScreen.home);
         } else {
-          _go(_DispatchScreen.welcomeBack);
+          _go(_DispatchScreen.setupHub);
         }
       },
       failure: (error) {
         debugPrint(
           '[AUTH_FLOW] /provider/me failed | code=${error.code} message=${error.message}',
         );
-        _go(_DispatchScreen.home);
+        _connectionError = error.message;
+        _go(_DispatchScreen.connectionRecovery);
       },
     );
   }
@@ -751,7 +1035,13 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     await _authController.logout();
     if (!mounted) return;
     _profileController.clearLocalState();
-    _go(_DispatchScreen.login);
+    if (AppModeConfig.instance.isMock) {
+      ProfileMock.reset();
+      await AppModeConfig.instance.saveMockJourney({
+        'screen': _DispatchScreen.login.name,
+      });
+    }
+    widget.onReset();
   }
 
   Future<void> _handleAccountDeleted() async {
@@ -759,15 +1049,63 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     await _authController.clearSession();
     if (!mounted) return;
     _profileController.clearLocalState();
-    _go(_DispatchScreen.login);
+    if (AppModeConfig.instance.isMock) {
+      ProfileMock.reset();
+      await AppModeConfig.instance.saveMockJourney({
+        'screen': _DispatchScreen.login.name,
+      });
+    }
+    widget.onReset();
+  }
+
+  Future<void> _openCurrentDelivery() async {
+    await _tripsController.loadActiveTrip();
+    if (!mounted) return;
+    final trip = _tripsController.activeTrip;
+    final context = _navigatorKey.currentContext;
+    if (context == null) return;
+    if (trip == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No active delivery is available. Check Activity for the delivery record.',
+          ),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DeliveryOperationsScreen(tripId: trip.id),
+      ),
+    );
+    if (mounted) await _tripsController.loadActiveTrip();
   }
 
   void _go(_DispatchScreen screen) {
+    if (!mounted) return;
     setState(() => _screen = screen);
+    if (AppModeConfig.instance.isMock &&
+        screen != _DispatchScreen.splash &&
+        screen != _DispatchScreen.connectionRecovery) {
+      final resume = screen == _DispatchScreen.otpVerification
+          ? (_isLoginMode ? _DispatchScreen.login : _DispatchScreen.phoneEntry)
+          : screen;
+      unawaited(
+        AppModeConfig.instance.saveMockJourney({
+          'screen': resume.name,
+          'profile': ProfileMock.snapshot(),
+          'operation_type': _selectedOperationType,
+          'selfie_path': _selfiePath,
+        }),
+      );
+    }
     if (screen == _DispatchScreen.home) {
       _startRealtimeAndPush();
+      unawaited(_offlineUpdates.start().then((_) => _offlineUpdates.sync()));
     } else if (screen == _DispatchScreen.login) {
       _stopRealtimeAndPush();
+      _offlineUpdates.stop();
     }
   }
 
@@ -776,6 +1114,10 @@ class _DispatchProviderAppState extends State<DispatchProviderApp> {
     _fcmTokenRefreshSub?.cancel();
     _fcmForegroundSub?.cancel();
     _realtimeListener?.stop();
+    _availabilityController.stopTracking();
+    _requestsController.dispose();
+    _offlineUpdates.dispose();
+    _authenticatedClient.close();
     super.dispose();
   }
 }

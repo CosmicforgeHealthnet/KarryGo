@@ -1,3 +1,5 @@
+import '../../../../shared/widgets/journey_icon.dart';
+import 'home_feedback.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -19,10 +21,12 @@ class TripCompletedScreen extends StatefulWidget {
     required this.onConfirm,
     this.tripId,
     this.tripsController,
+    this.onBack,
   });
 
   final RequestModel request;
   final VoidCallback onConfirm;
+  final VoidCallback? onBack;
   final String? tripId;
   final TripsController? tripsController;
 
@@ -47,7 +51,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png'],
     );
-    if (result == null || result.files.isEmpty) return;
+    if (!mounted || result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (file.path == null) return;
     setState(() {
@@ -69,9 +73,10 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
       points: _signaturePoints,
       inkColor: const Color(0xFF081F44),
     ).paint(canvas, size);
-    final image = await recorder
-        .endRecording()
-        .toImage(size.width.ceil(), size.height.ceil());
+    final image = await recorder.endRecording().toImage(
+      size.width.ceil(),
+      size.height.ceil(),
+    );
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     return data?.buffer.asUint8List();
   }
@@ -92,8 +97,8 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
       if (!mounted) return;
       if (signaturePng == null) {
         setState(
-          () => _submitError =
-              'Please have the receiver sign before confirming.',
+          () =>
+              _submitError = 'Please have the receiver sign before confirming.',
         );
         return;
       }
@@ -130,6 +135,12 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
         failure: (err) => setState(() => _submitError = err.message),
       );
       if (!proofOk) {
+        showHomeFeedback(
+          context,
+          title: 'Could not save handover proof',
+          message: _submitError ?? 'Please try again.',
+          error: true,
+        );
         setState(() => _isSubmitting = false);
         return;
       }
@@ -158,12 +169,20 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
             return;
           }
           confirmOk = false;
-          setState(() => _submitError = err.message.isNotEmpty
-              ? err.message
-              : 'Recipient confirmation failed.');
+          setState(
+            () => _submitError = err.message.isNotEmpty
+                ? err.message
+                : 'Recipient confirmation failed.',
+          );
         },
       );
       if (!confirmOk) {
+        showHomeFeedback(
+          context,
+          title: 'Handover not confirmed',
+          message: _submitError ?? 'Please try again.',
+          error: true,
+        );
         setState(() => _isSubmitting = false);
         return;
       }
@@ -179,15 +198,21 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
           _submitError = err.message;
         }),
       );
-      if (!completeOk) return;
+      if (!completeOk) {
+        showHomeFeedback(
+          context,
+          title: 'Could not complete delivery',
+          message: _submitError ?? 'Please try again.',
+          error: true,
+        );
+        return;
+      }
 
       // ── Step 4: rate the customer (fire-and-forget) ────────────────────
       // The rating was captured on this screen. Send it now, before we pop.
       // Failure here must not block the rider from finishing.
       if (_rating > 0) {
-        unawaited(
-          controller.rateCustomer(id: tripId, score: _rating),
-        );
+        unawaited(controller.rateCustomer(id: tripId, score: _rating));
       }
 
       setState(() => _isSubmitting = false);
@@ -210,6 +235,16 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
+      appBar: widget.onBack == null
+          ? null
+          : AppBar(
+              leading: IconButton(
+                tooltip: 'Back to delivery',
+                onPressed: _isSubmitting ? null : widget.onBack,
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              title: const Text('Handover'),
+            ),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: _isSigning
@@ -231,10 +266,10 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                         color: colors.teal10,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        Icons.done_all_rounded,
-                        size: 34,
-                        color: colors.brandTeal500,
+                      child: JourneyIcon(
+                        JourneySymbol.parcel,
+                        size: 38,
+                        color: colors.brandTeal600,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -243,7 +278,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: colors.text,
                         letterSpacing: -0.6,
                         height: 1.15,
@@ -254,7 +289,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                       "Collect proof and the receiver's signature to finish up.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.w400,
                         color: colors.textMuted,
                         height: 1.45,
@@ -420,7 +455,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                   child: Text(
                     widget.request.notes!,
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 13,
                       color: colors.textMuted,
                       height: 1.5,
                     ),
@@ -431,10 +466,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
               // ── Proof of delivery ─────────────────────────────────
               if (_needsHandover) ...[
                 const SizedBox(height: 24),
-                _SectionLabel(
-                  label: 'Proof of delivery',
-                  colors: colors,
-                ),
+                _SectionLabel(label: 'Proof of delivery', colors: colors),
                 const SizedBox(height: 6),
                 Text(
                   'Upload a photo of the delivered package.',
@@ -452,9 +484,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _proofFile != null
-                          ? colors.teal10
-                          : colors.navy10,
+                      color: _proofFile != null ? colors.teal10 : colors.navy10,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: _proofFile != null
@@ -521,10 +551,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
 
                 // ── Signature ───────────────────────────────────────
                 const SizedBox(height: 24),
-                _SectionLabel(
-                  label: 'Receiver signature',
-                  colors: colors,
-                ),
+                _SectionLabel(label: 'Receiver signature', colors: colors),
                 const SizedBox(height: 6),
                 Text(
                   'Have the receiver sign below to confirm handover.',
@@ -541,9 +568,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                     color: padBg,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDark
-                          ? const Color(0xFF2A2D34)
-                          : colors.divider,
+                      color: isDark ? const Color(0xFF2A2D34) : colors.divider,
                     ),
                   ),
                   child: ClipRRect(
@@ -556,9 +581,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                         });
                       },
                       onPointerMove: (e) {
-                        setState(
-                          () => _signaturePoints.add(e.localPosition),
-                        );
+                        setState(() => _signaturePoints.add(e.localPosition));
                       },
                       onPointerUp: (_) {
                         setState(() {
@@ -604,9 +627,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () => setState(
-                        () => _signaturePoints.clear(),
-                      ),
+                      onPressed: () => setState(() => _signaturePoints.clear()),
                       style: TextButton.styleFrom(
                         foregroundColor: colors.textMuted,
                         textStyle: const TextStyle(
@@ -620,10 +641,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
 
                 // ── Rate this delivery ──────────────────────────────
                 const SizedBox(height: 20),
-                _SectionLabel(
-                  label: 'Rate this delivery',
-                  colors: colors,
-                ),
+                _SectionLabel(label: 'Rate this delivery', colors: colors),
                 const SizedBox(height: 10),
                 Row(
                   children: List.generate(5, (i) {
@@ -638,8 +656,7 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                               ? Icons.star_rounded
                               : Icons.star_outline_rounded,
                           size: 32,
-                          color:
-                              filled ? colors.warning : colors.navy40,
+                          color: filled ? colors.warning : colors.navy40,
                         ),
                       ),
                     );
@@ -702,13 +719,13 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         )
                       : Text(
                           _needsHandover ? 'Confirm delivery' : 'Done',
                           style: const TextStyle(
-                            fontSize: 15.5,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
                             letterSpacing: -0.1,
                           ),
@@ -724,8 +741,18 @@ class _TripCompletedScreenState extends State<TripCompletedScreen> {
 
   static String _formatDate(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${dt.day.toString().padLeft(2, '0')} '
         '${months[dt.month - 1]} ${dt.year}';
@@ -744,8 +771,8 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       label,
       style: TextStyle(
-        fontSize: 14.5,
-        fontWeight: FontWeight.w800,
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
         color: colors.text,
         letterSpacing: -0.2,
       ),

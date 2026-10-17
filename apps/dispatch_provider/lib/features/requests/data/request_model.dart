@@ -22,10 +22,10 @@ enum RequestLifecycleState { available, expired, taken, requoted }
 
 extension RequestSourceX on RequestSource {
   String get label => switch (this) {
-        RequestSource.broadcast => 'Broadcast',
-        RequestSource.assignment => 'Assignment',
-        RequestSource.commerce => 'Commerce',
-      };
+    RequestSource.broadcast => 'Broadcast',
+    RequestSource.assignment => 'Assignment',
+    RequestSource.commerce => 'Commerce',
+  };
 }
 
 class RequestModel {
@@ -139,7 +139,11 @@ class RequestModel {
     return m < 0 ? 0 : m;
   }
 
-  bool get isAcceptable => lifecycle == RequestLifecycleState.available;
+  bool get isExpired =>
+      lifecycle == RequestLifecycleState.expired ||
+      (expiresAt != null && !expiresAt!.isAfter(DateTime.now()));
+  bool get isAcceptable =>
+      !isExpired && lifecycle == RequestLifecycleState.available;
 
   static String _groupThousands(String whole) {
     final buf = StringBuffer();
@@ -156,37 +160,44 @@ class RequestModel {
     final kind = _inferKind(json);
 
     // ID: whichever primary key this payload uses.
-    final id = (json['inbox_id'] as String?) ??
+    final id =
+        (json['inbox_id'] as String?) ??
         (json['offer_id'] as String?) ??
         (json['offerId'] as String?) ??
         (json['assignmentId'] as String?) ??
+        (json['id'] as String?) ??
         '';
 
     // Booking/mission/request — same thing across all three sources.
-    final bookingId = (json['booking_id'] as String?) ??
+    final bookingId =
+        (json['booking_id'] as String?) ??
         (json['mission_id'] as String?) ??
         (json['requestId'] as String?) ??
         '';
 
     // Addresses: snake_case from broadcast, camelCase from marketplace.
-    final pickup = (json['pickup_address'] as String?) ??
+    final pickup =
+        (json['pickup_address'] as String?) ??
         (json['pickupAddress'] as String?) ??
         '';
-    final dropoff = (json['dropoff_address'] as String?) ??
+    final dropoff =
+        (json['dropoff_address'] as String?) ??
         (json['dropoffAddress'] as String?) ??
         '';
 
     // Timestamps: broadcast uses received_at/created_at, others use
     // offered_at/expiresAt.
-    final createdRaw = (json['received_at'] as String?) ??
+    final createdRaw =
+        (json['received_at'] as String?) ??
         (json['created_at'] as String?) ??
         (json['offered_at'] as String?) ??
         (json['offeredAt'] as String?);
-    final expiresRaw = (json['expires_at'] as String?) ??
-        (json['expiresAt'] as String?);
+    final expiresRaw =
+        (json['expires_at'] as String?) ?? (json['expiresAt'] as String?);
 
     // Numeric fields.
-    final fareAmount = (json['fare_amount'] as num?)?.toInt() ??
+    final fareAmount =
+        (json['fare_amount'] as num?)?.toInt() ??
         (json['estimated_fare_kobo'] as num?)?.toInt() ??
         0;
     final distanceKm = ((json['distance_km'] as num?) ?? 0).toDouble();
@@ -209,16 +220,16 @@ class RequestModel {
       expiresAt: expiresRaw != null ? DateTime.tryParse(expiresRaw) : null,
       customerPhoto: json['customer_photo'] as String?,
       notes: json['notes'] as String?,
-      serviceTier: (json['service_tier'] as String?) ??
+      serviceTier:
+          (json['service_tier'] as String?) ??
           (json['serviceType'] as String?) ??
           'standard',
       serviceTierLabel: json['service_tier_label'] as String?,
       source: _inferSource(kind),
       lifecycle: _parseLifecycle(json['lifecycle'] as String?),
       itemSummary: json['item_summary'] as String?,
-      handlingTags: (json['handling_tags'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
+      handlingTags:
+          (json['handling_tags'] as List?)?.map((e) => e.toString()).toList() ??
           const [],
       sourceOrgName: json['source_org_name'] as String?,
       previousFareKobo: (json['previous_fare_kobo'] as num?)?.toInt(),
@@ -246,18 +257,18 @@ class RequestModel {
   }
 
   static RequestSource _inferSource(RequestServerKind kind) => switch (kind) {
-        RequestServerKind.broadcast => RequestSource.broadcast,
-        RequestServerKind.assignmentOffer => RequestSource.assignment,
-        RequestServerKind.organizationOffer => RequestSource.commerce,
-        RequestServerKind.companyAssignment => RequestSource.commerce,
-      };
+    RequestServerKind.broadcast => RequestSource.broadcast,
+    RequestServerKind.assignmentOffer => RequestSource.assignment,
+    RequestServerKind.organizationOffer => RequestSource.commerce,
+    RequestServerKind.companyAssignment => RequestSource.commerce,
+  };
 
   static RequestLifecycleState _parseLifecycle(String? raw) => switch (raw) {
-        'expired' => RequestLifecycleState.expired,
-        'taken' => RequestLifecycleState.taken,
-        'requoted' => RequestLifecycleState.requoted,
-        _ => RequestLifecycleState.available,
-      };
+    'expired' => RequestLifecycleState.expired,
+    'taken' => RequestLifecycleState.taken,
+    'requoted' => RequestLifecycleState.requoted,
+    _ => RequestLifecycleState.available,
+  };
 
   RequestModel copyWithSource(RequestSource source) {
     return RequestModel(

@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -62,17 +63,8 @@ class EarningsDetailsScreen extends StatelessWidget {
         children: [
           Align(
             alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  size: 22,
-                  color: colors.text,
-                ),
-              ),
+            child: DispatchBackButton(
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ),
           Text(
@@ -110,7 +102,7 @@ class EarningsDetailsScreen extends StatelessWidget {
           '₦${_formatAmount(day.amountNaira)}',
           style: TextStyle(
             fontSize: 32,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             color: colors.brandTeal500,
             letterSpacing: -0.8,
             height: 1.0,
@@ -126,16 +118,14 @@ class EarningsDetailsScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _MiniStat(
-            label: 'Deliveries',
-            value: '${day.deliveries}',
-          ),
+          child: _MiniStat(label: 'Deliveries', value: '${day.deliveries}'),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _MiniStat(
             label: 'Avg. per delivery',
-            value: '₦${_formatAmount(day.deliveries == 0 ? 0 : day.amountNaira / day.deliveries)}',
+            value:
+                '₦${_formatAmount(day.deliveries == 0 ? 0 : day.amountNaira / day.deliveries)}',
           ),
         ),
       ],
@@ -198,7 +188,7 @@ class _MiniStat extends StatelessWidget {
             value,
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: colors.text,
               letterSpacing: -0.4,
               height: 1.0,
@@ -242,11 +232,9 @@ class _DeliveryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.palette;
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const AdjustmentDetailScreen(),
-        ),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AdjustmentDetailScreen())),
       behavior: HitTestBehavior.opaque,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -288,10 +276,7 @@ class _DeliveryRow extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     item.time,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: colors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 13, color: colors.textMuted),
                   ),
                 ],
               ),

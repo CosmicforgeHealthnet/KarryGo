@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -55,14 +56,13 @@ class _LicenceUploadScreenState extends State<LicenceUploadScreen> {
         widget.verificationController.draft?.expiryYear != null &&
                 widget.verificationController.draft?.expiryMonth != null
             ? '${widget.verificationController.draft!.expiryYear}-'
-                '${widget.verificationController.draft!.expiryMonth}-01'
+                  '${widget.verificationController.draft!.expiryMonth}-01'
             : '',
       ) ??
       DateTime.now().add(const Duration(days: 365));
 
   String? get _state =>
-      widget.issuingState ??
-      widget.verificationController.draft?.issuingState;
+      widget.issuingState ?? widget.verificationController.draft?.issuingState;
 
   // ── Pickers ───────────────────────────────────────────────────────────
 
@@ -204,17 +204,8 @@ class _LicenceUploadScreenState extends State<LicenceUploadScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(false),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -244,8 +235,8 @@ class _LicenceUploadScreenState extends State<LicenceUploadScreen> {
                   Text(
                     resub ? 'Resubmit your licence' : 'Upload your licence',
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.4,
                     ),
@@ -273,8 +264,8 @@ class _LicenceUploadScreenState extends State<LicenceUploadScreen> {
                       licenceNumber: _number,
                       fullName:
                           widget.verificationController.draft?.fullName ?? '—',
-                      dateOfBirth: widget.verificationController.draft
-                              ?.dateOfBirth ??
+                      dateOfBirth:
+                          widget.verificationController.draft?.dateOfBirth ??
                           DateTime(1992, 3, 12),
                       expiry: _expiry,
                       issuingState: _state ?? '—',
@@ -295,10 +286,7 @@ class _LicenceUploadScreenState extends State<LicenceUploadScreen> {
                               },
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: c.text,
-                                side: BorderSide(
-                                  color: c.border,
-                                  width: 1.2,
-                                ),
+                                side: BorderSide(color: c.border, width: 1.2),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(999),
                                 ),
@@ -356,8 +344,9 @@ class _LicenceUploadScreenState extends State<LicenceUploadScreen> {
                 height: 52,
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed:
-                      _photoPath != null && !_isSubmitting ? _submit : null,
+                  onPressed: _photoPath != null && !_isSubmitting
+                      ? _submit
+                      : null,
                   style: FilledButton.styleFrom(
                     textStyle: const TextStyle(
                       fontSize: 16,
@@ -425,8 +414,10 @@ class _LicenceCardReplica extends StatelessWidget {
             children: [
               // ── Green header band ──
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: const BoxDecoration(
                   color: nigeriaGreen,
                   borderRadius: BorderRadius.vertical(
@@ -458,7 +449,7 @@ class _LicenceCardReplica extends StatelessWidget {
                             'FEDERAL REPUBLIC OF NIGERIA',
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: 0.4,
                             ),
@@ -541,10 +532,7 @@ class _LicenceCardReplica extends StatelessWidget {
           top: -10,
           right: 12,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 5,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: c.success,
               borderRadius: BorderRadius.circular(999),
@@ -552,17 +540,13 @@ class _LicenceCardReplica extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.check_circle_rounded,
-                  size: 13,
-                  color: Colors.white,
-                ),
+                Icon(Icons.check_circle_rounded, size: 13, color: Colors.white),
                 SizedBox(width: 4),
                 Text(
                   'Verified',
                   style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 0.2,
                   ),
@@ -577,8 +561,18 @@ class _LicenceCardReplica extends StatelessWidget {
 
   static String _fmtUpper(DateTime d) {
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     final day = d.day.toString().padLeft(2, '0');
     return '$day ${months[d.month - 1]} ${d.year}';
@@ -669,7 +663,7 @@ class _DashedUpload extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 'JPG, PNG or PDF · up to 500 MB',
-                style: TextStyle(fontSize: 12.5, color: c.textMuted),
+                style: TextStyle(fontSize: 13, color: c.textMuted),
               ),
             ],
           ),

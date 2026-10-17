@@ -215,15 +215,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                           size: 24,
                         ),
                       ),
-                      IconButton(
-                        onPressed: widget.onSettings,
-                        tooltip: 'Data source: ${widget.runtime.mode.name}',
-                        icon: Icon(
-                          Icons.tune_rounded,
-                          size: 21,
-                          color: KarryamColors.tealInk.forInk(context),
-                        ),
-                      ),
                     ],
                   ),
                 ),

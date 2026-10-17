@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import '../../../app/vendor_app.dart';
+import '../../../app/data/vendor_preferences.dart';
 import '../../../core/contracts/vendor_contract.dart';
 import '../../../core/network/vendor_command.dart';
 import '../../catalogue/state/advanced_controller.dart';
@@ -18,9 +19,90 @@ enum StockSection {
 }
 
 class StockController extends ChangeNotifier {
-  StockController(this.app, this.branchId);
+  StockController(this.app, this.branchId, {VendorPreferences? preferences})
+    : preferences = preferences ?? VendorPreferences();
   final VendorApp app;
   final String branchId;
+  final VendorPreferences preferences;
+  late final recoveryKey =
+      'vendor.stock-update.${base64Url.encode(utf8.encode('${app.client.config.origin}|${app.scope.vendorId}|${app.auth.session?.staffId}|$branchId'))}';
+  JsonObject? pending;
+  bool recoveryBlocked = false;
+  bool get hasUnresolvedUpdate => pending != null || recoveryBlocked;
+  Future<void>? _restoring;
+
+  Future<void> restorePending() => _restoring ??= _restorePending();
+  Future<void> _restorePending() async {
+    try {
+      final raw = await preferences.read(recoveryKey);
+      if (raw == null || raw == '{}') {
+        recoveryBlocked = false;
+        error = null;
+        emit();
+        return;
+      }
+      final saved = jsonObject(jsonDecode(raw));
+      if (saved['vendor'] != app.scope.vendorId ||
+          saved['branch'] != branchId ||
+          saved['method'] is! String ||
+          saved['path'] is! String ||
+          saved['parameters'] is! Map ||
+          saved['fingerprint'] is! String ||
+          saved['key'] is! String ||
+          !RegExp(r'^[a-f0-9]{48}$').hasMatch(saved['key']) ||
+          saved['body'] != null && saved['body'] is! Map ||
+          !(saved['parameters'] as Map).values.every((v) => v is String) ||
+          !['POST', 'PUT', 'PATCH', 'DELETE'].contains(saved['method']) ||
+          !((saved['path'] as String).startsWith('$root/') ||
+              (saved['path'] as String).startsWith('$branchPath/'))) {
+        throw const FormatException('Invalid saved stock update');
+      }
+      final fingerprint =
+          '${saved['method']} ${saved['path']} ${jsonEncode(saved['parameters'])} ${jsonEncode(saved['body'])}';
+      if (saved['fingerprint'] != fingerprint ||
+          (saved['path'] as String).startsWith('$branchPath/') &&
+              saved['parameters']['branchId'] != branchId) {
+        throw const FormatException('Saved stock update scope does not match');
+      }
+      app.shopCatalogueApi.operation(saved['method'], saved['path']);
+      pending = saved;
+      commands[saved['fingerprint']] = VendorCommand(
+        idempotencyKey: saved['key'],
+      );
+      uncertainOutcome = true;
+      recoveryBlocked = false;
+      error = null;
+    } catch (_) {
+      recoveryBlocked = true;
+      error =
+          'The saved stock update could not be read. Retry recovery before making another update.';
+    }
+    emit();
+  }
+
+  Future<JsonObject?> retryPending() async {
+    if (busy || disposed) return null;
+    if (recoveryBlocked) {
+      _restoring = null;
+      await restorePending();
+    }
+    final saved = pending;
+    if (saved == null || recoveryBlocked) return null;
+    return mutate(
+      saved['method'],
+      saved['path'],
+      parameters: Map<String, String>.from(saved['parameters']),
+      body: saved['body'] == null ? null : jsonObject(saved['body']),
+    );
+  }
+
+  Future<void> _clearPending(String fingerprint) async {
+    await preferences.write(recoveryKey, '{}');
+    pending = null;
+    commands.remove(fingerprint);
+    uncertainOutcome = false;
+  }
+
   static const branchPath = '/api/v1/vendor/shop/branches/{branchId}/inventory';
   static const root = '/api/v1/vendor/shop/inventory';
   late final reader = AdvancedController(
@@ -202,6 +284,7 @@ class StockController extends ChangeNotifier {
   }
 
   Future<void> prepare() async {
+    await restorePending();
     setupError = null;
     loading = true;
     emit();
@@ -330,7 +413,40 @@ class StockController extends ChangeNotifier {
         '$method $path ${jsonEncode(parameters)} ${jsonEncode(body)}';
     final command = commands.putIfAbsent(fingerprint, VendorCommand.create);
     try {
+      await restorePending();
+      if (recoveryBlocked) {
+        commands.remove(fingerprint);
+        return null;
+      }
+      if (pending != null && pending!['fingerprint'] != fingerprint) {
+        commands.remove(fingerprint);
+        uncertainOutcome = true;
+        error =
+            'Confirm the saved stock update before making a different update.';
+        return null;
+      }
       final op = app.shopCatalogueApi.operation(method, path);
+      if (pending == null) {
+        if (op.requestSchema != null && body != null) {
+          validateRequest(body, op.requestSchema!);
+        }
+        final saved = jsonObject(
+          jsonDecode(
+            jsonEncode({
+              'vendor': app.scope.vendorId,
+              'branch': branchId,
+              'method': method,
+              'path': path,
+              'parameters': parameters,
+              'body': body,
+              'fingerprint': fingerprint,
+              'key': command.idempotencyKey,
+            }),
+          ),
+        );
+        await preferences.write(recoveryKey, jsonEncode(saved));
+        pending = saved;
+      }
       final response = await app.shopCatalogueApi.request(
         method,
         path,
@@ -338,7 +454,7 @@ class StockController extends ChangeNotifier {
         body: body == null
             ? (op.requestRequired ? VendorPayload({}) : null)
             : VendorPayload(body),
-        command: command,
+        command: commands[fingerprint] ?? command,
         retryAuthentication: false,
       );
       if (path.startsWith('$root/quarantines')) {
@@ -354,17 +470,29 @@ class StockController extends ChangeNotifier {
           throw const FormatException('Reorder stock scope does not match');
         }
       }
-      commands.remove(fingerprint);
+      await _clearPending(fingerprint);
       return response.object;
     } catch (e) {
-      error = message(e);
+      error = e is ApiException
+          ? e.message
+          : pending == null
+          ? 'Your stock update was not sent. Check the details and try again.'
+          : 'The stock update could not be confirmed. Retry the saved update to avoid duplicating stock.';
+      if (e is VendorContractException && pending == null) {
+        commands.remove(fingerprint);
+      }
       errorCode = e is ApiException ? e.code : null;
       if (e is ApiException && e.statusCode == 403) denied.add('$method $path');
       if (e is ApiException &&
           e.statusCode != null &&
           e.statusCode! >= 400 &&
-          e.statusCode! < 500) {
-        commands.remove(fingerprint);
+          e.statusCode! < 500 &&
+          e.statusCode != 408) {
+        try {
+          await _clearPending(fingerprint);
+        } catch (_) {
+          recoveryBlocked = true;
+        }
       }
       uncertainOutcome = commands.containsKey(fingerprint);
       return null;

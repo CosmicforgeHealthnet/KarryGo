@@ -26,6 +26,7 @@ func RegisterProviderPickupRoutes(engine *gin.Engine, tokens *authusecases.Token
 		}
 		c.Next()
 	})
+	group.GET("/by-trip/:tripId", handler.readProviderTrip)
 	group.POST("/:missionRef/stops/:stopRef/arrive", handler.arrivePickup)
 	group.POST("/:missionRef/stops/:stopRef/complete", handler.completePickup)
 	group.POST("/:missionRef/receiver-unavailable", handler.receiverUnavailable)

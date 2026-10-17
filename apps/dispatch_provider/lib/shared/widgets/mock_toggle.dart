@@ -14,7 +14,7 @@ class MockModeBanner extends StatefulWidget {
 class _MockModeBannerState extends State<MockModeBanner> {
   @override
   Widget build(BuildContext context) {
-    if (!AppModeConfig.isMock) return widget.child;
+    if (!AppModeConfig.instance.isMock) return widget.child;
 
     return Column(
       children: [

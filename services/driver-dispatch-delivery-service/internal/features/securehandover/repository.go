@@ -523,6 +523,11 @@ func (r *Repository) CreateCaptureSession(ctx context.Context, context Context, 
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return CaptureSession{}, err
 	}
+	_, err = r.db.Exec(ctx, `UPDATE dispatch_evidence_capture_sessions SET status='EXPIRED',updated_at=$2
+		WHERE challenge_id=$1::uuid AND status='ACTIVE' AND expires_at<=$2`, challenge.ID, now)
+	if err != nil {
+		return CaptureSession{}, err
+	}
 	_, err = r.db.Exec(ctx, `INSERT INTO dispatch_evidence_capture_sessions(capture_session_ref,challenge_id,mission_id,stop_id,trip_id,provider_id,
 		manifest_ref,manifest_version,stage,evidence_type,expires_at,operation_ref,request_fingerprint,created_at,updated_at)
 		VALUES($1,$2::uuid,NULLIF($3,'')::uuid,NULLIF($4,'')::uuid,$5::uuid,$6::uuid,$7,$8,$9,$10,$11,$12,$13,$14,$14)`,
@@ -613,18 +618,25 @@ func (r *Repository) RecordEvidence(ctx context.Context, in evidenceInput) (Evid
 		return Evidence{}, err
 	}
 	if providerID != in.ProviderID || tripID != in.Context.TripID || missionID != in.Context.MissionID || stopID != in.Context.StopID ||
-		manifestRef != in.Context.ManifestRef || manifestVersion != in.Context.ManifestVersion || status != "ACTIVE" || !in.Now.Before(expires) {
+		manifestRef != in.Context.ManifestRef || manifestVersion != in.Context.ManifestVersion {
 		return Evidence{}, ErrScopeMismatch
 	}
 	var existing Evidence
-	err = tx.QueryRow(ctx, `SELECT evidence_ref,media_ref,stage,evidence_type,manifest_ref,manifest_version,captured_at
+	var storedFingerprint, storedSessionID string
+	err = tx.QueryRow(ctx, `SELECT evidence_ref,media_ref,stage,evidence_type,manifest_ref,manifest_version,captured_at,request_fingerprint,capture_session_id::text
 		FROM dispatch_evidence_refs WHERE operation_ref=$1`, in.Command.OperationRef).
-		Scan(&existing.EvidenceRef, &existing.MediaRef, &existing.Stage, &existing.EvidenceType, &existing.ManifestRef, &existing.ManifestVersion, &existing.CapturedAt)
+		Scan(&existing.EvidenceRef, &existing.MediaRef, &existing.Stage, &existing.EvidenceType, &existing.ManifestRef, &existing.ManifestVersion, &existing.CapturedAt, &storedFingerprint, &storedSessionID)
 	if err == nil {
+		if storedFingerprint != in.Fingerprint || storedSessionID != sessionID {
+			return Evidence{}, ErrConflict
+		}
 		return existing, tx.Commit(ctx)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Evidence{}, err
+	}
+	if status != "ACTIVE" || !in.Now.Before(expires) {
+		return Evidence{}, ErrExpired
 	}
 	evidenceRef, err := randomReference("evidence")
 	if err != nil {

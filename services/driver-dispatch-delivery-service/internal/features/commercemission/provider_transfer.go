@@ -318,7 +318,11 @@ func (r *Repository) CompleteProviderTransfer(ctx context.Context, providerID, m
 	// The shared custody transfer needs its own immutable evidence record.
 	// It is written before the transfer itself, so a failed transfer leaves
 	// evidence of an attempt and never a custody change nobody performed.
-	custodyEvidenceRef, err := r.recordCustodyTransferEvidence(ctx, missionRef, command.OperationRef, providerID, firstRef(evidenceCommand.MediaRefs), command.ParcelRefs, now)
+	capturedAt := command.Evidence.CapturedAt
+	if capturedAt.IsZero() {
+		capturedAt = now
+	}
+	custodyEvidenceRef, err := r.recordCustodyTransferEvidence(ctx, missionRef, command.OperationRef, oldProvider, providerID, firstRef(evidenceCommand.MediaRefs), command.ParcelRefs, capturedAt)
 	if err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
@@ -334,9 +338,7 @@ func (r *Repository) CompleteProviderTransfer(ctx context.Context, providerID, m
 		cancelled_at=$2,updated_at=$2 WHERE id=$1::uuid AND status NOT IN ('completed','cancelled','failed')`, oldTrip, now); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
-	if err = startCommerceTripTx(ctx, tx, missionID, delivery, now); err != nil {
-		return dispatchcommerce.Mission{}, err
-	}
+
 	if _, err = tx.Exec(ctx, `UPDATE commerce_mission_carrier_history SET custody_ended_at=$2,end_reason='PROVIDER_TRANSFER',source_version=$3
 		WHERE commerce_mission_id=$1::uuid AND custody_ended_at IS NULL`, missionID, now, nextVersion); err != nil {
 		return dispatchcommerce.Mission{}, err
@@ -364,6 +366,9 @@ func (r *Repository) CompleteProviderTransfer(ctx context.Context, providerID, m
 		replacement_provider_id=NULL,replacement_trip_id=NULL,runtime_state='IN_TRANSIT',queue_state='ASSIGNED',
 		reason_code='',receiver_challenge_generation=receiver_challenge_generation+1,source_version=$4,updated_at=$5
 		WHERE id=$1::uuid`, missionID, newTrip, newProvider, nextVersion, now); err != nil {
+		return dispatchcommerce.Mission{}, err
+	}
+	if err = startCommerceTripTx(ctx, tx, missionID, delivery, now); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
 	view, err := loadMissionViewTx(ctx, tx, missionID)
@@ -422,4 +427,25 @@ func firstRef(refs []string) string {
 		return ""
 	}
 	return refs[0]
+}
+
+func (s *OperationalService) ProviderTransferCredential(ctx context.Context, providerID, missionRef, transferRef string) (TransferCredential, error) {
+	if s == nil || s.repo == nil || len(s.handoverSecret) == 0 {
+		return TransferCredential{}, apperrors.Unavailable("Transfer handover is unavailable.", nil)
+	}
+	var raw []byte
+	err := s.repo.db.QueryRow(ctx, `SELECT o.result_snapshot FROM commerce_provider_transfers t
+ JOIN commerce_missions m ON m.id=t.commerce_mission_id JOIN commerce_mission_operations o ON o.commerce_mission_id=m.id AND o.operation_ref=t.operation_ref AND o.caller_service='provider:' || t.old_provider_id::text
+ WHERE m.canonical_ref=$1 AND t.transfer_ref=$2 AND t.old_provider_id=$3::uuid AND t.state='CHALLENGE_ISSUED' AND t.challenge_expires_at>$4`, missionRef, transferRef, providerID, s.now().UTC()).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TransferCredential{}, apperrors.NotFound("An active outgoing transfer code was not found.", nil)
+	}
+	if err != nil {
+		return TransferCredential{}, err
+	}
+	var result TransferCredential
+	if err = json.Unmarshal(raw, &result); err != nil {
+		return TransferCredential{}, err
+	}
+	return s.transferCredentialForProvider(ctx, providerID, result)
 }

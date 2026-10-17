@@ -1,22 +1,94 @@
+import '../../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/async_content.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
 import '../../models/dispute_models.dart';
 import '../../state/rider_dispute_controller.dart';
 import 'create_case_screen.dart';
+import '../dispute_chat_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Figma 06 — Case Detail / In progress (stage < 2)
 // Figma 07 — Case Resolved (stage == 2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-class CaseDetailScreen extends StatelessWidget {
+class CaseDetailScreen extends StatefulWidget {
   const CaseDetailScreen({
     super.key,
     required this.complaint,
     required this.disputeController,
   });
+  final Complaint complaint;
+  final RiderDisputeController disputeController;
+  @override
+  State<CaseDetailScreen> createState() => _CaseDetailScreenState();
+}
 
+class _CaseDetailScreenState extends State<CaseDetailScreen>
+    with WidgetsBindingObserver {
+  late Complaint _case = widget.complaint;
+  bool _busy = false;
+  String? _error;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    if (_busy || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final updated = await widget.disputeController.refreshComplaint(
+        widget.complaint.id,
+      );
+      if (mounted) setState(() => _case = updated);
+    } catch (_) {
+      if (mounted)
+        setState(() => _error = 'The latest case status could not be loaded.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _CaseDetailContent(
+    complaint: _case,
+    disputeController: widget.disputeController,
+    refreshing: _busy,
+    error: _error,
+    onRefresh: _refresh,
+  );
+}
+
+class _CaseDetailContent extends StatelessWidget {
+  const _CaseDetailContent({
+    required this.complaint,
+    required this.disputeController,
+    required this.refreshing,
+    required this.onRefresh,
+    this.error,
+  });
+
+  final bool refreshing;
+  final Future<void> Function() onRefresh;
+  final String? error;
   final Complaint complaint;
   final RiderDisputeController disputeController;
 
@@ -25,19 +97,23 @@ class CaseDetailScreen extends StatelessWidget {
   Future<void> _openNewCase(BuildContext context) async {
     final r = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => CreateCaseScreen(
-          disputeController: disputeController,
-        ),
+        builder: (_) => CreateCaseScreen(disputeController: disputeController),
       ),
     );
     if (!context.mounted) return;
     if (r == true) Navigator.of(context).pop();
   }
 
-  void _reopen(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Case reopened')),
+  Future<void> _openConversation(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DisputeChatScreen(
+          complaint: complaint,
+          controller: disputeController,
+        ),
+      ),
     );
+    if (context.mounted) await onRefresh();
   }
 
   @override
@@ -46,13 +122,13 @@ class CaseDetailScreen extends StatelessWidget {
     final status = complaint.status.toLowerCase();
 
     final (label, fg, bg) = switch (status) {
-      'resolved' || 'closed' => ('Resolved', c.success, c.successSoft),
-      'under_review' || 'awaiting_evidence' || 'escalated' => (
-          'In progress',
-          c.info,
-          c.info.withValues(alpha: 0.12),
-        ),
-      _ => ('Open', c.warning, c.warningSoft),
+      'resolved' => ('Resolved', c.success, c.successSoft),
+      'closed' => ('Closed', c.textMuted, c.surfaceElevated),
+      'under_review' => ('Under review', c.info, c.surfaceElevated),
+      'awaiting_evidence' => ('Evidence requested', c.warning, c.warningSoft),
+      'escalated' => ('Escalated', c.warning, c.warningSoft),
+      'open' => ('Submitted', c.info, c.surfaceElevated),
+      _ => ('Status unavailable', c.textMuted, c.surfaceElevated),
     };
 
     return Scaffold(
@@ -65,17 +141,8 @@ class CaseDetailScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -89,6 +156,17 @@ class CaseDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Refresh case',
+                    onPressed: refreshing ? null : onRefresh,
+                    icon: refreshing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                  ),
                 ],
               ),
             ),
@@ -97,6 +175,15 @@ class CaseDetailScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 children: [
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: ActionNotice(
+                        message: '$error Showing the last saved case details.',
+                        isError: true,
+                        onRetry: onRefresh,
+                      ),
+                    ),
                   // ── Status chip ──
                   Row(
                     children: [
@@ -202,7 +289,9 @@ class CaseDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            'This case has been resolved',
+                            complaint.status == 'closed'
+                                ? 'This case is closed'
+                                : 'This case has been resolved',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 20,
@@ -213,7 +302,7 @@ class CaseDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            "We've completed your request. If you still need help, you can reopen this case or create a new one.",
+                            "If you still need help, you can create a new case.",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 14,
@@ -250,26 +339,14 @@ class CaseDetailScreen extends StatelessWidget {
                       time: _fmt(complaint.createdAt),
                       done: complaint.stage >= 0,
                     ),
-                    _TimelineStep(
-                      label: 'Under review',
-                      time: complaint.stage >= 1 ? _fmt(complaint.createdAt) : '',
-                      done: complaint.stage >= 1,
-                      active: complaint.stage == 1,
-                    ),
-                    _TimelineStep(
-                      label: 'Awaiting information',
-                      time: '',
-                      done: complaint.stage >= 1,
-                      active: false,
-                    ),
-                    _TimelineStep(
-                      label: 'Resolved',
-                      time: complaint.resolvedAt != null
-                          ? _fmt(complaint.resolvedAt!)
-                          : '',
-                      done: complaint.stage >= 2,
-                      isLast: true,
-                    ),
+                    if (complaint.status != 'open')
+                      _TimelineStep(
+                        label: complaint.statusLabel,
+                        time: '',
+                        done: false,
+                        active: true,
+                        isLast: true,
+                      ),
                   ],
                 ],
               ),
@@ -277,23 +354,6 @@ class CaseDetailScreen extends StatelessWidget {
 
             // ── CTAs ──
             if (_isResolved) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: SizedBox(
-                  height: 52,
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => _reopen(context),
-                    style: FilledButton.styleFrom(
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    child: const Text('Reopen case'),
-                  ),
-                ),
-              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                 child: SizedBox(
@@ -321,14 +381,14 @@ class CaseDetailScreen extends StatelessWidget {
                   height: 52,
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => _openConversation(context),
                     style: FilledButton.styleFrom(
                       textStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: const Text('Back to cases'),
+                    child: const Text('Open conversation'),
                   ),
                 ),
               ),
@@ -340,8 +400,18 @@ class CaseDetailScreen extends StatelessWidget {
 
   static String _fmt(DateTime t) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final h12 = t.hour % 12 == 0 ? 12 : t.hour % 12;
     final m = t.minute.toString().padLeft(2, '0');
@@ -433,12 +503,12 @@ class _TimelineStep extends StatelessWidget {
                           color: Colors.white,
                         )
                       : active
-                          ? const Icon(
-                              Icons.sync_rounded,
-                              size: 10,
-                              color: Colors.white,
-                            )
-                          : null,
+                      ? const Icon(
+                          Icons.sync_rounded,
+                          size: 10,
+                          color: Colors.white,
+                        )
+                      : null,
                 ),
                 if (!isLast)
                   Expanded(

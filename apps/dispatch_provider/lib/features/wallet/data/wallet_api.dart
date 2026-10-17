@@ -13,6 +13,99 @@ class WalletApi {
   WalletApi(this.config, {http.Client? client})
     : _client = client ?? http.Client();
 
+  Future<ApiResult<List<SupportedBank>>> supportedBanks(
+    String accessToken,
+  ) async {
+    try {
+      final response = await _client
+          .get(config.uri('/provider/banks'), headers: _getHeaders(accessToken))
+          .timeout(const Duration(seconds: 35));
+      if (response.statusCode == 200) {
+        final body = _tryDecode(response.body);
+        if (body?['success'] == true &&
+            body?['data'] is Map &&
+            body?['data']['banks'] is List) {
+          final banks = (body!['data']['banks'] as List)
+              .map(
+                (bank) => SupportedBank.fromJson(
+                  Map<String, dynamic>.from(bank as Map),
+                ),
+              )
+              .toList();
+          if (banks.any(
+            (bank) =>
+                bank.code.isEmpty ||
+                bank.name.isEmpty ||
+                bank.currency != 'NGN',
+          ))
+            throw const FormatException('Invalid bank directory');
+          return ApiSuccess(banks);
+        }
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      return _networkFailure(e);
+    }
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> bankRequest(
+    String accessToken, {
+    String? id,
+    bool setDefault = false,
+    bool remove = false,
+  }) async {
+    final path =
+        '/provider/bank-accounts${id == null ? '' : '/${Uri.encodeComponent(id)}'}${setDefault ? '/default' : ''}';
+    try {
+      final request = http.Request(
+        remove
+            ? 'DELETE'
+            : setDefault
+            ? 'PUT'
+            : 'GET',
+        config.uri(path),
+      );
+      request.headers.addAll(_jsonHeaders(accessToken));
+      final response = await http.Response.fromStream(
+        await _client.send(request).timeout(const Duration(seconds: 20)),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final body = _tryDecode(response.body);
+        if (body?['success'] == true) {
+          return ApiSuccess(
+            Map<String, dynamic>.from(body!['data'] as Map? ?? {}),
+          );
+        }
+      }
+      return _failureFromResponse(response);
+    } catch (error) {
+      return _networkFailure(error);
+    }
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> listTransactions(
+    String token, {
+    int page = 1,
+  }) async {
+    try {
+      final uri = config
+          .uri('/provider/transactions')
+          .replace(queryParameters: {'page': '$page', 'limit': '20'});
+      final response = await _client
+          .get(uri, headers: _getHeaders(token))
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode == 200) {
+        final body = _tryDecode(response.body);
+        if (body?['success'] == true && body?['data'] is Map) {
+          return ApiSuccess(Map<String, dynamic>.from(body!['data'] as Map));
+        }
+      }
+      return _failureFromResponse(response);
+    } catch (error) {
+      return _networkFailure(error);
+    }
+  }
+
   static void _debugLog(String message) {
     if (kDebugMode) debugPrint(message);
   }

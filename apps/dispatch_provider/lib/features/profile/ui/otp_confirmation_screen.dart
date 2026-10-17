@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,8 +20,7 @@ class OtpConfirmationScreen extends StatefulWidget {
   final String newPhoneNumber;
 
   @override
-  State<OtpConfirmationScreen> createState() =>
-      _OtpConfirmationScreenState();
+  State<OtpConfirmationScreen> createState() => _OtpConfirmationScreenState();
 }
 
 class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
@@ -85,9 +85,9 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
       _canResend = false;
     });
     _startTimer();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Verification code resent.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Verification code resent.')));
   }
 
   Future<void> _confirm() async {
@@ -132,17 +132,8 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
@@ -155,8 +146,8 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
                   Text(
                     'Enter verification code',
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.4,
                     ),
@@ -171,9 +162,7 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
                         height: 1.5,
                       ),
                       children: [
-                        const TextSpan(
-                          text: "We've sent a 6-digit code to ",
-                        ),
+                        const TextSpan(text: "We've sent a 6-digit code to "),
                         TextSpan(
                           text: widget.phoneDisplay,
                           style: TextStyle(
@@ -229,9 +218,7 @@ class _OtpConfirmationScreenState extends State<OtpConfirmationScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: _canResend
-                                ? c.brandTeal500
-                                : c.textMuted,
+                            color: _canResend ? c.brandTeal500 : c.textMuted,
                           ),
                         ),
                       ),
@@ -298,9 +285,7 @@ class _OtpSlots extends StatelessWidget {
             color: c.inputFill,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: hasValue || isActive
-                  ? c.brandTeal500
-                  : c.border,
+              color: hasValue || isActive ? c.brandTeal500 : c.border,
               width: hasValue || isActive ? 1.6 : 1.0,
             ),
           ),

@@ -5,12 +5,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
 import '../../../core/app_mode.dart';
+import '../../offline/state/offline_updates_controller.dart';
 import '../../home/mock/dispatch_home_mock.dart';
 import '../data/availability_api.dart';
 import '../data/availability_models.dart';
 
 class AvailabilityController extends ChangeNotifier {
   final AvailabilityApi api;
+  final OfflineUpdatesController? offlineUpdates;
   final String? Function() getAccessToken;
 
   ProviderAvailability? _availability;
@@ -46,7 +48,11 @@ class AvailabilityController extends ChangeNotifier {
 
   bool get isOnline => _availability?.isOnline ?? false;
 
-  AvailabilityController({required this.api, required this.getAccessToken});
+  AvailabilityController({
+    required this.api,
+    required this.getAccessToken,
+    this.offlineUpdates,
+  });
 
   static void _debugLog(String message) {
     if (kDebugMode) debugPrint(message);
@@ -133,6 +139,8 @@ class AvailabilityController extends ChangeNotifier {
     }
   }
 
+  void stopTracking() => _stopLocationUpdates();
+
   void _stopLocationUpdates() {
     _positionSub?.cancel();
     _positionSub = null;
@@ -157,6 +165,7 @@ class AvailabilityController extends ChangeNotifier {
         heading: pos.heading,
         speed: pos.speed,
         accuracy: pos.accuracy,
+        observedAt: pos.timestamp,
       );
     } finally {
       _isSendingLocation = false;
@@ -176,6 +185,7 @@ class AvailabilityController extends ChangeNotifier {
         heading: pos.heading,
         speed: pos.speed,
         accuracy: pos.accuracy,
+        observedAt: pos.timestamp,
       );
     } finally {
       _isSendingLocation = false;
@@ -188,10 +198,10 @@ class AvailabilityController extends ChangeNotifier {
     // MOCK: skip the network, return state from DispatchHomeMock.
     if (AppModeConfig.instance.isMock) {
       final avail = ProviderAvailability(
-  status: DispatchHomeMock.isOnline ? 'online' : 'offline',
-  sessionId: DispatchHomeMock.isOnline ? 'mock-session' : null,
-  sessionStart: DispatchHomeMock.isOnline ? DateTime.now() : null,
-);
+        status: DispatchHomeMock.isOnline ? 'online' : 'offline',
+        sessionId: DispatchHomeMock.isOnline ? 'mock-session' : null,
+        sessionStart: DispatchHomeMock.isOnline ? DateTime.now() : null,
+      );
       _availability = avail;
       notifyListeners();
       return ApiSuccess(avail);
@@ -248,16 +258,16 @@ class AvailabilityController extends ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
-            await Future.delayed(const Duration(milliseconds: 3200));
+      await Future.delayed(const Duration(milliseconds: 3200));
 
       DispatchHomeMock.isOnline = true;
       DispatchHomeMock.seedPendingRequests();
 
       final avail = ProviderAvailability(
-  status: 'online',
-  sessionId: 'mock-session-${DateTime.now().millisecondsSinceEpoch}',
-  sessionStart: DateTime.now(),
-);
+        status: 'online',
+        sessionId: 'mock-session-${DateTime.now().millisecondsSinceEpoch}',
+        sessionStart: DateTime.now(),
+      );
       _availability = avail;
       _isChangingStatus = false;
       notifyListeners();
@@ -414,6 +424,7 @@ class AvailabilityController extends ChangeNotifier {
     double? heading,
     double? speed,
     double? accuracy,
+    DateTime? observedAt,
   }) async {
     if (!isOnline) {
       _debugLog('[LOCATION] Skipping sendLocation — provider is not online.');
@@ -474,6 +485,31 @@ class AvailabilityController extends ChangeNotifier {
         }
       },
     );
+    if (offlineUpdates != null) {
+      await result.when(
+        success: (_) async {
+          unawaited(offlineUpdates!.sync());
+        },
+        failure: (error) async {
+          if (observedAt != null &&
+              heading != null &&
+              speed != null &&
+              accuracy != null &&
+              (error.code == ApiErrorCode.network ||
+                  (error.statusCode ?? 0) >= 500 ||
+                  error.statusCode == 429)) {
+            await offlineUpdates!.saveLocation(
+              latitude: lat,
+              longitude: lng,
+              heading: heading,
+              speed: speed,
+              accuracy: accuracy,
+              observedAt: observedAt,
+            );
+          }
+        },
+      );
+    }
     return result;
   }
 

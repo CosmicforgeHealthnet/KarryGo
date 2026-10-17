@@ -1,3 +1,5 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../core/app_mode.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,8 +25,12 @@ class PhoneEntryScreen extends StatefulWidget {
 }
 
 class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
-  final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController(
+    text: AppModeConfig.instance.isMock ? '8000000000' : '',
+  );
+  final _emailController = TextEditingController(
+    text: AppModeConfig.instance.isMock ? 'rider@example.com' : '',
+  );
   bool _isLoading = false;
 
   @override
@@ -128,10 +134,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                'assets/figma/splash_logo.png',
-                width: 88,
-              ),
+              Image.asset('assets/figma/splash_logo.png', width: 88),
               const SizedBox(height: 4),
               Text(
                 'Karryam',
@@ -190,11 +193,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Container(
-                    width: 1,
-                    height: 24,
-                    color: c.border,
-                  ),
+                  Container(width: 1, height: 24, color: c.border),
                   const SizedBox(width: 12),
                   Expanded(
                     child: TextField(
@@ -216,7 +215,9 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                         ),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -272,11 +273,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
         const SizedBox(height: 10),
         Row(
           children: [
-            Icon(
-              Icons.verified_user_outlined,
-              size: 16,
-              color: c.brandTeal500,
-            ),
+            Icon(Icons.verified_user_outlined, size: 16, color: c.brandTeal500),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -337,32 +334,17 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     final email = _emailController.text.trim();
 
     if (rawPhone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your phone number.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showDispatchError(context, 'Please enter your phone number.');
       return;
     }
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your email address.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showDispatchError(context, 'Please enter your email address.');
       return;
     }
 
     final emailRegex = RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$');
     if (!emailRegex.hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid email address.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showDispatchError(context, 'Please enter a valid email address.');
       return;
     }
 
@@ -379,19 +361,13 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     }
 
     if (subscriber.length != 10 || !RegExp(r'^\d{10}$').hasMatch(subscriber)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid Nigerian phone number.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showDispatchError(context, 'Please enter a valid Nigerian phone number.');
       return;
     }
 
     final phone = '+234$subscriber';
     debugPrint('[SIGNUP] Normalized phone: $phone');
 
-    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
 
     final result = await widget.controller.signupStart(
@@ -405,13 +381,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
     result.when(
       success: (_) => widget.onContinue(phone, email),
       failure: (error) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(_signupErrorMessage(error)),
-            backgroundColor: Colors.red.shade800,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        showDispatchError(context, _signupErrorMessage(error));
       },
     );
   }
@@ -421,7 +391,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
       case ApiErrorCode.conflict:
         return 'An account already exists with this phone number or email. Please log in instead.';
       case ApiErrorCode.network:
-        return 'Cannot connect to Karryam server. Check backend URL/network and try again.';
+        return 'Could not connect. Check your connection and try again.';
       case ApiErrorCode.rateLimited:
         return 'Too many attempts. Please wait a moment and try again.';
       case ApiErrorCode.validationFailed:
@@ -473,11 +443,7 @@ class _ClearButton extends StatelessWidget {
 }
 
 class _FieldShell extends StatefulWidget {
-  const _FieldShell({
-    required this.child,
-    this.leadingBuilder,
-    this.trailing,
-  });
+  const _FieldShell({required this.child, this.leadingBuilder, this.trailing});
 
   final Widget child;
   final Widget Function(bool focused)? leadingBuilder;
@@ -511,13 +477,7 @@ class _FieldShellState extends State<_FieldShell> {
             width: _focused ? 1.6 : 1,
           ),
           boxShadow: _focused
-              ? [
-                  BoxShadow(
-                    color: focusRing,
-                    blurRadius: 0,
-                    spreadRadius: 4,
-                  ),
-                ]
+              ? [BoxShadow(color: focusRing, blurRadius: 0, spreadRadius: 4)]
               : const [],
         ),
         child: Row(
@@ -558,8 +518,9 @@ class _PhoneFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final allDigits = newValue.text.replaceAll(RegExp(r'\D'), '');
-    final digits =
-        allDigits.length > 13 ? allDigits.substring(0, 13) : allDigits;
+    final digits = allDigits.length > 13
+        ? allDigits.substring(0, 13)
+        : allDigits;
     final first = digits.startsWith('0') ? 4 : 3;
 
     final buffer = StringBuffer();
@@ -574,8 +535,10 @@ class _PhoneFormatter extends TextInputFormatter {
         : (newValue.selection.end > newValue.text.length
               ? newValue.text.length
               : newValue.selection.end);
-    var digitsBeforeCursor =
-        newValue.text.substring(0, end).replaceAll(RegExp(r'\D'), '').length;
+    var digitsBeforeCursor = newValue.text
+        .substring(0, end)
+        .replaceAll(RegExp(r'\D'), '')
+        .length;
     if (digitsBeforeCursor > digits.length) digitsBeforeCursor = digits.length;
 
     var offset = 0;
@@ -612,7 +575,8 @@ class _ContinueButton extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([phoneListenable, emailListenable]),
       builder: (context, _) {
-        final canContinue = phoneListenable.text.trim().isNotEmpty &&
+        final canContinue =
+            phoneListenable.text.trim().isNotEmpty &&
             emailListenable.text.trim().isNotEmpty;
         final enabled = canContinue && !isLoading;
         return AnimatedContainer(
@@ -634,8 +598,7 @@ class _ContinueButton extends StatelessWidget {
             onPressed: enabled ? onTap : null,
             style: FilledButton.styleFrom(
               backgroundColor: c.brandTeal500,
-              disabledBackgroundColor:
-                  c.brandTeal500.withValues(alpha: 0.45),
+              disabledBackgroundColor: c.brandTeal500.withValues(alpha: 0.45),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -645,7 +608,7 @@ class _ContinueButton extends StatelessWidget {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                       strokeWidth: 2,
                     ),
                   )
@@ -657,14 +620,14 @@ class _ContinueButton extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: Color(0xFF081F44),
                         ),
                       ),
                       SizedBox(width: 8),
                       Icon(
                         Icons.arrow_forward_rounded,
                         size: 20,
-                        color: Colors.white,
+                        color: Color(0xFF081F44),
                       ),
                     ],
                   ),

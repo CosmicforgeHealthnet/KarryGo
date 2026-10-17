@@ -513,6 +513,21 @@
               "minimum": 0,
               "default": 0
             }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "description": "Filter matching schedules before pagination. Delivery time comparisons use the server clock.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "ACTIVE",
+                "PAUSED"
+              ],
+              "default": "ALL"
+            }
           }
         ],
         "responses": {
@@ -1016,6 +1031,22 @@
               "type": "integer",
               "minimum": 0,
               "default": 0
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "description": "Filter matching schedules before pagination. Delivery time comparisons use the server clock.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "UPCOMING",
+                "PAST",
+                "CANCELLED"
+              ],
+              "default": "ALL"
             }
           }
         ],

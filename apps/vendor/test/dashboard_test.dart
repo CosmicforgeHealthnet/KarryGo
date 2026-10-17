@@ -1,8 +1,9 @@
+import 'support/mock_vendor_runtime.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vendor/app/data/mock_vendor_client.dart';
-import 'package:vendor/app/data/mock_onboarding_store.dart';
-import 'package:vendor/app/data/mock_dashboard_data.dart';
+import 'support/mock/mock_vendor_client.dart';
+import 'support/mock/mock_onboarding_store.dart';
+import 'support/mock/mock_dashboard_data.dart';
 import 'package:vendor/app/data/vendor_preferences.dart';
 import 'package:vendor/app/vendor_runtime.dart';
 import 'package:vendor/core/theme/vendor_theme.dart';
@@ -16,7 +17,7 @@ Future<VendorRuntime> dashboardRuntime({
   bool activated = true,
 }) async {
   final r =
-      VendorRuntime(
+      MockVendorRuntime(
           preferences: VendorPreferences(inMemory: true),
           mockLatency: Duration.zero,
         )

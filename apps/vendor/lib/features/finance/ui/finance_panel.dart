@@ -1,3 +1,4 @@
+import '../../onboarding/ui/business_onboarding_screen.dart';
 import '../../../core/ui/premium_loading.dart';
 import 'package:flutter/material.dart';
 import '../../../app/vendor_runtime.dart';
@@ -144,8 +145,7 @@ class FinancePanel extends StatelessWidget {
           const DashboardEmptyState(
             story: EmptyStory.finance,
             title: 'Connect your payout account.',
-            message:
-                'Check bank verification in Business setup to make an account available for withdrawals.',
+            message: 'Add and verify a bank account to receive withdrawals.',
           ),
         const SizedBox(height: 12),
         FinanceButton(
@@ -153,7 +153,7 @@ class FinancePanel extends StatelessWidget {
           icon: Icons.account_balance_outlined,
           onPressed: () async {
             Navigator.pop(context);
-            await onSetup();
+            await openBusinessBankDetails(context, runtime);
             await controller.load();
           },
         ),

@@ -56,6 +56,10 @@ class DispatchHomeMock {
     estimatedFareKobo: req.estimatedFareKobo,
     createdAt: DateTime.now(),
     notes: req.notes,
+    pickupLat: req.pickupLat,
+    pickupLng: req.pickupLng,
+    dropoffLat: req.dropoffLat,
+    dropoffLng: req.dropoffLng,
   );
 
   static TripModel advanceTrip(TripModel trip, TripStatusCode newStatus) {
@@ -75,6 +79,12 @@ class DispatchHomeMock {
       estimatedFareKobo: trip.estimatedFareKobo,
       createdAt: trip.createdAt,
       notes: trip.notes,
+      pickupLat: trip.pickupLat,
+      pickupLng: trip.pickupLng,
+      dropoffLat: trip.dropoffLat,
+      dropoffLng: trip.dropoffLng,
+      routePickupPolyline: trip.routePickupPolyline,
+      routeDropoffPolyline: trip.routeDropoffPolyline,
     );
   }
 

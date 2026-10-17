@@ -460,7 +460,7 @@ class _WithdrawalRequestScreenState extends State<WithdrawalRequestScreen> {
         const SizedBox(height: 18),
         if (c.activeBanks.isEmpty && !c.loading.contains('banks'))
           const FinanceNotice(
-            'No active payout account is available. Check your bank details in Business setup.',
+            'Add and verify a payout account from Finance before requesting a withdrawal.',
           ),
 
         const SizedBox(height: 28),

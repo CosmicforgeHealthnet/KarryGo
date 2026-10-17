@@ -77,14 +77,6 @@ class VendorScreenFrame extends StatelessWidget {
                         ),
                       ),
                     const Spacer(),
-                    IconButton(
-                      key: const Key('data-mode-button'),
-                      onPressed: onSettings,
-                      tooltip: 'Data source: $modeLabel',
-                      icon: const Icon(Icons.tune_rounded, size: 21),
-                      color: (dark ? KarryamColors.teal : KarryamColors.navy)
-                          .forInk(context),
-                    ),
                     if (onSkip != null)
                       TextButton(
                         onPressed: onSkip,

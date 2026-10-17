@@ -41,7 +41,7 @@ String scheduleDate(Object? value, {bool time = true}) {
   ];
   final date = '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
   return time
-      ? '$date ? ${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}'
+      ? '$date \u00b7 ${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}'
       : date;
 }
 
@@ -52,7 +52,7 @@ String scheduleDays(Object? value) {
             .whereType<int>()
             .where((d) => d >= 1 && d <= 7)
             .map((d) => days[d - 1])
-            .join(' ? ')
+            .join(' \u00b7 ')
       : 'Not provided';
 }
 
@@ -65,11 +65,12 @@ class SchedulingWorkspaceScreen extends StatefulWidget {
 }
 
 class _SchedulingWorkspaceScreenState extends State<SchedulingWorkspaceScreen> {
-  late final scheduled = SchedulingWorkspaceController(widget.runtime);
+  late final scheduled = SchedulingWorkspaceController(widget.runtime)
+    ..view = 'UPCOMING';
   late final recurring = SchedulingWorkspaceController(
     widget.runtime,
     recurring: true,
-  );
+  )..view = 'ACTIVE';
   bool showRecurring = false;
   String filter = 'Upcoming';
   SchedulingWorkspaceController get c => showRecurring ? recurring : scheduled;
@@ -178,13 +179,20 @@ class _SchedulingWorkspaceScreenState extends State<SchedulingWorkspaceScreen> {
               ],
               selected: {showRecurring},
               showSelectedIcon: false,
-              onSelectionChanged: (values) {
-                setState(() {
-                  showRecurring = values.single;
-                  filter = showRecurring ? 'Active' : 'Upcoming';
-                });
-                if (c.rows.isEmpty && !c.loading) c.load();
-              },
+              onSelectionChanged: scheduled.loading || recurring.loading
+                  ? null
+                  : (values) {
+                      setState(() {
+                        showRecurring = values.single;
+                        filter = showRecurring ? 'Active' : 'Upcoming';
+                      });
+                      final view = filter.toUpperCase();
+                      if (c.view != view) {
+                        c.selectView(view);
+                      } else if (c.rows.isEmpty && !c.loading) {
+                        c.load();
+                      }
+                    },
             ),
             if (!showRecurring) ...[
               const SizedBox(height: 16),
@@ -250,7 +258,12 @@ class _SchedulingWorkspaceScreenState extends State<SchedulingWorkspaceScreen> {
                         label: Text(name),
                         selected: filter == name,
                         showCheckmark: false,
-                        onSelected: (_) => setState(() => filter = name),
+                        onSelected: c.loading || c.busy
+                            ? null
+                            : (_) {
+                                setState(() => filter = name);
+                                c.selectView(name.toUpperCase());
+                              },
                         selectedColor: KarryamColors.mint.forSurface(context),
                         backgroundColor: Colors.white.forSurface(context),
                         side: BorderSide(
@@ -294,20 +307,7 @@ class _SchedulingWorkspaceScreenState extends State<SchedulingWorkspaceScreen> {
       ),
     ),
   );
-  List<JsonObject> get filtered => c.rows.where((row) {
-    final status = row[showRecurring ? 'Status' : 'SchedulingStatus'];
-    if (filter == 'All') return true;
-    if (showRecurring) {
-      return status == (filter == 'Active' ? 'ACTIVE' : 'PAUSED');
-    }
-    if (filter == 'Cancelled') return status == 'CANCELLED';
-    if (status == 'CANCELLED') return false;
-    final at = DateTime.tryParse(row['DesiredDeliveryAt']?.toString() ?? '');
-    return at != null &&
-        (filter == 'Upcoming'
-            ? !at.isBefore(DateTime.now())
-            : at.isBefore(DateTime.now()));
-  }).toList();
+  List<JsonObject> get filtered => c.rows;
   Widget _card(JsonObject row) {
     final status = row[showRecurring ? 'Status' : 'SchedulingStatus']
         .toString();
@@ -337,7 +337,7 @@ class _SchedulingWorkspaceScreenState extends State<SchedulingWorkspaceScreen> {
                   Expanded(
                     child: Text(
                       showRecurring
-                          ? '${row['Headcount']} meals ? ${row['MealTime']}'
+                          ? '${row['Headcount']} meals \u00b7 ${row['MealTime']}'
                           : scheduleDate(row['DesiredDeliveryAt']),
                       style: const TextStyle(
                         fontSize: 17,

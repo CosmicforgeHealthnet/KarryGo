@@ -3,6 +3,7 @@ package trip
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -141,23 +142,35 @@ func (r *PostgresRepository) GetTripByBookingID(ctx context.Context, bookingID s
 	return getTrip(r.db.QueryRow(ctx, `SELECT `+tripColumns+` FROM trips WHERE booking_id=$1`, bookingID))
 }
 
+func providerTripFilters(providerID string, options ListTripsOptions) (string, []any) {
+	where := "provider_id=$1"
+	args := []any{providerID}
+	add := func(column string, value any) {
+		args = append(args, value)
+		where += fmt.Sprintf(" AND %s$%d", column, len(args))
+	}
+	if options.Status == "active" {
+		where += " AND status NOT IN ('completed','cancelled','failed')"
+	} else if options.Status != "" {
+		add("status=", options.Status)
+	}
+	if options.CreatedFrom != nil {
+		add("created_at>=", *options.CreatedFrom)
+	}
+	if options.CreatedBefore != nil {
+		add("created_at<", *options.CreatedBefore)
+	}
+	return where, args
+}
+
 func (r *PostgresRepository) ListProviderTrips(ctx context.Context, providerID string, options ListTripsOptions) ([]Trip, int, error) {
 	if options.Limit <= 0 || options.Limit > 50 {
 		options.Limit = 20
 	}
-	countQuery := `SELECT count(*) FROM trips WHERE provider_id=$1`
-	query := `SELECT ` + tripColumns + ` FROM trips WHERE provider_id=$1`
-	args := []any{providerID}
-	countArgs := []any{providerID}
-	if options.Status != "" {
-		countQuery += ` AND status=$2`
-		query += ` AND status=$2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`
-		args = append(args, options.Status, options.Limit, options.Offset)
-		countArgs = append(countArgs, options.Status)
-	} else {
-		query += ` ORDER BY created_at DESC LIMIT $2 OFFSET $3`
-		args = append(args, options.Limit, options.Offset)
-	}
+	where, countArgs := providerTripFilters(providerID, options)
+	countQuery := `SELECT count(*) FROM trips WHERE ` + where
+	query := `SELECT ` + tripColumns + ` FROM trips WHERE ` + where + fmt.Sprintf(` ORDER BY created_at DESC, id DESC LIMIT $%d OFFSET $%d`, len(countArgs)+1, len(countArgs)+2)
+	args := append(append([]any{}, countArgs...), options.Limit, options.Offset)
 	var total int
 	if err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
 		return nil, 0, err
@@ -180,17 +193,33 @@ func (r *PostgresRepository) ListProviderTrips(ctx context.Context, providerID s
 }
 
 func (r *PostgresRepository) GetProviderActiveTrip(ctx context.Context, providerID string) (*Trip, error) {
-	return getTrip(r.db.QueryRow(ctx, `
+	item, err := getTrip(r.db.QueryRow(ctx, `
 		SELECT `+tripColumns+`
 		FROM trips
 		WHERE provider_id=$1 AND status NOT IN ('completed','cancelled','failed')
 		ORDER BY created_at DESC
 		LIMIT 1
 	`, providerID))
+	return r.withBookingGeometry(ctx, item, err)
 }
 
 func (r *PostgresRepository) GetProviderTripByID(ctx context.Context, tripID, providerID string) (*Trip, error) {
-	return getTrip(r.db.QueryRow(ctx, `SELECT `+tripColumns+` FROM trips WHERE id=$1 AND provider_id=$2`, tripID, providerID))
+	item, err := getTrip(r.db.QueryRow(ctx, `SELECT `+tripColumns+` FROM trips WHERE id=$1 AND provider_id=$2`, tripID, providerID))
+	return r.withBookingGeometry(ctx, item, err)
+}
+
+func (r *PostgresRepository) withBookingGeometry(ctx context.Context, item *Trip, lookupErr error) (*Trip, error) {
+	if lookupErr != nil || item == nil {
+		return item, lookupErr
+	}
+	err := r.db.QueryRow(ctx, `SELECT COALESCE(route_pickup_polyline,''), COALESCE(route_dropoff_polyline,'') FROM bookings WHERE id=$1`, item.BookingID).Scan(&item.RoutePickupPolyline, &item.RouteDropoffPolyline)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return item, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
 }
 
 func (r *PostgresRepository) GetAssignedTripForProvider(ctx context.Context, providerID string) (*Trip, error) {

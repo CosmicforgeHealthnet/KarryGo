@@ -29,7 +29,13 @@ class StockScreen extends StatefulWidget {
 }
 
 class _StockScreenState extends State<StockScreen> {
-  late final c = StockController(widget.runtime.backend, widget.branchId);
+  late final c = StockController(
+    widget.runtime.backend,
+    widget.branchId,
+    preferences: widget.runtime.mode == VendorDataMode.mock
+        ? widget.runtime.mockSupportPreferences
+        : widget.runtime.preferences,
+  );
   @override
   void initState() {
     super.initState();
@@ -258,6 +264,45 @@ class _StockScreenState extends State<StockScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
+            if (c.hasUnresolvedUpdate) ...[
+              SettingsNote(
+                c.recoveryBlocked
+                    ? 'A saved stock update could not be restored. Retry recovery before making another update.'
+                    : 'A stock update needs confirmation. Retry the saved update before making another.',
+                warning: true,
+              ),
+              SettingsAction(
+                c.recoveryBlocked
+                    ? 'Retry recovery'
+                    : 'Retry saved stock update',
+                icon: Icons.refresh_rounded,
+                busy: c.busy,
+                onPressed: c.busy || c.loading
+                    ? null
+                    : () async {
+                        final result = await c.retryPending();
+                        if (!mounted || !context.mounted) return;
+                        if (result != null) {
+                          await stockFeedback(
+                            context,
+                            c,
+                            result,
+                            'Stock update confirmed',
+                            'The saved update has been confirmed.',
+                          );
+                          if (mounted) await c.load();
+                        } else if (c.error != null) {
+                          await showOrderFeedback(
+                            context,
+                            title: 'Stock update needs checking',
+                            message: c.error!,
+                            warning: true,
+                          );
+                        }
+                      },
+              ),
+              const SizedBox(height: 16),
+            ],
             SettingsCard(
               color: KarryamColors.mint.forInk(context),
               child: Row(
@@ -327,7 +372,11 @@ class _StockScreenState extends State<StockScreen> {
                 'Set up stock tracking',
                 secondary: true,
                 icon: Icons.add_box_outlined,
-                onPressed: c.loading || c.busy || c.setupError != null
+                onPressed:
+                    c.loading ||
+                        c.busy ||
+                        c.hasUnresolvedUpdate ||
+                        c.setupError != null
                     ? null
                     : () => edit(StockEdit.basis),
               ),
@@ -335,7 +384,7 @@ class _StockScreenState extends State<StockScreen> {
               SettingsAction(
                 'Receive goods',
                 icon: Icons.move_to_inbox_outlined,
-                onPressed: c.loading || c.busy
+                onPressed: c.loading || c.busy || c.hasUnresolvedUpdate
                     ? null
                     : () => edit(StockEdit.receipt),
               ),
@@ -343,7 +392,11 @@ class _StockScreenState extends State<StockScreen> {
               SettingsAction(
                 'New transfer',
                 icon: Icons.swap_horiz_rounded,
-                onPressed: c.loading || c.busy || c.setupError != null
+                onPressed:
+                    c.loading ||
+                        c.busy ||
+                        c.hasUnresolvedUpdate ||
+                        c.setupError != null
                     ? null
                     : newTransfer,
               ),
@@ -354,6 +407,7 @@ class _StockScreenState extends State<StockScreen> {
                 onPressed:
                     c.loading ||
                         c.busy ||
+                        c.hasUnresolvedUpdate ||
                         c.setupError != null ||
                         c.denied.contains(
                           "POST ${StockController.root}/quarantines",
@@ -365,7 +419,7 @@ class _StockScreenState extends State<StockScreen> {
               SettingsAction(
                 'Start stocktake',
                 icon: Icons.fact_check_outlined,
-                onPressed: c.loading || c.busy
+                onPressed: c.loading || c.busy || c.hasUnresolvedUpdate
                     ? null
                     : () => edit(StockEdit.stocktake),
               ),

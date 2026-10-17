@@ -312,7 +312,7 @@ func (s *Service) ListProviderTrips(ctx context.Context, providerID string, opti
 	if err := validateID(providerID, "provider_id"); err != nil {
 		return TripListResponse{}, err
 	}
-	if options.Status != "" && !IsValidTripStatus(options.Status) {
+	if options.Status != "" && options.Status != "active" && !IsValidTripStatus(options.Status) {
 		return TripListResponse{}, validationError("status", "Status is invalid.")
 	}
 	if options.Limit <= 0 || options.Limit > 50 {
@@ -320,6 +320,9 @@ func (s *Service) ListProviderTrips(ctx context.Context, providerID string, opti
 	}
 	if options.Offset < 0 {
 		return TripListResponse{}, validationError("page", "Page must be 1 or greater.")
+	}
+	if options.CreatedFrom != nil && options.CreatedBefore != nil && !options.CreatedFrom.Before(*options.CreatedBefore) {
+		return TripListResponse{}, validationError("created_before", "End time must be after start time.")
 	}
 	trips, total, err := s.repository.ListProviderTrips(ctx, providerID, options)
 	if err != nil {

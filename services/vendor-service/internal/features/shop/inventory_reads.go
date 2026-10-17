@@ -37,7 +37,7 @@ func (s *Service) ListReceipts(ctx context.Context, actor Actor, scope Scope, br
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []InventoryReceipt
+	out := []InventoryReceipt{}
 	for rows.Next() {
 		var item InventoryReceipt
 		if err = rows.Scan(&item.ID, &item.BranchRef, &item.SourceRef, &item.ReceivedAt, &item.Status, &item.PostedAt, &item.CreatedAt, &item.UpdatedAt, &item.Version); err != nil {
@@ -71,7 +71,7 @@ func (s *Service) ListTransfers(ctx context.Context, actor Actor, scope Scope, b
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []InventoryTransfer
+	out := []InventoryTransfer{}
 	for rows.Next() {
 		var item InventoryTransfer
 		if err = rows.Scan(&item.ID, &item.SourceBranchRef, &item.DestinationBranchRef, &item.Status, &item.Notes, &item.DispatchedAt, &item.ReceivedAt, &item.CreatedAt, &item.UpdatedAt, &item.Version); err != nil {
@@ -142,7 +142,7 @@ func (s *Service) ListStocktakes(ctx context.Context, actor Actor, scope Scope, 
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []InventoryStocktake
+	out := []InventoryStocktake{}
 	for rows.Next() {
 		var item InventoryStocktake
 		if err = rows.Scan(&item.ID, &item.BranchRef, &item.Type, &item.SnapshotRevision, &item.Status, &item.StartedAt, &item.PostedAt, &item.Version); err != nil {
@@ -174,7 +174,7 @@ func (s *Service) ListQuarantines(ctx context.Context, actor Actor, scope Scope,
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []InventoryQuarantine
+	out := []InventoryQuarantine{}
 	for rows.Next() {
 		var item InventoryQuarantine
 		if err = rows.Scan(&item.ID, &item.BranchRef, &item.StockBasisRef, &item.VariantRef, &item.Quantity, &item.ReasonCode, &item.Status, &item.CreatedAt, &item.ResolvedAt, &item.Version); err != nil {
@@ -218,7 +218,7 @@ func (s *Service) ListReorderRules(ctx context.Context, actor Actor, scope Scope
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []ReorderRule
+	out := []ReorderRule{}
 	for rows.Next() {
 		var item ReorderRule
 		if err = rows.Scan(&item.ID, &item.BranchRef, &item.StockBasisRef, &item.VariantRef, &item.MinimumQuantity, &item.TargetQuantity, &item.RecommendedReorder, &item.ExpiringSoonHours, &item.Status, &item.Version); err != nil {
@@ -262,7 +262,7 @@ func (s *Service) ListInventoryAlerts(ctx context.Context, actor Actor, scope Sc
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []InventoryAlert
+	out := []InventoryAlert{}
 	for rows.Next() {
 		var item InventoryAlert
 		if err = rows.Scan(&item.ID, &item.BranchRef, &item.StockBasisRef, &item.Type, &item.Severity, &item.Details, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {

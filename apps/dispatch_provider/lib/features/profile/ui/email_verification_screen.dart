@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
@@ -48,9 +49,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       _canResend = false;
     });
     _startTimer();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Verification link resent.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Verification link resent.')));
   }
 
   void _onTurnOn() {
@@ -64,7 +65,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -76,8 +77,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 onTap: () => Navigator.of(context).pop(),
                 child: const Align(
                   alignment: Alignment.centerLeft,
-                  child: Icon(Icons.arrow_back_ios_new,
-                      size: 20, color: Color(0xFF1A1A1A)),
+                  child: Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 20,
+                    color: Color(0xFF1A1A1A),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -85,7 +89,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 'Email Verification!',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF1A1A1A),
                 ),
               ),
@@ -158,7 +162,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),
@@ -195,7 +199,7 @@ class _VerifiedSuccessScreen extends StatelessWidget {
                 "You're all set!",
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF1A1A1A),
                 ),
               ),
@@ -221,7 +225,7 @@ class _VerifiedSuccessScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),

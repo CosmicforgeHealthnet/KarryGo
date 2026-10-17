@@ -1,463 +1,227 @@
+import 'wallet_widgets.dart';
+import '../../../shared/widgets/account_components.dart';
+import '../../../shared/widgets/delivery_collection_widgets.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
+import '../../../shared/widgets/dispatch_empty_state.dart';
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
-
-import '../../../core/app_mode.dart';
+import 'package:flutter/services.dart';
+import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+import '../../../core/config.dart';
+import '../../../core/network/provider_session.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../mock/wallet_tab_mock.dart';
-import 'transaction_detail_screen.dart';
+import '../../../shared/widgets/async_content.dart';
+import '../data/wallet_api.dart';
 
 class TransactionListScreen extends StatefulWidget {
-  const TransactionListScreen({super.key});
-
+  const TransactionListScreen({super.key, this.initialReference});
+  final String? initialReference;
   @override
   State<TransactionListScreen> createState() => _TransactionListScreenState();
 }
 
 class _TransactionListScreenState extends State<TransactionListScreen> {
-  int _tab = 0; // 0=All · 1=Credits · 2=Debits
-
-  List<TransactionItem> get _items {
-    final all = AppModeConfig.instance.isMock
-        ? WalletTabMock.allTransactions
-        : <TransactionItem>[];
-
-    switch (_tab) {
-      case 1:
-        return all.where((t) => t.isCredit).toList();
-      case 2:
-        return all.where((t) => !t.isCredit).toList();
-      default:
-        return all;
-    }
-  }
-
-  Map<String, List<TransactionItem>> get _grouped {
-    final map = <String, List<TransactionItem>>{};
-    for (final item in _items) {
-      map.putIfAbsent(item.monthLabel, () => []).add(item);
-    }
-    return map;
-  }
-
+  final List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+  bool _busy = false;
+  bool _more = false;
+  int _page = 0;
+  int _filter = 0;
+  bool _openedInitial = false;
+  String? _error;
   @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_loaded) {
+      _loaded = true;
+      _load();
+    }
+  }
+
+  Future<void> _load({bool next = false}) async {
+    if (_busy) return;
+    final session = ProviderSession.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final api = WalletApi(
+      ApiCoreConfig(baseUrl: AppConfig.walletBaseUrl),
+      client: session.client,
+    );
+    final result = await api.listTransactions(
+      session.accessToken() ?? '',
+      page: next ? _page + 1 : 1,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (data) => setState(() {
+        if (!next) _items.clear();
+        _items.addAll(
+          (data['transactions'] as List? ?? [])
+              .whereType<Map<String, dynamic>>(),
+        );
+        _page = (data['page'] as num?)?.toInt() ?? 1;
+        _more = data['has_more'] == true;
+      }),
+      failure: (e) => setState(
+        () => _error = e.statusCode == 404
+            ? 'Transaction history is not enabled on this server yet.'
+            : e.message,
+      ),
+    );
+    setState(() => _busy = false);
+    if (!_openedInitial && widget.initialReference != null) {
+      _openedInitial = true;
+      final item = _items
+          .where((entry) => entry['reference'] == widget.initialReference)
+          .firstOrNull;
+      if (item != null)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _detail(item);
+        });
+    }
+  }
+
+  String _amount(Map<String, dynamic> item) =>
+      '${item['currency']} ${((item['amount_kobo'] as num).toDouble() / 100).toStringAsFixed(2)}';
+  String _date(Map<String, dynamic> item) {
+    final date = DateTime.tryParse(
+      item['created_at']?.toString() ?? '',
+    )?.toLocal();
+    return date == null
+        ? 'Date unavailable'
+        : '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _detail(Map<String, dynamic> item) {
+    final c = context.palette;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: .5),
+      builder: (sheet) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildTopBar(),
-            const SizedBox(height: 16),
-            _buildTabs(),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: AccountEmblem(symbol: JourneySymbol.transfer, size: 60),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              item['memo']?.toString() ?? 'Wallet activity',
+              style: Theme.of(sheet).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _amount(item),
+              style: Theme.of(sheet).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Posted ${item['side']} • ${_date(item)}',
+              style: TextStyle(color: c.textMuted),
+            ),
+            const SizedBox(height: 24),
+            const Text('Reference'),
             const SizedBox(height: 8),
-            Expanded(child: _buildList()),
+            SelectableText(item['reference']?.toString() ?? ''),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => Clipboard.setData(
+                ClipboardData(text: item['reference']?.toString() ?? ''),
+              ),
+              icon: const Icon(Icons.copy_outlined),
+              label: const Text('Copy reference'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ── Top bar ───────────────────────────────────────────────────────
-
-  Widget _buildTopBar() {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 20, 0),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  size: 24,
-                  color: colors.text,
-                ),
-              ),
-            ),
-          ),
-          Text(
-            'Transactions',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: colors.text,
-              letterSpacing: -0.3,
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () {},
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.tune_rounded,
-                  size: 22,
-                  color: colors.text,
-                ),
-              ),
-            ),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    final items = _items
+        .where(
+          (item) =>
+              _filter == 0 ||
+              item['side'] == (_filter == 1 ? 'credit' : 'debit'),
+        )
+        .toList();
+    return Scaffold(
+      appBar: AppBar(
+        leading: const DispatchBackButton(),
+        title: const Text('Transactions'),
       ),
-    );
-  }
-
-  // ── Tabs row ──────────────────────────────────────────────────────
-
-  Widget _buildTabs() {
-    const labels = ['All', 'Credits', 'Debits'];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
+      body: Column(
         children: [
-          for (int i = 0; i < labels.length; i++) ...[
-            _TabChip(
-              label: labels[i],
-              isActive: _tab == i,
-              onTap: () => setState(() => _tab = i),
-            ),
-            const SizedBox(width: 8),
-          ],
-          const Spacer(),
-          _FilterChip(onTap: () {}),
-        ],
-      ),
-    );
-  }
-
-  // ── List with month grouping ──────────────────────────────────────
-
-  Widget _buildList() {
-    final grouped = _grouped;
-
-    if (grouped.isEmpty) return _EmptyState(tab: _tab);
-
-    final children = <Widget>[];
-    grouped.forEach((month, items) {
-      children.add(_MonthHeader(label: month));
-      for (final item in items) {
-        children.add(
-          _TransactionRow(
-            item: item,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => TransactionDetailScreen(
-                  transaction: TransactionData(
-                    id: item.id,
-                    amount: item.amountNaira,
-                    commission: 0,
-                    total: item.amountNaira,
-                    status: TransactionStatus.successful,
-                    type: item.isCredit
-                        ? TransactionType.trip
-                        : TransactionType.debit,
-                    customerName: item.title,
-                    date: item.subtitle,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final entry in [
+                  'All',
+                  'Credits',
+                  'Debits',
+                ].asMap().entries)
+                  DeliveryFilter(
+                    label: entry.value,
+                    selected: _filter == entry.key,
+                    onTap: () => setState(() => _filter = entry.key),
                   ),
-                ),
-              ),
+              ],
             ),
           ),
-        );
-      }
-    });
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      children: children,
-    );
-  }
-}
-
-// ── Tab chip ────────────────────────────────────────────────────────
-//
-// Active state uses the brand's soft teal tint — quiet, on-brand, and
-// consistent with the "Default" badge and other accent treatments used
-// across the wallet screens. Doesn't scream like a solid white pill.
-
-class _TabChip extends StatelessWidget {
-  const _TabChip({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: isActive ? colors.teal10 : colors.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive
-                ? colors.brandTeal500.withValues(alpha: 0.5)
-                : colors.divider,
-            width: 1.2,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isActive ? colors.brandTeal600 : colors.text,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Filter chip ─────────────────────────────────────────────────────
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.divider, width: 1.2),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.filter_alt_outlined,
-              size: 15,
-              color: colors.text,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              'Filters',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: colors.text,
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: ActionNotice(
+                message: _error!,
+                isError: true,
+                onRetry: _load,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Month header ────────────────────────────────────────────────────
-
-class _MonthHeader extends StatelessWidget {
-  const _MonthHeader({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: colors.textMuted,
-          letterSpacing: -0.1,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Transaction row ─────────────────────────────────────────────────
-
-class _TransactionRow extends StatelessWidget {
-  const _TransactionRow({required this.item, required this.onTap});
-
-  final TransactionItem item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    final style = _styleFor(item.kind, colors);
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: style.bg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(style.icon, size: 20, color: style.fg),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                      color: colors.text,
-                      height: 1.2,
-                      letterSpacing: -0.1,
+          Expanded(
+            child: _busy && _items.isEmpty
+                ? const ContentSkeleton()
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      padding: const EdgeInsets.all(20),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        if (items.isEmpty && !_busy && _error == null)
+                          const DispatchEmptyState(
+                            story: EmptyStory.wallet,
+                            title: 'No matching activity',
+                            message:
+                                'Confirmed entries appear here. Try another filter to see other activity.',
+                          ),
+                        for (final item in items)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: WalletEntryCard(
+                              entry: item,
+                              onTap: () => _detail(item),
+                            ),
+                          ),
+                        if (_more)
+                          TextButton(
+                            onPressed: _busy ? null : () => _load(next: true),
+                            child: Text(
+                              _busy ? 'Loading...' : 'Load earlier activity',
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.subtitle,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: colors.textMuted,
-                      height: 1.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '${item.isCredit ? '+' : '-'}₦${_formatShort(item.amountNaira)}',
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.1,
-                color: item.isCredit ? colors.success : colors.danger,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static _IconStyle _styleFor(TransactionKind kind, dynamic colors) {
-    switch (kind) {
-      case TransactionKind.delivery:
-      case TransactionKind.store:
-        return _IconStyle(
-          icon: Icons.inventory_2_outlined,
-          fg: colors.success,
-          bg: colors.successSoft,
-        );
-      case TransactionKind.withdrawal:
-        return _IconStyle(
-          icon: Icons.arrow_upward_rounded,
-          fg: colors.danger,
-          bg: colors.dangerSoft,
-        );
-      case TransactionKind.adjustment:
-        return _IconStyle(
-          icon: Icons.tune_rounded,
-          fg: colors.textMuted,
-          bg: colors.navy10,
-        );
-    }
-  }
-
-  static String _formatShort(double v) {
-    if (v == v.truncateToDouble()) {
-      return _groupThousands(v.toStringAsFixed(0));
-    }
-    final parts = v.toStringAsFixed(2).split('.');
-    return '${_groupThousands(parts[0])}.${parts[1]}';
-  }
-
-  static String _groupThousands(String whole) {
-    final buffer = StringBuffer();
-    for (int i = 0; i < whole.length; i++) {
-      if (i != 0 && (whole.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(whole[i]);
-    }
-    return buffer.toString();
-  }
-}
-
-class _IconStyle {
-  const _IconStyle({required this.icon, required this.fg, required this.bg});
-  final IconData icon;
-  final Color fg;
-  final Color bg;
-}
-
-// ── Empty state ─────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.tab});
-  final int tab;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    final label = switch (tab) {
-      1 => 'No credits yet',
-      2 => 'No debits yet',
-      _ => 'No transactions yet',
-    };
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: colors.navy10,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.receipt_long_outlined,
-              size: 40,
-              color: colors.navy40,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: colors.text,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Your transaction history will appear here.',
-            style: TextStyle(fontSize: 14, color: colors.textMuted),
           ),
         ],
       ),

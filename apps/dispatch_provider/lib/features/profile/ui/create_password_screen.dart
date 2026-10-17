@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:dispatch_provider/shared/widgets/password_widgets.dart';
 
@@ -61,7 +62,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -74,8 +75,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                     onTap: () => Navigator.of(context).pop(),
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: Icon(Icons.arrow_back_ios_new,
-                          size: 20, color: Color(0xFF1A1A1A)),
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 20,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -83,7 +87,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                     'Passwords',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -97,7 +101,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                     'Create New Password!',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -138,16 +142,21 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         PasswordRequirement(
-                            'At least 8 characters long', _requirementsTextColor),
+                          'At least 8 characters long',
+                          _requirementsTextColor,
+                        ),
                         PasswordRequirement(
-                            'Contains at least one uppercase letter',
-                            _requirementsTextColor),
+                          'Contains at least one uppercase letter',
+                          _requirementsTextColor,
+                        ),
                         PasswordRequirement(
-                            'Contains at least one lowercase letter',
-                            _requirementsTextColor),
+                          'Contains at least one lowercase letter',
+                          _requirementsTextColor,
+                        ),
                         PasswordRequirement(
-                            'Contains at least one number or special character',
-                            _requirementsTextColor),
+                          'Contains at least one number or special character',
+                          _requirementsTextColor,
+                        ),
                       ],
                     ),
                   ),
@@ -163,8 +172,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                   onPressed: _canSubmit ? _submit : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF05124D),
-                    disabledBackgroundColor:
-                        const Color(0xFF05124D).withValues(alpha: 0.35),
+                    disabledBackgroundColor: const Color(
+                      0xFF05124D,
+                    ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -174,7 +184,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),

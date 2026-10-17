@@ -7,13 +7,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// that needs to read or change the theme listens to this.
 class ThemeController extends ChangeNotifier {
   ThemeController({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   static const _storageKey = 'app_theme_mode_v1';
 
   final FlutterSecureStorage _storage;
 
-  ThemeMode _mode = ThemeMode.system;
+  ThemeMode _mode = ThemeMode.light;
   ThemeMode get mode => _mode;
 
   bool get isDark => _mode == ThemeMode.dark;
@@ -47,18 +47,18 @@ class ThemeController extends ChangeNotifier {
 
   /// Cycles through the three modes: system → light → dark → system.
   Future<void> cycle() => switch (_mode) {
-        ThemeMode.system => setMode(ThemeMode.light),
-        ThemeMode.light => setMode(ThemeMode.dark),
-        ThemeMode.dark => setMode(ThemeMode.system),
-      };
+    ThemeMode.system => setMode(ThemeMode.light),
+    ThemeMode.light => setMode(ThemeMode.dark),
+    ThemeMode.dark => setMode(ThemeMode.system),
+  };
 
-  Future<void> toggleDark() => setMode(
-        _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
-      );
+  Future<void> toggleDark() =>
+      setMode(_mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
 
   ThemeMode _parse(String? raw) => switch (raw) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    'system' => ThemeMode.system,
+    _ => ThemeMode.light,
+  };
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -151,7 +152,19 @@ func (h *Handler) ListTrips(c *gin.Context) {
 		httpx.Abort(c, err)
 		return
 	}
+	var dates [2]*time.Time
+	for i, key := range []string{"created_from", "created_before"} {
+		if raw := strings.TrimSpace(c.Query(key)); raw != "" {
+			parsed, parseErr := time.Parse(time.RFC3339Nano, raw)
+			if parseErr != nil {
+				httpx.Abort(c, validationError(key, "Use an RFC3339 timestamp with timezone."))
+				return
+			}
+			dates[i] = &parsed
+		}
+	}
 	result, err := h.service.ListProviderTrips(c.Request.Context(), authhttp.DispatchRiderID(c), ListTripsOptions{
+		CreatedFrom: dates[0], CreatedBefore: dates[1],
 		Status: TripStatus(strings.TrimSpace(c.Query("status"))), Limit: limit, Offset: (page - 1) * limit,
 	})
 	if err != nil {

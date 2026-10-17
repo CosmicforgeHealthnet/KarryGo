@@ -37,6 +37,7 @@ func RegisterProvider(engine *gin.Engine, tokens *authusecases.TokenUsecase, han
 	group.POST("/:id/stops/:stopId/parcels/scan", handler.scanParcel)
 	group.POST("/:id/stops/:stopId/evidence-session", handler.captureSession)
 	group.POST("/:id/stops/:stopId/evidence", handler.submitEvidence)
+	group.POST("/:id/stops/:stopId/evidence-content", handler.uploadEvidence)
 	group.POST("/:id/delivery/verify", handler.verifyDelivery)
 	group.POST("/:id/return/verify", handler.verifyReturn)
 }

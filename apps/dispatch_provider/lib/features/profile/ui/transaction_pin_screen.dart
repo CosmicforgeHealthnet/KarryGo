@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/numeric_keypad.dart';
 import '../../wallet/state/wallet_controller.dart';
@@ -66,9 +67,8 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
     setState(() => _pin = '');
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => CreatePinScreen(
-          walletController: widget.walletController,
-        ),
+        builder: (_) =>
+            CreatePinScreen(walletController: widget.walletController),
       ),
     );
     if (!mounted) return;
@@ -104,7 +104,7 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -118,8 +118,11 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
                     onTap: () => Navigator.of(context).pop(),
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: Icon(Icons.arrow_back_ios_new,
-                          size: 20, color: Color(0xFF1A1A1A)),
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 20,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -127,7 +130,7 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
                     'Transaction Pin',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -139,7 +142,9 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFEEEEEE)),
                       borderRadius: BorderRadius.circular(12),
@@ -186,7 +191,7 @@ class _TransactionPinScreenState extends State<TransactionPinScreen> {
                 'Enter Pin!',
                 style: const TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF1A1A1A),
                 ),
               ),
@@ -236,8 +241,8 @@ class _PinDots extends StatelessWidget {
         final color = hasError
             ? const Color(0xFFE53935)
             : filled
-                ? const Color(0xFF05124D)
-                : const Color(0xFFE53935);
+            ? const Color(0xFF05124D)
+            : const Color(0xFFE53935);
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -284,7 +289,7 @@ class _ChangePinDialog extends StatelessWidget {
               'Change Transaction Pin?',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1A1A),
               ),
               textAlign: TextAlign.center,
@@ -316,7 +321,7 @@ class _ChangePinDialog extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: Color(0xFF081F44),
                   ),
                 ),
               ),
@@ -328,7 +333,9 @@ class _ChangePinDialog extends StatelessWidget {
               child: FilledButton(
                 onPressed: () => Navigator.of(context).pop(false),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF05124D).withValues(alpha: 0.15),
+                  backgroundColor: const Color(
+                    0xFF05124D,
+                  ).withValues(alpha: 0.15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),

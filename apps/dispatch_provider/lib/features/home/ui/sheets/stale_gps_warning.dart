@@ -54,7 +54,7 @@ class StaleGpsWarningSheet extends StatelessWidget {
             'Location not updating',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: colors.text,
               letterSpacing: -0.3,
             ),
@@ -66,7 +66,7 @@ class StaleGpsWarningSheet extends StatelessWidget {
             "We haven't received your location in a while. "
             'Stay visible for more opportunities.',
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: FontWeight.w400,
               color: colors.textMuted,
               height: 1.4,

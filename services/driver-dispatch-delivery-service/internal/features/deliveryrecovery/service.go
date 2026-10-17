@@ -3,6 +3,7 @@ package deliveryrecovery
 import (
 	"context"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
+	"cosmicforge/logistics/shared/go/mediaclient"
 	"log"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type HubEvidenceAuthority interface {
 }
 
 type Service struct {
+	uploads           *mediaclient.Client
 	repo              *Repository
 	policy            Policy
 	handover          HandoverInvalidator
@@ -338,4 +340,11 @@ func (s *Service) RecordEmergencyRecovery(ctx context.Context, command Emergency
 		return EmergencyRecovery{}, apperrors.BadRequest("Emergency recovery command is invalid.", nil)
 	}
 	return s.repo.RecordEmergencyRecovery(ctx, command, s.now(), fingerprint(command))
+}
+
+func (s *Service) WithMediaUploads(client *mediaclient.Client) *Service {
+	if s != nil {
+		s.uploads = client
+	}
+	return s
 }

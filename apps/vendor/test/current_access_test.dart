@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:vendor/app/data/mock_settings_store.dart';
-import 'package:vendor/app/data/mock_onboarding_store.dart';
-import 'package:vendor/app/data/mock_dashboard_data.dart';
+import 'support/mock/mock_settings_store.dart';
+import 'support/mock/mock_onboarding_store.dart';
+import 'support/mock/mock_dashboard_data.dart';
 import 'dashboard_test.dart' show dashboardRuntime;
 
 void main() {

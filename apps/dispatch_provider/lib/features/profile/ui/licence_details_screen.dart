@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -9,16 +10,12 @@ import 'licence_upload_screen.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 class LicenceDetailsScreen extends StatefulWidget {
-  const LicenceDetailsScreen({
-    super.key,
-    required this.verificationController,
-  });
+  const LicenceDetailsScreen({super.key, required this.verificationController});
 
   final VerificationController verificationController;
 
   @override
-  State<LicenceDetailsScreen> createState() =>
-      _LicenceDetailsScreenState();
+  State<LicenceDetailsScreen> createState() => _LicenceDetailsScreenState();
 }
 
 class _LicenceDetailsScreenState extends State<LicenceDetailsScreen> {
@@ -72,17 +69,8 @@ class _LicenceDetailsScreenState extends State<LicenceDetailsScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -157,8 +145,9 @@ class _LicenceDetailsScreenState extends State<LicenceDetailsScreen> {
                     value: _expiry,
                     hint: 'Select expiry date',
                     firstDate: DateTime.now(),
-                    lastDate:
-                        DateTime.now().add(const Duration(days: 365 * 20)),
+                    lastDate: DateTime.now().add(
+                      const Duration(days: 365 * 20),
+                    ),
                     onChanged: (v) => setState(() => _expiry = v),
                   ),
                   const SizedBox(height: 20),
@@ -189,8 +178,7 @@ class _LicenceDetailsScreenState extends State<LicenceDetailsScreen> {
                               builder: (_) => LicenceUploadScreen(
                                 verificationController:
                                     widget.verificationController,
-                                licenceNumber:
-                                    _numberController.text.trim(),
+                                licenceNumber: _numberController.text.trim(),
                                 licenceType: _type!,
                                 expiry: _expiry!,
                                 issuingState: _state!,
@@ -282,8 +270,10 @@ class _Field extends StatelessWidget {
         ),
         filled: true,
         fillColor: c.inputFill,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -395,8 +385,7 @@ class _DateField extends StatelessWidget {
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
-          initialDate:
-              value ?? DateTime.now().add(const Duration(days: 365)),
+          initialDate: value ?? DateTime.now().add(const Duration(days: 365)),
           firstDate: firstDate,
           lastDate: lastDate,
         );
@@ -421,11 +410,7 @@ class _DateField extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 20,
-              color: c.textMuted,
-            ),
+            Icon(Icons.calendar_today_outlined, size: 20, color: c.textMuted),
           ],
         ),
       ),
@@ -434,8 +419,18 @@ class _DateField extends StatelessWidget {
 
   static String _fmt(DateTime d) {
     const m = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${d.day} ${m[d.month - 1]} ${d.year}';
   }

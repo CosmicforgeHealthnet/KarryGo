@@ -358,11 +358,13 @@ class DispatchAuthController extends ChangeNotifier {
         _debugLog('[AUTH] token clear after refresh 401 failed: $e');
       }
     }
-    _accessToken = null;
-    _refreshToken = null;
-    _providerId = null;
-    _role = null;
-    _status = AuthStatus.unauthenticated;
+    if (error.code == ApiErrorCode.unauthorized || error.statusCode == 401) {
+      _accessToken = null;
+      _refreshToken = null;
+      _providerId = null;
+      _role = null;
+      _status = AuthStatus.unauthenticated;
+    }
     _errorMessage = error.message;
     _debugLog('[AUTH] refresh failed | code=${error.code}');
     notifyListeners();

@@ -1,52 +1,45 @@
 import 'package:flutter/material.dart';
-
 import '../../../requests/data/request_model.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/journey_icon.dart';
 
 class TripStats extends StatelessWidget {
   const TripStats({super.key, required this.request});
   final RequestModel request;
-
   @override
   Widget build(BuildContext context) {
-    final colors = context.palette;
-    final tierLabel = request.serviceTierLabel ??
-        (request.isExpress ? 'Express Delivery' : 'Standard Delivery');
-    final tierColor = request.isExpress ? colors.warning : colors.textMuted;
-
-    return Row(
+    final c = context.palette;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Icon(Icons.av_timer, size: 14, color: colors.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          request.distanceDisplay,
-          style: TextStyle(fontSize: 12, color: colors.textMuted),
-        ),
-        const SizedBox(width: 12),
-        Icon(Icons.attach_money, size: 14, color: colors.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          request.fareDisplay,
-          style: TextStyle(fontSize: 12, color: colors.textMuted),
-        ),
-        const SizedBox(width: 12),
+        _chip(context, JourneySymbol.route, request.distanceDisplay),
+        _chip(context, JourneySymbol.wallet, request.fareDisplayGrouped),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            color: tierColor.withAlpha(26),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: tierColor.withAlpha(77)),
+            color: request.isExpress ? c.warningSoft : c.surfaceElevated,
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
-            tierLabel,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: tierColor,
+            request.serviceTierLabel ??
+                (request.isExpress ? 'Express' : 'Standard'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: request.isExpress ? c.warning : c.textMuted,
             ),
           ),
         ),
       ],
     );
   }
+
+  Widget _chip(BuildContext context, JourneySymbol icon, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      JourneyIcon(icon, size: 18, color: context.palette.textMuted),
+      const SizedBox(width: 6),
+      Text(label, style: Theme.of(context).textTheme.bodySmall),
+    ],
+  );
 }

@@ -163,7 +163,7 @@ func (s *StockService) ListBalances(
 
 	defer rows.Close()
 
-	var out []Balance
+	out := []Balance{}
 
 	for rows.Next() {
 		var item Balance
@@ -294,7 +294,7 @@ func (s *StockService) ListMovements(
 
 	defer rows.Close()
 
-	var out []Movement
+	out := []Movement{}
 
 	for rows.Next() {
 		var item Movement

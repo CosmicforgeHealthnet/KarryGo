@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/app_mode.dart';
 
 class ServiceTypeScreen extends StatefulWidget {
   const ServiceTypeScreen({
@@ -19,7 +20,7 @@ class ServiceTypeScreen extends StatefulWidget {
 }
 
 class _ServiceTypeScreenState extends State<ServiceTypeScreen> {
-  String? _selected;
+  String? _selected = AppModeConfig.instance.isMock ? 'package_delivery' : null;
 
   static const _options = [
     _ServiceOption(
@@ -113,7 +114,7 @@ class _ServiceTypeScreenState extends State<ServiceTypeScreen> {
                   ),
                   child: const Text(
                     'Continue',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),

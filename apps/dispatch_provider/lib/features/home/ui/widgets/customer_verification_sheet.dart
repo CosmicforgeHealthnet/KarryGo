@@ -30,8 +30,7 @@ class _CustomerVerificationSheet extends StatefulWidget {
       _CustomerVerificationSheetState();
 }
 
-class _CustomerVerificationSheetState
-    extends State<_CustomerVerificationSheet>
+class _CustomerVerificationSheetState extends State<_CustomerVerificationSheet>
     with SingleTickerProviderStateMixin {
   static const int _codeLength = 6;
 
@@ -151,7 +150,7 @@ class _CustomerVerificationSheetState
                     'Verify the customer',
                     style: TextStyle(
                       fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: colors.text,
                       letterSpacing: -0.6,
                       height: 1.15,
@@ -161,7 +160,7 @@ class _CustomerVerificationSheetState
                   Text(
                     "Scan the customer's QR or enter the code they read out.",
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w400,
                       color: colors.textMuted,
                       height: 1.45,
@@ -214,17 +213,12 @@ class _CustomerVerificationSheetState
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 child: _tab.index == 0
-                    ? _ScanTab(
-                        scanner: _scanner,
-                        onDetect: _onDetect,
-                      )
+                    ? _ScanTab(scanner: _scanner, onDetect: _onDetect)
                     : _ManualTab(
                         controller: _codeController,
                         focusNode: _focusNode,
                         length: _codeLength,
-                        onSubmitted: _canSubmitManual
-                            ? _submitManual
-                            : null,
+                        onSubmitted: _canSubmitManual ? _submitManual : null,
                       ),
               ),
             ),
@@ -262,8 +256,7 @@ class _CustomerVerificationSheetState
                       child: SizedBox(
                         height: 52,
                         child: FilledButton(
-                          onPressed:
-                              _canSubmitManual ? _submitManual : null,
+                          onPressed: _canSubmitManual ? _submitManual : null,
                           style: FilledButton.styleFrom(
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -453,9 +446,7 @@ class _QrFramePainter extends CustomPainter {
     // Dim everything outside the scanning window.
     final scrimPath = Path()
       ..addRect(Offset.zero & size)
-      ..addRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(cornerRadius)),
-      )
+      ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(cornerRadius)))
       ..fillType = PathFillType.evenOdd;
     canvas.drawPath(scrimPath, Paint()..color = scrim);
 
@@ -632,7 +623,7 @@ class _CodeBox extends StatelessWidget {
         char,
         style: TextStyle(
           fontSize: 22,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           color: colors.text,
           height: 1.0,
           fontFeatures: const [FontFeature.tabularFigures()],

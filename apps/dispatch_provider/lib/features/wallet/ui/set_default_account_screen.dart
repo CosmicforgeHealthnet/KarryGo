@@ -1,3 +1,4 @@
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/dispatch_colors.dart';
@@ -67,7 +68,7 @@ class SetDefaultAccountScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: DispatchColors.brandNavy900,
                   letterSpacing: -0.4,
                   height: 1.2,
@@ -113,7 +114,7 @@ class SetDefaultAccountScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: Color(0xFF081F44),
                 ),
               ),
             ),
@@ -146,8 +147,8 @@ class _AccountCard extends StatelessWidget {
               color: Color(0xFFFFF3E0),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.account_balance_rounded,
+            child: const JourneyIcon(
+              JourneySymbol.bank,
               size: 22,
               color: Color(0xFFF59E0B),
             ),

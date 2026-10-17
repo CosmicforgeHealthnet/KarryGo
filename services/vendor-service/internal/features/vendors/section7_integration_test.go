@@ -110,16 +110,16 @@ func TestSection7ActivationMatrixExpirySuspensionAndSourceIntegrity(t *testing.T
 	if e != nil {
 		t.Fatal(e)
 	}
-	if r.Ready || !hasBlocker(r, "BANK_NOT_STARTED") {
-		t.Fatalf("bank-pending matrix should block: %+v", r.Blockers)
+	if hasBlocker(r, "BANK_NOT_STARTED") {
+		t.Fatalf("Bank setup must not block onboarding: %+v", r.Blockers)
 	}
 	apply("verification-compliance-service", "evt-bank-pending-review", pendingReview("case-bank-pending", 1), DimensionBank, "BUSINESS", business.ID)
 	r, e = svc.Readiness(ctx, actor)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if r.Ready || !hasBlocker(r, "BANK_PENDING_REVIEW") {
-		t.Fatalf("mandatory BANK=PENDING_REVIEW must block business activation: %+v", r.Blockers)
+	if hasBlocker(r, "BANK_PENDING_REVIEW") {
+		t.Fatalf("Pending bank verification must not block business activation: %+v", r.Blockers)
 	}
 	var businessStatus BusinessStatus
 	if e = pool.QueryRow(ctx, `SELECT status FROM vendor_businesses WHERE id=$1`, business.ID).Scan(&businessStatus); e != nil || businessStatus == BusinessActive {

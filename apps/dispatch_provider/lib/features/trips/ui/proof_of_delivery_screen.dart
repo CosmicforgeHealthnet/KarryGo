@@ -1,281 +1,163 @@
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
+import '../../../shared/widgets/delivery_collection_widgets.dart';
+import '../../../shared/widgets/dispatch_empty_state.dart';
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/async_content.dart';
 import '../data/trip_model.dart';
 
 class ProofOfDeliveryScreen extends StatefulWidget {
   const ProofOfDeliveryScreen({super.key, required this.trip});
   final TripModel trip;
-
   @override
   State<ProofOfDeliveryScreen> createState() => _ProofOfDeliveryScreenState();
 }
 
-class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
-
-  @override
-  void initState() {
-    super.initState();
-    final hasSig = widget.trip.proofSignatureUrl != null;
-    final hasReceipt = widget.trip.proofReceiptUrl != null;
-    final count = 1 + (hasSig ? 1 : 0) + (hasReceipt ? 1 : 0);
-    _tab = TabController(length: count, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
-
+class _ProofOfDeliveryScreenState extends State<ProofOfDeliveryScreen> {
+  int _selected = 0, _revision = 0;
   @override
   Widget build(BuildContext context) {
-    final colors = context.palette;
     final trip = widget.trip;
-    final hasSig = trip.proofSignatureUrl != null;
-    final hasReceipt = trip.proofReceiptUrl != null;
-
+    final assets = <({String title, String url})>[
+      for (var i = 0; i < trip.proofPhotos.length; i++)
+        (title: 'Photo ${i + 1}', url: trip.proofPhotos[i]),
+      if (trip.proofPhotos.isEmpty && trip.proofUrl != null)
+        (title: 'Photo', url: trip.proofUrl!),
+      if (trip.proofSignatureUrl != null)
+        (title: 'Signature', url: trip.proofSignatureUrl!),
+      if (trip.proofReceiptUrl != null)
+        (title: 'Receipt', url: trip.proofReceiptUrl!),
+    ];
+    final record = trip.proofRecord;
+    final submitted = DateTime.tryParse(
+      record?['submitted_at']?.toString() ?? '',
+    );
     return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(context),
-            const SizedBox(height: 4),
-            TabBar(
-              controller: _tab,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              labelColor: colors.brandTeal600,
-              unselectedLabelColor: colors.textMuted,
-              labelStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-              indicatorColor: colors.brandTeal500,
-              indicatorWeight: 2.5,
-              indicatorSize: TabBarIndicatorSize.label,
-              dividerColor: colors.divider,
-              tabs: [
-                const Tab(text: 'Photos'),
-                if (hasSig) const Tab(text: 'Signature'),
-                if (hasReceipt) const Tab(text: 'Receipt'),
+      backgroundColor: context.palette.background,
+      appBar: AppBar(
+        leading: const DispatchBackButton(),
+        title: const Text('Proof of delivery'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          DeliveryPanel(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const JourneyIcon(JourneySymbol.shield, size: 34),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        record?['verified'] == true
+                            ? 'Verified handover'
+                            : 'Saved delivery evidence',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        trip.receiverName.isNotEmpty
+                            ? trip.receiverName
+                            : 'Delivery record',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      if (submitted != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          deliveryDate(submitted, time: true),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
-            Expanded(
-              child: TabBarView(
-                controller: _tab,
+          ),
+          const SizedBox(height: 20),
+          if (assets.isEmpty)
+            const DispatchEmptyState(
+              story: EmptyStory.activity,
+              title: 'Preview unavailable',
+              message:
+                  'The record has no viewable evidence files available here.',
+            )
+          else ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
                 children: [
-                  _PhotosTab(photos: trip.proofPhotos),
-                  if (hasSig) _ImageTab(url: trip.proofSignatureUrl!),
-                  if (hasReceipt) _ImageTab(url: trip.proofReceiptUrl!),
+                  for (var i = 0; i < assets.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: DeliveryFilter(
+                        label: assets[i].title,
+                        selected: _selected == i,
+                        onTap: () => setState(() => _selected = i),
+                      ),
+                    ),
                 ],
               ),
             ),
-            if (trip.proofPhotos.isNotEmpty) _buildDownloadBar(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  size: 22,
-                  color: colors.text,
+            const SizedBox(height: 16),
+            Text('Pinch to zoom', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                color: context.palette.surfaceElevated,
+                child: AspectRatio(
+                  aspectRatio: 4 / 5,
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: _image(assets[_selected].url),
+                  ),
                 ),
               ),
             ),
-          ),
-          Text(
-            'Proof of delivery',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: colors.text,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(width: 40),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildDownloadBar(BuildContext context) {
-    final colors = context.palette;
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.divider)),
-        ),
-        child: SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Download started.')),
-              );
-            },
-            icon: Icon(
-              Icons.download_rounded,
-              size: 18,
-              color: colors.brandTeal600,
-            ),
-            label: Text(
-              'Download all photos',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: colors.brandTeal600,
-              ),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: colors.brandTeal500, width: 1.4),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Tabs ────────────────────────────────────────────────────────────
-
-class _PhotosTab extends StatelessWidget {
-  const _PhotosTab({required this.photos});
-  final List<String> photos;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-
-    if (photos.isEmpty) {
-      return Center(
+  Widget _image(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !['http', 'https'].contains(uri.scheme))
+      return const Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            'No photos were captured for this delivery.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: colors.textMuted),
-          ),
+          padding: EdgeInsets.all(24),
+          child: Text('This evidence file does not have a viewable link.'),
         ),
       );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      itemCount: photos.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) => _PhotoPlaceholder(
-        label: photos[i],
-        index: i,
-        total: photos.length,
-      ),
-    );
-  }
-}
-
-class _PhotoPlaceholder extends StatelessWidget {
-  const _PhotoPlaceholder({
-    required this.label,
-    required this.index,
-    required this.total,
-  });
-
-  final String label;
-  final int index;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Container(
-      height: 220,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: colors.navy10,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.divider),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.image_outlined,
-            size: 44,
-            color: colors.navy40,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: colors.textMuted,
+    return Image.network(
+      url,
+      key: ValueKey('$url:$_revision'),
+      fit: BoxFit.contain,
+      loadingBuilder: (context, child, progress) => progress == null
+          ? child
+          : const Center(
+              child: SizedBox.square(
+                dimension: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
+      errorBuilder: (context, _, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ActionNotice(
+            message: 'Could not load this evidence file.',
+            isError: true,
+            onRetry: () async {
+              await NetworkImage(url).evict();
+              if (mounted) setState(() => _revision++);
+            },
           ),
-          const SizedBox(height: 2),
-          Text(
-            '${index + 1} of $total',
-            style: TextStyle(
-              fontSize: 11.5,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ImageTab extends StatelessWidget {
-  const _ImageTab({required this.url});
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.divider),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          Icons.image_outlined,
-          size: 60,
-          color: colors.navy40,
         ),
       ),
     );

@@ -68,9 +68,7 @@ class SupportTransport extends FinanceTransport {
 
 class SupportRuntime extends VendorRuntime {
   SupportRuntime(this.value, {VendorPreferences? store})
-    : super(preferences: store ?? VendorPreferences(inMemory: true)) {
-    mode = VendorDataMode.live;
-  }
+    : super(preferences: store ?? VendorPreferences(inMemory: true));
   final VendorApp value;
   @override
   VendorApp get backend => value;

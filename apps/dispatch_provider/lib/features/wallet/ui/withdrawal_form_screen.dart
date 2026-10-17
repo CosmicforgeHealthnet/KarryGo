@@ -1,11 +1,16 @@
+import '../../../shared/widgets/account_components.dart';
+import '../../../shared/widgets/delivery_collection_widgets.dart';
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/app_mode.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/widgets/numeric_keypad.dart';
-import '../mock/wallet_tab_mock.dart';
+import '../data/wallet_models.dart';
 import '../state/wallet_controller.dart';
 import 'withdrawal_confirm_screen.dart';
+import 'add_bank_account_screen.dart';
+import '../../../shared/widgets/async_content.dart';
 
 class WithdrawalFormScreen extends StatefulWidget {
   const WithdrawalFormScreen({super.key, required this.walletController});
@@ -18,31 +23,157 @@ class WithdrawalFormScreen extends StatefulWidget {
 
 class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
   String _amount = '';
+  String? _selectedAccountId;
+  bool _banksLoading = true;
+  bool _balanceLoading = true;
+  String? _banksError;
+  String? _balanceError;
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadBanks();
+        _loadBalance();
+      }
+    });
+  }
+
+  Future<void> _loadBanks() async {
+    setState(() {
+      _banksLoading = true;
+      _banksError = null;
+    });
+    final result = await _controller.loadBankAccounts();
+    if (!mounted) return;
+    result.when(success: (_) {}, failure: (e) => _banksError = e.message);
+    setState(() => _banksLoading = false);
+  }
+
+  Future<void> _loadBalance() async {
+    setState(() {
+      _balanceLoading = true;
+      _balanceError = null;
+    });
+    final result = await _controller.loadEarnings();
+    if (!mounted) return;
+    result.when(success: (_) {}, failure: (e) => _balanceError = e.message);
+    setState(() => _balanceLoading = false);
+  }
+
+  Future<void> _addBank() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddBankAccountScreen(walletController: _controller),
+      ),
+    );
+    if (mounted) await _loadBanks();
+  }
+
+  Future<void> _chooseBank() async {
+    if (_banksLoading || _banksError != null) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheet) => FractionallySizedBox(
+        heightFactor: 0.65,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: Text(
+                'Withdrawal account',
+                style: Theme.of(sheet).textTheme.titleLarge,
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final bank in _accounts)
+                    ListTile(
+                      leading: JourneyIcon(
+                        JourneySymbol.bank,
+                        color: sheet.palette.brandTeal600,
+                      ),
+                      title: Text(bank.bankName),
+                      subtitle: Text(
+                        '${bank.accountName} / ${_maskAccount(bank.accountNumber)}',
+                      ),
+                      trailing: bank.id == _selectedAccount?.id
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              color: sheet.palette.brandTeal600,
+                            )
+                          : null,
+                      selected: bank.id == _selectedAccount?.id,
+                      onTap: () => Navigator.pop(sheet, bank.id),
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.add_rounded),
+                    title: const Text('Add a bank account'),
+                    onTap: () => Navigator.pop(sheet, '__add__'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    if (selected == '__add__') {
+      await _addBank();
+      return;
+    }
+    setState(() => _selectedAccountId = selected);
+  }
+
+  static String _maskAccount(String number) => number.length > 4
+      ? '**** ${number.substring(number.length - 4)}'
+      : number;
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_changed);
+    super.dispose();
+  }
 
   WalletController get _controller => widget.walletController;
 
   double get _availableBalance {
-    if (AppModeConfig.instance.isMock) return WalletTabMock.balanceNaira;
     return (_controller.earnings?.availableKobo ?? 0) / 100;
   }
 
   List<BankAccount> get _accounts {
-    if (AppModeConfig.instance.isMock) return WalletTabMock.bankAccounts;
-    return const [];
+    return _controller.accounts;
   }
 
   BankAccount? get _selectedAccount {
     final list = _accounts;
     if (list.isEmpty) return null;
-    return list.firstWhere(
-      (a) => a.isDefault,
-      orElse: () => list.first,
-    );
+    if (_selectedAccountId != null)
+      return list.where((a) => a.id == _selectedAccountId).firstOrNull;
+    return list.firstWhere((a) => a.isDefault, orElse: () => list.first);
   }
 
   double get _amountValue => double.tryParse(_amount) ?? 0;
 
-  bool get _isValid => _amountValue > 0 && _amountValue <= _availableBalance;
+  bool get _isValid =>
+      !_banksLoading &&
+      !_balanceLoading &&
+      _banksError == null &&
+      _balanceError == null &&
+      _selectedAccount != null &&
+      _amountValue > 0 &&
+      _amountValue <= _availableBalance;
 
   bool get _isOverBalance =>
       _amountValue > 0 && _amountValue > _availableBalance;
@@ -66,6 +197,7 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
         builder: (_) => WithdrawalConfirmScreen(
           walletController: _controller,
           amount: _amountValue,
+          bankAccountId: _selectedAccount!.id,
         ),
       ),
     );
@@ -73,234 +205,102 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.palette;
-
+    final c = context.palette;
     return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(context),
-            Expanded(child: _buildBody()),
-            NumericKeypad(onKeyTap: _onKeyTap),
-            const SizedBox(height: 12),
-            _buildBottomButton(),
-          ],
-        ),
+      backgroundColor: c.background,
+      appBar: AppBar(
+        leading: const DispatchBackButton(),
+        title: const Text('Withdraw funds'),
       ),
-    );
-  }
-
-  // ── Top bar: back · Withdraw funds ────────────────────────────────
-
-  Widget _buildTopBar(BuildContext context) {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: Stack(
-        alignment: Alignment.center,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  size: 22,
-                  color: colors.text,
+          DeliveryPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(
+                  children: [
+                    AccountEmblem(symbol: JourneySymbol.transfer),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Enter withdrawal amount')),
+                  ],
                 ),
-              ),
-            ),
-          ),
-          Text(
-            'Withdraw funds',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: colors.text,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(width: 40),
-        ],
-      ),
-    );
-  }
-
-  // ── Body ──────────────────────────────────────────────────────────
-
-  Widget _buildBody() {
-    final colors = context.palette;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 8),
-
-          // Small muted label
-          Text(
-            'Enter amount',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w500,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Big amount centered
-          Center(
-            child: Text(
-              _amount.isEmpty ? '₦0' : '₦${_formatGrouped(_amountValue)}',
-              style: TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.w800,
-                color: _isOverBalance ? colors.danger : colors.text,
-                letterSpacing: -1.2,
-                height: 1.05,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Available balance
-          Center(
-            child: Text(
-              'Available balance: ${_formatNaira(_availableBalance)}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: _isOverBalance ? colors.danger : colors.textMuted,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // "To" label
-          Text(
-            'To',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w500,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Bank account selector
-          _buildBankSelector(),
-        ],
-      ),
-    );
-  }
-
-  // ── Bank selector row ─────────────────────────────────────────────
-
-  Widget _buildBankSelector() {
-    final colors = context.palette;
-    final account = _selectedAccount;
-
-    if (account == null) {
-      return GestureDetector(
-        onTap: () {
-          // TODO: navigate to Add bank account
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colors.divider),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.add_circle_outline_rounded,
-                size: 20,
-                color: colors.brandTeal500,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Add a bank account',
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
-                  color: colors.brandTeal500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: () {
-        // TODO: open bank account picker
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: colors.divider),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors.navy10,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.account_balance_rounded,
-                size: 20,
-                color: colors.text,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    account.bankName,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: colors.text,
-                      height: 1.2,
-                    ),
+                const SizedBox(height: 24),
+                Text(
+                  _amount.isEmpty
+                      ? '\u20a60'
+                      : '\u20a6${_formatGrouped(_amountValue)}',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontSize: 36,
+                    color: _isOverBalance ? c.danger : c.text,
                   ),
-                  const SizedBox(height: 3),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _balanceLoading
+                      ? 'Loading balance...'
+                      : _balanceError != null
+                      ? 'Balance unavailable'
+                      : 'Available: ${_formatNaira(_availableBalance)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                if (_isOverBalance && _balanceError == null) ...[
+                  const SizedBox(height: 10),
                   Text(
-                    account.accountNumber,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textMuted,
-                    ),
+                    'Amount exceeds your available balance.',
+                    style: TextStyle(color: c.danger),
                   ),
                 ],
-              ),
+              ],
+            ),
+          ),
+          if (_banksError != null) ...[
+            const SizedBox(height: 14),
+            ActionNotice(
+              message: _banksError!,
+              isError: true,
+              onRetry: _loadBanks,
             ),
           ],
-        ),
+          if (_balanceError != null) ...[
+            const SizedBox(height: 14),
+            ActionNotice(
+              message: _balanceError!,
+              isError: true,
+              onRetry: _loadBalance,
+            ),
+          ],
+          const SizedBox(height: 24),
+          Text('Send to', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 12),
+          _buildBankSelector(),
+          const SizedBox(height: 16),
+          NumericKeypad(onKeyTap: _onKeyTap),
+        ],
       ),
+      bottomNavigationBar: _buildBottomButton(),
     );
   }
 
-  // ── Bottom button ─────────────────────────────────────────────────
+  Widget _buildBankSelector() {
+    final account = _selectedAccount;
+
+    if (_banksLoading)
+      return const SizedBox(height: 80, child: ContentSkeleton());
+    if (_banksError != null) return const SizedBox.shrink();
+    return DeliveryPanel(
+      padding: EdgeInsets.zero,
+      child: AccountMenuTile(
+        title: account?.bankName ?? 'Add a bank account',
+        symbol: JourneySymbol.bank,
+        subtitle: account == null
+            ? 'Choose where to receive your withdrawal'
+            : '${account.accountName} / ${_maskAccount(account.accountNumber)}',
+        onTap: account == null ? _addBank : _chooseBank,
+      ),
+    );
+  }
 
   Widget _buildBottomButton() {
     return SafeArea(
@@ -327,8 +327,6 @@ class _WithdrawalFormScreenState extends State<WithdrawalFormScreen> {
       ),
     );
   }
-
-  // ── Formatting ────────────────────────────────────────────────────
 
   static String _formatNaira(double value) {
     final parts = value.toStringAsFixed(2).split('.');

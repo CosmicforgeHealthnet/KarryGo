@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import '../../../core/app_mode.dart';
 import '../../profile/state/provider_profile_controller.dart';
 import '../../../shared/widgets/document_upload_box.dart';
 
@@ -84,7 +86,33 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
   @override
   void initState() {
     super.initState();
+    if (AppModeConfig.instance.isMock) {
+      _guarantorNameController.text = 'Kunle Adeyemi';
+      _guarantorPhoneController.text = '8000000002';
+      _emergencyNameController.text = 'Ada Adeyemi';
+      _emergencyPhoneController.text = '8000000001';
+      _relationshipType = 'Sibling';
+      _loadDemoDocuments();
+    }
     _loadExistingData();
+  }
+
+  Future<void> _loadDemoDocuments() async {
+    final data = await rootBundle.load('assets/figma/welcome_hero.png');
+    final directory = await Directory.systemTemp.createTemp(
+      'karryam-demo-docs-',
+    );
+    final file = File('${directory.path}/sample.png');
+    await file.writeAsBytes(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    );
+    if (!mounted) return;
+    setState(() {
+      _licenseFileName = 'Mock licence.png';
+      _licenseFilePath = file.path;
+      _vehicleRegFileName = 'Mock registration.png';
+      _vehicleRegFilePath = file.path;
+    });
   }
 
   void _loadExistingData() async {
@@ -485,16 +513,16 @@ class _DriverInformationScreenState extends State<DriverInformationScreen> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                             strokeWidth: 2.5,
                           ),
                         )
                       : const Text(
                           'Final Step',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         ),
                 ),

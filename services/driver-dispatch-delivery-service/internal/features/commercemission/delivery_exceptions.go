@@ -271,7 +271,7 @@ func (r *Repository) StartProviderReturn(ctx context.Context, providerID, missio
 		return ReturnRecord{}, err
 	}
 	var custody int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM commerce_mission_parcels WHERE commerce_mission_id=$1::uuid AND parcel_ref=ANY($2) AND custodian_type='PROVIDER' AND status IN ('PICKED_UP','IN_TRANSIT','RETURN_REQUIRED')`, missionID, command.ParcelRefs).Scan(&custody); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM commerce_mission_parcels WHERE commerce_mission_id=$1::uuid AND parcel_ref=ANY($2) AND custodian_type='PROVIDER' AND custodian_ref=$3 AND status IN ('PICKED_UP','IN_TRANSIT','RETURN_REQUIRED')`, missionID, command.ParcelRefs, providerID).Scan(&custody); err != nil {
 		return ReturnRecord{}, err
 	}
 	if custody != len(command.ParcelRefs) {

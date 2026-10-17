@@ -22,7 +22,9 @@ func RegisterRoutes(group *gin.RouterGroup, service *walletusecases.WalletServic
 
 	provider := group.Group("/provider")
 	provider.Use(providerBearerMiddleware(providerAccessSecrets))
+	provider.GET("/banks", handler.SupportedBanks)
 	provider.GET("/earnings", handler.ProviderEarnings)
+	provider.GET("/transactions", handler.ProviderTransactions)
 	provider.GET("/bank-accounts", handler.ListBankAccounts)
 	provider.POST("/bank-accounts/resolve", handler.ResolveBankAccount)
 	provider.POST("/bank-accounts", handler.RegisterBankAccount)

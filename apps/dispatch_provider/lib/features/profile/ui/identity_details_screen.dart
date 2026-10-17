@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,8 +19,7 @@ class IdentityDetailsScreen extends StatefulWidget {
   final VerificationController verificationController;
 
   @override
-  State<IdentityDetailsScreen> createState() =>
-      _IdentityDetailsScreenState();
+  State<IdentityDetailsScreen> createState() => _IdentityDetailsScreenState();
 }
 
 class _IdentityDetailsScreenState extends State<IdentityDetailsScreen> {
@@ -36,10 +36,7 @@ class _IdentityDetailsScreenState extends State<IdentityDetailsScreen> {
     'drivers_licence': "Driver's Licence",
   };
 
-  static const _genders = {
-    'male': 'Male',
-    'female': 'Female',
-  };
+  static const _genders = {'male': 'Male', 'female': 'Female'};
 
   @override
   void dispose() {
@@ -69,17 +66,8 @@ class _IdentityDetailsScreenState extends State<IdentityDetailsScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                     child: Icon(
-  Icons.arrow_back_rounded,   
-  size: 22,
-  color: c.text,
-),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -109,8 +97,8 @@ class _IdentityDetailsScreenState extends State<IdentityDetailsScreen> {
                   Text(
                     'Identity details',
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.4,
                     ),
@@ -296,8 +284,10 @@ class _Field extends StatelessWidget {
         ),
         filled: true,
         fillColor: c.inputFill,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 18,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -434,11 +424,7 @@ class _DateField extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 20,
-              color: c.textMuted,
-            ),
+            Icon(Icons.calendar_today_outlined, size: 20, color: c.textMuted),
           ],
         ),
       ),
@@ -447,8 +433,18 @@ class _DateField extends StatelessWidget {
 
   static String _fmt(DateTime d) {
     const m = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${d.day} ${m[d.month - 1]} ${d.year}';
   }

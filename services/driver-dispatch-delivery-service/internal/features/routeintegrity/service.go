@@ -11,6 +11,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type RouteAuthority interface {
@@ -135,6 +136,29 @@ func (s *Service) ReplayCommand(ctx context.Context, providerID string, command 
 	if command.ClientTimestamp.After(now.Add(s.policy.MaximumClientClockSkew)) || command.ClientTimestamp.Before(now.Add(-24*time.Hour)) {
 		return DeviceCommandResult{}, apperrors.New(409, "CLIENT_TIMESTAMP_INVALID", "Offline command timestamp is outside the accepted window.", nil)
 	}
+	var apply []func(pgx.Tx, string) error
+	if command.CommandType == "LOCATION_FIX" {
+		fix, err := locationFromPayload(providerID, command.Payload, command.ClientTimestamp, now)
+		if err != nil {
+			return DeviceCommandResult{}, err
+		}
+		route, found, err := s.repo.routeAtCapture(ctx, providerID, command.TripID, command.ClientTimestamp)
+		if err != nil {
+			return DeviceCommandResult{}, err
+		}
+		if found {
+			apply = append(apply, func(tx pgx.Tx, id string) error { return recordOfflineFixTx(ctx, tx, id, route, fix) })
+		}
+	}
+	fp := commandFingerprint(providerID, command)
+	if prior, stored, found, err := s.repo.readDeviceCommand(ctx, providerID, command); err != nil {
+		return DeviceCommandResult{}, err
+	} else if found {
+		if stored != fp {
+			return DeviceCommandResult{}, apperrors.Conflict("Offline command identity was reused with different semantics.", nil)
+		}
+		return s.repo.RecordDeviceCommand(ctx, providerID, command, prior, fp, now, apply...)
+	}
 	result := DeviceCommandResult{ID: uuid.NewString(), State: "REJECTED", CommandType: command.CommandType, ServerVersion: command.LastKnownServerVersion}
 	if command.TripID != "" {
 		trip, err := s.repo.TripContext(ctx, command.TripID, providerID)
@@ -152,20 +176,7 @@ func (s *Service) ReplayCommand(ctx context.Context, providerID string, command 
 		return result, apperrors.BadRequest("Offline command type is not supported.", nil)
 	}
 	result.State, result.ReasonCode = state, reason
-	stored, err := s.repo.RecordDeviceCommand(ctx, providerID, command, result, commandFingerprint(providerID, command), now)
-	if err != nil {
-		return stored, err
-	}
-	if command.CommandType == "LOCATION_FIX" && stored.State == "ACCEPTED" && !stored.Replayed {
-		fix, parseErr := locationFromPayload(providerID, command.Payload, command.ClientTimestamp, now)
-		if parseErr != nil {
-			return stored, parseErr
-		}
-		if err = s.IngestLocation(ctx, fix); err != nil {
-			return stored, err
-		}
-	}
-	return stored, nil
+	return s.repo.RecordDeviceCommand(ctx, providerID, command, result, fp, now, apply...)
 }
 func classifyOfflineCommand(kind string) (state, reason string, ok bool) {
 	switch canonicalCommandType(kind) {
@@ -195,7 +206,7 @@ func locationFromPayload(provider string, p map[string]any, client, received tim
 	heading, c := num("heading")
 	speed, d := num("speed")
 	accuracy, e := num("accuracy")
-	if !a || !b || !c || !d || !e || lat < -90 || lat > 90 || lng < -180 || lng > 180 || heading < 0 || heading > 360 || speed < 0 || accuracy < 0 {
+	if !a || !b || !c || !d || !e || math.IsNaN(lat) || math.IsNaN(lng) || math.IsNaN(heading) || math.IsNaN(speed) || math.IsNaN(accuracy) || math.IsInf(lat, 0) || math.IsInf(lng, 0) || math.IsInf(heading, 0) || math.IsInf(speed, 0) || math.IsInf(accuracy, 0) || lat < -90 || lat > 90 || lng < -180 || lng > 180 || heading < 0 || heading > 360 || speed < 0 || accuracy < 0 {
 		return LocationFix{}, apperrors.BadRequest("Offline location payload is invalid.", nil)
 	}
 	return LocationFix{ProviderID: provider, Latitude: lat, Longitude: lng, Heading: heading, Speed: speed, Accuracy: accuracy, ClientRecordedAt: client, ReceivedAt: received}, nil

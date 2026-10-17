@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
 class VendorAppConfig {
@@ -6,7 +7,8 @@ class VendorAppConfig {
     this.timeout = const Duration(seconds: 30),
   }) {
     final uri = Uri.parse(origin);
-    if (!uri.hasAuthority ||
+    if ((kReleaseMode && uri.scheme != 'https') ||
+        !uri.hasAuthority ||
         !['http', 'https'].contains(uri.scheme) ||
         (uri.path.isNotEmpty && uri.path != '/') ||
         uri.hasQuery ||

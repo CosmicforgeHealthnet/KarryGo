@@ -1,8 +1,10 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/async_content.dart';
 import '../models/dispute_models.dart';
 import '../state/rider_dispute_controller.dart';
 
@@ -34,16 +36,12 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
   final _scroll = ScrollController();
   Timer? _pollTimer;
 
-  /// Tracks messages that failed to send (Figma 10 retry).
-  final Set<String> _failedIds = {};
-
   @override
   void initState() {
     super.initState();
-    widget.controller.loadMessages(widget.complaint.id);
-    widget.controller.markMessagesRead(widget.complaint.id);
+    _refresh();
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      widget.controller.loadMessages(widget.complaint.id);
+      _refresh();
     });
   }
 
@@ -64,31 +62,27 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
     );
   }
 
-  Future<void> _send() async {
-    final text = _composer.text.trim();
-    if (text.isEmpty) return;
-    _composer.clear();
-
-    // Optimistic local echo so the user sees the bubble instantly.
-    final localId = 'local-${DateTime.now().microsecondsSinceEpoch}';
-    try {
-      await widget.controller.sendMessage(widget.complaint.id, text);
-      if (_failedIds.contains(localId)) {
-        _failedIds.remove(localId);
-      }
-      _scrollToBottom();
-    } catch (_) {
-      setState(() => _failedIds.add(localId));
+  Future<void> _refresh() async {
+    await widget.controller.loadMessages(widget.complaint.id);
+    if (mounted && widget.controller.messagesError == null) {
+      await widget.controller.markMessagesRead(widget.complaint.id);
     }
   }
 
-  Future<void> _retry(String localId) async {
-    setState(() => _failedIds.remove(localId));
-    await widget.controller.sendMessage(
-      widget.complaint.id,
-      _composer.text.isEmpty ? 'Retrying…' : _composer.text,
-    );
-    _scrollToBottom();
+  Future<void> _send() async {
+    final text = _composer.text.trim();
+    if (text.isEmpty || widget.controller.sending) return;
+    final future = widget.controller.sendMessage(widget.complaint.id, text);
+    setState(() {});
+    final sent = await future;
+    if (!mounted) return;
+    setState(() {
+      if (sent && _composer.text.trim() == text) _composer.clear();
+    });
+    if (sent)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToBottom();
+      });
   }
 
   @override
@@ -106,23 +100,12 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               decoration: BoxDecoration(
                 color: c.background,
-                border: Border(
-                  bottom: BorderSide(color: c.divider),
-                ),
+                border: Border(bottom: BorderSide(color: c.divider)),
               ),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   // Avatar
@@ -158,46 +141,11 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: c.success,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Usually replies in minutes',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: c.textMuted,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Case conversation',
+                          style: TextStyle(fontSize: 12, color: c.textMuted),
                         ),
                       ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('More options coming soon.'),
-                        ),
-                      );
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.more_vert_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
                     ),
                   ),
                 ],
@@ -211,15 +159,23 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
                 builder: (context, _) {
                   final messages = widget.controller.messages;
 
-                  if (widget.controller.loadingMessages &&
+                  if (widget.controller.loadingMessages && messages.isEmpty) {
+                    return const ContentSkeleton(rows: 3);
+                  }
+
+                  if (widget.controller.messagesError != null &&
                       messages.isEmpty) {
                     return Center(
-                      child: CircularProgressIndicator(
-                        color: c.brandTeal500,
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: ActionNotice(
+                          message: widget.controller.messagesError!,
+                          isError: true,
+                          onRetry: _refresh,
+                        ),
                       ),
                     );
                   }
-
                   if (messages.isEmpty) {
                     return _EmptyChat(
                       onStart: () {
@@ -236,8 +192,8 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
                       final m = messages[i];
                       return _MessageBubble(
                         message: m,
-                        failed: _failedIds.contains(m.id),
-                        onRetry: () => _retry(m.id),
+                        failed: false,
+                        onRetry: _refresh,
                       );
                     },
                   );
@@ -246,6 +202,33 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
             ),
 
             // ── Composer ──
+            AnimatedBuilder(
+              animation: widget.controller,
+              builder: (context, _) => Column(
+                children: [
+                  if (widget.controller.messagesError != null &&
+                      widget.controller.messages.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: ActionNotice(
+                        message: widget.controller.messagesError!,
+                        isError: true,
+                        onRetry: _refresh,
+                      ),
+                    ),
+                  if (widget.controller.sendError != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: ActionNotice(
+                        message:
+                            '${widget.controller.sendError} Your text is still here. Refresh the conversation before sending again.',
+                        isError: true,
+                        onRetry: _refresh,
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Container(
               color: c.surface,
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -257,6 +240,7 @@ class _DisputeChatScreenState extends State<DisputeChatScreen> {
                     Expanded(
                       child: TextField(
                         controller: _composer,
+                        enabled: !widget.controller.sending,
                         minLines: 1,
                         maxLines: 4,
                         textInputAction: TextInputAction.send,
@@ -355,17 +339,15 @@ class _MessageBubble extends StatelessWidget {
     final mine = message.isMine;
 
     return Column(
-      crossAxisAlignment:
-          mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: mine
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Align(
           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.75,
             ),
@@ -377,9 +359,7 @@ class _MessageBubble extends StatelessWidget {
                 bottomLeft: Radius.circular(mine ? 16 : 4),
                 bottomRight: Radius.circular(mine ? 4 : 16),
               ),
-              border: mine
-                  ? null
-                  : Border.all(color: c.divider, width: 1),
+              border: mine ? null : Border.all(color: c.divider, width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -388,7 +368,7 @@ class _MessageBubble extends StatelessWidget {
                 Text(
                   message.content,
                   style: TextStyle(
-                    fontSize: 14.5,
+                    fontSize: 15,
                     height: 1.4,
                     color: mine ? Colors.white : c.text,
                   ),
@@ -430,11 +410,7 @@ class _MessageBubble extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.error_outline_rounded,
-                  size: 14,
-                  color: c.danger,
-                ),
+                Icon(Icons.error_outline_rounded, size: 14, color: c.danger),
                 const SizedBox(width: 5),
                 Text(
                   'Message failed to send.',

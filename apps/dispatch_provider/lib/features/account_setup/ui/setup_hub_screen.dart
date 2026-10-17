@@ -1,25 +1,10 @@
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/async_content.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import '../../profile/models/provider_profile_models.dart';
 import '../../profile/state/provider_profile_controller.dart';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Setup Hub — progress overview
-//
-// Real progress, driven by ProviderProfile + the in-memory
-// `selectedOperationType` (because the backend refuses to store
-// operation_type mid-onboarding — see updateReadOnlyFields).
-//
-//   Step 1  Basic profile      → fullName + state + city
-//   Step 2  Operation type     → profile.operationType OR selectedOperationType
-//   Step 3  Emergency contact  → hasEmergencyContact
-//   Step 4  Guarantor details  → hasGuarantor
-//   Step 5  Profile photo      → profilePhotoUrl
-//   Step 6  Review & submit    → onboardingComplete
-//
-// onContinue tells the shell which step to open next (1..6).
-// ═══════════════════════════════════════════════════════════════════════════
 
 class SetupHubScreen extends StatefulWidget {
   const SetupHubScreen({
@@ -29,16 +14,10 @@ class SetupHubScreen extends StatefulWidget {
     required this.onBack,
     this.selectedOperationType,
   });
-
   final ProviderProfileController profileController;
   final ValueChanged<int> onContinue;
   final VoidCallback onBack;
-
-  /// Value picked on the Operation Type screen in this session. Because the
-  /// backend rejects operation_type on PATCH /provider/me, this is the only
-  /// place the value exists until submitOnboarding runs on step 6.
   final String? selectedOperationType;
-
   @override
   State<SetupHubScreen> createState() => _SetupHubScreenState();
 }
@@ -46,34 +25,14 @@ class SetupHubScreen extends StatefulWidget {
 class _SetupHubScreenState extends State<SetupHubScreen> {
   bool _isLoading = true;
   String? _loadError;
-
   static const _steps = [
-    _SetupStep(
-      title: 'Basic profile',
-      subtitle: 'Add your personal details',
-    ),
-    _SetupStep(
-      title: 'Operation type',
-      subtitle: 'Choose how you operate',
-    ),
-    _SetupStep(
-      title: 'Emergency contact',
-      subtitle: 'Add a trusted contact',
-    ),
-    _SetupStep(
-      title: 'Guarantor details',
-      subtitle: 'Provide guarantor information',
-    ),
-    _SetupStep(
-      title: 'Profile photo',
-      subtitle: 'Take a clear photo',
-    ),
-    _SetupStep(
-      title: 'Review & submit',
-      subtitle: 'Check your details',
-    ),
+    ('Basic profile', 'Your personal details', JourneySymbol.profile),
+    ('Operation type', 'How you work', JourneySymbol.route),
+    ('Emergency contact', 'Someone you trust', JourneySymbol.contact),
+    ('Guarantor details', 'Your guarantor information', JourneySymbol.shield),
+    ('Profile photo', 'A clear photo of you', JourneySymbol.photo),
+    ('Review & submit', 'Check everything together', JourneySymbol.review),
   ];
-
   @override
   void initState() {
     super.initState();
@@ -91,14 +50,10 @@ class _SetupHubScreenState extends State<SetupHubScreen> {
       success: (_) => setState(() => _isLoading = false),
       failure: (error) => setState(() {
         _isLoading = false;
-        _loadError = error.message.isNotEmpty
-            ? error.message
-            : 'Could not load your profile.';
+        _loadError = error.message;
       }),
     );
   }
-
-  // ── Progress computation ────────────────────────────────────────────
 
   Set<int> _completedSteps(ProviderProfile p) {
     final s = <int>{};
@@ -140,341 +95,224 @@ class _SetupHubScreenState extends State<SetupHubScreen> {
     return 6;
   }
 
-  // ── Build ───────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     final c = context.palette;
-
-    return Scaffold(
-      backgroundColor: c.background,
-      body: SafeArea(
-        child: _isLoading
-            ? Center(
-                child: CircularProgressIndicator(color: c.brandTeal500),
-              )
-            : _loadError != null
-                ? _ErrorView(message: _loadError!, onRetry: _load)
-                : _buildBody(c),
-      ),
-    );
-  }
-
-  Widget _buildBody(dynamic c) {
-    final profile = widget.profileController.profile;
-    final completed = profile == null ? <int>{} : _completedSteps(profile);
+    final p = widget.profileController.profile;
+    final completed = p == null ? <int>{} : _completedSteps(p);
     final current = _currentStep(completed);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              GestureDetector(
-                onTap: widget.onBack,
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 4,
-                  ),
-                  child: Icon(
-                    Icons.arrow_back_rounded,
-                    size: 24,
-                    color: c.text,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () {},
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(
-                    Icons.more_vert_rounded,
-                    size: 22,
-                    color: c.text,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Setup your provider account',
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: c.text,
-                letterSpacing: -0.4,
-                height: 1.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 265),
-            child: Text(
-              'A few steps to get you verified and ready for opportunities.',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-                color: c.textMuted,
-                height: 1.45,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (int i = 0; i < _steps.length; i++) ...[
-                    _SetupRow(
-                      step: _steps[i],
-                      number: i + 1,
-                      isCompleted: completed.contains(i + 1),
-                      isActive: i + 1 == current,
-                    ),
-                    if (i < _steps.length - 1) const SizedBox(height: 10),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 58,
-            child: FilledButton(
-              onPressed: () => widget.onContinue(current),
-              style: FilledButton.styleFrom(
-                backgroundColor: c.brandTeal500,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Continue',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Step row
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _SetupStep {
-  const _SetupStep({required this.title, required this.subtitle});
-  final String title;
-  final String subtitle;
-}
-
-class _SetupRow extends StatelessWidget {
-  const _SetupRow({
-    required this.step,
-    required this.number,
-    required this.isCompleted,
-    required this.isActive,
-  });
-
-  final _SetupStep step;
-  final int number;
-  final bool isCompleted;
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final activeTint = c.brandTeal500.withValues(alpha: 0.08);
-    final activeBorder = c.brandTeal500.withValues(alpha: 0.35);
-    final activeGlow = c.brandTeal500.withValues(alpha: 0.12);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-      decoration: BoxDecoration(
-        color: isActive ? activeTint : c.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isActive ? activeBorder : c.divider,
-          width: isActive ? 1.4 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isActive ? activeGlow : c.cardShadow.first.color,
-            blurRadius: isActive ? 14 : 8,
-            offset: Offset(0, isActive ? 4 : 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          _StepBadge(
-            number: number,
-            isCompleted: isCompleted,
-            isActive: isActive,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  step.title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: c.text,
-                    height: 1.2,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 64, 16),
+                  child: Row(
+                    children: [
+                      DispatchBackButton(onPressed: widget.onBack),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'ACCOUNT SETUP',
+                          style: TextStyle(
+                            fontSize: 10,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w700,
+                            color: c.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  step.subtitle,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
-                    color: c.textMuted,
-                    height: 1.3,
-                  ),
+                Expanded(
+                  child: _isLoading
+                      ? const ContentSkeleton()
+                      : _loadError != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: ActionNotice(
+                            message: _loadError!,
+                            isError: true,
+                            onRetry: _load,
+                          ),
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                          children: [
+                            DispatchStepProgress(
+                              current: current,
+                              total: 6,
+                              completed: completed,
+                            ),
+                            const SizedBox(height: 28),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        completed.isEmpty
+                                            ? 'Let?s get you\nready to deliver.'
+                                            : 'Your journey,\ncontinued.',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.headlineMedium,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        '${completed.length} of 6 setup details saved',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Image.asset(
+                                    'assets/figma/welcome_hero.png',
+                                    height: 150,
+                                    width: 100,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.topCenter,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            for (var i = 0; i < _steps.length; i++)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Material(
+                                  color: c.surface,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    side: BorderSide(
+                                      color: i + 1 == current
+                                          ? c.brandTeal600
+                                          : c.divider,
+                                    ),
+                                  ),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(20),
+                                    onTap:
+                                        completed.contains(i + 1) ||
+                                            i + 1 == current
+                                        ? () => widget.onContinue(i + 1)
+                                        : null,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 46,
+                                            height: 46,
+                                            decoration: BoxDecoration(
+                                              color: completed.contains(i + 1)
+                                                  ? c.successSoft
+                                                  : c.surfaceElevated,
+                                              borderRadius:
+                                                  BorderRadius.circular(15),
+                                            ),
+                                            child: JourneyIcon(
+                                              _steps[i].$3,
+                                              color: completed.contains(i + 1)
+                                                  ? c.success
+                                                  : i + 1 == current
+                                                  ? c.brandTeal600
+                                                  : c.textMuted,
+                                              size: 23,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  _steps[i].$1,
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.titleSmall,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  completed.contains(i + 1)
+                                                      ? (i == 1
+                                                            ? 'Selected'
+                                                            : i == 5
+                                                            ? 'Submitted'
+                                                            : 'Saved')
+                                                      : i + 1 == current
+                                                      ? _steps[i].$2
+                                                      : 'Not started',
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodyMedium,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            completed.contains(i + 1)
+                                                ? Icons.check_circle_rounded
+                                                : i + 1 == current
+                                                ? Icons.chevron_right_rounded
+                                                : Icons.lock_outline_rounded,
+                                            size: completed.contains(i + 1)
+                                                ? 20
+                                                : 18,
+                                            color: completed.contains(i + 1)
+                                                ? c.success
+                                                : i + 1 == current
+                                                ? c.brandTeal600
+                                                : c.textDisabled,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                 ),
+                if (!_isLoading && _loadError == null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => widget.onContinue(current),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              completed.isEmpty
+                                  ? 'Start setup'
+                                  : 'Continue setup',
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.arrow_forward_rounded, size: 19),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepBadge extends StatelessWidget {
-  const _StepBadge({
-    required this.number,
-    required this.isCompleted,
-    required this.isActive,
-  });
-
-  final int number;
-  final bool isCompleted;
-  final bool isActive;
-
-  static const double _size = 46;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-
-    if (isCompleted) {
-      return Container(
-        width: _size,
-        height: _size,
-        decoration: BoxDecoration(
-          color: c.brandTeal500,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.check_rounded,
-          size: 24,
-          color: Colors.white,
-        ),
-      );
-    }
-
-    if (isActive) {
-      return Container(
-        width: _size,
-        height: _size,
-        decoration: BoxDecoration(
-          color: c.brandNavy900,
-          shape: BoxShape.circle,
-        ),
-        child: Center(
-          child: Text(
-            '$number',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      width: _size,
-      height: _size,
-      decoration: BoxDecoration(
-        color: c.surface,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: c.border,
-          width: 1.2,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          '$number',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: c.textMuted,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Error view
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off_outlined, size: 48, color: c.textDisabled),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              style: TextStyle(fontSize: 15, color: c.textMuted),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
-          ],
         ),
       ),
     );

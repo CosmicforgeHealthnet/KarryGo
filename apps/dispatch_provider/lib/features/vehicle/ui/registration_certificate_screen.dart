@@ -1,3 +1,4 @@
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -49,8 +50,8 @@ class RegistrationCertificateScreen extends StatelessWidget {
                   Text(
                     'Registration Certificate',
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.4,
                     ),
@@ -74,8 +75,8 @@ class RegistrationCertificateScreen extends StatelessWidget {
                             color: c.navy10,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
-                            Icons.description_outlined,
+                          child: JourneyIcon(
+                            JourneySymbol.review,
                             size: 62,
                             color: c.textMuted,
                           ),
@@ -133,9 +134,7 @@ class RegistrationCertificateScreen extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: isExpiringSoon
-                                ? c.warning
-                                : c.textMuted,
+                            color: isExpiringSoon ? c.warning : c.textMuted,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -143,25 +142,19 @@ class RegistrationCertificateScreen extends StatelessWidget {
                           expiryDate,
                           style: TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: isExpiringSoon
-                                ? c.warning
-                                : c.text,
+                            fontWeight: FontWeight.w700,
+                            color: isExpiringSoon ? c.warning : c.text,
                             letterSpacing: -0.3,
                           ),
                         ),
                         if (daysLeft != null) ...[
                           const SizedBox(height: 6),
                           Text(
-                            daysLeft! < 0
-                                ? 'Expired'
-                                : '$daysLeft days left',
+                            daysLeft! < 0 ? 'Expired' : '$daysLeft days left',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isExpiringSoon
-                                  ? c.warning
-                                  : c.textMuted,
+                              color: isExpiringSoon ? c.warning : c.textMuted,
                             ),
                           ),
                         ],

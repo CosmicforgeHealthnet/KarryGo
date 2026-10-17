@@ -1,3 +1,4 @@
+import 'package:vendor/app/data/vendor_preferences.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,7 +67,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       final created = await draft(c);
       expect(created['status'], 'DRAFT');
@@ -74,7 +79,11 @@ void main() {
       await c.load(selected: StockSection.transfers);
       expect(c.rows, hasLength(1));
       expect(c.name('mock-branch-east'), isNot('mock-branch-east'));
-      final east = StockController(r.backend, 'mock-branch-east');
+      final east = StockController(
+        r.backend,
+        'mock-branch-east',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(east.dispose);
       await east.load(selected: StockSection.transfers);
       expect(east.rows, hasLength(1));
@@ -90,9 +99,17 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
-      final east = StockController(r.backend, 'mock-branch-east');
+      final east = StockController(
+        r.backend,
+        'mock-branch-east',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(east.dispose);
       final created = await draft(c);
       final id = created['id'].toString(),
@@ -140,7 +157,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       final excessive = await draft(c, quantity: 25);
       expect(await action(c, excessive['id'], 'dispatch'), isNull);
@@ -188,7 +209,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       final created = await draft(c);
       await action(c, created['id'], 'dispatch');
@@ -224,7 +249,11 @@ void main() {
       );
       addTearDown(app.dispose);
       await app.client.acceptSession(r.backend.auth.session!);
-      final c = StockController(app, 'branch');
+      final c = StockController(
+        app,
+        'branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       probe.status = 403;
       await c.load(selected: StockSection.transfers);
@@ -298,7 +327,11 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       final created = (await tester.runAsync(() => draft(c)))!;

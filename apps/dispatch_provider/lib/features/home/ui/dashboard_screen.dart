@@ -1,3 +1,10 @@
+import '../../../core/app_mode.dart';
+import '../../missions/ui/delivery_operations_screen.dart';
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
+import 'widgets/home_feedback.dart';
+import 'widgets/trip_peek_bar.dart';
+import '../../../shared/widgets/async_content.dart';
 import 'package:flutter/material.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 
@@ -10,7 +17,6 @@ import 'sheets/location_permission_blocker.dart';
 import 'sheets/stale_gps_warning.dart';
 import 'widgets/pickup_code_card.dart';
 import 'widgets/trip_completed_screen.dart';
-import '../mock/dispatch_home_mock.dart';
 import '../../requests/data/request_model.dart';
 import '../../requests/ui/requests_screen.dart';
 import '../../requests/state/requests_controller.dart';
@@ -58,8 +64,12 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
+  final _actionBusy = ValueNotifier<bool>(false);
+  bool _workspaceOpen = false;
   int _index = 0;
+  final _visitedTabs = <int>{0};
 
   final _tripStateNotifier = ValueNotifier<TripState>(TripState.offline);
   final _activeRequestNotifier = ValueNotifier<RequestModel?>(null);
@@ -88,17 +98,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _screens = [
       HomeScreen(
+        tripsController: widget.tripsController,
         tripStateNotifier: _tripStateNotifier,
         activeRequestNotifier: _activeRequestNotifier,
         availabilityController: widget.availabilityController,
         onOpenNotifications: widget.onOpenNotifications,
         onToggleStatus: _handleToggleStatus,
+        onOpenAccount: () => _onTabChanged(4),
+        onOpenTrip: _openTripWorkspace,
       ),
       RequestsScreen(requestsController: widget.requestsController),
       TripsScreen(tripsController: widget.tripsController),
       WalletScreen(
+        onViewOpportunities: () => _onTabChanged(1),
         walletController: widget.walletController,
         disputeController: widget.disputeController,
         tripsController: widget.tripsController,
@@ -121,13 +136,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.requestsController.stopPolling();
     widget.tripsController.stopActivePolling();
     widget.tripsController.removeListener(_syncTripStateFromController);
+    _actionBusy.dispose();
     _tripStateNotifier.dispose();
     _activeRequestNotifier.dispose();
     _sheetCollapsedNotifier.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.tripsController.loadActiveTrip();
+      widget.requestsController.loadRequests();
+    }
   }
 
   void _refreshTripsList() {
@@ -140,17 +165,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onTabChanged(int i) {
     if (_index == i) return;
-    setState(() => _index = i);
+    setState(() {
+      _index = i;
+      _visitedTabs.add(i);
+    });
     if (i == _activityTabIndex) _refreshTripsList();
   }
 
   void _syncTripStateFromController() {
     if (!mounted) return;
     final trip = widget.tripsController.activeTrip;
-    if (trip == null || !trip.statusCode.isActive) return;
+    if (trip == null || !trip.statusCode.isActive) {
+      if (widget.tripsController.activeTripError == null &&
+          _activeTripId != null) {
+        _activeTripId = null;
+        _activeRequestNotifier.value = null;
+        _tripStateNotifier.value = widget.availabilityController.isOnline
+            ? TripState.online
+            : TripState.offline;
+      }
+      return;
+    }
     if (widget.tripsController.isActionLoading) return;
-    final tripState = _tripStateFromStatus(trip.statusCode);
-    if (tripState == null || _tripStateNotifier.value == tripState) return;
+    final tripState = _displayStateForTrip(trip);
+    if (tripState == null) return;
     _activeTripId = trip.id;
     _activeRequestNotifier.value = _requestFromTrip(trip);
     _tripStateNotifier.value = tripState;
@@ -163,9 +201,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     result.when(
       success: (trip) {
         if (trip == null || !trip.statusCode.isActive) return;
+        final tripState = _displayStateForTrip(trip);
         _activeTripId = trip.id;
         _activeRequestNotifier.value = _requestFromTrip(trip);
-        final tripState = _tripStateFromStatus(trip.statusCode);
         if (tripState != null) {
           _tripStateNotifier.value = tripState;
         }
@@ -199,6 +237,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  TripState? _displayStateForTrip(TripModel trip) {
+    final completingSameTrip =
+        _tripStateNotifier.value == TripState.tripCompleted &&
+        _activeTripId == trip.id;
+    if (completingSameTrip &&
+        (trip.statusCode == TripStatusCode.inProgress ||
+            trip.statusCode == TripStatusCode.proofSubmitted)) {
+      return TripState.tripCompleted;
+    }
+    return _tripStateFromStatus(trip.statusCode);
+  }
+
   static TripState? _tripStateFromStatus(TripStatusCode code) => switch (code) {
     TripStatusCode.assigned => TripState.arriving,
     TripStatusCode.enRoutePickup => TripState.arriving,
@@ -208,62 +258,162 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _ => null,
   };
 
+  Future<void> _runTripAction(Future<void> Function() task) async {
+    if (_actionBusy.value) return;
+    _actionBusy.value = true;
+    try {
+      await task();
+    } finally {
+      if (mounted) _actionBusy.value = false;
+    }
+  }
+
+  Future<void> _openTripWorkspace() async {
+    if (_workspaceOpen || _activeRequestNotifier.value == null) return;
+    _workspaceOpen = true;
+    _sheetCollapsedNotifier.value = false;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (screen) => ListenableBuilder(
+            listenable: Listenable.merge([
+              _tripStateNotifier,
+              _activeRequestNotifier,
+              widget.tripsController,
+              _actionBusy,
+            ]),
+            builder: (screen, _) {
+              final state = _tripStateNotifier.value;
+              final request = _activeRequestNotifier.value;
+              if (request == null ||
+                  state == TripState.online ||
+                  state == TripState.offline ||
+                  state == TripState.tripCompleted) {
+                final route = ModalRoute.of(screen);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (screen.mounted && route != null && route.isActive)
+                    Navigator.of(screen).removeRoute(route);
+                });
+                return const Scaffold(body: SizedBox.shrink());
+              }
+              return Scaffold(
+                appBar: AppBar(
+                  leading: const DispatchBackButton(),
+                  title: const Text('Current delivery'),
+                  actions: [
+                    if (_activeTripId != null)
+                      TextButton.icon(
+                        onPressed: () => Navigator.of(screen).push(
+                          MaterialPageRoute(
+                            builder: (_) => DeliveryOperationsScreen(
+                              tripId: _activeTripId!,
+                            ),
+                          ),
+                        ),
+                        icon: const JourneyIcon(JourneySymbol.review, size: 20),
+                        label: const Text('Tasks'),
+                      ),
+                  ],
+                ),
+                body: SafeArea(
+                  top: false,
+                  child: SingleChildScrollView(
+                    key: const Key('trip-workspace-scroll'),
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.paddingOf(screen).bottom,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: _buildSheet(state, request),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } finally {
+      _workspaceOpen = false;
+    }
+  }
+
   Future<void> _handleAccept(RequestModel req) async {
+    if (_actionBusy.value) return;
+    _actionBusy.value = true;
     final result = await widget.requestsController.accept(req);
+    if (mounted) _actionBusy.value = false;
     if (!mounted) return;
     result.when(
-      success: (_) {
+      success: (_) async {
         _activeRequestNotifier.value = req;
         _tripStateNotifier.value = TripState.arriving;
         _sheetCollapsedNotifier.value = false;
-        _loadActiveTrip();
+        await _loadActiveTrip();
         _refreshTripsList();
+        if (!mounted) return;
+        await showHomeFeedback(
+          context,
+          title: 'Delivery accepted',
+          message:
+              'The request is assigned to you. Review the pickup instructions before setting off.',
+          action: 'View pickup',
+        );
+        if (mounted) _openTripWorkspace();
       },
       failure: (error) {
         final message = switch (error.code) {
           ApiErrorCode.forbidden => 'This request is no longer available.',
           ApiErrorCode.network =>
-            'Cannot connect to Cosmicforge Logistics server.',
+            'Could not connect. Check your connection and try again.',
           _ =>
             error.message.isNotEmpty
                 ? error.message
                 : 'Failed to accept request. Please try again.',
         };
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: context.palette.danger,
-            duration: const Duration(seconds: 5),
-          ),
+        showHomeFeedback(
+          context,
+          title: 'Could not accept delivery',
+          message: message,
+          error: true,
+          action: 'Back to requests',
         );
       },
     );
   }
 
   Future<void> _handleReject(RequestModel req) async {
+    if (_actionBusy.value) return;
+    _actionBusy.value = true;
     final result = await widget.requestsController.reject(req, 'other');
+    if (mounted) _actionBusy.value = false;
     if (!mounted) return;
     result.when(
-      success: (_) {},
+      success: (_) => showHomeFeedback(
+        context,
+        title: 'Request declined',
+        message: 'You can review the next available opportunity.',
+      ),
       failure: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error.code == ApiErrorCode.network
-                  ? 'Cannot connect to Cosmicforge Logistics server.'
-                  : error.message.isNotEmpty
-                  ? error.message
-                  : 'Failed to reject request.',
-            ),
-            backgroundColor: context.palette.danger,
-            duration: const Duration(seconds: 4),
-          ),
+        showHomeFeedback(
+          context,
+          title: 'Could not complete action',
+          message: error.code == ApiErrorCode.network
+              ? 'Could not connect. Check your connection and try again.'
+              : error.message.isNotEmpty
+              ? error.message
+              : 'Failed to reject request.',
+          error: true,
+          action: 'Back to delivery',
         );
       },
     );
   }
 
   Future<void> _handleGoOnline() async {
+    if (widget.availabilityController.isChangingStatus) return;
     final result = await showGoOnlineProcessing(
       context,
       task: widget.availabilityController.goOnline(),
@@ -275,7 +425,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         widget.requestsController.loadRequests();
       },
       failure: (error) async {
-        final isLocationError = error.code == ApiErrorCode.unknown &&
+        final isLocationError =
+            error.code == ApiErrorCode.unknown &&
             (error.message.contains('location') ||
                 error.message.contains('Location'));
         if (isLocationError) {
@@ -292,18 +443,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         final message = error.code == ApiErrorCode.network
-            ? 'Cannot connect to Cosmicforge Logistics server.'
+            ? 'Could not connect. Check your connection and try again.'
             : error.message.isNotEmpty
             ? error.message
             : 'Failed to go online. Please try again.';
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: context.palette.danger,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        showDispatchError(context, message);
       },
     );
   }
@@ -320,16 +465,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _sheetCollapsedNotifier.value = false;
       },
       failure: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error.message.isNotEmpty
-                  ? error.message
-                  : 'Failed to go offline. Please try again.',
-            ),
-            backgroundColor: context.palette.danger,
-            duration: const Duration(seconds: 4),
-          ),
+        showHomeFeedback(
+          context,
+          title: 'Could not complete action',
+          message: error.message.isNotEmpty
+              ? error.message
+              : 'Failed to go offline. Please try again.',
+          error: true,
+          action: 'Back to delivery',
         );
       },
     );
@@ -340,12 +483,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (state == TripState.offline) {
       _handleGoOnline();
     } else if (state == TripState.online) {
-      _handleGoOffline();
+      _confirmGoOffline();
     }
   }
 
+  Future<void> _confirmGoOffline() async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: .5),
+      builder: (sheet) => SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Go offline?', style: Theme.of(sheet).textTheme.headlineSmall),
+            const SizedBox(height: 10),
+            Text(
+              'You will stop receiving new delivery requests.',
+              style: Theme.of(sheet).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () => Navigator.pop(sheet, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: sheet.palette.dangerSoft,
+                foregroundColor: sheet.palette.danger,
+              ),
+              child: const Text('Go offline'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(sheet, false),
+              child: const Text('Stay online'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true && mounted) await _handleGoOffline();
+  }
+
   void _toggleSheetCollapsed() {
-    _sheetCollapsedNotifier.value = !_sheetCollapsedNotifier.value;
+    if (_workspaceOpen) {
+      Navigator.of(context).pop();
+      return;
+    }
+    _openTripWorkspace();
   }
 
   String _peekStatusFor(TripState state) {
@@ -374,14 +560,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final items = _buildReadinessItems();
     if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'You cannot go online until your profile is approved.',
-          ),
-          backgroundColor: context.palette.danger,
-          duration: const Duration(seconds: 5),
-        ),
+      showHomeFeedback(
+        context,
+        title: 'Could not complete action',
+        message: 'You cannot go online until your profile is approved.',
+        error: true,
+        action: 'Back to delivery',
       );
       return;
     }
@@ -390,7 +574,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       items: items,
       onCompleteSetup: () {
-        setState(() => _index = 4);
+        setState(() {
+          _index = 4;
+          _visitedTabs.add(4);
+        });
       },
     );
   }
@@ -405,7 +592,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .firstOrNull;
     final vehicleApproved = licenceStep?.status == 'approved';
     if (!vehicleApproved) {
-      final isPending = licenceStep?.status == 'pending' ||
+      final isPending =
+          licenceStep?.status == 'pending' ||
           licenceStep?.status == 'submitted';
       items.add(
         ReadinessItem(
@@ -431,10 +619,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final identityStep =
-        verif?.steps.where((s) => s.step == 'identity').firstOrNull;
+    final identityStep = verif?.steps
+        .where((s) => s.step == 'identity')
+        .firstOrNull;
     if (identityStep == null || identityStep.status != 'approved') {
-      final isPending = identityStep?.status == 'pending' ||
+      final isPending =
+          identityStep?.status == 'pending' ||
           identityStep?.status == 'submitted';
       final isRejected = identityStep?.status == 'rejected';
       items.add(
@@ -442,7 +632,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           title: 'Identity verification',
           subtitle: isRejected
               ? (identityStep?.rejectionReason ??
-                  'Your ID was rejected. Please resubmit.')
+                    'Your ID was rejected. Please resubmit.')
               : isPending
               ? 'Under review'
               : 'Complete ID verification',
@@ -463,9 +653,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.72),
       builder: (context) => Dialog(
         backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           child: Column(
@@ -476,7 +664,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'Why is this happening?',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: colors.text,
                 ),
               ),
@@ -489,7 +677,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 '• The app was backgrounded for too long\n\n'
                 'Move to an open area or check your device location settings.',
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 13,
                   height: 1.5,
                   color: colors.textMuted,
                 ),
@@ -517,12 +705,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showTripNotReadySnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Trip is still being set up. Please try again.'),
-        backgroundColor: context.palette.danger,
-        duration: const Duration(seconds: 4),
-      ),
+    showHomeFeedback(
+      context,
+      title: 'Could not complete action',
+      message: 'Trip is still being set up. Please try again.',
+      error: true,
+      action: 'Back to delivery',
     );
   }
 
@@ -536,15 +724,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final result = await widget.tripsController.markArrived(id);
     if (!mounted) return;
     result.when(
-      success: (_) => _tripStateNotifier.value = TripState.arrivedAtPickup,
-      failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            err.message.isNotEmpty ? err.message : 'Failed to mark arrived.',
-          ),
-          backgroundColor: context.palette.danger,
-          duration: const Duration(seconds: 4),
-        ),
+      success: (_) {
+        _tripStateNotifier.value = TripState.arrivedAtPickup;
+        showHomeFeedback(
+          context,
+          title: 'Pickup reached',
+          message: 'Show the pickup code to the customer for verification.',
+          action: 'View pickup code',
+        );
+      },
+      failure: (err) => showHomeFeedback(
+        context,
+        title: 'Could not complete action',
+        message: err.message.isNotEmpty
+            ? err.message
+            : 'Failed to mark arrived.',
+        error: true,
+        action: 'Back to delivery',
       ),
     );
   }
@@ -556,32 +752,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _showTripNotReadySnackBar();
       return;
     }
-    final verified =
-        widget.tripsController.pickupCredential?.verified ?? false;
+    final verified = widget.tripsController.pickupCredential?.verified ?? false;
     if (!verified) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Waiting for the customer to verify your pickup code.',
-          ),
-          backgroundColor: context.palette.warning,
-          duration: const Duration(seconds: 3),
-        ),
+      showHomeFeedback(
+        context,
+        title: 'Pickup verification needed',
+        message: 'Waiting for the customer to verify your pickup code.',
+        warning: true,
+        action: 'View pickup',
       );
       return;
     }
     final result = await widget.tripsController.startTrip(id);
     if (!mounted) return;
     result.when(
-      success: (_) => _tripStateNotifier.value = TripState.tripStarted,
-      failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            err.message.isNotEmpty ? err.message : 'Failed to start trip.',
-          ),
-          backgroundColor: context.palette.danger,
-          duration: const Duration(seconds: 4),
-        ),
+      success: (_) {
+        _tripStateNotifier.value = TripState.tripStarted;
+        showHomeFeedback(
+          context,
+          title: 'Delivery started',
+          message:
+              'Your pickup is recorded. Continue to the delivery location.',
+          action: 'View delivery',
+        );
+      },
+      failure: (err) => showHomeFeedback(
+        context,
+        title: 'Could not complete action',
+        message: err.message.isNotEmpty ? err.message : 'Failed to start trip.',
+        error: true,
+        action: 'Back to delivery',
       ),
     );
   }
@@ -590,36 +790,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final colors = context.palette;
     return showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: .5),
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Text(
-                'Why are you cancelling?',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: colors.text,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  'Why are you cancelling?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
                 ),
               ),
-            ),
-            for (final entry in tripCancelReasons.entries)
-              ListTile(
-                title: Text(
-                  entry.value,
-                  style: TextStyle(color: colors.text),
+              for (final entry in tripCancelReasons.entries)
+                ListTile(
+                  title: Text(
+                    entry.value,
+                    style: TextStyle(color: colors.text),
+                  ),
+                  onTap: () => Navigator.of(context).pop(entry.key),
                 ),
-                onTap: () => Navigator.of(context).pop(entry.key),
-              ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -629,36 +833,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final colors = context.palette;
     return showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: .5),
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Text(
-                'Why did the delivery fail?',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: colors.text,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  'Why did the delivery fail?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
                 ),
               ),
-            ),
-            for (final entry in _failReasons.entries)
-              ListTile(
-                title: Text(
-                  entry.value,
-                  style: TextStyle(color: colors.text),
+              for (final entry in _failReasons.entries)
+                ListTile(
+                  title: Text(
+                    entry.value,
+                    style: TextStyle(color: colors.text),
+                  ),
+                  onTap: () => Navigator.of(context).pop(entry.key),
                 ),
-                onTap: () => Navigator.of(context).pop(entry.key),
-              ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -687,15 +895,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _tripStateNotifier.value = TripState.online;
         _sheetCollapsedNotifier.value = false;
         _refreshTripsList();
+        showHomeFeedback(
+          context,
+          title: 'Delivery cancelled',
+          message: 'The cancellation has been recorded.',
+        );
       },
-      failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            err.message.isNotEmpty ? err.message : 'Failed to cancel trip.',
-          ),
-          backgroundColor: context.palette.danger,
-          duration: const Duration(seconds: 4),
-        ),
+      failure: (err) => showHomeFeedback(
+        context,
+        title: 'Could not complete action',
+        message: err.message.isNotEmpty
+            ? err.message
+            : 'Failed to cancel trip.',
+        error: true,
+        action: 'Back to delivery',
       ),
     );
   }
@@ -725,17 +938,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _tripStateNotifier.value = TripState.online;
         _sheetCollapsedNotifier.value = false;
         _refreshTripsList();
+        showHomeFeedback(
+          context,
+          title: 'Delivery issue recorded',
+          message:
+              'Your report has been saved. Review available opportunities when you are ready.',
+        );
       },
-      failure: (err) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            err.message.isNotEmpty
-                ? err.message
-                : 'Failed to report delivery failure.',
-          ),
-          backgroundColor: context.palette.danger,
-          duration: const Duration(seconds: 4),
-        ),
+      failure: (err) => showHomeFeedback(
+        context,
+        title: 'Could not complete action',
+        message: err.message.isNotEmpty
+            ? err.message
+            : 'Failed to report delivery failure.',
+        error: true,
+        action: 'Back to delivery',
       ),
     );
   }
@@ -747,9 +964,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.72),
       builder: (context) => Dialog(
         backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           child: Column(
@@ -760,7 +975,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'Leave this trip?',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: colors.text,
                 ),
               ),
@@ -768,7 +983,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Text(
                 "You'll stay online but this delivery won't be completed.",
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 13,
                   height: 1.5,
                   color: colors.textMuted,
                 ),
@@ -819,6 +1034,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _handleTripCompleted() {
+    showHomeFeedback(
+      context,
+      title: 'Delivery completed',
+      message:
+          'The delivery has been recorded. You can return to available opportunities.',
+      action: 'Back to Home',
+    );
     _activeTripId = null;
     _activeRequestNotifier.value = null;
     widget.requestsController.clearActiveRequest();
@@ -831,12 +1053,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return KeyedSubtree(
       key: ValueKey(tripState),
       child: switch (tripState) {
-        TripState.offline => OfflineSheet(onGoOnline: () => _handleGoOnline()),
+        TripState.offline => OfflineSheet(
+          onGoOnline: () => _handleGoOnline(),
+          busy: widget.availabilityController.isChangingStatus,
+        ),
 
         TripState.online => ListenableBuilder(
           listenable: Listenable.merge([
             widget.requestsController,
             widget.availabilityController,
+            _actionBusy,
           ]),
           builder: (context, _) {
             if (widget.availabilityController.hasStaleLocation) {
@@ -855,6 +1081,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             return IncomingRequestsSheet(
               requests: requests,
+              busy: _actionBusy.value,
               isLoading: isLoading,
               onAccept: _handleAccept,
               onReject: _handleReject,
@@ -870,8 +1097,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           primaryLabel: "I've Arrived",
           primaryEnabled: true,
           secondaryLabel: 'Cancel Trip',
-          onPrimary: _handleMarkArrived,
-          onSecondary: _handleCancelTrip,
+          onPrimary: () => _runTripAction(_handleMarkArrived),
+          busy: _actionBusy.value,
+          onSecondary: () => _runTripAction(_handleCancelTrip),
           collapsed: _sheetCollapsedNotifier.value,
           onToggleCollapse: _toggleSheetCollapsed,
           peekStatusText: _peekStatusFor(tripState),
@@ -889,33 +1117,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
               subtitle: verified
                   ? 'Customer verified you. You can start the trip.'
                   : 'Show the code below to the customer. Start Trip unlocks '
-                      'once they verify you.',
+                        'once they verify you.',
               showCall: true,
-              primaryLabel: verified
-                  ? 'Start Trip'
-                  : 'Waiting for customer to verify',
+              primaryLabel: verified ? 'Start Trip' : 'Awaiting verification',
               primaryEnabled: verified,
               secondaryLabel: 'Cancel Trip',
-              onPrimary: _handleStartTrip,
-              onSecondary: _handleCancelTrip,
+              onPrimary: () => _runTripAction(_handleStartTrip),
+              busy: _actionBusy.value,
+              onSecondary: () => _runTripAction(_handleCancelTrip),
               collapsed: _sheetCollapsedNotifier.value,
               onToggleCollapse: _toggleSheetCollapsed,
               peekStatusText: _peekStatusFor(tripState),
-              extra: PickupCodeCard(
-                title: 'Show this code to the customer',
-                subtitle:
-                    'They will scan or enter it to verify you before pickup.',
-                code: widget.tripsController.pickupCredential?.code,
-                expiresAt: widget.tripsController.pickupCredential?.expiresAt,
-                onResend: () {
-                  final id = _activeTripId;
-                  if (id != null) {
-                    widget.tripsController.resendPickupCredential(id);
-                  }
-                },
-                canResend: !widget.tripsController.isResendingPickupCredential,
-                isResending:
-                    widget.tripsController.isResendingPickupCredential,
+              extra: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PickupCodeCard(
+                    title: 'Show this code to the customer',
+                    subtitle:
+                        'They will scan or enter it to verify you before pickup.',
+                    code: widget.tripsController.pickupCredential?.code,
+                    expiresAt:
+                        widget.tripsController.pickupCredential?.expiresAt,
+                    onResend: () {
+                      final id = _activeTripId;
+                      if (id != null) {
+                        widget.tripsController.resendPickupCredential(id);
+                      }
+                    },
+                    canResend:
+                        !widget.tripsController.isResendingPickupCredential,
+                    isResending:
+                        widget.tripsController.isResendingPickupCredential,
+                  ),
+                  if (AppModeConfig.instance.isMock && !verified) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          widget.tripsController.simulatePickupVerification(),
+                      icon: const Icon(Icons.science_outlined),
+                      label: const Text('Simulate customer scan'),
+                    ),
+                    Text(
+                      'Mock only: marks the pickup code as verified.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
               ),
             );
           },
@@ -926,7 +1174,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onEndTrip: () {
             _tripStateNotifier.value = TripState.tripCompleted;
           },
-          onReportFailure: _handleFailDelivery,
+          onReportFailure: () => _runTripAction(_handleFailDelivery),
+          busy: _actionBusy.value,
           collapsed: _sheetCollapsedNotifier.value,
           onToggleCollapse: _toggleSheetCollapsed,
           peekStatusText: _peekStatusFor(tripState),
@@ -937,6 +1186,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           tripId: _activeTripId,
           tripsController: widget.tripsController,
           onConfirm: _handleTripCompleted,
+          onBack: () {
+            _tripStateNotifier.value = TripState.tripStarted;
+            _openTripWorkspace();
+          },
         ),
       },
     );
@@ -964,24 +1217,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       child: Scaffold(
         extendBody: false,
-        bottomSheet:
-            isHome && _tripStateNotifier.value != TripState.tripCompleted
-                ? ValueListenableBuilder<bool>(
-                    valueListenable: _sheetCollapsedNotifier,
-                    builder: (context, _, __) {
-                      return ValueListenableBuilder<TripState>(
-                        valueListenable: _tripStateNotifier,
-                        builder: (context, tripState, _) {
-                          return ValueListenableBuilder<RequestModel?>(
-                            valueListenable: _activeRequestNotifier,
-                            builder: (context, activeRequest, _) =>
-                                _buildSheet(tripState, activeRequest),
-                          );
-                        },
-                      );
-                    },
-                  )
-                : null,
         body: ValueListenableBuilder<TripState>(
           valueListenable: _tripStateNotifier,
           builder: (context, tripState, _) {
@@ -993,15 +1228,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   tripId: _activeTripId,
                   tripsController: widget.tripsController,
                   onConfirm: _handleTripCompleted,
+                  onBack: () {
+                    _tripStateNotifier.value = TripState.tripStarted;
+                    _openTripWorkspace();
+                  },
                 ),
               );
             }
-            return IndexedStack(index: _index, children: _screens);
+            return LayoutBuilder(
+              builder: (context, constraints) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  IndexedStack(
+                    sizing: StackFit.expand,
+                    index: _index,
+                    children: [
+                      for (var i = 0; i < _screens.length; i++)
+                        _visitedTabs.contains(i)
+                            ? _screens[i]
+                            : const SizedBox.shrink(),
+                    ],
+                  ),
+                  if (isHome)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: constraints.maxHeight * .7,
+                        ),
+                        child: SingleChildScrollView(
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _sheetCollapsedNotifier,
+                            builder: (context, collapsed, _) =>
+                                ValueListenableBuilder<RequestModel?>(
+                                  valueListenable: _activeRequestNotifier,
+                                  builder: (context, request, _) =>
+                                      (tripState == TripState.arriving ||
+                                          tripState ==
+                                              TripState.arrivedAtPickup ||
+                                          tripState == TripState.tripStarted)
+                                      ? TripPeekBar(
+                                          stage:
+                                              tripState == TripState.tripStarted
+                                              ? 3
+                                              : tripState ==
+                                                    TripState.arrivedAtPickup
+                                              ? 2
+                                              : 1,
+                                          title:
+                                              tripState == TripState.tripStarted
+                                              ? 'Delivery in progress'
+                                              : tripState ==
+                                                    TripState.arrivedAtPickup
+                                              ? 'Pickup verification'
+                                              : 'Head to pickup',
+                                          statusText:
+                                              'Open instructions and delivery actions',
+                                          onExpand: _openTripWorkspace,
+                                        )
+                                      : _buildSheet(tripState, request),
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
           },
         ),
-        bottomNavigationBar: _BottomNav(
-          index: _index,
-          onChanged: _onTabChanged,
+        bottomNavigationBar: ValueListenableBuilder<TripState>(
+          valueListenable: _tripStateNotifier,
+          builder: (context, state, _) => state == TripState.tripCompleted
+              ? const SizedBox.shrink()
+              : _BottomNav(index: _index, onChanged: _onTabChanged),
         ),
       ),
     );
@@ -1040,24 +1342,34 @@ class _BottomNav extends StatelessWidget {
           children: List.generate(_items.length, (i) {
             final isActive = i == index;
             final item = _items[i];
-            final color = isActive ? colors.text : colors.textMuted;
-            return GestureDetector(
-              onTap: () => onChanged(i),
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(item.icon, size: 22, color: color),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.label,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: color,
+            final color = isActive ? colors.brandTeal600 : colors.textMuted;
+            return Semantics(
+              selected: isActive,
+              button: true,
+              label: item.label,
+              child: InkWell(
+                onTap: () => onChanged(i),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 28,
+                      width: 48,
+                      child: Icon(item.icon, size: 24, color: color),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: isActive
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }),

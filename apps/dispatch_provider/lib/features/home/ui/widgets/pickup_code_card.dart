@@ -38,8 +38,8 @@ class PickupCodeCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-         decoration: BoxDecoration(
-        color: colors.surfaceElevated,   // ← was colors.navy10
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated, // ← was colors.navy10
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colors.divider),
       ),
@@ -49,11 +49,7 @@ class PickupCodeCard extends StatelessWidget {
           // ── Label + copy ────────────────────────────────────────
           Row(
             children: [
-              Icon(
-                Icons.qr_code_rounded,
-                size: 15,
-                color: colors.brandTeal600,
-              ),
+              Icon(Icons.qr_code_rounded, size: 15, color: colors.brandTeal600),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -272,7 +268,7 @@ class _DigitBox extends StatelessWidget {
         digit,
         style: TextStyle(
           fontSize: 22,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           color: colors.text,
           height: 1.0,
           fontFeatures: const [FontFeature.tabularFigures()],
@@ -300,7 +296,7 @@ class _PlaceholderRow extends StatelessWidget {
         '— — — — — —',
         style: TextStyle(
           fontSize: 18,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           color: colors.textDisabled,
           letterSpacing: 2,
         ),

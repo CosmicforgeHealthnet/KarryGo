@@ -91,7 +91,7 @@ class BikeEligibilityScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.3,
                     ),
@@ -142,11 +142,7 @@ class _Check extends StatelessWidget {
     final c = context.palette;
     return Row(
       children: [
-        Icon(
-          Icons.check_circle_rounded,
-          size: 22,
-          color: c.success,
-        ),
+        Icon(Icons.check_circle_rounded, size: 22, color: c.success),
         const SizedBox(width: 14),
         Expanded(
           child: Text(

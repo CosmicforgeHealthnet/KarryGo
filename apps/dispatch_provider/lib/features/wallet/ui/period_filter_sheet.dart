@@ -73,7 +73,7 @@ class _PeriodFilterSheetState extends State<PeriodFilterSheet> {
                     'Earnings',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: DispatchColors.brandNavy900,
                       letterSpacing: -0.4,
                     ),

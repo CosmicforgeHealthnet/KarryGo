@@ -107,7 +107,7 @@ class AdjustmentDetailScreen extends StatelessWidget {
           '+₦${_formatAmount(WalletTabMock.adjustmentDetail.amountNaira)}',
           style: const TextStyle(
             fontSize: 34,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             color: Color(0xFF0E9F6E),
             letterSpacing: -0.8,
             height: 1.05,

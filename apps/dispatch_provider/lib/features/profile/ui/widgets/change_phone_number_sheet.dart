@@ -60,7 +60,7 @@ class ChangePhoneNumberSheet extends StatelessWidget {
             'Change Phone Number?',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: Color(0xFF1A1A1A),
             ),
           ),
@@ -92,7 +92,7 @@ class ChangePhoneNumberSheet extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: Color(0xFF081F44),
                 ),
               ),
             ),

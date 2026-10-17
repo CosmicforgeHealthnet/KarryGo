@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 import '../../disputes/state/rider_dispute_controller.dart';
@@ -39,9 +40,9 @@ class _LiveChatScreenState extends State<LiveChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         elevation: 0,
         leading: GestureDetector(
           onTap: () => Navigator.of(context).pop(),

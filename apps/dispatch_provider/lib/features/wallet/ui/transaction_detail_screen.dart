@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -5,6 +6,7 @@ import '../../../core/theme/theme_extensions.dart';
 // ── Data model (kept — wallet_screen.dart depends on this shape) ─────────
 
 enum TransactionStatus { successful, failed, pending }
+
 enum TransactionType { trip, debit }
 
 class TransactionData {
@@ -99,17 +101,8 @@ class TransactionDetailScreen extends StatelessWidget {
         children: [
           Align(
             alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  size: 22,
-                  color: colors.text,
-                ),
-              ),
+            child: DispatchBackButton(
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ),
           Text(
@@ -128,11 +121,7 @@ class TransactionDetailScreen extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               child: Padding(
                 padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 22,
-                  color: colors.text,
-                ),
+                child: Icon(Icons.close_rounded, size: 22, color: colors.text),
               ),
             ),
           ),
@@ -184,7 +173,7 @@ class TransactionDetailScreen extends StatelessWidget {
                   '${_isCredit ? '+' : '-'} ₦${_formatAmount(transaction.amount)}',
                   style: TextStyle(
                     fontSize: 28,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: amountColor,
                     letterSpacing: -0.8,
                     height: 1.0,
@@ -288,11 +277,8 @@ class TransactionDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _divider(dynamic colors) => Divider(
-        height: 1,
-        thickness: 1,
-        color: colors.divider,
-      );
+  Widget _divider(dynamic colors) =>
+      Divider(height: 1, thickness: 1, color: colors.divider);
 
   String get _mockTxHash => '0x7a3f4b2e8c9d1f6a';
 
@@ -301,16 +287,16 @@ class TransactionDetailScreen extends StatelessWidget {
       : 'Debit · Withdrawal';
 
   String get _statusLabel => switch (transaction.status) {
-        TransactionStatus.successful => 'Completed',
-        TransactionStatus.failed => 'Failed',
-        TransactionStatus.pending => 'Pending',
-      };
+    TransactionStatus.successful => 'Completed',
+    TransactionStatus.failed => 'Failed',
+    TransactionStatus.pending => 'Pending',
+  };
 
   Color _statusValueColor(dynamic colors) => switch (transaction.status) {
-        TransactionStatus.successful => colors.success,
-        TransactionStatus.failed => colors.danger,
-        TransactionStatus.pending => colors.warning,
-      };
+    TransactionStatus.successful => colors.success,
+    TransactionStatus.failed => colors.danger,
+    TransactionStatus.pending => colors.warning,
+  };
 
   Widget _row(
     BuildContext context,
@@ -329,7 +315,7 @@ class TransactionDetailScreen extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 13.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: colors.textMuted,
                 height: 1.3,
@@ -343,7 +329,7 @@ class TransactionDetailScreen extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 13.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: valueColor ?? colors.text,
                 height: 1.3,

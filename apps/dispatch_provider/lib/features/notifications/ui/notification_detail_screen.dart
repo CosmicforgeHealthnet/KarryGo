@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/network/provider_session.dart';
 import '../models/rider_notification.dart';
 import 'notifications_screen.dart' show notificationIcon, formatNotifTime;
 
 class NotificationDetailScreen extends StatelessWidget {
-  const NotificationDetailScreen({
-    super.key,
-    required this.notification,
-  });
+  const NotificationDetailScreen({super.key, required this.notification});
 
   final RiderNotification notification;
 
@@ -26,7 +24,7 @@ class NotificationDetailScreen extends StatelessWidget {
 
     final isAssignment =
         notification.eventType.toLowerCase().contains('assignment') ||
-            notification.eventType.toLowerCase().contains('opportunity');
+        notification.eventType.toLowerCase().contains('opportunity');
 
     return Scaffold(
       backgroundColor: c.background,
@@ -38,35 +36,18 @@ class NotificationDetailScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  IconButton(
+                    tooltip: 'Back',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.arrow_back_rounded),
                   ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('More options coming soon.'),
-                        ),
-                      );
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.more_vert_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Notification',
+                    style: TextStyle(
+                      color: c.text,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -241,9 +222,7 @@ class NotificationDetailScreen extends StatelessWidget {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Opportunity accepted')),
-                      );
+                      ProviderSession.of(context).openOpportunities?.call();
                     },
                     style: FilledButton.styleFrom(
                       textStyle: const TextStyle(
@@ -251,7 +230,7 @@ class NotificationDetailScreen extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: const Text('Accept opportunity'),
+                    child: const Text('View opportunities'),
                   ),
                 ),
               ),
@@ -271,7 +250,7 @@ class NotificationDetailScreen extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  child: const Text('View details'),
+                  child: const Text('Back to notifications'),
                 ),
               ),
             ),
@@ -372,7 +351,7 @@ class _KV extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: FontWeight.w500,
               color: c.textMuted,
             ),
@@ -381,7 +360,7 @@ class _KV extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 14.5,
+            fontSize: 15,
             fontWeight: FontWeight.w800,
             color: c.text,
             letterSpacing: -0.2,

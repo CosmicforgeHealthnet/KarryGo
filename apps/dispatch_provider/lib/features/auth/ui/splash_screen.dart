@@ -65,7 +65,7 @@ class _SplashScreenState extends State<SplashScreen> {
         statusBarIconBrightness: Brightness.dark, // Android
         statusBarBrightness: Brightness.light, // iOS (light = dark icons)
         systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarIconBrightness: Brightness.dark,
         systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(

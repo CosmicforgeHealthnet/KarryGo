@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/theme_extensions.dart';
+import '../../../core/network/provider_session.dart';
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/delivery_collection_widgets.dart';
+import '../../../shared/widgets/dispatch_empty_state.dart';
+import '../../../shared/widgets/async_content.dart';
+import '../../home/ui/widgets/home_feedback.dart';
 import '../data/request_model.dart';
 import '../state/requests_controller.dart';
 import 'widgets/opportunity_card.dart';
 import 'request_detail_screen.dart';
-import 'accept_confirmation_screen.dart';
 import 'decline_request_screen.dart';
 
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key, required this.requestsController});
-
   final RequestsController requestsController;
-
   @override
   State<RequestsScreen> createState() => _RequestsScreenState();
 }
@@ -21,396 +23,246 @@ enum _OpportunityTab { all, nearby, assignments, commerce }
 
 class _RequestsScreenState extends State<RequestsScreen> {
   _OpportunityTab _tab = _OpportunityTab.all;
-
+  bool _working = false;
   RequestsController get _ctrl => widget.requestsController;
-
   @override
   void initState() {
     super.initState();
-    _ctrl.addListener(_onControllerChanged);
-    _load();
+    _ctrl.addListener(_changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   @override
   void dispose() {
-    _ctrl.removeListener(_onControllerChanged);
+    _ctrl.removeListener(_changed);
     super.dispose();
   }
 
-  void _onControllerChanged() => setState(() {});
+  void _changed() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _load() => _ctrl.loadRequests();
-
-  List<RequestModel> get _visible {
-    final all = _ctrl.requests;
-    switch (_tab) {
-      case _OpportunityTab.all:
-        return all;
-      case _OpportunityTab.nearby:
-        return all.where((r) => r.distanceKm < 5.0).toList();
-      case _OpportunityTab.assignments:
-        return all
-            .where((r) => r.source == RequestSource.assignment)
-            .toList();
-      case _OpportunityTab.commerce:
-        return all.where((r) => r.source == RequestSource.commerce).toList();
-    }
-  }
-
+  List<RequestModel> get _visible => _ctrl.requests
+      .where(
+        (r) => switch (_tab) {
+          _OpportunityTab.all => true,
+          _OpportunityTab.nearby => r.hasDistance && r.distanceKm < 5,
+          _OpportunityTab.assignments => r.source == RequestSource.assignment,
+          _OpportunityTab.commerce => r.source == RequestSource.commerce,
+        },
+      )
+      .toList();
   @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(context),
-            const SizedBox(height: 4),
-            _buildTabs(context),
-            const SizedBox(height: 12),
-            Expanded(child: _buildBody(context)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: context.palette.background,
+    body: SafeArea(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Text(
-                'Opportunities',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: colors.text,
-                  letterSpacing: -0.6,
-                  height: 1.15,
-                ),
-              ),
-              const Spacer(),
-              if (_ctrl.isLoading)
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: colors.brandTeal500,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'New dispatch requests near you',
-            style: TextStyle(
-              fontSize: 13.5,
-              color: colors.textMuted,
-              height: 1.4,
+          DeliveryCollectionHeader(
+            title: 'Opportunities',
+            subtitle: 'Choose your next delivery.',
+            action: IconButton(
+              tooltip: 'Refresh opportunities',
+              onPressed: _ctrl.isLoading ? null : _load,
+              icon: const Icon(Icons.refresh_rounded),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabs(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          _TabChip(
-            label: 'All',
-            active: _tab == _OpportunityTab.all,
-            onTap: () => setState(() => _tab = _OpportunityTab.all),
-          ),
-          const SizedBox(width: 8),
-          _TabChip(
-            label: 'Nearby',
-            active: _tab == _OpportunityTab.nearby,
-            onTap: () => setState(() => _tab = _OpportunityTab.nearby),
-          ),
-          const SizedBox(width: 8),
-          _TabChip(
-            label: 'Assignments',
-            active: _tab == _OpportunityTab.assignments,
-            onTap: () => setState(() => _tab = _OpportunityTab.assignments),
-          ),
-          const SizedBox(width: 8),
-          _TabChip(
-            label: 'Commerce',
-            active: _tab == _OpportunityTab.commerce,
-            onTap: () => setState(() => _tab = _OpportunityTab.commerce),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
-    final colors = context.palette;
-
-    if (_ctrl.error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _ctrl.error!,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: colors.textMuted),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  _ctrl.clearError();
-                  _load();
-                },
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final items = _visible;
-    if (items.isEmpty) {
-      return _buildEmptyState(context);
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final req = items[i];
-        return OpportunityCard(
-          request: req,
-          onTap: () => _openDetail(req),
-          onAccept: () => _onAccept(req),
-          onDecline: () => _onReject(req),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    final colors = context.palette;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: colors.navy10,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.location_off_outlined,
-                size: 40,
-                color: colors.navy40,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'No opportunities nearby',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: colors.text,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'New requests will appear here when available.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: colors.textMuted),
-            ),
-            const SizedBox(height: 26),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text("We'll notify you when new requests arrive."),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                for (final entry in const {
+                  _OpportunityTab.all: 'All',
+                  _OpportunityTab.nearby: 'Under 5 km',
+                  _OpportunityTab.assignments: 'Assignments',
+                  _OpportunityTab.commerce: 'Commerce',
+                }.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: DeliveryFilter(
+                      label: entry.value,
+                      selected: _tab == entry.key,
+                      onTap: () => setState(() => _tab = entry.key),
                     ),
-                  );
-                },
-                icon:
-                    const Icon(Icons.notifications_active_outlined, size: 18),
-                label: const Text(
-                  'Keep me notified',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
                   ),
-                ),
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (_ctrl.error != null && _ctrl.requests.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: ActionNotice(
+                message: _ctrl.error!,
+                isError: true,
+                onRetry: _load,
               ),
             ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Service area settings coming soon.'),
-                  ),
-                );
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: colors.brandTeal600,
-                textStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              child: const Text('Adjust my service areas'),
-            ),
-          ],
-        ),
+          Expanded(
+            child: RefreshIndicator(onRefresh: _load, child: _body(context)),
+          ),
+        ],
+      ),
+    ),
+  );
+  Widget _body(BuildContext context) {
+    if (_ctrl.isLoading && _ctrl.requests.isEmpty)
+      return const ContentSkeleton(rows: 3);
+    if (_ctrl.error != null && _ctrl.requests.isEmpty)
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 40),
+          const JourneyIcon(JourneySymbol.route, size: 64),
+          const SizedBox(height: 24),
+          ActionNotice(message: _ctrl.error!, isError: true, onRetry: _load),
+        ],
+      );
+    final items = _visible;
+    if (items.isEmpty)
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          DispatchEmptyState(
+            story: _tab == _OpportunityTab.all
+                ? EmptyStory.opportunities
+                : EmptyStory.search,
+            title: _tab == _OpportunityTab.all
+                ? 'No requests right now'
+                : 'No matching opportunities',
+            message: _tab == _OpportunityTab.all
+                ? 'Available delivery requests will appear here.'
+                : 'Try another category or refresh the list.',
+            actionLabel: _tab == _OpportunityTab.all ? 'Refresh' : 'Show all',
+            onAction: _tab == _OpportunityTab.all
+                ? _load
+                : () => setState(() => _tab = _OpportunityTab.all),
+          ),
+        ],
+      );
+    return ListView.separated(
+      key: PageStorageKey(_tab),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 14),
+      itemBuilder: (context, i) => OpportunityCard(
+        request: items[i],
+        busy: _working,
+        onTap: () => _detail(items[i]),
+        onAccept: () => _accept(items[i]),
+        onDecline: () => _decline(items[i]),
       ),
     );
   }
 
-  void _openDetail(RequestModel req) {
+  void _detail(RequestModel request) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RequestDetailScreen(
-          request: req,
-          onAccept: () => _onAccept(req),
-          onDecline: () => _onReject(req),
-          onBrowseNew: () => Navigator.of(context).pop(),
-          onBackToOpportunities: () => Navigator.of(context).pop(),
+        builder: (screen) => RequestDetailScreen(
+          request: request,
+          controller: _ctrl,
+          onAccept: () => _accept(request, detail: screen),
+          onDecline: () => _decline(request, detail: screen),
+          onBrowseNew: () => Navigator.pop(screen),
+          onBackToOpportunities: () => Navigator.pop(screen),
         ),
       ),
     );
   }
 
-  Future<void> _onAccept(RequestModel req) async {
-   final result = await _ctrl.accept(req);   
-    if (!mounted) return;
-    result.when(
-      success: (_) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AcceptConfirmationScreen(
-              request: req,
-              onViewTrips: () {
-                Navigator.of(context).popUntil((r) => r.isFirst);
-              },
-              onBrowseMore: () => Navigator.of(context).pop(),
-            ),
-          ),
+  Future<void> _accept(RequestModel request, {BuildContext? detail}) async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      final current =
+          _ctrl.requests
+              .where((r) => r.id == request.id && r.kind == request.kind)
+              .firstOrNull ??
+          request;
+      final result = await _ctrl.accept(current);
+      if (!mounted) return;
+      await result.when(
+        success: (_) async {
+          if (detail != null && detail.mounted) Navigator.pop(detail);
+          final session = context
+              .dependOnInheritedWidgetOfExactType<ProviderSession>();
+          await showHomeFeedback(
+            context,
+            title: 'Delivery accepted',
+            message:
+                'The request has been assigned to you. Review its delivery instructions.',
+            action: session?.openCurrentDelivery == null
+                ? 'Done'
+                : 'Open delivery',
+          );
+          if (mounted) session?.openCurrentDelivery?.call();
+        },
+        failure: (error) async {
+          await showHomeFeedback(
+            context,
+            title: 'Could not accept request',
+            message: error.message,
+            error: true,
+            action: 'Back to request',
+          );
+        },
+      );
+    } catch (_) {
+      if (mounted)
+        await showHomeFeedback(
+          context,
+          title: 'Could not confirm acceptance',
+          message: 'Check the current request status before trying again.',
+          error: true,
         );
-      },
-      failure: (err) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              err.message.isNotEmpty
-                  ? err.message
-                  : 'Failed to accept request.',
-            ),
-            backgroundColor: context.palette.danger,
-          ),
-        );
-      },
-    );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
-  Future<void> _onReject(RequestModel req) async {
-    final picked = await pushDeclineRequestScreen(context);
-    if (picked == null || !mounted) return;
-
-    // Backend whitelist is strictly {too_far, busy, other}. The picker's
-    // free-text comment is intentionally NOT sent — the reject endpoint has
-    // no field for it.
-    final result = await _ctrl.reject(req, picked.reason.backendCode); 
-    if (!mounted) return;
-    result.when(
-      success: (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request declined.')),
+  Future<void> _decline(RequestModel request, {BuildContext? detail}) async {
+    if (_working) return;
+    final reason = await pushDeclineRequestScreen(context);
+    if (reason == null || !mounted) return;
+    setState(() => _working = true);
+    try {
+      final result = await _ctrl.reject(request, reason.reason.backendCode);
+      if (!mounted) return;
+      await result.when(
+        success: (_) async {
+          if (detail != null && detail.mounted) Navigator.pop(detail);
+          await showHomeFeedback(
+            context,
+            title: 'Request declined',
+            message: 'You can review the next available opportunity.',
+          );
+        },
+        failure: (error) async {
+          await showHomeFeedback(
+            context,
+            title: 'Could not decline request',
+            message: error.message,
+            error: true,
+          );
+        },
+      );
+    } catch (_) {
+      if (mounted)
+        await showHomeFeedback(
+          context,
+          title: 'Could not confirm decline',
+          message: 'Check your connection and refresh the request.',
+          error: true,
         );
-      },
-      failure: (err) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              err.message.isNotEmpty
-                  ? err.message
-                  : 'Failed to decline request.',
-            ),
-            backgroundColor: context.palette.danger,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _TabChip extends StatelessWidget {
-  const _TabChip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? colors.teal10 : colors.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: active
-                ? colors.brandTeal500.withValues(alpha: 0.5)
-                : colors.divider,
-            width: 1.2,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: active ? colors.brandTeal600 : colors.text,
-          ),
-        ),
-      ),
-    );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 }

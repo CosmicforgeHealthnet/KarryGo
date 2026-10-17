@@ -40,7 +40,7 @@ class WithdrawalFailedScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFFE5484D),
                   letterSpacing: -0.4,
                   height: 1.2,

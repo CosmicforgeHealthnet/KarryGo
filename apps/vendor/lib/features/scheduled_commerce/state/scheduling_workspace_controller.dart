@@ -24,6 +24,16 @@ class SchedulingWorkspaceController extends ChangeNotifier {
       hasMore = false,
       disposed = false;
   String? error, occurrenceError;
+  String view = 'ALL';
+
+  Future<void> selectView(String next) async {
+    if (loading || busy || disposed || next == view) return;
+    view = next;
+    rows = [];
+    hasMore = false;
+    await load();
+  }
+
   String get collection =>
       '$schedulingBase/${recurring ? 'recurring-schedules' : 'scheduled-orders'}';
   String get detail => '$collection/{${recurring ? 'scheduleId' : 'id'}}';
@@ -66,6 +76,7 @@ class SchedulingWorkspaceController extends ChangeNotifier {
           query: {
             'limit': '50',
             'offset': more ? '${rows.length}' : '0',
+            'view': view,
             if (app.scope.branchId != null) 'branch_id': app.scope.branchId!,
           },
         );

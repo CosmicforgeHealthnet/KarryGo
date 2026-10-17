@@ -35,6 +35,8 @@ func RegisterProvider(engine *gin.Engine, tokens *authusecases.TokenUsecase, han
 	routes.POST("/:id/delivery-attempts/:attemptId/contact", handler.recordContact)
 	routes.POST("/:id/delivery-attempts/:attemptId/fail", handler.failAttempt)
 	routes.POST("/:id/breakdown", handler.reportIncident)
+	routes.GET("/:id/hub-hold", handler.readHub)
+	routes.POST("/:id/hub-hold/evidence-content", handler.uploadHubEvidence)
 	routes.POST("/:id/hub-hold/checkpoints", handler.hubCheckpoint)
 }
 

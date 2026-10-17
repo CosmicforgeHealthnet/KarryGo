@@ -1,6 +1,8 @@
+import '../../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/async_content.dart';
 import '../../models/dispute_models.dart';
 import '../../state/rider_dispute_controller.dart';
 import 'case_detail_screen.dart';
@@ -37,13 +39,11 @@ class _CaseListScreenState extends State<CaseListScreen> {
         return all;
       case _CaseTab.open:
         return all
-            .where((c) =>
-                c.status != 'resolved' && c.status != 'closed')
+            .where((c) => c.status != 'resolved' && c.status != 'closed')
             .toList();
       case _CaseTab.resolved:
         return all
-            .where((c) =>
-                c.status == 'resolved' || c.status == 'closed')
+            .where((c) => c.status == 'resolved' || c.status == 'closed')
             .toList();
     }
   }
@@ -51,9 +51,8 @@ class _CaseListScreenState extends State<CaseListScreen> {
   Future<void> _openCreate() async {
     final r = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => CreateCaseScreen(
-          disputeController: widget.disputeController,
-        ),
+        builder: (_) =>
+            CreateCaseScreen(disputeController: widget.disputeController),
       ),
     );
     if (!mounted) return;
@@ -86,17 +85,8 @@ class _CaseListScreenState extends State<CaseListScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -149,13 +139,35 @@ class _CaseListScreenState extends State<CaseListScreen> {
                   final items = _filter(all);
 
                   if (widget.disputeController.loading && all.isEmpty) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: c.brandTeal500,
-                      ),
-                    );
+                    return const ContentSkeleton();
                   }
 
+                  if (widget.disputeController.error != null) {
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: ActionNotice(
+                            message: widget.disputeController.error!,
+                            isError: true,
+                            onRetry: widget.disputeController.loadComplaints,
+                          ),
+                        ),
+                        if (items.isNotEmpty)
+                          Expanded(
+                            child: ListView(
+                              children: [
+                                for (final item in items)
+                                  _CaseCard(
+                                    complaint: item,
+                                    onTap: () => _openDetail(item),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    );
+                  }
                   if (items.isEmpty) {
                     return _EmptyState(onCreate: _openCreate);
                   }
@@ -167,8 +179,7 @@ class _CaseListScreenState extends State<CaseListScreen> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                       itemCount: items.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 12),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) => _CaseCard(
                         complaint: items[i],
                         onTap: () => _openDetail(items[i]),
@@ -260,11 +271,9 @@ class _CaseCard extends StatelessWidget {
 
     final (label, fg, bg) = switch (status) {
       'resolved' || 'closed' => ('Resolved', c.success, c.successSoft),
-      'under_review' || 'awaiting_evidence' || 'escalated' => (
-          'In progress',
-          c.info,
-          c.info.withValues(alpha: 0.12),
-        ),
+      'under_review' ||
+      'awaiting_evidence' ||
+      'escalated' => ('In progress', c.info, c.info.withValues(alpha: 0.12)),
       _ => ('Open', c.warning, c.warningSoft),
     };
 

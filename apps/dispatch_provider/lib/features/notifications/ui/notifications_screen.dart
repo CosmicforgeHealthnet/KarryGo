@@ -1,6 +1,8 @@
+import '../../../shared/widgets/dispatch_empty_state.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/async_content.dart';
 import '../models/rider_notification.dart';
 import '../state/rider_notification_controller.dart';
 import 'notification_detail_screen.dart';
@@ -19,7 +21,7 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-enum _FeedTab { all, unread, archived }
+enum _FeedTab { all, unread }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   _FeedTab _tab = _FeedTab.all;
@@ -36,8 +38,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return all;
       case _FeedTab.unread:
         return all.where(widget.controller.isUnread).toList();
-      case _FeedTab.archived:
-        return const []; // no archive support yet — Figma tab exists
     }
   }
 
@@ -88,24 +88,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('More options coming soon.'),
-                        ),
-                      );
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.more_vert_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -126,12 +108,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     active: _tab == _FeedTab.unread,
                     onTap: () => setState(() => _tab = _FeedTab.unread),
                   ),
-                  const SizedBox(width: 8),
-                  _TabPill(
-                    label: 'Archived',
-                    active: _tab == _FeedTab.archived,
-                    onTap: () => setState(() => _tab = _FeedTab.archived),
-                  ),
                 ],
               ),
             ),
@@ -141,16 +117,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: AnimatedBuilder(
                 animation: widget.controller,
                 builder: (context, _) {
-                  final items =
-                      _filter(widget.controller.notifications);
+                  final items = _filter(widget.controller.notifications);
 
                   if (widget.controller.isLoading &&
                       widget.controller.notifications.isEmpty) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: c.brandTeal500,
-                      ),
-                    );
+                    return const ContentSkeleton();
                   }
                   if (widget.controller.error != null &&
                       widget.controller.notifications.isEmpty) {
@@ -163,14 +134,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   }
                   if (items.isEmpty) {
                     return _Message(
-                      icon: _tab == _FeedTab.archived
-                          ? Icons.archive_outlined
-                          : Icons.notifications_none_rounded,
+                      icon: Icons.notifications_none_rounded,
                       text: _tab == _FeedTab.unread
                           ? "You're all caught up."
-                          : _tab == _FeedTab.archived
-                              ? 'No archived notifications.'
-                              : 'No notifications yet.',
+                          : 'No notifications yet.',
                       actionLabel: 'Refresh',
                       onAction: widget.controller.refresh,
                     );
@@ -345,11 +312,7 @@ class _NotificationRow extends StatelessWidget {
             ),
 
             const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: c.textMuted,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 20, color: c.textMuted),
           ],
         ),
       ),
@@ -399,8 +362,18 @@ String formatNotifTime(DateTime t) {
   if (diff == 1) return 'Yesterday';
   if (diff < 7) return '$diff days ago';
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${day.day} ${months[day.month - 1]}';
 }
@@ -420,34 +393,19 @@ class _Message extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.palette;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: c.textDisabled),
-            const SizedBox(height: 14),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: c.textMuted, height: 1.5),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: onAction,
-              child: Text(
-                actionLabel,
-                style: TextStyle(
-                  color: c.brandTeal600,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
+    if (icon == Icons.cloud_off_rounded)
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ActionNotice(message: text, isError: true, onRetry: onAction),
         ),
-      ),
+      );
+    return DispatchEmptyState(
+      story: EmptyStory.support,
+      title: text,
+      message: 'Updates about your account and deliveries appear here.',
+      actionLabel: actionLabel,
+      onAction: onAction,
     );
   }
 }

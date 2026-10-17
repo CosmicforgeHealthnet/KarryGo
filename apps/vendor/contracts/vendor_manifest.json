@@ -59728,6 +59728,20 @@
             "minimum": 0,
             "default": 0
           }
+        },
+        {
+          "in": "query",
+          "name": "view",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "ACTIVE",
+              "PAUSED"
+            ]
+          },
+          "source": "services/vendor-service/internal/features/orders/commerce_orders_http.go"
         }
       ],
       "request_schema": null,
@@ -60327,6 +60341,21 @@
             "minimum": 0,
             "default": 0
           }
+        },
+        {
+          "in": "query",
+          "name": "view",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "UPCOMING",
+              "PAST",
+              "CANCELLED"
+            ]
+          },
+          "source": "services/vendor-service/internal/features/orders/commerce_orders_http.go"
         }
       ],
       "request_schema": null,

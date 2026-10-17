@@ -88,7 +88,15 @@ func (r *PostgresRepository) GetProviderMissionProjection(ctx context.Context, t
 	}
 
 	var handover ProviderHandover
-	if err := r.db.QueryRow(ctx, `SELECT stage,status FROM dispatch_handover_challenges WHERE trip_id=$1 ORDER BY created_at DESC LIMIT 1`, tripID).Scan(&handover.Stage, &handover.Status); err == nil {
+	if err := r.db.QueryRow(ctx, `SELECT c.stage,c.status,c.challenge_ref,c.stop_ref,c.manifest_ref,c.manifest_version,c.expires_at,
+        COALESCE(req.photo_required,false),COALESCE(req.signature_required,false),COALESCE(req.parcel_scans_required,false),COALESCE(req.min_evidence_count,0),
+        (SELECT count(*) FROM dispatch_evidence_refs e WHERE e.trip_id=c.trip_id AND e.stage=c.stage AND e.manifest_ref=c.manifest_ref AND e.manifest_version=c.manifest_version),
+        ARRAY(SELECT DISTINCT e.evidence_type FROM dispatch_evidence_refs e WHERE e.trip_id=c.trip_id AND e.stage=c.stage AND e.manifest_ref=c.manifest_ref AND e.manifest_version=c.manifest_version),
+        (SELECT count(*) FROM dispatch_stop_expected_parcels e JOIN dispatch_parcel_manifests m ON m.id=e.manifest_id WHERE e.mission_stop_id=c.stop_id AND m.mission_id=c.mission_id AND m.manifest_ref=c.manifest_ref AND m.version=c.manifest_version),
+        (SELECT count(*) FROM dispatch_parcel_scan_events e JOIN dispatch_parcel_manifests m ON m.id=e.manifest_id WHERE e.stop_id=c.stop_id AND e.trip_id=c.trip_id AND m.manifest_ref=c.manifest_ref AND m.version=c.manifest_version)
+        FROM dispatch_handover_challenges c LEFT JOIN LATERAL (SELECT photo_required,signature_required,parcel_scans_required,min_evidence_count
+          FROM dispatch_evidence_requirements WHERE context_key=c.context_key AND stage=c.stage ORDER BY created_at DESC LIMIT 1) req ON true
+        WHERE c.trip_id=$1 ORDER BY c.created_at DESC LIMIT 1`, tripID).Scan(&handover.Stage, &handover.Status, &handover.ChallengeRef, &handover.StopRef, &handover.ManifestRef, &handover.ManifestVersion, &handover.ExpiresAt, &handover.PhotoRequired, &handover.SignatureRequired, &handover.ScansRequired, &handover.RequiredEvidenceCount, &handover.AcceptedEvidenceCount, &handover.AcceptedEvidenceTypes, &handover.ExpectedParcelCount, &handover.ScannedParcelCount); err == nil {
 		projection.Handover = &handover
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -96,8 +104,8 @@ func (r *PostgresRepository) GetProviderMissionProjection(ctx context.Context, t
 
 	var recovery ProviderRecovery
 	if err := r.db.QueryRow(ctx, `
-		SELECT a.state,COALESCE((SELECT action FROM dispatch_delivery_recovery_actions WHERE delivery_attempt_id=a.id ORDER BY created_at DESC LIMIT 1),'')
-		FROM dispatch_delivery_attempts a WHERE a.trip_id=$1 ORDER BY attempt_number DESC LIMIT 1`, tripID).Scan(&recovery.AttemptState, &recovery.Action); err == nil {
+		SELECT a.state,a.id::text,a.grace_expires_at,a.source_version,COALESCE((SELECT action FROM dispatch_delivery_recovery_actions WHERE delivery_attempt_id=a.id ORDER BY created_at DESC LIMIT 1),'')
+		FROM dispatch_delivery_attempts a WHERE a.trip_id=$1 ORDER BY attempt_number DESC LIMIT 1`, tripID).Scan(&recovery.AttemptState, &recovery.AttemptID, &recovery.GraceExpiresAt, &recovery.SourceVersion, &recovery.Action); err == nil {
 		projection.Recovery = &recovery
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err

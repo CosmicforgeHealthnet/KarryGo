@@ -1,3 +1,5 @@
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -9,10 +11,7 @@ import 'selfie_capture_screen.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 class FaceIntroScreen extends StatelessWidget {
-  const FaceIntroScreen({
-    super.key,
-    required this.verificationController,
-  });
+  const FaceIntroScreen({super.key, required this.verificationController});
 
   final VerificationController verificationController;
 
@@ -30,17 +29,8 @@ class FaceIntroScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -87,8 +77,8 @@ class FaceIntroScreen extends StatelessWidget {
                         color: c.surfaceElevated,
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      child: Icon(
-                        Icons.face_retouching_natural,
+                      child: JourneyIcon(
+                        JourneySymbol.profile,
                         size: 76,
                         color: c.brandTeal500,
                       ),
@@ -101,8 +91,8 @@ class FaceIntroScreen extends StatelessWidget {
                     "Let's verify it's you",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.4,
                     ),

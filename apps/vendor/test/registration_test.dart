@@ -1,5 +1,6 @@
+import 'support/mock_vendor_runtime.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vendor/app/data/mock_vendor_client.dart';
+import 'support/mock/mock_vendor_client.dart';
 import 'package:vendor/app/data/vendor_preferences.dart';
 import 'package:vendor/app/vendor_runtime.dart';
 import 'package:vendor/features/onboarding/state/business_onboarding_controller.dart';
@@ -11,7 +12,7 @@ void main() {
   test(
     'new owner verifies before entering draft business onboarding',
     () async {
-      final runtime = VendorRuntime(
+      final runtime = MockVendorRuntime(
         preferences: VendorPreferences(inMemory: true),
         mockLatency: Duration.zero,
       );
@@ -44,7 +45,7 @@ void main() {
   test(
     'contact-only registration enters business creation before other setup',
     () async {
-      final runtime = VendorRuntime(
+      final runtime = MockVendorRuntime(
         preferences: VendorPreferences(inMemory: true),
         mockLatency: Duration.zero,
       );
@@ -75,7 +76,7 @@ void main() {
 
   test('returning users skip the intro automatically after sign-in', () async {
     final preferences = VendorPreferences(inMemory: true);
-    final first = VendorRuntime(
+    final first = MockVendorRuntime(
       preferences: preferences,
       mockLatency: Duration.zero,
     )..scenario = MockAuthScenario.singleVendor;
@@ -86,7 +87,7 @@ void main() {
     expect(first.page, VendorPage.signedIn);
     await Future<void>.delayed(Duration.zero);
     first.dispose();
-    final returning = VendorRuntime(
+    final returning = MockVendorRuntime(
       preferences: preferences,
       mockLatency: Duration.zero,
     );
@@ -96,7 +97,7 @@ void main() {
   });
 
   testWidgets('new user sign-up asks only for contact details', (tester) async {
-    final runtime = VendorRuntime(
+    final runtime = MockVendorRuntime(
       preferences: VendorPreferences(inMemory: true),
       mockLatency: Duration.zero,
     );
@@ -117,7 +118,7 @@ void main() {
   test('returning Live users keep their selected source and session', () async {
     final preferences = VendorPreferences(inMemory: true);
     final sessions = MemoryVendorSessionStore();
-    VendorRuntime makeRuntime() => VendorRuntime(
+    MockVendorRuntime makeRuntime() => MockVendorRuntime(
       preferences: preferences,
       liveSessionStore: sessions,
       mockLatency: Duration.zero,

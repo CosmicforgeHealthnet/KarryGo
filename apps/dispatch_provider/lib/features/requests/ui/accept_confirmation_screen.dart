@@ -236,7 +236,7 @@ class _AcceptConfirmationScreenState extends State<AcceptConfirmationScreen>
                       borderRadius: BorderRadius.circular(14),
                     ),
                     textStyle: const TextStyle(
-                      fontSize: 15.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -371,6 +371,5 @@ class _SuccessCheckPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SuccessCheckPainter old) =>
-      old.checkProgress != checkProgress ||
-      old.circleColor != circleColor;
+      old.checkProgress != checkProgress || old.circleColor != circleColor;
 }

@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/dispatchcommerce"
+	"cosmicforge/logistics/shared/go/mediaclient"
 )
 
 type EvidenceRecord struct {
@@ -38,6 +39,7 @@ type EvidenceRecord struct {
 }
 
 type OperationalService struct {
+	uploads        *mediaclient.Client
 	repo           *Repository
 	missions       *MultiStopMissionService
 	media          MediaAttachmentAuthorizer
@@ -314,4 +316,11 @@ func emitOperationalEvent(ctx context.Context, r *Repository, tx pgx.Tx, mission
 func jsonResult(value any) json.RawMessage {
 	raw, _ := json.Marshal(value)
 	return raw
+}
+
+func (s *OperationalService) WithMediaUploads(client *mediaclient.Client) *OperationalService {
+	if s != nil {
+		s.uploads = client
+	}
+	return s
 }

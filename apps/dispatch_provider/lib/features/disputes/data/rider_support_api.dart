@@ -27,7 +27,10 @@ class RiderSupportApi {
           .map((e) => Complaint.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
     }
-    return const [];
+    throw const ApiException(
+      code: ApiErrorCode.unknown,
+      message: 'Support returned an unreadable list. Please retry.',
+    );
   }
 
   Future<Complaint> createComplaint({
@@ -35,14 +38,16 @@ class RiderSupportApi {
     required String subject,
     required String description,
     required String bookingReference,
+    String? category,
   }) async {
     final data = await _post('/dispatch-provider/complaints', {
       'service_type': 'dispatch',
       'booking_reference': bookingReference,
+      if (category != null) 'category': category,
       'subject': subject,
       'description': description,
     }, accessToken: accessToken);
-    return Complaint.fromJson(data);
+    return _complaint(data);
   }
 
   Future<Complaint> getComplaint({
@@ -54,6 +59,26 @@ class RiderSupportApi {
       accessToken: accessToken,
     );
     return Complaint.fromJson(data);
+  }
+
+  Future<Complaint> startSupportChat({required String accessToken}) async {
+    final data = await _post(
+      '/dispatch-provider/support-chat/start',
+      const {},
+      accessToken: accessToken,
+    );
+    return _complaint(data);
+  }
+
+  Complaint _complaint(Map<String, dynamic> data) {
+    final complaint = Complaint.fromJson(data);
+    if (complaint.id.isEmpty)
+      throw const ApiException(
+        code: ApiErrorCode.unknown,
+        message:
+            'The server did not confirm the support case. Refresh your cases before retrying.',
+      );
+    return complaint;
   }
 
   Future<List<DisputeMessage>> listMessages({
@@ -72,7 +97,10 @@ class RiderSupportApi {
           )
           .toList();
     }
-    return const [];
+    throw const ApiException(
+      code: ApiErrorCode.unknown,
+      message: 'Support returned an unreadable list. Please retry.',
+    );
   }
 
   Future<DisputeMessage> sendMessage({
@@ -83,7 +111,14 @@ class RiderSupportApi {
     final data = await _post('/dispatch-provider/complaints/$id/messages', {
       'content': content,
     }, accessToken: accessToken);
-    return DisputeMessage.fromJson(data);
+    final message = DisputeMessage.fromJson(data);
+    if (message.id.isEmpty)
+      throw const ApiException(
+        code: ApiErrorCode.unknown,
+        message:
+            'Message delivery was not confirmed. Refresh the conversation before retrying.',
+      );
+    return message;
   }
 
   /// Marks the admin/agent messages on a complaint as read.
@@ -107,10 +142,9 @@ class RiderSupportApi {
     required String accessToken,
   }) async {
     try {
-      final response = await _client.get(
-        _config.uri(path),
-        headers: _headers(accessToken),
-      );
+      final response = await _client
+          .get(_config.uri(path), headers: _headers(accessToken))
+          .timeout(const Duration(seconds: 20));
       return _unwrap(response);
     } on ApiException {
       rethrow;
@@ -125,11 +159,13 @@ class RiderSupportApi {
     required String accessToken,
   }) async {
     try {
-      final response = await _client.post(
-        _config.uri(path),
-        headers: _headers(accessToken),
-        body: jsonEncode(body),
-      );
+      final response = await _client
+          .post(
+            _config.uri(path),
+            headers: _headers(accessToken),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
       return _unwrap(response);
     } on ApiException {
       rethrow;

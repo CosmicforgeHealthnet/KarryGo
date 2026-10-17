@@ -1,12 +1,14 @@
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/app_mode.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/widgets/numeric_keypad.dart';
 import '../state/wallet_controller.dart';
-import 'payment_processing_screen.dart';
+import 'withdrawal_result_screen.dart';
+import '../../../shared/widgets/async_content.dart';
 import 'change_transaction_pin_screen.dart';
 
 enum _AuthPhase { loading, enter, create, confirm }
@@ -41,17 +43,12 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPinStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadPinStatus();
+    });
   }
 
   Future<void> _loadPinStatus() async {
-    if (AppModeConfig.instance.isMock) {
-      await Future.delayed(const Duration(milliseconds: 200));
-      if (!mounted) return;
-      setState(() => _phase = _AuthPhase.enter);
-      return;
-    }
-
     final result = await widget.walletController.loadPinStatus();
     if (!mounted) return;
     result.when(
@@ -60,8 +57,8 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       },
       failure: (err) {
         setState(() {
-          _phase = _AuthPhase.enter;
-          _error = null;
+          _phase = _AuthPhase.loading;
+          _error = err.message;
         });
       },
     );
@@ -125,13 +122,6 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       _error = null;
     });
 
-    if (AppModeConfig.instance.isMock) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      if (!mounted) return;
-      await _withdraw(_pin);
-      return;
-    }
-
     final result = await widget.walletController.setupPin(_pin);
     if (!mounted) return;
     var saved = false;
@@ -162,17 +152,6 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       _error = null;
     });
 
-    if (AppModeConfig.instance.isMock) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => PaymentProcessingScreen(amount: widget.amount),
-        ),
-      );
-      return;
-    }
-
     final result = await widget.walletController.requestWithdrawal(
       bankAccountId: widget.bankAccountId,
       amountKobo: amountKobo,
@@ -183,10 +162,10 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
     if (!mounted) return;
 
     result.when(
-      success: (_) {
+      success: (withdrawal) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => PaymentProcessingScreen(amount: widget.amount),
+            builder: (_) => WithdrawalResultScreen(withdrawal: withdrawal),
           ),
         );
       },
@@ -202,7 +181,13 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
                 ? err.message
                 : 'Withdrawal failed. Please try again.';
           }
-          if (err.code != 'network') _idempotencyKey = null;
+          if (err.statusCode != null &&
+              err.statusCode! >= 400 &&
+              err.statusCode! < 500 &&
+              err.statusCode != 408 &&
+              err.statusCode != 429) {
+            _idempotencyKey = null;
+          }
         });
       },
     );
@@ -221,32 +206,32 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
   // ── Copy ──────────────────────────────────────────────────────────
 
   String get _topBarTitle => switch (_phase) {
-        _AuthPhase.create => 'Create transaction PIN',
-        _AuthPhase.confirm => 'Confirm transaction PIN',
-        _ => 'Enter transaction PIN',
-      };
+    _AuthPhase.create => 'Create transaction PIN',
+    _AuthPhase.confirm => 'Confirm transaction PIN',
+    _ => 'Enter transaction PIN',
+  };
 
   String get _heading => switch (_phase) {
-        _AuthPhase.create => 'Create your transaction PIN',
-        _AuthPhase.confirm => 'Confirm your transaction PIN',
-        _ => 'Enter your transaction PIN',
-      };
+    _AuthPhase.create => 'Create your transaction PIN',
+    _AuthPhase.confirm => 'Confirm your transaction PIN',
+    _ => 'Enter your transaction PIN',
+  };
 
   String get _subtitle => switch (_phase) {
-        _AuthPhase.loading => '',
-        _AuthPhase.enter =>
-          'This PIN is for financial transactions only (withdrawals, bank accounts). '
-              'It is different from your login PIN.',
-        _AuthPhase.create =>
-          'Choose a 6-digit PIN. You will use it for every withdrawal.',
-        _AuthPhase.confirm => 'Re-enter your new PIN to confirm.',
-      };
+    _AuthPhase.loading => '',
+    _AuthPhase.enter =>
+      'This PIN is for financial transactions only (withdrawals, bank accounts). '
+          'Keep it private and do not share it with anyone.',
+    _AuthPhase.create =>
+      'Choose a 6-digit PIN. You will use it for every withdrawal.',
+    _AuthPhase.confirm => 'Re-enter your new PIN to confirm.',
+  };
 
   String get _buttonLabel => switch (_phase) {
-        _AuthPhase.confirm => 'Save PIN & Withdraw',
-        _AuthPhase.loading => 'Please wait...',
-        _ => 'Continue',
-      };
+    _AuthPhase.confirm => 'Save PIN & Withdraw',
+    _AuthPhase.loading => 'Please wait...',
+    _ => 'Continue',
+  };
 
   bool get _showForgotLink => _phase == _AuthPhase.enter;
 
@@ -257,94 +242,107 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
     final colors = context.palette;
     final ready = _phase != _AuthPhase.loading;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(context),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!ready)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 60),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: colors.brandTeal500,
+    return PopScope(
+      canPop: !_submitting,
+      child: Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildTopBar(context),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!ready && _error != null)
+                        ActionNotice(
+                          message: _error!,
+                          isError: true,
+                          onRetry: _loadPinStatus,
+                        )
+                      else if (!ready)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 60),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: colors.brandTeal500,
+                            ),
+                          ),
+                        )
+                      else ...[
+                        _buildLockIcon(),
+                        const SizedBox(height: 22),
+                        Text(
+                          _heading,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: colors.text,
+                            letterSpacing: -0.4,
+                            height: 1.2,
                           ),
                         ),
-                      )
-                    else ...[
-                      _buildLockIcon(),
-                      const SizedBox(height: 22),
-                      Text(
-                        _heading,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: colors.text,
-                          letterSpacing: -0.4,
-                          height: 1.2,
+                        const SizedBox(height: 12),
+                        Text(
+                          _subtitle,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: colors.textMuted,
+                            height: 1.5,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _subtitle,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: colors.textMuted,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      _buildPinSlots(),
-                      if (_error != null) ...[
-                        const SizedBox(height: 18),
-                        _buildError(),
-                      ],
-                      if (_showForgotLink) ...[
-                        const SizedBox(height: 18),
-                        Center(
-                          child: GestureDetector(
-                            onTap: _onForgotPin,
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 6),
-                              child: Text(
-                                'Forgot PIN?',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: colors.brandTeal500,
+                        const SizedBox(height: 28),
+                        _buildPinSlots(),
+                        if (_error != null) ...[
+                          const SizedBox(height: 18),
+                          _buildError(),
+                        ],
+                        if (_showForgotLink) ...[
+                          const SizedBox(height: 18),
+                          Center(
+                            child: GestureDetector(
+                              onTap: _onForgotPin,
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: Text(
+                                  'Change PIN',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.brandTeal500,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            if (ready) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: NumericKeypad(onKeyTap: _onKeyTap),
-              ),
-              const SizedBox(height: 12),
-              _buildBottomButton(enabled: _isValid && !_submitting),
-            ] else
-              const SizedBox(height: 100),
-          ],
+              if (ready) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: NumericKeypad(
+                    onKeyTap: _onKeyTap,
+                    enabled: !_submitting,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildBottomButton(enabled: _isValid && !_submitting),
+              ] else
+                const SizedBox(height: 100),
+            ],
+          ),
         ),
       ),
     );
@@ -361,17 +359,10 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
         children: [
           Align(
             alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  size: 22,
-                  color: colors.text,
-                ),
-              ),
+            child: DispatchBackButton(
+              onPressed: _submitting
+                  ? () {}
+                  : () => Navigator.of(context).pop(),
             ),
           ),
           Text(
@@ -397,13 +388,10 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       child: Container(
         width: 88,
         height: 88,
-        decoration: BoxDecoration(
-          color: colors.teal10,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: colors.teal10, shape: BoxShape.circle),
         child: Center(
-          child: Icon(
-            Icons.lock_outline_rounded,
+          child: JourneyIcon(
+            JourneySymbol.key,
             size: 38,
             color: colors.brandTeal500,
           ),
@@ -421,7 +409,8 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       children: List.generate(_pinLength, (i) {
         final filled = i < _pin.length;
         return Container(
-          width: 42,
+          width: ((MediaQuery.sizeOf(context).width - 64) / _pinLength - 8)
+              .clamp(24.0, 42.0),
           height: 48,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           alignment: Alignment.center,
@@ -462,11 +451,7 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 18,
-            color: colors.danger,
-          ),
+          Icon(Icons.error_outline_rounded, size: 18, color: colors.danger),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -506,7 +491,7 @@ class _TransactionAuthScreenState extends State<TransactionAuthScreen> {
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                       strokeWidth: 2.2,
                     ),
                   )

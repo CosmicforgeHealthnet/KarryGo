@@ -1,3 +1,4 @@
+import 'package:vendor/app/data/vendor_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:vendor/app/vendor_app.dart';
@@ -19,7 +20,11 @@ void main() {
     (tester) async {
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       await tester.pumpWidget(
@@ -55,7 +60,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await c.prepare();
       expect(c.error, isNull);
@@ -91,7 +100,11 @@ void main() {
         parameters: parameters,
       );
       expect((await c.balance(basis))['on_hand_quantity'], 34);
-      final east = StockController(r.backend, 'mock-branch-east');
+      final east = StockController(
+        r.backend,
+        'mock-branch-east',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(east.dispose);
       await east.load();
       expect(east.rows.single['physical_on_hand'], 24);
@@ -102,7 +115,11 @@ void main() {
   test('adjustments enforce balance revision and insufficient stock', () async {
     final r = await dashboardRuntime();
     addTearDown(r.dispose);
-    final c = StockController(r.backend, 'mock-branch');
+    final c = StockController(
+      r.backend,
+      'mock-branch',
+      preferences: VendorPreferences(inMemory: true),
+    );
     addTearDown(c.dispose);
     await c.load();
     final basis = c.rows.single['stock_basis_ref'].toString();
@@ -138,7 +155,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await c.load();
       final basis = c.rows.single['stock_basis_ref'].toString();
@@ -218,7 +239,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await c.load();
       final basis = c.rows.single['stock_basis_ref'].toString();
@@ -291,7 +316,11 @@ void main() {
         command: command,
       );
       expect(second.object, first.object);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       expect((await c.balance('stock-demo-listing'))['on_hand_quantity'], 27);
     },
@@ -301,7 +330,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       Future<JsonObject> receive() async {
         final draft = (await c.mutate(
@@ -360,7 +393,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       final receipt = (await c.mutate(
         'POST',
@@ -394,7 +431,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       expect(
         await c.mutate(
@@ -428,7 +469,11 @@ void main() {
       );
       addTearDown(app.dispose);
       await app.client.acceptSession(r.backend.auth.session!);
-      final c = StockController(app, 'branch');
+      final c = StockController(
+        app,
+        'branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await c.load();
       expect(c.rows, isEmpty);
@@ -504,7 +549,11 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       await tester.pumpWidget(
@@ -553,7 +602,11 @@ void main() {
       await flush(tester);
       expect(find.text('Goods receipt'), findsOneWidget);
       expect(find.text('Draft'), findsOneWidget);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       final balance = await tester.runAsync(
         () => c.balance('stock-demo-listing'),

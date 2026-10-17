@@ -1,3 +1,4 @@
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,10 +14,7 @@ import 'selfie_review_screen.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SelfieCaptureScreen extends StatefulWidget {
-  const SelfieCaptureScreen({
-    super.key,
-    required this.verificationController,
-  });
+  const SelfieCaptureScreen({super.key, required this.verificationController});
 
   final VerificationController verificationController;
 
@@ -46,9 +44,9 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen> {
 
       final ext = p.extension(x.path).replaceFirst('.', '').toLowerCase();
       if (!const {'jpg', 'jpeg', 'png'}.contains(ext)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unsupported file type: .$ext')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unsupported file type: .$ext')));
         return;
       }
 
@@ -121,13 +119,10 @@ class _SelfieCaptureScreenState extends State<SelfieCaptureScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 2,
-                  ),
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
-                child: Icon(
-                  Icons.person_rounded,
+                child: JourneyIcon(
+                  JourneySymbol.profile,
                   size: 140,
                   color: Colors.white.withValues(alpha: 0.20),
                 ),

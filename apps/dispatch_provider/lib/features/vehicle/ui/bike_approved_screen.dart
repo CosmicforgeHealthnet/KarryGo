@@ -25,11 +25,7 @@ class BikeApprovedScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: c.successSoft,
                 ),
-                child: Icon(
-                  Icons.check_rounded,
-                  size: 52,
-                  color: c.success,
-                ),
+                child: Icon(Icons.check_rounded, size: 52, color: c.success),
               ),
               const SizedBox(height: 24),
               Text(
@@ -37,7 +33,7 @@ class BikeApprovedScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: c.text,
                   letterSpacing: -0.4,
                 ),

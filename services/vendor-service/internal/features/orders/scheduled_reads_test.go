@@ -4,10 +4,41 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestScheduleViewsAreWhitelistedBeforePagination(t *testing.T) {
+	for _, test := range []struct {
+		view      string
+		recurring bool
+		condition string
+	}{
+		{"UPCOMING", false, "desired_delivery_at>=now()"},
+		{"PAST", false, "desired_delivery_at<now()"},
+		{"CANCELLED", false, "scheduling_status='CANCELLED'"},
+		{"ACTIVE", true, "status='ACTIVE'"},
+		{"PAUSED", true, "status='PAUSED'"},
+	} {
+		predicate, err := scheduleViewPredicate(test.view, test.recurring)
+		if err != nil || !strings.Contains(predicate, test.condition) {
+			t.Fatalf("view=%s recurring=%v predicate=%q err=%v", test.view, test.recurring, predicate, err)
+		}
+	}
+	for _, recurring := range []bool{false, true} {
+		if predicate, err := scheduleViewPredicate("ALL", recurring); err != nil || predicate != "" {
+			t.Fatalf("all view must preserve the base scope: %q %v", predicate, err)
+		}
+		if _, err := scheduleViewPredicate("ALL' OR true --", recurring); !errors.Is(err, errScheduleView) {
+			t.Fatalf("unrecognized filter accepted: %v", err)
+		}
+	}
+	if _, err := scheduleViewPredicate("UPCOMING", true); !errors.Is(err, errScheduleView) {
+		t.Fatal("recurring schedules accepted a delivery-time filter")
+	}
+}
 
 type scheduleReadResolver struct {
 	scope      Scope

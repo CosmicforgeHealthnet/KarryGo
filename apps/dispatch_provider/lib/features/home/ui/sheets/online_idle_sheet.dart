@@ -1,71 +1,54 @@
 import 'package:flutter/material.dart';
-
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/journey_icon.dart';
 
-/// State 05 — Online Idle Map.
-///
-/// Shown when the rider is online but there are no pending requests yet.
-/// Full-width card flush against the bottom of the map with only the top
-/// corners rounded.
 class OnlineIdleSheet extends StatelessWidget {
   const OnlineIdleSheet({super.key});
-
   @override
   Widget build(BuildContext context) {
-    final colors = context.palette;
-    final bottomPad = MediaQuery.of(context).padding.bottom;
-
+    final c = context.palette;
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomPad),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-        boxShadow: colors.cardShadow,
+        color: c.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: c.divider),
+        boxShadow: c.cardShadow,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // ── Broadcast badge ──────────────────────────────────────────
           Container(
-            width: 44,
-            height: 44,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: colors.teal10,
-              borderRadius: BorderRadius.circular(12),
+              color: c.successSoft,
+              borderRadius: BorderRadius.circular(18),
             ),
-            child: Icon(
-              Icons.wifi_tethering_rounded,
-              size: 22,
-              color: colors.brandTeal500,
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── Title ────────────────────────────────────────────────────
-          Text(
-            "You're online",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: colors.text,
-              letterSpacing: -0.3,
+            child: Center(
+              child: JourneyIcon(
+                JourneySymbol.parcel,
+                size: 30,
+                color: c.success,
+              ),
             ),
           ),
-          const SizedBox(height: 6),
-
-          // ── Subtitle ─────────────────────────────────────────────────
-          Text(
-            "Great! You'll receive nearby dispatch opportunities.",
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w400,
-              color: colors.textMuted,
-              height: 1.4,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'You are online',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'New opportunities will appear here.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
             ),
           ),
         ],

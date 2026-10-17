@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/async_content.dart';
+import '../../../shared/widgets/dispatch_empty_state.dart';
+import '../../../shared/widgets/delivery_collection_widgets.dart';
+import '../../../shared/widgets/journey_icon.dart';
+import '../../home/ui/widgets/route_info.dart';
 import '../data/trip_model.dart';
 import '../state/trips_controller.dart';
 import 'trip_detail_screen.dart';
@@ -9,652 +13,351 @@ import 'activity_filters_sheet.dart';
 class TripsScreen extends StatefulWidget {
   const TripsScreen({super.key, required this.tripsController});
   final TripsController tripsController;
-
   @override
   State<TripsScreen> createState() => _TripsScreenState();
 }
 
 class _TripsScreenState extends State<TripsScreen> {
   ActivityTab _tab = ActivityTab.all;
-
+  String _dateRange = 'All time';
+  TripsController get _ctrl => widget.tripsController;
   @override
   void initState() {
     super.initState();
-    widget.tripsController.addListener(_onChanged);
-    widget.tripsController.loadTrips();
+    _ctrl.addListener(_changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ctrl.loadTrips(applyFilters: true);
+    });
   }
 
   @override
   void dispose() {
-    widget.tripsController.removeListener(_onChanged);
+    _ctrl.removeListener(_changed);
     super.dispose();
   }
 
-  void _onChanged() {
+  void _changed() {
     if (mounted) setState(() {});
   }
 
-  List<TripModel> get _visible {
-    final all = widget.tripsController.trips;
-    switch (_tab) {
-      case ActivityTab.all:
-        return all;
-      case ActivityTab.active:
-        return all.where((t) => t.statusCode.isActive).toList();
-      case ActivityTab.completed:
-        return all.where((t) => t.statusCode.isCompleted).toList();
-      case ActivityTab.cancelled:
-        return all.where((t) => t.statusCode.isCancelled).toList();
-      case ActivityTab.failed:
-        return all.where((t) => t.statusCode.isFailed).toList();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    final ctrl = widget.tripsController;
-
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(context),
-            _buildTabs(context),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ctrl.isLoading && ctrl.trips.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : ctrl.error != null && ctrl.trips.isEmpty
-                      ? _buildError(context)
-                      : _buildList(context),
-            ),
-          ],
-        ),
-      ),
+  void _reload() {
+    final now = DateTime.now();
+    final from = switch (_dateRange) {
+      'Today' => DateTime(now.year, now.month, now.day),
+      'Last 7 days' => now.subtract(const Duration(days: 7)),
+      'Last 30 days' => now.subtract(const Duration(days: 30)),
+      'This year' => DateTime(now.year),
+      _ => null,
+    };
+    _ctrl.loadTrips(
+      applyFilters: true,
+      status: _tab == ActivityTab.all ? null : _tab.name,
+      createdFrom: from,
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────
+  Future<void> _filters() async {
+    final result = await showActivityFiltersSheet(
+      context,
+      initial: ActivityFilterResult(tab: _tab, dateRange: _dateRange),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _tab = result.tab;
+      _dateRange = result.dateRange;
+    });
+    _reload();
+  }
 
-  Widget _buildHeader(BuildContext context) {
-    final colors = context.palette;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  void _reset() {
+    setState(() {
+      _tab = ActivityTab.all;
+      _dateRange = 'All time';
+    });
+    _reload();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: context.palette.background,
+    body: SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          DeliveryCollectionHeader(
+            title: 'Activity',
+            subtitle: 'Your deliveries, clearly recorded.',
+            action: IconButton(
+              tooltip: 'Filter activity',
+              onPressed: _filters,
+              icon: const Icon(Icons.tune_rounded),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
               children: [
-                Text(
-                  'Activity',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: colors.text,
-                    letterSpacing: -0.6,
-                    height: 1.15,
+                for (final entry in const {
+                  ActivityTab.all: 'All',
+                  ActivityTab.active: 'Active',
+                  ActivityTab.completed: 'Completed',
+                  ActivityTab.cancelled: 'Cancelled',
+                  ActivityTab.failed: 'Failed',
+                }.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: DeliveryFilter(
+                      label: entry.value,
+                      selected: _tab == entry.key,
+                      onTap: () {
+                        setState(() => _tab = entry.key);
+                        _reload();
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Your work history, proof and performance in one place.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colors.textMuted,
-                    height: 1.4,
-                  ),
-                ),
               ],
             ),
           ),
-          GestureDetector(
-            onTap: () => _openFilters(context),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                shape: BoxShape.circle,
-                border: Border.all(color: colors.divider),
+          if (_dateRange != 'All time')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined, size: 15),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _dateRange,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _reset,
+                    child: const Text('Reset filters'),
+                  ),
+                ],
               ),
-              child: Icon(
-                Icons.tune_rounded,
-                size: 20,
-                color: colors.text,
+            ),
+          const SizedBox(height: 12),
+          if (_ctrl.error != null && _ctrl.trips.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: ActionNotice(
+                message: _ctrl.error!,
+                isError: true,
+                onRetry: _ctrl.loadTrips,
               ),
+            ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await _ctrl.loadTrips();
+              },
+              child: _body(context),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Future<void> _openFilters(BuildContext context) async {
-    final result = await showActivityFiltersSheet(context);
-    if (result == null || !mounted) return;
-    setState(() => _tab = result.tab);
-  }
-
-  // ── Tabs ──────────────────────────────────────────────────────────
-
-  Widget _buildTabs(BuildContext context) {
-    const labels = {
-      ActivityTab.all: 'All',
-      ActivityTab.active: 'Active',
-      ActivityTab.completed: 'Completed',
-      ActivityTab.cancelled: 'Cancelled',
-      ActivityTab.failed: 'Failed',
-    };
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
+    ),
+  );
+  Widget _body(BuildContext context) {
+    if (_ctrl.isLoading && _ctrl.trips.isEmpty)
+      return const ContentSkeleton(rows: 3);
+    if (_ctrl.error != null && _ctrl.trips.isEmpty)
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
         children: [
-          for (final entry in labels.entries) ...[
-            _TabPill(
-              label: entry.value,
-              active: _tab == entry.key,
-              onTap: () => setState(() => _tab = entry.key),
-            ),
-            if (entry.key != ActivityTab.failed) const SizedBox(width: 8),
-          ],
+          const SizedBox(height: 40),
+          const JourneyIcon(JourneySymbol.review, size: 64),
+          const SizedBox(height: 24),
+          ActionNotice(
+            message: _ctrl.error!,
+            isError: true,
+            onRetry: _ctrl.loadTrips,
+          ),
         ],
-      ),
-    );
-  }
-
-  // ── List ──────────────────────────────────────────────────────────
-
-  Widget _buildList(BuildContext context) {
-    final items = _visible;
-    if (items.isEmpty) return _buildEmpty(context);
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) => _ActivityCard(
-        trip: items[i],
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TripDetailScreen(trip: items[i]),
+      );
+    final items = _ctrl.trips;
+    if (items.isEmpty) {
+      final filtered = _tab != ActivityTab.all || _dateRange != 'All time';
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          DispatchEmptyState(
+            story: filtered ? EmptyStory.search : EmptyStory.activity,
+            title: filtered ? 'No matching deliveries' : 'No deliveries yet',
+            message: filtered
+                ? 'Try another status or date range.'
+                : 'Your delivery records will appear here.',
+            actionLabel: filtered ? 'Reset filters' : 'Refresh',
+            onAction: filtered ? _reset : () => _ctrl.loadTrips(),
           ),
-        ),
-      ),
-    );
-  }
-
-  // ── Empty state ───────────────────────────────────────────────────
-
-  Widget _buildEmpty(BuildContext context) {
-    final colors = context.palette;
-    final (String title, String body) = switch (_tab) {
-      ActivityTab.all => (
-          'No activity yet',
-          'Your completed deliveries, cancellations and other activity will appear here.',
-        ),
-      ActivityTab.active => (
-          'No active deliveries',
-          'Accept an opportunity to see it here in real time.',
-        ),
-      ActivityTab.completed => (
-          'No completed deliveries yet',
-          'Finished deliveries will show up here.',
-        ),
-      ActivityTab.cancelled => (
-          'No cancelled deliveries',
-          'Cancelled requests will show up here.',
-        ),
-      ActivityTab.failed => (
-          'No failed deliveries',
-          'Failed attempts will show up here.',
-        ),
-    };
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        ],
+      );
+    }
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      itemCount: items.length + 1,
+      itemBuilder: (context, i) {
+        if (i == items.length)
+          return _ctrl.hasMore
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: OutlinedButton.icon(
+                    onPressed: _ctrl.loadingMore ? null : _ctrl.loadMore,
+                    icon: _ctrl.loadingMore
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.expand_more_rounded),
+                    label: Text(
+                      _ctrl.loadingMore
+                          ? 'Loading...'
+                          : 'Load earlier deliveries',
+                    ),
+                  ),
+                )
+              : const SizedBox(height: 8);
+        final trip = items[i];
+        final heading = _group(trip.createdAt);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: colors.navy10,
-                shape: BoxShape.circle,
+            if (i == 0 || _group(items[i - 1].createdAt) != heading)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+                child: Text(
+                  heading,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ),
-              child: Icon(
-                Icons.assignment_outlined,
-                size: 40,
-                color: colors.navy40,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: colors.text,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.textMuted,
-                height: 1.5,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _ActivityCard(
+                trip: trip,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        TripDetailScreen(trip: trip, controller: _ctrl),
+                  ),
+                ),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
-  // ── Error state ───────────────────────────────────────────────────
-
-  Widget _buildError(BuildContext context) {
-    final colors = context.palette;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 88,
-              height: 88,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: colors.danger,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.priority_high_rounded,
-                size: 40,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Something went wrong',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: colors.text,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "We couldn't load your activity at the moment. Please check your connection and try again.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: colors.textMuted,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton(
-                onPressed: widget.tripsController.loadTrips,
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                child: const Text('Try again'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.text,
-                  side: BorderSide(color: colors.divider, width: 1.2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                child: const Text('Go offline'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _group(DateTime date) {
+    final d = date.toLocal(), now = DateTime.now();
+    final days = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).difference(DateTime(d.year, d.month, d.day)).inDays;
+    return days == 0
+        ? 'Today'
+        : days == 1
+        ? 'Yesterday'
+        : deliveryDate(d);
   }
 }
-
-// ── Tab pill ────────────────────────────────────────────────────────
-
-class _TabPill extends StatelessWidget {
-  const _TabPill({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? colors.teal10 : colors.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: active
-                ? colors.brandTeal500.withValues(alpha: 0.5)
-                : colors.divider,
-            width: 1.2,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: active ? colors.brandTeal600 : colors.text,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Activity card ───────────────────────────────────────────────────
 
 class _ActivityCard extends StatelessWidget {
   const _ActivityCard({required this.trip, required this.onTap});
   final TripModel trip;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
-    final colors = context.palette;
-    final isActive = trip.statusCode.isActive;
-
-    return GestureDetector(
+    final c = context.palette;
+    return DeliveryPanel(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '#${trip.bookingId}',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textMuted,
-                    letterSpacing: 0.1,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: c.surfaceElevated,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: JourneyIcon(
+                    trip.statusCode.isCompleted
+                        ? JourneySymbol.shield
+                        : JourneySymbol.parcel,
+                    size: 26,
+                    color: trip.statusCode.isCompleted
+                        ? c.success
+                        : trip.statusCode.isCancelled ||
+                              trip.statusCode.isFailed
+                        ? c.danger
+                        : c.brandTeal600,
                   ),
                 ),
-                const Spacer(),
-                _StatusChip(status: trip.statusCode),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            _RouteLine(
-              icon: Icons.radio_button_checked,
-              color: colors.brandNavy900,
-              label: trip.pickupAddress,
-            ),
-            const SizedBox(height: 6),
-            _RouteLine(
-              icon: Icons.place_outlined,
-              color: colors.brandTeal500,
-              label: trip.dropoffAddress,
-            ),
-
-            const SizedBox(height: 14),
-
-            if (isActive)
-              Row(
-                children: [
-                  _Metric(
-                    icon: Icons.schedule_rounded,
-                    label: trip.etaDisplay,
-                  ),
-                  const SizedBox(width: 14),
-                  _Metric(
-                    icon: Icons.straighten_rounded,
-                    label: trip.distanceDisplay,
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.brandTeal500,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.my_location_rounded,
-                          size: 11,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Live tracking',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              )
-            else
-              Row(
-                children: [
-                  _Metric(
-                    icon: Icons.attach_money_rounded,
-                    label: trip.earningsDisplay,
-                  ),
-                  const Spacer(),
-                  Text(
-                    _formatShortDate(
-                      trip.completedAt ??
-                          trip.cancelledAt ??
-                          trip.failedAt ??
-                          trip.createdAt,
-                    ),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _formatShortDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
-  }
-}
-
-// ── Status chip ─────────────────────────────────────────────────────
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-  final TripStatusCode status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-
-    final (Color fg, Color bg) = switch (status) {
-      TripStatusCode.completed => (colors.success, colors.successSoft),
-      TripStatusCode.inProgress => (colors.brandTeal600, colors.teal10),
-      TripStatusCode.enRoutePickup => (colors.brandTeal600, colors.teal10),
-      TripStatusCode.assigned => (colors.brandNavy900, colors.navy10),
-      TripStatusCode.arrivedPickup => (colors.warning, colors.warningSoft),
-      TripStatusCode.proofSubmitted => (colors.brandTeal600, colors.teal10),
-      TripStatusCode.cancelled => (colors.danger, colors.dangerSoft),
-      TripStatusCode.failed => (colors.danger, colors.dangerSoft),
-    };
-
-    final icon = switch (status) {
-      TripStatusCode.completed => Icons.check_circle_rounded,
-      TripStatusCode.inProgress => Icons.local_shipping_rounded,
-      TripStatusCode.enRoutePickup => Icons.navigation_rounded,
-      TripStatusCode.assigned => Icons.assignment_turned_in_outlined,
-      TripStatusCode.arrivedPickup => Icons.pin_drop_outlined,
-      TripStatusCode.proofSubmitted => Icons.photo_camera_outlined,
-      TripStatusCode.cancelled => Icons.cancel_outlined,
-      TripStatusCode.failed => Icons.error_outline_rounded,
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: fg),
-          const SizedBox(width: 4),
-          Text(
-            status.shortLabel,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: fg,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  trip.customerName.isNotEmpty ? trip.customerName : 'Delivery',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TripStatusBadge(status: trip.statusCode),
+              if (trip.moneyVisible)
+                Text(
+                  trip.fareDisplay,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+            ],
+          ),
+          if (trip.pickupAddress.isNotEmpty &&
+              trip.dropoffAddress.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Divider(height: 1),
             ),
+            RouteInfo(
+              pickup: trip.pickupAddress,
+              dropoff: trip.dropoffAddress,
+              compact: true,
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              Text(
+                deliveryDate(trip.createdAt, time: true),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (trip.distanceKm > 0)
+                Text(
+                  trip.distanceDisplay,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
           ),
         ],
       ),
-    );
-  }
-}
-
-// ── Small helpers ───────────────────────────────────────────────────
-
-class _RouteLine extends StatelessWidget {
-  const _RouteLine({
-    required this.icon,
-    required this.color,
-    required this.label,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(icon, size: 14, color: color),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: colors.text,
-              height: 1.3,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: colors.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: colors.textMuted,
-          ),
-        ),
-      ],
     );
   }
 }

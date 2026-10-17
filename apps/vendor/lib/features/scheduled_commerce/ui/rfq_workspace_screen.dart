@@ -145,7 +145,7 @@ class _RfqWorkspaceScreenState extends State<RfqWorkspaceScreen> {
                   ? !quotes.any((q) => q['BranchID'] == b['id'])
                   : b['id'] == previous['BranchID']),
         ))
-          '${b['id']}': '${b['name']}',
+          '${b['id']}': '${b['display_name']}',
       };
       if (!mounted) return;
       if (branchChoices.isEmpty) {

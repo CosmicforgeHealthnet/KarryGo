@@ -93,7 +93,7 @@ class _WithdrawalReceiptScreenState extends State<WithdrawalReceiptScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: colors.text,
                   letterSpacing: -0.4,
                   height: 1.2,
@@ -106,7 +106,7 @@ class _WithdrawalReceiptScreenState extends State<WithdrawalReceiptScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 34,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: colors.success,
                   letterSpacing: -0.8,
                   height: 1.05,
@@ -210,11 +210,7 @@ class _SuccessCheckPainter extends CustomPainter {
     final radius = size.width / 2;
 
     // ── Circle ──────────────────────────────────────────────────
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()..color = circleColor,
-    );
+    canvas.drawCircle(center, radius, Paint()..color = circleColor);
 
     // ── Tick path ───────────────────────────────────────────────
     // Two strokes: short arm down-right, long arm up-right. Coordinates are

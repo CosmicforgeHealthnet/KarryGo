@@ -1,3 +1,5 @@
+import 'branch_location_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../app/vendor_runtime.dart';
@@ -404,9 +406,57 @@ class _BranchSetupScreenState extends State<BranchSetupScreen> {
               key: _form,
               child: Column(
                 children: [
-                  _coordinate(_lat, 'Centre latitude', -90, 90),
-                  const SizedBox(height: 16),
-                  _coordinate(_lng, 'Centre longitude', -180, 180),
+                  FormField<LatLng>(
+                    initialValue:
+                        double.tryParse(_lat.text) != null &&
+                            double.tryParse(_lng.text) != null
+                        ? LatLng(
+                            double.parse(_lat.text),
+                            double.parse(_lng.text),
+                          )
+                        : null,
+                    validator: (point) => point == null
+                        ? 'Choose the centre of your service area.'
+                        : null,
+                    builder: (field) => Column(
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.location_on_outlined),
+                          title: const Text('Service area centre'),
+                          subtitle: Text(
+                            field.value == null
+                                ? 'Choose on the map'
+                                : 'Location selected',
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: _busy
+                              ? null
+                              : () async {
+                                  final point = await Navigator.of(context)
+                                      .push<LatLng>(
+                                        setupRoute<LatLng>(
+                                          BranchLocationPicker(
+                                            initial: field.value,
+                                          ),
+                                        ),
+                                      );
+                                  if (!mounted || point == null) return;
+                                  _lat.text = point.latitude.toString();
+                                  _lng.text = point.longitude.toString();
+                                  field.didChange(point);
+                                },
+                        ),
+                        if (field.hasError)
+                          Text(
+                            field.errorText!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _radius,
@@ -477,25 +527,5 @@ class _BranchSetupScreenState extends State<BranchSetupScreen> {
         ],
       ),
     ),
-  );
-  Widget _coordinate(
-    TextEditingController field,
-    String label,
-    num min,
-    num max,
-  ) => TextFormField(
-    controller: field,
-    enabled: !_busy,
-    keyboardType: const TextInputType.numberWithOptions(
-      signed: true,
-      decimal: true,
-    ),
-    decoration: InputDecoration(labelText: label),
-    validator: (v) {
-      final n = num.tryParse(v ?? '');
-      return n != null && n >= min && n <= max
-          ? null
-          : 'Use a value from $min to $max';
-    },
   );
 }

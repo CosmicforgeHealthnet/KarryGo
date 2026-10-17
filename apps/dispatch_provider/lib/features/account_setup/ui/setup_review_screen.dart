@@ -1,3 +1,5 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -66,13 +68,22 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
   }
 
   Future<void> _bootstrap() async {
-    debugPrint('[REVIEW] bootstrap start | sessionProfileData=${widget.profileData != null}');
+    debugPrint(
+      '[REVIEW] bootstrap start | sessionProfileData=${widget.profileData != null}',
+    );
 
     // Always pull the freshest server state. If the user reached this screen
     // via the Setup Hub (resumed session, skipped steps), widget.profileData
     // is null and this is the only way to render real values.
     try {
       final result = await widget.profileController.loadMe();
+      if (!mounted) return;
+      if (widget.profileController.profile?.hasEmergencyContact ?? false) {
+        await widget.profileController.loadEmergencyContact();
+      }
+      if (widget.profileController.profile?.hasGuarantor ?? false) {
+        await widget.profileController.loadGuarantor();
+      }
       if (!mounted) return;
       result.when(
         success: (p) {
@@ -85,7 +96,9 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
           );
         },
         failure: (e) {
-          debugPrint('[REVIEW] loadMe FAILED | code=${e.code} msg=${e.message}');
+          debugPrint(
+            '[REVIEW] loadMe FAILED | code=${e.code} msg=${e.message}',
+          );
         },
       );
     } catch (e, st) {
@@ -225,16 +238,7 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
   }
 
   void _showError(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: Colors.red.shade800,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    if (mounted) showDispatchError(context, msg);
   }
 
   void _handleBack() {
@@ -319,8 +323,7 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
                           ),
                         )
                       : SingleChildScrollView(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -328,55 +331,10 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
                               _Reveal(
                                 animation: _entrance,
                                 begin: 0,
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    GestureDetector(
-                                      onTap: _handleBack,
-                                      behavior: HitTestBehavior.opaque,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 8,
-                                          horizontal: 4,
-                                        ),
-                                        child: Icon(
-                                          Icons.arrow_back_rounded,
-                                          size: 24,
-                                          color: c.text,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Padding(
-                                        padding:
-                                            const EdgeInsets.only(top: 10),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            Text(
-                                              'Step 6 of 6',
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                                color: c.textMuted,
-                                                height: 1.2,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            const _StepProgress(
-                                              current: 6,
-                                              total: 6,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 44),
-                                  ],
+                                child: DispatchSetupHeader(
+                                  current: 6,
+                                  total: 6,
+                                  onBack: _handleBack,
                                 ),
                               ),
                               const SizedBox(height: 28),
@@ -390,7 +348,7 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
                                     Text(
                                       'Review your information',
                                       style: TextStyle(
-                                        fontSize: 24,
+                                        fontSize: 28,
                                         fontWeight: FontWeight.w700,
                                         color: c.text,
                                         letterSpacing: -0.4,
@@ -401,7 +359,7 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
                                     Text(
                                       'Make sure everything is correct before you submit.',
                                       style: TextStyle(
-                                        fontSize: 16,
+                                        fontSize: 15,
                                         fontWeight: FontWeight.w400,
                                         color: c.textMuted,
                                         height: 1.5,
@@ -444,12 +402,14 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
                             ],
                     ),
                     child: FilledButton(
-                      onPressed:
-                          (_isLoading || !_bootstrapDone) ? null : _submit,
+                      onPressed: (_isLoading || !_bootstrapDone)
+                          ? null
+                          : _submit,
                       style: FilledButton.styleFrom(
                         backgroundColor: c.brandTeal500,
-                        disabledBackgroundColor:
-                            c.brandTeal500.withValues(alpha: 0.45),
+                        disabledBackgroundColor: c.brandTeal500.withValues(
+                          alpha: 0.45,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -459,16 +419,16 @@ class _SetupReviewScreenState extends State<SetupReviewScreen>
                               width: 22,
                               height: 22,
                               child: CircularProgressIndicator(
-                                color: Colors.white,
+                                color: Color(0xFF081F44),
                                 strokeWidth: 2,
                               ),
                             )
                           : const Text(
                               'Submit for verification',
                               style: TextStyle(
-                                fontSize: 17,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                                color: Color(0xFF081F44),
                               ),
                             ),
                     ),
@@ -544,10 +504,7 @@ class _ReviewCard extends StatelessWidget {
       width: _leading,
       height: _leading,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: c.navy10,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: c.navy10, shape: BoxShape.circle),
       child: Icon(icon, size: 26, color: c.text),
     );
   }
@@ -621,9 +578,8 @@ class _ReviewCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 17,
-                        fontWeight:
-                            missing ? FontWeight.w500 : FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: missing ? FontWeight.w500 : FontWeight.w700,
                         color: missing ? c.textMuted : c.text,
                         height: 1.3,
                       ),
@@ -651,7 +607,7 @@ class _ReviewCard extends StatelessWidget {
                       child: Text(
                         missing ? 'Add' : 'Edit',
                         style: TextStyle(
-                          fontSize: 15.5,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: c.brandTeal500,
                         ),
@@ -669,54 +625,3 @@ class _ReviewCard extends StatelessWidget {
 }
 
 // ─── Step progress ──────────────────────────────────────────────────────────
-
-class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.current, required this.total});
-
-  final int current;
-  final int total;
-
-  static const double _height = 9;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final fraction =
-        total <= 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
-    final previous =
-        total <= 0 ? 0.0 : ((current - 1) / total).clamp(0.0, 1.0).toDouble();
-    final radius = BorderRadius.circular(_height / 2);
-
-    return SizedBox(
-      height: _height,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: c.navy10,
-              borderRadius: radius,
-            ),
-          ),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: previous, end: fraction),
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, _) {
-              return FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: value,
-                heightFactor: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.brandTeal500,
-                    borderRadius: radius,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}

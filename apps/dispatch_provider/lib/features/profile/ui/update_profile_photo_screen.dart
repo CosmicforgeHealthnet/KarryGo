@@ -1,3 +1,6 @@
+import '../../home/ui/widgets/home_feedback.dart';
+import '../../../shared/widgets/account_components.dart';
+import '../../../shared/widgets/journey_icon.dart';
 import 'dart:io';
 
 import 'package:image_picker/image_picker.dart';
@@ -6,17 +9,8 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../state/provider_profile_controller.dart';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Figma 14 — Update profile photo
-// White screen. Circular preview · Take photo · Choose from gallery ·
-// Remove photo (red) · Save photo.
-// ═══════════════════════════════════════════════════════════════════════════
-
 class UpdateProfilePhotoScreen extends StatefulWidget {
-  const UpdateProfilePhotoScreen({
-    super.key,
-    required this.profileController,
-  });
+  const UpdateProfilePhotoScreen({super.key, required this.profileController});
 
   final ProviderProfileController profileController;
 
@@ -50,9 +44,6 @@ class _UpdateProfilePhotoScreenState extends State<UpdateProfilePhotoScreen> {
 
   void _removePhoto() {
     setState(() => _picked = null);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Choose a new photo to replace.')),
-    );
   }
 
   Future<void> _save() async {
@@ -64,136 +55,84 @@ class _UpdateProfilePhotoScreenState extends State<UpdateProfilePhotoScreen> {
     if (!mounted) return;
     setState(() => _isSaving = false);
     result.when(
-      success: (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile photo updated')),
+      success: (_) async {
+        await showHomeFeedback(
+          context,
+          title: 'Profile photo updated',
+          message: 'Your new photo has been saved.',
         );
-        Navigator.of(context).pop();
+        if (mounted) Navigator.of(context).pop();
       },
-      failure: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
+      failure: (error) async {
+        await showHomeFeedback(
+          context,
+          title: 'Could not save photo',
+          message: error.message,
+          error: true,
         );
       },
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final existingUrl = widget.profileController.profile?.profilePhotoUrl;
-
-    return Scaffold(
-      backgroundColor: c.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── Header ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Update profile photo',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: c.text,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-                children: [
-                  Center(child: _buildPreview(existingUrl)),
-                  const SizedBox(height: 36),
-                  _OptionRow(
-                    icon: Icons.photo_camera_outlined,
-                    label: 'Take photo',
-                    onTap: _isSaving ? null : _takePhoto,
-                  ),
-                  _OptionRow(
-                    icon: Icons.image_outlined,
-                    label: 'Choose from gallery',
-                    onTap: _isSaving ? null : _pickFromGallery,
-                  ),
-                  _OptionRow(
-                    icon: Icons.delete_outline_rounded,
-                    label: 'Remove photo',
-                    onTap: _isSaving ? null : _removePhoto,
-                    destructive: true,
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Save photo ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: SizedBox(
-                height: 52,
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: (_picked != null && !_isSaving) ? _save : null,
-                  style: FilledButton.styleFrom(
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  child: _isSaving
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: c.brandWhite,
-                          ),
-                        )
-                      : const Text('Save photo'),
-                ),
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => AccountPage(
+    title: 'Profile photo',
+    symbol: JourneySymbol.photo,
+    description: 'Choose a clear photo so people can recognise you.',
+    bottom: FilledButton(
+      onPressed: _picked != null && !_isSaving ? _save : null,
+      child: _isSaving
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Text('Save photo'),
+    ),
+    children: [
+      Center(
+        child: _buildPreview(widget.profileController.profile?.profilePhotoUrl),
       ),
-    );
-  }
+      const SizedBox(height: 28),
+      AccountSection(
+        title: 'Choose your photo',
+        children: [
+          AccountMenuTile(
+            title: 'Take a photo',
+            symbol: JourneySymbol.photo,
+            onTap: _isSaving ? null : _takePhoto,
+          ),
+          AccountMenuTile(
+            title: 'Choose from gallery',
+            symbol: JourneySymbol.photo,
+            onTap: _isSaving ? null : _pickFromGallery,
+          ),
+          if (_picked != null)
+            AccountMenuTile(
+              title: 'Discard selection',
+              symbol: JourneySymbol.photo,
+              color: context.palette.danger,
+              onTap: _isSaving ? null : _removePhoto,
+            ),
+        ],
+      ),
+    ],
+  );
 
   Widget _buildPreview(String? existingUrl) {
     final c = context.palette;
     const size = 160.0;
 
     Widget fallback() => Container(
-          width: size,
-          height: size,
-          alignment: Alignment.center,
-          color: c.teal10,
-          child: Icon(
-            Icons.person_rounded,
-            size: 64,
-            color: c.brandTeal600,
-          ),
-        );
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      color: c.teal10,
+      child: JourneyIcon(
+        JourneySymbol.profile,
+        size: 64,
+        color: c.brandTeal600,
+      ),
+    );
 
     Widget content;
     if (_picked != null) {
@@ -227,62 +166,6 @@ class _UpdateProfilePhotoScreenState extends State<UpdateProfilePhotoScreen> {
         border: Border.all(color: c.divider, width: 2),
       ),
       child: ClipOval(child: content),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Option row
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _OptionRow extends StatelessWidget {
-  const _OptionRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.destructive = false,
-    this.isLast = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final bool destructive;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final fg = destructive ? c.danger : c.text;
-
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              children: [
-                Icon(icon, size: 22, color: fg),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: fg,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (!isLast) Divider(height: 1, color: c.divider),
-      ],
     );
   }
 }

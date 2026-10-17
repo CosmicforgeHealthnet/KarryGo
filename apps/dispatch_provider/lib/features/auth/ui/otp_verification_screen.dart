@@ -1,3 +1,6 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../core/app_mode.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,7 +29,9 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
-  final _otpController = TextEditingController();
+  final _otpController = TextEditingController(
+    text: AppModeConfig.instance.isMock ? '123456' : '',
+  );
   final _focusNode = FocusNode();
 
   int _secondsLeft = 120;
@@ -39,7 +44,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     super.initState();
     _startTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
+      if (mounted && !AppModeConfig.instance.isMock) _focusNode.requestFocus();
     });
   }
 
@@ -111,10 +116,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildVerifyButton(),
-                  const SizedBox(height: 20),
-                ],
+                children: [_buildVerifyButton(), const SizedBox(height: 20)],
               ),
             ),
           ],
@@ -131,18 +133,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            GestureDetector(
-              onTap: widget.onBack,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Icon(
-                  Icons.arrow_back,
-                  size: 24,
-                  color: c.text,
-                ),
-              ),
-            ),
+            DispatchBackButton(onPressed: widget.onBack),
             const Spacer(),
             GestureDetector(
               onTap: () {},
@@ -164,10 +155,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       height: 18,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: c.brandTeal500,
-                          width: 1.5,
-                        ),
+                        border: Border.all(color: c.brandTeal500, width: 1.5),
                       ),
                       child: Center(
                         child: Text(
@@ -220,10 +208,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             children: [
               TextSpan(
                 text: widget.phone,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: c.text,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w700, color: c.text),
               ),
             ],
           ),
@@ -237,10 +222,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             decoration: BoxDecoration(
               color: c.teal10,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: c.brandTeal500,
-                width: 1.5,
-              ),
+              border: Border.all(color: c.brandTeal500, width: 1.5),
             ),
             child: Column(
               children: [
@@ -361,8 +343,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             onPressed: enabled ? _verify : null,
             style: FilledButton.styleFrom(
               backgroundColor: c.brandTeal500,
-              disabledBackgroundColor:
-                  c.brandTeal500.withValues(alpha: 0.45),
+              disabledBackgroundColor: c.brandTeal500.withValues(alpha: 0.45),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -372,7 +353,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                       strokeWidth: 2,
                     ),
                   )
@@ -381,7 +362,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
           ),
@@ -414,23 +395,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           );
         },
         failure: (error) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(error.message),
-              backgroundColor: Colors.red.shade800,
-            ),
-          );
+          showDispatchError(context, error.message);
         },
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Failed to resend code: $e'),
-          backgroundColor: Colors.red.shade800,
-        ),
-      );
+      showDispatchError(context, 'Failed to resend code: $e');
     }
   }
 
@@ -461,23 +432,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         failure: (error) {
           setState(() => _isLoading = false);
           debugPrint('[AUTH_UI] verify failed: ${error.message}');
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(error.message),
-              backgroundColor: Colors.red.shade800,
-            ),
-          );
+          showDispatchError(context, error.message);
         },
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       debugPrint('[AUTH_UI] verify exception: $e');
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('An unexpected error occurred: $e'),
-          backgroundColor: Colors.red.shade800,
-        ),
+      showDispatchError(
+        context,
+        'Could not verify your code. Please try again.',
       );
     }
   }
@@ -550,13 +514,7 @@ class _OtpSlot extends StatelessWidget {
           width: hasValue || isActive ? 1.5 : 1,
         ),
         boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: focusRing,
-                  blurRadius: 0,
-                  spreadRadius: 4,
-                ),
-              ]
+            ? [BoxShadow(color: focusRing, blurRadius: 0, spreadRadius: 4)]
             : const [],
       ),
       child: AnimatedSwitcher(

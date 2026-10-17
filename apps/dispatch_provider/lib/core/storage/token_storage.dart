@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../app_mode.dart';
 
 /// Persists auth tokens to the device keychain / encrypted shared preferences.
 /// Keys are namespaced to avoid collisions with other apps.
@@ -8,12 +9,19 @@ class TokenStorage {
   static const _providerIdKey = 'dp_provider_id';
 
   final FlutterSecureStorage _storage;
+  final String _scope = AppModeConfig.instance.current.name;
+  String _key(String key) => '${key}_$_scope';
 
   TokenStorage()
     : _storage = const FlutterSecureStorage(
         // Use encrypted shared preferences on Android (requires API 23+).
         aOptions: AndroidOptions(encryptedSharedPreferences: true),
       );
+
+  Future<bool> hasSeenIntroduction() async =>
+      await _storage.read(key: _key('dp_intro_seen')) == 'true';
+  Future<void> markIntroductionSeen() =>
+      _storage.write(key: _key('dp_intro_seen'), value: 'true');
 
   /// Saves access token, refresh token, and provider ID atomically.
   Future<void> saveTokens({
@@ -22,18 +30,18 @@ class TokenStorage {
     required String providerId,
   }) async {
     await Future.wait([
-      _storage.write(key: _accessTokenKey, value: accessToken),
-      _storage.write(key: _refreshTokenKey, value: refreshToken),
-      _storage.write(key: _providerIdKey, value: providerId),
+      _storage.write(key: _key(_accessTokenKey), value: accessToken),
+      _storage.write(key: _key(_refreshTokenKey), value: refreshToken),
+      _storage.write(key: _key(_providerIdKey), value: providerId),
     ]);
   }
 
   /// Reads saved tokens.  Any field may be null if it was never saved or was cleared.
   Future<SavedTokens> readTokens() async {
     final results = await Future.wait([
-      _storage.read(key: _accessTokenKey),
-      _storage.read(key: _refreshTokenKey),
-      _storage.read(key: _providerIdKey),
+      _storage.read(key: _key(_accessTokenKey)),
+      _storage.read(key: _key(_refreshTokenKey)),
+      _storage.read(key: _key(_providerIdKey)),
     ]);
     return SavedTokens(
       accessToken: results[0],
@@ -45,10 +53,26 @@ class TokenStorage {
   /// Deletes all saved tokens (called on logout or when session is invalidated).
   Future<void> clear() async {
     await Future.wait([
-      _storage.delete(key: _accessTokenKey),
-      _storage.delete(key: _refreshTokenKey),
-      _storage.delete(key: _providerIdKey),
+      _storage.delete(key: _key(_accessTokenKey)),
+      _storage.delete(key: _key(_refreshTokenKey)),
+      _storage.delete(key: _key(_providerIdKey)),
     ]);
+  }
+
+  Future<void> saveOperationDraft(
+    String providerId,
+    String operationType,
+  ) async {
+    if (providerId.isEmpty) return;
+    await _storage.write(
+      key: 'dp_operation_${_scope}_$providerId',
+      value: operationType,
+    );
+  }
+
+  Future<String?> readOperationDraft(String providerId) async {
+    if (providerId.isEmpty) return null;
+    return _storage.read(key: 'dp_operation_${_scope}_$providerId');
   }
 }
 

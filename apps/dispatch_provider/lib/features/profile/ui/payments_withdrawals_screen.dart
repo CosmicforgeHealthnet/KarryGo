@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -9,8 +10,7 @@ class PaymentsWithdrawalsScreen extends StatefulWidget {
       _PaymentsWithdrawalsScreenState();
 }
 
-class _PaymentsWithdrawalsScreenState
-    extends State<PaymentsWithdrawalsScreen> {
+class _PaymentsWithdrawalsScreenState extends State<PaymentsWithdrawalsScreen> {
   final List<_BankAccount> _accounts = [];
   int _defaultIndex = 0;
 
@@ -38,7 +38,7 @@ class _PaymentsWithdrawalsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -48,8 +48,11 @@ class _PaymentsWithdrawalsScreenState
               onTap: () => Navigator.of(context).pop(),
               child: const Align(
                 alignment: Alignment.centerLeft,
-                child: Icon(Icons.arrow_back_ios_new,
-                    size: 20, color: Color(0xFF1A1A1A)),
+                child: Icon(
+                  Icons.arrow_back_ios_new,
+                  size: 20,
+                  color: Color(0xFF1A1A1A),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -57,7 +60,7 @@ class _PaymentsWithdrawalsScreenState
               'Payments & Withdrawals',
               style: TextStyle(
                 fontSize: 20,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1A1A),
               ),
             ),
@@ -82,7 +85,9 @@ class _PaymentsWithdrawalsScreenState
                   onTap: _onAddAccount,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF05124D),
                       borderRadius: BorderRadius.circular(999),
@@ -122,12 +127,12 @@ class _PaymentsWithdrawalsScreenState
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           child: Row(
                             children: [
-                              Expanded(
-                                child: _AccountInfo(account: acc),
-                              ),
+                              Expanded(child: _AccountInfo(account: acc)),
                               GestureDetector(
                                 onTap: () => _onDelete(i),
                                 child: const Icon(
@@ -140,8 +145,7 @@ class _PaymentsWithdrawalsScreenState
                           ),
                         ),
                         if (i < _accounts.length - 1)
-                          const Divider(
-                              height: 1, color: Color(0xFFEEEEEE)),
+                          const Divider(height: 1, color: Color(0xFFEEEEEE)),
                       ],
                     );
                   }).toList(),
@@ -175,12 +179,12 @@ class _PaymentsWithdrawalsScreenState
                           onTap: () => setState(() => _defaultIndex = i),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                             child: Row(
                               children: [
-                                Expanded(
-                                  child: _AccountInfo(account: acc),
-                                ),
+                                Expanded(child: _AccountInfo(account: acc)),
                                 Container(
                                   width: 20,
                                   height: 20,
@@ -195,8 +199,11 @@ class _PaymentsWithdrawalsScreenState
                                         : Colors.transparent,
                                   ),
                                   child: isDefault
-                                      ? const Icon(Icons.circle,
-                                          size: 10, color: Colors.white)
+                                      ? const Icon(
+                                          Icons.circle,
+                                          size: 10,
+                                          color: Colors.white,
+                                        )
                                       : null,
                                 ),
                               ],
@@ -204,8 +211,7 @@ class _PaymentsWithdrawalsScreenState
                           ),
                         ),
                         if (i < _accounts.length - 1)
-                          const Divider(
-                              height: 1, color: Color(0xFFEEEEEE)),
+                          const Divider(height: 1, color: Color(0xFFEEEEEE)),
                       ],
                     );
                   }).toList(),
@@ -303,18 +309,20 @@ class _AddBankScreenState extends State<_AddBankScreen> {
   }
 
   void _onSave() {
-    widget.onSave(_BankAccount(
-      bankName: _selectedBank!,
-      accountNumber: _accountNumberController.text.trim(),
-      accountName: _accountNameController.text.trim(),
-    ));
+    widget.onSave(
+      _BankAccount(
+        bankName: _selectedBank!,
+        accountNumber: _accountNumberController.text.trim(),
+        accountName: _accountNameController.text.trim(),
+      ),
+    );
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -327,8 +335,11 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                     onTap: () => Navigator.of(context).pop(),
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: Icon(Icons.arrow_back_ios_new,
-                          size: 20, color: Color(0xFF1A1A1A)),
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 20,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -336,7 +347,7 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                     'Payments & Withdrawals',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -350,7 +361,7 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                     'Enter New Bank Details',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -370,21 +381,29 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                         hint: const Text(
                           'Select Bank',
                           style: TextStyle(
-                              color: Color(0xFFAAAAAA), fontSize: 14),
+                            color: Color(0xFFAAAAAA),
+                            fontSize: 14,
+                          ),
                         ),
-                        icon: const Icon(Icons.keyboard_arrow_down,
-                            color: Color(0xFF888888)),
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down,
+                          color: Color(0xFF888888),
+                        ),
                         items: _banks
-                            .map((b) => DropdownMenuItem(
-                                  value: b,
-                                  child: Text(b,
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF1A1A1A))),
-                                ))
+                            .map(
+                              (b) => DropdownMenuItem(
+                                value: b,
+                                child: Text(
+                                  b,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
+                              ),
+                            )
                             .toList(),
-                        onChanged: (v) =>
-                            setState(() => _selectedBank = v),
+                        onChanged: (v) => setState(() => _selectedBank = v),
                       ),
                     ),
                   ),
@@ -397,15 +416,21 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onChanged: (_) => setState(() {}),
                     style: const TextStyle(
-                        fontSize: 14, color: Color(0xFF1A1A1A)),
+                      fontSize: 14,
+                      color: Color(0xFF1A1A1A),
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Enter Acct No',
                       hintStyle: const TextStyle(
-                          color: Color(0xFFAAAAAA), fontSize: 14),
+                        color: Color(0xFFAAAAAA),
+                        fontSize: 14,
+                      ),
                       filled: true,
                       fillColor: const Color(0xFFF5F6F8),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -419,15 +444,21 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                     controller: _accountNameController,
                     onChanged: (_) => setState(() {}),
                     style: const TextStyle(
-                        fontSize: 14, color: Color(0xFF1A1A1A)),
+                      fontSize: 14,
+                      color: Color(0xFF1A1A1A),
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Enter Acct Name',
                       hintStyle: const TextStyle(
-                          color: Color(0xFFAAAAAA), fontSize: 14),
+                        color: Color(0xFFAAAAAA),
+                        fontSize: 14,
+                      ),
                       filled: true,
                       fillColor: const Color(0xFFF5F6F8),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -446,8 +477,9 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                   onPressed: _canSave ? _onSave : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF05124D),
-                    disabledBackgroundColor:
-                        const Color(0xFF05124D).withValues(alpha: 0.35),
+                    disabledBackgroundColor: const Color(
+                      0xFF05124D,
+                    ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -457,7 +489,7 @@ class _AddBankScreenState extends State<_AddBankScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),

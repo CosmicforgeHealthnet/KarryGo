@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../app/vendor_runtime.dart';
-import '../../../app/data/mock_vendor_client.dart';
+import '../../../core/config/nigerian_phone.dart';
 import '../../../core/theme/vendor_theme.dart';
 import '../../../core/widgets/vendor_widgets.dart';
 
@@ -31,7 +31,8 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
     _registering = draft != null;
     _phone = TextEditingController(
       text: !runtime.useEmail && runtime.identifier.isNotEmpty
-          ? runtime.identifier
+          ? (normalizeNigerianPhone(runtime.identifier)?.substring(4) ??
+                runtime.identifier)
           : runtime.mode == VendorDataMode.mock
           ? '+2348012345678'
           : '',
@@ -56,7 +57,7 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
     if (!runtime.canRequest || !_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
     runtime.start(
-      (_useEmail ? _email : _phone).text,
+      _useEmail ? _email.text : normalizeNigerianPhone(_phone.text)!,
       email: _useEmail,
       registration: _registering ? <String, dynamic>{} : null,
     );
@@ -130,9 +131,24 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
               ],
               autocorrect: false,
               decoration: InputDecoration(
-                hintText: _useEmail
-                    ? 'you@yourbusiness.com'
-                    : '+234 801 234 5678',
+                hintText: _useEmail ? 'you@yourbusiness.com' : '801 234 5678',
+                prefixIcon: _useEmail
+                    ? null
+                    : const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('\u{1F1F3}\u{1F1EC}', style: TextStyle(fontSize: 22)),
+                            SizedBox(width: 8),
+                            Text(
+                              '+234',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(width: 8),
+                          ],
+                        ),
+                      ),
               ),
               validator: (value) {
                 final contact = value?.trim() ?? '';
@@ -141,11 +157,9 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
                       ? null
                       : 'Enter a valid email address.';
                 }
-                return RegExp(
-                      r'^\+[1-9]\d{6,14}$',
-                    ).hasMatch(contact.replaceAll(RegExp(r'[\s()-]'), ''))
+                return normalizeNigerianPhone(contact) != null
                     ? null
-                    : 'Include your country code, such as +234.';
+                    : 'Enter a valid Nigerian phone number.';
               },
               onFieldSubmitted: (_) => _submit(),
             ),
@@ -153,7 +167,7 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
             Text(
               _useEmail
                   ? 'We will send you a verification code.'
-                  : 'Include your country code, e.g. +234.',
+                  : 'Enter your Nigerian number with or without the first zero.',
               style: const TextStyle(fontSize: 12, height: 1.6),
             ),
             const SizedBox(height: 22),
@@ -257,11 +271,7 @@ class _VendorCodeScreenState extends State<VendorCodeScreen> {
   final _focus = FocusNode();
   String? _challenge;
   String? _lastTestCode;
-  String? get _testCode {
-    final value = runtime.auth.challenge?.debugOtp;
-    if (value != null && RegExp(r'^\d{6}$').hasMatch(value)) return value;
-    return runtime.mode == VendorDataMode.mock ? MockVendorClient.code : null;
-  }
+  String? get _testCode => widget.runtime.testVerificationCode;
 
   VendorRuntime get runtime => widget.runtime;
   @override
@@ -707,7 +717,7 @@ class VendorSessionScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(
                   color:
-                      (denied && runtime.suspended
+                      (denied
                               ? KarryamColors.error.withValues(alpha: .22)
                               : const Color(0xFFCCF3EE))
                           .forOutline(context),
@@ -721,11 +731,8 @@ class VendorSessionScreen extends StatelessWidget {
                           : Icons.person_outline_rounded
                     : Icons.check_rounded,
                 size: 106,
-                color:
-                    (denied && runtime.suspended
-                            ? KarryamColors.error
-                            : KarryamColors.teal)
-                        .forInk(context),
+                color: (denied ? KarryamColors.error : KarryamColors.teal)
+                    .forInk(context),
               ),
             ),
             const SizedBox(height: 34),
@@ -745,7 +752,9 @@ class VendorSessionScreen extends StatelessWidget {
               denied
                   ? runtime.suspended
                         ? 'Your access\nhas been suspended.'
-                        : 'Vendor access\nis unavailable.'
+                        : runtime.noBusinessAccess
+                        ? 'No business linked\nto this account.'
+                        : 'Sign-in not permitted.'
                   : 'Welcome back.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineLarge,
@@ -781,6 +790,11 @@ class VendorSessionScreen extends StatelessWidget {
           TextButton(
             onPressed: runtime.busy ? null : runtime.signOut,
             child: const Text('Sign out'),
+          ),
+        if (denied && runtime.noBusinessAccess)
+          TextButton(
+            onPressed: runtime.busy ? null : runtime.createAccount,
+            child: const Text('Create a business account'),
           ),
         if (!denied)
           const Text(

@@ -1,3 +1,6 @@
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../core/app_mode.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -23,7 +26,7 @@ class OperationModeScreen extends StatefulWidget {
 
 class _OperationModeScreenState extends State<OperationModeScreen>
     with SingleTickerProviderStateMixin {
-  String? _selected;
+  String? _selected = AppModeConfig.instance.isMock ? 'own_vehicle' : null;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
@@ -35,25 +38,25 @@ class _OperationModeScreenState extends State<OperationModeScreen>
       id: 'own_vehicle',
       title: 'Own vehicle',
       subtitle: 'I use my personal vehicle for deliveries',
-      icon: Icons.two_wheeler,
+      icon: JourneySymbol.route,
     ),
     _ModeOption(
       id: 'company_vehicle',
       title: 'Company vehicle',
       subtitle: 'I operate a company vehicle',
-      icon: Icons.local_shipping_outlined,
+      icon: JourneySymbol.parcel,
     ),
     _ModeOption(
       id: 'fleet_operator',
       title: 'Fleet operator',
       subtitle: 'I manage multiple vehicles',
-      icon: Icons.garage_outlined,
+      icon: JourneySymbol.fleet,
     ),
     _ModeOption(
       id: 'third_party_driver',
       title: 'Third-party driver',
       subtitle: 'I drive for a registered logistics partner',
-      icon: Icons.badge_outlined,
+      icon: JourneySymbol.partner,
     ),
   ];
 
@@ -83,52 +86,10 @@ class _OperationModeScreenState extends State<OperationModeScreen>
                     _Reveal(
                       animation: _entrance,
                       begin: 0,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          GestureDetector(
-                            onTap: widget.onBack,
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                                horizontal: 4,
-                              ),
-                              child: Icon(
-                                Icons.arrow_back_rounded,
-                                size: 24,
-                                color: c.text,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(
-                                    'Step ${widget.currentStep} of ${widget.totalSteps}',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.textMuted,
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _StepProgress(
-                                    current: widget.currentStep,
-                                    total: widget.totalSteps,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 44),
-                        ],
+                      child: DispatchSetupHeader(
+                        current: widget.currentStep,
+                        total: widget.totalSteps,
+                        onBack: widget.onBack,
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -141,7 +102,7 @@ class _OperationModeScreenState extends State<OperationModeScreen>
                           Text(
                             'Operation type',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: 28,
                               fontWeight: FontWeight.w700,
                               color: c.text,
                               letterSpacing: -0.4,
@@ -152,7 +113,7 @@ class _OperationModeScreenState extends State<OperationModeScreen>
                           Text(
                             'Choose how you operate with Karryam.',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w400,
                               color: c.textMuted,
                               height: 1.5,
@@ -204,8 +165,9 @@ class _OperationModeScreenState extends State<OperationModeScreen>
                       : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: c.brandTeal500,
-                    disabledBackgroundColor:
-                        c.brandTeal500.withValues(alpha: 0.45),
+                    disabledBackgroundColor: c.brandTeal500.withValues(
+                      alpha: 0.45,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -213,9 +175,9 @@ class _OperationModeScreenState extends State<OperationModeScreen>
                   child: const Text(
                     'Continue',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),
@@ -272,7 +234,7 @@ class _ModeOption {
   final String id;
   final String title;
   final String subtitle;
-  final IconData icon;
+  final JourneySymbol icon;
 }
 
 class _ModeCard extends StatefulWidget {
@@ -347,11 +309,8 @@ class _ModeCardState extends State<_ModeCard> {
                       end: selected ? Colors.white : c.brandTeal500,
                     ),
                     duration: const Duration(milliseconds: 220),
-                    builder: (context, color, _) => Icon(
-                      widget.option.icon,
-                      size: 26,
-                      color: color,
-                    ),
+                    builder: (context, color, _) =>
+                        JourneyIcon(widget.option.icon, size: 30, color: color),
                   ),
                 ),
               ),
@@ -363,7 +322,7 @@ class _ModeCardState extends State<_ModeCard> {
                     Text(
                       widget.option.title,
                       style: TextStyle(
-                        fontSize: 17,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: c.text,
                         height: 1.2,
@@ -419,57 +378,6 @@ class _RadioDot extends StatelessWidget {
         child: const Center(
           child: Icon(Icons.check_rounded, size: 15, color: Colors.white),
         ),
-      ),
-    );
-  }
-}
-
-class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.current, required this.total});
-
-  final int current;
-  final int total;
-
-  static const double _height = 9;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final fraction =
-        total <= 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
-    final previous =
-        total <= 0 ? 0.0 : ((current - 1) / total).clamp(0.0, 1.0).toDouble();
-    final radius = BorderRadius.circular(_height / 2);
-
-    return SizedBox(
-      height: _height,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: c.navy10,
-              borderRadius: radius,
-            ),
-          ),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: previous, end: fraction),
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, _) {
-              return FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: value,
-                heightFactor: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.brandTeal500,
-                    borderRadius: radius,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
       ),
     );
   }

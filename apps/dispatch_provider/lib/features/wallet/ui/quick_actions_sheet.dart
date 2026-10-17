@@ -47,81 +47,83 @@ class QuickActionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.palette;
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // drag handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.navy20,
-                  borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.navy20,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Quick actions',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: colors.text,
-                letterSpacing: -0.4,
+              const SizedBox(height: 20),
+              Text(
+                'Quick actions',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: colors.text,
+                  letterSpacing: -0.4,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            _ActionRow(
-              icon: Icons.arrow_upward_rounded,
-              title: 'Withdraw funds',
-              subtitle: 'Transfer to your bank account',
-              onTap: () {
-                Navigator.pop(context);
-                onWithdraw();
-              },
-            ),
-            _ActionRow(
-              icon: Icons.add_rounded,
-              title: 'Add bank account',
-              subtitle: 'Link a bank account',
-              onTap: () {
-                Navigator.pop(context);
-                onAddBank();
-              },
-            ),
-            _ActionRow(
-              icon: Icons.swap_horiz_rounded,
-              title: 'Transaction history',
-              subtitle: 'View all transactions',
-              onTap: () {
-                Navigator.pop(context);
-                onTransactions();
-              },
-            ),
-            _ActionRow(
-              icon: Icons.attach_money_rounded,
-              title: 'Earnings',
-              subtitle: 'View your earnings summary',
-              onTap: () {
-                Navigator.pop(context);
-                onEarnings();
-              },
-            ),
-            _ActionRow(
-              icon: Icons.headset_mic_outlined,
-              title: 'Help & support',
-              subtitle: 'Get wallet help',
-              onTap: () {
-                Navigator.pop(context);
-                onHelp();
-              },
-              isLast: true,
-            ),
-          ],
+              const SizedBox(height: 20),
+              _ActionRow(
+                icon: Icons.arrow_upward_rounded,
+                title: 'Withdraw funds',
+                subtitle: 'Transfer to your bank account',
+                onTap: () {
+                  Navigator.pop(context);
+                  onWithdraw();
+                },
+              ),
+              _ActionRow(
+                icon: Icons.add_rounded,
+                title: 'Add bank account',
+                subtitle: 'Link a bank account',
+                onTap: () {
+                  Navigator.pop(context);
+                  onAddBank();
+                },
+              ),
+              _ActionRow(
+                icon: Icons.swap_horiz_rounded,
+                title: 'Transaction history',
+                subtitle: 'View all transactions',
+                onTap: () {
+                  Navigator.pop(context);
+                  onTransactions();
+                },
+              ),
+              _ActionRow(
+                icon: Icons.attach_money_rounded,
+                title: 'Earnings',
+                subtitle: 'View your earnings summary',
+                onTap: () {
+                  Navigator.pop(context);
+                  onEarnings();
+                },
+              ),
+              _ActionRow(
+                icon: Icons.headset_mic_outlined,
+                title: 'Help & support',
+                subtitle: 'Get wallet help',
+                onTap: () {
+                  Navigator.pop(context);
+                  onHelp();
+                },
+                isLast: true,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -162,11 +164,7 @@ class _ActionRow extends StatelessWidget {
                     color: colors.teal10,
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: colors.brandTeal500,
-                  ),
+                  child: Icon(icon, size: 20, color: colors.brandTeal500),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

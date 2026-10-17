@@ -1,7 +1,7 @@
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
-import 'package:latlong2/latlong.dart' hide Path;
+import '../../../shared/widgets/async_content.dart';
+import '../../offline/ui/offline_updates_screen.dart';
 
 import '../../availability/state/availability_controller.dart';
 import '../../requests/data/request_model.dart';
@@ -9,13 +9,9 @@ import '../../../core/app_mode.dart';
 import '../../../core/theme/theme_extensions.dart';
 
 import 'widgets/header_bar.dart';
-import 'widgets/driver_pin.dart';
-import 'widgets/map_area_label.dart';
-import 'widgets/locate_button.dart';
-import 'sheets/offline_sheet.dart';
-import 'sheets/incoming_requests_sheet.dart';
-import 'sheets/trip_sheet.dart';
-import 'sheets/trip_started_sheet.dart';
+import 'widgets/live_dispatch_map.dart';
+import '../../missions/ui/delivery_operations_screen.dart';
+import '../../trips/state/trips_controller.dart';
 
 export '../../requests/data/request_model.dart' show RequestModel;
 export 'sheets/offline_sheet.dart' show OfflineSheet;
@@ -40,6 +36,9 @@ class HomeScreen extends StatefulWidget {
     required this.availabilityController,
     this.onOpenNotifications,
     this.onLocateMe,
+    this.onOpenAccount,
+    this.onOpenTrip,
+    this.tripsController,
     this.onToggleStatus,
     this.todayEarningsDisplay = '—',
     this.acceptanceRateDisplay = '—',
@@ -51,6 +50,9 @@ class HomeScreen extends StatefulWidget {
   final AvailabilityController availabilityController;
   final VoidCallback? onOpenNotifications;
   final VoidCallback? onLocateMe;
+  final VoidCallback? onOpenAccount;
+  final VoidCallback? onOpenTrip;
+  final TripsController? tripsController;
 
   /// Called when the status pill in the header is tapped. Parent decides
   /// whether that means "go online" or "go offline" based on current state.
@@ -65,22 +67,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class HomeScreenState extends State<HomeScreen> {
-  static const _center = LatLng(6.5355, 3.2910);
-  static const _ikoyiLabelPos = LatLng(6.5390, 3.2965);
-  static const _victoriaIslandLabelPos = LatLng(6.5280, 3.2830);
-  static const _lekkiLabelPos = LatLng(6.5300, 3.3060);
-
+  String? _availabilityError;
   TripState get _tripState => widget.tripStateNotifier.value;
-
-  String get _todayEarnings {
-    if (AppModeConfig.instance.isMock) return 'N24,350';
-    return widget.todayEarningsDisplay;
-  }
-
-  String get _acceptanceRate {
-    if (AppModeConfig.instance.isMock) return '92%';
-    return widget.acceptanceRateDisplay;
-  }
 
   @override
   void initState() {
@@ -88,7 +76,10 @@ class HomeScreenState extends State<HomeScreen> {
     widget.tripStateNotifier.addListener(_onNotifierChanged);
     widget.activeRequestNotifier.addListener(_onNotifierChanged);
     widget.availabilityController.addListener(_onNotifierChanged);
-    _loadInitialAvailability();
+    widget.tripsController?.addListener(_onNotifierChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadInitialAvailability();
+    });
   }
 
   @override
@@ -96,6 +87,7 @@ class HomeScreenState extends State<HomeScreen> {
     widget.tripStateNotifier.removeListener(_onNotifierChanged);
     widget.activeRequestNotifier.removeListener(_onNotifierChanged);
     widget.availabilityController.removeListener(_onNotifierChanged);
+    widget.tripsController?.removeListener(_onNotifierChanged);
     super.dispose();
   }
 
@@ -112,6 +104,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadInitialAvailability() async {
+    setState(() => _availabilityError = null);
     final result = await widget.availabilityController.loadAvailability();
     if (!mounted) return;
     result.when(
@@ -123,355 +116,161 @@ class HomeScreenState extends State<HomeScreen> {
           _update(TripState.offline, clearRequest: true);
         }
       },
-      failure: (_) {},
+      failure: (error) => setState(() => _availabilityError = error.message),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.palette;
-
-    return AnimatedBuilder(
-      animation: AppModeConfig.instance,
-      builder: (context, _) => ValueListenableBuilder<TripState>(
-        valueListenable: widget.tripStateNotifier,
-        builder: (context, tripState, _) {
-          final isChanging = widget.availabilityController.isChangingStatus ||
-              widget.availabilityController.isLoading;
-
-          return Column(
-            children: [
-              SafeArea(
-                bottom: false,
-                child: Container(
-                  width: double.infinity,
-                  color: colors.surface,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      HomeHeaderBar(
-                        avatarImageProvider: widget.avatarImageProvider,
-                        onOpenNotifications: widget.onOpenNotifications,
-                      ),
-                      const SizedBox(height: 14),
-                      _StatusCard(
-                        tripState: tripState,
-                        isChanging: isChanging,
-                        onToggleStatus: widget.onToggleStatus,
-                        todayEarningsDisplay: _todayEarnings,
-                        acceptanceRateDisplay: _acceptanceRate,
-                        // Option C — hide the mock earnings/rate row until a
-                        // real endpoint exists. Only shown in MOCK mode.
-                        showStatsRow: AppModeConfig.instance.isMock,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: FlutterMap(
-                        options: const MapOptions(
-                          initialCenter: _center,
-                          initialZoom: 14,
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName:
-                                'com.cosmicforge.logistics.dispatchprovider',
-                          ),
-                          if (tripState == TripState.arriving ||
-                              tripState == TripState.arrivedAtPickup ||
-                              tripState == TripState.tripStarted)
-                            PolylineLayer(
-                              polylines: [
-                                Polyline(
-                                  points: [
-                                    const LatLng(6.5420, 3.2850),
-                                    const LatLng(6.5390, 3.2870),
-                                    const LatLng(6.5370, 3.2900),
-                                    const LatLng(6.5355, 3.2910),
-                                    const LatLng(6.5330, 3.2940),
-                                    const LatLng(6.5300, 3.2980),
-                                  ],
-                                  color: tripState == TripState.tripStarted
-                                      ? colors.brandNavy900
-                                      : Colors.black54,
-                                  strokeWidth: 4,
-                                  pattern: tripState == TripState.arriving
-                                      ? StrokePattern.dashed(
-                                          segments: const [10, 6])
-                                      : StrokePattern.solid(),
-                                ),
-                              ],
-                            ),
-                          MarkerLayer(
-                            markers: [
-                              const Marker(
-                                point: _center,
-                                width: 44,
-                                height: 58,
-                                child: DriverPin(),
-                              ),
-                              const Marker(
-                                point: _ikoyiLabelPos,
-                                width: 90,
-                                height: 24,
-                                child: MapAreaLabel(label: 'Ikoyi'),
-                              ),
-                              const Marker(
-                                point: _victoriaIslandLabelPos,
-                                width: 130,
-                                height: 24,
-                                child: MapAreaLabel(label: 'Victoria Island'),
-                              ),
-                              const Marker(
-                                point: _lekkiLabelPos,
-                                width: 90,
-                                height: 24,
-                                child: MapAreaLabel(label: 'Lekki'),
-                              ),
-                              if (tripState == TripState.arriving ||
-                                  tripState == TripState.arrivedAtPickup ||
-                                  tripState == TripState.tripStarted)
-                                Marker(
-                                  point: const LatLng(6.5420, 3.2850),
-                                  width: 80,
-                                  height: 30,
-                                  child: const _MapLabel(label: 'Pick up'),
-                                ),
-                              if (tripState == TripState.arriving ||
-                                  tripState == TripState.arrivedAtPickup ||
-                                  tripState == TripState.tripStarted)
-                                Marker(
-                                  point: const LatLng(6.5300, 3.2980),
-                                  width: 96,
-                                  height: 30,
-                                  child:
-                                      const _MapLabel(label: 'Destination'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      right: 16,
-                      bottom: tripState == TripState.offline ? 150 : 16,
-                      child: LocateButton(onPressed: widget.onLocateMe),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ── Private widgets that stay in home_screen ─────────────────────────────
-
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({
-    required this.tripState,
-    required this.isChanging,
-    required this.todayEarningsDisplay,
-    required this.acceptanceRateDisplay,
-    this.showStatsRow = true,
-    this.onToggleStatus,
-  });
-
-  final TripState tripState;
-  final bool isChanging;
-  final String todayEarningsDisplay;
-  final String acceptanceRateDisplay;
-
-  /// When false, only the status pill is drawn — the earnings/rate columns
-  /// are hidden. Used in LIVE mode until the earnings endpoint ships.
-  final bool showStatsRow;
-
-  final VoidCallback? onToggleStatus;
-
-  bool get _isOnMission =>
-      tripState == TripState.arriving ||
-      tripState == TripState.arrivedAtPickup ||
-      tripState == TripState.tripStarted;
-
-  bool get _isTogglable =>
-      tripState == TripState.offline || tripState == TripState.online;
-
-  String get _statusLabel {
-    if (_isOnMission) return 'On a mission';
-    if (tripState == TripState.offline) return 'Offline';
-    return 'Online';
-  }
-
-  String get _statusSubtext {
-    if (_isOnMission) return 'System controlled';
-    if (tripState == TripState.offline) {
-      return "You're not available for dispatch";
-    }
-    return "You're visible to nearby customers";
-  }
-
-  Color _statusColor(BuildContext context) {
-    final colors = context.palette;
-    if (_isOnMission) return colors.warning;
-    if (tripState == TripState.offline) return colors.danger;
-    return colors.success;
-  }
-
-  Color _statusSoftBg(BuildContext context) {
-    final colors = context.palette;
-    if (_isOnMission) return colors.warningSoft;
-    if (tripState == TripState.offline) return colors.dangerSoft;
-    return colors.successSoft;
-  }
-
-  IconData get _statusIcon {
-    if (_isOnMission) return Icons.route;
-    if (tripState == TripState.offline) return Icons.power_settings_new;
-    return Icons.check;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = _statusColor(context);
-    final statusBg = _statusSoftBg(context);
-
-    final pill = GestureDetector(
-      onTap: (_isTogglable && !isChanging) ? onToggleStatus : null,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: statusBg,
-          borderRadius: BorderRadius.circular(14),
+    final c = context.palette;
+    final state = _tripState;
+    final online = state != TripState.offline;
+    final onDelivery = state != TripState.offline && state != TripState.online;
+    final changing = widget.availabilityController.isChangingStatus;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: LiveDispatchMap(
+            demo: AppModeConfig.instance.isMock,
+            online: online,
+            location: widget.availabilityController.lastLocation,
+            trip: widget.tripsController?.activeTrip,
+            stale: widget.availabilityController.hasStaleLocation,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (isChanging)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Container(
-                    width: 14,
-                    height: 14,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(_statusIcon, size: 9, color: Colors.white),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: c.divider),
+                    boxShadow: c.cardShadow,
                   ),
-                const SizedBox(width: 6),
-                Text(
-                  _statusLabel,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: statusColor,
+                  child: HomeHeaderBar(
+                    onOpenAccount: widget.onOpenAccount,
+                    onOpenNotifications: widget.onOpenNotifications,
+                    avatarImageProvider: widget.avatarImageProvider,
+                    onOpenDelivery: widget.tripsController?.activeTrip == null
+                        ? null
+                        : widget.onOpenTrip ??
+                              () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => DeliveryOperationsScreen(
+                                      tripId: widget
+                                          .tripsController!
+                                          .activeTrip!
+                                          .id,
+                                    ),
+                                  ),
+                                );
+                                if (mounted)
+                                  await widget.tripsController
+                                      ?.loadActiveTrip();
+                              },
                   ),
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: c.divider),
+                        ),
+                        child: Row(
+                          children: [
+                            JourneyIcon(
+                              JourneySymbol.route,
+                              size: 24,
+                              color: online ? c.success : c.textMuted,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    onDelivery
+                                        ? 'Delivery in progress'
+                                        : online
+                                        ? 'On the move'
+                                        : 'Your time. Your pace.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    onDelivery
+                                        ? 'Your next handover, in view'
+                                        : online
+                                        ? 'Available for deliveries'
+                                        : 'Go online when you are ready',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (state == TripState.online) ...[
+                      const SizedBox(width: 8),
+                      Material(
+                        color: c.dangerSoft,
+                        borderRadius: BorderRadius.circular(20),
+                        child: IconButton(
+                          tooltip: 'Go offline',
+                          onPressed: changing ? null : widget.onToggleStatus,
+                          icon: Icon(
+                            Icons.power_settings_new_rounded,
+                            color: c.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (widget.tripsController?.activeTripError != null) ...[
+                  const SizedBox(height: 8),
+                  ActionNotice(
+                    message: widget.tripsController!.activeTripError!,
+                    isError: true,
+                    onRetry: () => widget.tripsController!.loadActiveTrip(),
+                  ),
+                ],
+                if (_availabilityError != null)
+                  ActionNotice(
+                    message: _availabilityError!,
+                    isError: true,
+                    onRetry: _loadInitialAvailability,
+                  ),
+                const OfflineSyncNotice(),
               ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              _statusSubtext,
-              style: TextStyle(fontSize: 10, color: statusColor),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!showStatsRow) {
-      return SizedBox(width: double.infinity, child: pill);
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        pill,
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatColumn(
-            value: todayEarningsDisplay,
-            label: "Today's earnings",
-          ),
-        ),
-        Expanded(
-          child: _StatColumn(
-            value: acceptanceRateDisplay,
-            label: 'Acceptance rate',
           ),
         ),
       ],
-    );
-  }
-}
-
-class _StatColumn extends StatelessWidget {
-  const _StatColumn({required this.value, required this.label});
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: colors.text,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: colors.textMuted),
-        ),
-      ],
-    );
-  }
-}
-
-class _MapLabel extends StatelessWidget {
-  const _MapLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(color: Colors.white, fontSize: 11),
-      ),
     );
   }
 }

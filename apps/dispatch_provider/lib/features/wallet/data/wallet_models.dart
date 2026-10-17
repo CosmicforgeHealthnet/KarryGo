@@ -28,6 +28,7 @@ class BankAccount {
   final String accountNumber;
   final String accountName;
   final String currency;
+  final bool isDefault;
 
   const BankAccount({
     required this.id,
@@ -36,10 +37,12 @@ class BankAccount {
     required this.accountNumber,
     required this.accountName,
     required this.currency,
+    this.isDefault = false,
   });
 
   factory BankAccount.fromJson(Map<String, dynamic> json) {
     return BankAccount(
+      isDefault: json['is_default'] == true,
       id: (json['id'] as String?) ?? '',
       bankCode: (json['bank_code'] as String?) ?? '',
       bankName: (json['bank_name'] as String?) ?? '',
@@ -76,4 +79,18 @@ class Withdrawal {
       status: (json['status'] as String?) ?? '',
     );
   }
+}
+
+class SupportedBank {
+  const SupportedBank({
+    required this.name,
+    required this.code,
+    required this.currency,
+  });
+  final String name, code, currency;
+  factory SupportedBank.fromJson(Map<String, dynamic> json) => SupportedBank(
+    name: json['name'] as String,
+    code: json['code'] as String,
+    currency: json['currency'] as String,
+  );
 }

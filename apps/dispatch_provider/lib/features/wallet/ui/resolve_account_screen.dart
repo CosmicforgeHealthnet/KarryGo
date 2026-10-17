@@ -1,3 +1,5 @@
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -23,17 +25,8 @@ class ResolveAccountScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: colors.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Spacer(),
                   Text(
@@ -71,7 +64,7 @@ class ResolveAccountScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: colors.danger,
                   letterSpacing: -0.4,
                   height: 1.2,
@@ -155,8 +148,8 @@ class _AccountCard extends StatelessWidget {
               color: colors.navy10,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.account_balance_rounded,
+            child: JourneyIcon(
+              JourneySymbol.bank,
               size: 22,
               color: colors.text,
             ),

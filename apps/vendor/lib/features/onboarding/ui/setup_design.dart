@@ -655,13 +655,12 @@ class SetupStepIndicator extends StatelessWidget {
     'Authorized representative',
     'Business types',
     'Brands and branches',
-    'Bank details',
     'Documents and verification',
   ];
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      for (var i = 0; i < 6; i++) ...[
+      for (var i = 0; i < _labels.length; i++) ...[
         if (i > 0)
           Expanded(
             child: Container(

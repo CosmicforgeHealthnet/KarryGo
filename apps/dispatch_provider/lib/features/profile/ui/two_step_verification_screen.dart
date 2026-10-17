@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'email_verification_screen.dart';
 
@@ -13,8 +14,7 @@ class TwoStepVerificationScreen extends StatefulWidget {
       _TwoStepVerificationScreenState();
 }
 
-class _TwoStepVerificationScreenState
-    extends State<TwoStepVerificationScreen> {
+class _TwoStepVerificationScreenState extends State<TwoStepVerificationScreen> {
   _EmailStatus _emailStatus = _EmailStatus.unverified;
   _TwoStepStatus _twoStepStatus = _TwoStepStatus.off;
 
@@ -25,9 +25,7 @@ class _TwoStepVerificationScreenState
 
   void _onVerifyTap() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => EmailVerificationScreen(email: _email),
-      ),
+      MaterialPageRoute(builder: (_) => EmailVerificationScreen(email: _email)),
     );
     if (!mounted) return;
     setState(() => _emailStatus = _EmailStatus.verified);
@@ -48,7 +46,7 @@ class _TwoStepVerificationScreenState
     final isOn = _twoStepStatus == _TwoStepStatus.on;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -61,8 +59,11 @@ class _TwoStepVerificationScreenState
                     onTap: () => Navigator.of(context).pop(),
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: Icon(Icons.arrow_back_ios_new,
-                          size: 20, color: Color(0xFF1A1A1A)),
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 20,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -70,7 +71,7 @@ class _TwoStepVerificationScreenState
                     'Two-step Verification',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -96,7 +97,9 @@ class _TwoStepVerificationScreenState
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFEEEEEE)),
                       borderRadius: BorderRadius.circular(12),
@@ -164,8 +167,9 @@ class _TwoStepVerificationScreenState
                     backgroundColor: isOn
                         ? const Color(0xFFE53935)
                         : const Color(0xFF05124D),
-                    disabledBackgroundColor:
-                        const Color(0xFF05124D).withValues(alpha: 0.35),
+                    disabledBackgroundColor: const Color(
+                      0xFF05124D,
+                    ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -175,7 +179,7 @@ class _TwoStepVerificationScreenState
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: isOn ? Colors.white : Colors.white,
+                      color: isOn ? Color(0xFF081F44) : Color(0xFF081F44),
                     ),
                   ),
                 ),

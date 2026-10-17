@@ -11,7 +11,37 @@ import (
 
 type ScheduledReadFilter struct {
 	BranchID      string
+	View          string
 	Limit, Offset int
+}
+
+var errScheduleView = errors.New("invalid schedule view")
+
+func scheduleViewPredicate(view string, recurring bool) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(view)) {
+	case "", "ALL":
+		return "", nil
+	case "ACTIVE", "PAUSED":
+		if recurring {
+			if strings.EqualFold(strings.TrimSpace(view), "ACTIVE") {
+				return " AND status='ACTIVE'", nil
+			}
+			return " AND status='PAUSED'", nil
+		}
+	case "UPCOMING":
+		if !recurring {
+			return " AND scheduling_status<>'CANCELLED' AND desired_delivery_at>=now()", nil
+		}
+	case "PAST":
+		if !recurring {
+			return " AND scheduling_status<>'CANCELLED' AND desired_delivery_at<now()", nil
+		}
+	case "CANCELLED":
+		if !recurring {
+			return " AND scheduling_status='CANCELLED'", nil
+		}
+	}
+	return "", errScheduleView
 }
 
 func (s *Section21Service) scheduledReadScope(ctx context.Context, actor Actor, branch string) (Scope, error) {
@@ -96,12 +126,16 @@ func scheduledReadArgs(actor Actor, scope Scope, f ScheduledReadFilter, id strin
 
 func (s *Section21Service) ListScheduledByStaff(ctx context.Context, actor Actor, f ScheduledReadFilter) ([]ScheduledOrder, error) {
 	f = normalizeScheduledFilter(f)
+	view, err := scheduleViewPredicate(f.View, false)
+	if err != nil {
+		return nil, err
+	}
 	scope, err := s.scheduledReadScope(ctx, actor, f.BranchID)
 	if err != nil {
 		return nil, err
 	}
 	args := append(scheduledReadArgs(actor, scope, f, ""), f.Limit+1, f.Offset)
-	rows, err := s.db.Query(ctx, `SELECT `+scheduledReadColumns+` FROM commerce_scheduled_orders`+scheduledReadPredicate+` ORDER BY desired_delivery_at ASC,id ASC LIMIT $6 OFFSET $7`, args...)
+	rows, err := s.db.Query(ctx, `SELECT `+scheduledReadColumns+` FROM commerce_scheduled_orders`+scheduledReadPredicate+view+` ORDER BY desired_delivery_at ASC,id ASC LIMIT $6 OFFSET $7`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -134,12 +168,16 @@ func (s *Section21Service) GetScheduledByStaff(ctx context.Context, actor Actor,
 
 func (s *Section21Service) ListRecurringByStaff(ctx context.Context, actor Actor, f ScheduledReadFilter) ([]RecurringSchedule, error) {
 	f = normalizeScheduledFilter(f)
+	view, err := scheduleViewPredicate(f.View, true)
+	if err != nil {
+		return nil, err
+	}
 	scope, err := s.scheduledReadScope(ctx, actor, f.BranchID)
 	if err != nil {
 		return nil, err
 	}
 	args := append(scheduledReadArgs(actor, scope, f, ""), f.Limit+1, f.Offset)
-	rows, err := s.db.Query(ctx, `SELECT `+recurringReadColumns+` FROM commerce_recurring_schedules`+scheduledReadPredicate+` ORDER BY starts_on ASC,id ASC LIMIT $6 OFFSET $7`, args...)
+	rows, err := s.db.Query(ctx, `SELECT `+recurringReadColumns+` FROM commerce_recurring_schedules`+scheduledReadPredicate+view+` ORDER BY starts_on ASC,id ASC LIMIT $6 OFFSET $7`, args...)
 	if err != nil {
 		return nil, err
 	}

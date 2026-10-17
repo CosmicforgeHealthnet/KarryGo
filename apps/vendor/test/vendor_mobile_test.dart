@@ -1,19 +1,20 @@
+import 'support/mock_vendor_runtime.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:vendor/app/data/mock_vendor_client.dart';
+import 'support/mock/mock_vendor_client.dart';
 import 'package:vendor/app/data/vendor_preferences.dart';
 import 'package:vendor/app/vendor_mobile_app.dart';
 import 'package:vendor/app/vendor_runtime.dart';
 import 'package:vendor/features/auth/data/vendor_session_store.dart';
 import 'package:vendor/features/auth/models/vendor_session.dart';
 
-VendorRuntime mockRuntime({
+MockVendorRuntime mockRuntime({
   MockAuthScenario scenario = MockAuthScenario.multipleVendors,
-}) => VendorRuntime(
+}) => MockVendorRuntime(
   preferences: VendorPreferences(inMemory: true),
   mockLatency: Duration.zero,
 )..scenario = scenario;
@@ -25,7 +26,7 @@ void main() {
     'mock is the default and its session never reaches live storage',
     () async {
       final store = MemoryVendorSessionStore();
-      final runtime = VendorRuntime(
+      final runtime = MockVendorRuntime(
         preferences: VendorPreferences(inMemory: true),
         liveSessionStore: store,
         mockLatency: Duration.zero,
@@ -124,7 +125,7 @@ void main() {
     () async {
       final requests = <http.Request>[];
       final store = MemoryVendorSessionStore();
-      final runtime = VendorRuntime(
+      final runtime = MockVendorRuntime(
         preferences: VendorPreferences(inMemory: true),
         liveSessionStore: store,
         mockLatency: Duration.zero,
@@ -202,7 +203,7 @@ void main() {
         ),
       );
       final requests = <http.Request>[];
-      final runtime = VendorRuntime(
+      final runtime = MockVendorRuntime(
         preferences: VendorPreferences(inMemory: true),
         liveSessionStore: store,
         liveClientFactory: () => MockClient((request) async {
@@ -247,7 +248,7 @@ void main() {
   test('secure live sessions are isolated by server origin', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final requests = <http.Request>[];
-    final runtime = VendorRuntime(
+    final runtime = MockVendorRuntime(
       preferences: VendorPreferences(inMemory: true),
       mockLatency: Duration.zero,
       liveClientFactory: () => MockClient((request) async {
@@ -321,7 +322,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.tap(find.text('Skip'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField), '+2348012345678');
+    await tester.enterText(find.byType(TextFormField), 'owner@example.com');
     await tester.tap(find.byKey(const Key('send-code')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('otp-input')), findsOneWidget);
@@ -344,7 +345,7 @@ void main() {
   testWidgets('data-source sheet switches to live and back to mock', (
     tester,
   ) async {
-    final runtime = VendorRuntime(
+    final runtime = MockVendorRuntime(
       preferences: VendorPreferences(inMemory: true),
       liveSessionStore: MemoryVendorSessionStore(),
       liveClientFactory: () => MockClient((request) async => ok({})),

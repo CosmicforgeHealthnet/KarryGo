@@ -18,6 +18,8 @@ type section21Handler struct{ service *Section21Service }
 
 func section21Error(err error) error {
 	switch {
+	case errors.Is(err, errScheduleView):
+		return apperrors.Validation("Choose a valid schedule filter.", nil)
 	case errors.Is(err, ErrSection21NotFound):
 		return apperrors.NotFound("Resource not found.", err)
 	case errors.Is(err, ErrSection21Forbidden), errors.Is(err, ErrForbidden):
@@ -448,7 +450,7 @@ func (h *section21Handler) listRecurringOccurrences(c *gin.Context) {
 func scheduledReadFilter(c *gin.Context) ScheduledReadFilter {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	return normalizeScheduledFilter(ScheduledReadFilter{BranchID: c.Query("branch_id"), Limit: limit, Offset: offset})
+	return normalizeScheduledFilter(ScheduledReadFilter{BranchID: c.Query("branch_id"), View: c.Query("view"), Limit: limit, Offset: offset})
 }
 func (h *section21Handler) listScheduled(c *gin.Context) {
 	actor, ok := section21Staff(c)

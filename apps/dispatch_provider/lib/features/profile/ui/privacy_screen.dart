@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class PrivacyScreen extends StatefulWidget {
@@ -25,7 +26,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -35,8 +36,11 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               onTap: () => Navigator.of(context).pop(),
               child: const Align(
                 alignment: Alignment.centerLeft,
-                child: Icon(Icons.arrow_back_ios_new,
-                    size: 20, color: Color(0xFF1A1A1A)),
+                child: Icon(
+                  Icons.arrow_back_ios_new,
+                  size: 20,
+                  color: Color(0xFF1A1A1A),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -44,7 +48,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               'Privacy',
               style: TextStyle(
                 fontSize: 20,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1A1A),
               ),
             ),
@@ -103,8 +107,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                   'Support team only',
                 ],
                 selected: _tripActivityVisibility,
-                onChanged: (v) =>
-                    setState(() => _tripActivityVisibility = v),
+                onChanged: (v) => setState(() => _tripActivityVisibility = v),
               ),
               const SizedBox(height: 20),
               _RadioGroup(
@@ -136,24 +139,22 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 title: 'Save Trip History',
                 options: const ['Yes', 'No'],
                 selected: _saveTripHistory == true ? 'Yes' : 'No',
-                onChanged: (v) =>
-                    setState(() => _saveTripHistory = v == 'Yes'),
+                onChanged: (v) => setState(() => _saveTripHistory = v == 'Yes'),
               ),
               const SizedBox(height: 20),
               _BoolRadioGroup(
                 title: 'Personalized Recommendations',
                 options: const ['On', 'Off'],
                 selected: _personalizedRecommendations == true ? 'On' : 'Off',
-                onChanged: (v) => setState(
-                    () => _personalizedRecommendations = v == 'On'),
+                onChanged: (v) =>
+                    setState(() => _personalizedRecommendations = v == 'On'),
               ),
               const SizedBox(height: 20),
               _BoolRadioGroup(
                 title: 'Marketing Updates',
                 options: const ['On', 'Off'],
                 selected: _marketingUpdates == true ? 'On' : 'Off',
-                onChanged: (v) =>
-                    setState(() => _marketingUpdates = v == 'On'),
+                onChanged: (v) => setState(() => _marketingUpdates = v == 'On'),
               ),
               const SizedBox(height: 20),
               _RadioGroup(
@@ -267,11 +268,13 @@ class _RadioGroup extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 10),
-        ...options.map((option) => _RadioOption(
-              label: option,
-              selected: selected == option,
-              onTap: () => onChanged(option),
-            )),
+        ...options.map(
+          (option) => _RadioOption(
+            label: option,
+            selected: selected == option,
+            onTap: () => onChanged(option),
+          ),
+        ),
       ],
     );
   }
@@ -304,11 +307,13 @@ class _BoolRadioGroup extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        ...options.map((option) => _RadioOption(
-              label: option,
-              selected: selected == option,
-              onTap: () => onChanged(option),
-            )),
+        ...options.map(
+          (option) => _RadioOption(
+            label: option,
+            selected: selected == option,
+            onTap: () => onChanged(option),
+          ),
+        ),
       ],
     );
   }
@@ -339,13 +344,8 @@ class _RadioOption extends StatelessWidget {
               height: 22,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
-                color: selected
-                    ? const Color(0xFF05124D)
-                    : Colors.transparent,
-                border: Border.all(
-                  color: const Color(0xFF05124D),
-                  width: 1.5,
-                ),
+                color: selected ? const Color(0xFF05124D) : Colors.transparent,
+                border: Border.all(color: const Color(0xFF05124D), width: 1.5),
               ),
               child: selected
                   ? const Icon(Icons.check, size: 14, color: Colors.white)
@@ -354,10 +354,7 @@ class _RadioOption extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF1A1A1A),
-              ),
+              style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
             ),
           ],
         ),

@@ -9,6 +9,7 @@ import (
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/mediaclient"
 	"github.com/google/uuid"
 )
 
@@ -22,6 +23,7 @@ type Service struct {
 	policy      Policy
 	notifier    SecretTransport
 	media       MediaAuthorizer
+	uploads     *mediaclient.Client
 	limiter     RateLimiter
 	workerOwner string
 	now         func() time.Time
@@ -38,9 +40,10 @@ func NewService(repo *Repository, secret []byte, policy Policy) (*Service, error
 	return &Service{repo: repo, cipher: cipher, policy: policy.normalized(), workerOwner: "handover-" + uuid.NewString(), now: func() time.Time { return time.Now().UTC() }}, nil
 }
 
-func (s *Service) WithNotifier(notifier SecretTransport) *Service     { s.notifier = notifier; return s }
-func (s *Service) WithMediaAuthorizer(media MediaAuthorizer) *Service { s.media = media; return s }
-func (s *Service) WithRateLimiter(limiter RateLimiter) *Service       { s.limiter = limiter; return s }
+func (s *Service) WithNotifier(notifier SecretTransport) *Service       { s.notifier = notifier; return s }
+func (s *Service) WithMediaAuthorizer(media MediaAuthorizer) *Service   { s.media = media; return s }
+func (s *Service) WithMediaUploads(client *mediaclient.Client) *Service { s.uploads = client; return s }
+func (s *Service) WithRateLimiter(limiter RateLimiter) *Service         { s.limiter = limiter; return s }
 
 func (s *Service) Enabled() bool { return s != nil && s.policy.Enabled }
 

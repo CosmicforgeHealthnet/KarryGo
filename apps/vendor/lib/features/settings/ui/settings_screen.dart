@@ -235,12 +235,6 @@ class SettingsHub extends StatelessWidget {
           subtitle: AppearanceScope.maybeOf(context)!.mode.name,
           onTap: () => showAppearance(context),
         ),
-      SettingsLink(
-        'Data source',
-        Icons.tune_rounded,
-        subtitle: runtime.mode == VendorDataMode.mock ? 'Mock' : 'Live',
-        onTap: onSettings,
-      ),
       const SizedBox(height: 8),
       SettingsLink(
         'Sign out',

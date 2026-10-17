@@ -1,20 +1,13 @@
+import '../../../shared/widgets/account_components.dart';
+import '../../../shared/widgets/delivery_collection_widgets.dart';
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/async_content.dart';
+import '../../home/ui/widgets/home_feedback.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 
-import '../../../core/theme/theme_extensions.dart';
 import '../state/vehicle_controller.dart';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Upload / replace a bike document.
-//
-// Backend accepts exactly two document types:
-//   registration  → Registration Certificate (no expiry required)
-//   insurance     → Insurance Certificate (expiry_date REQUIRED, future date)
-//
-// The controller and API already forward expiry_date when provided; this
-// screen is the only place that needs to collect it.
-// ═══════════════════════════════════════════════════════════════════════════
 
 class UploadVehicleDocumentScreen extends StatefulWidget {
   const UploadVehicleDocumentScreen({
@@ -35,7 +28,7 @@ class UploadVehicleDocumentScreen extends StatefulWidget {
 
 class _UploadVehicleDocumentScreenState
     extends State<UploadVehicleDocumentScreen> {
-  final _picker = ImagePicker();
+  String? _error;
   String? _docType;
   String? _filePath;
   DateTime? _expiryDate;
@@ -64,21 +57,33 @@ class _UploadVehicleDocumentScreenState
       !_isSubmitting;
 
   Future<void> _pick() async {
-    final x = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1920,
-      maxHeight: 1920,
-    );
-    if (x == null || !mounted) return;
-    final ext = p.extension(x.path).replaceFirst('.', '').toLowerCase();
-    if (!const {'jpg', 'jpeg', 'png', 'pdf'}.contains(ext)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unsupported file type: .$ext')),
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
       );
-      return;
+      if (!mounted || result == null) return;
+      final file = result.files.single;
+      if (file.path == null) {
+        setState(
+          () => _error = 'This file could not be opened. Choose it again.',
+        );
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setState(() => _error = 'Choose a document smaller than 5 MB.');
+        return;
+      }
+      setState(() {
+        _filePath = file.path;
+        _error = null;
+      });
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _error = 'Could not open the file picker. Please try again.',
+        );
     }
-    setState(() => _filePath = x.path);
   }
 
   Future<void> _pickExpiry() async {
@@ -90,10 +95,9 @@ class _UploadVehicleDocumentScreenState
       lastDate: now.add(const Duration(days: 365 * 10)),
       helpText: 'Select expiry date',
     );
-    if (picked != null) setState(() => _expiryDate = picked);
+    if (mounted && picked != null) setState(() => _expiryDate = picked);
   }
 
-  /// Backend expects YYYY-MM-DD.
   String _isoDate(DateTime d) {
     final y = d.year;
     final m = d.month.toString().padLeft(2, '0');
@@ -103,8 +107,18 @@ class _UploadVehicleDocumentScreenState
 
   String _displayDate(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -123,309 +137,78 @@ class _UploadVehicleDocumentScreenState
     if (!mounted) return;
     setState(() => _isSubmitting = false);
     result.when(
-      success: (_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document uploaded')),
+      success: (_) async {
+        await showHomeFeedback(
+          context,
+          title: 'Document uploaded',
+          message:
+              'Your document has been received. Its review status is shown in Documents.',
         );
-        Navigator.of(context).pop(true);
+        if (mounted) Navigator.of(context).pop(true);
       },
-      failure: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
-      },
+      failure: (error) => setState(() => _error = error.message),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-
-    return Scaffold(
-      backgroundColor: c.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                children: [
-                  Text(
-                    'Upload / Replace document',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: c.text,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Upload a clear photo or PDF of your document.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: c.textMuted,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // ── Upload zone ──
-                  GestureDetector(
-                    onTap: _pick,
-                    behavior: HitTestBehavior.opaque,
-                    child: CustomPaint(
-                      painter: _DashPainter(color: c.border),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 44,
-                          horizontal: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.surface,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 64,
-                              height: 64,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: c.teal10,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                _filePath == null
-                                    ? Icons.upload_rounded
-                                    : Icons.check_rounded,
-                                size: 30,
-                                color: c.brandTeal600,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            Text(
-                              _filePath == null
-                                  ? 'Upload document'
-                                  : p.basename(_filePath!),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: c.text,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'JPG, PNG or PDF · Max 5 MB',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: c.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Document type ──
-                  Text(
-                    'Document type',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: c.text,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: c.inputFill,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _docType,
-                        isExpanded: true,
-                        hint: Text(
-                          'Select document type',
-                          style: TextStyle(
-                            color: c.textDisabled,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        icon: Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 22,
-                          color: c.textMuted,
-                        ),
-                        dropdownColor: c.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        items: _docTypes
-                            .map(
-                              (t) => DropdownMenuItem(
-                                value: t.$1,
-                                child: Text(
-                                  t.$2,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.text,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() {
-                          _docType = v;
-                          if (v != 'insurance') _expiryDate = null;
-                        }),
-                      ),
-                    ),
-                  ),
-
-                  // ── Expiry date (insurance only) ──
-                  if (_requiresExpiry) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      'Expiry date',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: c.text,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    GestureDetector(
-                      onTap: _pickExpiry,
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 18,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.inputFill,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _expiryDate == null
-                                    ? 'Select expiry date'
-                                    : _displayDate(_expiryDate!),
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                  color: _expiryDate == null
-                                      ? c.textDisabled
-                                      : c.text,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              Icons.calendar_today_outlined,
-                              size: 20,
-                              color: c.textMuted,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: SizedBox(
-                height: 52,
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _canSubmit ? _submit : null,
-                  style: FilledButton.styleFrom(
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: c.brandWhite,
-                          ),
-                        )
-                      : const Text('Submit document'),
-                ),
-              ),
-            ),
-          ],
+  Widget build(BuildContext context) => AccountPage(
+    title: 'Vehicle document',
+    symbol: JourneySymbol.review,
+    description: 'Upload a clear copy with all details visible.',
+    bottom: FilledButton(
+      onPressed: _canSubmit ? _submit : null,
+      child: _isSubmitting
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Text('Upload document'),
+    ),
+    children: [
+      DropdownButtonFormField<String>(
+        initialValue: _docType,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Document type'),
+        items: _docTypes
+            .map((t) => DropdownMenuItem(value: t.$1, child: Text(t.$2)))
+            .toList(),
+        onChanged: _isSubmitting
+            ? null
+            : (v) => setState(() {
+                _docType = v;
+                if (!_requiresExpiry) _expiryDate = null;
+              }),
+      ),
+      const SizedBox(height: 22),
+      DeliveryPanel(
+        padding: EdgeInsets.zero,
+        child: AccountMenuTile(
+          title: _filePath == null ? 'Choose document' : p.basename(_filePath!),
+          subtitle: _filePath == null
+              ? 'JPG, PNG or PDF / up to 5 MB'
+              : 'Tap to choose a different file',
+          symbol: JourneySymbol.review,
+          onTap: _isSubmitting ? null : _pick,
         ),
       ),
-    );
-  }
-}
-
-class _DashPainter extends CustomPainter {
-  const _DashPainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(16),
+      if (_requiresExpiry) ...[
+        const SizedBox(height: 22),
+        DeliveryPanel(
+          padding: EdgeInsets.zero,
+          child: AccountMenuTile(
+            title: 'Insurance expiry date',
+            subtitle: _expiryDate == null
+                ? 'Choose a future date'
+                : _displayDate(_expiryDate!),
+            symbol: JourneySymbol.review,
+            onTap: _isSubmitting ? null : _pickExpiry,
+          ),
         ),
-      );
-
-    for (final metric in path.computeMetrics()) {
-      double d = 0;
-      while (d < metric.length) {
-        canvas.drawPath(metric.extractPath(d, d + 6), paint);
-        d += 10;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashPainter old) => old.color != color;
+      ],
+      if (_error != null) ...[
+        const SizedBox(height: 18),
+        ActionNotice(message: _error!, isError: true),
+      ],
+    ],
+  );
 }

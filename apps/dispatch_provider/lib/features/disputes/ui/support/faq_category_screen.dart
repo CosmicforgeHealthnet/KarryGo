@@ -1,3 +1,4 @@
+import '../../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
@@ -86,17 +87,8 @@ class FaqCategoryScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -120,7 +112,7 @@ class FaqCategoryScreen extends StatelessWidget {
                 children: [
                   const SizedBox(height: 4),
                   Text(
-                    'Frequently asked',
+                    'What do you need help with?',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
@@ -134,8 +126,14 @@ class FaqCategoryScreen extends StatelessWidget {
                     _FaqRow(
                       question: q,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(q)),
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CreateCaseScreen(
+                              disputeController: disputeController,
+                              initialCategory: categoryTitle,
+                              initialSubject: q,
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -155,7 +153,7 @@ class FaqCategoryScreen extends StatelessWidget {
                   Text(
                     "Create a support case and we'll get back to you.",
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: c.textMuted,
                       height: 1.4,
@@ -213,7 +211,7 @@ class _FaqRow extends StatelessWidget {
               child: Text(
                 question,
                 style: TextStyle(
-                  fontSize: 14.5,
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
                   color: c.text,
                   letterSpacing: -0.1,
@@ -221,11 +219,7 @@ class _FaqRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 22,
-              color: c.textMuted,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 22, color: c.textMuted),
           ],
         ),
       ),

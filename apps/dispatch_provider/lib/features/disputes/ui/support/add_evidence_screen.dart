@@ -1,3 +1,4 @@
+import '../../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -58,17 +59,8 @@ class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -169,10 +161,10 @@ class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
                       itemCount: _paths.length + 1,
                       itemBuilder: (context, i) {
                         if (i == _paths.length) {
@@ -301,11 +293,7 @@ class _AddMoreTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.add_rounded,
-              size: 26,
-              color: c.brandTeal600,
-            ),
+            Icon(Icons.add_rounded, size: 26, color: c.brandTeal600),
             const SizedBox(height: 4),
             Text(
               'Add more',

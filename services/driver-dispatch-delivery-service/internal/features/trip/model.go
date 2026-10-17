@@ -92,34 +92,36 @@ func CanProviderCancel(status TripStatus) bool {
 }
 
 type Trip struct {
-	ID             string     `json:"id"`
-	BookingID      string     `json:"booking_id"`
-	ProviderID     string     `json:"provider_id"`
-	CustomerID     string     `json:"customer_id"`
-	Status         TripStatus `json:"status"`
-	PickupAddress  string     `json:"pickup_address"`
-	PickupLat      float64    `json:"pickup_lat"`
-	PickupLng      float64    `json:"pickup_lng"`
-	DropoffAddress string     `json:"dropoff_address"`
-	DropoffLat     float64    `json:"dropoff_lat"`
-	DropoffLng     float64    `json:"dropoff_lng"`
-	DistanceKM     float64    `json:"distance_km"`
-	FareAmount     int64      `json:"fare_amount"`
-	Currency       string     `json:"currency"`
-	ReceiverName   string     `json:"receiver_name"`
-	ReceiverPhone  string     `json:"receiver_phone"`
-	PackageDesc    *string    `json:"package_desc,omitempty"`
-	PackageWeight  *float64   `json:"package_weight,omitempty"`
-	PackageType    *string    `json:"package_type,omitempty"`
-	PackageSize    *string    `json:"package_size,omitempty"`
-	IsFragile      bool       `json:"is_fragile"`
-	ServiceTier    string     `json:"service_tier"`
-	StartedAt      *time.Time `json:"started_at,omitempty"`
-	ArrivedAt      *time.Time `json:"arrived_at,omitempty"`
-	CompletedAt    *time.Time `json:"completed_at,omitempty"`
-	CancelledAt    *time.Time `json:"cancelled_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	RoutePickupPolyline  string     `json:"route_pickup_polyline,omitempty"`
+	RouteDropoffPolyline string     `json:"route_dropoff_polyline,omitempty"`
+	ID                   string     `json:"id"`
+	BookingID            string     `json:"booking_id"`
+	ProviderID           string     `json:"provider_id"`
+	CustomerID           string     `json:"customer_id"`
+	Status               TripStatus `json:"status"`
+	PickupAddress        string     `json:"pickup_address"`
+	PickupLat            float64    `json:"pickup_lat"`
+	PickupLng            float64    `json:"pickup_lng"`
+	DropoffAddress       string     `json:"dropoff_address"`
+	DropoffLat           float64    `json:"dropoff_lat"`
+	DropoffLng           float64    `json:"dropoff_lng"`
+	DistanceKM           float64    `json:"distance_km"`
+	FareAmount           int64      `json:"fare_amount"`
+	Currency             string     `json:"currency"`
+	ReceiverName         string     `json:"receiver_name"`
+	ReceiverPhone        string     `json:"receiver_phone"`
+	PackageDesc          *string    `json:"package_desc,omitempty"`
+	PackageWeight        *float64   `json:"package_weight,omitempty"`
+	PackageType          *string    `json:"package_type,omitempty"`
+	PackageSize          *string    `json:"package_size,omitempty"`
+	IsFragile            bool       `json:"is_fragile"`
+	ServiceTier          string     `json:"service_tier"`
+	StartedAt            *time.Time `json:"started_at,omitempty"`
+	ArrivedAt            *time.Time `json:"arrived_at,omitempty"`
+	CompletedAt          *time.Time `json:"completed_at,omitempty"`
+	CancelledAt          *time.Time `json:"cancelled_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 
 	// PickupCode* is the rider's own pickup credential: generated when the
 	// rider marks arrived-at-pickup, displayed on the rider's app, and
@@ -274,9 +276,11 @@ type CreateCancellationInput struct {
 }
 
 type ListTripsOptions struct {
-	Status TripStatus
-	Limit  int
-	Offset int
+	CreatedFrom   *time.Time
+	CreatedBefore *time.Time
+	Status        TripStatus
+	Limit         int
+	Offset        int
 }
 
 type TripListItem struct {
@@ -344,13 +348,29 @@ type ProviderParcel struct {
 }
 
 type ProviderHandover struct {
-	Stage  string `json:"stage"`
-	Status string `json:"status"`
+	PhotoRequired         bool      `json:"photo_required"`
+	SignatureRequired     bool      `json:"signature_required"`
+	ScansRequired         bool      `json:"parcel_scans_required"`
+	RequiredEvidenceCount int64     `json:"required_evidence_count"`
+	AcceptedEvidenceCount int64     `json:"accepted_evidence_count"`
+	AcceptedEvidenceTypes []string  `json:"accepted_evidence_types"`
+	ExpectedParcelCount   int64     `json:"expected_parcel_count"`
+	ScannedParcelCount    int64     `json:"scanned_parcel_count"`
+	Stage                 string    `json:"stage"`
+	Status                string    `json:"status"`
+	ChallengeRef          string    `json:"challenge_ref"`
+	StopRef               string    `json:"stop_ref"`
+	ManifestRef           string    `json:"manifest_ref"`
+	ManifestVersion       int64     `json:"manifest_version"`
+	ExpiresAt             time.Time `json:"expires_at"`
 }
 
 type ProviderRecovery struct {
-	AttemptState string `json:"attempt_state,omitempty"`
-	Action       string `json:"action,omitempty"`
+	AttemptState   string    `json:"attempt_state,omitempty"`
+	Action         string    `json:"action,omitempty"`
+	AttemptID      string    `json:"attempt_id"`
+	GraceExpiresAt time.Time `json:"grace_expires_at"`
+	SourceVersion  int64     `json:"source_version"`
 }
 
 type ProviderRoute struct {

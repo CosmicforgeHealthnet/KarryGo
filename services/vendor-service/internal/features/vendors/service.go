@@ -912,13 +912,12 @@ func (s *Service) verificationEffective(ctx context.Context, c BranchCapability)
 	err = s.db.QueryRow(ctx, `SELECT EXISTS(
 		SELECT 1 FROM vendor_verification_projections p
 		WHERE p.business_id=$1 AND (
-			(p.dimension IN ('IDENTITY','BUSINESS','BANK') AND p.subject_type IN ('BUSINESS','REPRESENTATIVE')) OR
+			(p.dimension IN ('IDENTITY','BUSINESS') AND p.subject_type IN ('BUSINESS','REPRESENTATIVE')) OR
 			(p.dimension='LOCATION' AND p.subject_type='BRANCH' AND p.subject_ref=$2) OR
 			(p.dimension='FOOD_KITCHEN' AND p.subject_type='BRANCH_CAPABILITY' AND p.subject_ref=$3 AND $4 IN ('RESTAURANT','FAST_FOOD','CLOUD_KITCHEN'))
 		) AND (p.status<>'VERIFIED' OR (p.expires_at IS NOT NULL AND p.expires_at<=now()))
 	) OR NOT EXISTS(SELECT 1 FROM vendor_verification_projections WHERE business_id=$1 AND dimension='IDENTITY' AND status='VERIFIED' AND (expires_at IS NULL OR expires_at>now()))
 	  OR NOT EXISTS(SELECT 1 FROM vendor_verification_projections WHERE business_id=$1 AND dimension='BUSINESS' AND status='VERIFIED' AND (expires_at IS NULL OR expires_at>now()))
-	  OR NOT EXISTS(SELECT 1 FROM vendor_verification_projections WHERE business_id=$1 AND dimension='BANK' AND status='VERIFIED' AND (expires_at IS NULL OR expires_at>now()))
 	  OR NOT EXISTS(SELECT 1 FROM vendor_verification_projections WHERE business_id=$1 AND dimension='LOCATION' AND subject_type='BRANCH' AND subject_ref=$2 AND status='VERIFIED' AND (expires_at IS NULL OR expires_at>now()))
 	  OR ($4 IN ('RESTAURANT','FAST_FOOD','CLOUD_KITCHEN') AND NOT EXISTS(SELECT 1 FROM vendor_verification_projections WHERE business_id=$1 AND dimension='FOOD_KITCHEN' AND subject_type='BRANCH_CAPABILITY' AND subject_ref=$3 AND status='VERIFIED' AND (expires_at IS NULL OR expires_at>now())))`, c.BusinessID, c.BranchID, c.ID, c.CapabilityType).Scan(&blocked)
 	if err != nil {

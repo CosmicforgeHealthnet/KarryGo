@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/app_mode.dart';
 
 class BikeTypeData {
   const BikeTypeData({
@@ -61,6 +62,20 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
   /// Display labels shown in the dropdown — exactly what the backend accepts
   /// after mapping via [_mapBikeTypeToBackend].
   static const _bikeTypes = ['Motorcycle', 'Dispatch Bike'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (!AppModeConfig.instance.isMock) return;
+    _licenseNoController.text = 'LAG-MOCK-2048';
+    _bikeBrandController.text = 'Honda';
+    _bikeModelController.text = 'Ace 125';
+    _bikeYearController.text = '2022';
+    _colorController.text = 'Black';
+    _plateNumberController.text = 'KJA-204-MK';
+    _licenceExpiryDate = DateTime(DateTime.now().year + 2, 12, 31);
+    _bikeType = 'Dispatch Bike';
+  }
 
   /// Maps the display label to the backend-accepted snake_case value.
   String _mapBikeTypeToBackend(String displayLabel) {
@@ -362,9 +377,9 @@ class _BikeTypeScreenState extends State<BikeTypeScreen> {
                   child: const Text(
                     'Continue',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),

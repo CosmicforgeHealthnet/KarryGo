@@ -82,7 +82,30 @@ class TripsApi {
   Future<ApiResult<List<TripModel>>> listTrips({
     required String accessToken,
   }) async {
-    final uri = config.uri('/api/v1/provider/trips');
+    final result = await listTripPage(accessToken: accessToken);
+    return result.when(
+      success: (page) => ApiSuccess(page.trips),
+      failure: (error) => ApiFailure(error),
+    );
+  }
+
+  Future<ApiResult<TripPage>> listTripPage({
+    required String accessToken,
+    int page = 1,
+    String? status,
+    DateTime? createdFrom,
+  }) async {
+    final uri = config
+        .uri('/api/v1/provider/trips')
+        .replace(
+          queryParameters: {
+            'page': '$page',
+            'limit': '20',
+            if (status != null) 'status': status,
+            if (createdFrom != null)
+              'created_from': createdFrom.toUtc().toIso8601String(),
+          },
+        );
     _debugLog('[TRIPS] GET $uri');
     try {
       final response = await _client
@@ -100,13 +123,24 @@ class TripsApi {
               : null;
           if (rawList is List) {
             return ApiSuccess(
-              rawList
-                  .whereType<Map<String, dynamic>>()
-                  .map(TripModel.fromJson)
-                  .toList(),
+              TripPage(
+                rawList
+                    .whereType<Map<String, dynamic>>()
+                    .map(TripModel.fromJson)
+                    .toList(),
+                total: data is Map
+                    ? (data['total'] as num?)?.toInt() ?? rawList.length
+                    : rawList.length,
+                page: page,
+              ),
             );
           }
-          return const ApiSuccess([]);
+          return const ApiFailure(
+            ApiException(
+              code: ApiErrorCode.unknown,
+              message: 'Delivery history could not be read. Please retry.',
+            ),
+          );
         }
         return _failureFromResponse(response);
       }
@@ -134,10 +168,17 @@ class TripsApi {
         if (body != null && body['success'] == true) {
           final data = body['data'];
           if (data == null) return const ApiSuccess(null);
-          if (data is Map<String, dynamic>) {
+          if (data is Map<String, dynamic> &&
+              data['id'] is String &&
+              (data['id'] as String).isNotEmpty) {
             return ApiSuccess(TripModel.fromJson(data));
           }
-          return const ApiSuccess(null);
+          return const ApiFailure(
+            ApiException(
+              code: ApiErrorCode.unknown,
+              message: 'The current delivery could not be read. Please retry.',
+            ),
+          );
         }
         return _failureFromResponse(response);
       }
@@ -239,7 +280,9 @@ class TripsApi {
     required String accessToken,
     required String id,
   }) async {
-    final uri = config.uri('/api/v1/provider/trips/$id/pickup-credential/resend');
+    final uri = config.uri(
+      '/api/v1/provider/trips/$id/pickup-credential/resend',
+    );
     try {
       final response = await _client
           .post(uri, headers: _jsonHeaders(accessToken), body: jsonEncode({}))
@@ -475,8 +518,7 @@ class TripsApi {
     required int expectedSourceVersion,
     required String idempotencyKey,
   }) async {
-    final uri =
-        config.uri('/api/v1/provider/trips/$id/recipient-confirmation');
+    final uri = config.uri('/api/v1/provider/trips/$id/recipient-confirmation');
     _debugLog('[TRIPS] POST recipient-confirmation $uri');
     try {
       final headers = _jsonHeaders(accessToken);
@@ -492,9 +534,7 @@ class TripsApi {
             }),
           )
           .timeout(const Duration(seconds: 15));
-      _debugLog(
-        '[TRIPS] recipient-confirmation status=${response.statusCode}',
-      );
+      _debugLog('[TRIPS] recipient-confirmation status=${response.statusCode}');
       if (response.statusCode == 200 || response.statusCode == 201) {
         return const ApiSuccess(true);
       }
@@ -511,8 +551,7 @@ class TripsApi {
     required String accessToken,
     required String id,
   }) async {
-    final uri =
-        config.uri('/api/v1/provider/trips/$id/recipient-confirmation');
+    final uri = config.uri('/api/v1/provider/trips/$id/recipient-confirmation');
     _debugLog('[TRIPS] GET recipient-confirmation $uri');
     try {
       final response = await _client
@@ -578,4 +617,11 @@ class TripsApi {
       return _networkFailure(e);
     }
   }
+}
+
+class TripPage {
+  const TripPage(this.trips, {required this.total, required this.page});
+  final List<TripModel> trips;
+  final int total;
+  final int page;
 }

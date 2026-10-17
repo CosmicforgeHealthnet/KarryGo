@@ -361,7 +361,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			// use, so "who holds this vendor's consignment" has one answer
 			// platform-wide.
 			WithCustody(custodyops.NewRepository(db, "DISPATCH"),
-				custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"driver-dispatch-delivery-service": {}, "vendor-service": {}}})
+				custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"dispatch-delivery-service": {}, "driver-dispatch-delivery-service": {}, "vendor-service": {}}})
 		requestService.WithProviderAcceptanceGate(missionRepository).WithCommerceJobCards(missionRepository)
 		dispatchcommercemission.Register(
 			engine.Group("/api/v1/internal"),
@@ -385,7 +385,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 		multiStopMissionHandler := dispatchcommercemission.NewMultiStopMissionHandler(multiStopMissionService)
 		operationalHandler := dispatchcommercemission.NewOperationalHandler(
 			dispatchcommercemission.NewOperationalService(missionRepository, cfg.HandoverSecret, nil).
-				WithReplacementAuthority(multiStopMissionService).
+				WithReplacementAuthority(multiStopMissionService).WithMediaUploads(mediaClient).
 				WithMediaAttachmentAuthorizer(newMediaAttachmentAuthorizer(mediaClient)),
 		)
 		dispatchcommercemission.RegisterMultiStopMissions(
@@ -493,7 +493,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	if len(custodySecrets) > 0 {
 		custodyops.RegisterInternal(engine.Group("/api/v1"), custodyops.NewRepository(db, "DISPATCH"),
 			serviceauth.NewVerifier(custodySecrets, 5*time.Minute),
-			custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"driver-dispatch-delivery-service": {}, "vendor-service": {}}},
+			custodyops.MediaFileAuthorizer{Client: mediaClient, AllowedOwners: map[string]struct{}{"dispatch-delivery-service": {}, "driver-dispatch-delivery-service": {}, "vendor-service": {}}},
 			custodyops.Policy{}, []string{"vendor-service", "operations-service"})
 	}
 	if tripService != nil {
@@ -516,7 +516,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 			panic(fmt.Errorf("configure secure handover service: %w", handoverErr))
 		}
 		handoverService.WithRateLimiter(securehandover.NewRedisRateLimiter(redisClient)).
-			WithMediaAuthorizer(newMediaAttachmentAuthorizer(mediaClient))
+			WithMediaAuthorizer(newMediaAttachmentAuthorizer(mediaClient)).WithMediaUploads(mediaClient)
 		if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
 			handoverService.WithNotifier(securehandover.NewNotificationTransport(notifications.Client{
 				BaseURL: cfg.NotificationURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.NotificationSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout},
@@ -560,7 +560,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 				serviceability.NewCircularZone(serviceability.Point{Latitude: cfg.ServiceZoneCenterLat, Longitude: cfg.ServiceZoneCenterLng}, cfg.ServiceZoneRadiusKM, cfg.ServiceRestrictedZones),
 			)).
 			WithHubAuthority(deliveryrecovery.NewConfiguredHubAuthority(cfg.ApprovedHoldHubs)).
-			WithHubEvidenceAuthority(newMediaAttachmentAuthorizer(mediaClient)).
+			WithHubEvidenceAuthority(newMediaAttachmentAuthorizer(mediaClient)).WithMediaUploads(mediaClient).
 			WithFinancialAuthority(deliveryrecovery.NewWalletRecoveryAuthority(walletclient.Client{BaseURL: cfg.WalletServiceURL, ServiceName: cfg.WalletServiceSource, Secret: cfg.WalletServiceSecret, HTTPClient: &http.Client{Timeout: cfg.ExternalServiceTimeout}}))
 		if assignmentRuntime != nil {
 			recovery.WithReplacement(deliveryrecovery.NewAssignmentReplacementAdapter(assignmentRuntime))

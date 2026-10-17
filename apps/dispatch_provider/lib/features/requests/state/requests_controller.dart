@@ -14,6 +14,8 @@ class RequestsController extends ChangeNotifier {
   final bool Function()? shouldPoll;
 
   List<RequestModel> _requests = [];
+  final _sourceCache = <int, List<RequestModel>>{};
+  ApiException? _loadFailure;
   RequestModel? _activeRequest;
   bool _isLoading = false;
   String? _error;
@@ -21,8 +23,49 @@ class RequestsController extends ChangeNotifier {
   Timer? _pollTimer;
   bool _pollInFlight = false;
   int _stateGeneration = 0;
+  int _fetchGeneration = 0;
+  bool _disposed = false;
+  Timer? _expiryTimer;
+  final Set<String> _handled = {};
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
 
-  List<RequestModel> get requests => List.unmodifiable(_requests);
+  void _scheduleExpiry() {
+    _expiryTimer?.cancel();
+    final expiries =
+        _requests
+            .where((r) => !r.isExpired && r.expiresAt != null)
+            .map((r) => r.expiresAt!)
+            .toList()
+          ..sort();
+    if (expiries.isEmpty || _disposed) return;
+    final delay = expiries.first.difference(DateTime.now());
+    _expiryTimer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      _notify();
+      _scheduleExpiry();
+    });
+  }
+
+  void _removeHandled(RequestModel request) {
+    _stateGeneration++;
+    _handled.add('${request.source.name}:${request.id}');
+    _requests.removeWhere(
+      (r) => r.id == request.id && r.source == request.source,
+    );
+    for (final list in _sourceCache.values) {
+      list.removeWhere((r) => r.id == request.id && r.source == request.source);
+    }
+    _scheduleExpiry();
+  }
+
+  List<RequestModel> get requests => List.unmodifiable(
+    _requests.where(
+      (request) =>
+          request.expiresAt == null ||
+          request.expiresAt!.isAfter(DateTime.now()),
+    ),
+  );
   RequestModel? get activeRequest => _activeRequest;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -59,7 +102,7 @@ class RequestsController extends ChangeNotifier {
 
   Future<void> _pollTick() async {
     if (AppModeConfig.instance.isMock) return;
-    if (_pollInFlight) return;
+    if (_pollInFlight || _isLoading || _disposed) return;
     if (shouldPoll != null && !shouldPoll!()) return;
     final token = _token();
     if (token == null || token.isEmpty) return;
@@ -70,7 +113,8 @@ class RequestsController extends ChangeNotifier {
       final merged = await _fetchAll(token);
       if (generation != _stateGeneration) return;
       _requests = merged;
-      notifyListeners();
+      _scheduleExpiry();
+      _notify();
     } finally {
       _pollInFlight = false;
     }
@@ -78,18 +122,20 @@ class RequestsController extends ChangeNotifier {
 
   void clearError() {
     _error = null;
-    notifyListeners();
+    _notify();
   }
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<ApiResult<List<RequestModel>>> loadRequests() async {
+    if (_disposed || _isLoading) return ApiSuccess(requests);
     if (AppModeConfig.instance.isMock) {
       _requests = DispatchHomeMock.isOnline
           ? List<RequestModel>.from(DispatchHomeMock.pendingRequests)
           : <RequestModel>[];
       _error = null;
-      notifyListeners();
+      _scheduleExpiry();
+      _notify();
       return ApiSuccess(_requests);
     }
 
@@ -104,19 +150,25 @@ class RequestsController extends ChangeNotifier {
     }
     _isLoading = true;
     _error = null;
-    notifyListeners();
+    _notify();
 
     final merged = await _fetchAll(token);
+    if (_disposed) return ApiSuccess(merged);
     _requests = merged;
+    _scheduleExpiry();
     _isLoading = false;
-    notifyListeners();
+    _notify();
+    if (_error != null && merged.isEmpty) {
+      return ApiFailure(
+        _loadFailure ??
+            ApiException(code: ApiErrorCode.network, message: _error!),
+      );
+    }
     return ApiSuccess(merged);
   }
 
-  /// Fetch all four sources in parallel. Fail-open per source: a 404 or 503
-  /// from one endpoint (flag off) leaves that source empty without breaking
-  /// the others.
   Future<List<RequestModel>> _fetchAll(String token) async {
+    final fetchGeneration = ++_fetchGeneration;
     final results = await Future.wait<ApiResult<List<RequestModel>>>([
       api.listBroadcasts(accessToken: token),
       api.listAssignmentOffers(accessToken: token),
@@ -124,17 +176,39 @@ class RequestsController extends ChangeNotifier {
       api.listCompanyAssignments(accessToken: token),
     ]);
 
+    if (_disposed || fetchGeneration != _fetchGeneration) return requests;
     final merged = <RequestModel>[];
-    for (final result in results) {
-      result.when(
-        success: (list) => merged.addAll(list),
+    final failures = <ApiException>[];
+    var successfulSources = 0;
+    _error = null;
+    _loadFailure = null;
+    for (final entry in results.asMap().entries) {
+      entry.value.when(
+        success: (list) {
+          successfulSources++;
+          final current = list
+              .where((r) => !_handled.contains('${r.source.name}:${r.id}'))
+              .toList();
+          _sourceCache[entry.key] = current;
+          merged.addAll(current);
+        },
         failure: (err) {
-          // 404 / 503 are the "flag off" signals — treat as empty, not error.
-          if (err.statusCode != 404 && err.statusCode != 503) {
+          if (err.statusCode == 404) {
+            _sourceCache.remove(entry.key);
+          } else {
+            failures.add(err);
+            merged.addAll(_sourceCache[entry.key] ?? const <RequestModel>[]);
             _debugLog('[REQUESTS] source failed: ${err.message}');
           }
         },
       );
+    }
+
+    if (failures.isNotEmpty) {
+      _loadFailure = successfulSources == 0 ? failures.first : null;
+      _error = successfulSources == 0
+          ? failures.first.message
+          : 'Some opportunities could not be refreshed. Showing the last available requests.';
     }
 
     // Stable ordering: assignments first (directed at you), then commerce,
@@ -149,14 +223,20 @@ class RequestsController extends ChangeNotifier {
       if (be == null) return -1;
       return ae.compareTo(be);
     });
-    return merged;
+    return merged
+        .where(
+          (request) =>
+              request.expiresAt == null ||
+              request.expiresAt!.isAfter(DateTime.now()),
+        )
+        .toList();
   }
 
   static int _sourceRank(RequestSource s) => switch (s) {
-        RequestSource.assignment => 0,
-        RequestSource.commerce => 1,
-        RequestSource.broadcast => 2,
-      };
+    RequestSource.assignment => 0,
+    RequestSource.commerce => 1,
+    RequestSource.broadcast => 2,
+  };
 
   // ── Single fetch ──────────────────────────────────────────────────────────
 
@@ -172,7 +252,7 @@ class RequestsController extends ChangeNotifier {
     }
     // Broadcast is the only source with a per-item detail endpoint we
     // currently call. Others return a list-only view; we serve from cache.
-    final existing = _requests.where((r) => r.id == id).firstOrNull;
+    final existing = requests.where((r) => r.id == id).firstOrNull;
     if (existing == null) {
       return ApiFailure(
         const ApiException(
@@ -187,12 +267,19 @@ class RequestsController extends ChangeNotifier {
   // ── Accept ────────────────────────────────────────────────────────────────
 
   Future<ApiResult<bool>> accept(RequestModel request) async {
+    if (request.isExpired)
+      return const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This opportunity has expired. Choose another request.',
+        ),
+      );
     if (AppModeConfig.instance.isMock) {
       _activeRequest = request;
       _requests = _requests.where((r) => r.id != request.id).toList();
       DispatchHomeMock.pendingRequests = List<RequestModel>.from(_requests);
       DispatchHomeMock.activeTrip = DispatchHomeMock.tripFromRequest(request);
-      notifyListeners();
+      _notify();
       return const ApiSuccess(true);
     }
 
@@ -209,10 +296,9 @@ class RequestsController extends ChangeNotifier {
     final result = await api.accept(accessToken: token, request: request);
     result.when(
       success: (_) {
-        _stateGeneration++;
+        _removeHandled(request);
         _activeRequest = request;
-        _requests = _requests.where((r) => r.id != request.id).toList();
-        notifyListeners();
+        _notify();
       },
       failure: (err) =>
           _debugLog('[REQUESTS] accept ${request.id} failed: ${err.message}'),
@@ -226,7 +312,7 @@ class RequestsController extends ChangeNotifier {
     if (AppModeConfig.instance.isMock) {
       _requests = _requests.where((r) => r.id != request.id).toList();
       DispatchHomeMock.pendingRequests = List<RequestModel>.from(_requests);
-      notifyListeners();
+      _notify();
       return const ApiSuccess(true);
     }
 
@@ -247,9 +333,8 @@ class RequestsController extends ChangeNotifier {
     );
     result.when(
       success: (_) {
-        _stateGeneration++;
-        _requests = _requests.where((r) => r.id != request.id).toList();
-        notifyListeners();
+        _removeHandled(request);
+        _notify();
       },
       failure: (err) =>
           _debugLog('[REQUESTS] reject ${request.id} failed: ${err.message}'),
@@ -259,11 +344,15 @@ class RequestsController extends ChangeNotifier {
 
   void clearActiveRequest() {
     _activeRequest = null;
-    notifyListeners();
+    _notify();
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _stateGeneration++;
+    _fetchGeneration++;
+    _expiryTimer?.cancel();
     stopPolling();
     super.dispose();
   }

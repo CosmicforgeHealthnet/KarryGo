@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -80,7 +81,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen>
                       'Please do not close the app.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.w400,
                         color: colors.textMuted,
                         height: 1.5,
@@ -103,18 +104,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen>
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                size: 22,
-                color: colors.text,
-              ),
-            ),
-          ),
+          DispatchBackButton(onPressed: () => Navigator.of(context).pop()),
         ],
       ),
     );

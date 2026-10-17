@@ -7,7 +7,7 @@ class ModeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (AppModeConfig.isLive) return const SizedBox.shrink();
+    if (AppModeConfig.instance.isLive) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

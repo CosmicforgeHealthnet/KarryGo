@@ -336,6 +336,14 @@ func scanMultiStopMission(row rowScanner) (multiStopMissionRecord, error) {
 }
 
 func (r *Repository) loadMissionView(ctx context.Context, record multiStopMissionRecord) (dispatchcommerce.Mission, error) {
+	return loadMissionViewWith(ctx, r.db, record)
+}
+
+type missionQueryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func loadMissionViewWith(ctx context.Context, db missionQueryer, record multiStopMissionRecord) (dispatchcommerce.Mission, error) {
 	view := dispatchcommerce.Mission{MissionRef: record.CanonicalRef, OperationRef: record.OperationRef,
 		BookingRef: record.BookingID, TripRef: record.TripID, State: record.RuntimeState,
 		QueueState: record.QueueState, Version: record.SourceVersion,
@@ -344,7 +352,7 @@ func (r *Repository) loadMissionView(ctx context.Context, record multiStopMissio
 		Quote: dispatchcommerce.QuoteBinding{QuoteID: record.QuoteID, QuoteReference: record.QuoteReference,
 			QuoteRevision: record.QuoteRevision, QuoteFingerprint: record.QuoteFingerprint},
 		CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, ReasonCode: record.ReasonCode}
-	rows, err := r.db.Query(ctx, `SELECT stop_ref,physical_stop_ref,sequence,vendor_ref,branch_ref,
+	rows, err := db.Query(ctx, `SELECT stop_ref,physical_stop_ref,sequence,vendor_ref,branch_ref,
 		manifest_ref,manifest_version,location_snapshot,ready_from,ready_to,handling_snapshot,status,handover_status
 		FROM commerce_mission_stops WHERE commerce_mission_id=$1::uuid ORDER BY sequence`, record.ID)
 	if err != nil {
@@ -366,7 +374,7 @@ func (r *Repository) loadMissionView(ctx context.Context, record multiStopMissio
 	if err = rows.Err(); err != nil {
 		return dispatchcommerce.Mission{}, err
 	}
-	parcelRows, err := r.db.Query(ctx, `SELECT parcel_ref,vendor_ref,branch_ref,fulfilment_unit_ref,
+	parcelRows, err := db.Query(ctx, `SELECT parcel_ref,vendor_ref,branch_ref,fulfilment_unit_ref,
 		vendor_order_ref,manifest_ref,manifest_version,package_count,custodian_type,custodian_ref,status,(SELECT stop_ref FROM commerce_mission_stops s WHERE s.id=p.stop_id)
 		FROM commerce_mission_parcels p WHERE commerce_mission_id=$1::uuid ORDER BY created_at,parcel_ref`, record.ID)
 	if err != nil {

@@ -394,9 +394,13 @@ func (r *Repository) CompletePickup(ctx context.Context, providerID, missionRef,
 func lockProviderMission(ctx context.Context, tx pgx.Tx, missionRef, providerID string) (string, int64, error) {
 	var missionID string
 	var version int64
-	err := tx.QueryRow(ctx, `SELECT id::text,source_version FROM commerce_missions WHERE canonical_ref=$1 AND current_provider_id=$2::uuid AND replacement_state='NONE' FOR UPDATE`, missionRef, providerID).Scan(&missionID, &version)
+	var state string
+	err := tx.QueryRow(ctx, `SELECT id::text,source_version,runtime_state FROM commerce_missions WHERE canonical_ref=$1 AND current_provider_id=$2::uuid AND replacement_state='NONE' FOR UPDATE`, missionRef, providerID).Scan(&missionID, &version, &state)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", 0, apperrors.NotFound("Assigned Commerce mission not found.", nil)
+	}
+	if err == nil && state == "PICKUP_BLOCKED" {
+		return "", 0, apperrors.Conflict("Pickup is blocked until the reported package issue is resolved.", nil)
 	}
 	return missionID, version, err
 }
@@ -404,7 +408,7 @@ func lockProviderMission(ctx context.Context, tx pgx.Tx, missionRef, providerID 
 func startCommerceTripTx(ctx context.Context, tx pgx.Tx, missionID string, delivery handover.CodeRecord, now time.Time) error {
 	var tripID string
 	var from string
-	err := tx.QueryRow(ctx, `SELECT t.id::text,t.status FROM trips t JOIN commerce_missions m ON m.booking_id=t.booking_id WHERE m.id=$1::uuid FOR UPDATE OF t`, missionID).Scan(&tripID, &from)
+	err := tx.QueryRow(ctx, `SELECT t.id::text,t.status FROM trips t JOIN commerce_missions m ON m.trip_id=t.id WHERE m.id=$1::uuid FOR UPDATE OF t`, missionID).Scan(&tripID, &from)
 	if err != nil {
 		return err
 	}

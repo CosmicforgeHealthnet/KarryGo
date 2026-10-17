@@ -8,10 +8,7 @@ import '../../../core/theme/theme_extensions.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 class PhoneNumberChangedScreen extends StatelessWidget {
-  const PhoneNumberChangedScreen({
-    super.key,
-    required this.newPhoneDisplay,
-  });
+  const PhoneNumberChangedScreen({super.key, required this.newPhoneDisplay});
 
   final String newPhoneDisplay;
 
@@ -34,11 +31,7 @@ class PhoneNumberChangedScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: c.successSoft,
                 ),
-                child: Icon(
-                  Icons.check_rounded,
-                  size: 54,
-                  color: c.success,
-                ),
+                child: Icon(Icons.check_rounded, size: 54, color: c.success),
               ),
             ),
             const SizedBox(height: 28),
@@ -47,7 +40,7 @@ class PhoneNumberChangedScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: c.text,
                 letterSpacing: -0.4,
               ),

@@ -91,7 +91,9 @@ func TestCommerceAllocationsAreNotOnTheProviderSurface(t *testing.T) {
 // assessed, so the audit fails until someone does.
 func TestTheProviderSurfaceIsTheAuditedSet(t *testing.T) {
 	audited := map[string]string{
+		"/api/v1/payment-wallet/provider/banks":                     "supported payout-bank names/codes/currency only; no account or financial data",
 		"/api/v1/payment-wallet/provider/earnings":                  "the provider's own balances",
+		"/api/v1/payment-wallet/provider/transactions":              "the provider's own available job-earnings ledger entries; no organization or platform accounts",
 		"/api/v1/payment-wallet/provider/bank-accounts":             "the provider's own payout accounts",
 		"/api/v1/payment-wallet/provider/bank-accounts/:id":         "the provider's own payout account",
 		"/api/v1/payment-wallet/provider/bank-accounts/resolve":     "bank name lookup, no provider data",

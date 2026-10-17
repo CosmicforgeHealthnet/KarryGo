@@ -40,17 +40,15 @@ class Complaint {
 
   /// Friendly status label for the disputes list.
   String get statusLabel {
-    switch (status) {
-      case 'resolved':
-      case 'closed':
-        return 'Completed';
-      case 'under_review':
-      case 'awaiting_evidence':
-      case 'escalated':
-        return 'Processing';
-      default:
-        return 'Pending';
-    }
+    return switch (status) {
+      'open' => 'Submitted',
+      'under_review' => 'Under review',
+      'awaiting_evidence' => 'Evidence requested',
+      'escalated' => 'Escalated',
+      'resolved' => 'Resolved',
+      'closed' => 'Closed',
+      _ => 'Status unavailable',
+    };
   }
 
   factory Complaint.fromJson(Map<String, dynamic> j) => Complaint(

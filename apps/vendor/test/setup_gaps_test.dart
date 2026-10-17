@@ -1,10 +1,10 @@
+import 'support/mock_vendor_runtime.dart';
 import 'package:vendor/core/network/vendor_command.dart';
-import 'package:vendor/app/data/mock_onboarding_store.dart';
-import 'package:vendor/app/data/mock_vendor_client.dart';
+import 'support/mock/mock_onboarding_store.dart';
+import 'support/mock/mock_vendor_client.dart';
 import 'package:vendor/app/data/vendor_preferences.dart';
-import 'package:vendor/app/vendor_runtime.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vendor/app/data/mock_dashboard_data.dart';
+import 'support/mock/mock_dashboard_data.dart';
 import 'package:vendor/core/contracts/vendor_contract.dart';
 import 'package:vendor/features/delivery/state/rider_workspace_controller.dart';
 import 'package:vendor/features/settings/state/settings_controller.dart';
@@ -125,7 +125,7 @@ void main() {
   );
   test('Approved draft branch uses the existing activation endpoint', () async {
     final runtime =
-        VendorRuntime(
+        MockVendorRuntime(
             preferences: VendorPreferences(inMemory: true),
             mockLatency: Duration.zero,
           )

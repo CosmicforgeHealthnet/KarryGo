@@ -1,3 +1,6 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../core/app_mode.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -41,16 +44,52 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   bool _emailReadOnly = false;
 
   static const _states = [
-    'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue',
-    'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu',
-    'FCT', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina',
-    'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
-    'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
+    'Abia',
+    'Adamawa',
+    'Akwa Ibom',
+    'Anambra',
+    'Bauchi',
+    'Bayelsa',
+    'Benue',
+    'Borno',
+    'Cross River',
+    'Delta',
+    'Ebonyi',
+    'Edo',
+    'Ekiti',
+    'Enugu',
+    'FCT',
+    'Gombe',
+    'Imo',
+    'Jigawa',
+    'Kaduna',
+    'Kano',
+    'Katsina',
+    'Kebbi',
+    'Kogi',
+    'Kwara',
+    'Lagos',
+    'Nasarawa',
+    'Niger',
+    'Ogun',
+    'Ondo',
+    'Osun',
+    'Oyo',
+    'Plateau',
+    'Rivers',
+    'Sokoto',
+    'Taraba',
+    'Yobe',
+    'Zamfara',
   ];
 
   @override
   void initState() {
     super.initState();
+    if (AppModeConfig.instance.isMock) {
+      _dateOfBirth = DateTime(1995, 6, 15);
+      _selectedState = 'Lagos';
+    }
     _loadProfile();
   }
 
@@ -66,11 +105,16 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       success: (profile) {
         if (!mounted) return;
         setState(() {
-          _nameController.text = profile.fullName ?? '';
+          _nameController.text =
+              profile.fullName ??
+              (AppModeConfig.instance.isMock ? 'Tobi Adeyemi' : '');
           if (!_emailReadOnly) {
-            _emailController.text = profile.email ?? '';
+            _emailController.text =
+                profile.email ??
+                (AppModeConfig.instance.isMock ? 'rider@example.com' : '');
           }
-          _cityController.text = profile.city ?? '';
+          _cityController.text =
+              profile.city ?? (AppModeConfig.instance.isMock ? 'Ikeja' : '');
           if (profile.state != null && profile.state!.isNotEmpty) {
             _selectedState = profile.state;
           }
@@ -99,36 +143,46 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       _cityController.text.trim().isNotEmpty;
 
   static const _monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   String _formatDate(DateTime d) =>
       '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
 
   Future<void> _pickDate() async {
-  final c = context.palette;
-  final now = DateTime.now();
-  final picked = await showDatePicker(
-    context: context,
-    initialDate: _dateOfBirth ?? DateTime(now.year - 25, 1, 1),
-    firstDate: DateTime(1940),
-    lastDate: DateTime(now.year - 18, 12, 31),
-    helpText: 'Select date of birth',
-    builder: (context, child) {
-      return Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: c.brandTeal500,
-            onPrimary: Colors.white,
+    final c = context.palette;
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateOfBirth ?? DateTime(now.year - 25, 1, 1),
+      firstDate: DateTime(1940),
+      lastDate: DateTime(now.year - 18, 12, 31),
+      helpText: 'Select date of birth',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: c.brandTeal500,
+              onPrimary: Colors.white,
+            ),
           ),
-        ),
-        child: child!,
-      );
-    },
-  );
-  if (picked != null) setState(() => _dateOfBirth = picked);
-}
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) setState(() => _dateOfBirth = picked);
+  }
 
   static bool _isValidEmail(String email) =>
       RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$').hasMatch(email);
@@ -190,9 +244,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red.shade800),
-    );
+    if (mounted) showDispatchError(context, msg);
   }
 
   @override
@@ -211,58 +263,16 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: widget.onBack,
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 4,
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_rounded,
-                              size: 24,
-                              color: c.text,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Step ${widget.currentStep} of ${widget.totalSteps}',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.textMuted,
-                                    height: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _StepProgress(
-                                  current: widget.currentStep,
-                                  total: widget.totalSteps,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 44),
-                      ],
+                    DispatchSetupHeader(
+                      current: widget.currentStep,
+                      total: widget.totalSteps,
+                      onBack: widget.onBack,
                     ),
                     const SizedBox(height: 28),
                     Text(
                       'Basic profile',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 28,
                         fontWeight: FontWeight.w700,
                         color: c.text,
                         letterSpacing: -0.4,
@@ -273,7 +283,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     Text(
                       'Tell us about yourself.',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w400,
                         color: c.textMuted,
                         height: 1.5,
@@ -357,8 +367,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                   onPressed: _canContinue && !_isLoading ? _continue : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: c.brandTeal500,
-                    disabledBackgroundColor:
-                        c.brandTeal500.withValues(alpha: 0.45),
+                    disabledBackgroundColor: c.brandTeal500.withValues(
+                      alpha: 0.45,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -368,16 +379,16 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                             strokeWidth: 2,
                           ),
                         )
                       : const Text(
                           'Continue',
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         ),
                 ),
@@ -409,47 +420,6 @@ class ProfileDetailsData {
 }
 
 // ─── Step Progress ──────────────────────────────────────────────────────────
-
-class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.current, required this.total});
-  final int current;
-  final int total;
-
-  static const double _height = 9;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final fraction =
-        total <= 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
-    final radius = BorderRadius.circular(_height / 2);
-
-    return SizedBox(
-      height: _height,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: c.navy10,
-              borderRadius: radius,
-            ),
-          ),
-          FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: fraction,
-            heightFactor: 1,
-            child: Container(
-              decoration: BoxDecoration(
-                color: c.brandTeal500,
-                borderRadius: radius,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─── Field Label ────────────────────────────────────────────────────────────
 
@@ -514,14 +484,14 @@ class _InputField extends StatelessWidget {
       onChanged: onChanged,
       readOnly: readOnly,
       style: TextStyle(
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: FontWeight.w500,
         color: readOnly ? c.textMuted : c.text,
       ),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: FontWeight.w400,
           color: c.textDisabled,
         ),
@@ -541,10 +511,7 @@ class _InputField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: c.brandTeal500,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: c.brandTeal500, width: 1.5),
         ),
       ),
     );
@@ -581,19 +548,16 @@ class _StateDropdown extends StatelessWidget {
           hint: Text(
             'Select state',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w400,
               color: c.textDisabled,
             ),
           ),
           isExpanded: true,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: c.text,
-          ),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: c.text),
           dropdownColor: c.surface,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.w500,
             color: c.text,
           ),
@@ -636,17 +600,13 @@ class _DateField extends StatelessWidget {
               child: Text(
                 hasValue ? value! : '12 May 1992',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: hasValue ? FontWeight.w500 : FontWeight.w400,
                   color: hasValue ? c.text : c.textDisabled,
                 ),
               ),
             ),
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 20,
-              color: c.text,
-            ),
+            Icon(Icons.calendar_today_outlined, size: 20, color: c.text),
           ],
         ),
       ),

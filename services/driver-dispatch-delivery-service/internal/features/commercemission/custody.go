@@ -2,7 +2,9 @@ package commercemission
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -241,7 +243,7 @@ func (r *Repository) transferCustodyTx(ctx context.Context, tx pgx.Tx, missionID
 // transfer requires. It runs before the transfer transaction because evidence
 // is an immutable record: a transfer that then fails leaves evidence of an
 // attempt, never a custody change nobody performed.
-func (r *Repository) recordCustodyTransferEvidence(ctx context.Context, missionRef, operationRef, providerID, mediaRef string, parcelRefs []string, now time.Time) (string, error) {
+func (r *Repository) recordCustodyTransferEvidence(ctx context.Context, missionRef, operationRef, oldProvider, actorID, mediaRef string, parcelRefs []string, capturedAt time.Time) (string, error) {
 	if r.custody == nil || r.custodyMedia == nil || mediaRef == "" {
 		return "", nil
 	}
@@ -253,24 +255,47 @@ func (r *Repository) recordCustodyTransferEvidence(ctx context.Context, missionR
 	if err != nil {
 		return "", err
 	}
-	var held custodyops.ManifestKey
+	firstEvidence := ""
 	for _, holding := range view.Holdings {
-		if holding.CustodianRef == providerID {
-			held = holding.ManifestKey
-			break
+		if holding.CustodianRef != oldProvider {
+			continue
+		}
+		rows, err := r.db.Query(ctx, `SELECT p.parcel_ref FROM commerce_mission_parcels p JOIN commerce_missions m ON m.id=p.commerce_mission_id WHERE m.canonical_ref=$1 AND p.manifest_ref=$2 AND p.manifest_version=$3 AND p.parcel_ref=ANY($4) ORDER BY p.parcel_ref`, missionRef, holding.ManifestRef, holding.ManifestVersion, parcelRefs)
+		if err != nil {
+			return "", err
+		}
+		refs := []string{}
+		for rows.Next() {
+			var ref string
+			if err = rows.Scan(&ref); err != nil {
+				rows.Close()
+				return "", err
+			}
+			refs = append(refs, ref)
+		}
+		if err = rows.Err(); err != nil {
+			rows.Close()
+			return "", err
+		}
+		rows.Close()
+		if len(refs) == 0 {
+			continue
+		}
+		binding := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", holding.ManifestRef, holding.ManifestVersion)))
+		evidence, err := r.custody.RecordEvidence(ctx, custodyops.EvidenceCommand{
+			OperationRef: fmt.Sprintf("%s:transfer-evidence:%x", operationRef, binding[:16]), MissionRef: missionRef, TenantRef: tenantRef,
+			ManifestRef: holding.ManifestRef, ManifestVersion: holding.ManifestVersion, ParcelRefs: refs,
+			EvidenceType: custodyops.EvidenceProviderTransfer, MediaRef: mediaRef, ProviderRef: oldProvider, ActorRef: actorID, CapturedAt: capturedAt, AccessPolicy: "INTERNAL",
+		}, r.custodyMedia)
+		if err != nil {
+			return "", err
+		}
+		if firstEvidence == "" {
+			firstEvidence = evidence.ID
 		}
 	}
-	if held.ManifestRef == "" {
-		return "", nil
+	if firstEvidence == "" {
+		return "", custodyops.ErrConflict
 	}
-	evidence, err := r.custody.RecordEvidence(ctx, custodyops.EvidenceCommand{
-		OperationRef: operationRef + ":transfer-evidence", MissionRef: missionRef, TenantRef: tenantRef,
-		ManifestRef: held.ManifestRef, ManifestVersion: held.ManifestVersion, ParcelRefs: parcelRefs,
-		EvidenceType: custodyops.EvidenceProviderTransfer, MediaRef: mediaRef, ProviderRef: providerID,
-		ActorRef: providerID, CapturedAt: now, AccessPolicy: "INTERNAL",
-	}, r.custodyMedia)
-	if err != nil {
-		return "", err
-	}
-	return evidence.ID, nil
+	return firstEvidence, nil
 }

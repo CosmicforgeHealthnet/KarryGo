@@ -66,6 +66,33 @@ class WalletController extends ChangeNotifier {
 
   // ── Resolve bank account ──────────────────────────────────────────────────
 
+  List<Map<String, dynamic>> _transactions = [];
+  List<Map<String, dynamic>> get transactions =>
+      List.unmodifiable(_transactions);
+  bool historyLoading = false;
+  String? historyError;
+
+  Future<void> loadTransactions() async {
+    final token = _token();
+    if (token == null || token.isEmpty || historyLoading) return;
+    historyLoading = true;
+    historyError = null;
+    notifyListeners();
+    final result = await api.listTransactions(token);
+    result.when(
+      success: (data) {
+        _transactions = (data['transactions'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+      },
+      failure: (error) => historyError = error.statusCode == 404
+          ? 'Wallet activity is not enabled on this server yet.'
+          : error.message,
+    );
+    historyLoading = false;
+    notifyListeners();
+  }
+
   Future<ApiResult<BankAccount>> resolveBankAccount({
     required String accountNumber,
     required String bankCode,
@@ -112,6 +139,56 @@ class WalletController extends ChangeNotifier {
   }
 
   // ── Transaction PIN ───────────────────────────────────────────────────────
+
+  List<BankAccount> _accounts = [];
+  List<BankAccount> get accounts => List.unmodifiable(_accounts);
+  BankAccount? get defaultAccount =>
+      _accounts.where((a) => a.isDefault).firstOrNull ?? _accounts.firstOrNull;
+
+  Future<ApiResult<List<SupportedBank>>> loadSupportedBanks() async {
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    return api.supportedBanks(token);
+  }
+
+  Future<ApiResult<List<BankAccount>>> loadBankAccounts() async {
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.bankRequest(token);
+    return result.when(
+      success: (data) {
+        _accounts = (data['bank_accounts'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(BankAccount.fromJson)
+            .toList();
+        _bankAccount = defaultAccount;
+        notifyListeners();
+        return ApiSuccess(_accounts);
+      },
+      failure: (error) => ApiFailure(error),
+    );
+  }
+
+  Future<ApiResult<bool>> updateBankAccount(
+    String id, {
+    bool remove = false,
+  }) async {
+    final token = _token();
+    if (token == null || token.isEmpty) return _unauthorized();
+    final result = await api.bankRequest(
+      token,
+      id: id,
+      remove: remove,
+      setDefault: !remove,
+    );
+    return result.when(
+      success: (_) async {
+        await loadBankAccounts();
+        return const ApiSuccess(true);
+      },
+      failure: (error) => ApiFailure(error),
+    );
+  }
 
   bool? _pinSet;
 

@@ -1,3 +1,6 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../core/app_mode.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -50,7 +53,11 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
       vsync: this,
       duration: const Duration(seconds: 30),
     )..repeat();
-    _recoverLostPhoto();
+    if (AppModeConfig.instance.isMock) {
+      _loadDemoPhoto();
+    } else {
+      _recoverLostPhoto();
+    }
   }
 
   @override
@@ -58,6 +65,27 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
     _entrance.dispose();
     _ring.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDemoPhoto() async {
+    try {
+      final asset = await rootBundle.load('assets/figma/welcome_hero.png');
+      final directory = await Directory.systemTemp.createTemp('karryam-demo-');
+      final file = File('${directory.path}/rider.png');
+      await file.writeAsBytes(
+        asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+      );
+      if (!mounted) return;
+      setState(() {
+        _pickedFile = XFile(file.path);
+        _confirmed = true;
+      });
+    } catch (_) {
+      if (mounted)
+        _showError(
+          'Could not prepare the demo photo. Choose a photo to continue.',
+        );
+    }
   }
 
   Future<void> _recoverLostPhoto() async {
@@ -78,16 +106,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
   }
 
   void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red.shade800,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    if (mounted) showDispatchError(context, message);
   }
 
   String _pickerMessage(ImageSource source, String code) {
@@ -150,9 +169,11 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
     } catch (e) {
       debugPrint('Photo upload failed: $e');
       final message = e.toString().replaceFirst('Exception: ', '');
-      _showError(message.isEmpty
-          ? 'Upload failed. Check your connection and try again.'
-          : message);
+      _showError(
+        message.isEmpty
+            ? 'Upload failed. Check your connection and try again.'
+            : message,
+      );
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -169,10 +190,12 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
     final bool hasPhoto = _pickedFile != null;
     final bool canContinue = hasPhoto && _confirmed && !_busy;
 
-    final VoidCallback? onCamera =
-        _busy ? null : () => _pickImage(ImageSource.camera);
-    final VoidCallback? onGallery =
-        _busy ? null : () => _pickImage(ImageSource.gallery);
+    final VoidCallback? onCamera = _busy
+        ? null
+        : () => _pickImage(ImageSource.camera);
+    final VoidCallback? onGallery = _busy
+        ? null
+        : () => _pickImage(ImageSource.gallery);
     final VoidCallback? onUse = _busy ? null : _confirmPhoto;
 
     return Scaffold(
@@ -190,52 +213,10 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
                     _Reveal(
                       animation: _entrance,
                       begin: 0,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          GestureDetector(
-                            onTap: _handleBack,
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                                horizontal: 4,
-                              ),
-                              child: Icon(
-                                Icons.arrow_back_rounded,
-                                size: 24,
-                                color: c.text,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(
-                                    'Step ${widget.currentStep} of ${widget.totalSteps}',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.textMuted,
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _StepProgress(
-                                    current: widget.currentStep,
-                                    total: widget.totalSteps,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 44),
-                        ],
+                      child: DispatchSetupHeader(
+                        current: widget.currentStep,
+                        total: widget.totalSteps,
+                        onBack: _handleBack,
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -248,7 +229,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
                           Text(
                             'Profile photo',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: 28,
                               fontWeight: FontWeight.w700,
                               color: c.text,
                               letterSpacing: -0.4,
@@ -259,7 +240,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
                           Text(
                             'Take a clear photo of yourself. This helps build trust on the platform.',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w400,
                               color: c.textMuted,
                               height: 1.5,
@@ -380,8 +361,9 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
                   onPressed: canContinue ? _handleContinue : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: c.brandTeal500,
-                    disabledBackgroundColor:
-                        c.brandTeal500.withValues(alpha: 0.45),
+                    disabledBackgroundColor: c.brandTeal500.withValues(
+                      alpha: 0.45,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -391,16 +373,16 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen>
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                             strokeWidth: 2,
                           ),
                         )
                       : const Text(
                           'Continue',
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         ),
                 ),
@@ -590,11 +572,7 @@ class _EmptyPhoto extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.person_outline_rounded,
-            size: 72,
-            color: c.textDisabled,
-          ),
+          Icon(Icons.person_outline_rounded, size: 72, color: c.textDisabled),
           const SizedBox(height: 4),
           Text(
             'Tap to take a photo',
@@ -863,54 +841,3 @@ class _ActionTileState extends State<_ActionTile> {
 }
 
 // ─── Step Progress ──────────────────────────────────────────────────────────
-
-class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.current, required this.total});
-
-  final int current;
-  final int total;
-
-  static const double _height = 9;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final fraction =
-        total <= 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
-    final previous =
-        total <= 0 ? 0.0 : ((current - 1) / total).clamp(0.0, 1.0).toDouble();
-    final radius = BorderRadius.circular(_height / 2);
-
-    return SizedBox(
-      height: _height,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: c.navy10,
-              borderRadius: radius,
-            ),
-          ),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: previous, end: fraction),
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, _) {
-              return FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: value,
-                heightFactor: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.brandTeal500,
-                    borderRadius: radius,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}

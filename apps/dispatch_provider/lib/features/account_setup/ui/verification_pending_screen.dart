@@ -53,7 +53,7 @@ class VerificationPendingScreen extends StatelessWidget {
                             "Your information has been sent for verification. We'll review your details and notify you once you're all set.",
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: 15,
                               fontWeight: FontWeight.w400,
                               color: c.textMuted,
                               height: 1.6,
@@ -74,7 +74,7 @@ class VerificationPendingScreen extends StatelessWidget {
                             Text(
                               'What happens next?',
                               style: TextStyle(
-                                fontSize: 17,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: c.text,
                                 height: 1.2,
@@ -83,8 +83,7 @@ class VerificationPendingScreen extends StatelessWidget {
                             const SizedBox(height: 20),
                             const _NextStep(
                               number: '1',
-                              text:
-                                  'We review your information (usually within 24 hours)',
+                              text: 'Your information is reviewed',
                             ),
                             const SizedBox(height: 20),
                             const _NextStep(
@@ -117,9 +116,9 @@ class VerificationPendingScreen extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'Back to sign in',
+                    'Continue to app',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: c.btnPrimaryFg,
                     ),
@@ -201,9 +200,7 @@ class _SuccessBurst extends StatelessWidget {
         children: [
           const Positioned.fill(
             child: CustomPaint(
-              painter: _ConfettiPainter(
-                center: Offset(_width / 2, _centerY),
-              ),
+              painter: _ConfettiPainter(center: Offset(_width / 2, _centerY)),
             ),
           ),
           Positioned(

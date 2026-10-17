@@ -252,7 +252,7 @@ class _WelcomeBackScreenState extends State<WelcomeBackScreen> {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: Color(0xFF081F44),
                 ),
               ),
             ),

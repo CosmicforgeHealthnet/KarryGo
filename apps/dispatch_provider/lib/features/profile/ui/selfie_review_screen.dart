@@ -1,3 +1,5 @@
+import '../../../shared/widgets/journey_icon.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -47,9 +49,9 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
     );
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Selfie upload failed: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Selfie upload failed: $error')));
       return;
     }
 
@@ -72,17 +74,8 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(false),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -147,8 +140,8 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.lock_outline_rounded,
+                        JourneyIcon(
+                          JourneySymbol.key,
                           size: 18,
                           color: c.brandTeal600,
                         ),
@@ -182,10 +175,7 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
                                 : () => Navigator.of(context).pop(false),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: c.text,
-                              side: BorderSide(
-                                color: c.border,
-                                width: 1.2,
-                              ),
+                              side: BorderSide(color: c.border, width: 1.2),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(999),
                               ),
@@ -203,8 +193,7 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
                         child: SizedBox(
                           height: 48,
                           child: FilledButton(
-                            onPressed:
-                                _isSubmitting ? null : _useThisPhoto,
+                            onPressed: _isSubmitting ? null : _useThisPhoto,
                             style: FilledButton.styleFrom(
                               textStyle: const TextStyle(
                                 fontSize: 15,

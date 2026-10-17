@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dispatch_provider/core/app_mode.dart';
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +26,14 @@ Map<String, dynamic> complaintJson({
 };
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({});
+    await AppModeConfig.instance.setMode(AppMode.live);
+  });
+  tearDown(() async {
+    await AppModeConfig.instance.setMode(AppMode.mock);
+  });
   RiderDisputeController buildController(MockClient client) {
     return RiderDisputeController(
       api: RiderSupportApi(
@@ -36,126 +46,107 @@ void main() {
     );
   }
 
-  test('submitDispute posts a complaint on the dispatch-provider group', () async {
-    late Map<String, dynamic> sentBody;
-    final controller = buildController(
-      MockClient((request) async {
-        expect(
-          request.url.path,
-          '/api/v1/support-disputes/dispatch-provider/complaints',
-        );
-        expect(request.method, 'POST');
-        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': complaintJson(id: 'c1', subject: 'Cancelled trip'),
-          }),
-          201,
-        );
-      }),
-    );
-
-    controller.startNewDispute();
-    controller.selectTrip(
-      TripModel(
-        id: 'trip-1',
-        bookingId: 'book-1',
-        statusCode: TripStatusCode.completed,
-        rawStatus: 'completed',
-        pickupAddress: 'A',
-        dropoffAddress: 'B',
-        customerName: 'C',
-        receiverName: 'R',
-        receiverPhone: '+2348011111111',
-        distanceKm: 3.2,
-        estimatedFareKobo: 120000,
-        createdAt: DateTime.utc(2026, 7, 18),
-      ),
-    );
-    controller.selectType('Cancelled trip');
-
-    final complaint = await controller.submitDispute();
-    expect(complaint, isNotNull);
-    expect(complaint!.id, 'c1');
-    expect(sentBody['service_type'], 'dispatch');
-    expect(sentBody['booking_reference'], 'book-1');
-    expect(sentBody['subject'], 'Cancelled trip');
-    expect(controller.complaints, hasLength(1));
-  });
-
-  test('openSupportChat reuses an existing open support complaint', () async {
-    var created = 0;
-    final controller = buildController(
-      MockClient((request) async {
-        if (request.method == 'GET') {
+  test(
+    'submitDispute posts a complaint on the dispatch-provider group',
+    () async {
+      late Map<String, dynamic> sentBody;
+      final controller = buildController(
+        MockClient((request) async {
+          expect(
+            request.url.path,
+            '/api/v1/support-disputes/dispatch-provider/complaints',
+          );
+          expect(request.method, 'POST');
+          sentBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
             jsonEncode({
               'success': true,
-              'data': {
-                'complaints': [
-                  complaintJson(
-                    id: 'chat-1',
-                    subject: RiderDisputeController.supportChatSubject,
-                  ),
-                ],
-              },
+              'data': complaintJson(id: 'c1', subject: 'Cancelled trip'),
             }),
-            200,
+            201,
           );
-        }
-        created++;
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': complaintJson(id: 'chat-new', subject: 'Live chat support'),
-          }),
-          201,
-        );
-      }),
-    );
+        }),
+      );
 
-    final complaint = await controller.openSupportChat();
-    expect(complaint, isNotNull);
-    expect(complaint!.id, 'chat-1');
-    expect(created, 0, reason: 'must reuse the open chat, not create another');
-  });
+      controller.startNewDispute();
+      controller.selectTrip(
+        TripModel(
+          id: 'trip-1',
+          bookingId: 'book-1',
+          statusCode: TripStatusCode.completed,
+          rawStatus: 'completed',
+          pickupAddress: 'A',
+          dropoffAddress: 'B',
+          customerName: 'C',
+          receiverName: 'R',
+          receiverPhone: '+2348011111111',
+          distanceKm: 3.2,
+          estimatedFareKobo: 120000,
+          createdAt: DateTime.utc(2026, 7, 18),
+        ),
+      );
+      controller.selectType('Cancelled trip');
 
-  test('openSupportChat creates a complaint when none is open', () async {
-    final controller = buildController(
-      MockClient((request) async {
-        if (request.method == 'GET') {
+      final complaint = await controller.submitDispute();
+      expect(complaint, isNotNull);
+      expect(complaint!.id, 'c1');
+      expect(sentBody['service_type'], 'dispatch');
+      expect(sentBody['booking_reference'], 'book-1');
+      expect(sentBody['subject'], 'Cancelled trip');
+      expect(controller.complaints, hasLength(1));
+    },
+  );
+
+  test(
+    'support chat uses backend start without client-side complaint creation',
+    () async {
+      final controller = buildController(
+        MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(
+            request.url.path,
+            '/api/v1/support-disputes/dispatch-provider/support-chat/start',
+          );
+          expect(jsonDecode(request.body), isEmpty);
           return http.Response(
             jsonEncode({
               'success': true,
-              'data': {
-                'complaints': [
-                  // A resolved chat must not be reused.
-                  complaintJson(
-                    id: 'chat-old',
-                    subject: RiderDisputeController.supportChatSubject,
-                    status: 'resolved',
-                  ),
-                ],
-              },
+              'data': complaintJson(id: 'chat-1', subject: 'Support Chat'),
             }),
             200,
           );
-        }
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': complaintJson(id: 'chat-new', subject: 'Live chat support'),
-          }),
-          201,
-        );
-      }),
-    );
+        }),
+      );
+      expect((await controller.openSupportChat())?.id, 'chat-1');
+      controller.dispose();
+    },
+  );
 
-    final complaint = await controller.openSupportChat();
-    expect(complaint, isNotNull);
-    expect(complaint!.id, 'chat-new');
-  });
+  test(
+    'support start failure does not claim agent availability or create a replacement case',
+    () async {
+      var calls = 0;
+      final controller = buildController(
+        MockClient((request) async {
+          calls++;
+          return http.Response(
+            jsonEncode({
+              'success': false,
+              'error': {
+                'code': 'service_unavailable',
+                'message': 'Support is unavailable.',
+              },
+            }),
+            503,
+          );
+        }),
+      );
+      expect(await controller.openSupportChat(), isNull);
+      expect(controller.supportChatError, isNotNull);
+      expect(calls, 1);
+      controller.dispose();
+    },
+  );
 
   test('messages: rider bubbles detected by sender_type', () async {
     final controller = buildController(

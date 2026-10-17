@@ -1,3 +1,6 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../core/app_mode.dart';
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -35,8 +38,7 @@ class EmergencyContactScreen extends StatefulWidget {
   final EmergencyContactData? initialData;
 
   @override
-  State<EmergencyContactScreen> createState() =>
-      _EmergencyContactScreenState();
+  State<EmergencyContactScreen> createState() => _EmergencyContactScreenState();
 }
 
 class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
@@ -57,6 +59,11 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
   @override
   void initState() {
     super.initState();
+    if (AppModeConfig.instance.isMock) {
+      _nameController.text = 'Ada Adeyemi';
+      _phoneController.text = '8000000001';
+      _relationship = 'Sibling';
+    }
     final init = widget.initialData;
     if (init != null) {
       _nameController.text = init.fullName;
@@ -113,8 +120,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
     while (subscriber.startsWith('0')) {
       subscriber = subscriber.substring(1);
     }
-    if (subscriber.length != 10 ||
-        !RegExp(r'^\d{10}$').hasMatch(subscriber)) {
+    if (subscriber.length != 10 || !RegExp(r'^\d{10}$').hasMatch(subscriber)) {
       _showError('Please enter a valid Nigerian phone number.');
       return;
     }
@@ -130,10 +136,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
 
       bool ok = false;
       String? err;
-      result.when(
-        success: (_) => ok = true,
-        failure: (e) => err = e.message,
-      );
+      result.when(success: (_) => ok = true, failure: (e) => err = e.message);
 
       if (!ok) {
         if (mounted && err != null) _showError('Save failed: $err');
@@ -155,9 +158,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red.shade800),
-    );
+    if (mounted) showDispatchError(context, msg);
   }
 
   @override
@@ -176,58 +177,16 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: widget.onBack,
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 4,
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_rounded,
-                              size: 24,
-                              color: c.text,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Step ${widget.currentStep} of ${widget.totalSteps}',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.textMuted,
-                                    height: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _StepProgress(
-                                  current: widget.currentStep,
-                                  total: widget.totalSteps,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 44),
-                      ],
+                    DispatchSetupHeader(
+                      current: widget.currentStep,
+                      total: widget.totalSteps,
+                      onBack: widget.onBack,
                     ),
                     const SizedBox(height: 28),
                     Text(
                       'Emergency contact',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 28,
                         fontWeight: FontWeight.w700,
                         color: c.text,
                         letterSpacing: -0.4,
@@ -238,7 +197,7 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                     Text(
                       'Add someone we can reach in case of an emergency.',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w400,
                         color: c.textMuted,
                         height: 1.5,
@@ -291,8 +250,9 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                   onPressed: _canContinue && !_isLoading ? _continue : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: c.brandTeal500,
-                    disabledBackgroundColor:
-                        c.brandTeal500.withValues(alpha: 0.45),
+                    disabledBackgroundColor: c.brandTeal500.withValues(
+                      alpha: 0.45,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -302,16 +262,16 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                             strokeWidth: 2,
                           ),
                         )
                       : const Text(
                           'Continue',
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         ),
                 ),
@@ -325,48 +285,6 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
 }
 
 // ─── Step Progress ──────────────────────────────────────────────────────────
-
-class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.current, required this.total});
-
-  final int current;
-  final int total;
-
-  static const double _height = 9;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final fraction =
-        total <= 0 ? 0.0 : (current / total).clamp(0.0, 1.0).toDouble();
-    final radius = BorderRadius.circular(_height / 2);
-
-    return SizedBox(
-      height: _height,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: c.navy10,
-              borderRadius: radius,
-            ),
-          ),
-          FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: fraction,
-            heightFactor: 1,
-            child: Container(
-              decoration: BoxDecoration(
-                color: c.brandTeal500,
-                borderRadius: radius,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─── Field Label ────────────────────────────────────────────────────────────
 
@@ -414,14 +332,14 @@ class _InputField extends StatelessWidget {
       inputFormatters: inputFormatters,
       onChanged: onChanged,
       style: TextStyle(
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: FontWeight.w500,
         color: c.text,
       ),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: FontWeight.w400,
           color: c.textDisabled,
         ),
@@ -441,10 +359,7 @@ class _InputField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: c.brandTeal500,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: c.brandTeal500, width: 1.5),
         ),
       ),
     );
@@ -481,19 +396,16 @@ class _RelationshipDropdown extends StatelessWidget {
           hint: Text(
             'Select relationship',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w400,
               color: c.textDisabled,
             ),
           ),
           isExpanded: true,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: c.text,
-          ),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: c.text),
           dropdownColor: c.surface,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.w500,
             color: c.text,
           ),
@@ -533,7 +445,7 @@ class _PhoneField extends StatelessWidget {
           Text(
             '+234',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
               color: c.text,
             ),
@@ -541,46 +453,46 @@ class _PhoneField extends StatelessWidget {
           const SizedBox(width: 12),
           Container(width: 1, height: 24, color: c.border),
           const SizedBox(width: 12),
-         Expanded(
-  child: Theme(
-    data: Theme.of(context).copyWith(
-      inputDecorationTheme: const InputDecorationTheme(
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        filled: false,
-      ),
-    ),
-    child: TextField(
-      controller: controller,
-      keyboardType: TextInputType.phone,
-      inputFormatters: [
-        FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(11),
-      ],
-      onChanged: onChanged,
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: c.text,
-      ),
-      decoration: InputDecoration(
-        hintText: '803 123 4567',
-        hintStyle: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w400,
-          color: c.textDisabled,
-        ),
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: 18),
-      ),
-    ),
-  ),
-),
+          Expanded(
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: const InputDecorationTheme(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  filled: false,
+                ),
+              ),
+              child: TextField(
+                controller: controller,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                onChanged: onChanged,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: c.text,
+                ),
+                decoration: InputDecoration(
+                  hintText: '803 123 4567',
+                  hintStyle: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                    color: c.textDisabled,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(width: 16),
         ],
       ),

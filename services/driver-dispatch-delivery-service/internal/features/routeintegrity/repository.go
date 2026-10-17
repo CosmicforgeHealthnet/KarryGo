@@ -123,7 +123,7 @@ func (r *Repository) CurrentRouteForProvider(ctx context.Context, providerID str
 func (r *Repository) LastFix(ctx context.Context, tripID string) (LocationFix, bool, error) {
 	var item LocationFix
 	err := r.db.QueryRow(ctx, `SELECT provider_id::text,latitude,longitude,heading,speed,accuracy,client_recorded_at,received_at
-		FROM dispatch_route_location_fixes WHERE trip_id=$1::uuid ORDER BY received_at DESC,id DESC LIMIT 1`, tripID).Scan(&item.ProviderID, &item.Latitude, &item.Longitude, &item.Heading, &item.Speed, &item.Accuracy, &item.ClientRecordedAt, &item.ReceivedAt)
+		FROM dispatch_route_location_fixes WHERE trip_id=$1::uuid ORDER BY LEAST(client_recorded_at,received_at) DESC,id DESC LIMIT 1`, tripID).Scan(&item.ProviderID, &item.Latitude, &item.Longitude, &item.Heading, &item.Speed, &item.Accuracy, &item.ClientRecordedAt, &item.ReceivedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return item, false, nil
 	}
@@ -132,7 +132,7 @@ func (r *Repository) LastFix(ctx context.Context, tripID string) (LocationFix, b
 
 func (r *Repository) StationarySince(ctx context.Context, tripID string) (time.Time, bool, error) {
 	var since *time.Time
-	err := r.db.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN NULL ELSE COALESCE(max(received_at) FILTER(WHERE speed>=1),min(received_at)) END
+	err := r.db.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN NULL ELSE COALESCE(max(LEAST(client_recorded_at,received_at)) FILTER(WHERE speed>=1),min(LEAST(client_recorded_at,received_at))) END
 		FROM dispatch_route_location_fixes WHERE trip_id=$1::uuid`, tripID).Scan(&since)
 	if err != nil || since == nil {
 		return time.Time{}, false, err
@@ -180,11 +180,11 @@ func (r *Repository) CreateStaleAlerts(ctx context.Context, now time.Time, limit
 	}
 	tag, err := r.db.Exec(ctx, `INSERT INTO dispatch_route_alerts(id,trip_id,route_id,route_version,alert_type,state,severity,policy_version,observed_at,safe_evidence,dedupe_key)
 		SELECT gen_random_uuid(),r.trip_id,r.id,r.version,'STALE_LOCATION','OPEN',CASE WHEN r.high_risk THEN 'HIGH' ELSE 'MEDIUM' END,r.policy_version,$1,
-		jsonb_build_object('last_received_at',max(f.received_at),'threshold_seconds',r.stale_seconds),
+		jsonb_build_object('last_received_at',max(LEAST(f.client_recorded_at,f.received_at)),'threshold_seconds',r.stale_seconds),
 		'stale:'||r.id::text||':'||(extract(epoch FROM $1)::bigint/GREATEST(r.stale_seconds,1))::text
 		FROM dispatch_expected_routes r JOIN trips t ON t.id=r.trip_id LEFT JOIN dispatch_route_location_fixes f ON f.route_id=r.id
 		WHERE r.status='CURRENT' AND t.status NOT IN ('completed','cancelled','failed') GROUP BY r.id,t.id
-		HAVING COALESCE(max(f.received_at),r.created_at) < $1-make_interval(secs=>r.stale_seconds)
+		HAVING COALESCE(max(LEAST(f.client_recorded_at,f.received_at)),r.created_at) < $1-make_interval(secs=>r.stale_seconds)
 		ON CONFLICT(dedupe_key) DO NOTHING`, now)
 	if err != nil {
 		return 0, err
@@ -196,7 +196,7 @@ func (r *Repository) CustomerStatus(ctx context.Context, bookingID, customerID s
 	var result CustomerRouteStatus
 	var staleSeconds int
 	var last *time.Time
-	err := r.db.QueryRow(ctx, `SELECT t.id::text,r.version,r.stale_seconds,max(f.received_at),count(DISTINCT a.id) FILTER(WHERE a.state='OPEN')
+	err := r.db.QueryRow(ctx, `SELECT t.id::text,r.version,r.stale_seconds,max(LEAST(f.client_recorded_at,f.received_at)),count(DISTINCT a.id) FILTER(WHERE a.state='OPEN')
 		FROM trips t JOIN dispatch_expected_routes r ON r.trip_id=t.id AND r.status='CURRENT'
 		LEFT JOIN dispatch_route_location_fixes f ON f.route_id=r.id LEFT JOIN dispatch_route_alerts a ON a.route_id=r.id
 		WHERE t.booking_id=$1::uuid AND t.customer_id=$2::uuid GROUP BY t.id,r.version,r.stale_seconds`, bookingID, customerID).
@@ -216,13 +216,13 @@ func (r *Repository) CustomerStatus(ctx context.Context, bookingID, customerID s
 	}
 	if last != nil {
 		if fix, ok, e := r.LastFix(ctx, result.TripID); e == nil && ok {
-			result.LastLocation = &CustomerLocation{Latitude: fix.Latitude, Longitude: fix.Longitude, RecordedAt: fix.ReceivedAt}
+			result.LastLocation = &CustomerLocation{Latitude: fix.Latitude, Longitude: fix.Longitude, RecordedAt: observedTime(fix)}
 		}
 	}
 	return result, nil
 }
 
-func (r *Repository) RecordDeviceCommand(ctx context.Context, providerID string, command DeviceCommand, result DeviceCommandResult, fp string, now time.Time) (DeviceCommandResult, error) {
+func (r *Repository) RecordDeviceCommand(ctx context.Context, providerID string, command DeviceCommand, result DeviceCommandResult, fp string, now time.Time, apply ...func(pgx.Tx, string) error) (DeviceCommandResult, error) {
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return result, err
@@ -240,6 +240,13 @@ func (r *Repository) RecordDeviceCommand(ctx context.Context, providerID string,
 		}
 		_ = json.Unmarshal(snapshot, &existing)
 		existing.Replayed = true
+		if existing.State == "ACCEPTED" {
+			for _, fn := range apply {
+				if err = fn(tx, existing.ID); err != nil {
+					return existing, err
+				}
+			}
+		}
 		return existing, tx.Commit(ctx)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -253,15 +260,21 @@ func (r *Repository) RecordDeviceCommand(ctx context.Context, providerID string,
 		command.DeviceCommandID, command.CommandType, payload, command.IdempotencyKey, fp, command.ClientTimestamp, command.LastKnownServerVersion, result.State, snapshot, now)
 	if err != nil {
 		_ = tx.Rollback(ctx)
-		existing, stored, found, readErr := r.readDeviceCommand(ctx, providerID, command)
+		_, stored, found, readErr := r.readDeviceCommand(ctx, providerID, command)
 		if readErr == nil && found {
 			if stored != fp {
 				return result, apperrors.Conflict("Offline command identity was reused with different semantics.", nil)
 			}
-			existing.Replayed = true
-			return existing, nil
+			return r.RecordDeviceCommand(ctx, providerID, command, result, fp, now, apply...)
 		}
 		return result, apperrors.Conflict("Offline command conflicts with an existing operation.", err)
+	}
+	if result.State == "ACCEPTED" {
+		for _, fn := range apply {
+			if err = fn(tx, result.ID); err != nil {
+				return result, err
+			}
+		}
 	}
 	return result, tx.Commit(ctx)
 }
@@ -302,3 +315,23 @@ func emitRouteEvent(ctx context.Context, tx pgx.Tx, eventType, tripID string, ve
 }
 
 func (r *Repository) String() string { return fmt.Sprintf("routeintegrity.Repository(%p)", r) }
+
+func observedTime(fix LocationFix) time.Time {
+	if fix.ClientRecordedAt.Before(fix.ReceivedAt) {
+		return fix.ClientRecordedAt
+	}
+	return fix.ReceivedAt
+}
+func (r *Repository) routeAtCapture(ctx context.Context, providerID, tripID string, at time.Time) (ExpectedRoute, bool, error) {
+	var item ExpectedRoute
+	err := r.db.QueryRow(ctx, `SELECT id::text,trip_id::text,provider_id::text,version,status FROM dispatch_expected_routes WHERE provider_id=$1::uuid AND created_at<=$2 AND ($3='' OR trip_id=NULLIF($3,'')::uuid) ORDER BY created_at DESC,id DESC LIMIT 1`, providerID, at, tripID).Scan(&item.ID, &item.TripID, &item.ProviderID, &item.Version, &item.Status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return item, false, nil
+	}
+	return item, err == nil, err
+}
+func recordOfflineFixTx(ctx context.Context, tx pgx.Tx, commandID string, route ExpectedRoute, fix LocationFix) error {
+	_, err := tx.Exec(ctx, `INSERT INTO dispatch_route_location_fixes(trip_id,route_id,provider_id,latitude,longitude,heading,speed,accuracy,client_recorded_at,received_at,device_command_ref)
+ VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11::uuid) ON CONFLICT(device_command_ref) WHERE device_command_ref IS NOT NULL DO NOTHING`, route.TripID, route.ID, fix.ProviderID, fix.Latitude, fix.Longitude, fix.Heading, fix.Speed, fix.Accuracy, fix.ClientRecordedAt, fix.ReceivedAt, commandID)
+	return err
+}

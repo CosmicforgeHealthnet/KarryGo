@@ -34,13 +34,29 @@ class OrderDetailController extends ChangeNotifier {
         vendorOrderId: id,
       );
       if (disposed) return;
-      order = response.object;
+      final value = response.object;
+      if (value['vendor_order_id'] != id ||
+          value['business_id'] != app.scope.vendorId ||
+          value['branch_id'] is! String ||
+          (value['branch_id'] as String).isEmpty ||
+          value['status'] is! String ||
+          (value['status'] as String).isEmpty ||
+          value['version'] is! int ||
+          value['version'] < 1) {
+        throw const FormatException('Invalid order details');
+      }
+      order = value;
       stale = false;
       await _loadPicking();
     } catch (e) {
       if (disposed) return;
       error = _message(e);
       restricted = e is ApiException && e.statusCode == 403;
+      if (e is FormatException ||
+          e is ApiException && [403, 404].contains(e.statusCode)) {
+        order = null;
+        picking = [];
+      }
     } finally {
       loading = false;
       _notify();
@@ -67,7 +83,13 @@ class OrderDetailController extends ChangeNotifier {
   }
 
   bool can(String path) =>
-      !loading && !busy && !stale && !denied.contains(path);
+      !disposed &&
+      order != null &&
+      !restricted &&
+      !loading &&
+      !busy &&
+      !stale &&
+      !denied.contains(path);
   Future<bool> submit(
     String suffix,
     JsonObject body, {
@@ -132,7 +154,7 @@ class OrderDetailController extends ChangeNotifier {
           (e.statusCode ?? 0) >= 500) {
         stale = true;
       }
-      error = _message(e);
+      error = _message(e, writing: true);
     } finally {
       busy = false;
     }
@@ -147,8 +169,20 @@ class OrderDetailController extends ChangeNotifier {
     return success;
   }
 
-  static String _message(Object e) =>
-      e is ApiException ? e.message : 'Could not connect. Please try again.';
+  static String _message(Object e, {bool writing = false}) {
+    if (e is ApiException) {
+      return e.hasFieldErrors
+          ? e.fields.map((field) => field.message).toSet().join('\n')
+          : e.message;
+    }
+    if (e is FormatException) {
+      return 'The server returned incomplete order information. Refresh before continuing.';
+    }
+    return writing
+        ? 'The order could not be updated. Please try again.'
+        : 'The order could not be loaded. Please try again.';
+  }
+
   @override
   void dispose() {
     disposed = true;

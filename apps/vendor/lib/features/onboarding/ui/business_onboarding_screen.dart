@@ -1,3 +1,5 @@
+import 'branch_location_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'branch_setup_screen.dart';
 import 'setup_design.dart';
 import '../state/setup_progress.dart';
 import '../state/business_onboarding_controller.dart';
+import '../../orders/ui/order_feedback_dialog.dart';
 
 String _label(Object? value) =>
     value
@@ -82,6 +85,38 @@ Future<void> _showSetupFeedback(
       ),
     ),
   );
+}
+
+Future<void> openBusinessBankDetails(
+  BuildContext context,
+  VendorRuntime runtime,
+) async {
+  final controller = BusinessOnboardingController(runtime.backend);
+  try {
+    final loaded = await controller.loadBankProfile();
+    if (!context.mounted) return;
+    if (!loaded) {
+      await showOrderFeedback(
+        context,
+        title: 'Could not load bank details',
+        message: controller.error ?? 'Try opening bank details again.',
+        success: false,
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      setupRoute<void>(
+        _SetupForm(
+          controller: controller,
+          runtime: runtime,
+          kind: 'bank',
+          onSettings: () {},
+        ),
+      ),
+    );
+  } finally {
+    controller.dispose();
+  }
 }
 
 class BusinessOnboardingScreen extends StatefulWidget {
@@ -294,14 +329,6 @@ class _BusinessOnboardingScreenState extends State<BusinessOnboardingScreen> {
                 '${controller.branches.length} branches / ${controller.brands.length} brands',
                 Icons.location_on_outlined,
                 () => _edit('locations'),
-              ),
-              _step(
-                'Bank details',
-                controller.bank.isEmpty
-                    ? 'Add your business account'
-                    : '${controller.bank['masked_account']} / ${_label(controller.bank['status'])}',
-                Icons.account_balance_outlined,
-                () => _edit('bank'),
               ),
               _step(
                 'Documents & verification',
@@ -658,7 +685,6 @@ class _SetupFormState extends State<_SetupForm> {
       'representative',
       'capabilities',
       'locations',
-      'bank',
       'verification',
     ];
     final index = steps.indexOf(widget.kind);
@@ -1153,7 +1179,7 @@ class _SetupFormState extends State<_SetupForm> {
                 const SizedBox(height: 10),
               ],
               PrimaryAction(
-                label: 'Continue to bank details',
+                label: 'Continue to documents',
                 busy: _working,
                 onPressed:
                     _working || !c.branches.any((b) => b['status'] != 'CLOSED')
@@ -1166,30 +1192,29 @@ class _SetupFormState extends State<_SetupForm> {
     body: SetupFormSurface(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
-            child: SetupStepIndicator(
-              current: switch (widget.kind) {
-                'business' => 0,
-                'representative' => 1,
-                'capabilities' => 2,
-                'locations' || 'brand' || 'branch' => 3,
-                'bank' => 4,
-                _ => 5,
-              },
-              completed: [
-                for (final kind in [
-                  'business',
-                  'representative',
-                  'capabilities',
-                  'locations',
-                  'bank',
-                  'verification',
-                ])
-                  stepProgress(c, kind).state == SetupState.complete,
-              ],
+          if (widget.kind != 'bank')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
+              child: SetupStepIndicator(
+                current: switch (widget.kind) {
+                  'business' => 0,
+                  'representative' => 1,
+                  'capabilities' => 2,
+                  'locations' || 'brand' || 'branch' => 3,
+                  _ => 4,
+                },
+                completed: [
+                  for (final kind in [
+                    'business',
+                    'representative',
+                    'capabilities',
+                    'locations',
+                    'verification',
+                  ])
+                    stepProgress(c, kind).state == SetupState.complete,
+                ],
+              ),
             ),
-          ),
           Expanded(
             child: Form(
               key: _form,
@@ -1408,8 +1433,56 @@ class _SetupFormState extends State<_SetupForm> {
               _ => null,
             },
           ),
-        _input('latitude', 'Latitude', number: true),
-        _input('longitude', 'Longitude', number: true),
+        FormField<LatLng>(
+          initialValue:
+              double.tryParse(_field('latitude').text) != null &&
+                  double.tryParse(_field('longitude').text) != null
+              ? LatLng(
+                  double.parse(_field('latitude').text),
+                  double.parse(_field('longitude').text),
+                )
+              : null,
+          validator: (value) =>
+              value == null ? 'Choose your branch location on the map.' : null,
+          builder: (field) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.location_on_outlined),
+                title: Text(
+                  field.value == null
+                      ? 'Pin your branch location'
+                      : 'Branch location selected',
+                ),
+                subtitle: const Text(
+                  'Choose on the map or use your current location',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _working
+                    ? null
+                    : () async {
+                        final selected = await Navigator.of(context)
+                            .push<LatLng>(
+                              setupRoute<LatLng>(
+                                BranchLocationPicker(initial: field.value),
+                              ),
+                            );
+                        if (!mounted || selected == null) return;
+                        _field('latitude').text = selected.latitude.toString();
+                        _field('longitude').text = selected.longitude
+                            .toString();
+                        field.didChange(selected);
+                      },
+              ),
+              if (field.hasError)
+                Text(
+                  field.errorText!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+            ],
+          ),
+        ),
         _input(
           'timezone',
           'Timezone',

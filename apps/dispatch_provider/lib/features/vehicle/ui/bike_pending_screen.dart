@@ -25,11 +25,7 @@ class BikePendingScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: c.info.withValues(alpha: 0.12),
                 ),
-                child: Icon(
-                  Icons.schedule_rounded,
-                  size: 44,
-                  color: c.info,
-                ),
+                child: Icon(Icons.schedule_rounded, size: 44, color: c.info),
               ),
               const SizedBox(height: 24),
               Text(
@@ -37,7 +33,7 @@ class BikePendingScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: c.text,
                   letterSpacing: -0.4,
                 ),

@@ -41,7 +41,7 @@ class DisputesMock {
   /// Returns (or creates) the well-known support-chat complaint.
   static Complaint supportChatComplaint() {
     for (final c in _complaints) {
-      if (c.subject == 'Live chat support' &&
+      if (c.subject == 'Support Chat' &&
           c.status != 'resolved' &&
           c.status != 'closed') {
         return c;
@@ -52,7 +52,7 @@ class DisputesMock {
       id: 'KAR-CHAT',
       serviceType: 'dispatch',
       bookingReference: '',
-      subject: 'Live chat support',
+      subject: 'Support Chat',
       description: 'Live chat conversation with support.',
       status: 'open',
       createdAt: now,

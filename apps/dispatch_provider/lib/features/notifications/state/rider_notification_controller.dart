@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -11,11 +12,26 @@ class RiderNotificationController extends ChangeNotifier {
     required RiderNotificationApi api,
     required String? Function() accessToken,
     FlutterSecureStorage? storage,
-  })  : _api = api,
-        _accessToken = accessToken,
-        _storage = storage ?? const FlutterSecureStorage();
+  }) : _api = api,
+       _accessToken = accessToken,
+       _storage = storage ?? const FlutterSecureStorage();
 
-  static const _lastSeenKey = 'dp_notifications_last_seen';
+  String get _lastSeenKey =>
+      'dp_notifications_last_seen_${AppModeConfig.instance.current.name}_${_accountId()}';
+
+  String _accountId() {
+    try {
+      final parts = (_accessToken() ?? '').split('.');
+      final claims =
+          jsonDecode(
+                utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+              )
+              as Map;
+      return (claims['sub'] ?? 'anonymous').toString();
+    } catch (_) {
+      return AppModeConfig.instance.isMock ? 'demo' : 'anonymous';
+    }
+  }
 
   final RiderNotificationApi _api;
   final String? Function() _accessToken;

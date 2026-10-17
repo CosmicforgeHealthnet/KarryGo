@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/theme_extensions.dart';
 
 class NumericKeypad extends StatelessWidget {
@@ -7,74 +6,68 @@ class NumericKeypad extends StatelessWidget {
     super.key,
     required this.onKeyTap,
     this.textColor,
+    this.enabled = true,
   });
-
   final ValueChanged<String> onKeyTap;
-
-  /// Optional override for the digit color. Falls back to the theme's
-  /// `text` color so the keypad adapts to light/dark automatically.
   final Color? textColor;
-
-  static const _rows = [
-    ['1', '2', '3'],
-    ['4', '5', '6'],
-    ['7', '8', '9'],
-    ['', '0', 'backspace'],
-  ];
-
+  final bool enabled;
   @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    final digitColor = textColor ?? colors.text;
-
-    return Column(
-      children: _rows.map((row) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final row in const [
+        ['1', '2', '3'],
+        ['4', '5', '6'],
+        ['7', '8', '9'],
+        ['', '0', 'backspace'],
+      ])
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: row.map((key) {
-              if (key.isEmpty) {
-                return const SizedBox(width: 64, height: 44);
-              }
-              return GestureDetector(
-                onTap: () => onKeyTap(key),
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 64,
-                  height: 44,
-                  child: Center(
-                    child: key == 'backspace'
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.navy10,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.close,
-                              size: 16,
-                              color: digitColor,
-                            ),
-                          )
-                        : Text(
-                            key,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w600,
-                              color: digitColor,
+            children: [
+              for (final key in row)
+                Expanded(
+                  child: key.isEmpty
+                      ? const SizedBox(height: 50)
+                      : Semantics(
+                          label: key == 'backspace' ? 'Delete last digit' : key,
+                          button: true,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: enabled ? () => onKeyTap(key) : null,
+                              child: SizedBox(
+                                height: 50,
+                                child: Center(
+                                  child: key == 'backspace'
+                                      ? Icon(
+                                          Icons.backspace_outlined,
+                                          size: 22,
+                                          color:
+                                              textColor ??
+                                              context.palette.textMuted,
+                                        )
+                                      : Text(
+                                          key,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .headlineSmall
+                                              ?.copyWith(
+                                                color:
+                                                    textColor ??
+                                                    context.palette.text,
+                                              ),
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
-                  ),
+                        ),
                 ),
-              );
-            }).toList(),
+            ],
           ),
-        );
-      }).toList(),
-    );
-  }
+        ),
+    ],
+  );
 }

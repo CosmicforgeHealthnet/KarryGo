@@ -1,87 +1,82 @@
 import 'package:flutter/material.dart';
-
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/journey_icon.dart';
 
 class RouteInfo extends StatelessWidget {
-  const RouteInfo({super.key, required this.pickup, required this.dropoff});
+  const RouteInfo({
+    super.key,
+    required this.pickup,
+    required this.dropoff,
+    this.compact = false,
+  });
   final String pickup;
   final String dropoff;
-
+  final bool compact;
   @override
-  Widget build(BuildContext context) {
-    final colors = context.palette;
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: 18,
-            child: Column(
-              children: [
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: colors.brandNavy900,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Container(width: 2, color: colors.brandNavy900),
-                  ),
-                ),
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: colors.brandNavy900,
-                      width: 2.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _stop(context, 'PICKUP', pickup, JourneySymbol.parcel),
+      Padding(
+        padding: const EdgeInsets.only(left: 17),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            height: compact ? 8 : 14,
+            width: 1,
+            color: context.palette.divider,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pick-up',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  pickup,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.text,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Drop off',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  dropoff,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: colors.text,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
-    );
-  }
+      _stop(context, 'DELIVERY', dropoff, JourneySymbol.route),
+    ],
+  );
+  Widget _stop(
+    BuildContext context,
+    String title,
+    String address,
+    JourneySymbol symbol,
+  ) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: context.palette.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(child: JourneyIcon(symbol, size: 21)),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontSize: 9,
+                letterSpacing: 1.5,
+                color: context.palette.textMuted,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              address,
+              maxLines: compact ? 2 : null,
+              overflow: compact ? TextOverflow.ellipsis : null,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: context.palette.text,
+                fontWeight: FontWeight.w600,
+                fontSize: compact ? 12 : 13,
+                height: compact ? 1.3 : 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }

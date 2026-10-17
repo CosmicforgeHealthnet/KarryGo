@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:dispatch_provider/core/app_mode.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,13 @@ import 'package:dispatch_provider/features/notifications/state/rider_notificatio
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({});
+    await AppModeConfig.instance.setMode(AppMode.live);
+  });
+  tearDown(() async {
+    await AppModeConfig.instance.setMode(AppMode.mock);
+  });
 
   RiderNotificationApi buildApi(MockClient client) {
     return RiderNotificationApi(
@@ -113,5 +122,6 @@ void main() {
     expect(controller.error, isNotNull);
     // Existing items are retained on failure.
     expect(controller.notifications, hasLength(1));
+    controller.dispose();
   });
 }

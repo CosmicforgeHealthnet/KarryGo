@@ -1,3 +1,5 @@
+import '../../../shared/widgets/account_components.dart';
+import '../../../shared/widgets/journey_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
@@ -8,12 +10,10 @@ import '../../verification/state/verification_controller.dart';
 import '../../wallet/state/wallet_controller.dart';
 import '../state/provider_profile_controller.dart';
 import 'security_screen.dart';
+import '../../../core/network/provider_session.dart';
+import 'app_preferences_screen.dart';
+import '../../wallet/ui/earning_summary_screen.dart';
 import 'verification_intro_screen.dart';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Figma 17 — Account settings
-// Navy header (back + title + avatar row) + 7 rows matching Figma exactly.
-// ═══════════════════════════════════════════════════════════════════════════
 
 class StatsSettingsScreen extends StatelessWidget {
   const StatsSettingsScreen({
@@ -34,15 +34,24 @@ class StatsSettingsScreen extends StatelessWidget {
   final VoidCallback? onLogout;
 
   void _openPreferences(BuildContext context) {
-    _comingSoon(context, 'App preferences');
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AppPreferencesScreen()));
   }
 
   void _openNotifications(BuildContext context) {
-    _comingSoon(context, 'Notifications');
+    ProviderSession.of(context).openNotifications?.call();
   }
 
   void _openEarnings(BuildContext context) {
-    _comingSoon(context, 'Earnings summary');
+    if (walletController != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              EarningSummaryScreen(walletController: walletController!),
+        ),
+      );
+    }
   }
 
   void _openDocuments(BuildContext context) {
@@ -51,9 +60,6 @@ class StatsSettingsScreen extends StatelessWidget {
         builder: (_) => VerificationIntroScreen(
           verificationController: verificationController,
           vehicleController: vehicleController,
-          // profileController removed — VerificationIntroScreen no longer
-          // takes it. Guarantor and emergency are collected during
-          // onboarding and are not surfaced on the verification hub.
         ),
       ),
     );
@@ -74,9 +80,7 @@ class StatsSettingsScreen extends StatelessWidget {
       return;
     }
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => HelpCentreScreen(disputeController: d),
-      ),
+      MaterialPageRoute(builder: (_) => HelpCentreScreen(disputeController: d)),
     );
   }
 
@@ -102,245 +106,73 @@ class StatsSettingsScreen extends StatelessWidget {
   }
 
   void _comingSoon(BuildContext context, String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label coming soon.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$label coming soon.')));
   }
 
   @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    final profile = profileController.profile;
-    final initial = (profile?.fullName?.isNotEmpty == true)
-        ? profile!.fullName![0].toUpperCase()
-        : 'K';
-
-    return Scaffold(
-      backgroundColor: c.brandNavy900,
-      body: Column(
+  Widget build(BuildContext context) => AccountPage(
+    title: 'Settings',
+    symbol: JourneySymbol.preferences,
+    description: 'Make Karryam work for you.',
+    children: [
+      AccountSection(
+        title: 'Your experience',
         children: [
-          // ── Navy header with back + title + avatar row ──
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            size: 22,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Expanded(
-                        child: Text(
-                          'Account settings',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.22),
-                            width: 2,
-                          ),
-                        ),
-                        child: ClipOval(
-                          child:
-                              profile?.profilePhotoUrl?.isNotEmpty == true
-                                  ? Image.network(
-                                      profile!.profilePhotoUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) =>
-                                          _Initial(letter: initial),
-                                    )
-                                  : _Initial(letter: initial),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Karryam Provider',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              profile?.email ?? '—',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color:
-                                    Colors.white.withValues(alpha: 0.65),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          AccountMenuTile(
+            title: 'App preferences',
+            subtitle: 'Appearance, data source and offline updates',
+            symbol: JourneySymbol.preferences,
+            onTap: () => _openPreferences(context),
           ),
-
-          // ── White sheet ──
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: c.background,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
-              ),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                children: [
-                  _SettingsRow(
-                    icon: Icons.tune_rounded,
-                    label: 'App preferences',
-                    onTap: () => _openPreferences(context),
-                  ),
-                  _SettingsRow(
-                    icon: Icons.notifications_outlined,
-                    label: 'Notifications',
-                    onTap: () => _openNotifications(context),
-                  ),
-                  _SettingsRow(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: 'Earnings summary',
-                    onTap: () => _openEarnings(context),
-                  ),
-                  _SettingsRow(
-                    icon: Icons.folder_outlined,
-                    label: 'Documents',
-                    onTap: () => _openDocuments(context),
-                  ),
-                  _SettingsRow(
-                    icon: Icons.lock_outline_rounded,
-                    label: 'Security & privacy',
-                    onTap: () => _openSecurity(context),
-                  ),
-                  _SettingsRow(
-                    icon: Icons.support_agent_outlined,
-                    label: 'Help & support',
-                    onTap: () => _openHelp(context),
-                  ),
-                  _SettingsRow(
-                    icon: Icons.info_outline_rounded,
-                    label: 'About Karryam',
-                    onTap: () => _openAbout(context),
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
+          AccountMenuTile(
+            title: 'Notifications',
+            symbol: JourneySymbol.contact,
+            onTap: ProviderSession.of(context).openNotifications == null
+                ? null
+                : () => _openNotifications(context),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Initial extends StatelessWidget {
-  const _Initial({required this.letter});
-  final String letter;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.center,
-      color: Colors.white.withValues(alpha: 0.14),
-      child: Text(
-        letter,
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.isLast = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.palette;
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              children: [
-                Icon(icon, size: 22, color: c.text),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: c.text,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 22,
-                  color: c.textMuted,
-                ),
-              ],
+      AccountSection(
+        title: 'Account and earnings',
+        children: [
+          if (walletController != null)
+            AccountMenuTile(
+              title: 'Earnings',
+              symbol: JourneySymbol.earnings,
+              onTap: () => _openEarnings(context),
             ),
+          AccountMenuTile(
+            title: 'Documents',
+            symbol: JourneySymbol.review,
+            onTap: () => _openDocuments(context),
           ),
-        ),
-        if (!isLast) Divider(height: 1, color: c.divider),
-      ],
-    );
-  }
+          AccountMenuTile(
+            title: 'Security',
+            subtitle: 'Phone number and account safety',
+            symbol: JourneySymbol.key,
+            onTap: () => _openSecurity(context),
+          ),
+        ],
+      ),
+      AccountSection(
+        title: 'Help and information',
+        children: [
+          if (disputeController != null)
+            AccountMenuTile(
+              title: 'Help and support',
+              symbol: JourneySymbol.contact,
+              onTap: () => _openHelp(context),
+            ),
+          AccountMenuTile(
+            title: 'About Karryam',
+            symbol: JourneySymbol.partner,
+            onTap: () => _openAbout(context),
+          ),
+        ],
+      ),
+    ],
+  );
 }

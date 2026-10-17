@@ -22,8 +22,11 @@ class SupportScreen extends StatelessWidget {
                 onTap: () => Navigator.of(context).pop(),
                 child: const Align(
                   alignment: Alignment.centerLeft,
-                  child: Icon(Icons.arrow_back_ios_new,
-                      size: 20, color: Color(0xFF1A1A1A)),
+                  child: Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 20,
+                    color: Color(0xFF1A1A1A),
+                  ),
                 ),
               ),
             ),
@@ -42,7 +45,7 @@ class SupportScreen extends StatelessWidget {
                     'Contact Support!',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -72,14 +75,17 @@ class SupportScreen extends StatelessWidget {
                           LiveChatScreen(disputeController: disputeController),
                     ),
                   ),
-                  icon: const Icon(Icons.chat_bubble_outline,
-                      size: 18, color: Colors.white),
+                  icon: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 18,
+                    color: Color(0xFF081F44),
+                  ),
                   label: const Text(
                     'Start Chat',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                   style: FilledButton.styleFrom(

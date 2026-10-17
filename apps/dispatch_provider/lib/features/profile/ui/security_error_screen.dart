@@ -43,7 +43,7 @@ class SecurityErrorScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: c.text,
                 letterSpacing: -0.4,
               ),

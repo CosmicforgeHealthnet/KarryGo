@@ -350,7 +350,7 @@ class _LogDisputeScreenState extends State<LogDisputeScreen> {
                               height: 22,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: Color(0xFF081F44),
                               ),
                             )
                           : const Text(
@@ -466,7 +466,10 @@ class _ComplaintCard extends StatelessWidget {
 }
 
 class _TripPickerSheet extends StatelessWidget {
-  const _TripPickerSheet({required this.tripsController, required this.onSelect});
+  const _TripPickerSheet({
+    required this.tripsController,
+    required this.onSelect,
+  });
 
   final TripsController tripsController;
   final ValueChanged<TripModel> onSelect;

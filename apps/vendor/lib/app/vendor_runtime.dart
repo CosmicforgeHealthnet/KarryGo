@@ -5,9 +5,6 @@ import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.da
 import '../core/config/vendor_app_config.dart';
 import '../features/auth/data/vendor_session_store.dart';
 import '../features/auth/state/vendor_auth_controller.dart';
-import 'data/mock_vendor_client.dart';
-import 'data/mock_onboarding_store.dart';
-import 'data/mock_dashboard_data.dart';
 import 'data/vendor_preferences.dart';
 import 'vendor_app.dart';
 
@@ -29,7 +26,6 @@ class VendorRuntime extends ChangeNotifier {
     VendorPreferences? preferences,
     this.liveSessionStore,
     this.liveClientFactory,
-    this.mockLatency = const Duration(milliseconds: 450),
   }) : preferences = preferences ?? VendorPreferences();
   final VendorPreferences preferences;
   final VendorPreferences mockSupportPreferences = VendorPreferences(
@@ -37,7 +33,6 @@ class VendorRuntime extends ChangeNotifier {
   );
   final VendorSessionStore? liveSessionStore;
   final http.Client Function()? liveClientFactory;
-  final Duration mockLatency;
   bool introCompleted = false;
   bool balancesVisible = true;
   void toggleBalances() {
@@ -45,14 +40,17 @@ class VendorRuntime extends ChangeNotifier {
     _emit();
   }
 
-  VendorDataMode mode = VendorDataMode.mock;
-  MockDashboardScenario dashboardScenario = MockDashboardScenario.populated;
-  MockAuthScenario scenario = MockAuthScenario.multipleVendors;
-  MockOnboardingScenario onboardingScenario = MockOnboardingScenario.draft;
+  VendorDataMode get mode => VendorDataMode.live;
+  @protected
+  http.Client? createTransport() => liveClientFactory?.call();
+  String? get testVerificationCode => null;
   VendorPage page = VendorPage.splash;
-  String liveOrigin = const String.fromEnvironment('VENDOR_API_ORIGIN');
+  String liveOrigin = const String.fromEnvironment(
+    'VENDOR_API_ORIGIN',
+    defaultValue: kReleaseMode ? '' : 'https://vendor-api.staging.karryam.com',
+  );
   String identifier = '';
-  bool useEmail = false;
+  bool useEmail = true;
   String? error;
   String? selectedVendorId;
   DateTime? _expiresAt, _retryAt;
@@ -75,6 +73,9 @@ class VendorRuntime extends ChangeNotifier {
   bool get canRetry => _retry != null && canRequest;
   bool get canRequest => !busy && retrySeconds == 0;
   bool get suspended => error?.toLowerCase().contains('suspended') ?? false;
+  bool get noBusinessAccess =>
+      error?.startsWith('No active business is linked') == true ||
+      error?.startsWith('You do not have active staff access') == true;
   String get maskedIdentifier {
     if (useEmail) {
       final parts = identifier.split('@');
@@ -85,19 +86,6 @@ class VendorRuntime extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    try {
-      if (liveOrigin.isEmpty) {
-        liveOrigin = await preferences.read('vendor.settings.origin') ?? '';
-      }
-      final savedMode = await preferences.read('vendor.settings.mode');
-      mode =
-          VendorDataMode.values
-              .where((value) => value.name == savedMode)
-              .firstOrNull ??
-          VendorDataMode.mock;
-    } catch (_) {
-      error = 'Your saved settings could not be loaded.';
-    }
     if (_disposed) return;
     await _connect();
   }
@@ -116,32 +104,26 @@ class VendorRuntime extends ChangeNotifier {
     _emit();
     _app?.auth.removeListener(_emit);
     _app?.dispose();
+    _app = null;
     _transport?.close();
-    _transport = mode == VendorDataMode.mock
-        ? MockVendorClient(
-            scenario: scenario,
-            onboardingScenario: onboardingScenario,
-            dashboardScenario: dashboardScenario,
-            latency: mockLatency,
-          )
-        : liveClientFactory?.call();
-    _app = VendorApp(
-      config: VendorAppConfig(
-        origin: mode == VendorDataMode.mock
-            ? 'https://mock.karryam.invalid'
-            : liveOrigin,
-      ),
-      sessions: mode == VendorDataMode.mock
-          ? MemoryVendorSessionStore()
-          : liveSessionStore ??
-                SecureVendorSessionStore(
-                  namespace: Uri.parse(liveOrigin).origin,
-                ),
-      httpClient: _transport,
-    );
-    revision++;
-    auth.addListener(_emit);
     try {
+      _transport = createTransport();
+      _app = VendorApp(
+        config: VendorAppConfig(
+          origin: mode == VendorDataMode.mock
+              ? 'https://mock.karryam.invalid'
+              : liveOrigin,
+        ),
+        sessions: mode == VendorDataMode.mock
+            ? MemoryVendorSessionStore()
+            : liveSessionStore ??
+                  SecureVendorSessionStore(
+                    namespace: Uri.parse(liveOrigin).origin,
+                  ),
+        httpClient: _transport,
+      );
+      revision++;
+      auth.addListener(_emit);
       await backend.initialize();
       if (_disposed) return;
       if (mode == VendorDataMode.live && auth.session != null) {
@@ -160,35 +142,16 @@ class VendorRuntime extends ChangeNotifier {
       if (_disposed) return;
       page = VendorPage.signIn;
       _handleError(e);
+      if (_app == null) {
+        page = VendorPage.connectionError;
+        error =
+            'The app could not connect to its configured service. Try again or update the app.';
+      }
       _retry = _connect;
     } finally {
       _working = false;
       _emit();
     }
-  }
-
-  Future<void> changeMode(VendorDataMode next, {String? origin}) async {
-    if (busy) return;
-    final creatingAccount = registrationDraft != null;
-    if (next == VendorDataMode.live) {
-      final value = (origin ?? liveOrigin).trim();
-      VendorAppConfig(origin: value);
-      await preferences.write('vendor.settings.origin', value);
-      liveOrigin = value;
-    }
-    await preferences.write('vendor.settings.mode', next.name);
-    mode = next;
-    await _connect();
-    if (creatingAccount && page == VendorPage.signIn && auth.session == null) {
-      registrationDraft = <String, dynamic>{};
-      _emit();
-    }
-  }
-
-  Future<void> changeScenario(MockAuthScenario next) async {
-    if (busy || mode != VendorDataMode.mock) return;
-    scenario = next;
-    await _connect();
   }
 
   Future<void> finishIntro({bool registering = true}) async {
@@ -209,9 +172,15 @@ class VendorRuntime extends ChangeNotifier {
     _emit();
   }
 
+  void createAccount() {
+    editContact();
+    registrationDraft = <String, dynamic>{};
+    _emit();
+  }
+
   void editContact() {
     if (busy) return;
-    auth.sessionChanged(null);
+    _app?.auth.sessionChanged(null);
     _expiresAt = null;
     _retry = null;
     error = null;
@@ -348,7 +317,8 @@ class VendorRuntime extends ChangeNotifier {
       }
       if (value.statusCode == 403) page = VendorPage.accessUnavailable;
       if (value.code == ApiErrorCode.network ||
-          (value.statusCode ?? 0) >= 500) {
+          ((value.statusCode ?? 0) >= 500 &&
+              value.code != ApiErrorCode.serviceUnavailable)) {
         _retryPage = page;
         page = VendorPage.connectionError;
       }

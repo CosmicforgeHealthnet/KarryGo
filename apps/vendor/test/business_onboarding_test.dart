@@ -1,3 +1,4 @@
+import 'support/mock_vendor_runtime.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:vendor/core/theme/vendor_theme.dart';
@@ -5,8 +6,8 @@ import 'package:vendor/features/onboarding/ui/business_onboarding_screen.dart';
 import 'package:vendor/features/onboarding/ui/branch_setup_screen.dart';
 import 'package:vendor/features/onboarding/ui/setup_design.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vendor/app/data/mock_vendor_client.dart';
-import 'package:vendor/app/data/mock_onboarding_store.dart';
+import 'support/mock/mock_vendor_client.dart';
+import 'support/mock/mock_onboarding_store.dart';
 import 'package:vendor/app/data/vendor_preferences.dart';
 import 'package:vendor/app/vendor_runtime.dart';
 import 'package:vendor/features/onboarding/state/business_onboarding_controller.dart';
@@ -21,7 +22,7 @@ Future<VendorRuntime> signedIn({
   MockOnboardingScenario scenario = MockOnboardingScenario.draft,
 }) async {
   final r =
-      VendorRuntime(
+      MockVendorRuntime(
           preferences: VendorPreferences(inMemory: true),
           mockLatency: Duration.zero,
         )
@@ -238,7 +239,7 @@ void main() {
     },
   );
   testWidgets(
-    'brands and branches keeps a visible next action and opens bank setup',
+    'brands and branches continues directly to document verification',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
@@ -267,12 +268,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(locations);
       await tester.pumpAndSettle();
-      final next = find.text('Continue to bank details');
+      final next = find.text('Continue to documents');
       expect(next.hitTestable(), findsOneWidget);
       await tester.tap(next);
       await flushRequests(tester);
       await tester.pumpAndSettle();
-      expect(find.text('Your business account.'), findsOneWidget);
+      expect(find.text('Trust starts here.'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await flushRequests(tester);
@@ -319,9 +320,7 @@ void main() {
     expect(find.text('Built for your business.'), findsOneWidget);
     await tapLabel('Add branch');
     await tapLabel('Save & continue');
-    await tapLabel('Continue to bank details');
-    await tapLabel('Continue securely');
-    await tapLabel('Verify & save');
+    await tapLabel('Continue to documents');
     expect(find.text('Trust starts here.'), findsOneWidget);
     await tapLabel('Upload document');
     await tapLabel('Submit selected documents');
@@ -330,7 +329,7 @@ void main() {
     expect(c.representative['authorized'], isTrue);
     expect(c.branches, hasLength(1));
     expect(c.capabilities, hasLength(1));
-    expect(c.bank['masked_account'], isNotEmpty);
+    expect(c.bank, isEmpty);
     expect(c.documents.single['status'], 'SUBMITTED');
     expect(c.verifications.single['status'], 'PENDING_REVIEW');
     c.dispose();

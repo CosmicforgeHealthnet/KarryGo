@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vendor/app/data/mock_dashboard_data.dart';
+import 'support/mock/mock_dashboard_data.dart';
 import 'package:vendor/core/theme/vendor_theme.dart';
 import 'package:vendor/features/settings/state/settings_controller.dart';
 import 'package:vendor/features/settings/ui/settings_screen.dart';

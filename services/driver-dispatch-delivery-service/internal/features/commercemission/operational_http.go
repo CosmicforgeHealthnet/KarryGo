@@ -33,10 +33,12 @@ func RegisterProviderOperationalRoutes(engine *gin.Engine, tokens *authusecases.
 		}
 		c.Next()
 	})
+	group.POST("/:missionRef/evidence-content", handler.uploadOperationalEvidence)
 	group.POST("/:missionRef/evidence", handler.submitEvidence)
 	group.POST("/:missionRef/exceptions", handler.reportException)
 	group.POST("/:missionRef/returns", handler.startReturn)
 	group.POST("/:missionRef/returns/:returnId/complete", handler.completeReturn)
+	group.GET("/:missionRef/provider-transfers/:transferRef/credential", handler.transferCredential)
 	group.POST("/:missionRef/provider-transfers/start", handler.startTransfer)
 	group.POST("/:missionRef/provider-transfers/:transferRef/complete", handler.completeTransfer)
 }
@@ -161,4 +163,14 @@ func (h *OperationalHandler) listEvidence(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dispatchcommerce.Envelope[[]EvidenceRecord]{Success: true, Data: result})
+}
+
+func (h *OperationalHandler) transferCredential(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	result, err := h.service.ProviderTransferCredential(c.Request.Context(), authhttp.DispatchRiderID(c), c.Param("missionRef"), c.Param("transferRef"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dispatchcommerce.Envelope[TransferCredential]{Success: true, Data: result})
 }

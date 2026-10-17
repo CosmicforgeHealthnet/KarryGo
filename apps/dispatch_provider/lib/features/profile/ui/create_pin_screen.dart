@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/numeric_keypad.dart';
 import '../../wallet/state/wallet_controller.dart';
@@ -99,7 +100,7 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
     final pin = _isConfirming ? _confirmPin : _newPin;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -122,8 +123,11 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                     },
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: Icon(Icons.arrow_back_ios_new,
-                          size: 20, color: Color(0xFF1A1A1A)),
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 20,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -131,7 +135,7 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                     'Transaction Pin',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -148,7 +152,7 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
               _isConfirming ? 'Confirm New Pin!' : 'Create New Pin!',
               style: const TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1A1A1A),
               ),
             ),
@@ -182,8 +186,9 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                       : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF05124D),
-                    disabledBackgroundColor:
-                        const Color(0xFF05124D).withValues(alpha: 0.35),
+                    disabledBackgroundColor: const Color(
+                      0xFF05124D,
+                    ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -193,7 +198,7 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                             strokeWidth: 2,
                           ),
                         )
@@ -204,7 +209,7 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         ),
                 ),
@@ -234,10 +239,7 @@ class _PinDots extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFF05124D),
-              width: 1.5,
-            ),
+            border: Border.all(color: const Color(0xFF05124D), width: 1.5),
           ),
           child: Text(
             filled ? pin[i] : '',

@@ -1,3 +1,4 @@
+import '../../../core/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'create_password_screen.dart';
 import 'change_password_screen.dart';
@@ -16,16 +17,16 @@ class _PasswordScreenState extends State<PasswordScreen> {
   void _onToggle(bool value) {
     setState(() => _enabled = value);
     if (value) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CreatePasswordScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CreatePasswordScreen()));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -38,8 +39,11 @@ class _PasswordScreenState extends State<PasswordScreen> {
                     onTap: () => Navigator.of(context).pop(),
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: Icon(Icons.arrow_back_ios_new,
-                          size: 20, color: Color(0xFF1A1A1A)),
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 20,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -47,7 +51,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
                     'Passwords',
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
@@ -59,7 +63,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFEEEEEE)),
                       borderRadius: BorderRadius.circular(12),
@@ -111,22 +117,23 @@ class _PasswordScreenState extends State<PasswordScreen> {
                           if (_hasPassword) {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                  builder: (_) =>
-                                      const ChangePasswordScreen()),
+                                builder: (_) => const ChangePasswordScreen(),
+                              ),
                             );
                           } else {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                  builder: (_) =>
-                                      const CreatePasswordScreen()),
+                                builder: (_) => const CreatePasswordScreen(),
+                              ),
                             );
                           }
                         }
                       : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF05124D),
-                    disabledBackgroundColor:
-                        const Color(0xFF05124D).withValues(alpha: 0.35),
+                    disabledBackgroundColor: const Color(
+                      0xFF05124D,
+                    ).withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -136,7 +143,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Color(0xFF081F44),
                     ),
                   ),
                 ),

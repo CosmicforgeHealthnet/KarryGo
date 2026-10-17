@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 enum AppMode { mock, live }
+
+enum MockEntry { introduction, setup, dashboard }
 
 /// Global runtime switch between MOCK and LIVE modes.
 ///
@@ -17,6 +21,16 @@ class AppModeConfig extends ChangeNotifier {
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
+  static const _entryKey = 'dispatch_mock_entry_v2';
+  static const _journeyKey = 'dispatch_mock_journey_v2';
+  MockEntry _mockEntry = MockEntry.introduction;
+  MockEntry get mockEntry => _mockEntry;
+  Map<String, dynamic> _mockJourney = {};
+  Map<String, dynamic> get mockJourney => Map.unmodifiable(_mockJourney);
+  int _previewRevision = 0;
+  int get previewRevision => _previewRevision;
+  Future<void> _pendingSave = Future.value();
+
   AppMode _current = AppMode.mock;
   AppMode get current => _current;
   bool get isMock => _current == AppMode.mock;
@@ -25,6 +39,16 @@ class AppModeConfig extends ChangeNotifier {
   /// Loads the persisted mode. Call this before runApp().
   Future<void> load() async {
     try {
+      await _pendingSave;
+      final entry = await _storage.read(key: _entryKey);
+      _mockEntry = MockEntry.values.firstWhere(
+        (e) => e.name == entry,
+        orElse: () => MockEntry.introduction,
+      );
+      final journey = await _storage.read(key: _journeyKey);
+      _mockJourney = journey == null
+          ? {}
+          : Map<String, dynamic>.from(jsonDecode(journey) as Map);
       final raw = await _storage.read(key: _storageKey);
       final parsed = _parse(raw);
       if (parsed != _current) {
@@ -36,15 +60,44 @@ class AppModeConfig extends ChangeNotifier {
     }
   }
 
-  Future<void> setMode(AppMode mode) async {
-    if (_current == mode) return;
+  Future<void> setMode(AppMode mode, {MockEntry? mockEntry}) async {
+    final restartPreview = mode == AppMode.mock && mockEntry != null;
+    if (_current == mode && !restartPreview) return;
+    Future<void>? reset;
+    if (restartPreview) {
+      _mockEntry = mockEntry;
+      reset = saveMockJourney({});
+      _previewRevision++;
+    }
     _current = mode;
     notifyListeners();
     try {
       await _storage.write(key: _storageKey, value: mode.name);
+      await _storage.write(key: _entryKey, value: _mockEntry.name);
+      await reset;
     } catch (_) {
       // Persist failure shouldn't break the UI — mode is already applied.
     }
+  }
+
+  Future<void> saveMockJourney(Map<String, dynamic> journey) {
+    _mockJourney = Map.of(journey);
+    final encoded = jsonEncode(journey);
+    _pendingSave = _pendingSave.then((_) async {
+      try {
+        await _storage.write(key: _journeyKey, value: encoded);
+      } catch (_) {}
+    });
+    return _pendingSave;
+  }
+
+  @visibleForTesting
+  void resetMemoryForTesting() {
+    _pendingSave = Future.value();
+    _mockJourney = {};
+    _mockEntry = MockEntry.introduction;
+    _current = AppMode.mock;
+    _previewRevision = 0;
   }
 
   void toggle() {
@@ -52,7 +105,7 @@ class AppModeConfig extends ChangeNotifier {
   }
 
   AppMode _parse(String? raw) => switch (raw) {
-        'live' => AppMode.live,
-        _ => AppMode.mock,
-      };
+    'live' => AppMode.live,
+    _ => AppMode.mock,
+  };
 }

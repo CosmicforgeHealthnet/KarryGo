@@ -122,7 +122,7 @@ func (s *Service) ListInventoryBalances(ctx context.Context, actor Actor, scope 
 		return nil, err
 	}
 	defer rows.Close()
-	var out []InventoryAvailability
+	out := []InventoryAvailability{}
 	for rows.Next() {
 		var item InventoryAvailability
 		if err = rows.Scan(&item.BranchRef, &item.ListingRef, &item.VariantRef, &item.StockBasisRef, &item.PhysicalOnHand, &item.PhysicalAvailable, &item.ReservedQuantity, &item.QuarantinedQuantity, &item.InTransitQuantity, &item.BackorderQuantity, &item.InventoryRevision); err != nil {
@@ -152,7 +152,7 @@ func (s *Service) ListInventoryMovements(ctx context.Context, actor Actor, scope
 		return nil, false, err
 	}
 	defer rows.Close()
-	var out []InventoryMovement
+	out := []InventoryMovement{}
 	for rows.Next() {
 		var item InventoryMovement
 		if err = rows.Scan(&item.ID, &item.BranchRef, &item.StockBasisRef, &item.VariantRef, &item.LotRef, &item.MovementType, &item.Quantity, &item.OnHandDelta, &item.ReservedDelta, &item.QuarantinedDelta, &item.InTransitDelta, &item.SourceType, &item.SourceRef, &item.ReasonCode, &item.OccurredAt, &item.InventoryRevision); err != nil {

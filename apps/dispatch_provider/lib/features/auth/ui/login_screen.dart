@@ -1,3 +1,5 @@
+import '../../../shared/widgets/async_content.dart';
+import '../../../core/app_mode.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,7 +26,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _identifierController = TextEditingController(
-    text: kDebugMode ? '+2348077770001' : '',
+    text: AppModeConfig.instance.isMock ? '+2348000000000' : '',
   );
   bool _isLoading = false;
 
@@ -86,10 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                'assets/figma/splash_logo.png',
-                width: 88,
-              ),
+              Image.asset('assets/figma/splash_logo.png', width: 88),
               const SizedBox(height: 4),
               Text(
                 'Karryam',
@@ -194,11 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 14),
         Row(
           children: [
-            Icon(
-              Icons.verified_user_outlined,
-              size: 16,
-              color: c.brandTeal500,
-            ),
+            Icon(Icons.verified_user_outlined, size: 16, color: c.brandTeal500),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -237,8 +232,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: enabled ? _login : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: c.brandTeal500,
-                  disabledBackgroundColor:
-                      c.brandTeal500.withValues(alpha: 0.45),
+                  disabledBackgroundColor: c.brandTeal500.withValues(
+                    alpha: 0.45,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -248,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
+                          color: Color(0xFF081F44),
                           strokeWidth: 2,
                         ),
                       )
@@ -260,14 +256,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: Color(0xFF081F44),
                             ),
                           ),
                           SizedBox(width: 8),
                           Icon(
                             Icons.arrow_forward_rounded,
                             size: 20,
-                            color: Colors.white,
+                            color: Color(0xFF081F44),
                           ),
                         ],
                       ),
@@ -325,17 +321,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     FocusScope.of(context).unfocus();
 
-    final messenger = ScaffoldMessenger.of(context);
     final identifier = _normalizeLoginIdentifier(rawIdentifier);
     if (identifier == null) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Please enter a valid Nigerian phone number or email address.',
-          ),
-          backgroundColor: Colors.red.shade800,
-          duration: const Duration(seconds: 5),
-        ),
+      showDispatchError(
+        context,
+        'Please enter a valid Nigerian phone number or email address.',
       );
       return;
     }
@@ -352,13 +342,7 @@ class _LoginScreenState extends State<LoginScreen> {
         widget.onContinue(identifier);
       },
       failure: (error) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(_loginErrorMessage(error, rawIdentifier)),
-            backgroundColor: Colors.red.shade800,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        showDispatchError(context, _loginErrorMessage(error, rawIdentifier));
       },
     );
   }
@@ -403,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'No account found with this phone number. Please check it or sign up.';
 
       case ApiErrorCode.network:
-        return 'Cannot connect to Karryam server. Check backend URL/network and try again.';
+        return 'Could not connect. Check your connection and try again.';
 
       case ApiErrorCode.rateLimited:
         return 'Too many attempts. Please wait a moment and try again.';
@@ -464,13 +448,7 @@ class _FieldShellState extends State<_FieldShell> {
             width: _focused ? 1.6 : 1,
           ),
           boxShadow: _focused
-              ? [
-                  BoxShadow(
-                    color: focusRing,
-                    blurRadius: 0,
-                    spreadRadius: 4,
-                  ),
-                ]
+              ? [BoxShadow(color: focusRing, blurRadius: 0, spreadRadius: 4)]
               : const [],
         ),
         child: Row(

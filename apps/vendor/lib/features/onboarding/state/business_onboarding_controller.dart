@@ -121,6 +121,13 @@ class BusinessOnboardingController extends ChangeNotifier {
     }
   }
 
+  Future<bool> loadBankProfile() => run(() async {
+    final profile = await optional('/api/v1/vendor/onboarding/bank-profile');
+    if (_disposed) return;
+    bank = profile;
+    loaded = true;
+  });
+
   Future<void> load() => run(() async {
     VendorResponse businessResponse;
     try {

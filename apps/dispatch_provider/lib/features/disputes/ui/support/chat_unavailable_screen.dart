@@ -1,3 +1,4 @@
+import '../../../../shared/widgets/dispatch_screen_frame.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
@@ -10,19 +11,14 @@ import 'create_case_screen.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ChatUnavailableScreen extends StatelessWidget {
-  const ChatUnavailableScreen({
-    super.key,
-    required this.disputeController,
-  });
+  const ChatUnavailableScreen({super.key, required this.disputeController});
 
   final RiderDisputeController disputeController;
 
   Future<void> _openCreate(BuildContext context) async {
     final r = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => CreateCaseScreen(
-          disputeController: disputeController,
-        ),
+        builder: (_) => CreateCaseScreen(disputeController: disputeController),
       ),
     );
     if (!context.mounted) return;
@@ -43,17 +39,8 @@ class ChatUnavailableScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Expanded(

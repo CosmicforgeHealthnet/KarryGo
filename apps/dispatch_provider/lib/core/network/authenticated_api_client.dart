@@ -97,12 +97,17 @@ class AuthenticatedApiClient extends http.BaseClient {
         return await refreshSession().timeout(requestTimeout);
       } catch (error) {
         _debugLog('[API] refresh failed: ${_shortError(error)}');
-        return false;
+        rethrow;
       }
     }();
 
     _refreshInFlight = refresh;
-    refresh.whenComplete(() => _refreshInFlight = null);
+    refresh.then<void>(
+      (_) => _refreshInFlight = null,
+      onError: (Object _, StackTrace __) {
+        _refreshInFlight = null;
+      },
+    );
     return refresh;
   }
 

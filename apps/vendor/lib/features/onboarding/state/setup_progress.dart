@@ -118,7 +118,7 @@ bool canFinishSetup(BusinessOnboardingController c) {
   }
   if (c.readiness['ready'] == true) return true;
   if (c.submitted) return false;
-  if (c.requirements.isEmpty || c.capabilities.isEmpty || c.bank.isEmpty) {
+  if (c.requirements.isEmpty || c.capabilities.isEmpty) {
     return false;
   }
   return c.requirements.every(

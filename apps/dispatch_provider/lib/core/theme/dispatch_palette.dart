@@ -335,7 +335,7 @@ class DispatchPalette extends ThemeExtension<DispatchPalette> {
 
     // Button tokens
     btnPrimary: Color(0xFF00C2AB),
-    btnPrimaryFg: Color(0xFFFFFFFF),
+    btnPrimaryFg: Color(0xFF081F44),
     btnPrimaryDisabled: Color(0x6600C2AB),
     btnPrimaryDisabledFg: Color(0xB3FFFFFF),
     btnDanger: Color(0xFFFDECEE),
@@ -421,7 +421,7 @@ class DispatchPalette extends ThemeExtension<DispatchPalette> {
 
     // Button tokens
     btnPrimary: Color(0xFF00C2AB),
-    btnPrimaryFg: Color(0xFFFFFFFF),
+    btnPrimaryFg: Color(0xFF081F44),
     btnPrimaryDisabled: Color(0x6600C2AB),
     btnPrimaryDisabledFg: Color(0xB3FFFFFF),
     btnDanger: Color(0xFF3A1A1C),

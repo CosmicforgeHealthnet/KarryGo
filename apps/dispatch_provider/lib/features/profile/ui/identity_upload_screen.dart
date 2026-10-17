@@ -1,3 +1,4 @@
+import '../../../shared/widgets/dispatch_screen_frame.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -148,17 +149,8 @@ class _IdentityUploadScreenState extends State<IdentityUploadScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 22,
-                        color: c.text,
-                      ),
-                    ),
+                  DispatchBackButton(
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -188,8 +180,8 @@ class _IdentityUploadScreenState extends State<IdentityUploadScreen> {
                   Text(
                     'Upload your ID',
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
                       color: c.text,
                       letterSpacing: -0.4,
                     ),
@@ -350,7 +342,7 @@ class _SectionHeader extends StatelessWidget {
                       '$index',
                       style: const TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                     ),
@@ -359,8 +351,8 @@ class _SectionHeader extends StatelessWidget {
             Text(
               title,
               style: TextStyle(
-                fontSize: 15.5,
-                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
                 color: c.text,
                 letterSpacing: -0.2,
               ),
@@ -372,11 +364,7 @@ class _SectionHeader extends StatelessWidget {
           padding: const EdgeInsets.only(left: 32),
           child: Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 12.5,
-              color: c.textMuted,
-              height: 1.4,
-            ),
+            style: TextStyle(fontSize: 13, color: c.textMuted, height: 1.4),
           ),
         ),
       ],
@@ -422,8 +410,10 @@ class _NinCardReplica extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: const BoxDecoration(
                   color: nigeriaGreen,
                   borderRadius: BorderRadius.vertical(
@@ -455,7 +445,7 @@ class _NinCardReplica extends StatelessWidget {
                             'FEDERAL REPUBLIC OF NIGERIA',
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: 0.4,
                             ),
@@ -510,7 +500,8 @@ class _NinCardReplica extends StatelessWidget {
                               Expanded(
                                 child: _KV(
                                   label: 'Gender',
-                                  value: gender[0].toUpperCase() +
+                                  value:
+                                      gender[0].toUpperCase() +
                                       gender.substring(1),
                                 ),
                               ),
@@ -529,10 +520,7 @@ class _NinCardReplica extends StatelessWidget {
           top: -10,
           right: 12,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 5,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: c.success,
               borderRadius: BorderRadius.circular(999),
@@ -540,17 +528,13 @@ class _NinCardReplica extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.check_circle_rounded,
-                  size: 13,
-                  color: Colors.white,
-                ),
+                Icon(Icons.check_circle_rounded, size: 13, color: Colors.white),
                 SizedBox(width: 4),
                 Text(
                   'Captured',
                   style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 0.2,
                   ),
@@ -574,8 +558,18 @@ class _NinCardReplica extends StatelessWidget {
 
   static String _fmtDob(DateTime d) {
     const m = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${d.day} ${m[d.month - 1]} ${d.year}';
   }
@@ -650,10 +644,7 @@ class _ProfilePhotoPreview extends StatelessWidget {
           top: 4,
           right: 4,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 5,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: c.success,
               borderRadius: BorderRadius.circular(999),
@@ -661,17 +652,13 @@ class _ProfilePhotoPreview extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.check_circle_rounded,
-                  size: 13,
-                  color: Colors.white,
-                ),
+                Icon(Icons.check_circle_rounded, size: 13, color: Colors.white),
                 SizedBox(width: 4),
                 Text(
                   'Captured',
                   style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 0.2,
                   ),
@@ -781,11 +768,7 @@ class _DashedUpload extends StatelessWidget {
                   color: c.teal10,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  size: 28,
-                  color: c.brandTeal600,
-                ),
+                child: Icon(icon, size: 28, color: c.brandTeal600),
               ),
               const SizedBox(height: 14),
               Text(
@@ -797,10 +780,7 @@ class _DashedUpload extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                hint,
-                style: TextStyle(fontSize: 12.5, color: c.textMuted),
-              ),
+              Text(hint, style: TextStyle(fontSize: 13, color: c.textMuted)),
             ],
           ),
         ),
@@ -861,11 +841,7 @@ class _InfoChip extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.info_outline_rounded,
-            size: 18,
-            color: c.info,
-          ),
+          Icon(Icons.info_outline_rounded, size: 18, color: c.info),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
