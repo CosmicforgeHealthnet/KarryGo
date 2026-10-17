@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Persists auth tokens to the device keychain / encrypted shared preferences.
@@ -6,6 +9,7 @@ class TokenStorage {
   static const _accessTokenKey = 'dp_access_token';
   static const _refreshTokenKey = 'dp_refresh_token';
   static const _providerIdKey = 'dp_provider_id';
+  static const _deviceIdKey = 'dp_install_device_id';
 
   final FlutterSecureStorage _storage;
 
@@ -14,6 +18,19 @@ class TokenStorage {
         // Use encrypted shared preferences on Android (requires API 23+).
         aOptions: AndroidOptions(encryptedSharedPreferences: true),
       );
+
+  /// Anonymous, cryptographically random per-install device ID used for
+  /// backend device sessions. It is deliberately not a hardware identifier.
+  /// Logout clears account tokens but does not rotate this installation ID.
+  Future<String> getOrCreateDeviceId() async {
+    final existing = await _storage.read(key: _deviceIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final secureRandom = Random.secure();
+    final bytes = List<int>.generate(24, (_) => secureRandom.nextInt(256));
+    final deviceId = 'dp-${base64UrlEncode(bytes).replaceAll('=', '')}';
+    await _storage.write(key: _deviceIdKey, value: deviceId);
+    return deviceId;
+  }
 
   /// Saves access token, refresh token, and provider ID atomically.
   Future<void> saveTokens({
