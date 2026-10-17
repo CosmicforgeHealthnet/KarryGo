@@ -215,6 +215,19 @@ const (
 	AdminActionReject  AdminReviewAction = "reject"
 )
 
+// AdminFaceEvidenceResponse is restricted to platform administrators. File
+// references must be resolved through private, access-controlled media storage.
+// Do not expose this object through rider-facing or public read routes.
+type AdminFaceEvidenceResponse struct {
+	ProviderID string `json:"provider_id"`
+	FaceStepStatus StepStatus `json:"face_step_status"`
+	IdentityStepStatus StepStatus `json:"identity_step_status"`
+	SelfieReference string `json:"selfie_reference"`
+	GovernmentIDReference string `json:"government_id_reference"`
+	FaceCheckStatus string `json:"face_check_status"`
+	FaceCheckID string `json:"face_check_id"`
+}
+
 type AdminReviewRequest struct {
 	Step   Step              `json:"step"`
 	Action AdminReviewAction `json:"action"`
