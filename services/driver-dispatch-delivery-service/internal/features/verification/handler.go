@@ -40,6 +40,8 @@ func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handl
 
 	adminVerification := engine.Group("/api/v1/admin/verification")
 	adminVerification.Use(authhttp.DispatchRiderAuthRequired(tokens), requirePlatformAdminRole())
+	adminVerification.GET("/:provider_id/dossier", handler.GetFinalReviewDossier)
+	adminVerification.POST("/:provider_id/final-review", handler.FinalReview)
 	adminVerification.GET("/:provider_id/face-evidence", handler.GetAdminFaceEvidence)
 	adminVerification.GET("/:provider_id/face-evidence/:kind", handler.GetAdminFaceAsset)
 	adminVerification.PATCH("/:provider_id/review", handler.AdminReview)
@@ -153,6 +155,28 @@ func (h *Handler) GetAdminFaceAsset(c *gin.Context) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
 	c.Data(http.StatusOK, mimeType, content)
+}
+
+// One protected dossier summarizes automatic checks and human-only warnings.
+func (h *Handler) GetFinalReviewDossier(c *gin.Context) {
+	result, err := h.service.GetFinalReviewDossier(c.Request.Context(), c.Param("provider_id"))
+	if err != nil { httpx.Abort(c, err); return }
+	respondOK(c, result)
+}
+
+// A single final decision atomically approves all eligible identity steps.
+func (h *Handler) FinalReview(c *gin.Context) {
+	var decision FinalReviewDecision
+	if err := c.ShouldBindJSON(&decision); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Invalid final review decision.", err))
+		return
+	}
+	result, err := h.service.FinalReview(
+		c.Request.Context(), authhttp.DispatchRiderID(c),
+		httpx.GetRequestID(c), c.Param("provider_id"), decision,
+	)
+	if err != nil { httpx.Abort(c, err); return }
+	respondOK(c, result)
 }
 
 func (h *Handler) AdminReview(c *gin.Context) {
