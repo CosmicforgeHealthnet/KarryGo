@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_extensions.dart';
 import '../../verification/state/verification_controller.dart';
+import 'selfie_image_quality.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Figma 07 — Review your selfie
@@ -34,6 +35,16 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
 
+    final quality = await SelfieImageQuality.check(widget.selfieFilePath);
+    if (!mounted) return;
+    if (!quality.isUsable) {
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(quality.problem!)),
+      );
+      return;
+    }
+
     final result = await widget.verificationController.submitFace(
       selfieFilePath: widget.selfieFilePath,
     );
@@ -58,6 +69,26 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
     widget.verificationController.refreshStatus();
     // Bubble true up — capture screen forwards it to intro, hub sees success.
     Navigator.of(context).pop(true);
+  }
+
+  void _showCaptureHelp() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Selfie capture tips'),
+        content: const Text(
+          'Use the front camera in a well-lit room. Keep your full face '
+          'visible and hold the phone steady. If the photo looks blank, '
+          'use Retake instead of submitting it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -90,7 +121,7 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: _showCaptureHelp,
                     behavior: HitTestBehavior.opaque,
                     child: Padding(
                       padding: const EdgeInsets.all(8),
@@ -121,6 +152,17 @@ class _SelfieReviewScreenState extends State<SelfieReviewScreen> {
                         width: 280,
                         height: 320,
                         fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => SizedBox(
+                          width: 280,
+                          height: 320,
+                          child: Center(
+                            child: Text(
+                              'Unable to display this selfie. Please retake it.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: c.text),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
