@@ -486,6 +486,22 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 		auditAction = AuditActionRejected
 	}
 
+	// Reconcile the human decision on the stored face check. No numeric
+	// face-match score is invented during manual approval or rejection.
+	if s.inHouseManualReview && input.Step == StepFace {
+		check, found, lookupErr := s.repository.GetLastFaceCheck(ctx, providerID)
+		if lookupErr != nil { return AdminReviewResponse{}, lookupErr }
+		if found && check.ProviderUsed == "karryam_manual_review" && check.StepID == current.ID {
+			decision := "manual_rejected"
+			if input.Action == AdminActionApprove { decision = "manual_approved" }
+			if _, lookupErr = s.repository.UpdateFaceCheckResult(ctx, FaceCheckResultInput{
+				ID: check.ID, Result: &decision,
+			}); lookupErr != nil {
+				return AdminReviewResponse{}, lookupErr
+			}
+		}
+	}
+
 	// Insert audit row.
 	notes := input.Reason
 	var notesPtr *string
