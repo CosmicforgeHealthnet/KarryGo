@@ -151,25 +151,12 @@ class RequestsApi {
 
       if (response.statusCode == 200) {
         final body = _tryDecode(response.body);
-        if (body != null && body['success'] == true) {
-          final data = body['data'];
-          final raw = _extractList(data, listKey);
-          return ApiSuccess(
-            raw
-                .whereType<Map<String, dynamic>>()
-                .map(RequestModel.fromJson)
-                .toList(),
-          );
-        }
-        // Marketplace uses a different envelope: {"data": ..., "meta": ...}
-        if (body != null && body.containsKey('data')) {
-          final raw = _extractList(body['data'], listKey);
-          return ApiSuccess(
-            raw
-                .whereType<Map<String, dynamic>>()
-                .map(RequestModel.fromJson)
-                .toList(),
-          );
+        // Marketplace may omit the success field, but an explicit false
+        // must never be treated as success even when it includes data.
+        if (body != null &&
+            body['success'] != false &&
+            (body['success'] == true || body.containsKey('data'))) {
+          return _decodeRequestList(body['data'], listKey);
         }
         return _failureFromResponse(response);
       }
@@ -180,18 +167,41 @@ class RequestsApi {
     }
   }
 
-  static List<dynamic> _extractList(dynamic data, String? listKey) {
+  static ApiResult<List<RequestModel>> _decodeRequestList(
+      dynamic data, String? listKey) {
+    final raw = _extractList(data, listKey);
+    if (raw == null || !raw.every((item) => item is Map<String, dynamic>)) {
+      return _invalidOfferPayload();
+    }
+    final offers = raw.cast<Map<String, dynamic>>()
+        .map(RequestModel.fromJson).toList();
+    // Missing offer IDs must never result in an actionable phantom request.
+    if (offers.any((offer) => offer.id.trim().isEmpty)) {
+      return _invalidOfferPayload();
+    }
+    return ApiSuccess(offers);
+  }
+
+  static ApiFailure<List<RequestModel>> _invalidOfferPayload() =>
+      const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.unknown,
+          message: 'Received an invalid opportunities response. Please retry.',
+          statusCode: 200,
+        ),
+      );
+
+  static List<dynamic>? _extractList(dynamic data, String? listKey) {
     if (data is List) return data;
     if (data is Map<String, dynamic>) {
       if (listKey != null && data[listKey] is List) {
         return data[listKey] as List;
       }
-      // Common fallbacks.
-      for (final k in ['items', 'offers', 'assignments', 'data']) {
-        if (data[k] is List) return data[k] as List;
+      for (final key in ['items', 'offers', 'assignments', 'data']) {
+        if (data[key] is List) return data[key] as List;
       }
     }
-    return const [];
+    return null;
   }
 
   // A 202 only acknowledges asynchronous processing. It does not prove
