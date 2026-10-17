@@ -258,6 +258,20 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 		return FaceSubmissionResponse{}, err
 	}
 
+	if s.inHouseManualReview {
+		// Early local image prescreen avoids storing or queuing empty/blank
+		// captures. This is not a biometric verification result.
+		imageFile, openErr := input.Selfie.Header.Open()
+		if openErr != nil {
+			return FaceSubmissionResponse{}, apperrors.Internal("Could not inspect selfie.", openErr)
+		}
+		_, qualityErr := inspectSelfieImage(imageFile)
+		_ = imageFile.Close()
+		if qualityErr != nil {
+			return FaceSubmissionResponse{}, validationError("selfie", "The selfie is unreadable, too dark, too bright, or lacks detail. Please retake it.")
+		}
+	}
+
 	identity, ok, err := s.repository.GetStep(ctx, input.ProviderID, StepIdentity)
 	if err != nil {
 		return FaceSubmissionResponse{}, err
