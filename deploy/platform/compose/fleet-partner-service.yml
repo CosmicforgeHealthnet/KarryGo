@@ -17,7 +17,7 @@ services:
       - "127.0.0.1:8113:8113"
     mem_limit: 512m
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8113/ready"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8113/ready"]
       interval: 10s
       timeout: 3s
       retries: 12

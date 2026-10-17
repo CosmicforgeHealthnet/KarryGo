@@ -23,7 +23,7 @@ svc_compose up -d --no-deps --force-recreate "${targets[@]}"
 for c in $(app_containers); do
   log "waiting for $c to report healthy"
   if ! wait_healthy "$c" 120; then
-    docker logs --tail 40 "$c" 2>&1 | sed 's/^/    /' >&2 || true
+    docker logs --tail 40 "$c" 2>&1 | redact | sed 's/^/    /' >&2 || true
     die "$c is not healthy with the new settings. Check the value you changed in $SVC_ENV_PATH, then run this again."
   fi
 done

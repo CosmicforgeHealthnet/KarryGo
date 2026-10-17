@@ -69,7 +69,7 @@ for c in $(app_containers); do
   if ! wait_healthy "$c" 120; then
     healthy=false
     warn "$c did not become healthy. Its last log lines:"
-    docker logs --tail 40 "$c" 2>&1 | sed 's/^/    /' >&2 || true
+    docker logs --tail 40 "$c" 2>&1 | redact | sed 's/^/    /' >&2 || true
     break
   fi
 done

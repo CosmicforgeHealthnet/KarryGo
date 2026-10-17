@@ -18,6 +18,16 @@ log()  { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 warn() { printf '[%s] WARNING: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 die()  { printf '[%s] ERROR: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; exit 1; }
 
+# redact: blacks out passwords before anything is printed. Container logs are
+# shown when a deploy fails, and GitHub Actions logs of a public repo are
+# public, so a service that logs its own database address (some do, password
+# included) must not leak it there.
+redact() {
+  sed -E \
+    -e 's#(://[^:/@[:space:]]+:)[^@[:space:]]+@#\1***@#g' \
+    -e 's#((PASSWORD|SECRET|TOKEN|_KEY|PEPPER)[A-Za-z_]*[=:][[:space:]]*"?)[^"[:space:],]+#\1***#gI'
+}
+
 # The modern "docker compose" plugin, or the standalone v2 binary as a fallback.
 compose_bin() {
   if docker compose version >/dev/null 2>&1; then
