@@ -56,6 +56,35 @@ void main() {
     );
   });
 
+  test('marketplace retries use one consistent idempotency key', () async {
+    final headers = <String>[];
+    final bodyKeys = <String>[];
+    var attempt = 0;
+    final api = RequestsApi(_config, client: MockClient((req) async {
+      headers.add(req.headers['idempotency-key'] ??
+          req.headers['Idempotency-Key'] ?? '');
+      final payload = jsonDecode(req.body) as Map<String, dynamic>;
+      bodyKeys.add(payload['clientResponseId']?.toString() ?? '');
+      attempt++;
+      if (attempt == 1) return http.Response('unavailable', 503);
+      return _ok({});
+    }));
+    final offer = RequestModel.fromJson({
+      'offerId': 'org-offer-4',
+      'requestId': 'booking-4',
+      'version': 9,
+      'lifecycle': 'available',
+    });
+    expect((await api.accept(accessToken: _token, request: offer)).isFailure,
+        true);
+    expect((await api.accept(accessToken: _token, request: offer)).isSuccess,
+        true);
+    expect(headers, hasLength(2));
+    expect(headers.first, isNotEmpty);
+    expect(headers.last, headers.first);
+    expect(bodyKeys, everyElement(headers.first));
+  });
+
   test('invalid or negative HTTP 200 acknowledgements cannot accept an offer',
       () async {
     for (final response in [
