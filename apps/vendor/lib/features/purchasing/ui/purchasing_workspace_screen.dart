@@ -439,15 +439,19 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
     );
     if (!mounted) return null;
     setState(() => activeRoute = null);
+    // Refresh before the confirmation, so the list behind it already shows
+    // the new record instead of "No suppliers yet".
+    final saveError = c.error;
+    if (result != null) await c.load(status: filter);
+    if (!mounted) return null;
     await showOrderFeedback(
       context,
       title: result == null ? 'Could not confirm change' : 'Changes saved',
-      message: c.error ?? 'The latest purchasing record is ready.',
+      message: saveError ?? 'The latest purchasing record is ready.',
       success: result != null,
       warning: result == null,
     );
     if (result != null && mounted) {
-      await c.load(status: filter);
       if (method == 'POST' &&
           route == base &&
           ['suppliers', 'products', 'purchase-orders'].contains(kind) &&

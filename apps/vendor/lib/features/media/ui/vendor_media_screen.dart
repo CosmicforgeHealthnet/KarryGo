@@ -796,7 +796,17 @@ class _MediaPreviewState extends State<MediaPreview> {
     future: file,
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) {
-        return const PremiumSkeleton(rows: 1);
+        // Fills whatever box the photo sits in; a list skeleton here was
+        // taller than small photo slots and overflowed until the image came.
+        return ColoredBox(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(
+            child: SizedBox.square(
+              dimension: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
       }
       if (snapshot.hasError) {
         return InkWell(
