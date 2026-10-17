@@ -14,6 +14,9 @@ const _baseUrl = 'https://dispatch.example.test';
 http.Response _ok([List<Object> data = const []]) =>
     http.Response(jsonEncode({'success': true, 'data': data}), 200);
 
+http.Response _okBody(Object data) =>
+    http.Response(jsonEncode({'success': true, 'data': data}), 200);
+
 void main() {
   test('503 from optional offer endpoint is an outage, not an empty success',
       () async {
@@ -42,6 +45,36 @@ void main() {
     );
     final mandatory = await api.listBroadcasts(accessToken: 'test-token');
     expect(mandatory.isFailure, isTrue);
+  });
+
+  test('HTTP 200 malformed offers cannot masquerade as no jobs', () async {
+    for (final data in <Object>[
+      <String, Object>{'not_a_list': 1},
+      <Object>[7],
+      <Object>[<String, Object>{'pickup_address': 'No ID'}],
+    ]) {
+      final api = RequestsApi(
+        const ApiCoreConfig(baseUrl: _baseUrl),
+        client: MockClient((_) async => _okBody(data)),
+      );
+      expect(
+        (await api.listBroadcasts(accessToken: 'test-token')).isFailure,
+        isTrue,
+      );
+    }
+  });
+
+  test('success=false with data is still a failure', () async {
+    final api = RequestsApi(
+      const ApiCoreConfig(baseUrl: _baseUrl),
+      client: MockClient((_) async => http.Response(
+        jsonEncode({'success': false, 'data': []}), 200,
+      )),
+    );
+    expect(
+      (await api.listBroadcasts(accessToken: 'test-token')).isFailure,
+      isTrue,
+    );
   });
 
   group('opportunities end-to-end controller safety', () {
