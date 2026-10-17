@@ -31,13 +31,19 @@ class AppModeConfig extends ChangeNotifier {
   int get previewRevision => _previewRevision;
   Future<void> _pendingSave = Future.value();
 
-  AppMode _current = AppMode.mock;
-  AppMode get current => _current;
-  bool get isMock => _current == AppMode.mock;
-  bool get isLive => _current == AppMode.live;
+  AppMode _current = kReleaseMode ? AppMode.live : AppMode.mock;
+  AppMode get current => kReleaseMode ? AppMode.live : _current;
+  bool get isMock => !kReleaseMode && current == AppMode.mock;
+  bool get isLive => current == AppMode.live;
 
   /// Loads the persisted mode. Call this before runApp().
   Future<void> load() async {
+    // Never restore a demo account or mocked services in release builds.
+    if (kReleaseMode) {
+      _current = AppMode.live;
+      _mockJourney = {};
+      return;
+    }
     try {
       await _pendingSave;
       final entry = await _storage.read(key: _entryKey);
@@ -61,6 +67,7 @@ class AppModeConfig extends ChangeNotifier {
   }
 
   Future<void> setMode(AppMode mode, {MockEntry? mockEntry}) async {
+    if (kReleaseMode) return;
     final restartPreview = mode == AppMode.mock && mockEntry != null;
     if (_current == mode && !restartPreview) return;
     Future<void>? reset;
@@ -101,6 +108,7 @@ class AppModeConfig extends ChangeNotifier {
   }
 
   void toggle() {
+    if (kReleaseMode) return;
     setMode(isMock ? AppMode.live : AppMode.mock);
   }
 
