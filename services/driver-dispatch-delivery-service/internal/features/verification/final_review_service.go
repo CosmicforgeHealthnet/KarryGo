@@ -70,6 +70,19 @@ func (s *Service) GetFinalReviewDossier(ctx context.Context, providerID string) 
 	add("selfie_and_identity_linked",
 		evidenceErr == nil && found.FaceCheckStatus == "pending_review",
 		"Latest selfie must reference the current government ID and await a human decision")
+	// Approval is blocked until the reviewer can actually open BOTH assets
+	// using the private, authenticated media route. A mere URL is not enough.
+	mediaAvailable := evidenceErr == nil
+	if mediaAvailable {
+		for _, kind := range []string{"selfie", "government-id"} {
+			if _, _, err := s.GetAdminFaceAsset(ctx, providerID, kind); err != nil {
+				mediaAvailable = false
+				break
+			}
+		}
+	}
+	add("private_evidence_available", mediaAvailable,
+		"Both ID and selfie must be readable through protected reviewer media access")
 	checks = append(checks,
 		FinalReviewCheck{Name: "face_to_id_match", Status: "pending_manual",
 			Detail: "Human reviewer must compare the submitted ID portrait and selfie"},
