@@ -92,53 +92,44 @@ func TestInHouseFaceUploadNeverAutoApprovesAndDoesNotUseSmile(t *testing.T) {
 	if approved { t.Fatal("provider cannot become verified from a selfie upload") }
 }
 
-func TestInHouseFaceManualApprovalRequiresIdentityReviewAndEvidence(t *testing.T) {
+func TestInHousePerStepApprovalsCannotBypassOneFinalReview(t *testing.T) {
 	repo := seededFaceReadyRepo(t)
 	_, _, _ = submitForReview(t, repo)
 	svc := NewService(repo, nil, WithInHouseManualFaceReview())
-	ctx := context.Background()
-	review := AdminReviewRequest{Step: StepFace, Action: AdminActionApprove, Reason: "Government ID photo and selfie compared by authorized human reviewer."}
-	if _, err := svc.AdminReview(ctx, adminReviewTestAdminID, "corr", testProviderID, review); err == nil {
-		t.Fatal("face approved before government ID itself was approved")
+	for _, step := range []Step{StepIdentity, StepFace, StepLicence} {
+		_, err := svc.AdminReview(context.Background(), adminReviewTestAdminID, "corr", testProviderID, AdminReviewRequest{
+			Step: step, Action: AdminActionApprove, Reason: "Verified documents and selfie portrait",
+		})
+		if err == nil {
+			t.Fatalf("per-step %s approval bypassed the consolidated final review", step)
+		}
 	}
-	identity := repo.steps[testProviderID][StepIdentity]
-	identity.Status = StatusApproved
-	repo.steps[testProviderID][StepIdentity] = identity
-
-	missingNote := review; missingNote.Reason = ""
-	if _, err := svc.AdminReview(ctx, adminReviewTestAdminID, "corr", testProviderID, missingNote); err == nil {
-		t.Fatal("manual approval without reviewed evidence notes")
-	}
-	if _, err := svc.AdminReview(ctx, testProviderID, "corr", testProviderID, review); err == nil {
-		t.Fatal("provider can never review their own identity")
-	}
-	updated, err := svc.AdminReview(ctx, adminReviewTestAdminID, "corr", testProviderID, review)
-	if err != nil { t.Fatalf("manual face approval: %v", err) }
-	if updated.Status != StatusApproved { t.Fatalf("status=%s", updated.Status) }
-	if len(repo.auditRows) == 0 || repo.auditRows[len(repo.auditRows)-1].PerformedBy == nil {
-		t.Fatal("manual review must be attributable to an authorized reviewer")
+	if repo.steps[testProviderID][StepFace].Status == StatusApproved {
+		t.Fatal("per-step face verification unexpectedly approved")
 	}
 }
 
-func TestInHouseFaceManualApprovalBlocksMissingOrChangedEvidence(t *testing.T) {
+func TestInHouseDossierFlagsChangedOrMissingSelfieEvidence(t *testing.T) {
 	repo := seededFaceReadyRepo(t)
 	_, _, _ = submitForReview(t, repo)
-	identity := repo.steps[testProviderID][StepIdentity]
-	identity.Status = StatusApproved
-	repo.steps[testProviderID][StepIdentity] = identity
-	review := AdminReviewRequest{Step: StepFace, Action: AdminActionApprove, Reason: "Compared submitted ID photograph against rider selfie."}
 	svc := NewService(repo, nil, WithInHouseManualFaceReview())
 	ctx := context.Background()
-	repo.faceChecks[0].Result = nil
-	if _, err := svc.AdminReview(ctx, adminReviewTestAdminID, "corr", testProviderID, review); err == nil {
-		t.Fatal("missing pending-review evidence must prevent approval")
-	}
-	pending := "pending_review"
-	repo.faceChecks[0].Result = &pending
+	check, err := svc.GetFinalReviewDossier(ctx, testProviderID)
+	if err != nil { t.Fatal(err) }
+	if check.ReadyForReview { t.Fatal("vehicle and profile photo incomplete") }
+
+	// Even after all steps are submitted, changed identity evidence blocks.
+	vehicle := repo.steps[testProviderID][StepVehicle]
+	vehicle.Status = StatusApproved
+	repo.steps[testProviderID][StepVehicle] = vehicle
+	repo.documents = append(repo.documents, VerificationDocument{
+		ProviderID: testProviderID, StepID: repo.steps[testProviderID][StepIdentity].ID,
+		DocumentType: "profile_photo", FileURL: "local-private://verifications/photo.jpg",
+	})
 	repo.documents[0].FileURL = "local-private://updated-government-id"
-	if _, err := svc.AdminReview(ctx, adminReviewTestAdminID, "corr", testProviderID, review); err == nil {
-		t.Fatal("updated government ID requires a new selfie")
-	}
+	check, err = svc.GetFinalReviewDossier(ctx, testProviderID)
+	if err != nil { t.Fatal(err) }
+	if check.ReadyForReview { t.Fatal("changing ID invalidates selfie comparison") }
 }
 
 func TestInHouseEvidenceEndpointAdminsOnly(t *testing.T) {
