@@ -579,6 +579,43 @@ func (s *Service) GetAdminFaceEvidence(ctx context.Context, providerID string) (
 	}, nil
 }
 
+// GetAdminFaceAsset reads a verified reference from the DB, not a client
+// supplied URL. Served only via platform_admin auth. MediaFileUploader requires
+// a separately authenticated media reader; unsupported backends fail closed.
+func (s *Service) GetAdminFaceAsset(ctx context.Context, providerID, kind string) ([]byte, string, error) {
+	if kind != "selfie" && kind != "government-id" {
+		return nil, "", validationError("kind", "Expected selfie or government-id.")
+	}
+	evidence, err := s.GetAdminFaceEvidence(ctx, providerID)
+	if err != nil { return nil, "", err }
+	reader, ok := s.uploader.(interface{
+		OpenPrivate(context.Context, string) (io.ReadCloser, error)
+	})
+	if !ok {
+		return nil, "", apperrors.Unavailable("Private reviewer media access is not configured.", nil)
+	}
+	reference := evidence.SelfieReference
+	if kind == "government-id" { reference = evidence.GovernmentIDReference }
+	asset, err := reader.OpenPrivate(ctx, reference)
+	if err != nil {
+		return nil, "", apperrors.Unavailable("Reviewer evidence is currently unavailable.", err)
+	}
+	defer asset.Close()
+	bytes, err := io.ReadAll(io.LimitReader(asset, maxGovtIDFileSize+1))
+	if err != nil { return nil, "", apperrors.Internal("Could not read private evidence.", err) }
+	if len(bytes) == 0 || int64(len(bytes)) > maxGovtIDFileSize {
+		return nil, "", apperrors.BadRequest("Evidence file is invalid.", nil)
+	}
+	mimeType := http.DetectContentType(bytes)
+	if kind == "selfie" && mimeType != "image/jpeg" && mimeType != "image/png" {
+		return nil, "", apperrors.BadRequest("Selfie has unsupported content.", nil)
+	}
+	if kind == "government-id" && mimeType != "image/jpeg" && mimeType != "image/png" && mimeType != "application/pdf" {
+		return nil, "", apperrors.BadRequest("Identity evidence has unsupported content.", nil)
+	}
+	return bytes, mimeType, nil
+}
+
 func (s *Service) GetAllStatus(ctx context.Context, providerID string) (AllStatusResponse, error) {
 	if err := validateProviderID(providerID); err != nil {
 		return AllStatusResponse{}, err
