@@ -567,15 +567,14 @@ Future<Map<String, Map<String, String>>> catalogueChoices(
   if (resource.kind == CatalogueKind.menus && record == null) {
     final branchId = resource.branchId ?? app.scope.branchId;
     if (branchId == null) {
-      throw StateError('Choose a branch on your dashboard before adding a menu.');
+      throw StateError(
+        'Choose a branch on your dashboard before adding a menu.',
+      );
     }
     final response = await app.businessApi.request(
       'GET',
       '/api/v1/vendor/businesses/{businessId}/branches/{branchId}/capabilities',
-      pathParameters: {
-        'businessId': app.scope.vendorId!,
-        'branchId': branchId,
-      },
+      pathParameters: {'businessId': app.scope.vendorId!, 'branchId': branchId},
     );
     final data = response.data;
     final values = data is List ? data : (data as Map)['capabilities'];
@@ -1089,7 +1088,11 @@ class _CatalogueDetailScreenState extends State<CatalogueDetailScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(top: 12),
                                 child: Text(
-                                  '${dashboardLabel(key)}: ${(record![key] as List).join(', ')}',
+                                  '${key == 'dietary_codes' ? 'Dietary labels' : 'Allergens'}: '
+                                  '${(record![key] as List).map((c) {
+                                    final t = c.toString().replaceAll('_', ' ').toLowerCase();
+                                    return t.isEmpty ? t : t[0].toUpperCase() + t.substring(1);
+                                  }).join(', ')}',
                                 ),
                               ),
                         ],
