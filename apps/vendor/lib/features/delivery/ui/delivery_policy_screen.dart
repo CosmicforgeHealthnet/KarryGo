@@ -67,10 +67,7 @@ class _DeliveryPolicyScreenState extends State<DeliveryPolicyScreen> {
     if (filled || c.loading || c.stale) return;
     filled = true;
     final record = c.record ?? {};
-    currency.text =
-        record['currency']?.toString() ??
-        c.business?['currency']?.toString() ??
-        '';
+    currency.text = 'NGN';
     enabled = record['enabled'] == true;
     mode = record['delivery_mode']?.toString() ?? 'VENDOR';
     fee = record['fee_rule']?.toString() ?? 'DISTANCE_TIER';
@@ -239,7 +236,7 @@ class _DeliveryPolicyScreenState extends State<DeliveryPolicyScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (c.error != null) ...[
-                  Text(c.error!),
+                  Text(c.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   const SizedBox(height: 16),
                 ],
                 SettingsCard(
@@ -277,13 +274,9 @@ class _DeliveryPolicyScreenState extends State<DeliveryPolicyScreen> {
                 const SizedBox(height: 24),
                 const SettingsHeading('Delivery charges'),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: currency,
-                  maxLength: 3,
-                  textCapitalization: TextCapitalization.characters,
-                  readOnly: !c.canWrite,
-                  decoration: const InputDecoration(labelText: 'Currency'),
-                  onChanged: (_) => setState(() {}),
+                const InputDecorator(
+                  decoration: InputDecoration(labelText: 'Currency'),
+                  child: Text('Nigerian Naira (₦)'),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -343,7 +336,8 @@ class _DeliveryPolicyScreenState extends State<DeliveryPolicyScreen> {
                   readOnly: !c.canWrite,
                   maxLines: 2,
                   decoration: const InputDecoration(
-                    labelText: 'Change reason (optional)',
+                    labelText: 'Note about this change (optional)',
+                    helperText: 'You can leave this empty.',
                   ),
                 ),
                 const SizedBox(height: 20),

@@ -1,3 +1,4 @@
+import '../../../core/network/friendly_messages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -291,12 +292,12 @@ class RfqWorkspaceController extends ChangeNotifier {
           ? 'Check the RFQ details before submitting.'
           : pending == null
           ? 'Nothing was submitted. Recovery details could not be saved.'
-          : 'The outcome is unconfirmed. Retry the original saved change.';
+          : 'We could not confirm this was saved. Check your connection and tap retry. It will not be sent twice.';
       if (e is ApiException &&
           [400, 401, 403, 404, 409, 412, 422].contains(e.statusCode)) {
         if (e.statusCode == 403 &&
             pending != null &&
-            !e.message.toLowerCase().contains('step-up')) {
+            !serverMessageOf(e).contains('step-up')) {
           denied.add('${pending!['method']} ${pending!['path']}');
         }
         try {

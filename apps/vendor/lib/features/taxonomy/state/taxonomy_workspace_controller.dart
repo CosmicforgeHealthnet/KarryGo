@@ -150,9 +150,11 @@ class TaxonomyWorkspaceController extends ChangeNotifier {
       await read();
       stale = false;
     } catch (e) {
-      error = e is ApiException
+      error = e is ApiException && e.statusCode == 404
+          ? 'Karryam has not set up categories for this yet. Your item can still be sold. Check back later to classify it.'
+          : e is ApiException && e.statusCode != null && e.statusCode! < 500
           ? e.message
-          : 'Classification could not be loaded. Refresh to try again.';
+          : 'Classification could not be loaded. Check your connection and refresh.';
     } finally {
       loading = false;
       emit();

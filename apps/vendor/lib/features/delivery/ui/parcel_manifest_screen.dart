@@ -188,7 +188,7 @@ class _ParcelManifestScreenState extends State<ParcelManifestScreen> {
             if (loading)
               const PremiumSkeleton(detail: true)
             else if (error != null)
-              Text(error!)
+              Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))
             else ...[
               const SettingsHeading(
                 'Packed contents',

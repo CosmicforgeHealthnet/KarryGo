@@ -21,7 +21,9 @@ String requirementStep(JsonObject r) => switch (r['code']) {
   'AUTHORIZED_REPRESENTATIVE' => 'representative',
   'FIRST_BRANCH' => 'locations',
   _ => switch (r['dimension']) {
-    'IDENTITY' => 'representative',
+    // Identity is verified from the documents step; counting it here left the
+    // representative step looking unfinished after it was saved.
+    'IDENTITY' => 'verification',
     'BANK' => 'bank',
     'LOCATION' => 'locations',
     _ =>

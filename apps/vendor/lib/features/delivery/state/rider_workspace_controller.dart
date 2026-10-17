@@ -141,7 +141,7 @@ class RiderWorkspaceController extends ChangeNotifier {
           }
           if (branches.isEmpty) {
             branchError =
-                'No active branches are available for your rider role. Ask your manager to check your branch access.';
+                'None of your branches are open for deliveries yet. Ask your manager to finish setting up the branch or give you access to one.';
           }
         } catch (_) {
           branchError =

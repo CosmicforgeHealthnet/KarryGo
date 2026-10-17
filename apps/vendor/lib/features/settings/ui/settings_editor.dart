@@ -4,6 +4,7 @@ import '../../../core/contracts/vendor_contract.dart';
 import '../../../core/theme/vendor_theme.dart';
 import '../state/settings_controller.dart';
 import 'settings_design.dart';
+import '../../../core/widgets/nigerian_phone_prefix.dart';
 import '../../onboarding/ui/location_pick_field.dart';
 
 class SettingsEditor extends StatefulWidget {
@@ -77,7 +78,7 @@ class _SettingsEditorState extends State<SettingsEditor> {
       'longitude': 3.4219,
       'timezone': 'Africa/Lagos',
       'email': 'team@example.com',
-      'phone': '+2348012345678',
+      'phone': '8012345678',
     };
     final keys = switch (kind) {
       SettingsKind.profile => [
@@ -104,12 +105,13 @@ class _SettingsEditorState extends State<SettingsEditor> {
       _ => ['email', 'phone'],
     };
     for (final key in keys) {
+      final initial =
+          (values[key] ??
+                  (mock && widget.record == null ? defaults[key] : null))
+              ?.toString() ??
+          '';
       _fields[key] = TextEditingController(
-        text:
-            (values[key] ??
-                    (mock && widget.record == null ? defaults[key] : null))
-                ?.toString() ??
-            '',
+        text: isPhoneFieldKey(key) ? nigerianPhoneLocal(initial) : initial,
       );
     }
   }
@@ -136,7 +138,10 @@ class _SettingsEditorState extends State<SettingsEditor> {
             ...jsonObject(r['address'] ?? {}),
           };
           for (final field in _fields.entries) {
-            field.value.text = values[field.key]?.toString() ?? '';
+            final text = values[field.key]?.toString() ?? '';
+            field.value.text = isPhoneFieldKey(field.key)
+                ? nigerianPhoneLocal(text)
+                : text;
           }
           _brand = r['brand_id']?.toString() ?? '';
           _media = (r['media_refs'] as List? ?? []).map(jsonObject).toList();
@@ -160,7 +165,13 @@ class _SettingsEditorState extends State<SettingsEditor> {
     super.dispose();
   }
 
-  String value(String key) => _fields[key]!.text.trim();
+  String value(String key) {
+    final text = _fields[key]!.text.trim();
+    return isPhoneFieldKey(key) && text.isNotEmpty
+        ? nigerianPhoneForSubmit(text)
+        : text;
+  }
+
   Widget _field(
     String key,
     String label, {
@@ -182,7 +193,11 @@ class _SettingsEditorState extends State<SettingsEditor> {
           : key.contains('phone')
           ? TextInputType.phone
           : TextInputType.text,
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: isPhoneFieldKey(key) ? nigerianPhonePrefix : null,
+        hintText: isPhoneFieldKey(key) ? nigerianPhoneHint : null,
+      ),
       validator: (input) {
         final text = input?.trim() ?? '';
         if (required && text.isEmpty) return 'Enter ${label.toLowerCase()}.';
@@ -197,9 +212,8 @@ class _SettingsEditorState extends State<SettingsEditor> {
             !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(text)) {
           return 'Enter a valid email address.';
         }
-        if (key.contains('phone') &&
-            !RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(text)) {
-          return 'Include your country code, e.g. +234.';
+        if (isPhoneFieldKey(key)) {
+          return validateNigerianPhone(text, required: required);
         }
         if (key == 'currency' && !RegExp(r'^[A-Za-z]{3}$').hasMatch(text)) {
           return 'Use a three-letter currency code.';

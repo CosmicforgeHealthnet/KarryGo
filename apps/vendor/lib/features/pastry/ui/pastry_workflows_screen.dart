@@ -1419,7 +1419,7 @@ class _PastryWorkflowsScreenState extends State<PastryWorkflowsScreen> {
                   const PremiumSkeleton(detail: true)
                 else ...[
                   if (readError != null || c.error != null)
-                    SettingsNote(readError ?? c.error!, warning: true),
+                    SettingsNote(readError ?? c.error!),
                   if (c.pending != null) ...[
                     const SettingsNote(
                       'A saved change has an unconfirmed outcome. Retry it before making another change.',

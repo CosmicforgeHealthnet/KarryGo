@@ -1744,7 +1744,7 @@ class _CloudKitchenWorkspaceScreenState
                       c.error == null)
                     const PremiumSkeleton(detail: true),
                   if (readError != null || c.error != null) ...[
-                    SettingsNote(readError ?? c.error!, warning: true),
+                    SettingsNote(readError ?? c.error!),
                     SettingsAction(
                       'Refresh',
                       secondary: true,

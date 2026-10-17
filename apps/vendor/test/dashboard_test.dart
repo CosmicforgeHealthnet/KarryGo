@@ -170,6 +170,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Everyday grocery pack'));
     await flush(tester);
+    // Product details are longer than a small phone, so scroll to the link.
+    await tester.scrollUntilVisible(
+      find.text('Manage variants'),
+      220,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Manage variants'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
     Navigator.of(tester.element(find.text('Manage variants'))).pop();

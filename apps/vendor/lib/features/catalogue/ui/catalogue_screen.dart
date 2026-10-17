@@ -254,7 +254,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         builder: (_) => OrderFormSheet(
           title: 'Restore ${fresh['name']}?',
           message:
-              'The category will return to the active catalogue. The server will check its parent category.',
+              'The category will return to your active catalogue. If its parent category is archived, restore that first.',
           fields: const [],
           icon: Icons.restore_rounded,
         ),
@@ -912,7 +912,7 @@ class _CatalogueDetailScreenState extends State<CatalogueDetailScreen> {
         builder: (_) => OrderFormSheet(
           title: '${dashboardLabel(action)} ${widget.resource.singular}?',
           message: action == 'activate'
-              ? 'The server will check whether this entry can be activated.'
+              ? 'We will check that everything needed is in place before activating it.'
               : action == 'pause'
               ? 'Customers will no longer see this as an active catalogue entry.'
               : 'This entry will be retired. Existing orders keep their original details.',

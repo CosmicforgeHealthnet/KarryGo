@@ -81,7 +81,7 @@ class _HybridFallbackScreenState extends State<HybridFallbackScreen> {
               const PremiumSkeleton(detail: true)
             else ...[
               if (c.error != null) ...[
-                Text(c.error!),
+                Text(c.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 const SizedBox(height: 16),
               ],
               SettingsCard(

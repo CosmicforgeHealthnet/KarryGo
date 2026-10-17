@@ -12,6 +12,7 @@ import '../../../core/widgets/vendor_widgets.dart';
 import '../data/document_upload_client.dart';
 import 'branch_setup_screen.dart';
 import 'setup_design.dart';
+import '../../../core/widgets/nigerian_phone_prefix.dart';
 import '../state/setup_progress.dart';
 import '../state/business_onboarding_controller.dart';
 import '../../orders/ui/order_feedback_dialog.dart';
@@ -523,6 +524,11 @@ class _SetupFormState extends State<_SetupForm> {
   }
 
   String _initialValue(String key, Object? initial) {
+    final value = _rawInitialValue(key, initial);
+    return isPhoneFieldKey(key) ? nigerianPhoneLocal(value) : value;
+  }
+
+  String _rawInitialValue(String key, Object? initial) {
     final value = (initial ?? _record[key])?.toString() ?? '';
     if (value.isEmpty && widget.kind == 'business' && c.needsBusiness) {
       if (key == 'currency') return 'NGN';
@@ -597,7 +603,9 @@ class _SetupFormState extends State<_SetupForm> {
     child: TextFormField(
       controller: _field(key, initial: initial),
       enabled: !_working,
-      keyboardType: number
+      keyboardType: isPhoneFieldKey(key)
+          ? TextInputType.phone
+          : number
           ? const TextInputType.numberWithOptions(decimal: true, signed: true)
           : email
           ? TextInputType.emailAddress
@@ -608,6 +616,8 @@ class _SetupFormState extends State<_SetupForm> {
       decoration: InputDecoration(
         labelText: label,
         errorText: _fieldErrors[key],
+        prefixIcon: isPhoneFieldKey(key) ? nigerianPhonePrefix : null,
+        hintText: isPhoneFieldKey(key) ? nigerianPhoneHint : null,
       ),
       onChanged: (_) {
         if (_fieldErrors.containsKey(key)) {
@@ -616,6 +626,9 @@ class _SetupFormState extends State<_SetupForm> {
       },
       validator: (v) {
         final text = v?.trim() ?? '';
+        if (isPhoneFieldKey(key)) {
+          return validateNigerianPhone(text, required: required);
+        }
         if (required && text.isEmpty) return 'Enter $label';
         if (text.isEmpty) return null;
         if (min != null && text.length < min) {
@@ -632,7 +645,10 @@ class _SetupFormState extends State<_SetupForm> {
       },
     ),
   );
-  String _text(String key) => _fields[key]?.text.trim() ?? '';
+  String _text(String key) {
+    final value = _fields[key]?.text.trim() ?? '';
+    return isPhoneFieldKey(key) ? nigerianPhoneForSubmit(value) : value;
+  }
   Future<void> _task(
     Future<void> Function() action, [
     String activity = 'save',
@@ -1273,12 +1289,20 @@ class _SetupFormState extends State<_SetupForm> {
         ),
         _input('support_email', 'Support email', required: false, email: true),
         _input('support_phone', 'Support phone', required: false),
-        const SetupSectionLabel(
-          label: 'PREFERENCES',
-          caption: 'Set your working rhythm.',
+        // Karryam operates in Nigeria only: naira and Lagos time are fixed,
+        // so they are sent without asking the user to type codes.
+        Offstage(
+          child: Column(
+            children: [
+              _input('currency', 'Currency', min: 3, max: 3),
+              _input('timezone', 'Timezone'),
+            ],
+          ),
         ),
-        _input('currency', 'Currency code', min: 3, max: 3),
-        _input('timezone', 'Timezone'),
+        const Text(
+          'Prices are in Nigerian Naira (₦) and times use Lagos time (WAT).',
+          style: TextStyle(fontSize: 12, height: 1.6),
+        ),
       ],
       'representative' => [
         const SetupSectionLabel(
@@ -1862,7 +1886,9 @@ class _SetupFormState extends State<_SetupForm> {
       const SizedBox(height: 12),
       Text(
         c.submitted && c.readiness['ready'] != true
-            ? 'Your business is under review. Track each check above.'
+            ? 'Your business is under review. Our team checks every new '
+                  'business by hand, usually within one working day. You can '
+                  'set up your catalogue in the meantime.'
             : canFinishSetup(c)
             ? 'Your required checks are submitted or complete.'
             : 'Complete the outstanding checks above to submit your business.',

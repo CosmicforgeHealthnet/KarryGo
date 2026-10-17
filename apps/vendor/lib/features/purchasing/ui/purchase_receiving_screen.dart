@@ -175,7 +175,7 @@ class _PurchaseReceivingScreenState extends State<PurchaseReceivingScreen> {
               'Inspect ${po['supplier_sku_snapshot']}',
               Icons.fact_check_outlined,
               subtitle:
-                  '${po['purchase_quantity']} ordered ? ${po['received_purchase_quantity']} previously accepted',
+                  '${po['purchase_quantity']} ordered · ${po['received_purchase_quantity']} previously accepted',
               onTap: () => edit(poId: po['id']),
             ),
             const SizedBox(height: 12),

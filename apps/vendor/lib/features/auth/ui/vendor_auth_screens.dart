@@ -753,7 +753,7 @@ class VendorSessionScreen extends StatelessWidget {
                   ? runtime.suspended
                         ? 'Your access\nhas been suspended.'
                         : runtime.noBusinessAccess
-                        ? 'No business linked\nto this account.'
+                        ? 'No business\naccount found.'
                         : 'Sign-in not permitted.'
                   : 'Welcome back.',
               textAlign: TextAlign.center,
@@ -762,8 +762,13 @@ class VendorSessionScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               denied
-                  ? runtime.error ??
-                        'Contact your business owner to check your access.'
+                  ? runtime.noBusinessAccess
+                        ? '${runtime.maskedIdentifier} is not registered as a '
+                              'Karryam vendor. Create your business account to '
+                              'get started, or sign in with the number or email '
+                              'you registered with.'
+                        : runtime.error ??
+                              'Contact your business owner to check your access.'
                   : 'You’re signed in to your vendor account.',
               textAlign: TextAlign.center,
             ),
@@ -781,7 +786,16 @@ class VendorSessionScreen extends StatelessWidget {
     footer: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (denied)
+        if (denied && runtime.noBusinessAccess) ...[
+          PrimaryAction(
+            label: 'Create a business account',
+            onPressed: runtime.busy ? null : runtime.createAccount,
+          ),
+          TextButton(
+            onPressed: runtime.busy ? null : runtime.editContact,
+            child: const Text('Use a different number or email'),
+          ),
+        ] else if (denied)
           PrimaryAction(
             label: 'Use another account',
             onPressed: runtime.editContact,
@@ -790,11 +804,6 @@ class VendorSessionScreen extends StatelessWidget {
           TextButton(
             onPressed: runtime.busy ? null : runtime.signOut,
             child: const Text('Sign out'),
-          ),
-        if (denied && runtime.noBusinessAccess)
-          TextButton(
-            onPressed: runtime.busy ? null : runtime.createAccount,
-            child: const Text('Create a business account'),
           ),
         if (!denied)
           const Text(

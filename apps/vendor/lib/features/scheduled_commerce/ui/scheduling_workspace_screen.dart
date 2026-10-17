@@ -594,7 +594,7 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                       if (widget.recurring) ...[
                         fact(
                           'Meal time',
-                          '${c.record!['MealTime']} ? ${c.record!['Timezone']}',
+                          '${c.record!['MealTime']} · ${c.record!['Timezone']}',
                         ),
                         fact('Days', scheduleDays(c.record!['Weekdays'])),
                         fact(
@@ -613,7 +613,7 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                       ] else ...[
                         fact(
                           'Delivery window',
-                          '${scheduleDate(c.record!['DeliveryWindowStart'])} ? ${scheduleDate(c.record!['DeliveryWindowEnd'])}',
+                          '${scheduleDate(c.record!['DeliveryWindowStart'])} to ${scheduleDate(c.record!['DeliveryWindowEnd'])}',
                         ),
                         fact(
                           'Production ready by',
@@ -657,7 +657,7 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                             ),
                             const SizedBox(height: 7),
                             Text(
-                              '${occurrence['Headcount']} meals ? ${dashboardLabel(occurrence['Status'])}',
+                              '${occurrence['Headcount']} meals · ${dashboardLabel(occurrence['Status'])}',
                             ),
                             const SizedBox(height: 5),
                             Text(
@@ -728,16 +728,9 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                   ),
                 ],
                 const SizedBox(height: 20),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: const Text('References'),
-                  children: [
-                    fact('Schedule', c.record!['ID']),
-                    fact('Branch', c.record!['BranchID']),
-                    if (widget.recurring)
-                      fact('Corporate account', c.record!['CorporateRef']),
-                  ],
-                ),
+                if (widget.recurring &&
+                    '${c.record!['OrganizationName'] ?? ''}'.isNotEmpty)
+                  fact('Corporate account', c.record!['OrganizationName']),
               ],
             ],
           ),

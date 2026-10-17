@@ -123,7 +123,7 @@ class RecurringCreationController extends ChangeNotifier {
       error = e is ApiException
           ? e.message
           : pending != null
-          ? 'The outcome is unconfirmed. Retry the saved schedule to avoid duplicates.'
+          ? 'We could not confirm this was saved. Check your connection and tap retry. It will not be created twice.'
           : 'Nothing was submitted. Check the schedule details and try again.';
       if (e is ApiException &&
           [400, 401, 403, 404, 409, 412, 422].contains(e.statusCode)) {

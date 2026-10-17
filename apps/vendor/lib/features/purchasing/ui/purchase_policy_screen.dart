@@ -187,17 +187,17 @@ class _PurchasePolicyScreenState extends State<PurchasePolicyScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${rules[i]['branch_id'] == null ? 'All branches' : widget.branches.where((b) => b['id'] == rules[i]['branch_id']).firstOrNull?['display_name'] ?? rules[i]['branch_id']}',
+                    '${rules[i]['branch_id'] == null ? 'All branches' : widget.branches.where((b) => b['id'] == rules[i]['branch_id']).firstOrNull?['display_name'] ?? 'Branch'}',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
-                    '${rules[i]['required_approval_count']} approvals ? ${dashboardLabel(rules[i]['approval_scope'])}',
+                    '${rules[i]['required_approval_count']} approval${rules[i]['required_approval_count'] == 1 ? '' : 's'} · ${dashboardLabel(rules[i]['approval_scope'])}',
                   ),
                   Text(
-                    'From ${rules[i]['minimum_amount_minor']} to ${rules[i]['maximum_amount_minor'] ?? 'no upper limit'} (minor units)',
+                    'From ${dashboardMoney(rules[i]['minimum_amount_minor'], 'NGN')} to ${rules[i]['maximum_amount_minor'] == null ? 'no upper limit' : dashboardMoney(rules[i]['maximum_amount_minor'], 'NGN')}',
                   ),
                   if (rules[i]['step_up_required'] == true)
                     const Text('OTP verification required'),

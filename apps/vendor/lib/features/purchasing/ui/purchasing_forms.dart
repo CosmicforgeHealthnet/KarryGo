@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/contracts/vendor_contract.dart';
 import '../../dashboard/ui/dashboard_format.dart';
 import '../../settings/ui/settings_design.dart';
+import '../../../core/widgets/nigerian_phone_prefix.dart';
 
 class PurchaseField {
   const PurchaseField(
@@ -21,6 +22,9 @@ class PurchaseField {
   final int min;
   final int? max;
 }
+
+String _dateOnly(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 int? purchaseDecimal(String text) {
   if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(text.trim())) return null;
@@ -55,6 +59,10 @@ class _PurchaseFormState extends State<PurchaseForm> {
             ? ''
             : ['money', 'percent'].contains(f.kind)
             ? ((f.initial as num) / 100).toStringAsFixed(2)
+            : isPhoneFieldKey(f.key)
+            ? nigerianPhoneLocal('${f.initial}')
+            : f.kind == 'date' && DateTime.tryParse('${f.initial}') != null
+            ? _dateOnly(DateTime.parse('${f.initial}').toLocal())
             : '${f.initial}',
       ),
   };
@@ -77,6 +85,24 @@ class _PurchaseFormState extends State<PurchaseForm> {
     super.dispose();
   }
 
+  Future<void> pickDate(PurchaseField f) async {
+    final controller = text[f.key]!;
+    final current = DateTime.tryParse(controller.text.trim())?.toLocal();
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked == null || !mounted) return;
+    String two(int v) => v.toString().padLeft(2, '0');
+    setState(
+      () => controller.text =
+          '${picked.year}-${two(picked.month)}-${two(picked.day)}',
+    );
+  }
+
   void submit() {
     if (!form.currentState!.validate()) return;
     final body = <String, dynamic>{};
@@ -97,6 +123,7 @@ class _PurchaseFormState extends State<PurchaseForm> {
             'number' => int.parse(s),
             'money' || 'percent' => purchaseDecimal(s),
             'date' => DateTime.parse(s).toUtc().toIso8601String(),
+            _ when isPhoneFieldKey(f.key) => nigerianPhoneForSubmit(s),
             _ => s,
           };
         }
@@ -164,11 +191,15 @@ class _PurchaseFormState extends State<PurchaseForm> {
                       )
                     : TextFormField(
                         controller: text[f.key],
+                        readOnly: f.kind == 'date',
+                        onTap: f.kind == 'date' ? () => pickDate(f) : null,
                         keyboardType:
                             ['number', 'money', 'percent'].contains(f.kind)
                             ? const TextInputType.numberWithOptions(
                                 decimal: true,
                               )
+                            : isPhoneFieldKey(f.key)
+                            ? TextInputType.phone
                             : f.kind == 'date'
                             ? TextInputType.datetime
                             : TextInputType.text,
@@ -176,11 +207,25 @@ class _PurchaseFormState extends State<PurchaseForm> {
                         maxLines: f.kind == 'notes' ? 4 : 1,
                         decoration: InputDecoration(
                           labelText: f.label,
-                          hintText: f.kind == 'date'
-                              ? 'YYYY-MM-DD or date and time with timezone'
+                          prefixIcon: isPhoneFieldKey(f.key)
+                              ? nigerianPhonePrefix
+                              : null,
+                          suffixIcon: f.kind == 'date'
+                              ? const Icon(Icons.calendar_today_outlined)
+                              : null,
+                          hintText: isPhoneFieldKey(f.key)
+                              ? nigerianPhoneHint
+                              : f.kind == 'date'
+                              ? 'Tap to choose a date'
                               : null,
                         ),
                         validator: (v) {
+                          if (isPhoneFieldKey(f.key)) {
+                            return validateNigerianPhone(
+                              v,
+                              required: f.required,
+                            );
+                          }
                           final s = (v ?? '').trim();
                           if (s.isEmpty) {
                             return f.required

@@ -932,6 +932,46 @@ class _ScopeSheetState extends State<_ScopeSheet> {
         const Text(
           'Your branches could not be loaded. Close this sheet and try again.',
         ),
+      if (['ITEM', 'VARIANT'].contains(type)) ...[
+        if (label != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              label!,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final result = await pickPromotionItem(
+              context,
+              widget.runtime,
+              variant: type == 'VARIANT',
+            );
+            if (result == null || !mounted) return;
+            final picked = type == 'VARIANT'
+                ? result['variant_ref']
+                : result['item_ref'];
+            if (picked is! String || picked.isEmpty) {
+              setState(() => error = type == 'VARIANT'
+                  ? 'Choose a specific option of this item.'
+                  : 'Choose an item.');
+              return;
+            }
+            setState(() {
+              ref.text = picked;
+              label = result['label']?.toString();
+              error = null;
+            });
+          },
+          icon: const Icon(Icons.search_rounded),
+          label: Text(
+            label == null
+                ? (type == 'VARIANT' ? 'Choose an item option' : 'Choose an item')
+                : 'Change selection',
+          ),
+        ),
+      ],
       if (['CATEGORY', 'CAPABILITY', 'CUSTOMER_SEGMENT'].contains(type))
         if (loadingOptions)
           const Padding(

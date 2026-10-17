@@ -1,3 +1,4 @@
+import '../../../core/network/friendly_messages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -185,7 +186,7 @@ class SettingsController extends ChangeNotifier {
       error = message(e);
       if (e is ApiException &&
           e.statusCode == 403 &&
-          !e.message.toLowerCase().contains('step-up')) {
+          !serverMessageOf(e).contains('step-up')) {
         denied.add('$method $path');
       }
       if (e is! ApiException ||

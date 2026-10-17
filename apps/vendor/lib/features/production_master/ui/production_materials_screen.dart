@@ -1,4 +1,5 @@
 import 'material_setup_screen.dart';
+import '../../inventory/ui/branch_stock_screens.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../app/vendor_runtime.dart';
@@ -68,6 +69,50 @@ class ProductionMaterialsHub extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
+          SettingsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 42,
+                  color: KarryamColors.tealInk.forInk(context),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Branch stock',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Count what is on your shelves or move ingredients and packaging between branches.',
+                ),
+                const SizedBox(height: 24),
+                SettingsAction(
+                  'Count stock',
+                  icon: Icons.fact_check_outlined,
+                  onPressed: () => Navigator.push(
+                    context,
+                    setupRoute<void>(
+                      BranchStocktakeScreen(app: runtime.backend),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SettingsAction(
+                  'Move stock to another branch',
+                  icon: Icons.local_shipping_outlined,
+                  secondary: true,
+                  onPressed: () => Navigator.push(
+                    context,
+                    setupRoute<void>(
+                      BranchTransferScreen(app: runtime.backend),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     ),

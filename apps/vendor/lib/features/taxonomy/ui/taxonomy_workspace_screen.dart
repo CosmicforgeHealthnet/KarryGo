@@ -143,7 +143,7 @@ class _TaxonomyWorkspaceScreenState extends State<TaxonomyWorkspaceScreen> {
                   if (r['risk_level'] != null)
                     Text('Risk: ${dashboardLabel(r['risk_level'])}'),
                   if (r['expires_at'] != null)
-                    Text('Expires: ${r['expires_at']}'),
+                    Text('Expires: ${_day(r['expires_at'])}'),
                 ],
               ],
             ),
@@ -209,7 +209,7 @@ class _TaxonomyWorkspaceScreenState extends State<TaxonomyWorkspaceScreen> {
                     if (c.version != null) ...[
                       const SizedBox(height: 16),
                       Text(
-                        '${c.namespace == 'FOOD' ? 'Food' : 'Shop'} classification ? Published version ${c.version!['VersionNumber']}',
+                        '${c.namespace == 'FOOD' ? 'Food' : 'Shop'} classification · version ${c.version!['VersionNumber']}',
                       ),
                     ],
                   ],
@@ -660,4 +660,11 @@ class _NodeDetailState extends State<_NodeDetail> {
       );
     },
   );
+}
+
+String _day(Object? iso) {
+  final d = DateTime.tryParse(iso?.toString() ?? '')?.toLocal();
+  if (d == null) return '';
+  const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${d.day} ${m[d.month - 1]} ${d.year}';
 }

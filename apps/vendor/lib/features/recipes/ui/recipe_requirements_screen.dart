@@ -87,7 +87,7 @@ class _RecipeRequirementsScreenState extends State<RecipeRequirementsScreen> {
       for (final m in masters) '${m['id']}': '${m['name']}',
       for (final existing in rows)
         if (!masters.any((m) => m['id'] == existing[refKey]))
-          '${existing[refKey]}': '${existing[refKey]}',
+          '${existing[refKey]}': 'Archived material',
     };
     final mock = widget.runtime.mode == VendorDataMode.mock && index == null;
     final body = await purchaseForm(
@@ -108,7 +108,7 @@ class _RecipeRequirementsScreenState extends State<RecipeRequirementsScreen> {
         ),
         PurchaseField(
           'quantity_numerator',
-          'Quantity numerator',
+          'Quantity used',
           kind: 'number',
           required: true,
           min: 1,
@@ -118,7 +118,7 @@ class _RecipeRequirementsScreenState extends State<RecipeRequirementsScreen> {
         ),
         PurchaseField(
           'quantity_denominator',
-          'Quantity denominator',
+          'Divided by (usually 1)',
           kind: 'number',
           required: true,
           min: 1,
@@ -126,20 +126,12 @@ class _RecipeRequirementsScreenState extends State<RecipeRequirementsScreen> {
         ),
         PurchaseField(
           'unit_code',
-          'Unit code',
-          required: true,
+          "Unit (leave empty to use the material's own unit)",
           initial:
               r['unit_code'] ??
               (mock && masters.isNotEmpty
                   ? masters.first['default_unit_code']
                   : null),
-        ),
-        PurchaseField(
-          'sequence',
-          'Sequence',
-          kind: 'number',
-          required: true,
-          initial: r['sequence'] ?? rows.length,
         ),
         if (!widget.packaging) ...[
           PurchaseField(
@@ -170,7 +162,7 @@ class _RecipeRequirementsScreenState extends State<RecipeRequirementsScreen> {
         )) {
           return 'Each material can appear only once.';
         }
-        if ('${body['unit_code']}'.length > 80 ||
+        if ('${body['unit_code'] ?? ''}'.length > 80 ||
             '${body['preparation_note'] ?? ''}'.length > 1000) {
           return 'Shorten the unit code or preparation note.';
         }
@@ -179,7 +171,12 @@ class _RecipeRequirementsScreenState extends State<RecipeRequirementsScreen> {
     );
     if (body == null || !mounted) return;
     body.removeWhere((key, value) => value == null);
-    body['unit_code'] = '${body['unit_code']}'.trim().toUpperCase();
+    final unit = '${body['unit_code'] ?? ''}'.trim();
+    body['unit_code'] = (unit.isEmpty
+            ? '${masters.where((m) => m['id'] == body[refKey]).firstOrNull?['default_unit_code'] ?? ''}'
+            : unit)
+        .toUpperCase();
+    body['sequence'] = r['sequence'] ?? rows.length;
     setState(() {
       if (index == null) {
         rows.add(body);

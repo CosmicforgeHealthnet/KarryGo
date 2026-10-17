@@ -126,13 +126,13 @@ List<CatalogueField> catalogueFields(
       ),
       const CatalogueField(
         'dietary_codes',
-        'Dietary codes',
+        'Dietary labels (e.g. Vegan, Halal)',
         type: CatalogueInput.codes,
         section: 'Food information',
       ),
       const CatalogueField(
         'allergen_codes',
-        'Allergen codes',
+        'Allergens (e.g. Nuts, Milk)',
         type: CatalogueInput.codes,
         section: 'Food information',
       ),

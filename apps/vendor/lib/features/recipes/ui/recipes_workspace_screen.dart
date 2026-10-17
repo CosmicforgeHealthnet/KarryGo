@@ -430,7 +430,7 @@ class _RecipesWorkspaceScreenState extends State<RecipesWorkspaceScreen> {
         ),
         PurchaseField(
           'expected_output_numerator',
-          'Output quantity numerator',
+          'Recipe makes (quantity)',
           kind: 'number',
           required: true,
           min: 1,
@@ -438,7 +438,7 @@ class _RecipesWorkspaceScreenState extends State<RecipesWorkspaceScreen> {
         ),
         PurchaseField(
           'expected_output_denominator',
-          'Output quantity denominator',
+          'Divided by (usually 1)',
           kind: 'number',
           required: true,
           min: 1,
@@ -568,7 +568,7 @@ class _RecipesWorkspaceScreenState extends State<RecipesWorkspaceScreen> {
     final body = await purchaseForm(context, 'Scale requirements', [
       PurchaseField(
         'output_numerator',
-        'Target output numerator',
+        'Target quantity',
         kind: 'number',
         required: true,
         min: 1,
@@ -576,7 +576,7 @@ class _RecipesWorkspaceScreenState extends State<RecipesWorkspaceScreen> {
       ),
       PurchaseField(
         'output_denominator',
-        'Target output denominator',
+        'Divided by (usually 1)',
         kind: 'number',
         required: true,
         min: 1,

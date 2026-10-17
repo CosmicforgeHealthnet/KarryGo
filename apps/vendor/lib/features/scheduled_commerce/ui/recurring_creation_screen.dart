@@ -174,7 +174,7 @@ class _RecurringCreationScreenState extends State<RecurringCreationScreen> {
                 else if (creation.pending != null) ...[
                   const SettingsHeading('Finish your saved schedule'),
                   const SettingsNote(
-                    'A previous submission has an unconfirmed outcome. Retry the same schedule before creating another.',
+                    'We could not confirm your last meal schedule was saved, possibly because the connection dropped. Tap retry to send it again. It will not be created twice.',
                     warning: true,
                   ),
                   SettingsFact(
@@ -213,7 +213,7 @@ class _RecurringCreationScreenState extends State<RecurringCreationScreen> {
                         'Use its account, destination, menu and capacity settings for a new schedule.',
                   ),
                   if (plans.error != null) ...[
-                    SettingsNote(plans.error!, warning: true),
+                    SettingsNote(plans.error!),
                     SettingsAction(
                       'Try again',
                       secondary: true,

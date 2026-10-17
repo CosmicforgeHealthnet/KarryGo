@@ -278,7 +278,7 @@ class AccessArtwork extends StatelessWidget {
             child: Icon(
               icon,
               size: size * .31,
-              color: KarryamColors.teal.forInk(context),
+              color: color.forInk(context),
             ),
           ),
         ),

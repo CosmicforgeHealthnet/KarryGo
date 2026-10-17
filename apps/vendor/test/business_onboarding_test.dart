@@ -64,7 +64,15 @@ void main() {
           // only a ready business can request activation.
           scenario == MockOnboardingScenario.ready,
         );
+        // Identity review is counted in the documents step, so a saved
+        // representative is complete while identity is still under review.
         expect(stepProgress(c, 'representative').state, switch (scenario) {
+          MockOnboardingScenario.draft => SetupState.notStarted,
+          // A suspended business blocks every step it owns.
+          MockOnboardingScenario.suspended => SetupState.attention,
+          _ => SetupState.complete,
+        });
+        expect(stepProgress(c, 'verification').state, switch (scenario) {
           MockOnboardingScenario.ready => SetupState.complete,
           MockOnboardingScenario.pendingReview => SetupState.underReview,
           MockOnboardingScenario.draft => SetupState.notStarted,

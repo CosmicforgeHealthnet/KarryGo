@@ -35,7 +35,8 @@ void main() {
       final c = VendorAppearance();
       addTearDown(c.dispose);
       await c.load();
-      expect(c.mode, ThemeMode.system);
+      // The app starts in Light until the vendor picks otherwise.
+      expect(c.mode, ThemeMode.light);
       await c.select(ThemeMode.dark);
       expect(values['vendor.appearance'], 'dark');
       final restored = VendorAppearance();
@@ -70,10 +71,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Light is the default, so a dark phone does not darken the app yet.
     expect(
       Theme.of(tester.element(find.byType(AppearancePicker))).brightness,
-      Brightness.dark,
+      Brightness.light,
     );
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(c.mode, ThemeMode.dark);
     await tester.tap(find.text('Light'));
     await tester.pumpAndSettle();
     expect(c.mode, ThemeMode.light);

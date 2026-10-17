@@ -77,7 +77,7 @@ class _RiderAssignmentScreenState extends State<RiderAssignmentScreen> {
               const PremiumSkeleton(rows: 3)
             else ...[
               if (c.error != null) ...[
-                Text(c.error!),
+                Text(c.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 const SizedBox(height: 16),
                 SettingsAction(
                   'Refresh riders',

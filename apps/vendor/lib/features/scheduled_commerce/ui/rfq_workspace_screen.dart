@@ -550,7 +550,7 @@ class _RfqWorkspaceScreenState extends State<RfqWorkspaceScreen> {
                     ),
                   if (c.pending != null) ...[
                     const SettingsNote(
-                      'A quotation has an unconfirmed outcome. Retry the saved submission before creating another.',
+                      'We could not confirm your last quotation was sent, possibly because the connection dropped. Tap retry to send it again. It will not be sent twice.',
                       warning: true,
                     ),
                     SettingsAction(
@@ -561,7 +561,7 @@ class _RfqWorkspaceScreenState extends State<RfqWorkspaceScreen> {
                     ),
                   ],
                   if (readError != null)
-                    SettingsNote(readError!, warning: true),
+                    SettingsNote(readError!),
                   if (widget.id != null && c.record != null) ...detail(),
                   if (widget.id == null) ...[
                     const SettingsHeading(

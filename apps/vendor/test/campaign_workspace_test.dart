@@ -174,8 +174,9 @@ void main() {
         ))?['status'],
         'CANCELLED',
       );
-      for (final c in [list, reopened, runs, deliveries, history, recovered])
+      for (final c in [list, reopened, runs, deliveries, history, recovered]) {
         c.dispose();
+      }
       app.client.close();
     },
   );

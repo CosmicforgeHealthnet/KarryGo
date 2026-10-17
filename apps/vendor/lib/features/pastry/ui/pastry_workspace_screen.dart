@@ -1380,7 +1380,7 @@ class _PastryWorkspaceScreenState extends State<PastryWorkspaceScreen> {
                   const PremiumSkeleton(detail: true)
                 else ...[
                   if (error != null || c.error != null)
-                    SettingsNote(error ?? c.error!, warning: true),
+                    SettingsNote(error ?? c.error!),
                   if (c.pending != null) ...[
                     const SettingsNote(
                       'A previous change has an unconfirmed outcome. Retry it before making another change.',

@@ -242,7 +242,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
       final body = await purchaseForm(context, 'Create production batch', [
         PurchaseField(
           'planned_output_numerator',
-          'Planned output numerator',
+          'How much to make (${version['output_unit_code'] ?? 'units'})',
           kind: 'number',
           required: true,
           min: 1,
@@ -252,21 +252,14 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         ),
         PurchaseField(
           'planned_output_denominator',
-          'Planned output denominator',
+          'Divided by (usually 1)',
           kind: 'number',
           required: true,
           min: 1,
           initial: 1,
         ),
-        PurchaseField(
-          'production_job_id',
-          'Production job reference (optional)',
-        ),
       ]);
       if (body == null || !mounted) return;
-      if ('${body['production_job_id'] ?? ''}'.isEmpty) {
-        body.remove('production_job_id');
-      }
       body.addAll({
         'branch_id': r['branch_id'],
         'recipe_id': r['id'],
@@ -368,7 +361,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    materialNames[r['reference_id']] ?? '${r['reference_id']}',
+                    materialNames[r['reference_id']] ?? 'Material',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
@@ -447,7 +440,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         if (action == 'inventory-adjustments')
           PurchaseField(
             'quantity',
-            'Additional inventory units',
+            'Extra stock to set aside',
             kind: 'number',
             required: true,
             min: 1,
@@ -457,8 +450,8 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
           PurchaseField(
             'quantity_numerator',
             action == 'waste'
-                ? 'Additional waste numerator'
-                : 'Used quantity numerator',
+                ? 'Extra quantity wasted'
+                : 'Quantity used',
             kind: 'number',
             required: true,
             min: action == 'waste' ? 1 : 0,
@@ -468,7 +461,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
           ),
           PurchaseField(
             'quantity_denominator',
-            'Quantity denominator',
+            'Divided by (usually 1)',
             kind: 'number',
             required: true,
             min: 1,
@@ -480,8 +473,17 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         if (action == 'waste')
           PurchaseField(
             'reason_code',
-            'Waste reason code',
+            'Why was it wasted?',
+            kind: 'select',
             required: true,
+            options: purchaseEnums([
+              'PREPARATION_LOSS',
+              'SPOILED',
+              'SPILLED',
+              'BURNT',
+              'QUALITY_REJECT',
+              'OTHER',
+            ]),
             initial: mock ? 'PREPARATION_LOSS' : null,
           ),
       ],
@@ -489,7 +491,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         if (row['inventory_controlled'] == true &&
             action != 'inventory-adjustments' &&
             body['quantity_denominator'] != 1) {
-          return 'Controlled inventory requires a whole inventory quantity.';
+          return 'Enter a whole quantity for stock-tracked materials.';
         }
         return null;
       },
@@ -532,7 +534,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
       [
         PurchaseField(
           'actual_output_numerator',
-          'Actual output numerator',
+          'How much was made',
           kind: 'number',
           required: true,
           min: 1,
@@ -542,7 +544,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         ),
         PurchaseField(
           'actual_output_denominator',
-          'Actual output denominator',
+          'Divided by (usually 1)',
           kind: 'number',
           required: true,
           min: 1,
@@ -618,7 +620,9 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         for (final item in rows) {
           c.validate(item);
           choices['${item['inventory_item_id']}'] =
-              '${item['inventory_item_id']}';
+              '${item['name'] ?? ''}'.isNotEmpty
+              ? '${item['name']}'
+              : 'Stock item ${choices.length + 1}';
         }
         offset += rows.length;
         if (rows.length < 200) break;
@@ -629,8 +633,10 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
     }
     if (!mounted) return;
     if ('${row['prepared_inventory_item_id'] ?? ''}'.isNotEmpty) {
-      choices['${row['prepared_inventory_item_id']}'] =
-          '${row['prepared_inventory_item_id']}';
+      choices.putIfAbsent(
+        '${row['prepared_inventory_item_id']}',
+        () => 'Current stock item',
+      );
     }
     final body = await purchaseForm(
       context,
@@ -638,7 +644,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
       [
         PurchaseField(
           'operating_model',
-          'Operating model',
+          'How you produce',
           kind: 'select',
           required: true,
           options: purchaseEnums(['ON_DEMAND', 'BATCH_STOCK']),
@@ -646,14 +652,14 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         ),
         PurchaseField(
           'prepared_inventory_item_id',
-          'Prepared inventory item',
+          'Stock item for prepared output',
           kind: 'select',
           options: choices,
           initial: row['prepared_inventory_item_id'],
         ),
         PurchaseField(
           'output_inventory_numerator',
-          'Output conversion numerator',
+          'Stock units per output (quantity)',
           kind: 'number',
           required: true,
           min: 1,
@@ -661,7 +667,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
         ),
         PurchaseField(
           'output_inventory_denominator',
-          'Output conversion denominator',
+          'Divided by (usually 1)',
           kind: 'number',
           required: true,
           min: 1,
@@ -788,7 +794,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
                       ),
                       const SizedBox(height: 20),
                       metrics({
-                        'Operating model': dashboardLabel(
+                        'How you produce': dashboardLabel(
                           c.record!['operating_model'],
                         ),
                         'Output conversion':
@@ -977,7 +983,7 @@ class _ProductionBatchesScreenState extends State<ProductionBatchesScreen> {
                   child: metrics({
                     'Planned output':
                         '${b['planned_output_numerator']} / ${b['planned_output_denominator']} ${b['output_unit_code']}',
-                    'Operating model': dashboardLabel(b['operating_model']),
+                    'How you produce': dashboardLabel(b['operating_model']),
                     if (b['status'] == 'COMPLETED')
                       'Actual output':
                           '${b['actual_output_numerator']} / ${b['actual_output_denominator']} ${b['output_unit_code']}',

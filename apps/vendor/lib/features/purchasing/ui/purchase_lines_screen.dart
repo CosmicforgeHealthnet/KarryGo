@@ -26,7 +26,18 @@ class PurchaseLinesScreen extends StatefulWidget {
 
 class _PurchaseLinesScreenState extends State<PurchaseLinesScreen> {
   List<JsonObject> products = [], lines = [];
+  Map<String, String> itemNames = {};
   bool loading = true;
+
+  /// A merchant-facing label: stock item name and purchase unit.
+  String productLabel(JsonObject? p) {
+    if (p == null) return 'Unavailable product';
+    final sku = '${p['supplier_sku'] ?? ''}'.trim();
+    final name = itemNames['${p['inventory_item_id']}'] ??
+        (sku.isNotEmpty ? sku : 'Supplier product');
+    final unit = '${p['purchase_unit_name'] ?? ''}'.trim();
+    return unit.isEmpty ? name : '$name ($unit)';
+  }
   String? error;
   @override
   void initState() {
@@ -68,7 +79,25 @@ class _PurchaseLinesScreenState extends State<PurchaseLinesScreen> {
         all.addAll(rows);
         if (rows.length < 200) break;
       }
+      final names = <String, String>{};
+      try {
+        final balances = await widget.runtime.backend.inventoryApi.request(
+          'GET',
+          '/api/v1/vendor/inventory/branches/{branchId}/balances',
+          pathParameters: {'branchId': widget.branchId},
+          query: {'limit': '500'},
+        );
+        for (final b in jsonObject(balances.data)['items'] as List? ?? []) {
+          final row = jsonObject(b);
+          if ('${row['name'] ?? ''}'.isNotEmpty) {
+            names['${row['inventory_item_id']}'] = '${row['name']}';
+          }
+        }
+      } catch (_) {
+        // Names are a convenience; the SKU is shown instead.
+      }
       if (mounted) {
+        itemNames = names;
         setState(
           () => products = all
               .where(
@@ -109,7 +138,7 @@ class _PurchaseLinesScreenState extends State<PurchaseLinesScreen> {
           'Supplier product',
           kind: 'select',
           required: true,
-          options: purchaseChoices(available, label: 'supplier_sku'),
+          options: {for (final p in available) '${p['id']}': productLabel(p)},
           initial:
               current?['supplier_product_id'] ??
               (widget.runtime.mode == VendorDataMode.mock
@@ -212,7 +241,13 @@ class _PurchaseLinesScreenState extends State<PurchaseLinesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${products.where((p) => p['id'] == lines[i]['supplier_product_id']).firstOrNull?['supplier_sku'] ?? 'Unavailable product'}',
+                      productLabel(
+                        products
+                            .where(
+                              (p) => p['id'] == lines[i]['supplier_product_id'],
+                            )
+                            .firstOrNull,
+                      ),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,

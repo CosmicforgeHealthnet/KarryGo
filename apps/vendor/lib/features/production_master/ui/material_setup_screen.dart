@@ -156,7 +156,7 @@ class _MaterialBranchesScreenState extends State<MaterialBranchesScreen> {
               ),
             for (final branch in branches) ...[
               SettingsLink(
-                '${branch['name'] ?? branch['id']}',
+                '${branch['display_name'] ?? branch['name'] ?? 'Branch'}',
                 Icons.storefront_outlined,
                 onTap: () => Navigator.push(
                   context,
@@ -412,7 +412,10 @@ class _MaterialSetupScreenState extends State<MaterialSetupScreen> {
           throw const FormatException('Inventory scope mismatch');
         }
         if (row['inventory_item_id'] is String) {
-          choices[row['inventory_item_id']] = '${row['inventory_item_id']}';
+          choices[row['inventory_item_id']] =
+              '${row['name'] ?? ''}'.isNotEmpty
+              ? '${row['name']} (${row['on_hand'] ?? 0} on hand)'
+              : 'Stock item ${choices.length + 1} (${row['on_hand'] ?? 0} on hand)';
         }
       }
       offset += rows.length;
@@ -437,12 +440,15 @@ class _MaterialSetupScreenState extends State<MaterialSetupScreen> {
     if (!mounted) return;
     setState(() => referencesLoading = false);
     if ('${r['inventory_item_id'] ?? ''}'.isNotEmpty) {
-      choices['${r['inventory_item_id']}'] = '${r['inventory_item_id']}';
+      choices.putIfAbsent(
+        '${r['inventory_item_id']}',
+        () => 'Current stock item',
+      );
     }
     final mock = widget.runtime.mode == VendorDataMode.mock;
     final body = await purchaseForm(
       context,
-      'Configure ${widget.branch!['name'] ?? 'branch'}',
+      'Configure ${widget.branch!['display_name'] ?? widget.branch!['name'] ?? 'branch'}',
       [
         PurchaseField(
           'enabled',
@@ -460,7 +466,6 @@ class _MaterialSetupScreenState extends State<MaterialSetupScreen> {
           'inventory_control_mode_override',
           'Branch stock control',
           kind: 'select',
-          required: true,
           options: {
             '': 'Use material setting (${dashboardLabel(material!['inventory_control_mode'])})',
             ...purchaseEnums(['UNTRACKED', 'INVENTORY_CONTROLLED']),
@@ -469,30 +474,26 @@ class _MaterialSetupScreenState extends State<MaterialSetupScreen> {
         ),
         PurchaseField(
           'inventory_item_id',
-          'Inventory item reference',
+          'Stock item (leave empty to create one automatically)',
           kind: 'select',
           options: choices,
           initial: r['inventory_item_id'],
         ),
       ],
       validate: (body) {
-        final mode = body['inventory_control_mode_override'] == ''
+        final mode = (body['inventory_control_mode_override'] ?? '') == ''
             ? material!['inventory_control_mode']
             : body['inventory_control_mode_override'];
         final item = '${body['inventory_item_id'] ?? ''}';
         if (mode == 'UNTRACKED' && item.isNotEmpty) {
           return 'Remove the inventory mapping when using untracked stock.';
         }
-        if (mode == 'INVENTORY_CONTROLLED' &&
-            body['production_eligible'] == true &&
-            item.isEmpty) {
-          return 'Choose an inventory item for production stock tracking.';
-        }
         return null;
       },
     );
     if (body == null || !mounted) return;
     body['inventory_item_id'] ??= '';
+    body['inventory_control_mode_override'] ??= '';
     await feedback(
       await c.save(method: 'PUT', route: path, body: body, params: params),
     );
@@ -522,7 +523,7 @@ class _MaterialSetupScreenState extends State<MaterialSetupScreen> {
               SettingsHeading(
                 '${material?['name'] ?? widget.material['name']}',
                 subtitle: branchMode
-                    ? '${widget.branch!['name'] ?? widget.branch!['id']}'
+                    ? '${widget.branch!['display_name'] ?? widget.branch!['name'] ?? 'Branch'}'
                     : '1 source unit = numerator / denominator default units.',
               ),
               if (parentError != null) SettingsNote(parentError!),

@@ -460,6 +460,11 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 40));
       });
       await flush(tester);
+      await tester.scrollUntilVisible(
+        find.text('Selling settings'),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Selling settings'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

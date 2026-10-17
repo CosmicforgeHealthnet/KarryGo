@@ -7,6 +7,7 @@ import '../config/vendor_app_config.dart';
 import '../contracts/vendor_contract.dart';
 import '../../features/auth/data/vendor_session_store.dart';
 import '../../features/auth/models/vendor_session.dart';
+import 'friendly_messages.dart';
 import 'vendor_command.dart';
 import 'vendor_response.dart';
 
@@ -271,12 +272,14 @@ class VendorApiClient {
     } on TimeoutException {
       throw const ApiException(
         code: ApiErrorCode.network,
-        message: 'Request timed out; outcome is not confirmed',
+        message:
+            'The connection timed out. Check your internet, then refresh to see whether your change was saved.',
       );
     } on http.ClientException {
       throw const ApiException(
         code: ApiErrorCode.network,
-        message: 'Request failed; outcome is not confirmed',
+        message:
+            'We couldn’t reach Karryam. Check your internet connection and try again.',
       );
     }
     JsonObject? envelope;
@@ -287,11 +290,11 @@ class VendorApiClient {
         throw ApiException(
           code: ApiErrorCode.unknown,
           message: response.statusCode == 404
-              ? 'This feature is not available on the connected server.'
+              ? 'We couldn’t complete this request. Please update the app or try again later.'
               : response.statusCode == 401
               ? 'Your session has expired. Please sign in again.'
               : response.statusCode == 403
-              ? 'The server denied access to this action.'
+              ? 'You don’t have permission to do this. Ask your business owner for access.'
               : response.statusCode >= 500
               ? 'The service is temporarily unavailable. Please try again.'
               : 'The server returned an unexpected response. Please try again.',
@@ -308,12 +311,21 @@ class VendorApiClient {
       );
       throw ApiException(
         code: e.code,
-        message: e.message,
+        message: friendlyServerMessage(e.message),
         statusCode: e.statusCode,
         requestId: e.requestId ?? response.headers['x-request-id'],
-        fields: e.fields,
+        fields: [
+          for (final f in e.fields)
+            ApiFieldError(
+              field: f.field,
+              message: friendlyServerMessage(f.message),
+            ),
+        ],
         details: {
           ...e.details,
+          // The original wording is kept so app logic can still match on it
+          // after the user-facing message has been rewritten.
+          serverMessageDetailKey: e.message,
           if (response.headers['retry-after'] != null)
             'retry_after': response.headers['retry-after'],
         },
@@ -322,7 +334,7 @@ class VendorApiClient {
     if (response.statusCode != 204 && envelope?['success'] != true) {
       throw ApiException(
         code: ApiErrorCode.unknown,
-        message: 'Missing backend success envelope',
+        message: 'Something went wrong. Please try again.',
         statusCode: response.statusCode,
       );
     }

@@ -248,7 +248,7 @@ class CatalogueController extends ChangeNotifier {
             : 'Check the details and try again. Nothing was sent.')
       : e is StateError
       ? e.message.toString()
-      : 'Could not load this catalogue. Please try again.';
+      : 'Something went wrong. Check your internet connection and try again.';
   @override
   void dispose() {
     disposed = true;

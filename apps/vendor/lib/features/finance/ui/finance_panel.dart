@@ -1,4 +1,4 @@
-import '../../onboarding/ui/business_onboarding_screen.dart';
+import 'bank_account_screen.dart';
 import '../../../core/ui/premium_loading.dart';
 import 'package:flutter/material.dart';
 import '../../../app/vendor_runtime.dart';
@@ -136,7 +136,7 @@ class FinancePanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(bank['masked_account'].toString()),
-                  FinanceFact('Bank code', bank['bank_code']),
+                  FinanceFact('Bank', bankNameForCode(bank['bank_code'])),
                 ],
               ),
             ),
@@ -149,11 +149,13 @@ class FinancePanel extends StatelessWidget {
           ),
         const SizedBox(height: 12),
         FinanceButton(
-          'Manage bank details',
+          controller.banks.isEmpty
+              ? 'Add bank account'
+              : 'Change bank account',
           icon: Icons.account_balance_outlined,
           onPressed: () async {
             Navigator.pop(context);
-            await openBusinessBankDetails(context, runtime);
+            await openPayoutAccount(context, runtime);
             await controller.load();
           },
         ),

@@ -377,7 +377,7 @@ class _RiderWorkspaceScreenState extends State<RiderWorkspaceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SettingsHeading('Update needs attention'),
-                        Text(c.error!),
+                        Text(c.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                         const SizedBox(height: 16),
                         SettingsAction(
                           'Refresh',

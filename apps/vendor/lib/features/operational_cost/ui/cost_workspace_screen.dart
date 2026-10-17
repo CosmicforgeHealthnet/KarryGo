@@ -192,7 +192,7 @@ class _CostWorkspaceScreenState extends State<CostWorkspaceScreen> {
             required: true,
             options: {
               'BUSINESS': 'Whole business',
-              for (final b in branches) '${b['id']}': '${b['name']}',
+              for (final b in branches) '${b['id']}': '${b['display_name'] ?? b['name'] ?? 'Branch'}',
             },
             initial: widget.runtime.mode == VendorDataMode.mock
                 ? 'BUSINESS'
@@ -280,11 +280,9 @@ class _CostWorkspaceScreenState extends State<CostWorkspaceScreen> {
             fields: [
               PurchaseField(
                 'currency',
-                'Currency code',
+                'Currency',
                 required: true,
-                initial:
-                    r?['currency'] ??
-                    (widget.runtime.mode == VendorDataMode.mock ? 'NGN' : null),
+                initial: r?['currency'] ?? 'NGN',
               ),
               if (weighted)
                 PurchaseField(
@@ -307,7 +305,7 @@ class _CostWorkspaceScreenState extends State<CostWorkspaceScreen> {
                 ),
                 PurchaseField(
                   'manual_unit_code',
-                  'Unit code',
+                  'Unit',
                   required: true,
                   initial:
                       r?['manual_unit_code'] ?? material?['default_unit_code'],
@@ -321,13 +319,16 @@ class _CostWorkspaceScreenState extends State<CostWorkspaceScreen> {
               ],
               const PurchaseField('reason', 'Change note', kind: 'notes'),
             ],
-            validate: (b) => RegExp(r'^[A-Z]{3}$').hasMatch('${b['currency']}')
+            validate: (b) => RegExp(r'^[A-Z]{3}$').hasMatch(
+              '${b['currency']}'.trim().toUpperCase(),
+            )
                 ? null
-                : 'Use a three-letter uppercase currency code.',
+                : 'Enter a currency such as NGN.',
           ),
         ),
       );
       if (body == null || !mounted) return;
+      body['currency'] = '${body['currency']}'.trim().toUpperCase();
       body.addAll({
         ...scope,
         ...strategy,

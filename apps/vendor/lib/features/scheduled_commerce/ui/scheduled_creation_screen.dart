@@ -255,7 +255,7 @@ class _ScheduledCreationScreenState extends State<ScheduledCreationScreen> {
                 else if (c.pending != null) ...[
                   const SettingsHeading('Finish your saved schedule'),
                   const SettingsNote(
-                    'The last submission has an unconfirmed outcome. Retry the saved schedule before creating another.',
+                    'We could not confirm your last schedule was saved, possibly because the connection dropped. Tap retry to send it again. It will not be created twice.',
                     warning: true,
                   ),
                   SettingsFact(
@@ -275,7 +275,7 @@ class _ScheduledCreationScreenState extends State<ScheduledCreationScreen> {
                         'Only current customer-approved quotes for your business are shown.',
                   ),
                   if (error != null) ...[
-                    SettingsNote(error!, warning: true),
+                    SettingsNote(error!),
                     SettingsAction(
                       'Refresh quotes',
                       secondary: true,

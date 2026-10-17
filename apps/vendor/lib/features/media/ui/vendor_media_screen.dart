@@ -129,8 +129,12 @@ class _VendorMediaScreenState extends State<VendorMediaScreen> {
     if (mounted) setState(() => loading = false);
   }
 
-  String message(Object e) => e is ApiException
-      ? e.message
+  String message(Object e) => e is _UploadFailed
+      ? 'The photo did not finish uploading. Check your internet connection and tap Choose file to try again.'
+      : e is ApiException
+      ? (e.statusCode == null
+            ? 'No internet connection. Check your network and try again.'
+            : e.message)
       : e is VendorContractException
       ? e.message
       : e is FormatException
@@ -277,12 +281,30 @@ class _VendorMediaScreenState extends State<VendorMediaScreen> {
       await persist();
       phase = 'Uploading file';
       if (mounted) setState(() {});
-      await DocumentUploadClient().upload(
-        grant,
-        bytes,
-        type,
-        transport: runtime.mockUploadTransport,
-      );
+      try {
+        await DocumentUploadClient().upload(
+          grant,
+          bytes,
+          type,
+          transport: runtime.mockUploadTransport,
+        );
+      } catch (_) {
+        // The bytes may have landed even though we lost the reply. Ask
+        // first; only start over when the file is genuinely missing, so
+        // the next attempt gets a fresh upload link instead of replaying
+        // an expired one.
+        try {
+          await check();
+        } catch (_) {}
+        if (!ready && !uploaded) {
+          pending.remove('media_ref');
+          pending['key'] = VendorCommand.create().idempotencyKey;
+          await persist();
+          phase = '';
+          throw const _UploadFailed();
+        }
+        return;
+      }
       await check();
     } catch (e) {
       error = message(e);
@@ -909,4 +931,8 @@ class _MediaViewerState extends State<_MediaViewer> {
             ),
           ),
   );
+}
+
+class _UploadFailed implements Exception {
+  const _UploadFailed();
 }

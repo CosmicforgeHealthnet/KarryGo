@@ -9,6 +9,7 @@ import '../../auth/models/vendor_session.dart';
 import '../../dashboard/ui/dashboard_format.dart';
 import '../../orders/ui/order_feedback_dialog.dart';
 import '../state/finance_workspace_controller.dart';
+import 'bank_account_screen.dart';
 import 'finance_design.dart';
 
 class WithdrawalRequestScreen extends StatefulWidget {
@@ -458,10 +459,25 @@ class _WithdrawalRequestScreenState extends State<WithdrawalRequestScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        if (c.activeBanks.isEmpty && !c.loading.contains('banks'))
+        if (c.activeBanks.isEmpty && !c.loading.contains('banks')) ...[
           const FinanceNotice(
-            'Add and verify a payout account from Finance before requesting a withdrawal.',
+            'Add your business bank account so we know where to send your money.',
           ),
+          FinanceButton(
+            'Add bank account',
+            icon: Icons.account_balance_outlined,
+            onPressed: _busy
+                ? null
+                : () async {
+                    final saved = await openPayoutAccount(
+                      context,
+                      widget.runtime,
+                    );
+                    if (saved) await c.load();
+                    if (mounted) setState(() {});
+                  },
+          ),
+        ],
 
         const SizedBox(height: 28),
       ],

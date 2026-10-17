@@ -254,7 +254,7 @@ class _RecurringFirstSetupScreenState extends State<RecurringFirstSetupScreen> {
                         'Choose an approved food menu linked to an active corporate account.',
                   ),
                   if (error != null) ...[
-                    SettingsNote(error!, warning: true),
+                    SettingsNote(error!),
                     SettingsAction(
                       'Try again',
                       secondary: true,

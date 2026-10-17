@@ -40,7 +40,7 @@ void main(){
   final relationship=CrmWorkspaceController(runtime,'$crmBase/customers/{profileId}',parameters:{'profileId':profileId});await relationship.load();transport.suffix='/archive';transport.lose=true;
   expect(await relationship.save(method:'POST',route:'$crmBase/customers/{profileId}/archive',body:{},params:{'profileId':profileId},headerVersion:profile['version']),isNull);expect(relationship.pending,isNotNull);relationship.dispose();
   final reopened=CrmWorkspaceController(runtime,'$crmBase/customers/{profileId}',parameters:{'profileId':profileId});await reopened.load();expect(reopened.pending,isNull);expect(reopened.record!['profile']['status'],'ARCHIVED');expect(reopened.record!['profile']['version'],2);
-  for(final c in [customers,restored,interactions,tags,segments,reopened])c.dispose();app.client.close();
+  for(final c in [customers,restored,interactions,tags,segments,reopened]){c.dispose();}app.client.close();
  });
  test('loyalty ladder and corporate references follow exact backend contracts',()async{
   final app=await financeApp(FinanceTransport()),runtime=SupportRuntime(app);
@@ -62,6 +62,6 @@ void main(){
   final count=(await app.crmApi.request('GET','$crmBase/corporate-customers/{corporateId}',pathParameters:params)).object['summary']['membership_count'];expect(count,1);
   final registry=(await app.crmApi.request('GET','$crmBase/segment-fields')).object;expect(registry['schema_version'],1);
   final preview=(await app.crmApi.request('POST','$crmBase/segments/preview',body:VendorPayload({'scope':{'type':'BUSINESS'},'rule':{'schema_version':registry['schema_version'],'root':{'field':'profile.subject_type','operator':'EQ','value':'CUSTOMER'}},'sample_limit':10}),command:VendorCommand.create())).object;expect(preview['match_count'],1);
-  for(final c in [program,tiers,customers,corp])c.dispose();app.client.close();
+  for(final c in [program,tiers,customers,corp]){c.dispose();}app.client.close();
  });
 }

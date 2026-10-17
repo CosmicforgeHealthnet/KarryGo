@@ -1,3 +1,4 @@
+import '../../../core/network/friendly_messages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -302,7 +303,7 @@ class PastryWorkspaceController extends ChangeNotifier {
           [400, 401, 403, 404, 409, 412, 422].contains(e.statusCode)) {
         if (e.statusCode == 403 &&
             pending != null &&
-            !e.message.toLowerCase().contains('step-up')) {
+            !serverMessageOf(e).contains('step-up')) {
           denied.add('${pending!['method']} ${pending!['path']}');
         }
         try {

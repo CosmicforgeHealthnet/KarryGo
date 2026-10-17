@@ -36,7 +36,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(c.dispose);
       expect(await c.reorderRule(basis), isNull);
       final before = await c.balance(basis);
@@ -58,7 +62,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(c.dispose);
       await save(c);
       for (final hours in [0, -1, 8761]) {
@@ -76,7 +84,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(c.dispose);
       await save(c, minimum: 0);
       expect((await c.reorderRule(basis))!['recommended_reorder_quantity'], 6);
@@ -115,7 +127,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(c.dispose);
       final receipt = (await c.mutate(
         'POST',
@@ -148,7 +164,11 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(c.dispose);
       final command = VendorCommand.create();
       final body = VendorPayload({
@@ -166,7 +186,11 @@ void main() {
         );
       }
       expect((await c.reorderRule(basis))!['version'], 1);
-      final east = StockController(r.backend, 'mock-branch-east', preferences: r.mockSupportPreferences);
+      final east = StockController(
+        r.backend,
+        'mock-branch-east',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(east.dispose);
       expect(
         await east.reorderRule('stock-demo-listing-mock-branch-east'),
@@ -187,7 +211,11 @@ void main() {
       );
       addTearDown(app.dispose);
       await app.client.acceptSession(r.backend.auth.session!);
-      final c = StockController(app, 'mock-branch', preferences: VendorPreferences(inMemory: true));
+      final c = StockController(
+        app,
+        'mock-branch',
+        preferences: VendorPreferences(inMemory: true),
+      );
       addTearDown(c.dispose);
       probe.status = 403;
       await expectLater(c.reorderRule(basis), throwsA(anything));
@@ -218,7 +246,11 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+      final c = StockController(
+        r.backend,
+        'mock-branch',
+        preferences: r.mockSupportPreferences,
+      );
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       await tester.pumpWidget(
@@ -233,11 +265,10 @@ void main() {
         ),
       );
       await flush(tester);
-      await tester.scrollUntilVisible(
-        find.text('Set reorder rule'),
-        160,
-        scrollable: find.byType(Scrollable).first,
-      );
+      // The rule card sits below the stock figures on a small phone.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+      await flush(tester);
+      await tester.ensureVisible(find.text('Set reorder rule'));
       await flush(tester);
       await tester.tap(find.text('Set reorder rule'));
       await flush(tester);
@@ -280,7 +311,11 @@ void main() {
     addTearDown(tester.view.resetViewInsets);
     final r = (await tester.runAsync(() => dashboardRuntime()))!;
     addTearDown(r.dispose);
-    final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
+    final c = StockController(
+      r.backend,
+      'mock-branch',
+      preferences: r.mockSupportPreferences,
+    );
     addTearDown(c.dispose);
     await tester.pumpWidget(
       MaterialApp(

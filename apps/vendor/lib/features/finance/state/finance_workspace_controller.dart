@@ -1,3 +1,4 @@
+import '../../../core/network/friendly_messages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import '../../../app/vendor_app.dart';
@@ -248,7 +249,7 @@ class FinanceWorkspaceController extends ChangeNotifier {
             (e is ApiException && (e.statusCode ?? 0) >= 500) ||
             (e is ApiException &&
                 e.statusCode == 409 &&
-                e.message.toLowerCase().contains('idempotency'));
+                serverMessageOf(e).contains('idempotency'));
         if (!uncertain) {
           try {
             await attempts.clear();
@@ -259,7 +260,7 @@ class FinanceWorkspaceController extends ChangeNotifier {
         }
         if (e is ApiException &&
             e.statusCode == 403 &&
-            !e.message.toLowerCase().contains('fresh withdrawal step-up')) {
+            !serverMessageOf(e).contains('fresh withdrawal step-up')) {
           withdrawDenied = true;
         }
       }

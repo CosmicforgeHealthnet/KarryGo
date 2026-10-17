@@ -1,3 +1,4 @@
+import '../../../core/network/friendly_messages.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
@@ -181,9 +182,9 @@ class PurchasingWorkspaceController extends ChangeNotifier {
           e is ApiException &&
           e.statusCode == 404 &&
           (path.endsWith('/terms') &&
-                  e.message.toLowerCase().contains('supplier terms') ||
+                  serverMessageOf(e).contains('supplier terms') ||
               path.endsWith('/approval-policy') &&
-                  e.message.toLowerCase().contains('approval policy'));
+                  serverMessageOf(e).contains('approval policy'));
       if (missing) {
         record = null;
         rows = [];

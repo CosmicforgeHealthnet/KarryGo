@@ -641,17 +641,31 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
               'No generic inventory items are available for this branch. Set up production inventory before linking a supplier product.',
             );
           }
+          // Newer servers include the item name on each balance; older ones
+          // need a lookup through the production materials.
+          final names = balances.every(
+                (b) => '${b['name'] ?? ''}'.isNotEmpty,
+              )
+              ? <String, String>{}
+              : await _inventoryItemNamesFor(
+                  widget.runtime.backend.productionMasterApi,
+                  widget.branchId!,
+                );
+          var unnamed = 0;
           fields.addAll([
             PurchaseField(
               'inventory_item_id',
               'Inventory item',
               kind: 'select',
               required: true,
-              options: purchaseChoices(
-                balances,
-                key: 'inventory_item_id',
-                label: 'inventory_item_id',
-              ),
+              options: {
+                for (final b in balances)
+                  '${b['inventory_item_id']}':
+                      '${b['name'] ?? ''}'.isNotEmpty
+                      ? '${b['name']}'
+                      : names['${b['inventory_item_id']}'] ??
+                            'Stock item ${++unnamed}',
+              },
             ),
             f(
               'purchase_unit_code',
@@ -1321,7 +1335,7 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
                 '${line['purchase_quantity']} ${line['purchase_unit_name_snapshot']} - ${dashboardMoney(line['line_total_minor'], r['currency_code'])}',
               ),
               Text(
-                'Received ${line['received_purchase_quantity']} ? Inventory units ${line['converted_inventory_quantity']}',
+                'Received ${line['received_purchase_quantity']} · Stock units ${line['converted_inventory_quantity']}',
               ),
             ],
           ),
@@ -1769,4 +1783,38 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
       ),
     ),
   );
+}
+
+
+/// Maps inventory item ids to the merchant's ingredient and packaging names,
+/// so pickers never show raw ids. Missing names are tolerated.
+Future<Map<String, String>> _inventoryItemNamesFor(
+  dynamic api,
+  String branchId,
+) async {
+  final names = <String, String>{};
+  for (final (kind, param) in [
+    ('ingredients', 'ingredientId'),
+    ('packaging-materials', 'packagingId'),
+  ]) {
+    try {
+      final list = await api.request('GET', '/api/v1/vendor/$kind');
+      final rows = list.data;
+      if (rows is! List) continue;
+      await Future.wait(rows.whereType<Map>().map((r) async {
+        try {
+          final cfg = await api.request(
+            'GET',
+            '/api/v1/vendor/$kind/{$param}/branches/{branchId}',
+            pathParameters: {param: '${r['id']}', 'branchId': branchId},
+          );
+          final d = cfg.data;
+          if (d is Map && d['inventory_item_id'] != null) {
+            names['${d['inventory_item_id']}'] = '${r['name']}';
+          }
+        } catch (_) {}
+      }));
+    } catch (_) {}
+  }
+  return names;
 }

@@ -123,7 +123,7 @@ class _CatalogueEditorState extends State<CatalogueEditor> {
         final text = f.type == CatalogueInput.money && value is int
             ? '${value < 0 ? '-' : ''}${value.abs() ~/ 100}.${(value.abs() % 100).toString().padLeft(2, '0')}'
             : value is List
-            ? value.join(', ')
+            ? value.map((v) => v.toString().replaceAll('_', ' ')).join(', ')
             : value?.toString() ?? '';
         _text[f.key] = TextEditingController(text: text);
       }
@@ -150,8 +150,15 @@ class _CatalogueEditorState extends State<CatalogueEditor> {
         CatalogueInput.codes =>
           (text ?? '')
               .split(',')
-              .map((s) => s.trim())
+              .map(
+                (s) => s
+                    .trim()
+                    .toUpperCase()
+                    .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+                    .replaceAll(RegExp(r'^_+|_+$'), ''),
+              )
               .where((s) => s.isNotEmpty)
+              .toSet()
               .toList(),
         CatalogueInput.custom ||
         CatalogueInput.choice ||
@@ -617,7 +624,7 @@ class _CatalogueEditorState extends State<CatalogueEditor> {
             ? '${widget.currency} '
             : null,
         helperText: f.type == CatalogueInput.codes
-            ? 'Separate backend codes with commas'
+            ? 'Separate each one with a comma'
             : f.type == CatalogueInput.money && !f.required
             ? f.key == 'price_override_minor' || f.key.endsWith('_override')
                   ? 'Leave blank to use the inherited price'

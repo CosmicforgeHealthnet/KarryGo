@@ -212,7 +212,7 @@ class _ProductionControlsScreenState extends State<ProductionControlsScreen> {
             kind: 'select',
             required: true,
             options: {
-              for (final b in branches) '${b['id']}': '${b['name'] ?? b['id']}',
+              for (final b in branches) '${b['id']}': '${b['display_name'] ?? b['name'] ?? 'Branch'}',
             },
           ),
           PurchaseField(

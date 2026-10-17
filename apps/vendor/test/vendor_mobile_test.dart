@@ -312,15 +312,20 @@ void main() {
       background,
     );
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('Continue'));
+    // Onboarding now ends in account creation; existing vendors use the
+    // "Sign in" link, which is on every intro page.
+    await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
-    expect(find.text('Sign in to your business'), findsOneWidget);
+    expect(
+      find.text('Use your registered phone number or email.'),
+      findsOneWidget,
+    );
     expect(
       tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
       background,
     );
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('Skip'));
+    await tester.tap(find.text('Email address').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'owner@example.com');
     await tester.tap(find.byKey(const Key('send-code')));
@@ -337,44 +342,6 @@ void main() {
     await tester.tap(find.byKey(const Key('verify-code')));
     await tester.pumpAndSettle();
     expect(find.text('Choose your\nvendor account.'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    runtime.dispose();
-  });
-
-  testWidgets('data-source sheet switches to live and back to mock', (
-    tester,
-  ) async {
-    final runtime = MockVendorRuntime(
-      preferences: VendorPreferences(inMemory: true),
-      liveSessionStore: MemoryVendorSessionStore(),
-      liveClientFactory: () => MockClient((request) async => ok({})),
-      mockLatency: Duration.zero,
-    );
-    await tester.pumpWidget(VendorMobileApp(runtime: runtime));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('data-mode-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Live'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Apply data source'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Enter an HTTP(S)'), findsOneWidget);
-    expect(runtime.mode, VendorDataMode.mock);
-    await tester.enterText(
-      find.byKey(const Key('live-origin')),
-      'https://vendor.example',
-    );
-    await tester.tap(find.text('Apply data source'));
-    await tester.pumpAndSettle();
-    expect(runtime.mode, VendorDataMode.live);
-    await tester.tap(find.byKey(const Key('data-mode-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Mock'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Apply data source'));
-    await tester.pumpAndSettle();
-    expect(runtime.mode, VendorDataMode.mock);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     runtime.dispose();

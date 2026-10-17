@@ -138,7 +138,7 @@ class _ProductionOperationsScreenState
           kind: 'select',
           required: true,
           options: {
-            for (final b in branches) '${b['id']}': '${b['name'] ?? b['id']}',
+            for (final b in branches) '${b['id']}': '${b['display_name'] ?? b['name'] ?? 'Branch'}',
           },
           initial:
               widget.runtime.mode == VendorDataMode.mock && branches.isNotEmpty
