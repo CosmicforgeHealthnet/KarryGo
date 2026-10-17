@@ -488,7 +488,7 @@ class _DispatchProviderAppState extends State<_DispatchSessionApp> {
                   child: _buildScreen(),
                 ),
               ),
-              if (_screen != _DispatchScreen.home)
+              if (!kReleaseMode && _screen != _DispatchScreen.home)
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 8,
                   right: 12,
