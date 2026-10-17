@@ -1,6 +1,10 @@
 package verification
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -37,12 +41,27 @@ func newInHouseRouter(repo *fakeVerificationRepository, matcher FaceMatcher) (*g
 	return router, tokens, events
 }
 
+// A real decodable JPEG is needed by the mechanical quality prescreen.
+func testGradientSelfie(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 320, 320))
+	for y := 0; y < 320; y++ {
+		for x := 0; x < 320; x++ {
+			level := uint8(60 + ((x*7 + y*11 + x*y/80) % 135))
+			img.Set(x, y, color.RGBA{R: level, G: level, B: level, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85}); err != nil { t.Fatal(err) }
+	return buf.Bytes()
+}
+
 func submitForReview(t *testing.T, repo *fakeVerificationRepository) (*gin.Engine, *authusecases.TokenUsecase, *forbiddenExternalMatcher) {
 	t.Helper()
 	matcher := &forbiddenExternalMatcher{}
 	router, tokens, _ := newInHouseRouter(repo, matcher)
 	w := doMultipartProviderRequest(t, router, tokens, http.MethodPost,
-		"/api/v1/provider/verification/face", nil, selfieFiles(testJPEG, "image/jpeg"))
+		"/api/v1/provider/verification/face", nil, selfieFiles(testGradientSelfie(t), "image/jpeg"))
 	if w.Code != http.StatusOK {
 		t.Fatalf("submit face status=%d body=%s", w.Code, w.Body.String())
 	}
