@@ -194,6 +194,22 @@ class RequestsApi {
     return const [];
   }
 
+  // A 202 only acknowledges asynchronous processing. It does not prove
+  // that this provider won the assignment race or can start a trip.
+  static ApiFailure<T> _pendingOutcome<T>() => const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This request is being processed. Check your trips '
+              'before attempting the action again.',
+          statusCode: 202,
+        ),
+      );
+
+  static bool _acknowledged(Map<String, dynamic>? parsed) =>
+      parsed != null &&
+      parsed['success'] != false &&
+      (parsed['success'] == true || parsed['data'] is Map);
+
   // ── Accept ────────────────────────────────────────────────────────────────
 
   Future<ApiResult<bool>> accept({
@@ -214,14 +230,10 @@ class RequestsApi {
           )
           .timeout(const Duration(seconds: 15));
       _debugLog('[REQUESTS] accept status=${response.statusCode}');
-      if (response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 202) {
+      if (response.statusCode == 202) return _pendingOutcome();
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final parsed = _tryDecode(response.body);
-        // Two envelopes exist: {"success": true} and {"data": {...}}.
-        if (parsed == null || parsed['success'] == true || parsed.containsKey('data')) {
-          return const ApiSuccess(true);
-        }
+        if (_acknowledged(parsed)) return const ApiSuccess(true);
         return _failureFromResponse(response);
       }
       return _failureFromResponse(response);
@@ -252,13 +264,10 @@ class RequestsApi {
           )
           .timeout(const Duration(seconds: 15));
       _debugLog('[REQUESTS] reject status=${response.statusCode}');
-      if (response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 202) {
+      if (response.statusCode == 202) return _pendingOutcome();
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final parsed = _tryDecode(response.body);
-        if (parsed == null || parsed['success'] == true || parsed.containsKey('data')) {
-          return const ApiSuccess(true);
-        }
+        if (_acknowledged(parsed)) return const ApiSuccess(true);
         return _failureFromResponse(response);
       }
       return _failureFromResponse(response);
