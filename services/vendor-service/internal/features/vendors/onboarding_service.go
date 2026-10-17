@@ -2,6 +2,7 @@ package vendors
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/phonenumber"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -62,8 +63,8 @@ func validateRepresentative(in RepresentativeInput) error {
 	if _, err := mail.ParseAddress(strings.TrimSpace(in.Email)); err != nil {
 		violations = append(violations, apperrors.FieldViolation{Field: "email", Message: "Email is invalid."})
 	}
-	if len(strings.TrimSpace(in.Phone)) < 7 || len(strings.TrimSpace(in.Phone)) > 32 {
-		violations = append(violations, apperrors.FieldViolation{Field: "phone", Message: "Phone is invalid."})
+	if _, err := phonenumber.NormalizeNigerianPhoneNumber(in.Phone); err != nil {
+		violations = append(violations, apperrors.FieldViolation{Field: "phone", Message: "Enter a valid Nigerian phone number."})
 	}
 	if in.OwnershipPercent != nil && (*in.OwnershipPercent < 0 || *in.OwnershipPercent > 100) {
 		violations = append(violations, apperrors.FieldViolation{Field: "ownership_percent", Message: "Ownership percent must be from 0 to 100."})
@@ -81,6 +82,8 @@ func (s *Service) PutRepresentative(ctx context.Context, actor Actor, in Represe
 	if err := validateRepresentative(in); err != nil {
 		return Representative{}, err
 	}
+	// Store one canonical form (+234...) whatever local form was typed.
+	in.Phone, _ = phonenumber.NormalizeNigerianPhoneNumber(in.Phone)
 	var current Representative
 	current, currentErr := scanRepresentative(s.db.QueryRow(ctx, `SELECT `+representativeCols+` FROM vendor_authorized_representatives WHERE business_id=$1 AND active`, actor.VendorID))
 	if currentErr != nil && !errors.Is(currentErr, pgx.ErrNoRows) {
@@ -933,10 +936,14 @@ func (s *Service) PutBankProfile(ctx context.Context, actor Actor, accountNumber
 	result, err := s.bank.ResolveAndRegister(ctx, actor.VendorID, strings.TrimSpace(accountNumber), strings.TrimSpace(bankCode), idempotencyKey)
 	if err != nil {
 		s.metrics.Inc("bank_resolution_failure_total")
+		var refused *apperrors.Error
+		if errors.As(err, &refused) && refused.Status < 500 {
+			return BankProfile{}, refused
+		}
 		if read, e := s.bank.GetProfile(ctx, actor.VendorID); e == nil {
 			result = read
 		} else {
-			return BankProfile{}, apperrors.Unavailable("Bank profile outcome is unknown; authoritative read-back failed.", err)
+			return BankProfile{}, apperrors.Unavailable("We could not confirm your bank details right now. Please try again in a moment.", err)
 		}
 	}
 	var p BankProfile

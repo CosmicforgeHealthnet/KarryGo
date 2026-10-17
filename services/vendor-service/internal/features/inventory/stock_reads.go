@@ -126,74 +126,14 @@ func (s *StockService) ListBalances(
 		offset = 0
 	}
 
-	rows, err := s.db.Query(
+	return QueryBranchBalances(
 		ctx,
-		`
-        SELECT
-            id,
-            business_id,
-            branch_id,
-            inventory_item_id,
-            on_hand_quantity,
-            reserved_quantity,
-            quarantined_quantity,
-            in_transit_quantity,
-            incoming_quantity,
-            backorder_quantity,
-            available_quantity,
-            expired_quantity,
-            revision,
-            updated_at
-          FROM inventory_balance_availability
-         WHERE business_id=$1
-           AND branch_id=$2
-         ORDER BY inventory_item_id
-         LIMIT $3
-         OFFSET $4
-        `,
+		s.db,
 		actor.BusinessID,
 		strings.TrimSpace(branchID),
 		limit,
 		offset,
 	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	out := []Balance{}
-
-	for rows.Next() {
-		var item Balance
-
-		if err := rows.Scan(
-			&item.ID,
-			&item.BusinessID,
-			&item.BranchID,
-			&item.InventoryItemID,
-			&item.OnHandQuantity,
-			&item.ReservedQuantity,
-			&item.QuarantinedQuantity,
-			&item.InTransitQuantity,
-			&item.IncomingQuantity,
-			&item.BackorderQuantity,
-			&item.AvailableQuantity,
-			&item.ExpiredQuantity,
-			&item.Revision,
-			&item.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-
-		out = append(
-			out,
-			item,
-		)
-	}
-
-	return out, rows.Err()
 }
 
 type MovementListOptions struct {
@@ -518,4 +458,124 @@ func (s *StockService) Revision(
 	return revision,
 		updatedAt,
 		err
+}
+
+// balanceNameSQL resolves a merchant-facing name for a listed balance row
+// (aliases: b = balance, ii = inventory item). The source may be referenced
+// directly by source_ref or through a production branch config mapping.
+const balanceNameSQL = `COALESCE(
+                (SELECT i.name FROM vendor_ingredients i
+                  WHERE i.business_id=b.business_id
+                    AND ii.item_type='INGREDIENT' AND i.id=ii.source_ref),
+                (SELECT p.name FROM vendor_packaging_materials p
+                  WHERE p.business_id=b.business_id
+                    AND ii.item_type='PACKAGING' AND p.id=ii.source_ref),
+                (SELECT i.name FROM vendor_ingredient_branch_configs c
+                   JOIN vendor_ingredients i ON i.id=c.ingredient_id
+                  WHERE c.business_id=b.business_id
+                    AND c.inventory_item_id=b.inventory_item_id
+                  LIMIT 1),
+                (SELECT p.name FROM vendor_packaging_branch_configs c
+                   JOIN vendor_packaging_materials p ON p.id=c.packaging_material_id
+                  WHERE c.business_id=b.business_id
+                    AND c.inventory_item_id=b.inventory_item_id
+                  LIMIT 1),
+                (SELECT CASE WHEN v.name = sp.name THEN sp.name
+                             ELSE sp.name || ' - ' || v.name END
+                   FROM shop_variants v
+                   JOIN shop_products sp ON sp.id=v.product_id
+                  WHERE v.business_id=b.business_id
+                    AND ii.item_type='SHOP_VARIANT' AND v.id=ii.source_ref),
+                ''
+            )`
+
+type BalanceQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// QueryBranchBalances lists a branch's stock balances with item names.
+func QueryBranchBalances(
+	ctx context.Context,
+	db BalanceQuerier,
+	businessID string,
+	branchID string,
+	limit int,
+	offset int,
+) (
+	[]Balance,
+	error,
+) {
+	rows, err := db.Query(
+		ctx,
+		`
+        SELECT
+            b.id,
+            b.business_id,
+            b.branch_id,
+            b.inventory_item_id,
+            `+balanceNameSQL+`,
+            b.on_hand_quantity,
+            b.reserved_quantity,
+            b.quarantined_quantity,
+            b.in_transit_quantity,
+            b.incoming_quantity,
+            b.backorder_quantity,
+            b.available_quantity,
+            b.expired_quantity,
+            b.revision,
+            b.updated_at
+          FROM inventory_balance_availability b
+          LEFT JOIN inventory_items ii
+            ON ii.id=b.inventory_item_id
+           AND ii.business_id=b.business_id
+         WHERE b.business_id=$1
+           AND b.branch_id=$2
+         ORDER BY b.inventory_item_id
+         LIMIT $3
+         OFFSET $4
+        `,
+		businessID,
+		branchID,
+		limit,
+		offset,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	out := []Balance{}
+
+	for rows.Next() {
+		var item Balance
+
+		if err := rows.Scan(
+			&item.ID,
+			&item.BusinessID,
+			&item.BranchID,
+			&item.InventoryItemID,
+			&item.Name,
+			&item.OnHandQuantity,
+			&item.ReservedQuantity,
+			&item.QuarantinedQuantity,
+			&item.InTransitQuantity,
+			&item.IncomingQuantity,
+			&item.BackorderQuantity,
+			&item.AvailableQuantity,
+			&item.ExpiredQuantity,
+			&item.Revision,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		out = append(
+			out,
+			item,
+		)
+	}
+
+	return out, rows.Err()
 }

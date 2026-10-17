@@ -864,7 +864,7 @@ func (s *PurchaseOrderService) effectiveApprovalRuleTx(
 		return ApprovalPolicy{},
 			ApprovalRule{},
 			apperrors.Conflict(
-				"No active purchase approval policy is configured.",
+				"Set up an approval policy in Purchasing before submitting purchase orders.",
 				nil,
 			)
 	}

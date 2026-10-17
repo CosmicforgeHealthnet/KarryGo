@@ -151,6 +151,15 @@ func productionBatchError(c *gin.Context, err error) {
 			},
 		})
 
+	case errors.Is(err, ErrConsumptionRequired):
+		c.JSON(http.StatusConflict, gin.H{
+			"success": false,
+			"error": gin.H{
+				"code":    "PRODUCTION_CONSUMPTION_REQUIRED",
+				"message": "Record how much of each ingredient was used before completing this batch.",
+			},
+		})
+
 	case errors.Is(err, ErrStateConflict),
 		errors.Is(err, ErrCapacityConflict):
 		c.JSON(http.StatusConflict, gin.H{

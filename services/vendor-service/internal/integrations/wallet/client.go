@@ -36,6 +36,22 @@ type Result struct {
 	Status              string    `json:"status"`
 	ObservedAt          time.Time `json:"observed_at"`
 }
+// AuthorityError is a definitive HTTP answer from the wallet authority. A 4xx
+// status means the request was refused (nothing was registered), so callers
+// may surface the message instead of treating the outcome as unknown.
+type AuthorityError struct {
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *AuthorityError) Error() string {
+	return fmt.Sprintf("wallet authority returned status %d (%s)", e.Status, e.Code)
+}
+
+// Refused reports whether the authority definitively rejected the request.
+func (e *AuthorityError) Refused() bool { return e.Status >= 400 && e.Status < 500 }
+
 type envelope struct {
 	Success bool   `json:"success"`
 	Data    Result `json:"data"`
@@ -70,7 +86,17 @@ func (c *Client) call(ctx context.Context, method, path string, body []byte, key
 		return Result{}, err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return Result{}, fmt.Errorf("wallet authority returned status %d", response.StatusCode)
+		authErr := &AuthorityError{Status: response.StatusCode}
+		var failure struct {
+			Error struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(raw, &failure) == nil {
+			authErr.Code, authErr.Message = failure.Error.Code, failure.Error.Message
+		}
+		return Result{}, authErr
 	}
 	var out envelope
 	if err = json.Unmarshal(raw, &out); err != nil {

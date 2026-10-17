@@ -21,27 +21,27 @@ func section21Error(err error) error {
 	case errors.Is(err, errScheduleView):
 		return apperrors.Validation("Choose a valid schedule filter.", nil)
 	case errors.Is(err, ErrSection21NotFound):
-		return apperrors.NotFound("Resource not found.", err)
+		return apperrors.NotFound("We could not find that schedule or quote. Refresh and try again.", err)
 	case errors.Is(err, ErrSection21Forbidden), errors.Is(err, ErrForbidden):
-		return apperrors.Forbidden("You may not act on this resource.", err)
+		return apperrors.Forbidden("You do not have permission to do this for this branch.", err)
 	case errors.Is(err, ErrSection21Expired):
-		return apperrors.Conflict("This resource is closed or expired.", err)
+		return apperrors.Conflict("This has closed or expired. Refresh to see the latest.", err)
 	case errors.Is(err, ErrSection21InvalidState), errors.Is(err, ErrSection21Conflict):
-		return apperrors.Conflict("This operation conflicts with the current state.", err)
+		return apperrors.Conflict("This has changed since you opened it. Refresh and try again.", err)
 	case errors.Is(err, ErrSection21Capacity):
-		return apperrors.Conflict("Required production capacity is unavailable.", err)
+		return apperrors.Conflict("There is not enough kitchen capacity for that time. Choose another time or skip reserving capacity.", err)
 	case errors.Is(err, ErrSection21CheckoutNeeded):
-		return apperrors.Conflict("An approved CheckoutQuote is required.", err)
+		return apperrors.Conflict("The customer needs to approve their order before it can be scheduled.", err)
 	case errors.Is(err, ErrSection21Payment), errors.Is(err, ErrSection21PaymentPolicy):
-		return apperrors.Conflict("The required Wallet payment policy could not be completed.", err)
+		return apperrors.Conflict("The payment could not be completed. Please try again shortly.", err)
 	case errors.Is(err, ErrSection21Schedule):
-		return apperrors.Conflict("The recurring feeding schedule is invalid or no longer writable.", err)
+		return apperrors.Conflict("This meal schedule cannot be changed now. Check the days, time and dates, or refresh.", err)
 	case errors.Is(err, ErrRestrictedGoods):
 		return apperrors.Validation("The requested goods are not eligible for Vendor Commerce.", nil)
 	case errors.Is(err, ErrSection21Disabled):
-		return apperrors.Unavailable("Section 21 commerce is unavailable.", err)
+		return apperrors.Unavailable("Scheduled orders are temporarily unavailable. Please try again shortly.", err)
 	default:
-		return apperrors.Internal("Section 21 commerce operation failed.", err)
+		return apperrors.Internal("Something went wrong on our side. Please try again.", err)
 	}
 }
 

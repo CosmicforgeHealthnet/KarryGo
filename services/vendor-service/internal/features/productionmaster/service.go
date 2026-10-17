@@ -2181,14 +2181,8 @@ func validateBranchConfigInput(
 		return "", ErrInventoryMapping
 	}
 
-	if effective == InventoryControlled &&
-		input.ProductionEligible &&
-		strings.TrimSpace(input.InventoryItemID) == "" {
-		return "", fmt.Errorf(
-			"%w: production-eligible inventory-controlled master requires a branch Inventory mapping",
-			ErrInventoryMapping,
-		)
-	}
+	// An inventory-controlled config with no mapping gets a branch stock
+	// item provisioned automatically when it is saved.
 
 	return effective, nil
 }
@@ -2249,6 +2243,23 @@ func (s *Service) PutIngredientBranchConfig(
 
 	if !exists {
 		return BranchConfig{}, ErrNotFound
+	}
+
+	if effectiveMode == InventoryControlled &&
+		strings.TrimSpace(input.InventoryItemID) == "" {
+		input.InventoryItemID, err = ensureMasterInventoryItemTx(
+			ctx,
+			tx,
+			actor.BusinessID,
+			branchID,
+			"INGREDIENT",
+			ingredient.ID,
+			ingredient.DefaultUnitCode,
+			ingredient.MeasurementFamily,
+		)
+		if err != nil {
+			return BranchConfig{}, err
+		}
 	}
 
 	if effectiveMode ==
@@ -2504,6 +2515,23 @@ func (s *Service) PutPackagingBranchConfig(
 
 	if !exists {
 		return BranchConfig{}, ErrNotFound
+	}
+
+	if effectiveMode == InventoryControlled &&
+		strings.TrimSpace(input.InventoryItemID) == "" {
+		input.InventoryItemID, err = ensureMasterInventoryItemTx(
+			ctx,
+			tx,
+			actor.BusinessID,
+			branchID,
+			"PACKAGING",
+			material.ID,
+			material.DefaultUnitCode,
+			material.MeasurementFamily,
+		)
+		if err != nil {
+			return BranchConfig{}, err
+		}
 	}
 
 	if effectiveMode ==

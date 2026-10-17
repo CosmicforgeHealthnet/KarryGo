@@ -403,7 +403,7 @@ func (s *WalletService) RegisterBankAccount(ctx context.Context, input RegisterB
 		BankCode:      input.BankCode,
 	})
 	if err != nil {
-		return walletmodels.ProviderBankAccount{}, apperrors.Unavailable("Bank account could not be verified.", err)
+		return walletmodels.ProviderBankAccount{}, bankResolveError(err)
 	}
 	recipient, err := s.paystack.CreateTransferRecipient(ctx, walletclients.CreateTransferRecipientRequest{
 		Name:          resolved.AccountName,
@@ -450,7 +450,7 @@ func (s *WalletService) ResolveBankAccount(ctx context.Context, input ResolveBan
 		BankCode:      input.BankCode,
 	})
 	if err != nil {
-		return ResolvedBankAccount{}, apperrors.Unavailable("Bank account could not be verified.", err)
+		return ResolvedBankAccount{}, bankResolveError(err)
 	}
 	return ResolvedBankAccount{
 		AccountNumber: resolved.AccountNumber,
@@ -718,4 +718,15 @@ func stringID(value int64) string {
 		return ""
 	}
 	return strconv.FormatInt(value, 10)
+}
+
+// bankResolveError tells a merchant to fix their details when Paystack
+// definitively cannot find the account, and reports an outage otherwise.
+func bankResolveError(err error) error {
+	if walletclients.IsPaystackRejection(err) {
+		return apperrors.Validation("We couldn't find this bank account. Check the bank and the 10-digit account number.", []apperrors.FieldViolation{
+			{Field: "account_number", Message: "We couldn't find this account at the selected bank."},
+		})
+	}
+	return apperrors.Unavailable("We couldn't verify your bank account right now. Please try again in a few minutes.", err)
 }

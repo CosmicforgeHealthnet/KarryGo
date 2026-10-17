@@ -1,6 +1,7 @@
 package productionbatch
 
 import (
+	"fmt"
 	"errors"
 	"math"
 	"math/big"
@@ -16,6 +17,8 @@ var (
 	ErrTopUpRequired      = errors.New("production batch additional inventory reservation required")
 	ErrCorrectionRequired = errors.New("production batch inventory correction required")
 	ErrCapacityConflict   = errors.New("production batch production job conflict")
+	// ErrConsumptionRequired wraps ErrStateConflict so existing checks still match.
+	ErrConsumptionRequired = fmt.Errorf("%w: actual consumption not recorded", ErrStateConflict)
 )
 
 type fraction struct {

@@ -43,6 +43,11 @@ type Balance struct {
 	BranchID        string `json:"branch_id"`
 	InventoryItemID string `json:"inventory_item_id"`
 
+	// Name is the merchant-facing label of the stocked item (ingredient,
+	// packaging material or shop product variant). Read-only; filled on
+	// list reads and empty when the source cannot be resolved.
+	Name string `json:"name,omitempty"`
+
 	OnHandQuantity      int64 `json:"on_hand"`
 	ReservedQuantity    int64 `json:"reserved"`
 	QuarantinedQuantity int64 `json:"quarantined"`

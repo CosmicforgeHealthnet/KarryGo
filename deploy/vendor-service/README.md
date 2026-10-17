@@ -191,3 +191,41 @@ Ingress note: vendor document/asset upload grants point at
 which the public nginx must forward to media-file-service (today only
 `customer-uploads/.../content` is forwarded and the rest of
 `/api/v1/media-files/` returns 404).
+
+## Manual vendor review (until an admin screen exists)
+
+New businesses and branches stay in DRAFT until every verification check is
+decided. Operations approves them by hand with `vendor-review`, which records
+each decision through verification-compliance-service's signed decision API as
+`admin-backoffice-service`, so history, idempotency and the callback that
+activates the business in vendor-service all run normally. Do not edit the
+verification or vendor database directly.
+
+One-time server setup (already done on staging, 2026-10-17):
+
+- `verification.env` lists `admin-backoffice-service` in both
+  `VERIFICATION_COMPLIANCE_ALLOWED_CALLERS` and
+  `VERIFICATION_COMPLIANCE_SERVICE_SECRETS`; its secret is also in
+  `/opt/karrygo/verification-service/vendor-review.env` (mode 600). Apply a
+  settings change with `bash /opt/karrygo/platform/bin/apply-env.sh verification-compliance-service`.
+- The Linux build of `services/verification-compliance-service/cmd/vendor-review`
+  is at `/opt/karrygo/verification-service/vendor-review.bin`. Rebuild with
+  `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o vendor-review ./cmd/vendor-review`.
+
+Daily use, on the server:
+
+```sh
+cd /opt/karrygo/verification-service
+vr() { docker run --rm --network karrygo-net --env-file verification.env --env-file vendor-review.env \
+  -e VENDOR_REVIEW_OPERATOR="$USER" -v "$PWD/vendor-review.bin:/vendor-review:ro" --entrypoint /vendor-review \
+  "$(sed -n 's/^IMAGE=//p' release.env)" "$@"; }
+vr list                                   # businesses waiting, oldest first
+vr show    vb_...                         # every check for one business
+vr approve vb_...                         # approve all its waiting checks
+vr reject  vb_... "Upload a clear photo of your CAC certificate"
+```
+
+Check the documents a vendor uploaded before approving. Approval activates the
+business and its branches within a minute; a rejection shows the vendor the
+text you give, so write it as an instruction they can act on. Every command is
+safe to repeat.

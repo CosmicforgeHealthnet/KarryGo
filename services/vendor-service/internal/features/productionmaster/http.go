@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"cosmicforge/logistics/services/vendor-service/internal/features/inventory"
 	"cosmicforge/logistics/services/vendor-service/internal/platform/authctx"
@@ -149,6 +150,13 @@ func handlerError(
 		)
 
 	default:
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return apperrors.Conflict(
+				"That code is already in use. Choose a different code.",
+				err,
+			)
+		}
 		return err
 	}
 }

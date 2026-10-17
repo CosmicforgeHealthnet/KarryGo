@@ -308,7 +308,7 @@ func (c HTTPPaystackClient) do(request *http.Request, data interface{}) error {
 		if envelope.Message == "" {
 			envelope.Message = "Paystack request failed."
 		}
-		return errors.New(envelope.Message)
+		return &PaystackError{StatusCode: response.StatusCode, Message: envelope.Message}
 	}
 	if data != nil && len(envelope.Data) > 0 {
 		return json.Unmarshal(envelope.Data, data)
@@ -322,4 +322,24 @@ func (c HTTPPaystackClient) url(path string) string {
 		baseURL = "https://api.paystack.co"
 	}
 	return baseURL + path
+}
+
+// PaystackError is a definite answer from Paystack (not a transport failure).
+// Its text is Paystack's own message, unchanged.
+type PaystackError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *PaystackError) Error() string { return e.Message }
+
+// IsPaystackRejection reports whether Paystack definitively refused the
+// request's input (for example an account number it cannot resolve), as
+// opposed to being unreachable or failing internally.
+func IsPaystackRejection(err error) bool {
+	var pe *PaystackError
+	if !errors.As(err, &pe) {
+		return false
+	}
+	return pe.StatusCode >= 400 && pe.StatusCode < 500 && pe.StatusCode != 401 && pe.StatusCode != 403 && pe.StatusCode != 429
 }

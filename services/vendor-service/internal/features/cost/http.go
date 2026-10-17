@@ -319,7 +319,11 @@ func (h *Handler) currentRecipeCost(c *gin.Context) {
 // createRecipeSnapshot writes immutable evidence. Idempotency-Key makes a
 // retry return the original snapshot rather than writing a second history.
 func (h *Handler) createRecipeSnapshot(c *gin.Context) {
-	branchID := c.Query("branch_id")
+	branchID := strings.TrimSpace(c.Query("branch_id"))
+	if branchID == "" {
+		costError(c, ErrInvalid)
+		return
+	}
 	actor, ok := h.authorizedBranch(c, PermCostRead, branchID)
 	if !ok {
 		return

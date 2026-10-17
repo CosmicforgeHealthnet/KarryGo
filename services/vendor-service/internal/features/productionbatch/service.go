@@ -2725,7 +2725,7 @@ func (s *Service) CompleteBatch(
 
 		if !optional && !recorded {
 			rows.Close()
-			return BatchDetail{}, ErrStateConflict
+			return BatchDetail{}, ErrConsumptionRequired
 		}
 
 		if !recorded {

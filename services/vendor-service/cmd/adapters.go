@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
+
+	"cosmicforge/logistics/shared/go/apperrors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -96,11 +100,34 @@ type bankAuthorityAdapter struct{ client *walletintegration.Client }
 
 func (a bankAuthorityAdapter) ResolveAndRegister(ctx context.Context, businessID, accountNumber, bankCode, key string) (vendors.BankAuthorityResult, error) {
 	r, e := a.client.ResolveAndRegister(ctx, businessID, accountNumber, bankCode, key)
+	e = walletBankError(e)
 	return vendors.BankAuthorityResult{ExternalRef: r.ExternalRef, BankCode: r.BankCode, MaskedAccount: r.MaskedAccount, ResolvedAccountName: r.ResolvedAccountName, SourceVersion: r.SourceVersion, Status: vendors.VerificationState(r.Status), ObservedAt: r.ObservedAt}, e
 }
 func (a bankAuthorityAdapter) GetProfile(ctx context.Context, businessID string) (vendors.BankAuthorityResult, error) {
 	r, e := a.client.Get(ctx, businessID)
+	e = walletBankError(e)
 	return vendors.BankAuthorityResult{ExternalRef: r.ExternalRef, BankCode: r.BankCode, MaskedAccount: r.MaskedAccount, ResolvedAccountName: r.ResolvedAccountName, SourceVersion: r.SourceVersion, Status: vendors.VerificationState(r.Status), ObservedAt: r.ObservedAt}, e
+}
+
+// walletBankError turns a definitive wallet refusal into an API-facing error so
+// a mistyped account reads as "check your details" instead of an unknown
+// outcome. Transport failures and 5xx stay ambiguous and untouched.
+func walletBankError(err error) error {
+	var authErr *walletintegration.AuthorityError
+	if !errors.As(err, &authErr) || !authErr.Refused() {
+		return err
+	}
+	switch authErr.Status {
+	case http.StatusNotFound:
+		return apperrors.NotFound("Bank profile not found.", err)
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return apperrors.Unavailable("Bank verification is temporarily unavailable. Please try again later.", err)
+	}
+	message := authErr.Message
+	if message == "" {
+		message = "We could not confirm this bank account. Check the bank and account number and try again."
+	}
+	return apperrors.New(http.StatusUnprocessableEntity, apperrors.CodeValidationFailed, message, err)
 }
 
 type mediaAuthorityAdapter struct{ client *mediaintegration.Client }
