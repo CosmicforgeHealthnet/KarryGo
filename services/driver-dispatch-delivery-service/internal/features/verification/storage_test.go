@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -52,6 +53,40 @@ func TestNewUploaderFromEnvUsesGenericLocalPrivateRoot(t *testing.T) {
 	if string(stored) != string(header.content) {
 		t.Fatalf("stored content = %q, want %q", stored, header.content)
 	}
+}
+
+func TestLocalVerificationEvidenceUsesOwnerOnlyPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows ACL semantics differ from POSIX mode bits")
+	}
+	root := t.TempDir()
+	uploader := NewLocalFileUploader(root, "local-private://")
+	header := stubFileHeader{
+		filename: "selfie.jpg", contentType: "image/jpeg",
+		content: []byte("private-biometric-capture"),
+	}
+	object := "verifications/provider-123/face/test-private-selfie.jpg"
+	first, err := header.Open()
+	if err != nil { t.Fatal(err) }
+	_, err = uploader.Upload(context.Background(), object, first, header)
+	_ = first.Close()
+	if err != nil { t.Fatal(err) }
+	path := filepath.Join(root, filepath.FromSlash(object))
+	info, err := os.Stat(path)
+	if err != nil { t.Fatal(err) }
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("selfie mode=%#o, want 0600", info.Mode().Perm())
+	}
+	folder, err := os.Stat(filepath.Dir(path))
+	if err != nil { t.Fatal(err) }
+	if folder.Mode().Perm() != 0o700 {
+		t.Fatalf("verification folder mode=%#o, want 0700", folder.Mode().Perm())
+	}
+	second, err := header.Open()
+	if err != nil { t.Fatal(err) }
+	_, err = uploader.Upload(context.Background(), object, second, header)
+	_ = second.Close()
+	if err == nil { t.Fatal("must refuse overwriting existing biometric evidence") }
 }
 
 func TestBuildVerificationObjectPathIsPrivateVerificationScoped(t *testing.T) {
