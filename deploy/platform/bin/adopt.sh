@@ -86,7 +86,7 @@ if [ "$SVC_KEY" = "driver-dispatch-delivery-service" ] && [ -n "$old_dispatch" ]
       log "  $src does not exist in the old container (nothing to copy)"
     fi
   done
-  docker pull -q "$IMAGE" >/dev/null
+  docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull -q "$IMAGE" >/dev/null
   if ! docker run --rm --user 0 --entrypoint sh \
     -v "$staging:/src:ro" -v karrygo-dispatch-uploads:/data/uploads "$IMAGE" \
     -c 'cp -a /src/. /data/uploads/ && chown -R cosmicforge:cosmicforge /data/uploads'; then

@@ -245,6 +245,14 @@ jobs:
             # Log in to GHCR with this run's short-lived token (images are private).
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
 
+            # Download every image this run built while logged in, including
+            # services not deployed by the pipeline yet. A private image can then
+            # be deployed by hand later (deploy-service.sh uses the local copy)
+            # without logging the server in to GHCR.
+            for key in $SERVICES; do
+              docker pull -q "$REGISTRY/$key:$SHA" >/dev/null || echo "::warning::could not pre-download $key"
+            done
+
             # Dependencies first, the api-gateway last.
             order="notification-service payment-wallet-service media-file-service verification-compliance-service customer-service support-dispute-service referral-service pricing-service driver-taxi-service driver-hauling-service driver-dispatch-delivery-service fleet-partner-service api-gateway"
             failed=""

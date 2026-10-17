@@ -26,8 +26,16 @@ esac
 log "== deploying $SVC_KEY -> $NEW_IMAGE"
 check_service_files
 
-log "downloading the image"
-docker pull -q "$NEW_IMAGE" >/dev/null
+# Commit-tagged images never change, so a copy already on the server is the
+# right one. The pipeline pre-downloads every image it builds (while it is
+# logged in to GHCR), which is what lets a private image be deployed by hand.
+if docker image inspect "$NEW_IMAGE" >/dev/null 2>&1; then
+  log "the image is already on the server"
+else
+  log "downloading the image"
+  docker pull -q "$NEW_IMAGE" >/dev/null \
+    || die "could not download $NEW_IMAGE. If the image is private on GHCR, let the pipeline download it (any push to staging that builds it), or log the server in: docker login ghcr.io"
+fi
 
 # Write the new release to a side file first; release.env only changes once the
 # new version is healthy, so a failed deploy leaves the record pointing at the
