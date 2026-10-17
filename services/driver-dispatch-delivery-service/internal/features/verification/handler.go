@@ -21,7 +21,7 @@ type Handler struct {
 func NewHandler(pool *pgxpool.Pool) *Handler {
 	repository := NewPostgresRepository(pool)
 	return &Handler{
-		service: NewService(repository, NewStubSmileIdentityClient()),
+		service: NewService(repository, nil, WithInHouseManualFaceReview()),
 	}
 }
 
