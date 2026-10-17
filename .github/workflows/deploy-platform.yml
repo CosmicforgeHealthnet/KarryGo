@@ -110,36 +110,12 @@ jobs:
           echo "### Services in this run ($count)" >>"$GITHUB_STEP_SUMMARY"
           for k in $selected; do echo "- $k" >>"$GITHUB_STEP_SUMMARY"; done
 
-  test:
-    name: Test ${{ matrix.service.key }}
-    needs: plan
-    if: needs.plan.outputs.count != '0' && github.event.inputs.skip_tests != 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        service: ${{ fromJson(needs.plan.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.work
-          cache-dependency-path: services/${{ matrix.service.key }}/go.sum
-      - name: go vet and go test
-        working-directory: services/${{ matrix.service.key }}
-        # Database-backed tests skip themselves here (no test database is
-        # configured); section31-mandatory.yml runs those separately.
-        run: |
-          go vet ./...
-          go test ./...
-
   build:
-    name: Build ${{ matrix.service.key }}
-    needs: [plan, test]
-    # Runs when tests passed, or when they were skipped on purpose.
-    if: always() && needs.plan.outputs.count != '0' && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    # Each service is tested and built in its own job, so one service's failing
+    # tests hold back only that service; the others still build and deploy.
+    name: Test and build ${{ matrix.service.key }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -150,6 +126,21 @@ jobs:
         service: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        if: github.event.inputs.skip_tests != 'true'
+        with:
+          go-version-file: go.work
+          cache-dependency-path: services/${{ matrix.service.key }}/go.sum
+      - name: go vet and go test
+        if: github.event.inputs.skip_tests != 'true'
+        working-directory: services/${{ matrix.service.key }}
+        # Database-backed tests skip themselves here (no test database is
+        # configured); section31-mandatory.yml runs those separately.
+        run: |
+          go vet ./...
+          go test ./...
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -177,10 +168,22 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service.key }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service.key }}
 
+      # A marker that this service's image exists, so the deploy job deploys
+      # exactly the services that built (matrix jobs cannot return a list).
+      - name: Record the built service
+        run: mkdir -p built && echo "${{ matrix.service.key }}" > "built/${{ matrix.service.key }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: built-${{ matrix.service.key }}
+          path: built/
+          retention-days: 1
+
   deploy:
     name: Deploy to the VPS
     needs: [plan, build]
-    if: always() && needs.plan.outputs.count != '0' && needs.build.result == 'success'
+    # Runs even if some services failed to build: it deploys the ones that did.
+    # The run still shows red so a failed service is not missed.
+    if: always() && needs.plan.outputs.count != '0'
     runs-on: ubuntu-latest
     # Add required reviewers to this environment in the repo settings if you
     # want a person to approve each deploy.
@@ -191,7 +194,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Find the services that built
+        id: built
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: built-*
+          path: built
+          merge-multiple: true
+      - name: List them
+        id: list
+        run: |
+          keys="$(ls built 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+          echo "keys=$keys" >>"$GITHUB_OUTPUT"
+          echo "Built and ready to deploy: ${keys:-none}"
+          echo "### Deploying: ${keys:-nothing (no service built)}" >>"$GITHUB_STEP_SUMMARY"
+
       - name: Copy the deploy files to the server
+        if: steps.list.outputs.keys != ''
         uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -203,9 +223,10 @@ jobs:
           overwrite: true
 
       - name: Deploy each service
+        if: steps.list.outputs.keys != ''
         uses: appleboy/ssh-action@v1.0.3
         env:
-          SERVICES: ${{ needs.plan.outputs.keys }}
+          SERVICES: ${{ steps.list.outputs.keys }}
           SHA: ${{ github.sha }}
           REGISTRY: ${{ env.REGISTRY }}
           GHCR_USER: ${{ github.actor }}
@@ -248,6 +269,7 @@ jobs:
             bin/status.sh
 
       - name: Check the public address
+        if: steps.list.outputs.keys != ''
         run: |
           set -euo pipefail
           code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_BASE_URL/health")"

@@ -405,7 +405,7 @@ server into GHCR with a short-lived token for each deploy.
 1. Merge the deployment changes into `staging` and push.
 2. Open GitHub → **Actions → Deploy platform**. A run starts by itself (or click
    **Run workflow**, keep `all`).
-3. Watch the jobs: **Work out what changed → Test → Build → Deploy**.
+3. Watch the jobs: **Work out what changed → Test and build (one per service) → Deploy**. A service whose tests fail is held back on its own; the others still build and deploy.
 
 On this first run, **Deploy** skips every service with a note like:
 
