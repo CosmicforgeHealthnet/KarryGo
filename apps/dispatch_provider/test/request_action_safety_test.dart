@@ -25,6 +25,25 @@ RequestModel _offer() => RequestModel.fromJson({
 });
 
 void main() {
+  test('valid revised fare can be accepted, expired revised fare cannot', () {
+    RequestModel revisedAt(DateTime expiry) => RequestModel.fromJson({
+      'offer_id': 'revised-1',
+      'booking_id': 'booking-1',
+      'lifecycle': 'requoted',
+      'expires_at': expiry.toUtc().toIso8601String(),
+      'expected_version': 2,
+    });
+
+    expect(
+      revisedAt(DateTime.now().add(const Duration(minutes: 2))).isAcceptable,
+      isTrue,
+    );
+    expect(
+      revisedAt(DateTime.now().subtract(const Duration(minutes: 2))).isAcceptable,
+      isFalse,
+    );
+  });
+
   test('an async 202 is not a confirmed accepted mission', () async {
     final api = RequestsApi(_config, client: MockClient(
       (_) async => http.Response(jsonEncode({'success': true}), 202),
