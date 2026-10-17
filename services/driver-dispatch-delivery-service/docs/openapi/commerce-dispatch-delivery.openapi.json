@@ -65,6 +65,15 @@
     },
     "/api/v1/provider/commerce-missions/{missionRef}/provider-transfers/{transferRef}/complete": {
       "post": {"summary": "Replacement provider verifies challenge and atomically accepts custody", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/TransferRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Mission with replacement as active carrier"}, "403": {"description": "Provider identity mismatch"}, "409": {"description": "Transfer, manifest, parcel, location or state conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/by-trip/{tripId}": {
+      "get": {"summary": "Assigned provider reads the Commerce mission behind one of their trips", "security": [{"providerBearer": []}], "parameters": [{"name": "tripId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Provider mission view"}, "400": {"description": "Invalid trip reference"}, "404": {"description": "No Commerce mission assigned to this provider for the trip"}, "503": {"description": "Commerce delivery details unavailable"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/evidence-content": {
+      "post": {"summary": "Upload an operational evidence photo bound to manifest parcels", "description": "multipart/form-data with photo (image, at most 5 MB), parcel_refs (JSON array of 1-100 parcel refs) and operation_ref, which must equal the Idempotency-Key header.", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "responses": {"200": {"description": "Stored evidence content reference"}, "400": {"description": "Missing or invalid photo, parcel refs or operation ref"}, "403": {"description": "Mission or Parcel IDOR denied"}, "409": {"description": "Stale custody or idempotency conflict"}}}
+    },
+    "/api/v1/provider/commerce-missions/{missionRef}/provider-transfers/{transferRef}/credential": {
+      "get": {"summary": "Old provider reads the active provider-transfer challenge code (not cached)", "security": [{"providerBearer": []}], "parameters": [{"$ref": "#/components/parameters/MissionRef"}, {"$ref": "#/components/parameters/TransferRef"}], "responses": {"200": {"description": "Provider-transfer challenge credential"}, "404": {"description": "No active outgoing transfer code"}, "503": {"description": "Transfer handover unavailable"}}}
     }
   },
   "components": {

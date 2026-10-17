@@ -57,8 +57,8 @@ func TestCommerceDeliveryRouterMatchesOpenAPI(t *testing.T) {
 		}
 	}
 	sort.Strings(documented)
-	if len(actual) != 20 {
-		t.Fatalf("commerce route count = %d, want 20: %v", len(actual), actual)
+	if len(actual) != 23 {
+		t.Fatalf("commerce route count = %d, want 23: %v", len(actual), actual)
 	}
 	if len(documented) != len(actual) {
 		t.Fatalf("OpenAPI routes = %d, router routes = %d", len(documented), len(actual))
