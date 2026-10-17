@@ -17,11 +17,11 @@
 # key                             | dockerfile                               | home                      | container                         | port | env_file         | migrate | db_url_var
 api-gateway                       | shared                                   | api-gateway               | karrygo-api-gateway               | 8080 | gateway.env      | script  | API_GATEWAY_DATABASE_URL
 media-file-service                | shared                                   | media-file-service        | karrygo-media-file-service        | 8109 | media.env        | builtin | -
-notification-service              | services/notification-service/Dockerfile | notification-service      | karrygo-notification-service      | 8106 | notification.env | builtin | -
+notification-service              | services/notification-service/Dockerfile | notification-service      | karrygo-notification-service      | 8106 | notification.service.env | builtin | -
 driver-dispatch-delivery-service  | shared                                   | dispatch-delivery-service | karrygo-dispatch-delivery-service | 8103 | dispatch.env     | script  | DISPATCH_DELIVERY_DATABASE_URL
 payment-wallet-service            | shared                                   | payment-wallet-service    | karrygo-payment-wallet-service    | 8105 | wallet.env       | script  | PAYMENT_WALLET_DATABASE_URL
 verification-compliance-service   | shared                                   | verification-service      | karrygo-verification-staging      | 8111 | verification.env | builtin | -
-fleet-partner-service             | services/fleet-partner-service/Dockerfile | fleet-partner-service     | karrygo-fleet-partner-api         | 8113 | fleet.env        | builtin | -
+fleet-partner-service             | services/fleet-partner-service/Dockerfile | fleet-partner-service     | karrygo-fleet-partner-api         | 8113 | fleet.service.env | builtin | -
 customer-service                  | shared                                   | customer-service          | karrygo-customer-service          | 8101 | customer.env     | builtin | -
 driver-taxi-service               | shared                                   | taxi-service              | karrygo-taxi-service              | 8102 | taxi.env         | builtin | -
 driver-hauling-service            | shared                                   | hauling-service           | karrygo-hauling-service           | 8104 | hauling.env      | builtin | -

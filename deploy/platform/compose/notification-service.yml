@@ -11,7 +11,7 @@ services:
     image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
     container_name: karrygo-notification-service
     env_file:
-      - /opt/karrygo/notification-service/notification.env
+      - /opt/karrygo/notification-service/notification.service.env
 
     mem_limit: 256m
     healthcheck:

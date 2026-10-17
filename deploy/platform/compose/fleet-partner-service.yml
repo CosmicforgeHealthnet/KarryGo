@@ -11,7 +11,7 @@ services:
     image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
     container_name: karrygo-fleet-partner-api
     env_file:
-      - /opt/karrygo/fleet-partner-service/fleet.env
+      - /opt/karrygo/fleet-partner-service/fleet.service.env
     # Reachable only from the server itself (nginx: fleet-api.staging.karryam.com).
     ports:
       - "127.0.0.1:8113:8113"
@@ -33,7 +33,7 @@ services:
     container_name: karrygo-fleet-partner-worker
     entrypoint: ["/bin/fleet-partner-worker"]
     env_file:
-      - /opt/karrygo/fleet-partner-service/fleet.env
+      - /opt/karrygo/fleet-partner-service/fleet.service.env
     mem_limit: 384m
 
 networks:

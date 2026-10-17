@@ -29,6 +29,18 @@ stamp="$(date -u +%Y%m%d-%H%M%S)"
 names="$(awk '/^    container_name:/ { print $2 }' "$SVC_COMPOSE")"
 moved=()
 
+# The old containers are the fallback, so nothing they read may change. If an
+# old container mounts the very file the compose file uses for its settings,
+# preparing that file (mode 600, owned by deploy) would make it unreadable to
+# the old container: a restored fallback would silently start on developer
+# defaults. That happened once with notification; refuse instead.
+for name in $names; do
+  docker inspect "$name" >/dev/null 2>&1 || continue
+  if docker inspect -f '{{range .Mounts}}{{.Source}}{{println}}{{end}}' "$name" | grep -qxF "$SVC_ENV_PATH"; then
+    die "$name reads $SVC_ENV_PATH through a mount. Use a different settings file name for the compose file (services.tsv + compose/$SVC_KEY.yml) and leave that file untouched."
+  fi
+done
+
 restore_old() {
   warn "restoring the old containers"
   RELEASE_OVERRIDE=/dev/null IMAGE=unused svc_compose rm -sf >/dev/null 2>&1 || true

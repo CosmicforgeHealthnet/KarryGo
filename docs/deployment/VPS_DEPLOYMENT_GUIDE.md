@@ -79,7 +79,7 @@ you push to "staging" ──▶ GitHub tests the changed services
 | Path | What it is |
 |---|---|
 | `/opt/karrygo/platform/` | The deploy files from the repo (`deploy/platform/`). GitHub refreshes it on each deploy. |
-| `/opt/karrygo/<service-home>/<name>.env` | A service's private settings (mode 600). |
+| `/opt/karrygo/<service-home>/<name>.env` | A service's private settings (mode 600). Notification and fleet use `notification.service.env` / `fleet.service.env`. |
 | `/opt/karrygo/<service-home>/db.env` | Database/Redis passwords for new services (mode 600). |
 | `/opt/karrygo/<service-home>/release.env` | Which image version is deployed now. |
 | `/opt/karrygo/<service-home>/release.previous.env` | The version before it (for rollback). |
@@ -454,10 +454,15 @@ R=ghcr.io/cosmicforgehealthnet
 | payment-wallet | `mkdir -p /opt/karrygo/payment-wallet-service && bin/export-container-env.sh karrygo-payment-wallet-service /opt/karrygo/payment-wallet-service/wallet.env` |
 | dispatch | `bin/export-container-env.sh karrygo-dispatch-delivery-service /opt/karrygo/dispatch-delivery-service/dispatch.env` |
 | verification | `mv /opt/karrygo/verification-service/verification.env /opt/karrygo/verification-service/verification.env.orig && bin/export-container-env.sh karrygo-verification-staging /opt/karrygo/verification-service/verification.env` |
-| notification | `bin/export-container-env.sh karrygo-notification-service /opt/karrygo/notification-service/notification.env.new && mv /opt/karrygo/notification-service/notification.env{,.orig} && mv /opt/karrygo/notification-service/notification.env{.new,}` |
-| fleet | `cp -p /opt/karrygo/fleet-partner-service/fleet.env{,.orig}` (already a file: keep it) |
+| notification | `bin/export-container-env.sh karrygo-notification-service /opt/karrygo/notification-service/notification.service.env` (a NEW file; never touch `notification.env`, the old container reads it) |
+| fleet | `cp /opt/karrygo/fleet-partner-service/fleet.env /opt/karrygo/fleet-partner-service/fleet.service.env && chmod 600 /opt/karrygo/fleet-partner-service/fleet.service.env` (a NEW file; never touch `fleet.env`, the old container reads it) |
 | api-gateway | `bin/export-container-env.sh karrygo-api-gateway /opt/karrygo/api-gateway/gateway.env` |
 | media | `bin/export-container-env.sh karrygo-media-file-service /opt/karrygo/media-file-service/media.env` |
+
+> **Never change a file an old container still reads.** The old container is
+> the fallback if adoption fails; notification and fleet read their settings
+> file through a mount, so their compose files use separate names
+> (`*.service.env`). `adopt.sh` refuses to run if this would be violated.
 
 Then fix two things in the exported files:
 
