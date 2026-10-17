@@ -10,6 +10,20 @@ import 'request_model.dart';
 class RequestsApi {
   final ApiCoreConfig config;
   final http.Client _client;
+  final Map<String, String> _operationKeys = {};
+
+  // Reuse the same identity on retry. A timed-out POST may already be done.
+  String _operationKey(
+    String token,
+    RequestModel request,
+    String operation, [
+    String? reason,
+  ]) {
+    final identity =
+        '${token.hashCode}:${request.kind.name}:${request.id}:'
+        '${request.version}:$operation:${reason ?? ''}';
+    return _operationKeys.putIfAbsent(identity, _newIdempotencyKey);
+  }
 
   RequestsApi(this.config, {http.Client? client})
       : _client = client ?? http.Client();
@@ -227,11 +241,12 @@ class RequestsApi {
     required RequestModel request,
   }) async {
     final path = _acceptPath(request);
-    final body = _acceptBody(request);
+    final operationKey = _operationKey(accessToken, request, 'accept');
+    final body = _acceptBody(request, operationKey);
     _debugLog('[REQUESTS] POST accept $path');
     try {
       final headers = _jsonHeaders(accessToken);
-      headers['Idempotency-Key'] = _newIdempotencyKey();
+      headers['Idempotency-Key'] = operationKey;
       final response = await _client
           .post(
             config.uri(path),
@@ -261,11 +276,12 @@ class RequestsApi {
     required String reason,
   }) async {
     final path = _rejectPath(request);
-    final body = _rejectBody(request, reason);
+    final operationKey = _operationKey(accessToken, request, 'decline', reason);
+    final body = _rejectBody(request, reason, operationKey);
     _debugLog('[REQUESTS] POST reject $path');
     try {
       final headers = _jsonHeaders(accessToken);
-      headers['Idempotency-Key'] = _newIdempotencyKey();
+      headers['Idempotency-Key'] = operationKey;
       final response = await _client
           .post(
             config.uri(path),
@@ -311,24 +327,26 @@ class RequestsApi {
           '/api/v1/provider/company-assignments/${r.id}/decline',
       };
 
-  static Map<String, dynamic> _acceptBody(RequestModel r) => switch (r.kind) {
+  static Map<String, dynamic> _acceptBody(
+      RequestModel r, String operationKey) => switch (r.kind) {
         RequestServerKind.broadcast => <String, dynamic>{},
         RequestServerKind.assignmentOffer => {
             'expected_version': r.version,
           },
         RequestServerKind.organizationOffer => {
-            'clientResponseId': _newIdempotencyKey(),
+            'clientResponseId': operationKey,
             'expectedVersion': r.version,
             'requestId': r.bookingId,
           },
         RequestServerKind.companyAssignment => {
-            'clientResponseId': _newIdempotencyKey(),
+            'clientResponseId': operationKey,
             'expectedVersion': r.version,
             'requestId': r.bookingId,
           },
       };
 
-  static Map<String, dynamic> _rejectBody(RequestModel r, String reason) =>
+  static Map<String, dynamic> _rejectBody(
+          RequestModel r, String reason, String operationKey) =>
       switch (r.kind) {
         RequestServerKind.broadcast => <String, dynamic>{
             // Backend whitelist is strictly {too_far, busy, other}.
@@ -339,12 +357,12 @@ class RequestsApi {
             'reason': reason,
           },
         RequestServerKind.organizationOffer => {
-            'clientResponseId': _newIdempotencyKey(),
+            'clientResponseId': operationKey,
             'expectedVersion': r.version,
             'reasonCode': reason,
           },
         RequestServerKind.companyAssignment => {
-            'clientResponseId': _newIdempotencyKey(),
+            'clientResponseId': operationKey,
             'expectedVersion': r.version,
             'reasonCode': reason,
           },
