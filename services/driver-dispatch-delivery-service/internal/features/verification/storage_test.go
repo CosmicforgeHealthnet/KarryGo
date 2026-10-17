@@ -89,6 +89,38 @@ func TestLocalVerificationEvidenceUsesOwnerOnlyPermissions(t *testing.T) {
 	if err == nil { t.Fatal("must refuse overwriting existing biometric evidence") }
 }
 
+func TestLocalPrivateReaderRejectsTraversalAndAllowsStoredEvidence(t *testing.T) {
+	root := t.TempDir()
+	uploader := NewLocalFileUploader(root, "local-private://")
+	header := stubFileHeader{
+		filename: "proof.pdf", contentType: "application/pdf",
+		content: []byte("%PDF-1.4\\nPrivate identity evidence"),
+	}
+	file, err := header.Open()
+	if err != nil { t.Fatal(err) }
+	reference, err := uploader.Upload(context.Background(), "verifications/provider-1/identity/proof.pdf", file, header)
+	_ = file.Close()
+	if err != nil { t.Fatal(err) }
+	stored, err := uploader.OpenPrivate(context.Background(), reference)
+	if err != nil { t.Fatal(err) }
+	buf := make([]byte, 64)
+	n, err := stored.Read(buf)
+	_ = stored.Close()
+	if n == 0 || string(buf[:n]) != string(header.content) {
+		t.Fatalf("unexpected private evidence content: n=%d error=%v", n, err)
+	}
+	for _, malformed := range []string{
+		"file:///etc/passwd",
+		"local-private://../../etc/passwd",
+		"local-private://verifications/../private",
+		"local-private://verifications/%2e%2e/secret",
+	} {
+		asset, err := uploader.OpenPrivate(context.Background(), malformed)
+		if asset != nil { _ = asset.Close() }
+		if err == nil { t.Fatalf("accepted unsafe file reference: %q", malformed) }
+	}
+}
+
 func TestBuildVerificationObjectPathIsPrivateVerificationScoped(t *testing.T) {
 	objectPath := buildVerificationObjectPath("provider-123", StepIdentity, `..\Govt ID?.pdf`)
 
