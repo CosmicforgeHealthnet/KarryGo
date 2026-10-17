@@ -152,7 +152,14 @@ class RequestsController extends ChangeNotifier {
   // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<ApiResult<List<RequestModel>>> loadRequests() async {
-    if (_disposed || _isLoading) return ApiSuccess(requests);
+    if (_disposed || _isLoading) {
+      return const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'Opportunities are already refreshing. Please wait.',
+        ),
+      );
+    }
     if (AppModeConfig.instance.isMock) {
       _requests = DispatchHomeMock.isOnline
           ? List<RequestModel>.from(DispatchHomeMock.pendingRequests)
@@ -233,13 +240,12 @@ class RequestsController extends ChangeNotifier {
           merged.addAll(current);
         },
         failure: (err) {
-          if (err.statusCode == 404) {
-            _sourceCache.remove(entry.key);
-          } else {
-            failures.add(err);
-            merged.addAll(_sourceCache[entry.key] ?? const <RequestModel>[]);
-            _debugLog('[REQUESTS] source failed: ${err.message}');
-          }
+          // Disabled optional 404s are normalized to [] in RequestsApi.
+          // Every actual failure (including a mandatory broadcast 404)
+          // must make the combined snapshot non-actionable.
+          failures.add(err);
+          merged.addAll(_sourceCache[entry.key] ?? const <RequestModel>[]);
+          _debugLog('[REQUESTS] source failed: ${err.message}');
         },
       );
     }
