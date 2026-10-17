@@ -412,7 +412,13 @@ class _ProgressCard extends StatelessWidget {
     progress: ((controller.readiness['progress_percent'] as num?) ?? 0)
         .clamp(0, 100)
         .toDouble(),
-    status: _label(controller.overview['status']),
+    // The server says NOT_STARTED until the business is submitted, even when
+    // most steps are done; show what the merchant actually sees.
+    status:
+        controller.overview['status'] == 'NOT_STARTED' &&
+            ((controller.readiness['progress_percent'] as num?) ?? 0) > 0
+        ? 'In progress'
+        : _label(controller.overview['status']),
     caption: controller.activated
         ? 'Everything is in place.'
         : controller.readiness['ready'] == true
@@ -460,6 +466,8 @@ class _SetupFormState extends State<_SetupForm> {
       _brand = '';
   bool _authorized = false, _working = false;
   String? _activeAction;
+  // Which action produced [_error], kept after the action finishes.
+  String? _errorAction;
   String? _error, _challenge, _developmentCode;
   DateTime? _challengeExpires;
   String? _pendingMedia;
@@ -530,9 +538,11 @@ class _SetupFormState extends State<_SetupForm> {
 
   String _rawInitialValue(String key, Object? initial) {
     final value = (initial ?? _record[key])?.toString() ?? '';
-    if (value.isEmpty && widget.kind == 'business' && c.needsBusiness) {
+    // Karryam operates in Nigeria only, so these are fixed, never typed.
+    if (value.isEmpty) {
       if (key == 'currency') return 'NGN';
       if (key == 'timezone') return 'Africa/Lagos';
+      if (key == 'country_code') return 'NG';
     }
     if (!_mock || value.isNotEmpty) return value;
     return switch (key) {
@@ -560,7 +570,7 @@ class _SetupFormState extends State<_SetupForm> {
       'country_code' => 'NG',
       'latitude' => '6.5244',
       'longitude' => '3.3792',
-      'document_type' => 'demo_document',
+      'document_type' => 'OTHER_SUPPORTING_DOCUMENT',
       _ => '',
     };
   }
@@ -576,7 +586,7 @@ class _SetupFormState extends State<_SetupForm> {
     if (!mounted) return;
     c.beginNewUpload();
     final type = _field('document_type');
-    if (type.text.trim().isEmpty) type.text = 'demo_document';
+    if (type.text.trim().isEmpty) type.text = 'OTHER_SUPPORTING_DOCUMENT';
     setState(() {
       _fileBytes = asset.buffer.asUint8List(
         asset.offsetInBytes,
@@ -645,10 +655,151 @@ class _SetupFormState extends State<_SetupForm> {
       },
     ),
   );
+  static const _documentTypes = <String, Map<String, String>>{
+    'IDENTITY': {
+      'NIN_SLIP': 'NIN slip or card',
+      'INTERNATIONAL_PASSPORT': 'International passport',
+      'DRIVERS_LICENCE': "Driver's licence",
+      'VOTERS_CARD': "Voter's card",
+    },
+    'BUSINESS': {
+      'CAC_CERTIFICATE': 'CAC certificate',
+      'CAC_STATUS_REPORT': 'CAC status report',
+      'BUSINESS_NAME_CERTIFICATE': 'Business name certificate',
+      'TIN_CERTIFICATE': 'Tax (TIN) certificate',
+    },
+    'LOCATION': {
+      'UTILITY_BILL': 'Utility bill (electricity, water)',
+      'TENANCY_AGREEMENT': 'Tenancy or lease agreement',
+      'SHOP_PHOTO': 'Photo of the shop front',
+      'BANK_STATEMENT': 'Bank statement showing the address',
+    },
+    'BRAND': {
+      'TRADEMARK_CERTIFICATE': 'Trademark certificate',
+      'BRAND_AUTHORIZATION': 'Brand authorization letter',
+    },
+    'FOOD_KITCHEN': {
+      'NAFDAC_CERTIFICATE': 'NAFDAC certificate',
+      'FOOD_HANDLER_CERTIFICATE': "Food handler's certificate",
+      'HEALTH_PERMIT': 'Health or sanitation permit',
+      'KITCHEN_PHOTO': 'Photo of the kitchen',
+    },
+    'BANK': {
+      'BANK_STATEMENT': 'Bank statement',
+      'BANK_REFERENCE_LETTER': 'Bank reference letter',
+    },
+  };
+
+  /// Document type picker for the current check, backed by the same
+  /// 'document_type' field the upload submits.
+  Widget _documentTypeField() {
+    final field = _field('document_type');
+    final options = {
+      ...?_documentTypes[_dimension.toString()],
+      'OTHER_SUPPORTING_DOCUMENT': 'Other supporting document',
+    };
+    final current = field.text.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: DropdownButtonFormField<String>(
+        key: ValueKey('document-type-$_dimension-$current'),
+        isExpanded: true,
+        initialValue: options.containsKey(current) ? current : null,
+        decoration: InputDecoration(
+          labelText: 'Document type',
+          errorText: _fieldErrors['document_type'],
+        ),
+        items: [
+          for (final e in options.entries)
+            DropdownMenuItem(value: e.key, child: Text(e.value)),
+        ],
+        validator: (v) => v == null ? 'Choose the type of document' : null,
+        onChanged: _working
+            ? null
+            : (v) => setState(() {
+                field.text = v ?? '';
+                _fieldErrors.remove('document_type');
+              }),
+      ),
+    );
+  }
+
+  static const _nigerianStates = [
+    'Abia',
+    'Adamawa',
+    'Akwa Ibom',
+    'Anambra',
+    'Bauchi',
+    'Bayelsa',
+    'Benue',
+    'Borno',
+    'Cross River',
+    'Delta',
+    'Ebonyi',
+    'Edo',
+    'Ekiti',
+    'Enugu',
+    'Federal Capital Territory',
+    'Gombe',
+    'Imo',
+    'Jigawa',
+    'Kaduna',
+    'Kano',
+    'Katsina',
+    'Kebbi',
+    'Kogi',
+    'Kwara',
+    'Lagos',
+    'Nasarawa',
+    'Niger',
+    'Ogun',
+    'Ondo',
+    'Osun',
+    'Oyo',
+    'Plateau',
+    'Rivers',
+    'Sokoto',
+    'Taraba',
+    'Yobe',
+    'Zamfara',
+  ];
+
+  /// State picker backed by the same 'region' field the form submits.
+  Widget _stateField(Object? initial) {
+    final field = _field('region', initial: initial);
+    final current = field.text.trim();
+    final match = _nigerianStates
+        .where((s) => s.toLowerCase() == current.toLowerCase())
+        .firstOrNull;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: DropdownButtonFormField<String>(
+        isExpanded: true,
+        initialValue: match,
+        decoration: InputDecoration(
+          labelText: 'State',
+          errorText: _fieldErrors['region'],
+        ),
+        items: [
+          for (final state in _nigerianStates)
+            DropdownMenuItem(value: state, child: Text(state)),
+        ],
+        validator: (v) => v == null ? 'Choose your state' : null,
+        onChanged: _working
+            ? null
+            : (v) => setState(() {
+                field.text = v ?? '';
+                _fieldErrors.remove('region');
+              }),
+      ),
+    );
+  }
+
   String _text(String key) {
     final value = _fields[key]?.text.trim() ?? '';
     return isPhoneFieldKey(key) ? nigerianPhoneForSubmit(value) : value;
   }
+
   Future<void> _task(
     Future<void> Function() action, [
     String activity = 'save',
@@ -658,6 +809,7 @@ class _SetupFormState extends State<_SetupForm> {
       _working = true;
       _activeAction = activity;
       _error = null;
+      _errorAction = null;
       _fieldErrors.clear();
     });
     c.error = null;
@@ -666,6 +818,7 @@ class _SetupFormState extends State<_SetupForm> {
     } catch (e) {
       if (mounted) {
         setState(() {
+          _errorAction = activity;
           if (e is ApiException) {
             for (final field in e.fields) {
               final key = field.field.startsWith('address.')
@@ -1435,30 +1588,41 @@ class _SetupFormState extends State<_SetupForm> {
           onChanged: _working ? null : (v) => setState(() => _brand = v!),
         ),
         const SizedBox(height: 18),
+        Offstage(
+          child: _input(
+            'country_code',
+            'Country',
+            initial: address['country_code'],
+            min: 2,
+            max: 2,
+          ),
+        ),
         for (final entry in {
           'line1': 'Address line 1',
-          'line2': 'Address line 2',
-          'city': 'City',
-          'region': 'Region / state',
-          'postal_code': 'Postal code',
-          'country_code': 'Country code',
+          'line2': 'Address line 2 (optional)',
+          'city': 'City or town',
+          'region': '',
+          'postal_code': 'Postal code (optional)',
         }.entries)
-          _input(
-            entry.key,
-            entry.value,
-            initial: address[entry.key],
-            required: !['line2', 'postal_code'].contains(entry.key),
-            min: switch (entry.key) {
-              'country_code' || 'city' || 'region' => 2,
-              'line1' => 3,
-              _ => null,
-            },
-            max: switch (entry.key) {
-              'country_code' => 2,
-              'line1' => 240,
-              _ => null,
-            },
-          ),
+          if (entry.key == 'region')
+            _stateField(address['region'])
+          else
+            _input(
+              entry.key,
+              entry.value,
+              initial: address[entry.key],
+              required: !['line2', 'postal_code'].contains(entry.key),
+              min: switch (entry.key) {
+                'country_code' || 'city' || 'region' => 2,
+                'line1' => 3,
+                _ => null,
+              },
+              max: switch (entry.key) {
+                'country_code' => 2,
+                'line1' => 240,
+                _ => null,
+              },
+            ),
         FormField<LatLng>(
           initialValue:
               double.tryParse(_field('latitude').text) != null &&
@@ -1481,8 +1645,10 @@ class _SetupFormState extends State<_SetupForm> {
                       ? 'Pin your branch location'
                       : 'Branch location selected',
                 ),
-                subtitle: const Text(
-                  'Choose on the map or use your current location',
+                subtitle: Text(
+                  field.value == null
+                      ? 'Search an address, choose on the map or use your current location'
+                      : 'Pinned on the map. Tap to change it.',
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: _working
@@ -1509,10 +1675,12 @@ class _SetupFormState extends State<_SetupForm> {
             ],
           ),
         ),
-        _input(
-          'timezone',
-          'Timezone',
-          initial: _record['timezone'] ?? c.business['timezone'],
+        Offstage(
+          child: _input(
+            'timezone',
+            'Timezone',
+            initial: _record['timezone'] ?? c.business['timezone'],
+          ),
         ),
       ],
       'capabilities' => [
@@ -1731,7 +1899,7 @@ class _SetupFormState extends State<_SetupForm> {
                 if (documentCheck && subject != null)
                   subject['name']?.toString() ?? '',
                 done
-                    ? 'Approved / complete'
+                    ? (documentCheck ? 'Approved' : 'Complete')
                     : pending
                     ? 'Under review'
                     : attention
@@ -1806,11 +1974,17 @@ class _SetupFormState extends State<_SetupForm> {
           style: TextStyle(color: KarryamColors.gray.forInk(context)),
         ),
         const SizedBox(height: 20),
-        _input('document_type', 'Document type', min: 2, max: 80),
+        _documentTypeField(),
         SetupDocumentPicker(
           fileName: _fileName,
           onPressed: _working ? null : _pick,
         ),
+        // Repeat the error here: the page header is off-screen while the
+        // merchant is at the upload button, so a failure looked silent.
+        if (_error != null && ['pick', 'upload'].contains(_errorAction)) ...[
+          const SizedBox(height: 14),
+          InlineNotice(message: _error!, error: true),
+        ],
         const SizedBox(height: 18),
         PrimaryAction(
           label: _pendingMedia != null

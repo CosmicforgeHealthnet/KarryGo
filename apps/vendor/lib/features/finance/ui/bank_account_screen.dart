@@ -306,7 +306,7 @@ class _BankAccountScreenState extends State<BankAccountScreen> {
                     ],
                     decoration: const InputDecoration(
                       labelText: 'Account number',
-                      helperText: 'Your 10-digit NUBAN account number',
+                      helperText: 'Your 10-digit account number',
                     ),
                     onChanged: (_) => setState(() => _challenge = null),
                   ),

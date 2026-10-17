@@ -138,7 +138,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
       if (mounted) {
         await showOrderFeedback(
           context,
-          title: 'Editor unavailable',
+          title: "This can't be opened yet",
           message: CatalogueController.message(e),
         );
       }
@@ -784,7 +784,7 @@ class _CatalogueDetailScreenState extends State<CatalogueDetailScreen> {
       if (mounted) {
         await showOrderFeedback(
           context,
-          title: 'Editor unavailable',
+          title: "This can't be opened yet",
           message: CatalogueController.message(e),
         );
       }

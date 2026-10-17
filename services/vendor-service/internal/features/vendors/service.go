@@ -319,6 +319,9 @@ func (s *Service) CreateCapability(ctx context.Context, actor Actor, businessID 
 	if err != nil {
 		return Capability{}, mapDB(err, "Capability")
 	}
+	if err = linkBranchCapabilitiesTx(ctx, tx, actor.VendorID, "", c.ID); err != nil {
+		return Capability{}, err
+	}
 	if err = s.publish(ctx, tx, "vendor.capability.changed", "vendor_capability", c.ID, c.Version, actor, c); err != nil {
 		return Capability{}, err
 	}
@@ -587,6 +590,9 @@ func (s *Service) CreateBranch(ctx context.Context, actor Actor, businessID stri
 	b, err := scanBranch(tx.QueryRow(ctx, `INSERT INTO vendor_branches(id,business_id,brand_id,display_name,address_line1,address_line2,city,region,postal_code,country_code,latitude,longitude,timezone,status) VALUES($1,$2,NULLIF($3,''),$4,$5,NULLIF($6,''),$7,$8,NULLIF($9,''),$10,$11,$12,$13,'DRAFT') RETURNING `+branchCols, newID("vbr_"), actor.VendorID, in.BrandID, in.DisplayName, in.Address.Line1, in.Address.Line2, in.Address.City, in.Address.Region, in.Address.PostalCode, in.Address.CountryCode, in.Latitude, in.Longitude, in.Timezone))
 	if err != nil {
 		return Branch{}, mapDB(err, "Branch")
+	}
+	if err = linkBranchCapabilitiesTx(ctx, tx, actor.VendorID, b.ID, ""); err != nil {
+		return Branch{}, err
 	}
 	if err = s.publish(ctx, tx, "vendor.branch.created", "vendor_branch", b.ID, b.Version, actor, b); err != nil {
 		return Branch{}, err
@@ -1022,4 +1028,20 @@ func (s *Service) record(ctx context.Context, actor Actor, action, aggregate, id
 
 func (s *Service) UseAssetValidator(fn func(context.Context, string, string, string, string) error) {
 	s.assetValidator = fn
+}
+
+// linkBranchCapabilitiesTx offers a business's types (restaurant, shop, ...)
+// at its branches as DRAFT branch capabilities, so a merchant who chose
+// "Restaurant" can build a menu at a branch straight away. Publishing still
+// requires the business, branch and branch capability to be ACTIVE. Pass a
+// branchID to link every capability to that branch, or a capabilityID to link
+// that capability to every branch. Existing rows are left untouched.
+func linkBranchCapabilitiesTx(ctx context.Context, tx pgx.Tx, businessID, branchID, capabilityID string) error {
+	_, err := tx.Exec(ctx, `INSERT INTO vendor_branch_capabilities(id,business_id,branch_id,vendor_capability_id,capability_type,status)
+		SELECT 'vbc_'||gen_random_uuid()::text, c.business_id, b.id, c.id, c.capability_type, 'DRAFT'
+		FROM vendor_capabilities c JOIN vendor_branches b ON b.business_id=c.business_id
+		WHERE c.business_id=$1 AND ($2='' OR b.id=$2) AND ($3='' OR c.id=$3)
+		  AND c.status<>'REJECTED' AND b.status<>'CLOSED'
+		ON CONFLICT (branch_id,capability_type) DO NOTHING`, businessID, branchID, capabilityID)
+	return err
 }

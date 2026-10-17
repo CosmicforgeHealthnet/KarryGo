@@ -25,7 +25,8 @@ String requirementStep(JsonObject r) => switch (r['code']) {
     // representative step looking unfinished after it was saved.
     'IDENTITY' => 'verification',
     'BANK' => 'bank',
-    'LOCATION' => 'locations',
+    // Location is verified from the documents step, like identity.
+    'LOCATION' => 'verification',
     _ =>
       ['CAPABILITY', 'BRANCH_CAPABILITY'].contains(r['scope'])
           ? 'capabilities'

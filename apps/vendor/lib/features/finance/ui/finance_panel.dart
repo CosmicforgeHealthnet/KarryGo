@@ -372,7 +372,25 @@ class FinancePanel extends StatelessWidget {
                           : null,
                       icon: Icons.north_east_rounded,
                     ),
-                    if (!c.canWithdraw && !c.loading.contains('banks'))
+                    if (!c.canWithdraw &&
+                        !c.loading.contains('banks') &&
+                        c.errors['banks'] == null &&
+                        c.activeBanks.isEmpty &&
+                        !c.unknown &&
+                        !c.journalBlocked &&
+                        !c.withdrawDenied)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.account_balance_outlined),
+                          label: const Text('Add your bank account to withdraw'),
+                          onPressed: () async {
+                            await openPayoutAccount(context, runtime);
+                            await c.load();
+                          },
+                        ),
+                      )
+                    else if (!c.canWithdraw && !c.loading.contains('banks'))
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Text(
