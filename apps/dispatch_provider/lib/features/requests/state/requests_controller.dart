@@ -24,6 +24,7 @@ class RequestsController extends ChangeNotifier {
   Timer? _pollTimer;
   bool _pollInFlight = false;
   int _stateGeneration = 0;
+  final Set<String> _actionsInFlight = {};
 
   List<RequestModel> get requests => List.unmodifiable(_requests);
   RequestModel? get activeRequest => _activeRequest;
@@ -265,19 +266,44 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    _debugLog('[REQUESTS] accepting ${request.source.label} ${request.id}');
-    final result = await api.accept(accessToken: token, request: request);
-    result.when(
-      success: (_) {
-        _stateGeneration++;
-        _activeRequest = request;
-        _requests = _requests.where((r) => r.id != request.id).toList();
-        notifyListeners();
-      },
-      failure: (err) =>
-          _debugLog('[REQUESTS] accept ${request.id} failed: ${err.message}'),
-    );
-    return result;
+    final key = '${request.kind.name}:${request.id}';
+    if (!_actionsInFlight.add(key)) {
+      return ApiFailure(
+        const ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This request is already being processed.',
+        ),
+      );
+    }
+    final generation = _stateGeneration;
+    try {
+      _debugLog('[REQUESTS] accepting ${request.source.label} ${request.id}');
+      final result = await api.accept(accessToken: token, request: request);
+      if (generation != _stateGeneration || token != _token()) {
+        return ApiFailure(
+          const ApiException(
+            code: ApiErrorCode.conflict,
+            message: 'Your session or offer changed. Refresh your trips.',
+          ),
+        );
+      }
+      result.when(
+        success: (_) {
+          _stateGeneration++;
+          _activeRequest = request;
+          _requests = _requests.where(
+            (r) => r.id != request.id || r.kind != request.kind,
+          ).toList();
+          _lastSuccessfulRefresh = null;
+          notifyListeners();
+        },
+        failure: (err) =>
+            _debugLog('[REQUESTS] accept ${request.id} failed: ${err.message}'),
+      );
+      return result;
+    } finally {
+      _actionsInFlight.remove(key);
+    }
   }
 
   // ── Reject / decline ──────────────────────────────────────────────────────
@@ -299,22 +325,47 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    _debugLog('[REQUESTS] rejecting ${request.source.label} ${request.id}');
-    final result = await api.reject(
-      accessToken: token,
-      request: request,
-      reason: reason,
-    );
-    result.when(
-      success: (_) {
-        _stateGeneration++;
-        _requests = _requests.where((r) => r.id != request.id).toList();
-        notifyListeners();
-      },
-      failure: (err) =>
-          _debugLog('[REQUESTS] reject ${request.id} failed: ${err.message}'),
-    );
-    return result;
+    final key = '${request.kind.name}:${request.id}';
+    if (!_actionsInFlight.add(key)) {
+      return ApiFailure(
+        const ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This request is already being processed.',
+        ),
+      );
+    }
+    final generation = _stateGeneration;
+    try {
+      _debugLog('[REQUESTS] rejecting ${request.source.label} ${request.id}');
+      final result = await api.reject(
+        accessToken: token,
+        request: request,
+        reason: reason,
+      );
+      if (generation != _stateGeneration || token != _token()) {
+        return ApiFailure(
+          const ApiException(
+            code: ApiErrorCode.conflict,
+            message: 'Your session or offer changed. Refresh opportunities.',
+          ),
+        );
+      }
+      result.when(
+        success: (_) {
+          _stateGeneration++;
+          _requests = _requests.where(
+            (r) => r.id != request.id || r.kind != request.kind,
+          ).toList();
+          _lastSuccessfulRefresh = null;
+          notifyListeners();
+        },
+        failure: (err) =>
+            _debugLog('[REQUESTS] reject ${request.id} failed: ${err.message}'),
+      );
+      return result;
+    } finally {
+      _actionsInFlight.remove(key);
+    }
   }
 
   void clearActiveRequest() {
@@ -333,6 +384,7 @@ class RequestsController extends ChangeNotifier {
     _error = null;
     _lastSuccessfulRefresh = null;
     _snapshotToken = null;
+    _actionsInFlight.clear();
     notifyListeners();
   }
 
