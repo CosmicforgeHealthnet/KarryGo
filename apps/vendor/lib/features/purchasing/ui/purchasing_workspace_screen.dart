@@ -767,7 +767,7 @@ class _PurchasingWorkspaceScreenState extends State<PurchasingWorkspaceScreen> {
           ),
           f(
             'media_ref',
-            'Existing media reference',
+            'Document number (as printed)',
             required: true,
             initial: mock ? 'mock-receipt-document' : null,
           ),

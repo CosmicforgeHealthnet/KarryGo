@@ -175,3 +175,19 @@ scenarios at no more than 25 clients for the declared 15-minute measurement
 window. Record requests, concurrency, duration, throughput, p50/p95/p99, errors,
 timeouts, DB pool, CPU, memory, backlog, and recovery time. Do not label the
 result production capacity.
+
+## Enabling the full Vendor-app feature set
+
+`sudo bash deploy/vendor-service/enable-staging-app-features.sh staging` (or
+`production`; the argument must equal `APP_ENV` in `vendor.env`) writes every
+flag the Vendor app needs, turns `COMMERCE_GLOBAL_KILL_SWITCH` off, enables only
+the logistics authorities whose URL/secret are configured, recreates API and
+worker, and restores the backup automatically if `/ready` or the worker fails.
+It refuses to change anything while Notification, Media (incl.
+`VENDOR_MEDIA_PUBLIC_URL`), Wallet or Verification credentials are missing.
+
+Ingress note: vendor document/asset upload grants point at
+`<VENDOR_MEDIA_PUBLIC_URL>/api/v1/media-files/vendor-uploads/{ref}/content`,
+which the public nginx must forward to media-file-service (today only
+`customer-uploads/.../content` is forwarded and the rest of
+`/api/v1/media-files/` returns 404).

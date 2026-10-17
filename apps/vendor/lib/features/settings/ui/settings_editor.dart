@@ -4,6 +4,7 @@ import '../../../core/contracts/vendor_contract.dart';
 import '../../../core/theme/vendor_theme.dart';
 import '../state/settings_controller.dart';
 import 'settings_design.dart';
+import '../../onboarding/ui/location_pick_field.dart';
 
 class SettingsEditor extends StatefulWidget {
   const SettingsEditor({
@@ -536,8 +537,12 @@ class _SettingsEditorState extends State<SettingsEditor> {
                 _field('region', 'Region', required: true),
                 _field('postal_code', 'Postal code'),
                 _field('country_code', 'Country code', required: true),
-                _field('latitude', 'Latitude', required: true, numeric: true),
-                _field('longitude', 'Longitude', required: true, numeric: true),
+                LocationPickField(
+                  latitude: _fields['latitude']!,
+                  longitude: _fields['longitude']!,
+                  enabled: !_saving,
+                  onChanged: () => setState(() => _dirty = true),
+                ),
                 _field('timezone', 'Timezone', required: true),
               ],
               if (kind == SettingsKind.staff) ...[

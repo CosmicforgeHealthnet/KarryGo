@@ -383,11 +383,41 @@ class _ProductionReservationScreenState
   }
 
   Future<void> find() async {
+    // Offer reservations the vendor can actually reach: ones linked to
+    // production jobs plus ones opened on this device. No raw IDs to type.
+    final choices = <String, String>{};
+    try {
+      final jobs = c.collection(
+        await c.fetch('$productionBase/jobs', query: {'limit': '100'}),
+      );
+      for (final job in jobs) {
+        final ref = job['reservation_id'];
+        if (ref is String && ref.isNotEmpty) {
+          choices[ref] = 'Reserved for ${job['title'] ?? 'production job'}';
+        }
+      }
+    } catch (_) {}
+    for (final ref in bookmarks) {
+      choices.putIfAbsent(ref, () => 'Recently opened reservation');
+    }
+    if (!mounted) return;
+    if (choices.isEmpty) {
+      await showOrderFeedback(
+        context,
+        title: 'No reservations yet',
+        message:
+            'Create a reservation from a capacity pool, or link one to a production job, and it will appear here.',
+        warning: true,
+      );
+      return;
+    }
     final body = await purchaseForm(context, 'Find reservation', [
-      const PurchaseField(
+      PurchaseField(
         'reservation_id',
-        'Reservation reference',
+        'Reservation',
+        kind: 'select',
         required: true,
+        options: choices,
       ),
     ]);
     if (body != null) await readReservation('${body['reservation_id']}');
@@ -553,7 +583,7 @@ class _ProductionReservationScreenState
               ],
               const SizedBox(height: 20),
               SettingsAction(
-                'Find by reference',
+                'Find a reservation',
                 secondary: true,
                 icon: Icons.search_rounded,
                 onPressed: c.loading || c.busy ? null : find,

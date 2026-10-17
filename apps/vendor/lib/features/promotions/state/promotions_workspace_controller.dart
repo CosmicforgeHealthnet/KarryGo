@@ -200,9 +200,17 @@ class PromotionsWorkspaceController extends ChangeNotifier {
     } catch (e) {
       error = e is ApiException
           ? e.message
+          : e is VendorContractException
+          ? 'Check the offer details and try again. Nothing was sent.'
           : pending == null
           ? 'Recovery details could not be saved. Nothing was submitted.'
           : 'The result could not be confirmed. Retry the original update.';
+      if (e is VendorContractException) {
+        try {
+          await storage.write(recoveryKey, '{}');
+          pending = null;
+        } catch (_) {}
+      }
       if (e is ApiException &&
           [400, 401, 403, 404, 409, 412, 422, 429].contains(e.statusCode)) {
         if (e.statusCode == 403 && pending != null) {

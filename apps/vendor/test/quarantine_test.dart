@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:vendor/app/data/vendor_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -43,7 +44,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       await c.prepare();
       final before = await c.balance(basis);
@@ -81,7 +82,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       final record = (await hold(c, quantity: 5, reason: 'DAMAGED'))!;
       expect(
@@ -106,7 +107,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       for (final n in [0, -1, 25, 1000000001]) {
         expect(await hold(c, quantity: n), isNull);
@@ -116,7 +117,7 @@ void main() {
       final record = (await hold(c))!;
       expect(await resolve(c, record['id'], 'PARTIAL_RELEASE'), isNull);
       expect((await c.balance(basis))['quarantined_quantity'], 3);
-      final east = StockController(r.backend, 'mock-branch-east');
+      final east = StockController(r.backend, 'mock-branch-east', preferences: r.mockSupportPreferences);
       addTearDown(east.dispose);
       await east.load(selected: StockSection.quarantines);
       expect(east.rows, isEmpty);
@@ -140,7 +141,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       final receipt = (await c.mutate(
         'POST',
@@ -199,7 +200,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       final key = VendorCommand.create();
       final body = VendorPayload(holdBody());
@@ -244,7 +245,7 @@ void main() {
       );
       addTearDown(app.dispose);
       await app.client.acceptSession(r.backend.auth.session!);
-      final c = StockController(app, 'branch');
+      final c = StockController(app, 'branch', preferences: VendorPreferences(inMemory: true));
       addTearDown(c.dispose);
       probe.status = 403;
       await c.load(selected: StockSection.quarantines);
@@ -269,7 +270,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       final receipt = (await c.mutate(
         'POST',
@@ -364,7 +365,7 @@ void main() {
     (tester) async {
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       final record = (await tester.runAsync(() => hold(c)))!;
@@ -398,7 +399,7 @@ void main() {
       addTearDown(tester.view.resetViewInsets);
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       await tester.pumpWidget(

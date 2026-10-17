@@ -103,7 +103,9 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         choices: choices,
         onSave: (body) {
           if (row == null && widget.resource.kind == CatalogueKind.menus) {
-            body['branch_id'] = widget.resource.branchId;
+            body['branch_id'] =
+                widget.resource.branchId ??
+                widget.runtime.backend.scope.branchId;
           }
           if (record != null) body['expected_version'] = record['version'];
           return c.write(
@@ -563,12 +565,16 @@ Future<Map<String, Map<String, String>>> catalogueChoices(
   final choices = <String, Map<String, String>>{};
   final app = runtime.backend;
   if (resource.kind == CatalogueKind.menus && record == null) {
+    final branchId = resource.branchId ?? app.scope.branchId;
+    if (branchId == null) {
+      throw StateError('Choose a branch on your dashboard before adding a menu.');
+    }
     final response = await app.businessApi.request(
       'GET',
       '/api/v1/vendor/businesses/{businessId}/branches/{branchId}/capabilities',
       pathParameters: {
         'businessId': app.scope.vendorId!,
-        'branchId': resource.branchId!,
+        'branchId': branchId,
       },
     );
     final data = response.data;
@@ -579,6 +585,11 @@ Future<Map<String, Map<String, String>>> catalogueChoices(
             c['status'] != 'ARCHIVED')
           c['capability_type'].toString(): dashboardLabel(c['capability_type']),
     };
+    if (choices['capability_type']!.isEmpty) {
+      throw StateError(
+        'This branch does not offer a Restaurant or Fast food service yet. Add one in your business settings, then create the menu.',
+      );
+    }
   }
   if ([
     CatalogueKind.products,

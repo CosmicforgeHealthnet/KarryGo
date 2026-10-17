@@ -96,7 +96,7 @@ class CatalogueController extends ChangeNotifier {
               variant = variantNames[row['variant_ref']];
           labels[row['id'].toString()] = product == null || variant == null
               ? 'Product details unavailable'
-              : '$product ? $variant';
+              : '$product - $variant';
         }
       }
       hasMore =
@@ -242,6 +242,12 @@ class CatalogueController extends ChangeNotifier {
 
   static String message(Object e) => e is ApiException
       ? e.message
+      : e is VendorContractException
+      ? (e.message.startsWith('This ')
+            ? e.message
+            : 'Check the details and try again. Nothing was sent.')
+      : e is StateError
+      ? e.message.toString()
       : 'Could not load this catalogue. Please try again.';
   @override
   void dispose() {

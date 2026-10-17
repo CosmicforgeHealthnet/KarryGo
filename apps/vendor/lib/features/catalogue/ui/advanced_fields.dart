@@ -125,11 +125,7 @@ List<CatalogueField> advancedFields(
     ],
     AdvancedKind.source => [
       _choice('mode', 'Availability source', ['MANUAL', 'INVENTORY_LINKED']),
-      const CatalogueField(
-        'inventory_recipe_ref',
-        'Inventory recipe reference',
-        maxLength: 200,
-      ),
+      _choice('inventory_recipe_ref', 'Recipe', [], required: false),
     ],
     AdvancedKind.override => [
       _money('base_price_override_minor', 'Branch price'),
@@ -429,7 +425,7 @@ JsonObject advancedPresets(AdvancedResource r, {String? freshType}) =>
         'end_local_time': '16:00',
       },
       AdvancedKind.availability => {'status': 'AVAILABLE', 'reason': ''},
-      AdvancedKind.source => {'mode': 'MANUAL', 'inventory_recipe_ref': ''},
+      AdvancedKind.source => {'mode': 'MANUAL'},
       AdvancedKind.override => {'prep_min_minutes': 10, 'prep_max_minutes': 20},
       AdvancedKind.prep => {'prep_min_minutes': 10, 'prep_max_minutes': 20},
       AdvancedKind.logistics => {
@@ -589,7 +585,7 @@ String? validateAdvanced(
     case AdvancedKind.source:
       if (body['mode'] == 'INVENTORY_LINKED' &&
           (body['inventory_recipe_ref']?.toString().trim().isEmpty ?? true)) {
-        return 'Enter the inventory recipe reference.';
+        return 'Choose the recipe that controls this item\'s stock.';
       }
     case AdvancedKind.override:
     case AdvancedKind.prep:

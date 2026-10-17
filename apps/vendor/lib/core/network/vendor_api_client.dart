@@ -127,6 +127,7 @@ class VendorApiClient {
     if (!path.startsWith('/api/v1/vendor/') || path.contains('/internal/')) {
       throw const VendorContractException('Not a Vendor public operation');
     }
+    Object? payload = body?.toJson();
     if (body != null) {
       if (!operation.requestKnown) {
         throw VendorContractException(
@@ -137,7 +138,8 @@ class VendorApiClient {
       if (schema == null) {
         throw const VendorContractException('Operation has no request body');
       }
-      validateRequest(body.toJson(), schema);
+      payload = pruneOptionalNulls(payload, schema);
+      validateRequest(payload, schema);
     } else if (operation.requestRequired) {
       throw const VendorContractException('Backend request body required');
     }
@@ -208,7 +210,7 @@ class VendorApiClient {
       operation.method,
       path,
       query: query,
-      body: body?.toJson(),
+      body: payload,
       headers: headers,
       token: token,
     );
