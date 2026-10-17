@@ -98,15 +98,21 @@ class TripsApi {
               : data is Map<String, dynamic>
               ? data['trips']
               : null;
-          if (rawList is List) {
+          if (rawList is List &&
+              rawList.every((item) => item is Map<String, dynamic>)) {
             return ApiSuccess(
-              rawList
-                  .whereType<Map<String, dynamic>>()
+              rawList.cast<Map<String, dynamic>>()
                   .map(TripModel.fromJson)
                   .toList(),
             );
           }
-          return const ApiSuccess([]);
+          return const ApiFailure(
+            ApiException(
+              code: ApiErrorCode.unknown,
+              message: 'Invalid trips response. Retry to load current activity.',
+              statusCode: 200,
+            ),
+          );
         }
         return _failureFromResponse(response);
       }
@@ -137,7 +143,13 @@ class TripsApi {
           if (data is Map<String, dynamic>) {
             return ApiSuccess(TripModel.fromJson(data));
           }
-          return const ApiSuccess(null);
+          return const ApiFailure(
+            ApiException(
+              code: ApiErrorCode.unknown,
+              message: 'Invalid active trip response. Please refresh.',
+              statusCode: 200,
+            ),
+          );
         }
         return _failureFromResponse(response);
       }
