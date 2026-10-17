@@ -450,6 +450,13 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
               for (var i = 0; i < c.rows.length; i++)
                 CatalogueEntry(
                   row: c.rows[i],
+                  photo: widget.runtime.mode == VendorDataMode.mock
+                      ? null
+                      : catalogueRowPhoto(
+                          widget.runtime,
+                          widget.resource.kind,
+                          c.rows[i],
+                        ),
                   mockPhotos: widget.runtime.mode == VendorDataMode.mock,
                   displayName: c.labels[c.rows[i]['id'].toString()],
                   kind: widget.resource.kind,
@@ -1525,6 +1532,36 @@ class CatalogueBanner extends StatelessWidget {
   );
 }
 
+/// The saved photo for a catalogue list row, from the list payload itself
+/// (food items carry `media`, shop products `media_refs`), or null.
+Widget? catalogueRowPhoto(
+  VendorRuntime runtime,
+  CatalogueKind kind,
+  JsonObject row,
+) {
+  String? ref;
+  String? target;
+  if (kind == CatalogueKind.items) {
+    final media = (row['media'] as List? ?? []).map(jsonObject).toList();
+    ref =
+        (media.where((e) => e['is_primary'] == true).firstOrNull ??
+                media.firstOrNull)?['media_ref']
+            ?.toString();
+    target = 'FOOD_ITEM';
+  } else if (kind == CatalogueKind.products) {
+    ref = (row['media_refs'] as List? ?? []).firstOrNull?.toString();
+    target = 'SHOP_PRODUCT';
+  }
+  if (ref == null || target == null || row['id'] == null) return null;
+  return MediaPreview(
+    key: ValueKey('row-photo-$ref'),
+    runtime: runtime,
+    targetType: target,
+    targetRef: row['id'].toString(),
+    ref: ref,
+  );
+}
+
 class CatalogueEntry extends StatelessWidget {
   const CatalogueEntry({
     super.key,
@@ -1535,7 +1572,9 @@ class CatalogueEntry extends StatelessWidget {
     this.actions = const [],
     this.displayName,
     this.mockPhotos = false,
+    this.photo,
   });
+  final Widget? photo;
   final JsonObject row;
   final CatalogueKind kind;
   final String currency;
@@ -1567,7 +1606,12 @@ class CatalogueEntry extends StatelessWidget {
                 padding: const EdgeInsets.all(18),
                 child: Row(
                   children: [
-                    if (mockPhotos &&
+                    if (photo != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: SizedBox(width: 58, height: 58, child: photo),
+                      )
+                    else if (mockPhotos &&
                         [
                           CatalogueKind.items,
                           CatalogueKind.products,
