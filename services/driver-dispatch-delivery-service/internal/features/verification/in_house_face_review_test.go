@@ -5,6 +5,8 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"io"
+	"errors"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -26,6 +28,18 @@ func (m *forbiddenExternalMatcher) MatchFace(context.Context, string, string) (F
 	return FaceMatchResult{Passed: true, MatchScore: 100}, nil
 }
 
+type reviewableCaptureUploader struct { *captureUploader }
+
+func (u *reviewableCaptureUploader) OpenPrivate(_ context.Context, reference string) (io.ReadCloser, error) {
+	if !strings.HasPrefix(reference, "local-private://verifications/") {
+		return nil, errors.New("unsupported private media reference")
+	}
+	if strings.Contains(reference, "/identity/") {
+		return io.NopCloser(bytes.NewReader(testPDF)), nil
+	}
+	return io.NopCloser(bytes.NewReader(testJPEG)), nil
+}
+
 func newInHouseRouter(repo Repository, matcher FaceMatcher) (*gin.Engine, *authusecases.TokenUsecase, *captureEvents) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -34,7 +48,7 @@ func newInHouseRouter(repo Repository, matcher FaceMatcher) (*gin.Engine, *authu
 	events := &captureEvents{}
 	handler := NewHandlerWithService(NewService(repo, matcher,
 		WithInHouseManualFaceReview(),
-		WithUploader(&captureUploader{}),
+		WithUploader(&reviewableCaptureUploader{captureUploader: &captureUploader{}}),
 		WithEventPublisher(events),
 	))
 	RegisterRoutes(router, tokens, handler)
