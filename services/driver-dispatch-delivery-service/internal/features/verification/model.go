@@ -228,6 +228,37 @@ type AdminFaceEvidenceResponse struct {
 	FaceCheckID string `json:"face_check_id"`
 }
 
+// The admin sees a single dossier after automation has checked every
+// available document and onboarding step. Biometric/liveness remains explicitly
+// unverified until independently certified automation exists.
+type FinalReviewCheck struct {
+	Name string `json:"name"`
+	Status string `json:"status"` // pass, needs_action, pending_manual
+	Detail string `json:"detail"`
+}
+
+type FinalReviewDossier struct {
+	ProviderID string `json:"provider_id"`
+	ReadyForReview bool `json:"ready_for_review"`
+	Checks []FinalReviewCheck `json:"checks"`
+	Steps []VerificationStepSummary `json:"steps"`
+	Evidence *AdminFaceEvidenceResponse `json:"evidence,omitempty"`
+	// Reviewer must inspect images through authenticated private-asset routes.
+	NoAutomatedBiometrics bool `json:"no_automated_biometrics"`
+}
+
+type FinalReviewDecision struct {
+	Action string `json:"action"`
+	Notes string `json:"notes"`
+}
+
+type FinalReviewOutcome struct {
+	ProviderID string `json:"provider_id"`
+	Decision string `json:"decision"`
+	ApprovedSteps []Step `json:"approved_steps"`
+	Message string `json:"message"`
+}
+
 type AdminReviewRequest struct {
 	Step   Step              `json:"step"`
 	Action AdminReviewAction `json:"action"`
