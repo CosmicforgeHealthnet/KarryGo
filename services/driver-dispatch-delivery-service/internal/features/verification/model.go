@@ -203,7 +203,7 @@ type StepSubmissionResponse struct {
 type FaceSubmissionResponse struct {
 	Step       Step       `json:"step"`
 	Result     string     `json:"result"`
-	MatchScore float64    `json:"match_score"`
+	MatchScore float64    `json:"match_score,omitempty"`
 	Status     StepStatus `json:"status"`
 	Message    string     `json:"message"`
 }
