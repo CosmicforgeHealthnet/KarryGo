@@ -24,6 +24,7 @@ class RequestsController extends ChangeNotifier {
   Timer? _pollTimer;
   bool _pollInFlight = false;
   int _stateGeneration = 0;
+  int _sessionGeneration = 0;
   final Set<String> _actionsInFlight = {};
 
   List<RequestModel> get requests => List.unmodifiable(_requests);
@@ -266,7 +267,7 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    final key = '${_stateGeneration}:${request.kind.name}:${request.id}';
+    final key = '${_sessionGeneration}:${request.kind.name}:${request.id}';
     if (!_actionsInFlight.add(key)) {
       return ApiFailure(
         const ApiException(
@@ -325,7 +326,7 @@ class RequestsController extends ChangeNotifier {
         ),
       );
     }
-    final key = '${_stateGeneration}:${request.kind.name}:${request.id}';
+    final key = '${_sessionGeneration}:${request.kind.name}:${request.id}';
     if (!_actionsInFlight.add(key)) {
       return ApiFailure(
         const ApiException(
@@ -377,6 +378,7 @@ class RequestsController extends ChangeNotifier {
   /// in-flight responses so one provider never sees another's offers.
   void resetSession() {
     _stateGeneration++;
+    _sessionGeneration++;
     stopPolling();
     _requests = [];
     _activeRequest = null;
