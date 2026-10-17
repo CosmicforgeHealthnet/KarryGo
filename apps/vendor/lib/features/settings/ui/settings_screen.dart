@@ -433,6 +433,21 @@ class _SettingsCollectionScreenState extends State<SettingsCollectionScreen> {
     }
   }
 
+  /// The phone or email a staff member signs in with; never their raw ID.
+  String _staffContact(JsonObject row) {
+    final phone = row['phone']?.toString() ?? '';
+    final email = row['email']?.toString() ?? '';
+    if (phone.isNotEmpty) {
+      final local = phone.startsWith('+234') ? '0${phone.substring(4)}' : phone;
+      return email.isNotEmpty ? '$local · $email' : local;
+    }
+    if (email.isNotEmpty) return email;
+    final created = DateTime.tryParse(row['created_at']?.toString() ?? '');
+    return created == null
+        ? 'Team member'
+        : 'Added ${created.toLocal().day}/${created.toLocal().month}/${created.toLocal().year}';
+  }
+
   String _name(JsonObject row) => switch (widget.kind) {
     SettingsKind.profile =>
       row['trading_name']?.toString().isNotEmpty == true
@@ -597,7 +612,7 @@ class _SettingsCollectionScreenState extends State<SettingsCollectionScreen> {
                               Expanded(
                                 child: Text(
                                   widget.kind == SettingsKind.staff
-                                      ? row['id'].toString()
+                                      ? _staffContact(row)
                                       : widget.kind == SettingsKind.roles
                                       ? row['code'].toString()
                                       : widget.kind == SettingsKind.branches

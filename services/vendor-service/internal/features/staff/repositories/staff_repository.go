@@ -31,7 +31,9 @@ func NewStaffRepository(db *pgxpool.Pool) *StaffRepository {
 	return &StaffRepository{db: db}
 }
 
-const staffColumns = `id, vendor_id, user_id, status, suspended_at, suspended_reason, created_at, updated_at, version`
+const staffColumns = `id, vendor_id, user_id, status, suspended_at, suspended_reason, created_at, updated_at, version,
+	(SELECT COALESCE(u.phone, '') FROM vendor_users u WHERE u.id = vendor_staff.user_id),
+	(SELECT COALESCE(u.email, '') FROM vendor_users u WHERE u.id = vendor_staff.user_id)`
 
 func (r *StaffRepository) Create(ctx context.Context, s staffmodels.Staff) error {
 	_, err := r.db.Exec(ctx, `
@@ -142,6 +144,6 @@ func (r *StaffRepository) SetStatus(ctx context.Context, vendorID, id, status st
 
 func scanStaff(row pgx.Row) (staffmodels.Staff, error) {
 	var s staffmodels.Staff
-	err := row.Scan(&s.ID, &s.VendorID, &s.UserID, &s.Status, &s.SuspendedAt, &s.SuspendedReason, &s.CreatedAt, &s.UpdatedAt, &s.Version)
+	err := row.Scan(&s.ID, &s.VendorID, &s.UserID, &s.Status, &s.SuspendedAt, &s.SuspendedReason, &s.CreatedAt, &s.UpdatedAt, &s.Version, &s.Phone, &s.Email)
 	return s, err
 }

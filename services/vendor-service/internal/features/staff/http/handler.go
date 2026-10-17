@@ -142,6 +142,7 @@ func toStaffView(s staffmodels.Staff) staffView {
 	return staffView{
 		ID: s.ID, VendorID: s.VendorID, Status: s.Status, SuspendedReason: s.SuspendedReason,
 		Version: s.Version, CreatedAt: s.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Phone: s.Phone, Email: s.Email,
 	}
 }
 

@@ -14,6 +14,8 @@ type staffView struct {
 	SuspendedReason *string `json:"suspended_reason,omitempty"`
 	Version         int64   `json:"version"`
 	CreatedAt       string  `json:"created_at"`
+	Phone           string  `json:"phone,omitempty"`
+	Email           string  `json:"email,omitempty"`
 }
 
 type suspendStaffRequest struct {

@@ -339,7 +339,15 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                     ),
                     const SizedBox(height: 22),
                     SettingsHeading(own ? 'Your staff access' : 'Staff member'),
-                    SettingsFact('Staff ID', record!['id']),
+                    if ('${record!['phone'] ?? ''}'.isNotEmpty)
+                      SettingsFact(
+                        'Phone',
+                        '${record!['phone']}'.startsWith('+234')
+                            ? '0${'${record!['phone']}'.substring(4)}'
+                            : record!['phone'],
+                      ),
+                    if ('${record!['email'] ?? ''}'.isNotEmpty)
+                      SettingsFact('Email', record!['email']),
                     if (record!['suspended_reason']?.toString().isNotEmpty ==
                         true)
                       SettingsFact(

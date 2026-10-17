@@ -128,8 +128,20 @@ ThemeData vendorTheme({Brightness brightness = Brightness.light}) {
         fontWeight: FontWeight.w700,
         color: ink,
       ),
-      bodyLarge: TextStyle(fontSize: 15, height: 1.6, color: muted),
-      bodyMedium: TextStyle(fontSize: 13, height: 1.5, color: muted),
+      // Default text. Light mode's "muted" indigo is nearly as dark as the
+      // ink, so headings that never set a colour still read strongly. Dark
+      // mode's muted grey made those same headings look faded, so dark mode
+      // uses a near-white here; text that is meant to be muted sets it.
+      bodyLarge: TextStyle(
+        fontSize: 15,
+        height: 1.6,
+        color: dark ? const Color(0xFFDCE6EB) : muted,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 13,
+        height: 1.5,
+        color: dark ? const Color(0xFFDCE6EB) : muted,
+      ),
       labelLarge: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w700,

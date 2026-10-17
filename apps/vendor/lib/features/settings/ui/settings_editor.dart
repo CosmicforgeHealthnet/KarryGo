@@ -568,9 +568,7 @@ class _SettingsEditorState extends State<SettingsEditor> {
                   enabled: !_saving,
                   onChanged: () => setState(() => _dirty = true),
                 ),
-                Offstage(
-                  child: _field('timezone', 'Timezone', required: true),
-                ),
+                Offstage(child: _field('timezone', 'Timezone', required: true)),
               ],
               if (kind == SettingsKind.staff) ...[
                 Row(

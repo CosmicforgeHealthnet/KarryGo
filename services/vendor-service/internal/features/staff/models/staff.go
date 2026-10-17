@@ -26,6 +26,9 @@ type Staff struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	Version         int64
+	// Contact the staff member signs in with (read-only, from vendor_users).
+	Phone string
+	Email string
 }
 
 func (s Staff) IsActive() bool {
