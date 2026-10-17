@@ -50,7 +50,39 @@ class VendorContractException implements Exception {
   const VendorContractException(this.message);
   final String message;
   @override
-  String toString() => 'VendorContractException: $message';
+  // Shown when a screen prints the error; the technical detail stays in
+  // [message] for logs and tests.
+  String toString() =>
+      'This request could not be sent. Check the details and try again.';
+}
+
+/// Drops `null` values for optional properties the backend does not declare
+/// nullable. Go decodes a missing optional field and a null the same way, so
+/// omitting it keeps the request valid instead of rejecting it on the phone.
+Object? pruneOptionalNulls(Object? value, JsonObject schema) {
+  if (value is Map && schema['properties'] is Map) {
+    final props = jsonObject(schema['properties']);
+    final required = (schema['required'] as List?) ?? const [];
+    final out = <String, dynamic>{};
+    for (final e in value.entries) {
+      final key = e.key as String;
+      final prop = props[key] is Map ? jsonObject(props[key]) : null;
+      if (e.value == null &&
+          !required.contains(key) &&
+          prop != null &&
+          prop['nullable'] != true &&
+          !(prop['type'] is List && (prop['type'] as List).contains('null'))) {
+        continue;
+      }
+      out[key] = prop == null ? e.value : pruneOptionalNulls(e.value, prop);
+    }
+    return out;
+  }
+  if (value is List && schema['items'] is Map) {
+    final item = jsonObject(schema['items']);
+    return [for (final v in value) pruneOptionalNulls(v, item)];
+  }
+  return value;
 }
 
 void validateRequest(Object? value, JsonObject schema, [String at = 'body']) {

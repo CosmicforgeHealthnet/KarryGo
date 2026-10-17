@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import '../../../app/vendor_runtime.dart';
 import '../../../core/contracts/vendor_contract.dart';
 import '../../../core/theme/vendor_theme.dart';
@@ -815,7 +816,73 @@ class _ScopeSheet extends StatefulWidget {
 class _ScopeSheetState extends State<_ScopeSheet> {
   String type = 'ITEM';
   final ref = TextEditingController();
-  String? label, error;
+  String? label, error, optionError;
+  bool loadingOptions = false;
+  Map<String, String> options = {};
+  int _optionLoad = 0;
+
+  Future<void> loadOptions(String kind) async {
+    if (!['CATEGORY', 'CAPABILITY', 'CUSTOMER_SEGMENT'].contains(kind)) return;
+    final token = ++_optionLoad;
+    setState(() {
+      loadingOptions = true;
+      optionError = null;
+      options = {};
+    });
+    final app = widget.runtime.backend;
+    try {
+      final next = <String, String>{};
+      List rows(Object? data) =>
+          data is List ? data : (data is Map ? data['items'] as List? : null) ?? [];
+      switch (kind) {
+        case 'CATEGORY':
+          final r = await app.shopCatalogueApi.request(
+            'GET',
+            '/api/v1/vendor/shop/categories',
+            query: {'limit': '100'},
+          );
+          for (final row in rows(r.data).map(jsonObject)) {
+            if (row['status'] == 'ARCHIVED') continue;
+            next['${row['id']}'] = '${row['name'] ?? row['id']}';
+          }
+        case 'CUSTOMER_SEGMENT':
+          final r = await app.crmApi.request(
+            'GET',
+            '/api/v1/vendor/crm/segments',
+            query: {'limit': '200'},
+          );
+          for (final row in rows(r.data).map(jsonObject)) {
+            if (row['status'] == 'ARCHIVED') continue;
+            next['${row['id']}'] = '${row['name'] ?? row['id']}';
+          }
+        case 'CAPABILITY':
+          final r = await app.businessApi.request(
+            'GET',
+            '/api/v1/vendor/businesses/{businessId}/capabilities',
+            pathParameters: {'businessId': app.scope.vendorId!},
+            query: {'limit': '100'},
+          );
+          for (final row in rows(r.data).map(jsonObject)) {
+            final code = row['capability_type']?.toString();
+            if (code == null || row['status'] == 'ARCHIVED') continue;
+            next[code] = dashboardLabel(code);
+          }
+      }
+      if (!mounted || token != _optionLoad) return;
+      setState(() => options = next);
+    } catch (e) {
+      if (!mounted || token != _optionLoad) return;
+      setState(
+        () => optionError = e is ApiException && e.statusCode == 403
+            ? 'You do not have access to this list.'
+            : 'This list could not be loaded. Check your connection and retry.',
+      );
+    } finally {
+      if (mounted && token == _optionLoad) {
+        setState(() => loadingOptions = false);
+      }
+    }
+  }
   @override
   void dispose() {
     ref.dispose();
@@ -833,12 +900,15 @@ class _ScopeSheetState extends State<_ScopeSheet> {
           for (final value in promotionScopeTypes)
             DropdownMenuItem(value: value, child: Text(dashboardLabel(value))),
         ],
-        onChanged: (value) => setState(() {
-          type = value!;
-          ref.clear();
-          label = null;
-          error = null;
-        }),
+        onChanged: (value) {
+          setState(() {
+            type = value!;
+            ref.clear();
+            label = null;
+            error = null;
+          });
+          loadOptions(value!);
+        },
       ),
       const SizedBox(height: 16),
       if (type == 'BRANCH' && widget.branches.isNotEmpty)
@@ -858,38 +928,56 @@ class _ScopeSheetState extends State<_ScopeSheet> {
           ],
           onChanged: (value) => ref.text = value!,
         ),
-      if (type != 'BRANCH' || widget.branches.isEmpty)
-        TextField(
-          controller: ref,
-          decoration: InputDecoration(
-            labelText:
-                'Existing ${dashboardLabel(type).toLowerCase()} reference',
+      if (type == 'BRANCH' && widget.branches.isEmpty)
+        const Text(
+          'Your branches could not be loaded. Close this sheet and try again.',
+        ),
+      if (['CATEGORY', 'CAPABILITY', 'CUSTOMER_SEGMENT'].contains(type))
+        if (loadingOptions)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: LinearProgressIndicator(),
+          )
+        else if (optionError != null)
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  optionError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+              TextButton(
+                onPressed: () => loadOptions(type),
+                child: const Text('Retry'),
+              ),
+            ],
+          )
+        else if (options.isEmpty)
+          Text(switch (type) {
+            'CATEGORY' =>
+              'You have no product categories yet. Create one in your Shop catalogue first.',
+            'CUSTOMER_SEGMENT' =>
+              'You have no customer segments yet. Create one in Customers first.',
+            _ => 'None of your branches offer a service yet.',
+          })
+        else
+          DropdownButtonFormField<String>(
+            key: ValueKey('options-$type'),
+            isExpanded: true,
+            decoration: InputDecoration(labelText: dashboardLabel(type)),
+            items: [
+              for (final e in options.entries)
+                DropdownMenuItem(
+                  value: e.key,
+                  child: Text(e.value, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (value) => setState(() {
+              ref.text = value!;
+              label = options[value];
+            }),
           ),
-        ),
-      if (['ITEM', 'VARIANT'].contains(type))
-        TextButton.icon(
-          onPressed: () async {
-            final picked = await pickPromotionItem(
-              context,
-              widget.runtime,
-              variant: type == 'VARIANT',
-            );
-            if (picked == null || !mounted) return;
-            setState(() {
-              ref.text = picked[type == 'VARIANT' ? 'variant_ref' : 'item_ref'];
-              label = picked['label'];
-            });
-          },
-          icon: const Icon(Icons.search_rounded),
-          label: Text(label ?? 'Choose from catalogue'),
-        ),
-      if (!['ITEM', 'VARIANT', 'BRANCH'].contains(type))
-        const Padding(
-          padding: EdgeInsets.only(top: 12),
-          child: Text(
-            'Use an existing backend reference. This does not create a category, capability or customer segment.',
-          ),
-        ),
       if (error != null)
         Text(
           error!,
@@ -899,7 +987,7 @@ class _ScopeSheetState extends State<_ScopeSheet> {
       FilledButton(
         onPressed: () {
           if (ref.text.trim().isEmpty) {
-            setState(() => error = 'Select or enter an existing reference.');
+            setState(() => error = 'Choose who this offer applies to.');
             return;
           }
           Navigator.pop(context, <String, dynamic>{
@@ -981,18 +1069,12 @@ class _BundleSheetState extends State<_BundleSheet> {
           ),
         ],
       ),
-      const SizedBox(height: 10),
-      TextField(
-        controller: item,
-        decoration: const InputDecoration(labelText: 'Existing item reference'),
-      ),
-      const SizedBox(height: 14),
-      TextField(
-        controller: variant,
-        decoration: const InputDecoration(
-          labelText: 'Variant reference (optional)',
+      if (label == null)
+        Text(
+          item.text.trim().isEmpty
+              ? 'Choose the item a customer must buy.'
+              : 'Item selected.',
         ),
-      ),
       const SizedBox(height: 14),
       TextField(
         controller: quantity,

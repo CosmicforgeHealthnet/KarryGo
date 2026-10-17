@@ -60,10 +60,9 @@ void main() {
         await c.load();
         expect(
           canFinishSetup(c),
-          [
-            MockOnboardingScenario.pendingReview,
-            MockOnboardingScenario.ready,
-          ].contains(scenario),
+          // A submission already under review cannot be submitted again;
+          // only a ready business can request activation.
+          scenario == MockOnboardingScenario.ready,
         );
         expect(stepProgress(c, 'representative').state, switch (scenario) {
           MockOnboardingScenario.ready => SetupState.complete,
@@ -167,6 +166,8 @@ void main() {
         180,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.ensureVisible(representative);
+      await tester.pumpAndSettle();
       await tester.tap(representative);
       await flushRequests(tester);
       await tester.pumpAndSettle();
@@ -299,7 +300,13 @@ void main() {
       await tester.scrollUntilVisible(
         target,
         180,
-        scrollable: find.byType(Scrollable).first,
+        // The page on top of the route stack owns the scrollable to drive.
+        scrollable: find
+            .byWidgetPredicate(
+              (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+            )
+            .hitTestable()
+            .first,
       );
       await tester.pumpAndSettle();
       await tester.ensureVisible(target);
@@ -322,8 +329,13 @@ void main() {
     await tapLabel('Save & continue');
     await tapLabel('Continue to documents');
     expect(find.text('Trust starts here.'), findsOneWidget);
+    // The demo document is read from the asset bundle (real I/O).
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pumpAndSettle();
     await tapLabel('Upload document');
-    await tapLabel('Submit selected documents');
+    await tapLabel('Submit for review');
     final c = BusinessOnboardingController(r.backend);
     await tester.runAsync(c.load);
     expect(c.representative['authorized'], isTrue);

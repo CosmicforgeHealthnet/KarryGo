@@ -34,3 +34,12 @@ func TestRecurringOccurrenceKeyIncludesTimezoneAndLocalDate(t *testing.T) {
 		t.Fatalf("unexpected occurrence key %q", key)
 	}
 }
+
+func TestValidateRecurringInputAcceptsEchoedMealTimeWithSeconds(t *testing.T) {
+	now := time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)
+	in := RecurringScheduleInput{BusinessID: "b", CorporateRef: "c", BranchID: "br", IdempotencyKey: "k", Headcount: 5, Weekdays: []int{1}, MealTime: "12:30:00", Timezone: "Africa/Lagos", StartsOn: now.AddDate(0, 0, 1)}
+	_, meal, err := validateRecurringInput(in, now)
+	if err != nil || meal != "12:30" {
+		t.Fatalf("meal=%q err=%v", meal, err)
+	}
+}

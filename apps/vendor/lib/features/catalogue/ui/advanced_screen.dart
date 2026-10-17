@@ -207,6 +207,19 @@ class _AdvancedCatalogueScreenState extends State<AdvancedCatalogueScreen> {
         result[field] = names;
       }
     }
+    if (r.kind == AdvancedKind.source) {
+      var recipes = <JsonObject>[];
+      try {
+        recipes = await c.all(
+          widget.runtime.backend.recipesApi,
+          '/api/v1/vendor/recipes',
+        );
+      } catch (_) {}
+      result['inventory_recipe_ref'] = {
+        for (final row in recipes.where((v) => v['status'] != 'ARCHIVED'))
+          row['id'].toString(): row['name'].toString(),
+      };
+    }
     if ({AdvancedKind.sellUnits, AdvancedKind.calibrations}.contains(r.kind)) {
       final measures = await c.all(api, '/api/v1/vendor/shop/measurements');
       result['measure_id'] = {

@@ -186,7 +186,7 @@ class ProductionBatchesWorkspaceController extends ChangeNotifier {
       } else {
         error = e is ApiException
             ? e.message
-            : 'Recipes could not be loaded. Refresh to try again.';
+            : 'Production batches could not be loaded. Refresh to try again.';
       }
     } finally {
       loading = false;
@@ -261,6 +261,17 @@ class ProductionBatchesWorkspaceController extends ChangeNotifier {
       pending = null;
       return result;
     } catch (e) {
+      if (e is VendorContractException) {
+        // Raised before anything is sent, so the saved attempt can be dropped.
+        error = 'This change could not be sent. Check the details and try again.';
+        try {
+          await storage.write(recoveryKey, '{}');
+          pending = null;
+        } catch (_) {
+          blocked = true;
+        }
+        return null;
+      }
       error = e is ApiException
           ? e.message
           : pending == null

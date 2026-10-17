@@ -217,6 +217,8 @@ class SettingsController extends ChangeNotifier {
       ? e.message.toString()
       : e is FormatException
       ? 'Settings data was incomplete. Refresh and try again.'
+      : e is VendorContractException
+      ? 'This change could not be sent. Check the details and try again.'
       : 'Could not connect. Please try again.';
   @override
   void dispose() {

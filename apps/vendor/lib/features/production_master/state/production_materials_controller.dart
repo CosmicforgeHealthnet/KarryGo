@@ -229,6 +229,17 @@ class ProductionMaterialsController extends ChangeNotifier {
       pending = null;
       return result;
     } catch (e) {
+      if (e is VendorContractException) {
+        // Raised before anything is sent, so the saved attempt can be dropped.
+        error = 'This change could not be sent. Check the details and try again.';
+        try {
+          await storage.write(recoveryKey, '{}');
+          pending = null;
+        } catch (_) {
+          blocked = true;
+        }
+        return null;
+      }
       error = e is ApiException
           ? e.message
           : pending == null

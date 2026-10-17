@@ -416,6 +416,8 @@ class StockController extends ChangeNotifier {
       await restorePending();
       if (recoveryBlocked) {
         commands.remove(fingerprint);
+        error ??=
+            'The saved stock update could not be read. Retry recovery before making another update.';
         return null;
       }
       if (pending != null && pending!['fingerprint'] != fingerprint) {

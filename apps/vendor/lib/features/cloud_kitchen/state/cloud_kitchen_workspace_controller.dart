@@ -279,11 +279,17 @@ class CloudKitchenWorkspaceController extends ChangeNotifier {
     } catch (e) {
       error = e is ApiException
           ? e.message
-          : e is VendorContractException && pending == null
-          ? 'Check the cloud kitchen details before submitting.'
+          : e is VendorContractException
+          ? 'Check the cloud kitchen details before submitting. Nothing was sent.'
           : pending == null
           ? 'Nothing was submitted. Recovery details could not be saved.'
           : 'The outcome is unconfirmed. Retry the original saved change.';
+      if (e is VendorContractException) {
+        try {
+          await storage.write(recoveryKey, '{}');
+          pending = null;
+        } catch (_) {}
+      }
       if (e is ApiException &&
           [400, 401, 403, 404, 409, 412, 422].contains(e.statusCode)) {
         if (e.statusCode == 403 && pending != null) {

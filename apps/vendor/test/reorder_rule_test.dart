@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:vendor/app/data/vendor_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -35,7 +36,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       expect(await c.reorderRule(basis), isNull);
       final before = await c.balance(basis);
@@ -57,7 +58,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       await save(c);
       for (final hours in [0, -1, 8761]) {
@@ -75,7 +76,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       await save(c, minimum: 0);
       expect((await c.reorderRule(basis))!['recommended_reorder_quantity'], 6);
@@ -114,7 +115,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       final receipt = (await c.mutate(
         'POST',
@@ -147,7 +148,7 @@ void main() {
     () async {
       final r = await dashboardRuntime();
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       final command = VendorCommand.create();
       final body = VendorPayload({
@@ -165,7 +166,7 @@ void main() {
         );
       }
       expect((await c.reorderRule(basis))!['version'], 1);
-      final east = StockController(r.backend, 'mock-branch-east');
+      final east = StockController(r.backend, 'mock-branch-east', preferences: r.mockSupportPreferences);
       addTearDown(east.dispose);
       expect(
         await east.reorderRule('stock-demo-listing-mock-branch-east'),
@@ -186,7 +187,7 @@ void main() {
       );
       addTearDown(app.dispose);
       await app.client.acceptSession(r.backend.auth.session!);
-      final c = StockController(app, 'mock-branch');
+      final c = StockController(app, 'mock-branch', preferences: VendorPreferences(inMemory: true));
       addTearDown(c.dispose);
       probe.status = 403;
       await expectLater(c.reorderRule(basis), throwsA(anything));
@@ -217,7 +218,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final r = (await tester.runAsync(() => dashboardRuntime()))!;
       addTearDown(r.dispose);
-      final c = StockController(r.backend, 'mock-branch');
+      final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
       addTearDown(c.dispose);
       await tester.runAsync(c.prepare);
       await tester.pumpWidget(
@@ -279,7 +280,7 @@ void main() {
     addTearDown(tester.view.resetViewInsets);
     final r = (await tester.runAsync(() => dashboardRuntime()))!;
     addTearDown(r.dispose);
-    final c = StockController(r.backend, 'mock-branch');
+    final c = StockController(r.backend, 'mock-branch', preferences: r.mockSupportPreferences);
     addTearDown(c.dispose);
     await tester.pumpWidget(
       MaterialApp(

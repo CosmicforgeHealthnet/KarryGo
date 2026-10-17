@@ -79,7 +79,10 @@ func validateRecurringInput(in RecurringScheduleInput, now time.Time) (*time.Loc
 	}
 	meal, err := time.Parse("15:04", strings.TrimSpace(in.MealTime))
 	if err != nil {
-		return nil, "", ErrSection21Schedule
+		// Reads return meal_time::text ("12:30:00"); an edit echoes it back.
+		if meal, err = time.Parse("15:04:05", strings.TrimSpace(in.MealTime)); err != nil {
+			return nil, "", ErrSection21Schedule
+		}
 	}
 	if in.AdvanceHorizonDays == 0 {
 		in.AdvanceHorizonDays = 14
@@ -226,7 +229,14 @@ func (s *Section21Service) UpdateRecurringSchedule(ctx context.Context, actor Ac
 			return ErrSection21Schedule
 		}
 	}
-	loc, meal, err := validateRecurringInput(in, s.now().UTC())
+	// A running schedule keeps its original start date; only a moved start
+	// date must lie in the future, otherwise an edit of any started
+	// schedule would be refused.
+	validationNow := s.now().UTC()
+	if sameCalendarDay(in.StartsOn, existing.StartsOn) && validationNow.After(existing.StartsOn) {
+		validationNow = existing.StartsOn
+	}
+	loc, meal, err := validateRecurringInput(in, validationNow)
 	if err != nil {
 		return err
 	}
@@ -397,4 +407,10 @@ func (s *Section21Service) ListRecurringOccurrencesByStaff(ctx context.Context, 
 		return nil, err
 	}
 	return s.ListRecurringOccurrences(ctx, actor.VendorID, scheduleID, limit)
+}
+
+func sameCalendarDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }

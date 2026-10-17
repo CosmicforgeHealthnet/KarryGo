@@ -183,6 +183,18 @@ class SchedulingWorkspaceController extends ChangeNotifier {
       ...changes,
       'IdempotencyKey': VendorCommand.create().idempotencyKey,
     };
+    // Reads echo meal_time as "12:30:00"; send the HH:MM form we create with.
+    final meal = body['MealTime'];
+    if (meal is String && RegExp(r'^\d{2}:\d{2}:\d{2}$').hasMatch(meal)) {
+      body['MealTime'] = meal.substring(0, 5);
+    }
+    // Stored requirements may carry JSON nulls (e.g. no allocations), which
+    // the request contract rejects; omitting them means the same thing.
+    final production = body['ProductionRequirement'];
+    if (production is Map) {
+      body['ProductionRequirement'] = Map<String, dynamic>.from(production)
+        ..removeWhere((_, v) => v == null);
+    }
     return write('PUT', detail, body, version: current['Version'] as int);
   }
 
@@ -225,8 +237,8 @@ class SchedulingWorkspaceController extends ChangeNotifier {
 
   static String message(Object e) => e is ApiException
       ? e.message
-      : e is FormatException
-      ? e.message
+      : e is FormatException || e is VendorContractException
+      ? 'We could not read this schedule correctly. Pull to refresh and try again.'
       : 'Could not connect. Refresh to check the latest state before trying again.';
   @override
   void dispose() {

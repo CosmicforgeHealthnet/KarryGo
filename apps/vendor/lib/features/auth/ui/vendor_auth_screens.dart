@@ -34,7 +34,7 @@ class _VendorSignInScreenState extends State<VendorSignInScreen> {
           ? (normalizeNigerianPhone(runtime.identifier)?.substring(4) ??
                 runtime.identifier)
           : runtime.mode == VendorDataMode.mock
-          ? '+2348012345678'
+          ? '8012345678'
           : '',
     );
     _email = TextEditingController(

@@ -170,7 +170,7 @@ class OrderReadinessController extends ChangeNotifier {
       error = e is ApiException
           ? e.message
           : e is FormatException
-          ? e.message
+          ? 'We could not read the latest details. Pull to refresh and try again.'
           : 'Could not connect. Refresh to continue.';
     } finally {
       loading = false;

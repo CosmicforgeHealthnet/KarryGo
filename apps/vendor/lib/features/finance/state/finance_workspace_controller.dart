@@ -25,7 +25,9 @@ class FinanceWorkspaceController extends ChangeNotifier {
   List<JsonObject> get activeBanks => banks
       .where(
         (b) =>
-            b['status'] == 'active' &&
+            const {'active', 'verified'}.contains(
+              b['status']?.toString().toLowerCase(),
+            ) &&
             b['external_ref'] is String &&
             (b['external_ref'] as String).isNotEmpty,
       )
@@ -241,10 +243,11 @@ class FinanceWorkspaceController extends ChangeNotifier {
         commandError = message(e);
         final uncertain =
             previouslyUnknown ||
-            e is! ApiException ||
-            e.statusCode == null ||
-            (e.statusCode ?? 0) >= 500 ||
-            (e.statusCode == 409 &&
+            (e is! ApiException && e is! VendorContractException) ||
+            (e is ApiException && e.statusCode == null) ||
+            (e is ApiException && (e.statusCode ?? 0) >= 500) ||
+            (e is ApiException &&
+                e.statusCode == 409 &&
                 e.message.toLowerCase().contains('idempotency'));
         if (!uncertain) {
           try {
@@ -270,6 +273,8 @@ class FinanceWorkspaceController extends ChangeNotifier {
 
   static String message(Object error) => error is ApiException
       ? error.message
+      : error is VendorContractException
+      ? 'This request could not be prepared. Update the app and try again.'
       : error is FormatException || error is TypeError
       ? 'The server returned incomplete finance information. Please try again.'
       : 'Could not reach the server. Check your connection and try again.';

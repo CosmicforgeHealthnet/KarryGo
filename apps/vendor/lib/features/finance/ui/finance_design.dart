@@ -14,8 +14,8 @@ int? financeMinor(String value) {
   );
 }
 
-Color financeStatusColor(Object? status) => switch (status) {
-  'paid' || 'active' => KarryamColors.tealInk,
+Color financeStatusColor(Object? status) => switch (status?.toString().toLowerCase()) {
+  'paid' || 'active' || 'verified' => KarryamColors.tealInk,
   'failed' || 'reversed' => KarryamColors.error,
   'pending' || 'requires_otp' => const Color(0xFF986013),
   'processing' => const Color(0xFF285EB0),

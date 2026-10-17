@@ -13,6 +13,7 @@ import '../../orders/ui/order_feedback_dialog.dart';
 import '../state/settings_controller.dart';
 import 'settings_design.dart';
 import 'settings_editor.dart';
+import '../../onboarding/ui/location_pick_field.dart';
 import 'branch_hours_screen.dart';
 
 const branchSettingsBase = '${SettingsController.business}/branches/{branchId}';
@@ -542,10 +543,14 @@ class _BranchConfigSheetState extends State<BranchConfigSheet> {
         _loaded = true;
         _accepting = record['accepting_new_orders'] == true;
         _pickup = record['pickup_enabled'] == true;
-        _lat.text = (record['center_latitude'] ?? widget.branch['latitude'])
-            .toString();
-        _lng.text = (record['center_longitude'] ?? widget.branch['longitude'])
-            .toString();
+        _lat.text =
+            (record['center_latitude'] ?? widget.branch['latitude'])
+                ?.toString() ??
+            '';
+        _lng.text =
+            (record['center_longitude'] ?? widget.branch['longitude'])
+                ?.toString() ??
+            '';
         _radius.text =
             record['radius_meters']?.toString() ??
             (widget.runtime.mode == VendorDataMode.mock ? '5000' : '');
@@ -653,8 +658,12 @@ class _BranchConfigSheetState extends State<BranchConfigSheet> {
                 ),
               ),
               const SizedBox(height: 22),
-              _number('Centre latitude', _lat, -90, 90),
-              _number('Centre longitude', _lng, -180, 180),
+              LocationPickField(
+                latitude: _lat,
+                longitude: _lng,
+                label: 'Delivery area centre',
+                enabled: !_saving,
+              ),
               _number('Radius (metres)', _radius, 1, 200000, integer: true),
             ] else ...[
               SwitchListTile.adaptive(

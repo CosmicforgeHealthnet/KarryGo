@@ -569,6 +569,8 @@ class _SetupFormState extends State<_SetupForm> {
     final asset = await rootBundle.load('assets/onboarding/demo-document.pdf');
     if (!mounted) return;
     c.beginNewUpload();
+    final type = _field('document_type');
+    if (type.text.trim().isEmpty) type.text = 'demo_document';
     setState(() {
       _fileBytes = asset.buffer.asUint8List(
         asset.offsetInBytes,
@@ -1661,69 +1663,75 @@ class _SetupFormState extends State<_SetupForm> {
               : KarryamColors.gray.forOutline(context).withValues(alpha: .18),
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 10,
-        ),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: .10),
-            borderRadius: BorderRadius.circular(14),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Icon(
-            done
-                ? Icons.check_circle_outline_rounded
-                : pending
-                ? Icons.hourglass_top_rounded
-                : switch (r['dimension']) {
-                    'IDENTITY' => Icons.badge_outlined,
-                    'BUSINESS' => Icons.business_outlined,
-                    'LOCATION' => Icons.location_on_outlined,
-                    'BANK' => Icons.account_balance_outlined,
-                    'FOOD_KITCHEN' => Icons.restaurant_outlined,
-                    _ => Icons.fact_check_outlined,
-                  },
-            color: color,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
           ),
-        ),
-        title: Text(
-          _label(documentCheck ? r['dimension'] : r['code']),
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 5),
-          child: Text(
-            [
-              if (documentCheck && subject != null)
-                subject['name']?.toString() ?? '',
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
               done
-                  ? 'Approved / complete'
+                  ? Icons.check_circle_outline_rounded
                   : pending
-                  ? 'Under review'
-                  : attention
-                  ? 'Needs attention ? replace and resubmit'
-                  : documentCheck
-                  ? 'Document required ? tap to continue'
-                  : 'Details required ? tap to complete',
-            ].where((v) => v.isNotEmpty).join('\n'),
-            style: TextStyle(color: color, height: 1.5),
+                  ? Icons.hourglass_top_rounded
+                  : switch (r['dimension']) {
+                      'IDENTITY' => Icons.badge_outlined,
+                      'BUSINESS' => Icons.business_outlined,
+                      'LOCATION' => Icons.location_on_outlined,
+                      'BANK' => Icons.account_balance_outlined,
+                      'FOOD_KITCHEN' => Icons.restaurant_outlined,
+                      _ => Icons.fact_check_outlined,
+                    },
+              color: color,
+            ),
           ),
+          title: Text(
+            _label(documentCheck ? r['dimension'] : r['code']),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text(
+              [
+                if (documentCheck && subject != null)
+                  subject['name']?.toString() ?? '',
+                done
+                    ? 'Approved / complete'
+                    : pending
+                    ? 'Under review'
+                    : attention
+                    ? 'Needs attention - replace and resubmit'
+                    : documentCheck
+                    ? 'Document required - tap to continue'
+                    : 'Details required - tap to complete',
+              ].where((v) => v.isNotEmpty).join('\n'),
+              style: TextStyle(color: color, height: 1.5),
+            ),
+          ),
+          trailing: done || pending
+              ? null
+              : Icon(Icons.arrow_forward_rounded, size: 20, color: color),
+          onTap: _working || _pendingMedia != null || done || pending
+              ? null
+              : () {
+                  if (documentCheck && subject != null) {
+                    _chooseRequirement(r);
+                  } else {
+                    _open(requirementStep(r));
+                  }
+                },
         ),
-        trailing: done || pending
-            ? null
-            : Icon(Icons.arrow_forward_rounded, size: 20, color: color),
-        onTap: _working || _pendingMedia != null || done || pending
-            ? null
-            : () {
-                if (documentCheck && subject != null) {
-                  _chooseRequirement(r);
-                } else {
-                  _open(requirementStep(r));
-                }
-              },
       ),
     );
   }
