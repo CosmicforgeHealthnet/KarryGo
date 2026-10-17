@@ -204,11 +204,14 @@ class DispatchAuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Every installation gets its own stable, non-hardware identifier.
+      // Never send a shared placeholder such as "android-dev" to the backend.
+      final deviceId = await tokenStorage.getOrCreateDeviceId();
       final result = await api.verify(
         identifier: _currentIdentifier!,
         otpCode: otpCode,
         purpose: _currentPurpose,
-        deviceId: _deviceId,
+        deviceId: deviceId,
         deviceType: _deviceType,
       );
 
@@ -422,24 +425,6 @@ class DispatchAuthController extends ChangeNotifier {
   }
 
   // ── Platform helpers ───────────────────────────────────────────────────────
-
-  static String get _deviceId {
-    if (kIsWeb) return 'web-dev';
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'android-dev';
-      case TargetPlatform.iOS:
-        return 'ios-dev';
-      case TargetPlatform.windows:
-        return 'windows-dev';
-      case TargetPlatform.macOS:
-        return 'macos-dev';
-      case TargetPlatform.linux:
-        return 'linux-dev';
-      case TargetPlatform.fuchsia:
-        return 'fuchsia-dev';
-    }
-  }
 
   static String get _deviceType {
     if (kIsWeb) return 'web';
