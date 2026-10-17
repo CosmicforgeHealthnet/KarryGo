@@ -29,6 +29,9 @@ type Service struct {
 	faceClient FaceMatcher
 	uploader   FileUploader
 	events     EventPublisher
+	// Self-owned verification: only a human admin can approve the face step.
+	// This mode must never invent a face-match or liveness score.
+	inHouseManualReview bool
 }
 
 type ServiceOption func(*Service)
@@ -42,6 +45,14 @@ func WithUploader(uploader FileUploader) ServiceOption {
 func WithEventPublisher(events EventPublisher) ServiceOption {
 	return func(s *Service) {
 		s.events = events
+	}
+}
+
+// WithInHouseManualFaceReview replaces third-party face matching with an
+// auditable manual review. The selfie and ID are still required and uploaded.
+func WithInHouseManualFaceReview() ServiceOption {
+	return func(s *Service) {
+		s.inHouseManualReview = true
 	}
 }
 
@@ -276,10 +287,36 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 		StepID:       step.ID,
 		SelfieURL:    selfieURL,
 		IDDocURL:     govtIDDoc.FileURL,
-		ProviderUsed: "smile_identity",
+		ProviderUsed: s.faceProviderName(),
 	})
 	if err != nil {
 		return FaceSubmissionResponse{}, err
+	}
+
+	if s.inHouseManualReview {
+		// A genuine verification document and selfie are present. Record that
+		// no automatic identity/liveness decision was performed.
+		pending := "pending_review"
+		if _, err := s.repository.UpdateFaceCheckResult(ctx, FaceCheckResultInput{
+			ID: check.ID, Result: &pending,
+		}); err != nil {
+			return FaceSubmissionResponse{}, err
+		}
+		updated, err := s.repository.UpdateStepSubmitted(ctx, input.ProviderID, StepFace)
+		if err != nil {
+			return FaceSubmissionResponse{}, err
+		}
+		notes := "Selfie and ID submitted for in-house face review; no automatic match or liveness decision."
+		if err := s.insertSubmissionAudit(ctx, input.ProviderID, StepFace, step.Status, notes); err != nil {
+			return FaceSubmissionResponse{}, err
+		}
+		if err := s.publishStepSubmitted(ctx, input.CorrelationID, input.ProviderID, StepFace); err != nil {
+			return FaceSubmissionResponse{}, apperrors.Internal("Event publishing failed.", err)
+		}
+		return FaceSubmissionResponse{
+			Step: StepFace, Result: pending, Status: updated.Status,
+			Message: "Selfie received. Our verification team will compare it with your ID before approving.",
+		}, nil
 	}
 
 	match, err := s.faceClient.MatchFace(ctx, selfieURL, govtIDDoc.FileURL)
@@ -347,6 +384,13 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 	}, nil
 }
 
+func (s *Service) faceProviderName() string {
+	if s.inHouseManualReview {
+		return "karryam_manual_review"
+	}
+	return "smile_identity"
+}
+
 // manualReviewSteps are the only steps that accept manual admin review.
 // vehicle is handled by the vehicle feature event.
 // guarantor and emergency are auto-confirmed and cannot be manually reviewed.
@@ -386,6 +430,42 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 
 	if input.Action == AdminActionApprove && current.Status == StatusApproved {
 		return AdminReviewResponse{}, apperrors.Conflict("Verification step is already approved.", nil)
+	}
+
+	if s.inHouseManualReview && input.Step == StepFace && input.Action == AdminActionApprove {
+		if current.Status != StatusSubmitted {
+			return AdminReviewResponse{}, preconditionFailed("Selfie must be submitted before a human reviewer can approve it.")
+		}
+		if reviewerID == providerID {
+			return AdminReviewResponse{}, apperrors.Forbidden("A provider cannot approve their own selfie.", nil)
+		}
+		if len(strings.TrimSpace(input.Reason)) < 12 {
+			return AdminReviewResponse{}, validationError("reason", "Record what you checked when comparing the selfie against the government ID (at least 12 characters).")
+		}
+		identity, exists, err := s.repository.GetStep(ctx, providerID, StepIdentity)
+		if err != nil {
+			return AdminReviewResponse{}, err
+		}
+		if !exists || identity.Status != StatusApproved {
+			return AdminReviewResponse{}, preconditionFailed("Government identity must be approved before in-house face approval.")
+		}
+		check, exists, err := s.repository.GetLastFaceCheck(ctx, providerID)
+		if err != nil {
+			return AdminReviewResponse{}, err
+		}
+		if !exists || check.StepID != current.ID ||
+			check.ProviderUsed != "karryam_manual_review" ||
+			check.SelfieURL == "" || check.IDDocURL == "" ||
+			check.Result == nil || *check.Result != "pending_review" {
+			return AdminReviewResponse{}, preconditionFailed("A pending first-party selfie and matching ID evidence are required.")
+		}
+		govtIDDoc, exists, err := s.repository.GetLatestIdentityGovtIDDocument(ctx, providerID)
+		if err != nil {
+			return AdminReviewResponse{}, err
+		}
+		if !exists || govtIDDoc.FileURL == "" || govtIDDoc.FileURL != check.IDDocURL {
+			return AdminReviewResponse{}, preconditionFailed("Identity evidence changed. Ask the rider for a new selfie before approval.")
+		}
 	}
 
 	var updated VerificationStep
