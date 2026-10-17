@@ -1,0 +1,15 @@
+# Allow-list: images only ever need the Go code and the migration helper.
+# Everything else (Flutter apps, node_modules, .git, docs) stays out, which keeps
+# builds fast and keeps local secrets out of images.
+*
+!shared/go
+!services
+!deploy/platform/bin/migrate.sh
+
+# Never bake local settings files (real passwords) into an image.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.env
+**/node_modules
+**/coverage*.out

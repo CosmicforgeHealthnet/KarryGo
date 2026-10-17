@@ -1,0 +1,60 @@
+# media-file-service plus its ClamAV virus scanner.
+# Adopts the containers that already run on the server; the media database
+# container keeps running untouched.
+name: karrygo-media-file-service
+
+services:
+  app:
+    extends:
+      file: common.yml
+      service: go-service
+    image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
+    container_name: karrygo-media-file-service
+    env_file:
+      - /opt/karrygo/media-file-service/media.env
+    # Reachable only from the server itself (nginx), never from the internet.
+    ports:
+      - "127.0.0.1:4101:8109"
+    mem_limit: 512m
+    networks:
+      karrygo-net:
+        aliases: [media-file-service]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8109/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  # Scans every upload for viruses. It keeps its downloaded virus signatures in
+  # the existing karrygo-clamav-signatures volume, so nothing is re-downloaded.
+  scanner:
+    image: clamav/clamav:stable
+    container_name: karrygo-media-scanner
+    restart: unless-stopped
+    environment:
+      TZ: Africa/Lagos
+    volumes:
+      - karrygo-clamav-signatures:/var/lib/clamav
+    networks:
+      - karrygo-net
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 300s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  karrygo-net:
+    external: true
+
+volumes:
+  karrygo-clamav-signatures:
+    external: true

@@ -1,0 +1,48 @@
+# support-dispute-service: a new service with its own database.
+# Database passwords live in /opt/karrygo/support-dispute-service/db.env (see deploy/platform/env/).
+name: karrygo-support-dispute-service
+
+services:
+  app:
+    extends:
+      file: common.yml
+      service: go-service
+    image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
+    container_name: karrygo-support-dispute-service
+    env_file:
+      - /opt/karrygo/support-dispute-service/support.env
+    depends_on:
+      db:
+        condition: service_healthy
+    # Reachable only from the server itself (for checks); the apps reach it
+    # through the api-gateway on the private network.
+    ports:
+      - "127.0.0.1:8107:8107"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8107/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  # This service's own PostgreSQL database. Only reachable on the private network.
+  db:
+    extends:
+      file: common.yml
+      service: postgres
+    container_name: karrygo-support-dispute-db
+    env_file:
+      - /opt/karrygo/support-dispute-service/db.env
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    mem_limit: 256m
+
+networks:
+  karrygo-net:
+    external: true
+
+volumes:
+  # Named explicitly so the data folder is easy to find and back up.
+  db-data:
+    name: karrygo-support-dispute-db-data

@@ -1,0 +1,31 @@
+# api-gateway: adopts the container that already runs on the server.
+# Its database and Redis containers keep running untouched; the settings file
+# points at them by container name.
+name: karrygo-api-gateway
+
+services:
+  app:
+    extends:
+      file: common.yml
+      service: go-service
+    image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
+    container_name: karrygo-api-gateway
+    env_file:
+      - /opt/karrygo/api-gateway/gateway.env
+    # Reachable only from the server itself (nginx), never from the internet.
+    ports:
+      - "127.0.0.1:4100:8080"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    networks:
+      karrygo-net:
+        # Older settings files refer to the gateway by this short name too.
+        aliases: [api-gateway]
+networks:
+  karrygo-net:
+    external: true

@@ -1,0 +1,60 @@
+# Shared building blocks. Each service's compose file pulls these in with
+# `extends`, so the safety settings are written once and can't drift apart.
+
+services:
+  # Every KarryGo program container.
+  go-service:
+    restart: unless-stopped
+    # Never gain extra privileges inside the container, and drop all Linux
+    # capabilities: a web API needs none of them.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    networks:
+      - karrygo-net
+    # Keep at most 5 x 20 MB of logs per container so logs can never fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  # A service's own PostgreSQL database (new services only; the databases that
+  # already run on the server are left exactly as they are).
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - karrygo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  # A service's own Redis (new services that need one).
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - karrygo-net
+    # The password comes from the service's db.env (REDIS_PASSWORD); "appendonly"
+    # writes data to disk so a restart does not wipe it.
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

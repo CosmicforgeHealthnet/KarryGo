@@ -48,3 +48,9 @@ __pycache__/
 
 # Local backend verification cache
 /.cache/go-build-vendor/
+
+# Deployment: real settings files hold passwords and live only on the server.
+# Only the *.env.example templates belong in git.
+deploy/**/*.env
+!deploy/**/*.env.example
+deploy/platform/**/release*.env

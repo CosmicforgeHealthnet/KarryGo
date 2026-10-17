@@ -1,0 +1,43 @@
+# driver-dispatch-delivery-service. Adopts the container that already runs on
+# the server; its database and Redis containers keep running untouched.
+name: karrygo-driver-dispatch-delivery-service
+
+services:
+  app:
+    extends:
+      file: common.yml
+      service: go-service
+    image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
+    container_name: karrygo-dispatch-delivery-service
+    env_file:
+      - /opt/karrygo/dispatch-delivery-service/dispatch.env
+    environment:
+      # Rider photos, verification documents and delivery proofs are saved to
+      # disk (storage mode local_private). Before this compose file existed they
+      # went to /tmp INSIDE the container and vanished whenever it was replaced.
+      # They now live on the permanent volume below.
+      AVATAR_UPLOAD_ROOT: /data/uploads/avatars
+      VERIFICATION_UPLOAD_ROOT: /data/uploads/verification
+      TRIP_PROOF_UPLOAD_ROOT: /data/uploads/trip-proofs
+    volumes:
+      - karrygo-dispatch-uploads:/data/uploads
+    # Reachable only from the server itself, never from the internet.
+    ports:
+      - "127.0.0.1:4103:8103"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8103/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+networks:
+  karrygo-net:
+    external: true
+
+volumes:
+  karrygo-dispatch-uploads:
+    # Created once by the adoption step (which also copies the existing files
+    # in); marked external so removing this stack can never delete it.
+    external: true

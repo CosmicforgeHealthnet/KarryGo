@@ -1,0 +1,30 @@
+# KarryGo platform service register. One row per deployable service.
+# Every script in deploy/platform/bin and the deploy-platform workflow read this
+# file, so a service is added or changed in exactly one place.
+#
+# Columns (separated by "|", spaces around values are ignored):
+#   key         the service folder name under services/ and the GHCR image name
+#   dockerfile  "shared" = services/Dockerfile, otherwise a path from the repo root
+#   home        folder under /opt/karrygo on the server (settings + release files)
+#   container   the main container's name (others in the compose file follow it)
+#   port        the port the program listens on inside the container (HTTP_ADDR)
+#   env_file    the private settings file inside the home folder
+#   migrate     how tables are prepared on deploy:
+#                 builtin = the service applies them itself at startup (its *_MIGRATION flag)
+#                 script  = deploy runs migrate.sh inside the new image first
+#   db_url_var  for migrate=script: the setting holding the database address
+#
+# key                             | dockerfile                               | home                      | container                         | port | env_file         | migrate | db_url_var
+api-gateway                       | shared                                   | api-gateway               | karrygo-api-gateway               | 8080 | gateway.env      | script  | API_GATEWAY_DATABASE_URL
+media-file-service                | shared                                   | media-file-service        | karrygo-media-file-service        | 8109 | media.env        | builtin | -
+notification-service              | services/notification-service/Dockerfile | notification-service      | karrygo-notification-service      | 8106 | notification.env | builtin | -
+driver-dispatch-delivery-service  | shared                                   | dispatch-delivery-service | karrygo-dispatch-delivery-service | 8103 | dispatch.env     | script  | DISPATCH_DELIVERY_DATABASE_URL
+payment-wallet-service            | shared                                   | payment-wallet-service    | karrygo-payment-wallet-service    | 8105 | wallet.env       | script  | PAYMENT_WALLET_DATABASE_URL
+verification-compliance-service   | shared                                   | verification-service      | karrygo-verification-staging      | 8111 | verification.env | builtin | -
+fleet-partner-service             | services/fleet-partner-service/Dockerfile | fleet-partner-service     | karrygo-fleet-partner-api         | 8113 | fleet.env        | builtin | -
+customer-service                  | shared                                   | customer-service          | karrygo-customer-service          | 8101 | customer.env     | builtin | -
+driver-taxi-service               | shared                                   | taxi-service              | karrygo-taxi-service              | 8102 | taxi.env         | builtin | -
+driver-hauling-service            | shared                                   | hauling-service           | karrygo-hauling-service           | 8104 | hauling.env      | builtin | -
+support-dispute-service           | shared                                   | support-dispute-service   | karrygo-support-dispute-service   | 8107 | support.env      | builtin | -
+referral-service                  | shared                                   | referral-service          | karrygo-referral-service          | 8114 | referral.env     | builtin | -
+pricing-service                   | shared                                   | pricing-service           | karrygo-pricing-service           | 8115 | pricing.env      | builtin | -

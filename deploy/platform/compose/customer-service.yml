@@ -1,0 +1,65 @@
+# customer-service: a new service with its own database and Redis.
+# Database passwords live in /opt/karrygo/customer-service/db.env (see deploy/platform/env/).
+name: karrygo-customer-service
+
+services:
+  app:
+    extends:
+      file: common.yml
+      service: go-service
+    image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
+    container_name: karrygo-customer-service
+    env_file:
+      - /opt/karrygo/customer-service/customer.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Reachable only from the server itself (for checks); the apps reach it
+    # through the api-gateway on the private network.
+    ports:
+      - "127.0.0.1:8101:8101"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8101/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  # This service's own PostgreSQL database. Only reachable on the private network.
+  db:
+    extends:
+      file: common.yml
+      service: postgres
+    container_name: karrygo-customer-db
+    env_file:
+      - /opt/karrygo/customer-service/db.env
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    mem_limit: 256m
+
+  # This service's own Redis (fast temporary storage: login codes, locks, live
+  # positions). Only reachable on the private network.
+  redis:
+    extends:
+      file: common.yml
+      service: redis
+    container_name: karrygo-customer-redis
+    env_file:
+      - /opt/karrygo/customer-service/db.env
+    volumes:
+      - redis-data:/data
+    mem_limit: 128m
+
+networks:
+  karrygo-net:
+    external: true
+
+volumes:
+  # Named explicitly so the data folder is easy to find and back up.
+  db-data:
+    name: karrygo-customer-db-data
+  redis-data:
+    name: karrygo-customer-redis-data
