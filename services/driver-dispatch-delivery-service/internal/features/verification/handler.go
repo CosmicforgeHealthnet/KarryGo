@@ -40,6 +40,7 @@ func RegisterRoutes(engine *gin.Engine, tokens *authusecases.TokenUsecase, handl
 
 	adminVerification := engine.Group("/api/v1/admin/verification")
 	adminVerification.Use(authhttp.DispatchRiderAuthRequired(tokens), requirePlatformAdminRole())
+	adminVerification.GET("/:provider_id/face-evidence", handler.GetAdminFaceEvidence)
 	adminVerification.PATCH("/:provider_id/review", handler.AdminReview)
 	adminVerification.PATCH("/:provider_id/suspend", handler.SuspendProvider)
 }
@@ -120,6 +121,17 @@ func (h *Handler) GetAllStatus(c *gin.Context) {
 
 func (h *Handler) GetStepStatus(c *gin.Context) {
 	result, err := h.service.GetStepStatus(c.Request.Context(), authhttp.DispatchRiderID(c), Step(c.Param("step")))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, result)
+}
+
+// GetAdminFaceEvidence requires the platform_admin role enforced by the
+// route group. It must never be mounted under a provider-facing route.
+func (h *Handler) GetAdminFaceEvidence(c *gin.Context) {
+	result, err := h.service.GetAdminFaceEvidence(c.Request.Context(), c.Param("provider_id"))
 	if err != nil {
 		httpx.Abort(c, err)
 		return
