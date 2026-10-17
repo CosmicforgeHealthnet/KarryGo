@@ -544,6 +544,41 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 	}, nil
 }
 
+// GetAdminFaceEvidence exposes the uploaded identity document and latest
+// selfie ONLY to the existing platform_admin-protected route. These references
+// are for the human reviewer; private media authorization is an external
+// deployment precondition, not implied by possessing a reference.
+func (s *Service) GetAdminFaceEvidence(ctx context.Context, providerID string) (AdminFaceEvidenceResponse, error) {
+	if err := validateProviderID(providerID); err != nil {
+		return AdminFaceEvidenceResponse{}, err
+	}
+	face, ok, err := s.repository.GetStep(ctx, providerID, StepFace)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok { return AdminFaceEvidenceResponse{}, apperrors.NotFound("Face verification not found.", nil) }
+	identity, ok, err := s.repository.GetStep(ctx, providerID, StepIdentity)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok { return AdminFaceEvidenceResponse{}, apperrors.NotFound("Identity verification not found.", nil) }
+	check, ok, err := s.repository.GetLastFaceCheck(ctx, providerID)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok || check.ProviderUsed != "karryam_manual_review" || check.StepID != face.ID ||
+		check.SelfieURL == "" || check.IDDocURL == "" {
+		return AdminFaceEvidenceResponse{}, apperrors.NotFound("Submitted first-party selfie evidence not found.", nil)
+	}
+	idDoc, ok, err := s.repository.GetLatestIdentityGovtIDDocument(ctx, providerID)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok || idDoc.FileURL == "" || idDoc.FileURL != check.IDDocURL {
+		return AdminFaceEvidenceResponse{}, preconditionFailed("Government identity evidence changed. New selfie is required.")
+	}
+	result := ""
+	if check.Result != nil { result = *check.Result }
+	return AdminFaceEvidenceResponse{
+		ProviderID: providerID, FaceStepStatus: face.Status,
+		IdentityStepStatus: identity.Status, SelfieReference: check.SelfieURL,
+		GovernmentIDReference: check.IDDocURL, FaceCheckStatus: result,
+		FaceCheckID: check.ID,
+	}, nil
+}
+
 func (s *Service) GetAllStatus(ctx context.Context, providerID string) (AllStatusResponse, error) {
 	if err := validateProviderID(providerID); err != nil {
 		return AllStatusResponse{}, err
