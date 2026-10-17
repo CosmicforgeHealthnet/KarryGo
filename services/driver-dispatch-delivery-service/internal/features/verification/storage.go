@@ -124,11 +124,14 @@ func (u *LocalFileUploader) Upload(ctx context.Context, objectPath string, file 
 		return "", err
 	}
 	targetPath := filepath.Join(u.rootDir, filepath.FromSlash(cleanPath))
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	// Government IDs and selfies are sensitive: owner-only directories.
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o700); err != nil {
 		return "", err
 	}
 
-	out, err := os.Create(targetPath)
+	// Never create world-readable identity material or overwrite an existing
+	// verification capture. Callers always use a newly generated UUID path.
+	out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", err
 	}
