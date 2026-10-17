@@ -722,7 +722,8 @@ class RequestDetailScreen extends StatelessWidget {
     final colors = context.palette;
     final lifecycle = request.lifecycle;
 
-    if (lifecycle == RequestLifecycleState.expired) {
+    if (lifecycle == RequestLifecycleState.expired ||
+        (!request.isAcceptable && lifecycle != RequestLifecycleState.taken)) {
       return _stickyButton(
         context,
         label: 'Browse new opportunities',
