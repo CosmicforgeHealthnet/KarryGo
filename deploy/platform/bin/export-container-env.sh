@@ -15,6 +15,9 @@ source "$(dirname "$0")/lib.sh"
 
 [ $# -eq 2 ] || die "usage: export-container-env.sh <container> <output-file>"
 container="$1"; out="$2"
+# lib.sh moved into the platform folder; a relative path means the folder the
+# command was started from.
+case "$out" in /*) ;; *) out="$OLDPWD/$out" ;; esac
 docker inspect "$container" >/dev/null 2>&1 || die "no container named $container"
 [ -e "$out" ] && die "$out already exists; move it away first (nothing was changed)"
 

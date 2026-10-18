@@ -14,6 +14,12 @@ KARRYGO_ROOT="${KARRYGO_ROOT:-/opt/karrygo}"
 PLATFORM_DIR="${PLATFORM_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 REGISTRY="$PLATFORM_DIR/services.tsv"
 
+# Always work from the platform folder. docker compose reads the current
+# folder, and when a script is started from somewhere the deploy user cannot
+# open (sudo -u deploy from /root, for example) every compose command fails
+# with "stat .: permission denied".
+cd "$PLATFORM_DIR"
+
 log()  { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 warn() { printf '[%s] WARNING: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 die()  { printf '[%s] ERROR: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; exit 1; }
