@@ -66,7 +66,13 @@ jobs:
           if [ -z "$base" ]; then base="${{ github.event.before }}"; fi
           git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.go' > /tmp/changed-go.txt
           if [ -s /tmp/changed-go.txt ]; then
-            test -z "$(xargs -r gofmt -l < /tmp/changed-go.txt)"
+            unformatted="$(xargs -r gofmt -l < /tmp/changed-go.txt)"
+            if [ -n "$unformatted" ]; then
+              echo "::error::Go source requires formatting:"
+              printf '%s\\n' "$unformatted"
+              for file in $unformatted; do gofmt -d "$file" || true; done
+              exit 1
+            fi
           fi
       - name: Section 31 contract coverage
         working-directory: services/fleet-partner-service
