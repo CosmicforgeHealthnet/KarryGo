@@ -1,0 +1,28 @@
+# Partner Web App backend and third-party API. DO NOT start while the legacy
+# api-gateway process still runs partner billing/webhook workers.
+name: karrygo-partner-web-service
+
+services:
+  app:
+    extends:
+      file: common.yml
+      service: go-service
+    image: ${IMAGE:?IMAGE must name an immutable reviewed image}
+    container_name: karrygo-partner-web-service
+    env_file:
+      - /opt/karrygo/partner-web-service/partner.env
+    expose:
+      - "8080"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    networks:
+      karrygo-net:
+        aliases: [partner-web-service]
+networks:
+  karrygo-net:
+    external: true

@@ -101,7 +101,221 @@ jobs:
           # Admin requires an exact manual selector and operator certification;
           # pushes and the broad "all" selector must never start this bridge.
           if [ "$EVENT" != workflow_dispatch ] || [ "$INPUT_SERVICES" = all ]; then
-            selected="$(printf '%s\n' $selected | grep -vx admin-backoffice-service || true)"
+            selected="$(printf '%s\n' $selected | grep -vE '^(admin-backoffice-service|api-gateway|partner-web-service)
+          fi
+
+          matrix="$(for k in $selected; do
+            df="$(echo "$rows" | awk -F'|' -v k="$k" '$1 == k { print $2 }')"
+            [ "$df" = shared ] && df=services/Dockerfile
+            printf '{"key":"%s","dockerfile":"%s"}\n' "$k" "$df"
+          done | jq -sc '.')"
+          count="$(echo "$matrix" | jq length)"
+          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
+          echo "keys=$(echo $selected)" >>"$GITHUB_OUTPUT"
+          echo "count=$count" >>"$GITHUB_OUTPUT"
+          echo "### Services in this run ($count)" >>"$GITHUB_STEP_SUMMARY"
+          for k in $selected; do echo "- $k" >>"$GITHUB_STEP_SUMMARY"; done
+
+  build:
+    # Each service is tested and built in its own job, so one service's failing
+    # tests hold back only that service; the others still build and deploy.
+    name: Test and build ${{ matrix.service.key }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        if: github.event.inputs.skip_tests != 'true'
+        with:
+          go-version-file: go.work
+          cache-dependency-path: services/${{ matrix.service.key }}/go.sum
+      - name: go vet and go test
+        if: github.event.inputs.skip_tests != 'true'
+        working-directory: services/${{ matrix.service.key }}
+        # Database-backed tests skip themselves here (no test database is
+        # configured); section31-mandatory.yml runs those separately.
+        run: |
+          go vet ./...
+          go test ./...
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          # The commit tag is the one that gets deployed (it never changes, so
+          # it can always be rolled back to). :staging is a convenience label.
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.service.key }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ matrix.service.key }}:staging
+          # SERVICE_DIR is used by the shared Dockerfile and ignored by the
+          # services that have their own. The commit is stamped into the binary
+          # so a running service can say which commit it is (OPS-002).
+          build-args: |
+            SERVICE_DIR=${{ matrix.service.key }}
+            GO_VERSION=${{ matrix.service.key == 'admin-backoffice-service' && '1.26.9-alpine' || '1.26-alpine' }}
+            BUILD_COMMIT_SHA=${{ github.sha }}
+            BUILD_VERSION=${{ github.ref_name }}-${{ github.run_number }}
+          cache-from: type=gha,scope=${{ matrix.service.key }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.key }}
+
+      # A marker that this service's image exists, so the deploy job deploys
+      # exactly the services that built (matrix jobs cannot return a list).
+      - name: Record the built service
+        run: mkdir -p built && echo "${{ matrix.service.key }}" > "built/${{ matrix.service.key }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: built-${{ matrix.service.key }}
+          path: built/
+          retention-days: 1
+
+  deploy:
+    name: Deploy to the VPS
+    needs: [plan, build]
+    # Runs even if some services failed to build: it deploys the ones that did.
+    # The run still shows red so a failed service is not missed.
+    if: always() && needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    # Add required reviewers to this environment in the repo settings if you
+    # want a person to approve each deploy.
+    environment: staging
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the services that built
+        id: built
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: built-*
+          path: built
+          merge-multiple: true
+      - name: List them
+        id: list
+        run: |
+          keys="$(ls built 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+          echo "keys=$keys" >>"$GITHUB_OUTPUT"
+          echo "Built and ready to deploy: ${keys:-none}"
+          echo "### Deploying: ${keys:-nothing (no service built)}" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Copy the deploy files to the server
+        if: steps.list.outputs.keys != ''
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: deploy/platform
+          target: /opt/karrygo/platform
+          strip_components: 2
+          overwrite: true
+
+      - name: Deploy each service
+        if: steps.list.outputs.keys != ''
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SERVICES: ${{ steps.list.outputs.keys }}
+          SHA: ${{ github.sha }}
+          REGISTRY: ${{ env.REGISTRY }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: SERVICES,SHA,REGISTRY,GHCR_USER,GHCR_TOKEN
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/karrygo/platform
+            chmod +x bin/*.sh
+            # Log in to GHCR with this run's short-lived token (images are private).
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
+
+            # Download every image this run built while logged in, including
+            # services not deployed by the pipeline yet. A private image can then
+            # be deployed by hand later (deploy-service.sh uses the local copy)
+            # without logging the server in to GHCR.
+            for key in $SERVICES; do
+              docker pull -q "$REGISTRY/$key:$SHA" >/dev/null || echo "::warning::could not pre-download $key"
+            done
+
+            # Dependencies first, the api-gateway last.
+            order="notification-service payment-wallet-service media-file-service verification-compliance-service customer-service support-dispute-service referral-service pricing-service driver-taxi-service driver-hauling-service driver-dispatch-delivery-service fleet-partner-service"
+            failed=""
+            for key in $order; do
+              case " $SERVICES " in *" $key "*) ;; *) continue ;; esac
+              home="$(grep -vE '^\s*(#|$)' services.tsv | tr -d ' ' | awk -F'|' -v k="$key" '$1 == k { print $3 }')"
+              if [ ! -f "/opt/karrygo/$home/release.env" ]; then
+                echo "::notice::$key has never been deployed by this pipeline, so it is skipped."
+                echo "  First deploy it by hand (guide, section K):"
+                echo "  /opt/karrygo/platform/bin/deploy-service.sh $key $REGISTRY/$key:$SHA"
+                continue
+              fi
+              if ! bin/deploy-service.sh "$key" "$REGISTRY/$key:$SHA"; then
+                failed="$failed $key"
+              fi
+            done
+            docker logout ghcr.io >/dev/null 2>&1 || true
+            if [ -n "$failed" ]; then
+              echo "::error::these services failed and were rolled back:$failed"
+              exit 1
+            fi
+            bin/status.sh
+
+      - name: Check the public address
+        if: steps.list.outputs.keys != ''
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_BASE_URL/health")"
+          echo "GET $PUBLIC_BASE_URL/health -> $code"
+          [ "$code" = 200 ]
+          # Private pages must stay private.
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_BASE_URL/api/v1/customer/internal/check")"
+          echo "GET .../internal/... -> $code (must be 404)"
+          [ "$code" = 404 ]
+
+  cleanup:
+    name: Remove old images
+    needs: [plan, deploy]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      # Keeps the 10 newest images of each service: plenty for rollbacks while
+      # keeping GHCR storage within the GitHub plan.
+      - uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: ${{ matrix.service.key }}
+          package-type: container
+          min-versions-to-keep: 10
+ || true)"
           fi
 
           matrix="$(for k in $selected; do

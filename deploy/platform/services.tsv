@@ -16,7 +16,8 @@
 #   db_url_var  for migrate=script: the setting holding the database address
 #
 # key                             | dockerfile                               | home                      | container                         | port | env_file         | migrate | db_url_var
-api-gateway                       | shared                                   | api-gateway               | karrygo-api-gateway               | 8080 | gateway.env      | script  | API_GATEWAY_DATABASE_URL
+api-gateway                       | shared                                   | api-gateway               | karrygo-api-gateway               | 8080 | public-gateway.env | builtin | -
+partner-web-service               | shared                                   | partner-web-service       | karrygo-partner-web-service       | 8080 | partner.env      | script  | API_GATEWAY_DATABASE_URL
 media-file-service                | shared                                   | media-file-service        | karrygo-media-file-service        | 8109 | media.env        | builtin | -
 notification-service              | services/notification-service/Dockerfile | notification-service      | karrygo-notification-service      | 8106 | notification.service.env | builtin | -
 driver-dispatch-delivery-service  | shared                                   | dispatch-delivery-service | karrygo-dispatch-delivery-service | 8103 | dispatch.env     | script  | DISPATCH_DELIVERY_DATABASE_URL
