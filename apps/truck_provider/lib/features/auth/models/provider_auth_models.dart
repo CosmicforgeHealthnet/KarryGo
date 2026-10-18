@@ -470,6 +470,7 @@ class ProviderBooking {
     this.isFragile = false,
     required this.status,
     required this.createdAt,
+    this.pickupVerifiedAt,
   });
 
   final String id;
@@ -497,6 +498,11 @@ class ProviderBooking {
   final String status;
   final DateTime createdAt;
 
+  /// When the customer verified this driver's pickup code; null until then.
+  /// The server refuses the pickup until it is set.
+  final DateTime? pickupVerifiedAt;
+  bool get pickupVerified => pickupVerifiedAt != null;
+
   double get fareEstimateNaira => (fareEstimateKobo ?? 0) / 100;
 
   // Short display reference (first 8 chars of UUID)
@@ -504,8 +510,14 @@ class ProviderBooking {
       id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
 
   // Headline person name — the package receiver, or a fallback.
-  String get displayName =>
-      receiverName.trim().isEmpty ? 'Customer' : receiverName.trim();
+  /// The booking carries no customer name (hauling does not hold customer
+  /// identity), so the person who booked is shown as "Customer". The
+  /// receiver is a different person and is shown separately ([receiverLine]).
+  String get displayName => 'Customer';
+
+  /// "Receiver: Ada Obi", or empty when the booking names no receiver.
+  String get receiverLine =>
+      receiverName.trim().isEmpty ? '' : 'Receiver: ${receiverName.trim()}';
 
   factory ProviderBooking.fromJson(Map<String, dynamic> j) => ProviderBooking(
     id: j['id'] as String,
@@ -532,6 +544,7 @@ class ProviderBooking {
     isFragile: j['is_fragile'] as bool? ?? false,
     status: j['status'] as String,
     createdAt: DateTime.parse(j['created_at'] as String),
+    pickupVerifiedAt: DateTime.tryParse(j['pickup_verified_at'] as String? ?? ''),
   );
 }
 

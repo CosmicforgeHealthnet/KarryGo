@@ -430,13 +430,31 @@ class ProviderHomeController extends ChangeNotifier {
           activeBooking: active,
           pendingRequests: pending,
         ));
+        // The pickup code arrives with the "arrived" call. A trip already at
+        // the pickup point when the app opened (restart, re-login) never got
+        // it, so fetch it rather than showing an empty code card.
+        if (active.status == 'arrived_at_pickup' &&
+            !active.pickupVerified &&
+            _state.pickupCredential == null) {
+          unawaited(fetchPickupCredential());
+        }
         return;
       }
 
       // Local state has an active trip but the poll found none — decide from the
       // booking's own status instead of blindly dropping to the dashboard.
       if (_state.status == ProviderHomeStatus.activeTrip && _state.activeBooking != null) {
-        final updated = bookings.where((b) => b.id == _state.activeBooking!.id).firstOrNull;
+        var updated = bookings.where((b) => b.id == _state.activeBooking!.id).firstOrNull;
+        // The trip dropped out of the list page: ask for it directly rather
+        // than keeping a trip on screen that may have been cancelled, which
+        // would hide every new request until the app restarts.
+        if (updated == null) {
+          final id = _state.activeBooking!.id;
+          try {
+            updated = await _withAuth((t) => _api.getBooking(accessToken: t, bookingId: id));
+          } catch (_) {}
+          if (generation != _stateGeneration) return;
+        }
         if (updated != null && (updated.status == 'delivered' || updated.status == 'completed')) {
           _stopPolling();
           _emit(_state.copyWith(

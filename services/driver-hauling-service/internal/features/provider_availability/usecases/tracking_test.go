@@ -44,6 +44,9 @@ func (s *recordingStore) AcquireMatchLock(context.Context, string, string, time.
 	return true, nil
 }
 func (s *recordingStore) ReleaseMatchLock(context.Context, string) error { return nil }
+func (s *recordingStore) ReleaseMatchLockFor(context.Context, string, string) error {
+	return nil
+}
 func (s *recordingStore) MarkRejected(context.Context, string, string, time.Duration) error {
 	return nil
 }

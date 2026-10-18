@@ -179,6 +179,31 @@ func TestCancelBooking_BlockedAfterPickup(t *testing.T) {
 	}
 }
 
+// TestCancelBooking_FreesAcceptedProvider: an accepted provider keeps the
+// match lock, so a customer cancel must free it or the matcher skips that
+// provider for new jobs until the lock expires. A lock the provider holds for
+// a different booking is left alone.
+func TestCancelBooking_FreesAcceptedProvider(t *testing.T) {
+	repo := newTrackingRepo(
+		bookingmodels.Booking{ID: "b1", CustomerID: "c1", ProviderID: ptr("p1"), Status: bookingmodels.StatusAccepted},
+		bookingmodels.Booking{ID: "b2", CustomerID: "c1", ProviderID: ptr("p2"), Status: bookingmodels.StatusAccepted},
+	)
+	store := &fakeStore{locks: map[string]string{"p1": "b1", "p2": "other-booking"}, matched: map[string]int{}}
+	svc := newMatchServiceWithWindow(repo, store, allTrucks{capacity: 10000}, 25, 2)
+
+	for _, id := range []string{"b1", "b2"} {
+		if _, err := svc.CancelBooking(context.Background(), id, "c1", "changed my mind"); err != nil {
+			t.Fatalf("cancel %s: %v", id, err)
+		}
+	}
+	if _, held := store.locks["p1"]; held {
+		t.Fatal("the cancelled booking's provider must be free for new jobs")
+	}
+	if store.locks["p2"] != "other-booking" {
+		t.Fatal("a lock held for another booking must not be freed")
+	}
+}
+
 // TestCreateBooking_CardRejected pins the card-path removal: bookings cannot be
 // created with payment_method=card until card is properly supported.
 func TestCreateBooking_CardRejected(t *testing.T) {

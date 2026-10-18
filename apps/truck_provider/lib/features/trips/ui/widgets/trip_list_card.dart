@@ -70,6 +70,13 @@ class TripListCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (booking.receiverLine.isNotEmpty)
+                        Text(
+                          booking.receiverLine,
+                          style: const TextStyle(color: kProviderMuted, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       const SizedBox(height: 4),
                       BookingMetricsRow(
                         distanceKm: distanceKm,

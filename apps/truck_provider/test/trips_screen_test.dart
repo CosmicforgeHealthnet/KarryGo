@@ -74,7 +74,7 @@ void main() {
 
     expect(find.text('My Trips'), findsOneWidget);
     expect(find.text('Completed'), findsWidgets);
-    expect(find.text('Anthonia Dipson'), findsOneWidget);
+    expect(find.text('Receiver: Anthonia Dipson'), findsOneWidget);
   });
 
   testWidgets('shows empty state when a tab has no trips', (tester) async {

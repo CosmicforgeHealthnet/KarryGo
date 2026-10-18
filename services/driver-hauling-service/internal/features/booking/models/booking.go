@@ -179,6 +179,11 @@ type PublicBooking struct {
 	PickupLat     float64 `json:"pickup_lat"`
 	PickupLng     float64 `json:"pickup_lng"`
 
+	// PickupVerifiedAt is when the customer verified the driver's pickup
+	// credential. Only the moment is exposed, never the code, so the driver
+	// app can show that pickup may proceed.
+	PickupVerifiedAt *time.Time `json:"pickup_verified_at,omitempty"`
+
 	DropoffAddress string  `json:"dropoff_address"`
 	DropoffLat     float64 `json:"dropoff_lat"`
 	DropoffLng     float64 `json:"dropoff_lng"`
@@ -343,6 +348,7 @@ func (b Booking) Public() PublicBooking {
 		PickupAddress:         b.PickupAddress,
 		PickupLat:             b.PickupLat,
 		PickupLng:             b.PickupLng,
+		PickupVerifiedAt:      b.PickupCodeVerifiedAt,
 		DropoffAddress:        b.DropoffAddress,
 		DropoffLat:            b.DropoffLat,
 		DropoffLng:            b.DropoffLng,

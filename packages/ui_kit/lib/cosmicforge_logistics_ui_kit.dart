@@ -545,7 +545,12 @@ class CosmicforgeLogisticsOtpInput extends StatelessWidget {
           ),
           child: Text(
             hasValue ? chars[index] : '',
-            style: Theme.of(context).textTheme.titleMedium,
+            // The circle is always white, so the digit must always be dark:
+            // a dark theme's title colour is white and would hide it.
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: CosmicforgeLogisticsColors.text,
+                ) ??
+                const TextStyle(color: CosmicforgeLogisticsColors.text),
           ),
         );
       }),

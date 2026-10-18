@@ -1090,6 +1090,12 @@ func (s *BookingService) CancelBooking(ctx context.Context, id, customerID, reas
 	s.refundIfHeld(ctx, id, "cancelled_by_customer")
 	// Notify the assigned provider, if any, that the customer cancelled.
 	if b.ProviderID != nil {
+		// An accepted provider keeps the match lock, which would make the
+		// matcher skip them for new jobs until it expires. Free it now, but
+		// only if it is still this booking's lock.
+		if s.availability != nil {
+			_ = s.availability.ReleaseMatchLockFor(ctx, *b.ProviderID, id)
+		}
 		s.notifier.NotifyProviderCancelled(ctx, *b.ProviderID, id, map[string]interface{}{"booking_id": id})
 	}
 	return b.Public(), nil

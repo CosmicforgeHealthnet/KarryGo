@@ -690,6 +690,14 @@ func (s *fakeStore) ReleaseMatchLock(_ context.Context, providerID string) error
 	delete(s.locks, providerID)
 	return nil
 }
+func (s *fakeStore) ReleaseMatchLockFor(_ context.Context, providerID, bookingID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.locks[providerID] == bookingID {
+		delete(s.locks, providerID)
+	}
+	return nil
+}
 func (s *fakeStore) MarkRejected(_ context.Context, bookingID, providerID string, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

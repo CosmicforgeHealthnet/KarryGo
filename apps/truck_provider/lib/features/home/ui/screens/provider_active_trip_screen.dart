@@ -191,6 +191,11 @@ class _TripSheet extends StatelessWidget {
                         fontSize: 16,
                       ),
                     ),
+                    if (booking.receiverLine.isNotEmpty)
+                      Text(
+                        booking.receiverLine,
+                        style: const TextStyle(color: kProviderMuted, fontSize: 12),
+                      ),
                     const SizedBox(height: 4),
                     BookingMetricsRow(
                       distanceKm: distanceKm,
@@ -222,7 +227,10 @@ class _TripSheet extends StatelessWidget {
             _ProgressBar(progress: _tripProgress(status)),
           ],
 
-          if (status == 'arrived_at_pickup') ...[
+          if (status == 'arrived_at_pickup' && booking.pickupVerified) ...[
+            const SizedBox(height: 16),
+            const _VerifiedBanner(),
+          ] else if (status == 'arrived_at_pickup') ...[
             const SizedBox(height: 16),
             CosmicforgeLogisticsVerificationCodeCard(
               title: 'Show this code to the customer',
@@ -300,7 +308,11 @@ class _TripSheet extends StatelessWidget {
     return switch (status) {
       'accepted' => _TripAction(label: 'Start Driving', onPressed: onEnRoutePickup),
       'en_route_pickup' => _TripAction(label: "I've Arrived", onPressed: onArrived),
-      'arrived_at_pickup' => _TripAction(label: 'Start Trip', onPressed: onConfirmPickup),
+      // The server refuses the pickup until the customer has verified the
+      // driver, so the button waits for that instead of failing on tap.
+      'arrived_at_pickup' => booking.pickupVerified
+          ? _TripAction(label: 'Start Trip', onPressed: onConfirmPickup)
+          : const _TripAction(label: 'Waiting for the customer to verify you', onPressed: null),
       'picked_up' => _TripAction(label: 'Start Delivery', onPressed: onEnRouteDelivery),
       'en_route_delivery' => _TripAction(label: 'End Trip', onPressed: onEndTrip, isEndTrip: true),
       _ => const _TripAction(label: 'Updating trip…', onPressed: null),
@@ -652,6 +664,11 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                                     fontSize: 20,
                                   ),
                                 ),
+                                if (booking.receiverLine.isNotEmpty)
+                                  Text(
+                                    booking.receiverLine,
+                                    style: const TextStyle(color: kProviderMuted, fontSize: 13),
+                                  ),
                                 const SizedBox(height: 6),
                                 BookingMetricsRow(
                                   distanceKm: distanceKm,
@@ -664,7 +681,7 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                           const SizedBox(height: 20),
 
                           // ─── Trip reference + date ────────────────────
-                          _InfoRow(label: 'Trip Completed:', value: booking.shortId),
+                          _InfoRow(label: 'Trip ID:', value: booking.shortId),
                           const SizedBox(height: 10),
                           _InfoRow(label: 'Date:', value: _formatDate(booking.createdAt)),
                           const SizedBox(height: 24),
@@ -957,4 +974,35 @@ class _SignaturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SignaturePainter oldDelegate) => true;
+}
+
+/// Shown in place of the pickup code once the customer has verified the
+/// driver, so the driver knows the cargo can now be loaded.
+class _VerifiedBanner extends StatelessWidget {
+  const _VerifiedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kProviderGreen.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kProviderGreen),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.verified_rounded, color: kProviderGreen),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'The customer has verified you. You can load the cargo.',
+              style: TextStyle(color: kProviderText, fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

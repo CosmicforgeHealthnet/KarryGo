@@ -142,7 +142,7 @@ class _ProviderOtpScreenState extends State<ProviderOtpScreen> {
                     TextSpan(
                       text: state.identifierType == 'email'
                           ? state.email
-                          : '+234 ${state.phone}',
+                          : _internationalPhone(state.phone),
                       style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w700),
                     ),
                   ],
@@ -342,4 +342,13 @@ class _OtpCircleState extends State<_OtpCircle> {
       ),
     );
   }
+}
+
+/// "08031234567", "8031234567" or "+2348031234567" -> "+234 803 123 4567".
+String _internationalPhone(String raw) {
+  var digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.startsWith('234')) digits = digits.substring(3);
+  if (digits.startsWith('0')) digits = digits.substring(1);
+  if (digits.length != 10) return '+234 $digits';
+  return '+234 ${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6)}';
 }

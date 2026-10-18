@@ -347,6 +347,9 @@ func (noopAvailabilityStore) AcquireMatchLock(context.Context, string, string, t
 	return false, nil
 }
 func (noopAvailabilityStore) ReleaseMatchLock(context.Context, string) error { return nil }
+func (noopAvailabilityStore) ReleaseMatchLockFor(context.Context, string, string) error {
+	return nil
+}
 func (noopAvailabilityStore) MarkRejected(context.Context, string, string, time.Duration) error {
 	return nil
 }

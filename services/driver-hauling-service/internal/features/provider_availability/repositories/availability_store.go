@@ -69,6 +69,10 @@ type AvailabilityStore interface {
 	SetDiscoverable(ctx context.Context, providerID string, discoverable bool) error
 	AcquireMatchLock(ctx context.Context, providerID, bookingID string, ttl time.Duration) (bool, error)
 	ReleaseMatchLock(ctx context.Context, providerID string) error
+	// ReleaseMatchLockFor frees the provider's lock only while it is still
+	// held for bookingID, so ending one booking can never free a lock the
+	// provider has since taken for another.
+	ReleaseMatchLockFor(ctx context.Context, providerID, bookingID string) error
 	MarkRejected(ctx context.Context, bookingID, providerID string, ttl time.Duration) error
 	GetRejectedProviders(ctx context.Context, bookingID string) (map[string]bool, error)
 }
@@ -281,6 +285,19 @@ func (s *RedisAvailabilityStore) AcquireMatchLock(ctx context.Context, providerI
 
 func (s *RedisAvailabilityStore) ReleaseMatchLock(ctx context.Context, providerID string) error {
 	return s.client.Del(ctx, matchLockKey(providerID)).Err()
+}
+
+// releaseIfHeldFor deletes the lock only when its value is the booking id,
+// atomically (a GET then DEL could free a lock taken in between).
+var releaseIfHeldFor = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+return 0
+`)
+
+func (s *RedisAvailabilityStore) ReleaseMatchLockFor(ctx context.Context, providerID, bookingID string) error {
+	return releaseIfHeldFor.Run(ctx, s.client, []string{matchLockKey(providerID)}, bookingID).Err()
 }
 
 func (s *RedisAvailabilityStore) MarkRejected(ctx context.Context, bookingID, providerID string, ttl time.Duration) error {
