@@ -4,6 +4,7 @@ on:
     paths:
       - 'services/admin-backoffice-service/**'
       - 'services/api-gateway/**'
+      - 'services/partner-web-service/**'
       - 'shared/go/serviceauth/**'
       - 'deploy/platform/**'
       - 'scripts/admin-bridge/**'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'services/admin-backoffice-service/**'
       - 'services/api-gateway/**'
+      - 'services/partner-web-service/**'
       - 'shared/go/serviceauth/**'
       - 'deploy/platform/**'
       - 'scripts/admin-bridge/**'
@@ -49,6 +51,7 @@ jobs:
           cache-dependency-path: |
             services/admin-backoffice-service/go.sum
             services/api-gateway/go.sum
+            services/partner-web-service/go.sum
             shared/go/go.sum
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
@@ -60,9 +63,9 @@ jobs:
           mkdir -p test-artifacts
           go test -race -json ./services/admin-backoffice-service/... -count=1 -timeout=180s > test-artifacts/admin-tests.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-tests.jsonl
-          go test -race -json ./services/api-gateway/... ./shared/go/serviceauth/... -count=1 -timeout=300s > test-artifacts/gateway-tests.jsonl
+          go test -race -json ./services/api-gateway/... ./services/partner-web-service/... ./shared/go/serviceauth/... -count=1 -timeout=300s > test-artifacts/gateway-tests.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/gateway-tests.jsonl --suite gateway
-          go vet ./services/admin-backoffice-service/... ./services/api-gateway/internal/features/routing/...
+          go vet ./services/admin-backoffice-service/... ./services/api-gateway/... ./services/partner-web-service/...
           go build ./services/admin-backoffice-service/...
       - name: Pinned OpenAPI, actual wire responses, backward compatibility, deployment source
         env:
