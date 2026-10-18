@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // The MAC authenticates stable revocation correlation even after the secret has

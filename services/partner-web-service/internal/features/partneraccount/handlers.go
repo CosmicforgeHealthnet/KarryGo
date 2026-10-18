@@ -8,7 +8,7 @@ import (
 	"cosmicforge/logistics/shared/go/browserauth"
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // Handlers holds the dashboard/keys/internal HTTP handlers.

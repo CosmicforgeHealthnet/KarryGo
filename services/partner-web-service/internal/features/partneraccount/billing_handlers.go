@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/billing"
 )
 
 // BillingHandlers holds the Billing & Usage dashboard HTTP handlers. Kept in

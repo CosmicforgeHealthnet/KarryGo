@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // validateWebhookURL enforces HTTPS and blocks localhost/private/link-local hosts
