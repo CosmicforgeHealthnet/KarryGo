@@ -8,6 +8,8 @@
 package models
 
 import (
+	"net/url"
+	"path"
 	"sort"
 	"strings"
 )
@@ -71,7 +73,6 @@ func DefaultRoutes() []Route {
 		{"/api/v1/support-disputes", UpstreamSupport, ScopeMixed},
 		{"/api/v1/vendor", UpstreamVendor, ScopeVendor},
 		{"/api/v1/commerce", UpstreamVendor, ScopeCustomer},
-		{"/api/v1/admin", UpstreamAdmin, ScopeAdmin},
 		{"/fleet-partner/", UpstreamFleet, ScopeFleet},
 	}
 }
@@ -123,11 +124,36 @@ func (t Table) Upstreams() []string {
 // not rely on that: it will not carry a request to one at all. The check is
 // on the decoded, cleaned path, case-insensitively, so encoding and dot
 // segments cannot smuggle one through.
-func IsInternalPath(path string) bool {
+func IsInternalPath(value string) bool {
+	// Inspect every encoding layer: a downstream server may decode again.
+	for depth := 0; depth < 8; depth++ {
+		if privatePath(value) {
+			return true
+		}
+		decoded, err := url.PathUnescape(value)
+		if err != nil {
+			return true
+		}
+		if decoded == value {
+			return false
+		}
+		value = decoded
+	}
+	return true // reject excessive encoding instead of guessing downstream behavior
+}
+
+func privatePath(value string) bool {
+	value = strings.ReplaceAll(value, "\\", "/")
+	for _, segment := range strings.Split(value, "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	value = path.Clean("/" + strings.TrimLeft(value, "/"))
 	// These mounted routes use service credentials despite having no
 	// "internal" segment. Auth middleware, not spelling, defines exposure.
-	lower := strings.ToLower(path)
-	for _, prefix := range []string{"/api/v1/support-disputes/admin", "/api/v1/verification-compliance"} {
+	lower := strings.ToLower(value)
+	for _, prefix := range []string{"/api/v1/admin", "/api/v1/support-disputes/admin", "/api/v1/verification-compliance"} {
 		if lower == prefix || strings.HasPrefix(lower, prefix+"/") {
 			return true
 		}
@@ -145,7 +171,7 @@ func IsInternalPath(path string) bool {
 			return true
 		}
 	}
-	for _, segment := range strings.Split(strings.ToLower(path), "/") {
+	for _, segment := range strings.Split(lower, "/") {
 		if segment == "internal" || segment == ".." || strings.HasPrefix(segment, "internal%") {
 			return true
 		}
