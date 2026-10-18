@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
-	"cosmicforge/logistics/services/api-gateway/internal/pkg/geo"
-	"cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/pkg/geo"
+	"cosmicforge/logistics/services/partner-web-service/internal/pkg/pricing"
 )
 
 const quoteCurrency = "NGN"

@@ -7,11 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/webhooks"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
-	"cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/webhooks"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partneraccount"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partnerauth"
+	"cosmicforge/logistics/services/partner-web-service/internal/pkg/pricing"
 )
 
 // Handler holds the Partner API route handlers. Delivery routes are backed by the

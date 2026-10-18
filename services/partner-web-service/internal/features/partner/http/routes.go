@@ -3,12 +3,12 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/ratelimit"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/webhooks"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
-	"cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/ratelimit"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/webhooks"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partneraccount"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partnerauth"
+	"cosmicforge/logistics/services/partner-web-service/internal/pkg/pricing"
 )
 
 // PartnerAPIBasePath is the external Partner API route prefix.

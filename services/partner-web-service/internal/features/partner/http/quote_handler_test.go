@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
-	"cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partneraccount"
+	"cosmicforge/logistics/services/partner-web-service/internal/pkg/pricing"
 )
 
 // testPricingConfig mirrors the spec defaults used across quote tests.

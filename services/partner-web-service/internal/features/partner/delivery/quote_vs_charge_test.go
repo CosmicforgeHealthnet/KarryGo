@@ -3,7 +3,7 @@ package delivery
 import (
 	"testing"
 
-	gatewaypricing "cosmicforge/logistics/services/api-gateway/internal/pkg/pricing"
+	gatewaypricing "cosmicforge/logistics/services/partner-web-service/internal/pkg/pricing"
 )
 
 // Characterization test for a KNOWN DEFECT, pinned ahead of the Central Pricing

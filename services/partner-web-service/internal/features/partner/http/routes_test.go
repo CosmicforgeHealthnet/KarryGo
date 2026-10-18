@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partnerauth"
 )
 
 const testRawKey = "sk_test_abcdefghijklmnopqrstuvwxyz012345"
