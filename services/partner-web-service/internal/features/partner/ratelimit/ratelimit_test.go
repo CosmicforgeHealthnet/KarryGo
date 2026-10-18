@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partnerauth"
 )
 
 // fakeStore is an in-memory rate-limit Store keyed by the exact rl:... key.

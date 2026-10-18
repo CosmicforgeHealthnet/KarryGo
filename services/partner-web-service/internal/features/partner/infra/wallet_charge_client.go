@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/billing"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 

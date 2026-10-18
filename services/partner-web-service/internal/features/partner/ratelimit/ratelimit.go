@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partnerauth"
 )
 
 // Window is the fixed rate-limit window.

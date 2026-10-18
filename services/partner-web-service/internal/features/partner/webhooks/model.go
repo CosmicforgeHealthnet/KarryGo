@@ -5,7 +5,7 @@ package webhooks
 import (
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // Partner-facing webhook event types.

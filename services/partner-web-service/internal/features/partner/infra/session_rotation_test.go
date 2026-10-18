@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partneraccount"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
