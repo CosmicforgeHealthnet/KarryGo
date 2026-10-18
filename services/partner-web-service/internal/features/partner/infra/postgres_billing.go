@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/billing"
 )
 
 // InvoiceRepo is the Postgres implementation of billing.InvoiceRepository.

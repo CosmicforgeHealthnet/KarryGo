@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/webhooks"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/webhooks"
 )
 
 // minimal in-package fake WebhookRepository for HTTP-level webhook tests.

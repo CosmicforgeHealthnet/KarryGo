@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partnerauth"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partneraccount"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partnerauth"
 )
 
 // APIKeyRepo is the Postgres implementation of partnerauth.APIKeyRepository AND

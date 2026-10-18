@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partneraccount"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partneraccount"
 )
 
 // AccountRepo is the Postgres implementation of partneraccount.AccountRepository.

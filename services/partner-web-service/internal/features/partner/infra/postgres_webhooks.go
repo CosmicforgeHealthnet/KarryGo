@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/webhooks"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/webhooks"
 )
 
 // WebhookRepo is the Postgres implementation of webhooks.WebhookRepository.
