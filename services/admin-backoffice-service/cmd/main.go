@@ -8,11 +8,13 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
 	"crypto/x509"
 	"errors"
+	"go/version"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 )
@@ -41,6 +43,7 @@ func main() {
 }
 
 func run() error {
+	if version.Compare(runtime.Version(),"go1.26.9")<0 { return errors.New("bridge requires patched Go 1.26.9 or newer") }
 	var cfg config.Config
 	var err error
 	if len(os.Args) == 2 && os.Args[1] == "--migrate" {

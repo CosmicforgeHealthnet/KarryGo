@@ -1,0 +1,15 @@
+{
+  "issuer": "",
+  "audience": "",
+  "workload_uri": "",
+  "policy_version": "",
+  "assertion_lifetime_seconds": 0,
+  "session_lifetime_seconds": 0,
+  "allowed_acr": [],
+  "strong_acr": [],
+  "requests_per_minute": 0,
+  "staff_keys": {},
+  "staff_key_expires": {},
+  "service_keys": {},
+  "service_key_expires": {}
+}

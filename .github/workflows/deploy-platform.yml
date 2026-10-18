@@ -98,6 +98,12 @@ jobs:
             fi
           fi
 
+          # Admin requires an exact manual selector and operator certification;
+          # pushes and the broad "all" selector must never start this bridge.
+          if [ "$EVENT" != workflow_dispatch ] || [ "$INPUT_SERVICES" = all ]; then
+            selected="$(printf '%s\n' $selected | grep -vx admin-backoffice-service || true)"
+          fi
+
           matrix="$(for k in $selected; do
             df="$(echo "$rows" | awk -F'|' -v k="$k" '$1 == k { print $2 }')"
             [ "$df" = shared ] && df=services/Dockerfile
@@ -163,6 +169,7 @@ jobs:
           # so a running service can say which commit it is (OPS-002).
           build-args: |
             SERVICE_DIR=${{ matrix.service.key }}
+            GO_VERSION=${{ matrix.service.key == 'admin-backoffice-service' && '1.26.9-alpine' || '1.26-alpine' }}
             BUILD_COMMIT_SHA=${{ github.sha }}
             BUILD_VERSION=${{ github.ref_name }}-${{ github.run_number }}
           cache-from: type=gha,scope=${{ matrix.service.key }}

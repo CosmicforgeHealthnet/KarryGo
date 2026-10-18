@@ -12,6 +12,7 @@
 #   migrate     how tables are prepared on deploy:
 #                 builtin = the service applies them itself at startup (its *_MIGRATION flag)
 #                 script  = deploy runs migrate.sh inside the new image first
+#                 bridge  = isolated Admin migrator with separate DDL credentials
 #   db_url_var  for migrate=script: the setting holding the database address
 #
 # key                             | dockerfile                               | home                      | container                         | port | env_file         | migrate | db_url_var
@@ -28,3 +29,4 @@ driver-hauling-service            | shared                                   | h
 support-dispute-service           | shared                                   | support-dispute-service   | karrygo-support-dispute-service   | 8107 | support.env      | builtin | -
 referral-service                  | shared                                   | referral-service          | karrygo-referral-service          | 8114 | referral.env     | builtin | -
 pricing-service                   | shared                                   | pricing-service           | karrygo-pricing-service           | 8115 | pricing.env      | builtin | -
+admin-backoffice-service          | shared                                   | admin-backoffice-service  | karrygo-admin-backoffice-service  | 8110 | admin.env        | bridge  | ADMIN_BACKOFFICE_DATABASE_URL

@@ -191,7 +191,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = 503
 			code = "audit_unavailable"
 		}
-		b.reply(w, correlation, status, nil, &apiError{Code: code, Message: "Request could not be completed.", Retryable: status == 503 || status == 429})
+		b.reply(w, correlation, status, nil, &apiError{Code: code, Message: "Request could not be completed.", Retryable: (status == 503 && code != "capability_blocked" && code != "remote_disabled") || status == 429})
 	}
 	if len(r.URL.RequestURI()) > 4096 || r.URL.RawPath != "" || strings.ContainsAny(r.URL.Path, "%\\") || strings.Contains(r.URL.Path, "//") {
 		fail(400, "invalid_request")

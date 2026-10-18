@@ -72,6 +72,8 @@ def main():
     manifest.append(f"{hashlib.sha256(matrix.read_bytes()).hexdigest()}  {matrix.name}")
     for fixture in sorted((OUT / "fixtures").glob("*.json")):
         manifest.append(f"{hashlib.sha256(fixture.read_bytes()).hexdigest()}  fixtures/{fixture.name}")
+    profile = OUT / "signing-profile.md"
+    manifest.append(f"{hashlib.sha256(profile.read_bytes()).hexdigest()}  {profile.name}")
     content = ("\n".join(manifest) + "\n").encode()
     if args.write:
         (OUT / "SHA256SUMS").write_bytes(content)
