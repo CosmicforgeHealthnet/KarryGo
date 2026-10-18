@@ -30,6 +30,27 @@ services:
       retries: 12
       start_period: 20s
 
+  # notification-service's Redis: its queues (notification:requests and
+  # notification:deliveries). Taxi and hauling write ride/booking
+  # notifications straight onto notification:requests here, so they need its
+  # address and password (TAXI_/HAULING_NOTIFICATION_REDIS_*). The password is
+  # REDIS_PASSWORD in /opt/karrygo/notification-service/db.env.
+  redis:
+    extends:
+      file: common.yml
+      service: redis
+    container_name: karrygo-notification-redis
+    env_file:
+      - /opt/karrygo/notification-service/db.env
+    volumes:
+      # The volume that already held this Redis's data before it was managed here.
+      - karrygo-notification-redis-data:/data
+    mem_limit: 128m
+
 networks:
   karrygo-net:
+    external: true
+
+volumes:
+  karrygo-notification-redis-data:
     external: true
