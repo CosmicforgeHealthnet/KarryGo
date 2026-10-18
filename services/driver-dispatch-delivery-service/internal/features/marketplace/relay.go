@@ -111,7 +111,14 @@ func (r *Repository) CreateRelay(ctx context.Context, q Querier, op *RelayOperat
 			(operation_type, provider_id, request_id, offer_id, assignment_id,
 			 idempotency_key, request_fingerprint, payload, payload_hash, status,
 			 attempt_count, next_attempt_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDING', 0, now(), now(), now())
+		SELECT $1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::jsonb, $9, 'PENDING', 0, now(), now(), now()
+		WHERE NOT EXISTS (
+			SELECT 1 FROM dispatch_fleet_relay_operations prior
+			WHERE prior.readback_required AND (
+				($5::text IS NOT NULL AND prior.assignment_id=$5)
+				OR ($4::text IS NOT NULL AND prior.offer_id=$4 AND prior.provider_id=$2::uuid)
+			)
+		)
 		-- Untargeted: this must absorb a collision on EITHER unique index,
 		-- the per-type key or uq_dispatch_relay_single_decision. A targeted
 		-- clause would let a cross-type collision raise and abort the caller's
@@ -139,6 +146,9 @@ func (r *Repository) CreateRelay(ctx context.Context, q Querier, op *RelayOperat
 	// decision. Look the key up across operation types, because
 	// uq_dispatch_relay_single_decision spans them.
 	stored, err := r.GetRelayByKeyAnyType(ctx, q, op.ProviderID, op.IdempotencyKey)
+	if errors.Is(err, ErrNotFound) {
+		return nil, false, errCoded(409, "decision_outcome_unresolved", "An earlier decision must be resolved by authoritative read-back.")
+	}
 	if err != nil {
 		return nil, false, err
 	}
