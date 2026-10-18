@@ -1,0 +1,318 @@
+{
+  "dictionary_version": "1.0",
+  "status": "SOURCE_VERIFIED_NOT_HQ_ENABLED",
+  "approved_policy_reference": null,
+  "reports": [
+    {
+      "id": "mission-success",
+      "source_route": "/api/v1/analytics/network/mission-success",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "completed / (completed + failed)",
+      "numerator": "completed",
+      "denominator": "completed + failed",
+      "source_tables": "mission_success_daily",
+      "source_dimensions": [
+        "authority",
+        "metric_date"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "recovery",
+      "source_route": "/api/v1/analytics/network/recovery",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "resolution_seconds_total / resolution_count",
+      "numerator": "resolution_seconds_total",
+      "denominator": "resolution_count",
+      "source_tables": "recovery_performance",
+      "source_dimensions": [
+        "authority",
+        "metric_date"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "capability-mismatches",
+      "source_route": "/api/v1/analytics/network/capability-mismatches",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Count of projected capability mismatch facts",
+      "numerator": "mismatches",
+      "denominator": null,
+      "source_tables": "capability_mismatch_metrics",
+      "source_dimensions": [
+        "authority",
+        "metric_date",
+        "reason_code"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "declines",
+      "source_route": "/api/v1/analytics/network/declines",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Count of declines by reason; safety declines remain separate and are not a penalty",
+      "numerator": "declines",
+      "denominator": null,
+      "source_tables": "decline_reason_metrics",
+      "source_dimensions": [
+        "authority",
+        "metric_date",
+        "reason_code",
+        "safety"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "demand",
+      "source_route": "/api/v1/analytics/network/demand",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Projected requests and unmatched requests per zone/day",
+      "numerator": "requests; unmatched",
+      "denominator": null,
+      "source_tables": "zone_demand_daily",
+      "source_dimensions": [
+        "authority",
+        "zone",
+        "metric_date"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "provider-quality",
+      "source_route": "/api/v1/analytics/network/provider-quality/{authority}/{providerId}",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Completion rate multiplied by (1 - original-provider recovery involvement); declines are not scored",
+      "numerator": "completed; recoveries_as_original",
+      "denominator": "completed + failed; completed + failed + recoveries_as_original",
+      "source_tables": "provider_quality_snapshots",
+      "source_dimensions": [
+        "authority",
+        "provider_id",
+        "metric_date"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "readiness",
+      "source_route": "/api/v1/analytics/network/readiness/branches/{branchId}",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "On-time fraction; average lateness and preparation seconds",
+      "numerator": "on_time_count; lateness_seconds_total; prep_seconds_total",
+      "denominator": "ready_count; late_count; prep_count",
+      "source_tables": "vendor_branch_readiness_stats",
+      "source_dimensions": [
+        "branch_id",
+        "metric_date"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "supply",
+      "source_route": "/api/v1/analytics/network/supply",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Latest reported online/eligible/occupied counts; null counts are unknown",
+      "numerator": "online_count; eligible_count; occupied_count",
+      "denominator": null,
+      "source_tables": "supply_product_snapshots; zone_supply_snapshots",
+      "source_dimensions": [
+        "authority",
+        "market_id (product table only)",
+        "zone",
+        "product_code (product table only)"
+      ],
+      "source_window": "Latest snapshot",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "mission-outcomes",
+      "source_route": "/api/v1/analytics/network/mission-outcomes",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Lifecycle event counters by authority/product/day; completion success rate excludes cancellations",
+      "numerator": "completed",
+      "denominator": "completed + failed",
+      "source_tables": "mission_outcomes_daily",
+      "source_dimensions": [
+        "authority",
+        "product_code",
+        "metric_date"
+      ],
+      "source_window": "UTC calendar days selected by owner window(days)",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    },
+    {
+      "id": "demand-forecast",
+      "source_route": "/api/v1/analytics/network/demand-forecast",
+      "owner": "analytics-service",
+      "owner_contract": "existing network analytics",
+      "definition_version": "source-audit-1.0",
+      "definition": "Mean of available historical same-weekday/time buckets; absent bucket is not zero",
+      "numerator": "sum of observed historical slot demand",
+      "denominator": "count of observed historical slots",
+      "source_tables": "demand_buckets",
+      "source_dimensions": [
+        "authority",
+        "market_id",
+        "zone",
+        "product_code",
+        "bucket_start"
+      ],
+      "source_window": "Same weekly time slot history",
+      "timezone": "UTC source buckets; no approved HQ market-local timezone policy supplied",
+      "source_version": "Per-source event versions exist at ingest; report-level authoritative revision is not universally exposed",
+      "freshness": "Owner signal/data_as_of where present; otherwise UNKNOWN",
+      "approved_freshness_seconds": null,
+      "approved_suppression_minimum": null,
+      "suppression_policy_reference": null,
+      "hq_state": "BLOCKED_DOMAIN",
+      "hq_permission": "analytics.network.read",
+      "blockers": [
+        "Owner-enforced market/zone/tenant mapping and filters",
+        "Reviewed small-cell and rare-combination suppression policy",
+        "Reviewed metric freshness/window/timezone policy"
+      ],
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+    }
+  ]
+}

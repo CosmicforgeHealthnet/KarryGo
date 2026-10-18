@@ -34,10 +34,10 @@ def build():
     schemas = {"Command": command, "Response": response, "Error": error, "Operation": operation, "StaffAssertion": staff, "Capability": capability, "Discovery": discovery, "Health": health, "DisabledRequest": disabled}
     # Existing schemas remain byte-for-byte compatible. Domain reads use the
     # additional assertion profile, requiring explicit geographic delegation.
-    scoped_staff = obj({**staff["properties"], "zone_scopes": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": True, "items": opaque}})
+    scoped_staff = obj({**staff["properties"], **{key: {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": True, "items": opaque} for key in ("zone_scopes", "tenant_scopes")}})
     ride = obj({"id": string(format="uuid"), "status": opaque, "mode": opaque, "source_context": opaque, "source_version": {"type": "null"}, "updated_at": string(format="date-time"), "created_at": string(format="date-time")})
     event = obj({"id": string(format="uuid"), "type": opaque, "at": string(format="date-time")})
-    snapshot = obj({"contract_version": {"const": "1.0"}, "scope": obj({"market": opaque, "zone": opaque, "organization": opaque}), "as_of": string(format="date-time"), "freshness": {"const": "LIVE"}, "coverage": {"const": "PARTIAL_COVERAGE"}, "items": {"type": "array", "maxItems": 100, "items": ride}, "events": {"type": "array", "maxItems": 200, "items": event}, "history_truncated": {"type": "boolean"}, "next_cursor": string(maxLength=4096)}, ["contract_version", "scope", "as_of", "freshness", "coverage", "items", "events", "history_truncated"])
+    snapshot = obj({"contract_version": {"const": "1.0"}, "scope": obj({"market": opaque, "zone": opaque, "organization": opaque, "tenant": opaque}), "policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "as_of": string(format="date-time"), "freshness": {"const": "LIVE"}, "coverage": {"const": "PARTIAL_COVERAGE"}, "items": {"type": "array", "maxItems": 100, "items": ride}, "events": {"type": "array", "maxItems": 200, "items": event}, "history_truncated": {"type": "boolean"}, "next_cursor": string(maxLength=4096)}, ["contract_version", "scope", "policy_id", "policy_version", "policy_checksum", "as_of", "freshness", "coverage", "items", "events", "history_truncated"])
     schemas.update(StaffAssertionZones=scoped_staff, TaxiSnapshot=snapshot)
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
     paths = {}
@@ -45,7 +45,7 @@ def build():
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
         if c["permission"] == "taxi.rides.read":
-            params += [{"name": "zone", "in": "query", "required": True, "schema": opaque}]
+            params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
         for segment in c["bridge_endpoint"].split("/"):

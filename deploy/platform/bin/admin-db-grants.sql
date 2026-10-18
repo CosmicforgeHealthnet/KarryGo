@@ -8,5 +8,6 @@ GRANT SELECT,INSERT ON admin_security_claims,admin_delegated_operations TO :"run
 GRANT SELECT,INSERT ON admin_rate_limits TO :"runtime_role";
 GRANT UPDATE(count) ON admin_rate_limits TO :"runtime_role";
 GRANT INSERT ON admin_audit_entries TO :"runtime_role";
+GRANT SELECT,INSERT,UPDATE ON admin_policy_revisions TO :"runtime_role";
 GRANT USAGE ON SEQUENCE admin_audit_entries_id_seq TO :"runtime_role";
 COMMIT;

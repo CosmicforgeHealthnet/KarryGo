@@ -13,6 +13,7 @@ failures = [e for e in events if e.get("Action") == "fail" or (e.get("Action") =
 passed = [e for e in events if e.get("Action") == "pass" and e.get("Test")]
 required = {"TestPostgresReplayAndMigrationConcurrency", "TestPostgresIdempotencyScopeAndImmutableAudit", "TestPostgresRevocationPrincipalAndRate", "TestRealMTLSBoundary", "TestRealPostgresMTLSIntegration", "TestRuntimeRoleGuardAndGrants", "TestMigrationFailureRollsBackAndDownIsIrreversible", "TestContractWireSamples"}
 required |= {"TestTaxiOwnerProcessPostgresMTLS", "TestTaxiReadDelegationAndOwnerBoundary"}
+required |= {"TestOwnerPolicyCannotInventCanonicalTenant", "TestOwnerPolicyIntersectionAndUnmappedReferences", "TestDraftRepositoryPolicyAndMissingCanonicalMappingsDeny", "TestPolicyApprovalAuthenticityEnvironmentAndDraft", "TestPostgresDisclosureAuditFrozenReleaseAndReconstructionGuard", "TestPostgresDisclosureBudgetAndAuditFailureDenyData", "TestMissingApprovalAndUnmappedSourceCannotDisclose", "TestTenAnalyticsContractsUseFixedSignedOwnerPaths", "TestRolloutFlagsCannotCreateOwnerCapabilities"}
 if args.suite == "gateway":
     required = {"TestPublicAdminIsolation", "TestForgedHQHeadersAreStrippedFromPublicRoutes", "TestPostgresRefreshRotationAndMigrationReplay"}
 assert not failures, f"Failed/skipped tests: {[(e.get('Package'), e.get('Test')) for e in failures]}"

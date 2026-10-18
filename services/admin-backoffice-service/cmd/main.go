@@ -7,6 +7,8 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
+	"cosmicforge/logistics/shared/go/adminpolicy"
+	"cosmicforge/logistics/shared/go/adminpolicyenv"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
@@ -101,6 +103,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	app.ConfigureDomainFlags(cfg.Features)
 	if cfg.TaxiReadEnabled {
 		encoded, e := os.ReadFile(cfg.TaxiSecretFile)
 		if e != nil {
@@ -115,7 +118,16 @@ func run() error {
 			return e
 		}
 		defer taxi.Close()
-		if e = app.ConfigureTaxi(taxi, cfg.TaxiReadRoles); e != nil {
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid owner-approved access policy")
+		}
+		if approved != nil {
+			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+				return errors.New("access policy revision refused")
+			}
+		}
+		if e = app.ConfigureTaxi(taxi, cfg.TaxiReadRoles, approved); e != nil {
 			return e
 		}
 	}

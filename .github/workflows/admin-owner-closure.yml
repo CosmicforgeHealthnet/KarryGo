@@ -6,6 +6,11 @@ on:
       - 'services/driver-taxi-service/**'
       - 'services/driver-dispatch-delivery-service/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/migrations/005_admin_disclosure_guard.sql'
+      - 'docs/admin/policies/**'
       - 'shared/go/serviceauth/**'
       - 'scripts/admin-bridge/**'
       - '.github/workflows/admin-owner-closure.yml'
@@ -16,6 +21,11 @@ on:
       - 'services/driver-taxi-service/**'
       - 'services/driver-dispatch-delivery-service/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/migrations/005_admin_disclosure_guard.sql'
+      - 'docs/admin/policies/**'
       - '.github/workflows/admin-owner-closure.yml'
 permissions:
   contents: read
@@ -45,6 +55,7 @@ jobs:
       PGUSER: owner_test
       PGDATABASE: admin_owner_test
       ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      ANALYTICS_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
       TAXI_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
       DISPATCH_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
       DISPATCH_TRIP_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
@@ -63,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-artifacts
-          go build -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
+          go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
           createdb dispatch_admin_test
           for migration in services/driver-dispatch-delivery-service/migrations/*.up.sql; do
             psql -d dispatch_admin_test -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
@@ -72,7 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./shared/go/adminread > test-artifacts/admin-owner.jsonl
+          go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
           go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./services/driver-dispatch-delivery-service/internal/features/securehandover > test-artifacts/dispatch-safety.jsonl
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-safety.jsonl

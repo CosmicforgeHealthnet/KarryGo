@@ -24,13 +24,32 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
           "maxLength": 128
+        },
+        "tenant": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
         }
       },
       "required": [
         "market",
         "zone",
-        "organization"
+        "organization",
+        "tenant"
       ]
+    },
+    "policy_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "policy_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_checksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "as_of": {
       "type": "string",
@@ -130,6 +149,9 @@
   "required": [
     "contract_version",
     "scope",
+    "policy_id",
+    "policy_version",
+    "policy_checksum",
     "as_of",
     "freshness",
     "coverage",

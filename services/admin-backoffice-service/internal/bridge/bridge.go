@@ -23,9 +23,11 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
+	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/google/uuid"
+	"strconv"
 )
 
 const Base = "/internal/karryam-admin/v1"
@@ -46,6 +48,8 @@ type Bridge struct {
 	enabled               bool
 	taxi                  *clients.Taxi
 	taxiRoles             []string
+	accessPolicy          *adminpolicy.Engine
+	features              config.DomainFlags
 	verifiers             map[string]*serviceauth.Verifier
 	now                   func() time.Time
 	Denied, AuditFailures atomic.Uint64
@@ -246,10 +250,21 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.RequestType = capability.ID
 	a.Permission = capability.Permission
 	a.TargetService = capability.Owner
+	if capability.Permission == adminread.TaxiPermission && b.accessPolicy == nil {
+		fail(503, "blocked_policy")
+		return
+	}
 	var taxiQuery adminread.Query
 	query, err := strictQuery(r)
 	if capability.Permission == adminread.TaxiPermission {
-		taxiQuery, query, err = taxiReadQuery(r, actor.Subject, b.now())
+		role := actor.Roles[0]
+		for _, candidate := range actor.Roles {
+			if config.Contains(b.taxiRoles, candidate) {
+				role = candidate
+				break
+			}
+		}
+		taxiQuery, query, err = taxiReadQuery(r, actor.Subject, role, b.accessPolicy, b.now())
 	}
 	if err != nil {
 		fail(400, "invalid_query")
@@ -275,6 +290,19 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(403, "forbidden")
 		return
 	}
+	if capability.Permission == adminread.TaxiPermission {
+		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
+		requested := adminpolicy.Scope{Product: config.Product, Market: taxiQuery.Scope.Market, Zone: taxiQuery.Scope.Zone, Organization: taxiQuery.Scope.Organization, Tenant: taxiQuery.Scope.Tenant}
+		if e := b.accessPolicy.AuthorizeDelegation(delegated, adminread.TaxiPermission, taxiQuery.Purpose, requested, b.now()); e != nil {
+			if errors.Is(e, adminpolicy.ErrBlocked) {
+				fail(503, "blocked_policy")
+			} else {
+				fail(403, "forbidden")
+			}
+			return
+		}
+		a.EvidenceRef = b.accessPolicy.ID() + "@" + strconv.FormatInt(b.accessPolicy.Version(), 10) + ":" + b.accessPolicy.Checksum()
+	}
 	allowed, err := b.repo.Rate(r.Context(), strings.Join([]string{actor.Subject, capability.Permission, scope.Market, scope.Organization}, ":"), b.now(), b.trust.RequestsPerMinute)
 	if err != nil {
 		fail(503, "authorization_unavailable")
@@ -293,7 +321,8 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var result any
 	switch capability.ID {
 	case "bridge.capabilities":
-		result = contract.DiscoverWithAvailability(actor.Permissions, map[string]bool{adminread.TaxiPermission: b.taxi != nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0})
+		_, policyErr := b.accessPolicy.Rule(adminread.TaxiPermission, b.now())
+		result = contract.DiscoverWithAvailability(actor.Permissions, map[string]bool{adminread.TaxiPermission: b.taxi != nil && policyErr == nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0 && len(actor.Tenants) > 0})
 	case "taxi.rides.list", "taxi.rides.detail":
 		if b.taxi == nil {
 			fail(503, "capability_blocked")
@@ -310,6 +339,10 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		a.TargetRef = id
 		snapshot, e := b.taxi.Rides(r.Context(), taxiQuery, id)
+		if errors.Is(e, clients.ErrScopeDenied) {
+			fail(403, "forbidden")
+			return
+		}
 		if errors.Is(e, clients.ErrNotFound) {
 			fail(404, "not_found")
 			return
@@ -378,7 +411,11 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			b.reply(w, correlation, 503, nil, &apiError{Code: "audit_unavailable", Message: "Request could not be completed.", Retryable: true})
 			return
 		}
-		b.reply(w, correlation, 503, nil, &apiError{Code: "capability_blocked", Message: "No owner command is enabled.", Retryable: false, OperationID: op.ID})
+		message := "Remote privileged writes are disabled."
+		if b.features.WriteFamilyRequested(command.Action) {
+			message = "No approved owner command adapter is enabled."
+		}
+		b.reply(w, correlation, 503, nil, &apiError{Code: "capability_blocked", Message: message, Retryable: false, OperationID: op.ID})
 		return
 	default:
 		fail(503, "capability_blocked")

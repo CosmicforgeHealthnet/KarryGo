@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
+	"cosmicforge/logistics/shared/go/adminpolicy"
+	"cosmicforge/logistics/shared/go/adminpolicy/testfixture"
 	"cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/google/uuid"
@@ -37,7 +39,7 @@ func TestTaxiReadDelegationAndOwnerBoundary(t *testing.T) {
 			w.WriteHeader(400)
 			return
 		}
-		json.NewEncoder(w).Encode(adminread.TaxiSnapshot{ContractVersion: "1.0", Scope: q.Scope, AsOf: time.Now().UTC(), Freshness: "LIVE", Coverage: "PARTIAL_COVERAGE", Items: []adminread.Ride{{ID: uuid.NewString(), Status: "completed", Mode: "standard", SourceContext: "FLEET_ASSIGNMENT", CreatedAt: q.Start.Add(time.Hour), UpdatedAt: q.Start.Add(time.Hour)}}, Events: []adminread.Event{}})
+		json.NewEncoder(w).Encode(adminread.TaxiSnapshot{ContractVersion: "1.0", Scope: q.Scope, AsOf: time.Now().UTC(), Freshness: "LIVE", Coverage: "PARTIAL_COVERAGE", Items: []adminread.Ride{{ID: uuid.NewString(), Status: "completed", Mode: "standard", SourceContext: "FLEET_ASSIGNMENT", CreatedAt: q.Start.Add(time.Hour), UpdatedAt: q.Start.Add(time.Hour)}}, Events: []adminread.Event{}, PolicyID: q.PolicyID, PolicyVersion: q.PolicyVersion, PolicyChecksum: q.PolicyChecksum})
 	}))
 	defer srv.Close()
 	client, err := clients.NewTaxi(srv.URL, secret)
@@ -45,20 +47,36 @@ func TestTaxiReadDelegationAndOwnerBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	q := adminread.Query{Scope: adminread.Scope{Market: "NG", Zone: "Z1", Organization: "org-1"}, Start: time.Now().UTC().Add(-24 * time.Hour).Truncate(time.Second), End: time.Now().UTC().Truncate(time.Second), Limit: 10, Purpose: "case-1"}
+	policy := testfixture.NewTaxi(t, adminpolicy.Scope{Product: "karryam", Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"})
+	q := adminread.Query{Scope: adminread.Scope{Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"}, Start: time.Now().UTC().Add(-24 * time.Hour).Truncate(time.Second), End: time.Now().UTC().Truncate(time.Second), Limit: 10, Purpose: "case-1"}
 	values := q.Values()
-	values.Del("staff")
+	for _, key := range []string{"staff", "role", "policy_id", "policy_version", "policy_checksum"} {
+		values.Del(key)
+	}
 	path := "/taxi/rides?" + values.Encode()
-	for _, name := range []string{"allowed", "zone_denied", "zone_missing", "role_denied", "permission_denied", "market_denied", "organization_denied", "actor_injection", "audit_unavailable", "disabled"} {
+	for _, name := range []string{"allowed", "zone_denied", "zone_missing", "role_denied", "permission_denied", "market_denied", "organization_denied", "tenant_denied", "tenant_missing", "policy_missing", "policy_injection", "actor_injection", "audit_unavailable", "disabled"} {
 		t.Run(name, func(t *testing.T) {
 			f := newFixture(t)
 			f.claims.Zones = []string{"Z1"}
-			if err := f.b.ConfigureTaxi(client, []string{"staff"}); err != nil {
+			f.claims.Tenants = []string{"org-1"}
+			if err := f.b.ConfigureTaxi(client, []string{"staff"}, policy.Engine); err != nil {
 				t.Fatal(err)
 			}
 			target := path
 			want := 200
 			switch name {
+			case "tenant_denied":
+				f.claims.Tenants = []string{"org-2"}
+				want = 403
+			case "tenant_missing":
+				f.claims.Tenants = nil
+				want = 403
+			case "policy_missing":
+				f.b.accessPolicy = nil
+				want = 503
+			case "policy_injection":
+				target += "&policy_version=999"
+				want = 400
 			case "zone_denied":
 				f.claims.Zones = []string{"Z2"}
 				want = 403

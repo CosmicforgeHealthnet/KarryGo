@@ -62,6 +62,9 @@ func (t *Taxi) Rides(ctx context.Context, q adminread.Query, id string) (adminre
 	if res.StatusCode == 404 {
 		return out, ErrNotFound
 	}
+	if res.StatusCode == 403 {
+		return out, ErrScopeDenied
+	}
 	if res.StatusCode == 401 || res.StatusCode == 403 || res.StatusCode == 409 {
 		return out, ErrRefused
 	}
@@ -72,7 +75,7 @@ func (t *Taxi) Rides(ctx context.Context, q adminread.Query, id string) (adminre
 	if err != nil || len(raw) > 1048576 || security.Strict(raw, &out) != nil {
 		return out, ErrInvalid
 	}
-	if out.ContractVersion != "1.0" || out.Scope != q.Scope || out.Freshness != "LIVE" || out.Coverage != "PARTIAL_COVERAGE" || out.AsOf.Before(time.Now().Add(-time.Minute)) || out.AsOf.After(time.Now().Add(time.Minute)) || out.Items == nil || out.Events == nil || len(out.Items) > q.Limit || len(out.Events) > 200 || len(out.NextCursor) > 4096 {
+	if out.ContractVersion != "1.0" || out.PolicyID != q.PolicyID || out.PolicyVersion != q.PolicyVersion || out.PolicyChecksum != q.PolicyChecksum || out.Scope != q.Scope || out.Freshness != "LIVE" || out.Coverage != "PARTIAL_COVERAGE" || out.AsOf.Before(time.Now().Add(-time.Minute)) || out.AsOf.After(time.Now().Add(time.Minute)) || out.Items == nil || out.Events == nil || len(out.Items) > q.Limit || len(out.Events) > 200 || len(out.NextCursor) > 4096 {
 		return out, ErrInvalid
 	}
 	if id != "" && (len(out.Items) != 1 || out.Items[0].ID != id || out.NextCursor != "") {
@@ -103,3 +106,4 @@ func (t *Taxi) Rides(ctx context.Context, q adminread.Query, id string) (adminre
 }
 
 var ErrNotFound = errors.New("owner entity not found")
+var ErrScopeDenied = errors.New("owner scope denied")

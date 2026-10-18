@@ -141,6 +141,24 @@ func (f *fixture) request(t *testing.T, method, path string, body []byte) *http.
 
 const scopeQuery = "?market=NG&organization=org-1&purpose=CASE-123"
 
+func TestRolloutFlagsCannotCreateOwnerCapabilities(t *testing.T) {
+	f := newFixture(t)
+	f.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, CustomerWrites: true, TaxiWrites: true, DispatchRecovery: true, HaulingRecovery: true, AnalyticsReads: true, CustomerSensitiveReads: true})
+	if w := invoke(f.b, f.request(t, "GET", "/analytics/network/mission-success"+scopeQuery, nil)); w.Code != 503 {
+		t.Fatalf("flag enabled unscoped legacy report: %d", w.Code)
+	}
+	command := operations.Command{ContractVersion: "1.0", CommandID: uuid.NewString(), Product: "karryam", Action: "dispatch.provider.suspension.request", Target: operations.Target{Type: "dispatch_provider", ID: "provider-1", ExpectedVersion: 7}, Scope: security.Scope{Market: "NG", Organization: "org-1"}, ReasonCode: "SAFETY_REVIEW", Reason: "test-only reason", CaseReference: "case-1", IdempotencyKey: "test-flag-gate", RequestedAt: time.Now().UTC().Add(-time.Second)}
+	body, _ := json.Marshal(command)
+	w := invoke(f.b, f.request(t, "POST", "/operations"+scopeQuery, body))
+	if w.Code != 503 || f.repo.records != 1 || !strings.Contains(w.Body.String(), "capability_blocked") {
+		t.Fatalf("flag created executable command: %d %s", w.Code, w.Body)
+	}
+	w = invoke(f.b, f.request(t, "GET", "/health/aggregate"+scopeQuery, nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"remote_writes":"DISABLED"`) {
+		t.Fatalf("unimplemented writes advertised available: %d %s", w.Code, w.Body)
+	}
+}
+
 func invoke(b *Bridge, r *http.Request) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	b.ServeHTTP(w, r)

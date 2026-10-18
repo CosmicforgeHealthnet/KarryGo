@@ -23,43 +23,56 @@ type Scope struct {
 	Market       string `json:"market"`
 	Zone         string `json:"zone"`
 	Organization string `json:"organization"`
+	Tenant       string `json:"tenant"`
 }
 type Query struct {
-	Scope   Scope     `json:"scope"`
-	Staff   string    `json:"staff"`
-	Purpose string    `json:"purpose"`
-	Start   time.Time `json:"start"`
-	End     time.Time `json:"end"`
-	Limit   int       `json:"limit"`
-	Cursor  string    `json:"-"`
+	Scope          Scope     `json:"scope"`
+	Staff          string    `json:"staff"`
+	Purpose        string    `json:"purpose"`
+	Start          time.Time `json:"start"`
+	End            time.Time `json:"end"`
+	Limit          int       `json:"limit"`
+	Cursor         string    `json:"-"`
+	Role           string    `json:"role"`
+	PolicyID       string    `json:"policy_id"`
+	PolicyVersion  int64     `json:"policy_version"`
+	PolicyChecksum string    `json:"policy_checksum"`
 }
 
 func (q Query) Validate(now time.Time) error {
-	if !Opaque(q.Scope.Market) || !Opaque(q.Scope.Zone) || !Opaque(q.Scope.Organization) || !Opaque(q.Staff) || !Opaque(q.Purpose) || q.Start.IsZero() || !q.End.After(q.Start) || q.End.Sub(q.Start) > 31*24*time.Hour || q.End.After(now.Add(time.Minute)) || q.Limit < 1 || q.Limit > 100 || len(q.Cursor) > 4096 {
+	if !Opaque(q.Scope.Market) || !Opaque(q.Scope.Zone) || !Opaque(q.Scope.Organization) || !Opaque(q.Scope.Tenant) || !Opaque(q.Staff) || !Opaque(q.Role) || !Opaque(q.PolicyID) || q.PolicyVersion < 1 || len(q.PolicyChecksum) != 64 || !Opaque(q.Purpose) || q.Start.IsZero() || !q.End.After(q.Start) || q.End.Sub(q.Start) > 31*24*time.Hour || q.End.After(now.Add(time.Minute)) || q.Limit < 1 || q.Limit > 100 || len(q.Cursor) > 4096 {
 		return ErrQuery
 	}
 	return nil
 }
 func (q Query) Values() url.Values {
 	v := url.Values{"market": {q.Scope.Market}, "zone": {q.Scope.Zone}, "organization": {q.Scope.Organization}, "staff": {q.Staff}, "purpose": {q.Purpose}, "start": {q.Start.UTC().Format(time.RFC3339Nano)}, "end": {q.End.UTC().Format(time.RFC3339Nano)}, "limit": {strconv.Itoa(q.Limit)}}
+	v.Set("tenant", q.Scope.Tenant)
+	v.Set("role", q.Role)
+	v.Set("policy_id", q.PolicyID)
+	v.Set("policy_version", strconv.FormatInt(q.PolicyVersion, 10))
+	v.Set("policy_checksum", q.PolicyChecksum)
 	if q.Cursor != "" {
 		v.Set("cursor", q.Cursor)
 	}
 	return v
 }
 func Parse(v url.Values, now time.Time) (Query, error) {
-	q := Query{Scope: Scope{v.Get("market"), v.Get("zone"), v.Get("organization")}, Staff: v.Get("staff"), Purpose: v.Get("purpose"), Cursor: v.Get("cursor")}
+	q := Query{Scope: Scope{Market: v.Get("market"), Zone: v.Get("zone"), Organization: v.Get("organization"), Tenant: v.Get("tenant")}, Staff: v.Get("staff"), Purpose: v.Get("purpose"), Cursor: v.Get("cursor"), Role: v.Get("role"), PolicyID: v.Get("policy_id"), PolicyChecksum: v.Get("policy_checksum")}
 	for k, vals := range v {
 		if len(vals) != 1 {
 			return q, ErrQuery
 		}
 		switch k {
-		case "market", "zone", "organization", "staff", "purpose", "start", "end", "limit", "cursor":
+		case "market", "zone", "organization", "tenant", "staff", "role", "policy_id", "policy_version", "policy_checksum", "purpose", "start", "end", "limit", "cursor":
 		default:
 			return q, ErrQuery
 		}
 	}
 	var err error
+	if q.PolicyVersion, err = strconv.ParseInt(v.Get("policy_version"), 10, 64); err != nil {
+		return q, ErrQuery
+	}
 	if q.Start, err = time.Parse(time.RFC3339Nano, v.Get("start")); err != nil {
 		return q, ErrQuery
 	}
@@ -92,6 +105,9 @@ type Event struct {
 	At   time.Time `json:"at"`
 }
 type TaxiSnapshot struct {
+	PolicyID         string    `json:"policy_id"`
+	PolicyVersion    int64     `json:"policy_version"`
+	PolicyChecksum   string    `json:"policy_checksum"`
 	ContractVersion  string    `json:"contract_version"`
 	Scope            Scope     `json:"scope"`
 	AsOf             time.Time `json:"as_of"`

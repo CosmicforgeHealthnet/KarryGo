@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"cosmicforge/logistics/shared/go/adminpolicy"
+	"cosmicforge/logistics/shared/go/adminpolicy/testfixture"
 	contract "cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/gin-gonic/gin"
@@ -99,10 +101,14 @@ func TestTaxiAdminOwnerSnapshotIsolationAndReplay(t *testing.T) {
 	}
 	gin.SetMode(gin.TestMode)
 	root := gin.New()
-	Register(root, db, secret, true)
+	policy := testfixture.NewTaxi(t, adminpolicy.Scope{Product: "karryam", Market: "M1", Zone: "Z1", Organization: "O1", Tenant: "O1"})
+	if err = adminpolicy.PinRevision(context.Background(), db, "taxi_admin_policy_revisions", policy.Engine); err != nil {
+		t.Fatal(err)
+	}
+	Register(root, db, secret, true, policy.Engine)
 	srv := httptest.NewServer(root)
 	defer srv.Close()
-	q := contract.Query{Scope: contract.Scope{Market: "M1", Zone: "Z1", Organization: "O1"}, Staff: "staff-1", Purpose: "case-1", Start: now.Add(-24 * time.Hour), End: now, Limit: 1}
+	q := contract.Query{Scope: contract.Scope{Market: "M1", Zone: "Z1", Organization: "O1", Tenant: "O1"}, Staff: "staff-1", Purpose: "case-1", Start: now.Add(-24 * time.Hour), End: now, Limit: 1, Role: "staff", PolicyID: policy.Engine.ID(), PolicyVersion: policy.Engine.Version(), PolicyChecksum: policy.Engine.Checksum()}
 	request := func(q contract.Query, id, caller string) *http.Request {
 		path := contract.TaxiPath
 		if id != "" {
@@ -176,7 +182,7 @@ func TestTaxiAdminOwnerSnapshotIsolationAndReplay(t *testing.T) {
 		t.Fatal("real event missing")
 	}
 	q.Scope.Organization = "O2"
-	read(request(q, first, contract.Caller), 404)
+	read(request(q, first, contract.Caller), 403)
 	q.Scope.Organization = "O1"
 	read(request(q, "", "customer-service"), 401)
 	// A replay race across independent HTTP connections has one winner.

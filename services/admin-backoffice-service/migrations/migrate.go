@@ -13,6 +13,9 @@ var Schema string
 //go:embed 002_audit_zone.sql
 var zoneSchema string
 
+//go:embed 003_policy_revisions.sql
+var policySchema string
+
 // Apply serializes schema installation across replicas and rolls back on failure.
 // Use a migration role; the runtime role must not own the evidence tables.
 func Apply(ctx context.Context, pool *pgxpool.Pool) error {
@@ -47,6 +50,17 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("bridge zone migration: %w", err)
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO admin_schema_versions(version) VALUES(2)`); err != nil {
+			return err
+		}
+	}
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM admin_schema_versions WHERE version=3)`).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		if _, err = tx.Exec(ctx, policySchema); err != nil {
+			return fmt.Errorf("bridge policy migration: %w", err)
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO admin_schema_versions(version) VALUES(3)`); err != nil {
 			return err
 		}
 	}

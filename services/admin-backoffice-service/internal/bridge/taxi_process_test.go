@@ -26,6 +26,8 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/testutil"
+	"cosmicforge/logistics/shared/go/adminpolicy"
+	"cosmicforge/logistics/shared/go/adminpolicy/testfixture"
 	"cosmicforge/logistics/shared/go/adminread"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -104,6 +106,15 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 	if err = os.WriteFile(secretFile, []byte(base64.RawURLEncoding.EncodeToString(secret)), 0600); err != nil {
 		t.Fatal(err)
 	}
+	policy := testfixture.NewTaxi(t, adminpolicy.Scope{Product: "karryam", Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"})
+	policyFile := filepath.Join(t.TempDir(), "test-only-policy.json")
+	keysFile := filepath.Join(t.TempDir(), "test-only-policy-keys.json")
+	if err = os.WriteFile(policyFile, policy.Envelope, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(keysFile, policy.Keys, 0600); err != nil {
+		t.Fatal(err)
+	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -120,6 +131,7 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Env = append(os.Environ(), "APP_ENV=test", "HTTP_ADDR="+addr, "TAXI_DATABASE_URL="+ownerURL.String(), "TAXI_MIGRATION=false", "TAXI_ADMIN_READ_ENABLED=true", "TAXI_ADMIN_READ_SECRET_FILE="+secretFile, "TAXI_PROVIDER_TOKEN_SECRET=owner-fixture-only-token", "TAXI_PROVIDER_REFRESH_SECRET=owner-fixture-only-refresh", "TAXI_PROVIDER_OTP_SECRET=owner-fixture-only-otp", "TAXI_CUSTOMER_TOKEN_SECRET=owner-fixture-only-customer")
+	cmd.Env = append(cmd.Env, "TAXI_ADMIN_ACCESS_POLICY_FILE="+policyFile, "TAXI_ADMIN_ACCESS_POLICY_KEYS_FILE="+keysFile)
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +163,7 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 	}
 	f := newFixture(t)
 	f.claims.Zones = []string{"Z1"}
+	f.claims.Tenants = []string{"org-1"}
 	pool := testutil.Database(t)
 	pair, leaf, roots := workloadCertificate(t, f.b.trust.WorkloadURI, false)
 	f.cert = leaf
@@ -167,7 +180,10 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer taxi.Close()
-	if err = b.ConfigureTaxi(taxi, []string{"staff"}); err != nil {
+	if err = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", policy.Engine); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.ConfigureTaxi(taxi, []string{"staff"}, policy.Engine); err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewUnstartedServer(b)
@@ -177,9 +193,11 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 	hq := server.Client()
 	hq.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{pair}
 	target, _ := url.Parse(server.URL)
-	q := adminread.Query{Scope: adminread.Scope{Market: "NG", Zone: "Z1", Organization: "org-1"}, Start: at.Add(-time.Hour).Truncate(time.Second), End: at.Add(time.Hour).Truncate(time.Second), Limit: 10, Purpose: "case-1"}
+	q := adminread.Query{Scope: adminread.Scope{Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"}, Start: at.Add(-time.Hour).Truncate(time.Second), End: at.Add(time.Hour).Truncate(time.Second), Limit: 10, Purpose: "case-1"}
 	values := q.Values()
-	values.Del("staff")
+	for _, key := range []string{"staff", "role", "policy_id", "policy_version", "policy_checksum"} {
+		values.Del(key)
+	}
 	request := f.request(t, "GET", "/taxi/rides/"+id+"?"+values.Encode(), nil)
 	request.URL.Scheme = target.Scheme
 	request.URL.Host = target.Host

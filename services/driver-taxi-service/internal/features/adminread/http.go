@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/shared/go/adminpolicy"
 	contract "cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/gin-gonic/gin"
@@ -27,10 +28,14 @@ type Handler struct {
 	DB      *pgxpool.Pool
 	Secret  []byte
 	Enabled bool
+	Policy  *adminpolicy.Engine
 }
 
-func Register(root *gin.Engine, db *pgxpool.Pool, secret []byte, enabled bool) {
+func Register(root *gin.Engine, db *pgxpool.Pool, secret []byte, enabled bool, policies ...*adminpolicy.Engine) {
 	h := &Handler{DB: db, Secret: append([]byte(nil), secret...), Enabled: enabled}
+	if len(policies) == 1 {
+		h.Policy = policies[0]
+	}
 	root.GET(contract.TaxiPath, h.Serve)
 	root.GET(contract.TaxiPath+"/:id", h.Serve)
 }
@@ -44,6 +49,10 @@ func (h *Handler) Serve(c *gin.Context) {
 	defer cancel()
 	if !h.Enabled || len(h.Secret) < 32 || h.DB == nil {
 		fail(c, 503, "admin_read_disabled")
+		return
+	}
+	if _, err := h.Policy.Rule(contract.TaxiPermission, time.Now()); err != nil {
+		fail(c, 503, "blocked_policy")
 		return
 	}
 	r := c.Request
@@ -87,6 +96,10 @@ func (h *Handler) Serve(c *gin.Context) {
 		fail(c, 400, "invalid_query")
 		return
 	}
+	if q.PolicyID != h.Policy.ID() || q.PolicyVersion != h.Policy.Version() || q.PolicyChecksum != h.Policy.Checksum() {
+		fail(c, 503, "blocked_policy")
+		return
+	}
 	id := c.Param("id")
 	if id != "" {
 		parsed, e := uuid.Parse(id)
@@ -97,6 +110,10 @@ func (h *Handler) Serve(c *gin.Context) {
 	}
 	snapshot, err := h.read(ctx, q, id)
 	switch {
+	case errors.Is(err, adminpolicy.ErrBlocked):
+		fail(c, 503, "blocked_policy")
+	case errors.Is(err, adminpolicy.ErrDenied):
+		fail(c, 403, "forbidden")
 	case errors.Is(err, contract.ErrQuery):
 		fail(c, 400, "invalid_cursor")
 	case errors.Is(err, pgx.ErrNoRows):
@@ -150,9 +167,14 @@ func (h *Handler) position(q contract.Query) (position, error) {
 }
 
 func (h *Handler) read(ctx context.Context, q contract.Query, id string) (contract.TaxiSnapshot, error) {
-	out := contract.TaxiSnapshot{ContractVersion: "1.0", Scope: q.Scope, Freshness: "LIVE", Coverage: "PARTIAL_COVERAGE", Items: []contract.Ride{}, Events: []contract.Event{}}
+	out := contract.TaxiSnapshot{ContractVersion: "1.0", Scope: q.Scope, Freshness: "LIVE", Coverage: "PARTIAL_COVERAGE", Items: []contract.Ride{}, Events: []contract.Event{}, PolicyID: h.Policy.ID(), PolicyVersion: h.Policy.Version(), PolicyChecksum: h.Policy.Checksum()}
+	requested := adminpolicy.Scope{Product: "karryam", Market: q.Scope.Market, Zone: q.Scope.Zone, Organization: q.Scope.Organization, Tenant: q.Scope.Tenant}
+	actor := adminpolicy.Actor{Product: "karryam", Staff: q.Staff, Roles: []string{q.Role}, Permissions: []string{contract.TaxiPermission}, Markets: []string{q.Scope.Market}, Zones: []string{q.Scope.Zone}, Organizations: []string{q.Scope.Organization}, Tenants: []string{q.Scope.Tenant}}
 	p, err := h.position(q)
 	if err != nil {
+		return out, err
+	}
+	if err := h.Policy.AuthorizeDelegation(actor, contract.TaxiPermission, q.Purpose, requested, time.Now()); err != nil {
 		return out, err
 	}
 	// One repeatable snapshot prevents a scope or lifecycle change between
@@ -166,10 +188,11 @@ func (h *Handler) read(ctx context.Context, q contract.Query, id string) (contra
 	if err = tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&out.AsOf); err != nil {
 		return out, err
 	}
-	rows, err := tx.Query(ctx, `SELECT b.id::text,b.status,b.booking_mode,b.source_context,b.updated_at,b.created_at
+	rows, err := tx.Query(ctx, `SELECT b.id::text,b.status,b.booking_mode,b.source_context,b.updated_at,b.created_at,m.code,z.code,b.organization_id
  FROM taxi_bookings b JOIN markets m ON m.id=b.market_id
  JOIN operating_zones z ON z.id=b.operating_zone_id AND z.market_id=b.market_id
  WHERE m.code=$1 AND z.code=$2 AND b.organization_id=$3 AND b.is_corporate_managed
+	 AND b.source_context IN ('FLEET_ASSIGNMENT','FLEET_OFFER','FLEET_PRIVATE_EXECUTION')
  AND b.created_at >= $4 AND b.created_at < $5 AND (b.created_at,b.id)<($6,$7::uuid)
  AND ($8='' OR b.id::text=$8) ORDER BY b.created_at DESC,b.id DESC LIMIT $9`, q.Scope.Market, q.Scope.Zone, q.Scope.Organization, q.Start, q.End, p.At, p.ID, id, q.Limit+1)
 	if err != nil {
@@ -177,7 +200,16 @@ func (h *Handler) read(ctx context.Context, q contract.Query, id string) (contra
 	}
 	for rows.Next() {
 		var item contract.Ride
-		if err = rows.Scan(&item.ID, &item.Status, &item.Mode, &item.SourceContext, &item.UpdatedAt, &item.CreatedAt); err != nil {
+		var market, zone, organization string
+		if err = rows.Scan(&item.ID, &item.Status, &item.Mode, &item.SourceContext, &item.UpdatedAt, &item.CreatedAt, &market, &zone, &organization); err != nil {
+			rows.Close()
+			return out, err
+		}
+		// Fleet's canonical tenant context is OrganizationID. This binding is
+		// used only for actual Fleet-origin corporate executions, never for an
+		// independent ride or an organization supplied only in the request.
+		facts := adminpolicy.Facts{Owner: "driver-taxi-service", Reference: item.ID, SourceContract: "taxi.corporate-rides.v1", Scope: adminpolicy.Scope{Product: "karryam", Market: market, Zone: zone, Organization: organization, Tenant: organization}}
+		if err = h.Policy.AuthorizeOwner(actor, contract.TaxiPermission, q.Purpose, requested, facts, time.Now()); err != nil {
 			rows.Close()
 			return out, err
 		}
@@ -223,7 +255,7 @@ func (h *Handler) read(ctx context.Context, q contract.Query, id string) (contra
 	}
 	// No raw event metadata, actor contacts, GPS, money, notes, documents or
 	// handover credentials leave this owner. Audit persistence precedes release.
-	_, err = tx.Exec(ctx, `INSERT INTO taxi_admin_read_audit(staff_ref,market_code,zone_code,organization_ref,purpose_code,target_ref) VALUES($1,$2,$3,$4,$5,$6)`, q.Staff, q.Scope.Market, q.Scope.Zone, q.Scope.Organization, q.Purpose, id)
+	_, err = tx.Exec(ctx, `INSERT INTO taxi_admin_read_audit(staff_ref,market_code,zone_code,organization_ref,purpose_code,target_ref,tenant_ref,approved_role,policy_id,policy_version,policy_checksum) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, q.Staff, q.Scope.Market, q.Scope.Zone, q.Scope.Organization, q.Purpose, id, q.Scope.Tenant, q.Role, h.Policy.ID(), h.Policy.Version(), h.Policy.Checksum())
 	if err != nil {
 		return out, err
 	}

@@ -93,14 +93,24 @@ is executable.
 # Scoped owner-read extension
 
 The additive `StaffAssertionZones` schema is required for the Taxi ride routes.
-It includes signed `zone_scopes` in addition to the existing market and
-organization scopes. Assertions for the original metadata routes remain valid
-without this field. Wildcards, duplicate claims and duplicate scope values are
+It includes signed `zone_scopes` and `tenant_scopes` in addition to the existing
+market and organization scopes. Assertions for the original metadata routes
+remain valid without these fields. Wildcards, duplicate claims and duplicate scope values are
 rejected. Taxi reads also require `taxi.rides.read` and an exact role in the
 operator-provisioned `ADMIN_TAXI_READ_ROLES` policy; no role is implicitly approved.
 
-The request digest covers the exact URI, including market, zone, organization,
+The request digest covers the exact URI, including market, zone, organization, tenant,
 purpose, time window, page limit and cursor. The bridge supplies the verified
 staff identity to the owner in its newly signed HMAC request. HQ cannot supply
 the owner `staff` parameter or choose a destination. Neither the HQ JWT nor any
 incoming authentication header is forwarded to Taxi.
+
+Both services independently verify the Ed25519 owner-approved policy envelope
+using pinned governance keys, an approval reference, owner list and effective
+dates. The bridge signs the selected role and policy ID/version/checksum into
+its owner request; Taxi requires the identical locally approved revision and
+resolves the tenant from the actual Fleet-origin corporate booking. The query
+tenant never supplies owner authority. PostgreSQL revision pins reject rollback
+and same-version policy rewrites. Missing, DRAFT or expired approval denies data.
+The production binary accepts only PRODUCTION policy; `admin_policy_test` is an
+explicit test build tag, never a runtime production switch.

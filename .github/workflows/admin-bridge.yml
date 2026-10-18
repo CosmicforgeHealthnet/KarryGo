@@ -7,6 +7,11 @@ on:
       - 'services/partner-web-service/**'
       - 'shared/go/serviceauth/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/migrations/005_admin_disclosure_guard.sql'
+      - 'docs/admin/policies/**'
       - 'services/driver-taxi-service/**'
       - 'deploy/platform/**'
       - 'scripts/admin-bridge/**'
@@ -20,6 +25,11 @@ on:
       - 'services/partner-web-service/**'
       - 'shared/go/serviceauth/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/migrations/005_admin_disclosure_guard.sql'
+      - 'docs/admin/policies/**'
       - 'services/driver-taxi-service/**'
       - 'deploy/platform/**'
       - 'scripts/admin-bridge/**'
@@ -45,6 +55,7 @@ jobs:
     env:
       ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
       API_GATEWAY_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
+      ANALYTICS_ADMIN_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
       TAXI_ADMIN_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
       ADMIN_TAXI_TEST_BINARY: ${{ runner.temp }}/taxi-admin-owner
       ADMIN_BRIDGE_CONTRACT_CAPTURE_DIR: ${{ github.workspace }}/test-artifacts/wire
@@ -67,8 +78,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-artifacts
-          go build -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
-          go test -race -json ./services/admin-backoffice-service/... -count=1 -timeout=180s > test-artifacts/admin-tests.jsonl
+          go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
+          go test -race -json ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminpolicy/... -count=1 -timeout=300s > test-artifacts/admin-tests.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-tests.jsonl
           go test -race -json ./services/api-gateway/... ./services/partner-web-service/... ./shared/go/serviceauth/... -count=1 -timeout=300s > test-artifacts/gateway-tests.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/gateway-tests.jsonl --suite gateway
