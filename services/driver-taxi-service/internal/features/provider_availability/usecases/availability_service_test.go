@@ -2,6 +2,7 @@ package availabilityusecases
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -379,10 +380,16 @@ func TestHeartbeatRequiresBeingOnline(t *testing.T) {
 	providers, vehicles := readyDriver()
 	svc := newSvc(newFakeStore(), providers, vehicles)
 
-	if _, err := svc.Heartbeat(context.Background(), SetAvailabilityInput{
+	_, err := svc.Heartbeat(context.Background(), SetAvailabilityInput{
 		ProviderID: "driver-1", Lat: lagosLat, Lng: lagosLng,
-	}, false); err == nil {
+	}, false)
+	if err == nil {
 		t.Fatal("a heartbeat from an offline driver must be refused")
+	}
+	// The driver app recognises this code to re-establish availability.
+	var appErr *apperrors.Error
+	if !errors.As(err, &appErr) || appErr.Code != CodeNotOnline {
+		t.Fatalf("want code %s, got %v", CodeNotOnline, err)
 	}
 }
 

@@ -42,15 +42,18 @@ class RouteSummary extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _line(context, booking.pickup?.address ?? 'Pick-up'),
+              _line(context, _orLabel(booking.pickup?.address, 'Pick-up')),
               SizedBox(height: 22),
-              _line(context, booking.dropoff?.address ?? 'Destination'),
+              _line(context, _orLabel(booking.dropoff?.address, 'Destination')),
             ],
           ),
         ),
       ],
     );
   }
+
+  static String _orLabel(String? address, String label) =>
+      (address == null || address.trim().isEmpty) ? label : address;
 
   Widget _line(BuildContext context, String text) => Text(
     text,

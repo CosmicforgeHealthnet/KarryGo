@@ -153,6 +153,30 @@ class ProviderBooking {
 
   int get displayFareKobo => fareFinalKobo ?? fareEstimateKobo ?? 0;
 
+  /// This booking with [stops] in place of its own. Lifecycle responses
+  /// (accept, arrive, start) carry only the booking row, so the route the
+  /// driver already has is carried over rather than lost.
+  ProviderBooking withStops(List<BookingStop> stops) => ProviderBooking(
+    id: id,
+    status: status,
+    pickupVerification: pickupVerification,
+    deliveryVerification: deliveryVerification,
+    isParcel: isParcel,
+    vehicleClass: vehicleClass,
+    stops: stops,
+    fareEstimateKobo: fareEstimateKobo,
+    fareFinalKobo: fareFinalKobo,
+    distanceKm: distanceKm,
+    durationMinutes: durationMinutes,
+    rideNotes: rideNotes,
+    receiverName: receiverName,
+    receiverPhone: receiverPhone,
+    packageDesc: packageDesc,
+    packageSize: packageSize,
+    isFragile: isFragile,
+    createdAt: createdAt,
+  );
+
   String get shortId =>
       id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
 

@@ -32,7 +32,7 @@ class ProviderHomeScreen extends StatefulWidget {
 }
 
 class _ProviderHomeScreenState extends State<ProviderHomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _transition = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 380),
@@ -40,6 +40,7 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen>
   );
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _transition.dispose();
     super.dispose();
   }
@@ -49,7 +50,15 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.controller.initialize();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The server expires a driver's online status if heartbeats stop while
+    // the app is in the background; reconcile as soon as it comes back.
+    if (state == AppLifecycleState.resumed) widget.controller.resync();
   }
 
   @override

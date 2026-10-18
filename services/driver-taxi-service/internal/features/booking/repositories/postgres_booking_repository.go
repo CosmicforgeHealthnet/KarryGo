@@ -648,7 +648,16 @@ func (r *PostgresBookingRepository) ListActiveByProvider(ctx context.Context, pr
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// The driver needs the pickup and destination addresses to accept an
+	// offer and to drive the ride, and taxi keeps them in a separate table,
+	// so the poll must carry them (batched, as in ListByCustomer).
+	if err := r.attachStops(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *PostgresBookingRepository) ListDueScheduled(ctx context.Context, now time.Time) ([]string, error) {

@@ -2,6 +2,7 @@ package availabilityusecases
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -264,6 +265,9 @@ func (s *AvailabilityService) resolveVehicle(ctx context.Context, providerID, ve
 	return s.vehicles.FirstActiveByProvider(ctx, providerID)
 }
 
+// CodeNotOnline marks a heartbeat from a driver whose online status has expired.
+const CodeNotOnline apperrors.Code = "NOT_ONLINE"
+
 // Heartbeat refreshes a driver's position and extends their online TTL.
 //
 // It requires an existing status key: a heartbeat cannot bring a driver online,
@@ -290,7 +294,11 @@ func (s *AvailabilityService) Heartbeat(ctx context.Context, input SetAvailabili
 		return AvailabilityState{}, apperrors.Unavailable("Availability could not be read.", err)
 	}
 	if !ok {
-		return AvailabilityState{}, apperrors.BadRequest("You are not currently online.", nil)
+		// A distinct code so the driver app can tell "your online status
+		// expired" (e.g. the app was backgrounded past the online TTL) from a
+		// malformed heartbeat, and re-establish availability instead of
+		// silently showing the driver as online while no rides arrive.
+		return AvailabilityState{}, apperrors.New(http.StatusBadRequest, CodeNotOnline, "You are not currently online.", nil)
 	}
 
 	vehicleID := existing.VehicleID

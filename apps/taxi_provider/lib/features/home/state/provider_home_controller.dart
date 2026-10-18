@@ -243,9 +243,77 @@ class ProviderHomeController extends ChangeNotifier {
         accuracy: pos.accuracy,
         onTrip: _state.activeBooking != null,
       );
-    } on ApiException {
-      // A missed beat is recoverable: the online TTL outlives one interval.
+    } on ApiException catch (e) {
+      if (_isNotOnline(e) && _state.online) {
+        // The server dropped us (the app was backgrounded past the online
+        // TTL). Showing "online" while refusing every beat would leave the
+        // driver silently receiving nothing, so go back online properly.
+        await _recoverOnline();
+      }
+      // Any other missed beat is recoverable: the online TTL outlives one
+      // interval.
     }
+  }
+
+  static bool _isNotOnline(ApiException e) =>
+      e.code == 'NOT_ONLINE' ||
+      (e.statusCode == 400 &&
+          e.message.toLowerCase().contains('not currently online'));
+
+  bool _recovering = false;
+
+  /// Re-runs the go-online gate after the server expired our online status.
+  /// If the gate now refuses (licence lapsed, vehicle deactivated, outside a
+  /// service area), the app shows offline with the server's reason instead
+  /// of pretending to be online.
+  Future<void> _recoverOnline() async {
+    if (_recovering) return;
+    final token = _token();
+    if (token == null) return;
+    _recovering = true;
+    try {
+      final pos = await _position();
+      final next = await _api.setAvailability(
+        accessToken: token,
+        online: true,
+        lat: pos.lat,
+        lng: pos.lng,
+        heading: pos.heading,
+        speed: pos.speed,
+        accuracy: pos.accuracy,
+      );
+      if (!next.online) _goneOffline('You were set offline.');
+    } on ApiException catch (e) {
+      _goneOffline('You are offline: ${e.message}');
+    } finally {
+      _recovering = false;
+    }
+  }
+
+  void _goneOffline(String message) {
+    _stopHeartbeat();
+    _emit(_state.copyWith(online: false, error: message));
+  }
+
+  /// Reconciles the online toggle with the server, e.g. when the app returns
+  /// to the foreground. Restores availability the server expired while the
+  /// app was in the background, and refreshes offers and the active ride.
+  Future<void> resync() async {
+    final token = _token();
+    if (token == null) return;
+    if (_state.online) {
+      try {
+        final availability = await _api.getAvailability(accessToken: token);
+        if (!availability.online) {
+          await _recoverOnline();
+        } else if (_heartbeatTimer == null) {
+          _startHeartbeat();
+        }
+      } on ApiException {
+        // Offline network: the next heartbeat will reconcile.
+      }
+    }
+    await refreshBookings();
   }
 
   // ─── Offers + active ride ──────────────────────────────────────────────────
@@ -388,6 +456,13 @@ class ProviderHomeController extends ChangeNotifier {
   }
 
   void _applyBooking(ProviderBooking booking) {
+    if (booking.stops.isEmpty) {
+      final known = [
+        if (_state.activeBooking != null) _state.activeBooking!,
+        ..._state.offers,
+      ].where((b) => b.id == booking.id && b.stops.isNotEmpty);
+      if (known.isNotEmpty) booking = booking.withStops(known.first.stops);
+    }
     if (booking.status.isTerminal) {
       _emit(_state.copyWith(
         isActionLoading: false,
