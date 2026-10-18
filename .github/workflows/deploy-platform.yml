@@ -98,6 +98,20 @@ jobs:
             fi
           fi
 
+          # Gateway/Partner Web form one stateful cutover: a normal workflow
+          # cannot perform the necessary worker transfer and private callback
+          # rewiring atomically. Reject explicit selectors rather than showing
+          # a green deploy that actually skipped these two services.
+          if [ "$EVENT" = workflow_dispatch ] && [ "$INPUT_SERVICES" != all ]; then
+            for k in $selected; do
+              case "$k" in
+                api-gateway|partner-web-service)
+                  echo "::error::$k requires the separately certified manual Partner Web/Gateway cutover (docs/migrations/partner-web-gateway-split.md)"
+                  exit 1 ;;
+              esac
+            done
+          fi
+
           # Admin requires an exact manual selector and operator certification;
           # pushes and the broad "all" selector must never start this bridge.
           if [ "$EVENT" != workflow_dispatch ] || [ "$INPUT_SERVICES" = all ]; then
