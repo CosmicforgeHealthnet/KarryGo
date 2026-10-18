@@ -37,7 +37,8 @@ on this bridge, its DB or HQ authentication infrastructure.
 ## First deployment and secrets
 
 1. Build the reviewed immutable image with existing `services/Dockerfile`,
-   `SERVICE_DIR=admin-backoffice-service`. Pass the new Admin workflow and all
+   `SERVICE_DIR=admin-backoffice-service`, `GO_VERSION=1.26.9-alpine`.
+   Pass the new Admin workflow and all
    existing required gates. Resolve failures, never bypass them.
 2. Provision mode-600 `/opt/karrygo/admin-backoffice-service/admin.env`,
    `admin.migrate.env`, `db.env` from templates. `db.env` defines dedicated

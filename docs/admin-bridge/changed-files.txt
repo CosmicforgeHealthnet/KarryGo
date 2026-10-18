@@ -1,3 +1,4 @@
+.gitattributes
 .github/workflows/admin-bridge.yml
 .github/workflows/deploy-platform.yml
 deploy/platform/bin/admin-db-grants.sql
@@ -10,8 +11,10 @@ deploy/platform/network/admin_policy.py
 deploy/platform/nginx/api-gateway.staging.karryam.com.conf
 deploy/platform/services.tsv
 docs/admin-bridge/audit.md
+docs/admin-bridge/changed-files.txt
 docs/admin-bridge/implementation-report.md
 docs/admin-bridge/runbook.md
+go.work.sum
 scripts/admin-bridge/contracts.py
 scripts/admin-bridge/requirements.txt
 scripts/admin-bridge/test_network.py

@@ -94,10 +94,12 @@ On isolated local PostgreSQL 18 and Go 1.26.3 initially:
   passed. OpenAPI 3.1, nine schemas, fixtures and actual serialized wire samples
   validated; staging predates this first contract, so no old v1 compatibility is
   falsely claimed.
+* The complete 80-case Admin and 296-case Gateway/HMAC suites were rerun under
+  Go 1.26.9 after the scoped dependency patches and passed, with no test skips.
 * Initial `govulncheck` failed on inherited Go/dependency vulnerabilities. After
   the scoped updates, module scan with Go 1.26.9 reports zero reachable/imported
   vulnerabilities. It reports one uncalled x/crypto module advisory with no fix;
-  it is not suppressed. Patched tests are rerun before delivery.
+  it is not suppressed.
 
 Commands use `ADMIN_BRIDGE_TEST_DATABASE_URL`, `API_GATEWAY_TEST_DATABASE_URL`,
 `ADMIN_BRIDGE_CONTRACT_CAPTURE_DIR`. Test gate rejects any skipped test and
@@ -105,7 +107,11 @@ requires the actual security/database cases. Packages with no test files are
 reported separately, not counted as executed tests.
 
 Local Windows has no Docker or C compiler, so local image/Nginx container builds
-and race instrumentation are not claimed. Dedicated GitHub CI runs PostgreSQL 16,
+and race instrumentation are not claimed. Initial remote CI successfully built
+the image, verified non-root execution and resolved Compose. Its scanner installer
+failed before scanning; the scanner version was corrected rather than bypassed.
+Formatting and the signing-profile checksum manifest were corrected after the
+first CI attempt. Dedicated GitHub CI runs PostgreSQL 16,
 race suites, vet/build, schema/wire/compatibility, credential and dependency scans,
 image build/scan, non-root checks, Compose resolution and Nginx syntax. CI is not
 claimed passed until the PR checks actually complete. Existing staging already

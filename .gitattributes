@@ -1,0 +1,2 @@
+# Canonical contract hashes must be identical on Windows and Linux checkouts.
+services/admin-backoffice-service/docs/openapi/** text eol=lf

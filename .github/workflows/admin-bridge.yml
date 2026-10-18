@@ -100,10 +100,12 @@ jobs:
       - name: Image dependency scan
         uses: aquasecurity/trivy-action@v0.33.1
         with:
+          version: v0.76.0
           image-ref: karrygo-admin:test
           severity: CRITICAL,HIGH
           exit-code: '1'
       - name: Validate Nginx syntax with disposable certificates
+        if: always()
         run: |
           mkdir -p test-nginx
           openssl req -x509 -newkey rsa:2048 -nodes -keyout test-nginx/key.pem -out test-nginx/cert.pem -subj /CN=localhost -days 1
