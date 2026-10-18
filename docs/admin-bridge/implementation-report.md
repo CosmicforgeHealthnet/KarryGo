@@ -117,6 +117,20 @@ image build/scan, non-root checks, Compose resolution and Nginx syntax. CI is no
 claimed passed until the PR checks actually complete. Existing staging already
 has failed Section31/Vendor/Customer certifications; none were disabled or weakened.
 
+Remote evidence at `b13ad107b761df21136ea42627a7da036fbd8d89`:
+[Admin CI run 39117715405](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39117715405)
+passed both jobs. PostgreSQL 16 race suites executed all 80 Admin and 296
+Gateway/HMAC cases with no skipped tests; schema/wire/compatibility, vet/build,
+dependency/credential scans, image build/scan, non-root/Compose and Nginx checks
+all passed. A subsequent test-only improvement explicitly traces connection reuse
+for certificate revocation, and passes locally; runtime behavior is unchanged.
+The delivered HEAD's current check state is reported in the PR/final response.
+
+The broader repository checks remain separate blockers: global static build loop
+fails on modules absent from go.work; Media fails its existing migration-tip
+rollback assertion; Customer fails its existing credential gate. These areas
+also failed on the audited baseline and were not weakened or bypassed here.
+
 ## F–G. Readiness and residual risks
 
 See `runbook.md` for exact variables, port isolation, initial roles/secrets,

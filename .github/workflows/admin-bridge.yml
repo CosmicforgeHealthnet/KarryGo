@@ -44,7 +44,12 @@ jobs:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.9'}
+        with:
+          go-version: '1.26.9'
+          cache-dependency-path: |
+            services/admin-backoffice-service/go.sum
+            services/api-gateway/go.sum
+            shared/go/go.sum
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: python -m pip install -r scripts/admin-bridge/requirements.txt

@@ -12,8 +12,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/google/uuid"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"testing"
 	"time"
@@ -40,7 +42,9 @@ func TestRealPostgresMTLSIntegration(t *testing.T) {
 	client := srv.Client()
 	client.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{pair}
 	target, _ := url.Parse(srv.URL)
+	var reused []bool
 	call := func(r *http.Request) int {
+		r = r.WithContext(httptrace.WithClientTrace(r.Context(), &httptrace.ClientTrace{GotConn: func(info httptrace.GotConnInfo) { reused = append(reused, info.Reused) }}))
 		r.URL.Scheme = target.Scheme
 		r.URL.Host = target.Host
 		r.RequestURI = ""
@@ -49,6 +53,9 @@ func TestRealPostgresMTLSIntegration(t *testing.T) {
 			t.Fatal(e)
 		}
 		defer res.Body.Close()
+		if _, err := io.Copy(io.Discard, res.Body); err != nil {
+			t.Fatal(err)
+		}
 		return res.StatusCode
 	}
 	request := f.request(t, "GET", "/capabilities"+scopeQuery, nil)
@@ -81,6 +88,9 @@ func TestRealPostgresMTLSIntegration(t *testing.T) {
 	}
 	if status := call(f.request(t, "GET", "/capabilities"+scopeQuery, nil)); status != 401 {
 		t.Fatal("certificate revocation missed on open connection", status)
+	}
+	if len(reused) != 5 || !reused[len(reused)-1] {
+		t.Fatal("revocation test did not reuse the established TLS connection")
 	}
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM admin_audit_entries`).Scan(&count); err != nil || count != 5 {
 		t.Fatal("privileged request missing audit", count, err)
