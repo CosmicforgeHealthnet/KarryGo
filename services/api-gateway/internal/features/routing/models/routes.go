@@ -24,6 +24,7 @@ const (
 	ScopeProvider Scope = "PROVIDER"
 	ScopeVendor   Scope = "VENDOR"
 	ScopeFleet    Scope = "FLEET"
+	ScopePartner  Scope = "PARTNER"
 	ScopeAdmin    Scope = "ADMIN"
 	ScopeMixed    Scope = "MIXED"
 )
@@ -39,6 +40,7 @@ const (
 	UpstreamSupport      = "support"
 	UpstreamVendor       = "vendor"
 	UpstreamFleet        = "fleet"
+	UpstreamPartnerWeb   = "partner_web"
 	UpstreamAdmin        = "admin"
 	UpstreamVerification = "verification"
 )
@@ -73,6 +75,7 @@ func DefaultRoutes() []Route {
 		{"/api/v1/support-disputes", UpstreamSupport, ScopeMixed},
 		{"/api/v1/vendor", UpstreamVendor, ScopeVendor},
 		{"/api/v1/commerce", UpstreamVendor, ScopeCustomer},
+		{"/api/v1/partner/v1", UpstreamPartnerWeb, ScopePartner},
 		{"/fleet-partner/", UpstreamFleet, ScopeFleet},
 	}
 }

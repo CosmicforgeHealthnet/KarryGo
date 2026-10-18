@@ -33,39 +33,6 @@ type Config struct {
 	Pricing PricingConfig
 	// Billing holds partner Billing & Usage and charge worker parameters.
 	Billing BillingConfig
-	// Edge holds the Section 18 pass-through routing onto canonical services.
-	Edge EdgeConfig
-}
-
-// EdgeConfig configures the Section 18 edge. Off by default: until it is
-// enabled the gateway serves only what it always has.
-type EdgeConfig struct {
-	Enabled bool
-	// Origins maps upstream name to bare origin, from GATEWAY_UPSTREAM_<NAME>_URL.
-	Origins          map[string]string
-	Timeout          time.Duration
-	BreakerThreshold int
-	BreakerCooldown  time.Duration
-}
-
-// edgeUpstreams are the upstream names the edge can route to.
-var edgeUpstreams = []string{"customer", "taxi", "dispatch", "hauling", "payment_wallet", "notification",
-	"support", "vendor", "fleet", "verification"}
-
-func loadEdgeConfig() EdgeConfig {
-	origins := map[string]string{}
-	for _, name := range edgeUpstreams {
-		if origin := strings.TrimSpace(os.Getenv("GATEWAY_UPSTREAM_" + strings.ToUpper(name) + "_URL")); origin != "" {
-			origins[name] = origin
-		}
-	}
-	return EdgeConfig{
-		Enabled:          strings.EqualFold(os.Getenv("GATEWAY_EDGE_ROUTING_ENABLED"), "true"),
-		Origins:          origins,
-		Timeout:          time.Duration(getEnvInt("GATEWAY_UPSTREAM_TIMEOUT_SECONDS", 15)) * time.Second,
-		BreakerThreshold: getEnvInt("GATEWAY_BREAKER_THRESHOLD", 5),
-		BreakerCooldown:  time.Duration(getEnvInt("GATEWAY_BREAKER_COOLDOWN_SECONDS", 30)) * time.Second,
-	}
 }
 
 // WalletConfig holds the payment-wallet client settings. The URL is a bare
@@ -173,7 +140,6 @@ func Load() Config {
 			RatePerDeliveryKobo: getEnvInt64("BILLING_RATE_PER_DELIVERY_KOBO", 10000),
 			ChargeInterval:      time.Duration(getEnvInt("BILLING_CHARGE_INTERVAL_SECONDS", 0)) * time.Second,
 		},
-		Edge: loadEdgeConfig(),
 	}
 }
 
