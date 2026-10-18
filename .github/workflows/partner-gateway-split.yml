@@ -47,7 +47,7 @@ jobs:
         run: |
           unformatted="$(gofmt -l services/api-gateway/cmd/*.go services/api-gateway/internal/config/*.go services/api-gateway/internal/features/routing/models/routes.go services/partner-web-service/cmd/*.go)"
           if [ -n "$unformatted" ]; then
-            for file in $unformatted; do gofmt -d "$file"; done
+            for file in $unformatted; do gofmt -d "$file" || true; done
             exit 1
           fi
       - name: Go vet, build and race regression of both owners
