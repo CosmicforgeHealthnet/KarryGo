@@ -55,6 +55,9 @@ jobs:
           go vet ./services/api-gateway/... ./services/partner-web-service/...
           go build ./services/api-gateway/... ./services/partner-web-service/...
           go test -race -count=1 ./services/api-gateway/... ./services/partner-web-service/... ./shared/go/serviceauth/...
+      - name: Real-process partner/gateway routing and private boundary (disposable DB)
+        shell: bash
+        run: bash scripts/partner-gateway/two-process-smoke.sh
       - name: Source and migration invariants
         run: |
           test -z "$(find services/api-gateway -path '*/migrations/*.sql' -o -path '*/features/partner/*' -o -path '*/features/partneraccount/*')"
