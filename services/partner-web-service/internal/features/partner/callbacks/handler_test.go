@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/billing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 const testInternalKey = "test-internal-key"

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // PartnerIDResolver extracts the authenticated partner id from the request

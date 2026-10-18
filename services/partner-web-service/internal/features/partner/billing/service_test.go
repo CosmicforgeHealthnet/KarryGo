@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // --- fakes ------------------------------------------------------------------
