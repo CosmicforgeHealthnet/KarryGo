@@ -82,7 +82,12 @@ jobs:
         run: |
           while IFS= read -r module; do
             directory="$(dirname "$module")"
-            (cd "$directory" && go vet ./... && go build ./...)
+            if [ "$directory" = "scripts/customer-v4/openapigen" ]; then
+              # Standalone generator intentionally not part of the platform go.work.
+              (cd "$directory" && GOWORK=off go vet ./... && GOWORK=off go build ./...)
+            else
+              (cd "$directory" && go vet ./... && go build ./...)
+            fi
           done < <(git ls-files '**/go.mod' 'go.mod')
       - name: Reachable Go vulnerability scan
         shell: bash
@@ -90,7 +95,11 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
           while IFS= read -r module; do
             directory="$(dirname "$module")"
-            (cd "$directory" && govulncheck ./...)
+            if [ "$directory" = "scripts/customer-v4/openapigen" ]; then
+              (cd "$directory" && GOWORK=off govulncheck ./...)
+            else
+              (cd "$directory" && govulncheck ./...)
+            fi
           done < <(git ls-files '**/go.mod' 'go.mod')
       - run: git diff --check
 
