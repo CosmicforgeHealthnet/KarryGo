@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 const signupSuccessMessage = "A verification code has been sent to your email."

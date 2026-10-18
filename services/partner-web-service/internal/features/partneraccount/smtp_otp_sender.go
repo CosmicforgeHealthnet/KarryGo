@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/config"
+	"cosmicforge/logistics/services/partner-web-service/internal/config"
 )
 
 const partnerOTPSubject = "Your KarryGo verification code"

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/billing"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/billing"
 )
 
 // Dependencies holds what the dashboard/internal routes need.
