@@ -73,10 +73,22 @@ type Config struct {
 	Address, DatabaseURL, CertFile, KeyFile, CAFile string
 	Trust                                           Trust
 	RemoteEnabled                                   bool
+	TaxiReadEnabled                                 bool
+	TaxiOrigin, TaxiSecretFile                      string
+	TaxiReadRoles                                   []string
 }
 
 func Load() (Config, error) {
 	c := Config{Address: os.Getenv("ADMIN_TLS_ADDR"), DatabaseURL: os.Getenv("ADMIN_BACKOFFICE_DATABASE_URL"), CertFile: os.Getenv("ADMIN_TLS_CERT_FILE"), KeyFile: os.Getenv("ADMIN_TLS_KEY_FILE"), CAFile: os.Getenv("ADMIN_TLS_CLIENT_CA_FILE"), RemoteEnabled: os.Getenv("ADMIN_REMOTE_ENABLED") == "true"}
+	c.TaxiReadEnabled = os.Getenv("ADMIN_TAXI_READ_ENABLED") == "true"
+	c.TaxiOrigin = os.Getenv("ADMIN_TAXI_ORIGIN")
+	c.TaxiSecretFile = os.Getenv("ADMIN_TAXI_SECRET_FILE")
+	if roles := os.Getenv("ADMIN_TAXI_READ_ROLES"); roles != "" {
+		c.TaxiReadRoles = strings.Split(roles, ",")
+	}
+	if c.TaxiReadEnabled && (c.TaxiOrigin == "" || c.TaxiSecretFile == "" || len(c.TaxiReadRoles) == 0) {
+		return c, errors.New("Taxi reads require fixed origin, dedicated secret file and approved roles")
+	}
 	if c.Address == "" {
 		c.Address = ":8110"
 	}

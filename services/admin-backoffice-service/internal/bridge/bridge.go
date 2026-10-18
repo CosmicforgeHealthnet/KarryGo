@@ -18,10 +18,12 @@ import (
 	"time"
 
 	contract "cosmicforge/logistics/services/admin-backoffice-service/docs/openapi"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
+	"cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/google/uuid"
 )
@@ -42,6 +44,8 @@ type Bridge struct {
 	repo                  Repository
 	trust                 config.Trust
 	enabled               bool
+	taxi                  *clients.Taxi
+	taxiRoles             []string
 	verifiers             map[string]*serviceauth.Verifier
 	now                   func() time.Time
 	Denied, AuditFailures atomic.Uint64
@@ -83,12 +87,16 @@ func (b *Bridge) reply(w http.ResponseWriter, correlation string, status int, re
 	if problem != nil {
 		freshness = "UNAVAILABLE"
 	}
+	asOf := b.now().UTC()
+	if snapshot, ok := result.(adminread.TaxiSnapshot); ok && problem == nil {
+		asOf, freshness = snapshot.AsOf, snapshot.Freshness
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Correlation-ID", correlation)
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(response{ContractVersion: "1.0", Product: config.Product, CorrelationID: correlation, AsOf: b.now().UTC(), Freshness: freshness, Result: result, Error: problem})
+	_ = json.NewEncoder(w).Encode(response{ContractVersion: "1.0", Product: config.Product, CorrelationID: correlation, AsOf: asOf, Freshness: freshness, Result: result, Error: problem})
 }
 
 // Probe is mounted only on container loopback, separate from the mTLS listener.
@@ -238,7 +246,11 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.RequestType = capability.ID
 	a.Permission = capability.Permission
 	a.TargetService = capability.Owner
+	var taxiQuery adminread.Query
 	query, err := strictQuery(r)
+	if capability.Permission == adminread.TaxiPermission {
+		taxiQuery, query, err = taxiReadQuery(r, actor.Subject, b.now())
+	}
 	if err != nil {
 		fail(400, "invalid_query")
 		return
@@ -246,6 +258,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	scope := security.Scope{Market: query.Get("market"), Organization: query.Get("organization")}
 	a.Market = scope.Market
 	a.Organization = scope.Organization
+	a.Zone = taxiQuery.Scope.Zone
 	a.ReasonCode = query.Get("purpose")
 	if !security.Opaque(a.ReasonCode) {
 		a.ReasonCode = ""
@@ -255,6 +268,10 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err = security.Authorize(actor, security.Policy{Permission: capability.Permission, Risk: security.Risk(capability.Risk), Version: b.trust.PolicyVersion}, scope, b.trust); err != nil {
 		a.Market = ""
 		a.Organization = ""
+		fail(403, "forbidden")
+		return
+	}
+	if capability.Permission == adminread.TaxiPermission && (!config.Contains(actor.Zones, taxiQuery.Scope.Zone) || !hasRole(actor.Roles, b.taxiRoles)) {
 		fail(403, "forbidden")
 		return
 	}
@@ -276,7 +293,32 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var result any
 	switch capability.ID {
 	case "bridge.capabilities":
-		result = contract.Discover(actor.Permissions)
+		result = contract.DiscoverWithAvailability(actor.Permissions, map[string]bool{adminread.TaxiPermission: b.taxi != nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0})
+	case "taxi.rides.list", "taxi.rides.detail":
+		if b.taxi == nil {
+			fail(503, "capability_blocked")
+			return
+		}
+		id := ""
+		if capability.ID == "taxi.rides.detail" {
+			id = strings.TrimPrefix(path, "/taxi/rides/")
+			ref, e := uuid.Parse(id)
+			if e != nil || ref.String() != id {
+				fail(400, "invalid_reference")
+				return
+			}
+		}
+		a.TargetRef = id
+		snapshot, e := b.taxi.Rides(r.Context(), taxiQuery, id)
+		if errors.Is(e, clients.ErrNotFound) {
+			fail(404, "not_found")
+			return
+		}
+		if e != nil {
+			fail(503, "owner_unavailable")
+			return
+		}
+		result = snapshot
 	case "bridge.health":
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()

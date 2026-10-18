@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/bridge"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go/version"
@@ -15,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -97,6 +100,24 @@ func run() error {
 	app, err := bridge.New(repo, cfg.Trust, cfg.RemoteEnabled)
 	if err != nil {
 		return err
+	}
+	if cfg.TaxiReadEnabled {
+		encoded, e := os.ReadFile(cfg.TaxiSecretFile)
+		if e != nil {
+			return errors.New("Taxi secret file unavailable")
+		}
+		secret, e := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(encoded)))
+		if e != nil {
+			return errors.New("invalid Taxi secret encoding")
+		}
+		taxi, e := clients.NewTaxi(cfg.TaxiOrigin, secret)
+		if e != nil {
+			return e
+		}
+		defer taxi.Close()
+		if e = app.ConfigureTaxi(taxi, cfg.TaxiReadRoles); e != nil {
+			return e
+		}
 	}
 	srv := &http.Server{Addr: cfg.Address, Handler: app, TLSConfig: tlsConfig, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 32768}
 	probe := &http.Server{Addr: "127.0.0.1:8116", Handler: http.HandlerFunc(app.Probe), ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 4096}

@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	taxiadminread "cosmicforge/logistics/services/taxi-service/internal/features/adminread"
 	"cosmicforge/logistics/services/taxi-service/internal/features/customertracking"
 	"cosmicforge/logistics/shared/go/journeyshare"
+	"encoding/base64"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -532,8 +535,23 @@ func main() {
 		taxioutbox.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
 
 	trackingReader := &customertracking.Postgres{DB: db, FreshFor: cfg.CustomerLocationFreshFor}
+	var adminReadSecret []byte
+	if cfg.AdminReadEnabled {
+		encoded, readErr := os.ReadFile(cfg.AdminReadSecretFile)
+		if readErr == nil {
+			adminReadSecret, readErr = base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(encoded)))
+		}
+		if readErr != nil || len(adminReadSecret) < 32 || len(adminReadSecret) > 128 {
+			logging.Fatal("configuration", "Taxi admin reads require a dedicated base64url secret file (32–128 decoded bytes)")
+		}
+		var adminSchemaReady bool
+		if readErr = db.QueryRow(ctx, `SELECT to_regclass('taxi_admin_read_audit') IS NOT NULL AND to_regclass('taxi_admin_read_nonces') IS NOT NULL`).Scan(&adminSchemaReady); readErr != nil || !adminSchemaReady {
+			logging.Fatal("configuration", "Taxi admin read schema unavailable; apply owner migrations first")
+		}
+	}
 	serviceapp.Run(serviceapp.Options{
 		RegisterRoot: func(root *gin.Engine) {
+			taxiadminread.Register(root, db, adminReadSecret, cfg.AdminReadEnabled)
 			customertracking.RegisterInternal(root, trackingReader, opsVerifier, redisClient, cfg.CustomerLiveLocationEnabled)
 			goods.RegisterCustomerShare(root, goodsService, opsVerifier)
 		},

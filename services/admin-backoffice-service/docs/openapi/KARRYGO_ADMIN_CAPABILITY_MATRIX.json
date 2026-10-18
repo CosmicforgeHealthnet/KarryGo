@@ -366,5 +366,53 @@
     ],
     "blocker": "Owner campaign tracking contract required.",
     "fallback": "Use the owning service's existing authorized operational process."
+  },
+  {
+    "id": "taxi.rides.list",
+    "version": "1.0",
+    "owner": "driver-taxi-service",
+    "source_endpoint": "/internal/taxi/v1/admin/rides",
+    "bridge_endpoint": "/taxi/rides",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "taxi.rides.read",
+    "scope": "Exact market code + zone code + non-null corporate organization; delegated approved role, zone_scopes and signed purpose",
+    "risk": "R1",
+    "privacy": "MINIMIZED_OPERATIONAL_STATE",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "APPROVED_READ_ROLE_POLICY",
+    "evidence": "Signed purpose; owner and bridge audit before data release",
+    "feature_flag": "ADMIN_REMOTE_ENABLED + ADMIN_TAXI_READ_ENABLED + TAXI_ADMIN_READ_ENABLED",
+    "tests": [
+      "TestTaxiAdminOwnerSnapshotIsolationAndReplay",
+      "TestTaxiReadDelegationAndOwnerBoundary"
+    ],
+    "blocker": "",
+    "fallback": "Fail closed. Unmapped independent rides and provider profiles are outside this contract."
+  },
+  {
+    "id": "taxi.rides.detail",
+    "version": "1.0",
+    "owner": "driver-taxi-service",
+    "source_endpoint": "/internal/taxi/v1/admin/rides/{id}",
+    "bridge_endpoint": "/taxi/rides/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "taxi.rides.read",
+    "scope": "Exact market code + zone code + non-null corporate organization; delegated approved role, zone_scopes and signed purpose",
+    "risk": "R1",
+    "privacy": "MINIMIZED_OPERATIONAL_STATE",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "APPROVED_READ_ROLE_POLICY",
+    "evidence": "Signed purpose; owner and bridge audit before data release",
+    "feature_flag": "ADMIN_REMOTE_ENABLED + ADMIN_TAXI_READ_ENABLED + TAXI_ADMIN_READ_ENABLED",
+    "tests": [
+      "TestTaxiAdminOwnerSnapshotIsolationAndReplay",
+      "TestTaxiReadDelegationAndOwnerBoundary"
+    ],
+    "blocker": "",
+    "fallback": "Fail closed. Unmapped independent rides and provider profiles are outside this contract."
   }
 ]

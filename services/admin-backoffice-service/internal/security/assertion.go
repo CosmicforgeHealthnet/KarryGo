@@ -29,6 +29,7 @@ type Claims struct {
 	Roles         []string `json:"roles"`
 	Permissions   []string `json:"permissions"`
 	Markets       []string `json:"market_scopes"`
+	Zones         []string `json:"zone_scopes,omitempty"`
 	Organizations []string `json:"organization_scopes"`
 	SessionID     string   `json:"session_id"`
 	AuthTime      int64    `json:"auth_time"`
@@ -143,7 +144,7 @@ func Verify(token string, trust config.Trust, now time.Time) (Claims, error) {
 	if c.Issuer != trust.Issuer || c.Audience != trust.Audience || c.Product != config.Product || !Opaque(c.Subject) || !Opaque(c.SessionID) || !Opaque(c.JTI) || len(c.Roles) == 0 || len(c.Permissions) == 0 || len(c.Markets) == 0 || len(c.Organizations) == 0 || !config.Contains(trust.AllowedACR, c.ACR) || c.AuthTime <= 0 || c.AuthTime > c.IssuedAt || n-c.AuthTime > trust.SessionLifetimeSeconds || c.IssuedAt <= 0 || c.IssuedAt > n || c.NotBefore < c.IssuedAt || c.NotBefore > n || c.Expires <= n || c.Expires <= c.NotBefore || c.Expires-c.IssuedAt > trust.AssertionLifetimeSeconds || len(c.RequestDigest) != 64 {
 		return Claims{}, ErrDenied
 	}
-	for _, values := range [][]string{c.Roles, c.Permissions, c.Markets, c.Organizations} {
+	for _, values := range [][]string{c.Roles, c.Permissions, c.Markets, c.Zones, c.Organizations} {
 		if len(values) > 128 {
 			return Claims{}, ErrDenied
 		}

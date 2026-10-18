@@ -12,6 +12,7 @@ events = [json.loads(line) for line in Path(args.path).read_text(encoding="utf-8
 failures = [e for e in events if e.get("Action") == "fail" or (e.get("Action") == "skip" and e.get("Test"))]
 passed = [e for e in events if e.get("Action") == "pass" and e.get("Test")]
 required = {"TestPostgresReplayAndMigrationConcurrency", "TestPostgresIdempotencyScopeAndImmutableAudit", "TestPostgresRevocationPrincipalAndRate", "TestRealMTLSBoundary", "TestRealPostgresMTLSIntegration", "TestRuntimeRoleGuardAndGrants", "TestMigrationFailureRollsBackAndDownIsIrreversible", "TestContractWireSamples"}
+required |= {"TestTaxiOwnerProcessPostgresMTLS", "TestTaxiReadDelegationAndOwnerBoundary"}
 if args.suite == "gateway":
     required = {"TestPublicAdminIsolation", "TestForgedHQHeadersAreStrippedFromPublicRoutes", "TestPostgresRefreshRotationAndMigrationReplay"}
 assert not failures, f"Failed/skipped tests: {[(e.get('Package'), e.get('Test')) for e in failures]}"

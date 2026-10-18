@@ -90,3 +90,17 @@ require reviewed version migration with overlap. `contracts.py` checks generatio
 and checksums; `validate.py --base <reviewed-base>` checks compatibility and actual
 wire samples. HQ must discover capability state and never assume disabled work
 is executable.
+# Scoped owner-read extension
+
+The additive `StaffAssertionZones` schema is required for the Taxi ride routes.
+It includes signed `zone_scopes` in addition to the existing market and
+organization scopes. Assertions for the original metadata routes remain valid
+without this field. Wildcards, duplicate claims and duplicate scope values are
+rejected. Taxi reads also require `taxi.rides.read` and an exact role in the
+operator-provisioned `ADMIN_TAXI_READ_ROLES` policy; no role is implicitly approved.
+
+The request digest covers the exact URI, including market, zone, organization,
+purpose, time window, page limit and cursor. The bridge supplies the verified
+staff identity to the owner in its newly signed HMAC request. HQ cannot supply
+the owner `staff` parameter or choose a destination. Neither the HQ JWT nor any
+incoming authentication header is forwarded to Taxi.

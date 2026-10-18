@@ -32,19 +32,30 @@ def build():
     health = obj({"bridge": {"const": "READY"}, "owners": {"const": "UNAVAILABLE"}, "remote_writes": {"const": "DISABLED"}, "contract_version": {"const": "1.0"}})
     disabled = obj({"contract_version": {"const": "1.0"}, "product": {"const": "karryam"}, "scope": scope, "reason_code": opaque, "idempotency_key": opaque})
     schemas = {"Command": command, "Response": response, "Error": error, "Operation": operation, "StaffAssertion": staff, "Capability": capability, "Discovery": discovery, "Health": health, "DisabledRequest": disabled}
+    # Existing schemas remain byte-for-byte compatible. Domain reads use the
+    # additional assertion profile, requiring explicit geographic delegation.
+    scoped_staff = obj({**staff["properties"], "zone_scopes": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": True, "items": opaque}})
+    ride = obj({"id": string(format="uuid"), "status": opaque, "mode": opaque, "source_context": opaque, "source_version": {"type": "null"}, "updated_at": string(format="date-time"), "created_at": string(format="date-time")})
+    event = obj({"id": string(format="uuid"), "type": opaque, "at": string(format="date-time")})
+    snapshot = obj({"contract_version": {"const": "1.0"}, "scope": obj({"market": opaque, "zone": opaque, "organization": opaque}), "as_of": string(format="date-time"), "freshness": {"const": "LIVE"}, "coverage": {"const": "PARTIAL_COVERAGE"}, "items": {"type": "array", "maxItems": 100, "items": ride}, "events": {"type": "array", "maxItems": 200, "items": event}, "history_truncated": {"type": "boolean"}, "next_cursor": string(maxLength=4096)}, ["contract_version", "scope", "as_of", "freshness", "coverage", "items", "events", "history_truncated"])
+    schemas.update(StaffAssertionZones=scoped_staff, TaxiSnapshot=snapshot)
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
+        if c["permission"] == "taxi.rides.read":
+            params += [{"name": "zone", "in": "query", "required": True, "schema": opaque}]
+            params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
+            params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
         for segment in c["bridge_endpoint"].split("/"):
             if segment.startswith("{"):
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] == "READ_ONLY":
-            result = {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation"}[c["id"]]
+            result = {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
-            op["responses"]["200"] = {"description": "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
+            op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":
             op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
         paths.setdefault(BASE + c["bridge_endpoint"], {})[c["method"].lower()] = op

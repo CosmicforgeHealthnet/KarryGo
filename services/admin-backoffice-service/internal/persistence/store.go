@@ -14,6 +14,7 @@ import (
 var ErrReplay = errors.New("replayed security material")
 
 type Audit struct {
+	Zone                                                                                                                                                            string
 	Correlation, Principal, Staff, Permission, PolicyVersion, TargetService, TargetRef, RequestType, Market, Organization, ReasonCode, Outcome, Status, EvidenceRef string
 	SourceVersion                                                                                                                                                   int64
 }
@@ -21,7 +22,7 @@ type Store struct{ Pool *pgxpool.Pool }
 
 func (s *Store) Ready(ctx context.Context) error {
 	var version int
-	err := s.Pool.QueryRow(ctx, `SELECT version FROM admin_schema_versions WHERE version=1`).Scan(&version)
+	err := s.Pool.QueryRow(ctx, `SELECT version FROM admin_schema_versions WHERE version=2`).Scan(&version)
 	return err
 }
 
@@ -80,7 +81,7 @@ func (s *Store) Rate(ctx context.Context, key string, now time.Time, limit int) 
 	return count <= limit, err
 }
 func (s *Store) Audit(ctx context.Context, a Audit) error {
-	_, err := s.Pool.Exec(ctx, `INSERT INTO admin_audit_entries(correlation_id,product,principal,staff_ref,permission,policy_version,target_service,target_ref,request_type,market,organization,reason_code,outcome,source_version,operation_status,evidence_ref) VALUES($1,'karryam',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, a.Correlation, a.Principal, a.Staff, a.Permission, a.PolicyVersion, a.TargetService, a.TargetRef, a.RequestType, a.Market, a.Organization, a.ReasonCode, a.Outcome, a.SourceVersion, a.Status, a.EvidenceRef)
+	_, err := s.Pool.Exec(ctx, `INSERT INTO admin_audit_entries(correlation_id,product,principal,staff_ref,permission,policy_version,target_service,target_ref,request_type,market,organization,reason_code,outcome,source_version,operation_status,evidence_ref,zone) VALUES($1,'karryam',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, a.Correlation, a.Principal, a.Staff, a.Permission, a.PolicyVersion, a.TargetService, a.TargetRef, a.RequestType, a.Market, a.Organization, a.ReasonCode, a.Outcome, a.SourceVersion, a.Status, a.EvidenceRef, a.Zone)
 	return err
 }
 

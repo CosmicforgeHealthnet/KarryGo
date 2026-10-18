@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,5 +38,55 @@ func TestPublicAdminIsolation(t *testing.T) {
 	}
 	if _, ok := edge.Upstream(models.UpstreamAdmin); ok {
 		t.Fatal("Admin upstream was registered")
+	}
+}
+
+func TestPublicOwnerAdministrativePathsNeverReachOwners(t *testing.T) {
+	origins := map[string]string{}
+	// Every actual public owner is configured, so a 404 cannot be explained
+	// by a missing upstream. The positive control below verifies forwarding.
+	u := newUpstream(t, models.UpstreamTaxi)
+	for _, route := range models.DefaultRoutes() {
+		origins[route.Upstream] = u.server.URL
+	}
+	origins["analytics"] = u.server.URL
+	edge, err := NewEdge(Options{Routes: models.DefaultRoutes(), Origins: origins, Timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.NoRoute(edge.Handle)
+	paths := []string{
+		"/internal/karryam-admin/v1/taxi/rides",
+		"/internal/taxi/v1/admin/rides",
+		"/api/v1/taxi/internal/bookings/ref/actions/force-recover",
+		"/api/v1/internal/assignments/ref/reconcile",
+		"/api/v1/customer/internal/admin/customers/ref",
+		"/api/v1/hauling/internal/admin/missions/ref",
+		"/internal/fleet-partner/v1/assignments/ref/provider-accept",
+		"/api/v1/analytics/network/mission-success",
+		"/api/v1/internal/callbacks/dispatch",
+	}
+	for _, base := range paths {
+		for _, path := range []string{base, strings.ReplaceAll(base, "internal", "%2569nternal"), "/api/v1/taxi/../.." + base} {
+			for _, method := range []string{"GET", "POST", "PATCH", "DELETE"} {
+				r := httptest.NewRequest(method, path, nil)
+				r.Header.Set("X-Service-Name", "admin-backoffice-service")
+				r.Header.Set("X-HQ-Principal", "cosmicforge-hq-karryam-admin")
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, r)
+				if w.Code != 404 {
+					t.Fatalf("%s %s reached public route: %d", method, path, w.Code)
+				}
+			}
+		}
+	}
+	if u.count() != 0 {
+		t.Fatalf("privileged requests reached an owner: %d", u.count())
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/taxi/bookings/public-control", nil))
+	if u.count() != 1 {
+		t.Fatal("public route positive control did not reach configured owner")
 	}
 }

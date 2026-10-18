@@ -114,7 +114,9 @@ type Config struct {
 
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a driver identity).
-	ServiceSecrets string
+	ServiceSecrets      string
+	AdminReadEnabled    bool
+	AdminReadSecretFile string
 
 	// MetricsAuthToken gates GET <api-base>/outbox-metrics. Empty means the
 	// route refuses every request: backlog and dead-letter counts describe
@@ -301,8 +303,10 @@ func Load() Config {
 		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
 
-		ServiceSecrets:   os.Getenv("TAXI_SERVICE_SECRETS"),
-		MetricsAuthToken: os.Getenv("TAXI_METRICS_AUTH_TOKEN"),
+		ServiceSecrets:      os.Getenv("TAXI_SERVICE_SECRETS"),
+		AdminReadEnabled:    os.Getenv("TAXI_ADMIN_READ_ENABLED") == "true",
+		AdminReadSecretFile: os.Getenv("TAXI_ADMIN_READ_SECRET_FILE"),
+		MetricsAuthToken:    os.Getenv("TAXI_METRICS_AUTH_TOKEN"),
 
 		FleetServiceURL:              os.Getenv("FLEET_PARTNER_SERVICE_URL"),
 		FleetServiceCaller:           getEnv("TAXI_FLEET_SERVICE_CALLER", "driver-taxi-service"),

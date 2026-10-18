@@ -74,8 +74,18 @@ func Match(method, path string) (Capability, bool) {
 	return Capability{}, false
 }
 func Discover(permissions []string) any {
+	return DiscoverWithAvailability(permissions, nil)
+}
+
+// Availability is evaluated at startup/runtime in addition to the pinned
+// implementation matrix. A compiled adapter is not an enabled deployment.
+func DiscoverWithAvailability(permissions []string, enabled map[string]bool) any {
 	values := []Capability{}
 	for _, c := range Matrix() {
+		if available, exists := enabled[c.Permission]; exists && !available {
+			c.State = "DISABLED"
+			c.Blocker = "Owner adapter, approved role policy, geographic delegation or feature flag unavailable."
+		}
 		for _, permission := range permissions {
 			if c.Permission == permission {
 				values = append(values, c)

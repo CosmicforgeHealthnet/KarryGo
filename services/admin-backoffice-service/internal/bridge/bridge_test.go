@@ -112,7 +112,9 @@ func newFixture(t *testing.T) *fixture {
 	cert := &x509.Certificate{Raw: []byte("test-verified-certificate"), URIs: []*url.URL{uri}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour)}
 	permissions := []string{}
 	for _, c := range contract.Matrix() {
-		permissions = append(permissions, c.Permission)
+		if !config.Contains(permissions, c.Permission) {
+			permissions = append(permissions, c.Permission)
+		}
 	}
 	c := security.Claims{Issuer: trust.Issuer, Subject: "staff-1", Audience: trust.Audience, Product: "karryam", Roles: []string{"staff"}, Permissions: permissions, Markets: []string{"NG"}, Organizations: []string{"org-1"}, SessionID: "session-1", AuthTime: now.Add(-time.Minute).Unix(), ACR: "mfa", IssuedAt: now.Unix(), NotBefore: now.Unix(), Expires: now.Add(time.Minute).Unix()}
 	return &fixture{b: b, repo: repo, key: key, secret: secret, cert: cert, claims: c}
