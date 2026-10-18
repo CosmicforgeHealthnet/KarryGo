@@ -34,6 +34,7 @@ and each step says **what you should see** so you know it worked.
 - [O. Is it working? Health, logs, status](#o-is-it-working-health-logs-status)
 - [P. Rolling back](#p-rolling-back)
 - [Q. Changing a setting](#q-changing-a-setting)
+- [Push notifications (Firebase)](#push-notifications-firebase)
 - [R. Backups and restoring](#r-backups-and-restoring)
 - [S. Monitoring](#s-monitoring)
 - [T. Security checklist](#t-security-checklist)
@@ -688,6 +689,30 @@ values in when the container is created. `apply-env.sh` recreates the container
 properly and waits for healthy.
 
 ---
+
+## Push notifications (Firebase)
+
+Push messages to phones go through Firebase Cloud Messaging, project
+`logistics-93b9f`. notification-service needs two things, and only switches
+push on when **both** are set:
+
+1. `FIREBASE_PROJECT_ID=logistics-93b9f` in
+   `/opt/karrygo/notification-service/notification.service.env`.
+2. The Firebase Admin service-account file at
+   `/opt/karrygo/notification-service/firebase-service-account.json`
+   (mode 644; `/opt/karrygo` itself is deploy-only). The compose file mounts it
+   read-only into the container and points `GOOGLE_APPLICATION_CREDENTIALS` at it.
+
+The file is never committed (`credentials/` is git-ignored). To replace it,
+for example after rotating the key in the Firebase console:
+
+```bash
+scp credentials/firebase.json deploy@173.249.30.55:/opt/karrygo/notification-service/firebase-service-account.json
+ssh deploy@173.249.30.55 'chmod 644 /opt/karrygo/notification-service/firebase-service-account.json && /opt/karrygo/platform/bin/apply-env.sh notification-service'
+```
+
+Phones register their push token when someone logs in to an app, so a phone
+only receives pushes after logging in on this server.
 
 ## R. Backups and restoring
 

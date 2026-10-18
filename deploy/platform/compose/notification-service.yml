@@ -12,7 +12,16 @@ services:
     container_name: karrygo-notification-service
     env_file:
       - /opt/karrygo/notification-service/notification.service.env
-
+    environment:
+      # Push notifications (Firebase Cloud Messaging). The service account file
+      # is copied to the server by hand and never committed; see the guide,
+      # "Push notifications". Push is only switched on when this path and
+      # FIREBASE_PROJECT_ID (in the settings file) are both set.
+      GOOGLE_APPLICATION_CREDENTIALS: /run/firebase/service-account.json
+    volumes:
+      # Read-only. Mode 644 so the container user can read it; /opt/karrygo is
+      # deploy-only (750), so no other account on the server can reach it.
+      - /opt/karrygo/notification-service/firebase-service-account.json:/run/firebase/service-account.json:ro
     mem_limit: 256m
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8106/ready"]
