@@ -183,6 +183,7 @@ jobs:
           - services/admin-backoffice-service
           - services/analytics-service
           - services/api-gateway
+          - services/partner-web-service
           - services/customer-service
           - services/driver-dispatch-delivery-service
           - services/driver-hauling-service
