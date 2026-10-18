@@ -297,7 +297,6 @@ func (s *Service) ListDeliveries(ctx context.Context, partnerID, webhookID strin
 	}, nil
 }
 
-
 // ListAllDeliveries returns a page of delivery attempts for all webhooks
 // belonging to a partner. This is used by the /webhook-logs endpoint.
 func (s *Service) ListAllDeliveries(ctx context.Context, partnerID string, page, limit int) (*WebhookDeliveryListAllResponse, error) {
@@ -328,7 +327,6 @@ func (s *Service) ListAllDeliveries(ctx context.Context, partnerID string, page,
 		Meta:       delivery.ListMeta{Page: page, Limit: limit, Total: total},
 	}, nil
 }
-
 
 // GetDeliveryByID returns a single delivery attempt by ID, with ownership check.
 func (s *Service) GetDeliveryByID(ctx context.Context, partnerID, deliveryID string) (*WebhookDeliveryDetailView, error) {

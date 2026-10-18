@@ -18,10 +18,10 @@ import (
 // delivery service; the quote route uses the pricing engine; webhook routes are
 // backed by the webhook service (or return 501 when webhooks are not configured).
 type Handler struct {
-	deliveries      *delivery.Service
-	webhooks        *webhooks.Service
-	accountService  *partneraccount.Service // ADD THIS
-	pricing         pricing.Config
+	deliveries     *delivery.Service
+	webhooks       *webhooks.Service
+	accountService *partneraccount.Service // ADD THIS
+	pricing        pricing.Config
 }
 
 // NewHandler constructs a Partner API handler. webhooks may be nil, in which case

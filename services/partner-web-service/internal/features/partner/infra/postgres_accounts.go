@@ -43,6 +43,7 @@ func (r *AccountRepo) CreateAccount(ctx context.Context, params partneraccount.C
 	}
 	return a, nil
 }
+
 // DeleteAccount permanently deletes a partner account by ID.
 func (r *AccountRepo) DeleteAccount(ctx context.Context, partnerID string) (bool, error) {
 	const q = `DELETE FROM partner_accounts WHERE id = $1`

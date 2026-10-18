@@ -162,7 +162,6 @@ type ChargeResultOutcome struct {
 	Status    string `json:"status,omitempty"`
 }
 
-
 type DashboardSummary struct {
 	TotalDeliveries    int     `json:"total_deliveries"`
 	DeliveriesToday    int     `json:"deliveries_today"`
