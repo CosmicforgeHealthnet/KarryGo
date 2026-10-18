@@ -57,6 +57,7 @@ type RelayOperation struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	CompletedAt        *time.Time
+	ReadbackRequired   bool
 }
 
 // Terminal reports whether no further delivery attempt will be made.
@@ -67,13 +68,13 @@ func (o RelayOperation) Terminal() bool {
 // NeedsReadBack reports whether the outcome must be resolved by asking fleet
 // what happened rather than by re-sending the decision.
 func (o RelayOperation) NeedsReadBack() bool {
-	return o.Status == RelayUnknownOutcome || o.Status == RelayDelivering
+	return o.ReadbackRequired || o.Status == RelayUnknownOutcome || o.Status == RelayDelivering
 }
 
 const relayColumns = `id, operation_type, provider_id, request_id, offer_id, assignment_id,
 	idempotency_key, request_fingerprint, payload, payload_hash, status, attempt_count,
 	next_attempt_at, lease_owner, lease_expires_at, response_snapshot, last_error,
-	created_at, updated_at, completed_at`
+	created_at, updated_at, completed_at, readback_required`
 
 func scanRelay(row pgx.Row) (*RelayOperation, error) {
 	var op RelayOperation
@@ -81,7 +82,7 @@ func scanRelay(row pgx.Row) (*RelayOperation, error) {
 		&op.AssignmentID, &op.IdempotencyKey, &op.RequestFingerprint, &op.Payload,
 		&op.PayloadHash, &op.Status, &op.AttemptCount, &op.NextAttemptAt, &op.LeaseOwner,
 		&op.LeaseExpiresAt, &op.ResponseSnapshot, &op.LastError,
-		&op.CreatedAt, &op.UpdatedAt, &op.CompletedAt)
+		&op.CreatedAt, &op.UpdatedAt, &op.CompletedAt, &op.ReadbackRequired)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -199,12 +200,24 @@ func (r *Repository) GetLiveRelayForAssignment(ctx context.Context, q Querier, a
 }
 
 // ClaimRelays leases due relay operations for one worker.
+// ClaimRelayForImmediateDelivery fences the synchronous path against a worker
+// and duplicate provider requests. The network call starts only after this
+// statement commits. A process crash is recovered as UNKNOWN_OUTCOME.
+func (r *Repository) ClaimRelayForImmediateDelivery(ctx context.Context, id string) (bool, error) {
+	tag, err := r.db.Exec(ctx, `UPDATE dispatch_fleet_relay_operations SET status='DELIVERING',lease_owner='immediate',lease_expires_at=now()+interval '2 minutes',updated_at=now() WHERE id=$1 AND status='PENDING' AND NOT readback_required`, id)
+	if err != nil {
+		return false, fmt.Errorf("marketplace: claim immediate relay: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (r *Repository) ClaimRelays(ctx context.Context, q Querier, owner string,
 	lease time.Duration, limit int) ([]RelayOperation, error) {
 	rows, err := q.Query(ctx, `
 		WITH claimed AS (
 			SELECT id FROM dispatch_fleet_relay_operations
-			WHERE status IN ('PENDING','RETRY_SCHEDULED','UNKNOWN_OUTCOME')
+			WHERE status IN ('PENDING','RETRY_SCHEDULED')
+			  AND NOT readback_required
 			  AND next_attempt_at <= now()
 			ORDER BY next_attempt_at
 			FOR UPDATE SKIP LOCKED
@@ -221,7 +234,7 @@ func (r *Repository) ClaimRelays(ctx context.Context, q Querier, owner string,
 			o.assignment_id, o.idempotency_key, o.request_fingerprint, o.payload,
 			o.payload_hash, o.status, o.attempt_count, o.next_attempt_at, o.lease_owner,
 			o.lease_expires_at, o.response_snapshot, o.last_error,
-			o.created_at, o.updated_at, o.completed_at`,
+			o.created_at, o.updated_at, o.completed_at, o.readback_required`,
 		owner, lease.Seconds(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace: claim relays: %w", err)
@@ -235,7 +248,7 @@ func (r *Repository) ClaimRelays(ctx context.Context, q Querier, owner string,
 			&op.OfferID, &op.AssignmentID, &op.IdempotencyKey, &op.RequestFingerprint,
 			&op.Payload, &op.PayloadHash, &op.Status, &op.AttemptCount, &op.NextAttemptAt,
 			&op.LeaseOwner, &op.LeaseExpiresAt, &op.ResponseSnapshot, &op.LastError,
-			&op.CreatedAt, &op.UpdatedAt, &op.CompletedAt); err != nil {
+			&op.CreatedAt, &op.UpdatedAt, &op.CompletedAt, &op.ReadbackRequired); err != nil {
 			return nil, fmt.Errorf("marketplace: scan claimed relay: %w", err)
 		}
 		claimed = append(claimed, op)
@@ -256,7 +269,8 @@ func (r *Repository) RecoverExpiredRelayLeases(ctx context.Context, q Querier) (
 	// rather than re-send.
 	tag, err := q.Exec(ctx, `
 		UPDATE dispatch_fleet_relay_operations SET
-			status = 'UNKNOWN_OUTCOME', lease_owner = NULL, lease_expires_at = NULL,
+			status = 'UNKNOWN_OUTCOME', readback_required = true,
+			lease_owner = NULL, lease_expires_at = NULL,
 			updated_at = now()
 		WHERE status = 'DELIVERING'
 		  AND lease_expires_at IS NOT NULL AND lease_expires_at < now()`)
@@ -281,7 +295,7 @@ func (r *Repository) ConfirmRelay(ctx context.Context, q Querier, id string, sna
 	}
 	_, err := q.Exec(ctx, `
 		UPDATE dispatch_fleet_relay_operations SET
-			status = 'CONFIRMED', response_snapshot = $2, lease_owner = NULL,
+			status = 'CONFIRMED', readback_required = false, response_snapshot = $2, lease_owner = NULL,
 			lease_expires_at = NULL, last_error = NULL, completed_at = now(), updated_at = now()
 		WHERE id = $1`, id, encoded)
 	if err != nil {
@@ -308,7 +322,7 @@ func (r *Repository) FailRelay(ctx context.Context, q Querier, id string, errorC
 			last_error = $2,
 			completed_at = CASE WHEN $5 THEN now() ELSE completed_at END,
 			updated_at = now()
-		WHERE id = $1`, id, errorCode, backoff.Seconds(), maxAttempts, permanent)
+		WHERE id = $1 AND NOT readback_required`, id, errorCode, backoff.Seconds(), maxAttempts, permanent)
 	if err != nil {
 		return fmt.Errorf("marketplace: fail relay: %w", err)
 	}
@@ -323,12 +337,12 @@ func (r *Repository) MarkRelayUnknown(ctx context.Context, q Querier, id string,
 	}
 	_, err := q.Exec(ctx, `
 		UPDATE dispatch_fleet_relay_operations SET
-			status = CASE WHEN attempt_count + 1 >= $4 THEN 'DEAD_LETTER' ELSE 'UNKNOWN_OUTCOME' END,
+			status = 'UNKNOWN_OUTCOME', readback_required = true,
 			attempt_count = attempt_count + 1,
 			next_attempt_at = now() + make_interval(secs => $3),
 			lease_owner = NULL, lease_expires_at = NULL,
 			last_error = $2, updated_at = now()
-		WHERE id = $1`, id, errorCode, backoff.Seconds(), maxAttempts)
+		WHERE id = $1`, id, errorCode, backoff.Seconds())
 	if err != nil {
 		return fmt.Errorf("marketplace: mark relay unknown: %w", err)
 	}
@@ -341,7 +355,7 @@ func (r *Repository) ReplayRelay(ctx context.Context, id string) error {
 		UPDATE dispatch_fleet_relay_operations SET
 			status = 'PENDING', attempt_count = 0, next_attempt_at = now(),
 			last_error = NULL, updated_at = now()
-		WHERE id = $1 AND status = 'DEAD_LETTER'`, id)
+		WHERE id = $1 AND status = 'DEAD_LETTER' AND NOT readback_required`, id)
 	if err != nil {
 		return fmt.Errorf("marketplace: replay relay: %w", err)
 	}

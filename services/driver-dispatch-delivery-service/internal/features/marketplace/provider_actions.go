@@ -185,6 +185,10 @@ func (s *Service) attemptImmediateDelivery(ctx context.Context, stored *RelayOpe
 	}
 
 	meta := CallMeta{RequestID: decision.RequestID, CorrelationID: decision.CorrelationID}
+	claimed, claimErr := s.repo.ClaimRelayForImmediateDelivery(ctx, stored.ID)
+	if claimErr != nil || !claimed {
+		return result
+	}
 	delivery, err := s.responder.Deliver(ctx, meta, *stored)
 	if err != nil {
 		// Unknown: fleet may already hold the decision. Keep the original key.
@@ -195,10 +199,14 @@ func (s *Service) attemptImmediateDelivery(ctx context.Context, stored *RelayOpe
 
 	switch {
 	case delivery.Accepted:
-		_ = s.repo.ConfirmRelay(ctx, nil, stored.ID, delivery.Snapshot)
+		if err := s.repo.ConfirmRelay(ctx, nil, stored.ID, delivery.Snapshot); err != nil {
+			return result
+		}
 		result.Status = ProviderActionConfirmed
 	case delivery.Permanent:
-		_ = s.repo.FailRelay(ctx, nil, stored.ID, delivery.ErrorCode, 0, s.relayMaxAttempts(), true)
+		if err := s.repo.FailRelay(ctx, nil, stored.ID, delivery.ErrorCode, 0, s.relayMaxAttempts(), true); err != nil {
+			return result
+		}
 		result.Status = ProviderActionRejected
 		result.ErrorCode = delivery.ErrorCode
 	default:

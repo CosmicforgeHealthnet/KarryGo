@@ -182,9 +182,9 @@ func (w *RelayWorker) deliver(ctx context.Context, operation RelayOperation) (st
 	result, err := w.responder.Deliver(ctx, meta, operation)
 	if err != nil {
 		if errors.Is(err, ErrFleetUnavailable) {
-			// Ambiguous: fleet may or may not have recorded it. The next pass
-			// reuses the same idempotency key, so redelivery is recognised as
-			// the same decision instead of creating a second one.
+			// Fleet may have committed. The durable read-back fence excludes
+			// this row from subsequent claims and operator replay. Reconciliation
+			// needs an authoritative decision receipt, not another POST.
 			return RelayUnknownOutcome, w.repo.MarkRelayUnknown(ctx, nil, operation.ID,
 				"fleet_service_unavailable", w.config.backoffFor(operation.AttemptCount),
 				w.config.MaxAttempts)

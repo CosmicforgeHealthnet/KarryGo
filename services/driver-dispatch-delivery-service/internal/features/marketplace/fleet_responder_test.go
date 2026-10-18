@@ -326,8 +326,14 @@ func TestResponderClassifiesTemporaryFailures(t *testing.T) {
 
 		result, err := responder.Deliver(context.Background(), marketplace.CallMeta{},
 			assignmentRelay(marketplace.RelayProviderAssignmentAccept, "asg-1", "k-temp"))
+		if status != http.StatusTooManyRequests {
+			if err != marketplace.ErrFleetUnavailable {
+				t.Fatalf("status %d must preserve unknown commit: %v", status, err)
+			}
+			continue
+		}
 		if err != nil {
-			t.Fatalf("status %d returned an error rather than a retryable result: %v", status, err)
+			t.Fatalf("rate limit should be retryable: %v", err)
 		}
 		if result.Accepted {
 			t.Fatalf("status %d was treated as success", status)

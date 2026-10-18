@@ -68,7 +68,9 @@ func NewHTTPFleetResponder(config ResponderConfig) (FleetResponder, bool) {
 		baseURL:     strings.TrimRight(config.BaseURL, "/"),
 		serviceName: config.ServiceName,
 		secret:      config.Secret,
-		client:      &http.Client{Timeout: timeout},
+		client: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}},
 	}, true
 }
 
@@ -203,19 +205,18 @@ func (r *HTTPFleetResponder) Deliver(ctx context.Context, meta CallMeta,
 		// been transmitted and committed. Unknown, never a rejection.
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
-	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxFleetResponseBytes))
-	if err != nil {
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxFleetResponseBytes+1))
+	if err != nil || len(payload) > maxFleetResponseBytes {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		return r.classifySuccess(payload)
+		return r.classifySuccess(payload, op)
+	case resp.StatusCode == http.StatusRequestTimeout:
+		return RelayDeliveryResult{}, ErrFleetUnavailable
 
 	case resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden:
@@ -235,8 +236,9 @@ func (r *HTTPFleetResponder) Deliver(ctx context.Context, meta CallMeta,
 	case resp.StatusCode == http.StatusServiceUnavailable ||
 		resp.StatusCode == http.StatusBadGateway ||
 		resp.StatusCode == http.StatusGatewayTimeout:
-		// Fleet is briefly unwell and almost certainly did not process it.
-		return RelayDeliveryResult{ErrorCode: fleetErrorCode(payload, "fleet_unavailable")}, nil
+		// A gateway timeout or unavailable response does not prove that Fleet
+		// failed before commit. Preserve uncertainty; never schedule a POST.
+		return RelayDeliveryResult{}, ErrFleetUnavailable
 
 	default:
 		// A 500 may have committed before failing to answer. Ambiguous.
@@ -249,7 +251,7 @@ func (r *HTTPFleetResponder) Deliver(ctx context.Context, meta CallMeta,
 // A 2xx with an unparseable or empty body is NOT success: fleet may have
 // committed, or a proxy may have produced it. Reporting fake success would
 // confirm a relay that was never recorded, losing the provider's decision.
-func (r *HTTPFleetResponder) classifySuccess(payload []byte) (RelayDeliveryResult, error) {
+func (r *HTTPFleetResponder) classifySuccess(payload []byte, op RelayOperation) (RelayDeliveryResult, error) {
 	var envelope fleetResponseEnvelope
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
@@ -257,6 +259,9 @@ func (r *HTTPFleetResponder) classifySuccess(payload []byte) (RelayDeliveryResul
 	data := envelope.Data
 	// A real answer always names what it answered and how.
 	if data.Status == "" || (data.OfferID == "" && data.AssignmentID == "") {
+		return RelayDeliveryResult{}, ErrFleetUnavailable
+	}
+	if op.OfferID != nil && data.OfferID != *op.OfferID || op.AssignmentID != nil && data.AssignmentID != *op.AssignmentID {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
 
