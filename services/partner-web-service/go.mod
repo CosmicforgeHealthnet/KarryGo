@@ -1,4 +1,4 @@
-module cosmicforge/logistics/services/api-gateway
+module cosmicforge/logistics/services/partner-web-service
 
 go 1.26.3
 
