@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 // WebhookRepository persists partner webhooks. All partner-facing queries MUST

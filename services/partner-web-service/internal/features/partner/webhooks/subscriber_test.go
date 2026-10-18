@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 func strptr(s string) *string { return &s }

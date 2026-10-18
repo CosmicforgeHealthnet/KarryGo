@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"cosmicforge/logistics/services/api-gateway/internal/features/partner/delivery"
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/delivery"
 )
 
 const rfc3339 = time.RFC3339
