@@ -1,0 +1,20 @@
+{
+  "contract_version": "1.0",
+  "command_id": "11111111-1111-4111-8111-111111111111",
+  "product": "karryam",
+  "action": "dispatch.provider.suspension.request",
+  "target": {
+    "type": "dispatch_provider",
+    "id": "provider-opaque-id",
+    "expected_version": 7
+  },
+  "scope": {
+    "market": "NG",
+    "organization": "org-1"
+  },
+  "reason_code": "SAFETY_REVIEW",
+  "reason": "Authorized case reference",
+  "case_reference": "case-opaque-id",
+  "idempotency_key": "example-client-key",
+  "requested_at": "2026-10-18T08:00:00Z"
+}

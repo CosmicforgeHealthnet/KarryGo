@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "iss": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sub": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "aud": {
+      "type": "string",
+      "minLength": 1
+    },
+    "product": {
+      "const": "karryam"
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+        "maxLength": 128
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+        "maxLength": 128
+      }
+    },
+    "market_scopes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+        "maxLength": 128
+      }
+    },
+    "organization_scopes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+        "maxLength": 128
+      }
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "auth_time": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "acr": {
+      "type": "string",
+      "minLength": 1
+    },
+    "jti": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "iat": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "nbf": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "exp": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "request_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "iss",
+    "sub",
+    "aud",
+    "product",
+    "roles",
+    "permissions",
+    "market_scopes",
+    "organization_scopes",
+    "session_id",
+    "auth_time",
+    "acr",
+    "jti",
+    "iat",
+    "nbf",
+    "exp",
+    "request_digest"
+  ]
+}

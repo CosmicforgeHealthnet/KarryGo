@@ -1,0 +1,3232 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Karryam private HQ bridge",
+    "version": "1.0.0",
+    "description": "Private transport plus mTLS, HMAC v2 and delegated Ed25519 JWT are all mandatory. No domain writes enabled."
+  },
+  "paths": {
+    "/internal/karryam-admin/v1/capabilities": {
+      "get": {
+        "operationId": "bridge.capabilities",
+        "summary": "bridge.capabilities",
+        "description": "Functional bridge metadata; scoped and audited.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "admin-backoffice-service",
+        "x-required-permission": "bridge.capabilities.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/Discovery"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/health/aggregate": {
+      "get": {
+        "operationId": "bridge.health",
+        "summary": "bridge.health",
+        "description": "Functional bridge metadata; scoped and audited.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "admin-backoffice-service",
+        "x-required-permission": "bridge.health.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/Health"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/overview": {
+      "get": {
+        "operationId": "overview.read",
+        "summary": "overview.read",
+        "description": "Scoped minimized overview owner adapter is not implemented.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "overview.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/search": {
+      "get": {
+        "operationId": "search.read",
+        "summary": "search.read",
+        "description": "Owner search contracts and privacy filters required.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "multiple-owners",
+        "x-required-permission": "search.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/entities/{type}/{id}": {
+      "get": {
+        "operationId": "entities.read",
+        "summary": "entities.read",
+        "description": "Per-entity owner contract and evidence authorization required.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "entity-owner",
+        "x-required-permission": "entities.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/operations/{id}": {
+      "get": {
+        "operationId": "bridge.operations.read",
+        "summary": "bridge.operations.read",
+        "description": "Functional bridge metadata; scoped and audited.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "admin-backoffice-service",
+        "x-required-permission": "bridge.operations.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/Operation"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/operations": {
+      "post": {
+        "operationId": "bridge.operations.submit",
+        "summary": "bridge.operations.submit",
+        "description": "No domain command is registered. Valid submissions are durably REJECTED; HTTP 503 is not domain success.",
+        "x-capability-state": "DISABLED",
+        "x-owner": "command-owner",
+        "x-required-permission": "bridge.operations.submit",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/operations/{id}/cancel": {
+      "post": {
+        "operationId": "operations.cancel",
+        "summary": "operations.cancel",
+        "description": "Owner-specific cancellation safety contract required.",
+        "x-capability-state": "DISABLED",
+        "x-owner": "command-owner",
+        "x-required-permission": "operations.cancel",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisabledRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/support/cases": {
+      "get": {
+        "operationId": "support.cases.read",
+        "summary": "support.cases.read",
+        "description": "Scoped minimized support adapter and evidence permissions required.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "support-dispute-service",
+        "x-required-permission": "support.cases.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/finance/summary": {
+      "get": {
+        "operationId": "finance.summary.read",
+        "summary": "finance.summary.read",
+        "description": "Wallet-owned scoped finance summary contract required.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "payment-wallet-service",
+        "x-required-permission": "finance.summary.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/verification/cases": {
+      "get": {
+        "operationId": "verification.cases.read",
+        "summary": "verification.cases.read",
+        "description": "Verification-owned scoped minimized adapter required.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "verification-compliance-service",
+        "x-required-permission": "verification.cases.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/network/{report}": {
+      "get": {
+        "operationId": "analytics.network.read",
+        "summary": "analytics.network.read",
+        "description": "Existing mission-success aggregate has no market/organization filter. Never forward unscoped reports.",
+        "x-capability-state": "BLOCKED_DEPENDENCY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.network.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "report",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/events/cursor": {
+      "get": {
+        "operationId": "events.cursor.read",
+        "summary": "events.cursor.read",
+        "description": "Event synchronization belongs to later sections.",
+        "x-capability-state": "DISABLED",
+        "x-owner": "admin-backoffice-service",
+        "x-required-permission": "events.cursor.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/exports": {
+      "post": {
+        "operationId": "exports.create",
+        "summary": "exports.create",
+        "description": "Approved export policy, scoped dataset and signed download contract required.",
+        "x-capability-state": "DISABLED",
+        "x-owner": "report-owner",
+        "x-required-permission": "exports.create",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisabledRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/campaigns/dispatch": {
+      "post": {
+        "operationId": "campaigns.dispatch",
+        "summary": "campaigns.dispatch",
+        "description": "Owner notification contract, consent and independent approvals required.",
+        "x-capability-state": "DISABLED",
+        "x-owner": "notification-service",
+        "x-required-permission": "campaigns.dispatch",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisabledRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/campaigns/{id}": {
+      "get": {
+        "operationId": "campaigns.read",
+        "summary": "campaigns.read",
+        "description": "Owner campaign tracking contract required.",
+        "x-capability-state": "DISABLED",
+        "x-owner": "notification-service",
+        "x-required-permission": "campaigns.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "WorkloadMTLS": [],
+      "ServiceHMAC": [],
+      "StaffAssertion": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "WorkloadMTLS": {
+        "type": "mutualTLS"
+      },
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 profile in signing-profile.md; requires all X-Service-* headers and X-HQ-Key-ID."
+      },
+      "StaffAssertion": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "EdDSA JWT"
+      }
+    },
+    "schemas": {
+      "Command": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contract_version": {
+            "const": "1.0"
+          },
+          "command_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product": {
+            "const": "karryam"
+          },
+          "action": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "expected_version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "expected_version"
+            ]
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "market",
+              "organization"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "case_reference": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "approval_reference": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "contract_version",
+          "command_id",
+          "product",
+          "action",
+          "target",
+          "scope",
+          "reason_code",
+          "reason",
+          "case_reference",
+          "idempotency_key",
+          "requested_at"
+        ]
+      },
+      "Response": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contract_version": {
+            "const": "1.0"
+          },
+          "product": {
+            "const": "karryam"
+          },
+          "correlation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "RECENT",
+              "STALE",
+              "PARTIAL",
+              "UNKNOWN",
+              "UNAVAILABLE"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "array",
+              "null"
+            ]
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z_]+$"
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "operation_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ]
+          }
+        },
+        "required": [
+          "contract_version",
+          "product",
+          "correlation_id",
+          "as_of",
+          "freshness",
+          "result"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z_]+$"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ]
+      },
+      "Operation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "expected_version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "expected_version"
+            ]
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "market",
+              "organization"
+            ]
+          },
+          "source_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "EXECUTING",
+              "CONFIRMED",
+              "REJECTED",
+              "FAILED_RETRYABLE",
+              "FAILED_TERMINAL",
+              "UNKNOWN_OUTCOME",
+              "CANCELLED_WHEN_SAFE"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "operation_id",
+          "action",
+          "target",
+          "scope",
+          "source_version",
+          "status",
+          "created_at",
+          "as_of"
+        ]
+      },
+      "StaffAssertion": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "iss": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sub": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "aud": {
+            "type": "string",
+            "minLength": 1
+          },
+          "product": {
+            "const": "karryam"
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 128,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 128,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          "market_scopes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 128,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          "organization_scopes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 128,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          "session_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "auth_time": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "acr": {
+            "type": "string",
+            "minLength": 1
+          },
+          "jti": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "iat": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "nbf": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "exp": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "request_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "iss",
+          "sub",
+          "aud",
+          "product",
+          "roles",
+          "permissions",
+          "market_scopes",
+          "organization_scopes",
+          "session_id",
+          "auth_time",
+          "acr",
+          "jti",
+          "iat",
+          "nbf",
+          "exp",
+          "request_digest"
+        ]
+      },
+      "Capability": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "source_endpoint": {
+            "type": "string"
+          },
+          "bridge_endpoint": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "privacy": {
+            "type": "string"
+          },
+          "approval": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "feature_flag": {
+            "type": "string"
+          },
+          "blocker": {
+            "type": "string"
+          },
+          "fallback": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "AVAILABLE",
+              "READ_ONLY",
+              "DISABLED",
+              "BLOCKED_DEPENDENCY",
+              "UNAVAILABLE"
+            ]
+          },
+          "risk": {
+            "enum": [
+              "R0",
+              "R1",
+              "R2",
+              "R3",
+              "R4"
+            ]
+          },
+          "source_version_required": {
+            "type": "boolean"
+          },
+          "idempotency_required": {
+            "type": "boolean"
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "owner",
+          "source_endpoint",
+          "bridge_endpoint",
+          "method",
+          "permission",
+          "scope",
+          "privacy",
+          "approval",
+          "evidence",
+          "feature_flag",
+          "blocker",
+          "fallback",
+          "state",
+          "risk",
+          "source_version_required",
+          "idempotency_required",
+          "tests"
+        ]
+      },
+      "Discovery": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contract_version": {
+            "const": "1.0"
+          },
+          "openapi_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "source_endpoint": {
+                  "type": "string"
+                },
+                "bridge_endpoint": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "permission": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string"
+                },
+                "privacy": {
+                  "type": "string"
+                },
+                "approval": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "type": "string"
+                },
+                "feature_flag": {
+                  "type": "string"
+                },
+                "blocker": {
+                  "type": "string"
+                },
+                "fallback": {
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "AVAILABLE",
+                    "READ_ONLY",
+                    "DISABLED",
+                    "BLOCKED_DEPENDENCY",
+                    "UNAVAILABLE"
+                  ]
+                },
+                "risk": {
+                  "enum": [
+                    "R0",
+                    "R1",
+                    "R2",
+                    "R3",
+                    "R4"
+                  ]
+                },
+                "source_version_required": {
+                  "type": "boolean"
+                },
+                "idempotency_required": {
+                  "type": "boolean"
+                },
+                "tests": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "owner",
+                "source_endpoint",
+                "bridge_endpoint",
+                "method",
+                "permission",
+                "scope",
+                "privacy",
+                "approval",
+                "evidence",
+                "feature_flag",
+                "blocker",
+                "fallback",
+                "state",
+                "risk",
+                "source_version_required",
+                "idempotency_required",
+                "tests"
+              ]
+            }
+          }
+        },
+        "required": [
+          "contract_version",
+          "openapi_sha256",
+          "capabilities"
+        ]
+      },
+      "Health": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "bridge": {
+            "const": "READY"
+          },
+          "owners": {
+            "const": "UNAVAILABLE"
+          },
+          "remote_writes": {
+            "const": "DISABLED"
+          },
+          "contract_version": {
+            "const": "1.0"
+          }
+        },
+        "required": [
+          "bridge",
+          "owners",
+          "remote_writes",
+          "contract_version"
+        ]
+      },
+      "DisabledRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contract_version": {
+            "const": "1.0"
+          },
+          "product": {
+            "const": "karryam"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "market",
+              "organization"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "contract_version",
+          "product",
+          "scope",
+          "reason_code",
+          "idempotency_key"
+        ]
+      }
+    }
+  }
+}

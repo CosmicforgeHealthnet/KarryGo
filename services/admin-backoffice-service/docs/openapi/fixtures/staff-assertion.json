@@ -1,0 +1,26 @@
+{
+  "iss": "https://hq.example.invalid",
+  "sub": "staff-opaque-ref",
+  "aud": "karryam-example",
+  "product": "karryam",
+  "roles": [
+    "staff"
+  ],
+  "permissions": [
+    "bridge.capabilities.read"
+  ],
+  "market_scopes": [
+    "NG"
+  ],
+  "organization_scopes": [
+    "org-1"
+  ],
+  "session_id": "session-opaque-id",
+  "auth_time": 1792309800,
+  "acr": "operator-approved-mfa-profile",
+  "jti": "assertion-opaque-id",
+  "iat": 1792310400,
+  "nbf": 1792310400,
+  "exp": 1792310460,
+  "request_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
