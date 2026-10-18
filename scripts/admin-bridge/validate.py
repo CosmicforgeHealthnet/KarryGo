@@ -85,7 +85,14 @@ def main():
     nginx = (ROOT / "deploy/platform/nginx/api-gateway.staging.karryam.com.conf").read_text()
     assert nginx.index("location ~* ^/api/v1/admin") < nginx.index("location /api/v1/")
     workflow = (ROOT / ".github/workflows/deploy-platform.yml").read_text()
-    assert "grep -vx admin-backoffice-service" in workflow
+    # The Admin bridge and both cutover-dependent services are not eligible
+    # for automatic pushes or the broad/all deploy selector.
+    assert "grep -vE '^(admin-backoffice-service|api-gateway|partner-web-service)$'" in workflow
+    # Nor can the generic deploy iteration accidentally schedule their images.
+    import re
+    orders = re.findall(r'^\s+order="([^"]+)"', workflow, re.MULTILINE)
+    assert len(orders) == 1
+    assert not {"admin-backoffice-service", "api-gateway", "partner-web-service"}.intersection(orders[0].split())
     print(f"OpenAPI 3.1, {len(schemas)} schemas, fixtures, capability states and deployment source checks passed")
 
 if __name__ == "__main__":
