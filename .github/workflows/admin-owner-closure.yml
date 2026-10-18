@@ -63,7 +63,7 @@ jobs:
       DISPATCH_ADMIN_TEST_REDIS_ADDR: 127.0.0.1:6379
       TAXI_REDIS_ADDR: 127.0.0.1:6379
       TAXI_NOTIFICATION_REDIS_ADDR: 127.0.0.1:6379
-      ADMIN_TAXI_TEST_BINARY: ${{ runner.temp }}/taxi-admin-owner
+      ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}

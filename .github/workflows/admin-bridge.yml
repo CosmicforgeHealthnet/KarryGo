@@ -57,7 +57,7 @@ jobs:
       API_GATEWAY_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
       ANALYTICS_ADMIN_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
       TAXI_ADMIN_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
-      ADMIN_TAXI_TEST_BINARY: ${{ runner.temp }}/taxi-admin-owner
+      ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
       ADMIN_BRIDGE_CONTRACT_CAPTURE_DIR: ${{ github.workspace }}/test-artifacts/wire
     steps:
       - uses: actions/checkout@v4
