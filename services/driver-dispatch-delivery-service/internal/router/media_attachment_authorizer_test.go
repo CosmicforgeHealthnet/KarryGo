@@ -33,7 +33,7 @@ func TestMediaAttachmentAuthorizerMissionAndParcelBinding(t *testing.T) {
 		},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimPrefix(r.URL.Path, "/files/")
+		id := strings.TrimPrefix(r.URL.Path, "/api/v1/media-files/files/")
 		asset, found := assets[id]
 		if !found {
 			w.WriteHeader(http.StatusNotFound)

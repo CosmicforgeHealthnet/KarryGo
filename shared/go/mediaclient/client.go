@@ -35,11 +35,27 @@ func New(config Config) *Client {
 	}
 
 	return &Client{
-		baseURL:     strings.TrimRight(config.BaseURL, "/"),
+		baseURL:     apiBase(config.BaseURL),
 		serviceName: config.ServiceName,
 		token:       config.Token,
 		httpClient:  httpClient,
 	}
+}
+
+// APIPath is where media-file-service serves its API.
+const APIPath = "/api/v1/media-files"
+
+// apiBase accepts the service's bare address ("http://media:8109"), which is
+// what every caller configures, or one that already ends in APIPath, and
+// returns the API root the request paths are appended to. Without this the
+// client posted to http://media:8109/uploads, which the service does not
+// serve, and every upload failed with a 404.
+func apiBase(base string) string {
+	base = strings.TrimRight(base, "/")
+	if base == "" || strings.HasSuffix(base, APIPath) {
+		return base
+	}
+	return base + APIPath
 }
 
 type UploadRequest struct {

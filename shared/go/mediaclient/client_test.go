@@ -11,7 +11,7 @@ import (
 
 func TestUploadSendsMultipartServiceAuthAndParsesAsset(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/uploads" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/media-files/uploads" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
 		if r.Header.Get("X-Karrygo-Service") != "customer-service" {
@@ -96,5 +96,18 @@ func TestGetByIDReturnsServiceError(t *testing.T) {
 	mediaErr, ok := err.(Error)
 	if !ok || mediaErr.StatusCode != http.StatusNotFound || mediaErr.Problem.Code != "not_found" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAPIBaseAcceptsBareOrPrefixedAddress(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://media:8109":                     "http://media:8109/api/v1/media-files",
+		"http://media:8109/":                    "http://media:8109/api/v1/media-files",
+		"http://media:8109/api/v1/media-files":  "http://media:8109/api/v1/media-files",
+		"http://media:8109/api/v1/media-files/": "http://media:8109/api/v1/media-files",
+	} {
+		if got := apiBase(in); got != want {
+			t.Errorf("apiBase(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
