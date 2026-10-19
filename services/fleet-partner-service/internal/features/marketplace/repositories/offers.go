@@ -228,13 +228,15 @@ func (r *OfferRepository) GetByIDUnscoped(ctx context.Context, offerID string) (
 // provider: a caller holding a valid service signature still cannot answer an
 // offer that was made to somebody else.
 func (r *OfferRepository) LockRecipientForProvider(ctx context.Context, q database.Querier,
-	offerID string, executingProviderID string) (*models.OfferRecipient, error) {
+	offerID string, executingProviderID string, sourceService string) (*models.OfferRecipient, error) {
 	row := q.QueryRow(ctx, `SELECT `+recipientColumnsRec+`
 		FROM fleet_partner_provider_offer_recipients rec
 		JOIN fleet_partner_organization_provider_memberships mem
-		  ON mem.id = rec.membership_id
-		WHERE rec.offer_id = $1 AND mem.provider_id = $2
-		FOR UPDATE OF rec`, offerID, executingProviderID)
+		  ON mem.id = rec.membership_id AND mem.organization_id=rec.organization_id
+		JOIN fleet_partner_organization_request_offers o ON o.id=rec.offer_id AND o.organization_id=rec.organization_id
+		JOIN fleet_partner_marketplace_request_projections p ON p.id=o.request_projection_id AND p.organization_id=o.organization_id
+		WHERE rec.offer_id = $1 AND mem.provider_id = $2 AND mem.service_category=$3 AND p.source_service=$3
+		FOR UPDATE OF rec`, offerID, executingProviderID, sourceService)
 	return scanRecipient(row)
 }
 
@@ -271,8 +273,10 @@ func (r *OfferRepository) GetRecipientForProvider(ctx context.Context, offerID s
 	executingProviderID string, sourceService string) (*models.OfferRecipient, error) {
 	row := r.db.QueryRow(ctx, `SELECT `+recipientColumnsRec+`
 		FROM fleet_partner_provider_offer_recipients rec
-		JOIN fleet_partner_organization_provider_memberships mem ON mem.id = rec.membership_id
-		WHERE rec.offer_id = $1 AND mem.provider_id = $2 AND mem.service_category = $3`,
+		JOIN fleet_partner_organization_provider_memberships mem ON mem.id = rec.membership_id AND mem.organization_id=rec.organization_id
+		JOIN fleet_partner_organization_request_offers o ON o.id=rec.offer_id AND o.organization_id=rec.organization_id
+		JOIN fleet_partner_marketplace_request_projections p ON p.id=o.request_projection_id AND p.organization_id=o.organization_id
+		WHERE rec.offer_id = $1 AND mem.provider_id = $2 AND mem.service_category = $3 AND p.source_service=$3`,
 		offerID, executingProviderID, sourceService)
 	return scanRecipient(row)
 }

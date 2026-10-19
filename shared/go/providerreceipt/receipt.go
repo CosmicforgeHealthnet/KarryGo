@@ -11,12 +11,16 @@ import (
 )
 
 const Version = "fleet.provider-decision.v1"
+const OfferVersion = "fleet.provider-offer-decision.v1"
 
 // Intent contains the durable business decision, excluding transport/session
 // metadata and the original optimistic precondition. Reordering or repeating
 // evidence references does not change the decision. No sensitive text is sent
 // back to an execution service: only this canonical digest is disclosed.
 type Intent struct {
+	OfferID          string   `json:"offerId,omitempty"`
+	ReservationID    string   `json:"sourceReservationId,omitempty"`
+	RequestVersion   int64    `json:"sourceRequestVersion,omitempty"`
 	AssignmentID     string   `json:"assignmentId"`
 	ProviderID       string   `json:"providerId"`
 	ClientResponseID string   `json:"clientResponseId"`
@@ -42,6 +46,7 @@ func (i Intent) Digest() string {
 }
 
 type Receipt struct {
+	OfferID          string    `json:"offerId,omitempty"`
 	ContractVersion  string    `json:"contractVersion"`
 	ReceiptID        string    `json:"receiptId"`
 	AssignmentID     string    `json:"assignmentId"`

@@ -339,6 +339,7 @@ func manifestlessRoutes() []liveRoute {
 
 		internalRoute("GET", "/assignments/:assignmentId/provider-acceptance"),
 		internalRoute("GET", "/assignments/:assignmentId/provider-decision-receipt"),
+		internalRoute("GET", "/marketplace-offers/:offerId/provider-decision-receipt"),
 		internalRoute("GET", "/admin/resources/:kind"),
 		internalRoute("GET", "/admin/authorization-contexts/bindings/:kind/:id"),
 		internalRoute("GET", "/admin/resources/:kind/:id"),

@@ -1,0 +1,278 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fleet source-owned provider decision read-back",
+    "version": "1.1.0"
+  },
+  "servers": [
+    {
+      "url": "/internal/fleet-partner/v1"
+    }
+  ],
+  "security": [
+    {
+      "ServiceHMAC": []
+    }
+  ],
+  "paths": {
+    "/assignments/{assignmentId}/provider-decision-receipt": {
+      "get": {
+        "operationId": "readProviderAssignmentDecisionReceipt",
+        "description": "Historical proof bound to canonical provider, caller service and original key. Never authorizes current execution, another tenant or Media access. Absence or mismatch must not trigger mutation retries. Offer evidence is recorded intent metadata, not a Media grant.",
+        "parameters": [
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "clientResponseId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Minimized immutable proof; no reason, note, evidence or organization disclosed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DecisionReceipt"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or duplicate query or body."
+          },
+          "401": {
+            "description": "Invalid source HMAC."
+          },
+          "403": {
+            "description": "Caller not allowlisted."
+          },
+          "404": {
+            "description": "No matching immutable proof."
+          },
+          "503": {
+            "description": "Owner unavailable; retain uncertainty."
+          }
+        }
+      }
+    },
+    "/marketplace-offers/{offerId}/provider-decision-receipt": {
+      "get": {
+        "operationId": "readProviderOfferDecisionReceipt",
+        "description": "Historical proof bound to canonical provider, caller service and original key. Never authorizes current execution, another tenant or Media access. Absence or mismatch must not trigger mutation retries. Offer evidence is recorded intent metadata, not a Media grant.",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "clientResponseId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Minimized immutable proof; no reason, note, evidence or organization disclosed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DecisionReceipt"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or duplicate query or body."
+          },
+          "401": {
+            "description": "Invalid source HMAC."
+          },
+          "403": {
+            "description": "Caller not allowlisted."
+          },
+          "404": {
+            "description": "No matching immutable proof."
+          },
+          "503": {
+            "description": "Owner unavailable; retain uncertainty."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "Native enrolled private service credentials and caller allowlist; source service comes from verified HMAC."
+      }
+    },
+    "schemas": {
+      "DecisionReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receiptId",
+          "providerId",
+          "clientResponseId",
+          "contractVersion",
+          "assignmentId",
+          "decision",
+          "intentDigest",
+          "recordedAt"
+        ],
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "providerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "clientResponseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "contractVersion": {
+            "enum": [
+              "fleet.provider-decision.v1",
+              "fleet.provider-offer-decision.v1"
+            ]
+          },
+          "assignmentId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "offerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "decision": {
+            "enum": [
+              "ACCEPTED",
+              "DECLINED"
+            ]
+          },
+          "intentDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "contractVersion": {
+                "enum": [
+                  "fleet.provider-decision.v1"
+                ]
+              },
+              "assignmentId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "not": {
+              "required": [
+                "offerId"
+              ]
+            }
+          },
+          {
+            "required": [
+              "offerId"
+            ],
+            "properties": {
+              "contractVersion": {
+                "enum": [
+                  "fleet.provider-offer-decision.v1"
+                ]
+              },
+              "assignmentId": {
+                "type": "string",
+                "enum": [
+                  ""
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

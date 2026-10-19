@@ -15,6 +15,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
+	"cosmicforge/logistics/shared/go/providerreceipt"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 )
@@ -46,6 +47,8 @@ func RegisterInternalMarketplaceRoutes(group *gin.RouterGroup, handler *Internal
 		handler.requireAllowedCaller, handler.GetProviderAcceptance)
 	group.GET("/assignments/:assignmentId/provider-decision-receipt",
 		handler.requireAllowedCaller, handler.GetProviderDecisionReceipt)
+	group.GET("/marketplace-offers/:offerId/provider-decision-receipt",
+		handler.requireAllowedCaller, handler.GetProviderDecisionReceipt)
 }
 
 func (h *InternalHandler) GetProviderDecisionReceipt(c *gin.Context) {
@@ -71,7 +74,12 @@ func (h *InternalHandler) GetProviderDecisionReceipt(c *gin.Context) {
 		httpx.Abort(c, err)
 		return
 	}
-	receipt, err := h.service.ProviderDecisionReceipt(c.Request.Context(), c.Param("assignmentId"), values.Get("providerId"), providerServiceTokens[service], values.Get("clientResponseId"))
+	var receipt *providerreceipt.Receipt
+	if offerID := c.Param("offerId"); offerID != "" {
+		receipt, err = h.service.ProviderOfferDecisionReceipt(c.Request.Context(), offerID, values.Get("providerId"), providerServiceTokens[service], values.Get("clientResponseId"))
+	} else {
+		receipt, err = h.service.ProviderDecisionReceipt(c.Request.Context(), c.Param("assignmentId"), values.Get("providerId"), providerServiceTokens[service], values.Get("clientResponseId"))
+	}
 	if err != nil {
 		httpx.Abort(c, err)
 		return

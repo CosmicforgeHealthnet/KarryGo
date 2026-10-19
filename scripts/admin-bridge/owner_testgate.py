@@ -14,6 +14,7 @@ passed = {e["Test"] for e in events if e["Action"] == "pass" and e.get("Test")}
 required = {"TestRelayWorkerUnknownOutcomeIsNotRedelivered", "TestRelayLeaseRecoveryDeadLetterAndReplay", "TestConcurrentRelayWorkersDeliverEachDecisionOnce", "TestPostgresRepositoryTripFoundation", "TestRealRedisHandoverLimitAcrossClients"}
 required |= {"TestImmediateRelayClaimFencesDuplicateRequestsAndWorker", "TestImmediateDeliveryPersistenceFailureStaysPending"}
 required.add("TestFencedLegacyDecisionCannotBeRecreatedWithFreshKey")
+required |= {"TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation/ofr_accept-receipt", "TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation/ofr_decline-receipt"}
 required |= {"TestPrivateAssignmentReceiptRequiresExactRecordedIntent", "TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation/pas_private-receipt"}
 required |= {"TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation", "TestRelayReadbackDeniesMissingOrMismatchedDecision", "TestRelayReadbackExpiredReaderCannotFinishNewLease", "TestRelayReadbackAuditFailureCannotConfirm"}
 if args.custody:

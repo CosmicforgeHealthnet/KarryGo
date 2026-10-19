@@ -175,8 +175,9 @@ var manifestlessPermissions = map[string]string{
 	// marketplace/finance internal object routes: HMAC caller-allowlist
 	// (requireAllowedCaller), not an organization permission -- same
 	// reasoning as auth's session route above.
-	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-acceptance":       internalCallerAllowlistSentinel,
-	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-decision-receipt": internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-acceptance":         internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/marketplace-offers/:offerId/provider-decision-receipt": internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-decision-receipt":   internalCallerAllowlistSentinel,
 	// Native enrolled service credentials precede a dedicated caller-bound
 	// HMAC, signed source context and governance policy. Publishing additionally
 	// requires an independent owner signature; HMAC alone cannot approve scope.

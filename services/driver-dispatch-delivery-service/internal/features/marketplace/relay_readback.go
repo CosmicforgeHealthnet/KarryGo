@@ -25,7 +25,8 @@ type FleetReceiptReader interface {
 
 // Readback has no mutation fallback, including on 404, outage or mismatch.
 func (r *HTTPFleetResponder) Readback(ctx context.Context, meta CallMeta, op RelayOperation) (*providerreceipt.Receipt, error) {
-	if op.AssignmentID == nil || (op.OperationType != RelayProviderAssignmentAccept && op.OperationType != RelayProviderAssignmentDecline) {
+	isOffer := op.OperationType == RelayProviderOfferAccept || op.OperationType == RelayProviderOfferDecline
+	if isOffer && (op.OfferID == nil || op.AssignmentID != nil) || !isOffer && (op.AssignmentID == nil || op.OfferID != nil || op.OperationType != RelayProviderAssignmentAccept && op.OperationType != RelayProviderAssignmentDecline) {
 		return nil, ErrReceiptUnsupported
 	}
 	var payload decisionPayload
@@ -33,14 +34,32 @@ func (r *HTTPFleetResponder) Readback(ctx context.Context, meta CallMeta, op Rel
 		return nil, ErrFleetUnavailable
 	}
 	decision := "ACCEPTED"
-	intent := providerreceipt.Intent{AssignmentID: *op.AssignmentID, ProviderID: op.ProviderID, ClientResponseID: op.IdempotencyKey, Decision: decision}
-	if op.OperationType == RelayProviderAssignmentDecline {
-		intent.Decision = "DECLINED"
+	intent := providerreceipt.Intent{ProviderID: op.ProviderID, ClientResponseID: op.IdempotencyKey, Decision: decision}
+	version := providerreceipt.Version
+	entityPath := "assignments/"
+	entityID := ""
+	if isOffer {
+		intent.OfferID = *op.OfferID
+		if op.OperationType == RelayProviderOfferAccept {
+			intent.ReservationID = payload.DispatchReservationID
+			intent.RequestVersion = payload.DispatchRequestVersion
+		}
+		entityID = *op.OfferID
+		entityPath = "marketplace-offers/"
+		version = providerreceipt.OfferVersion
+	} else {
+		intent.AssignmentID = *op.AssignmentID
+		entityID = *op.AssignmentID
+	}
+	if isOffer || op.OperationType == RelayProviderAssignmentDecline {
+		if op.OperationType == RelayProviderOfferDecline || op.OperationType == RelayProviderAssignmentDecline {
+			intent.Decision = "DECLINED"
+		}
 		intent.ReasonCode = payload.ReasonCode
 		intent.Note = payload.Note
 		intent.Evidence = payload.EvidenceFileIDs
 	}
-	if privateAssignmentID(*op.AssignmentID) {
+	if !isOffer && privateAssignmentID(*op.AssignmentID) {
 		// The native private decision contract trims its stored safe note and
 		// does not record evidence. Unrecorded evidence cannot be confirmed.
 		if len(payload.EvidenceFileIDs) > 0 {
@@ -49,7 +68,7 @@ func (r *HTTPFleetResponder) Readback(ctx context.Context, meta CallMeta, op Rel
 		intent.Note = strings.TrimSpace(intent.Note)
 	}
 	query := url.Values{"providerId": {op.ProviderID}, "clientResponseId": {op.IdempotencyKey}}
-	path := "/internal/fleet-partner/v1/assignments/" + url.PathEscape(*op.AssignmentID) + "/provider-decision-receipt?" + query.Encode()
+	path := "/internal/fleet-partner/v1/" + entityPath + url.PathEscape(entityID) + "/provider-decision-receipt?" + query.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.baseURL+path, nil)
 	if err != nil {
 		return nil, ErrFleetUnavailable
@@ -81,7 +100,7 @@ func (r *HTTPFleetResponder) Readback(ctx context.Context, meta CallMeta, op Rel
 		return nil, ErrFleetUnavailable
 	}
 	receipt := envelope.Data
-	if receipt.ContractVersion != providerreceipt.Version || receipt.ReceiptID == "" || len(receipt.ReceiptID) > 128 || receipt.AssignmentID != intent.AssignmentID || receipt.ProviderID != intent.ProviderID || receipt.ClientResponseID != intent.ClientResponseID || receipt.Decision != intent.Decision || receipt.IntentDigest != intent.Digest() || receipt.RecordedAt.IsZero() || receipt.RecordedAt.After(time.Now().Add(time.Minute)) {
+	if receipt.ContractVersion != version || receipt.OfferID != intent.OfferID || receipt.ReceiptID == "" || len(receipt.ReceiptID) > 128 || receipt.AssignmentID != intent.AssignmentID || receipt.ProviderID != intent.ProviderID || receipt.ClientResponseID != intent.ClientResponseID || receipt.Decision != intent.Decision || receipt.IntentDigest != intent.Digest() || receipt.RecordedAt.IsZero() || receipt.RecordedAt.After(time.Now().Add(time.Minute)) {
 		return nil, ErrFleetUnavailable
 	}
 	return &receipt, nil

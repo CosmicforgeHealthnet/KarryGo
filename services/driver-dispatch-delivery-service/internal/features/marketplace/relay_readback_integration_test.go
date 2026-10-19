@@ -18,7 +18,7 @@ import (
 )
 
 func TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation(t *testing.T) {
-	for _, assignment := range []string{"asg-receipt", "pas_private-receipt"} {
+	for _, assignment := range []string{"asg-receipt", "pas_private-receipt", "ofr_accept-receipt", "ofr_decline-receipt"} {
 		t.Run(assignment, func(t *testing.T) { testRelayAuthoritativeReadback(t, assignment) })
 	}
 }
@@ -30,7 +30,31 @@ func testRelayAuthoritativeReadback(t *testing.T, assignment string) {
 	provider := seedProvider(t, pool, "+2348030070011")
 	key := "original-receipt-key"
 	intent := providerreceipt.Intent{AssignmentID: assignment, ProviderID: provider, ClientResponseID: key, Decision: "ACCEPTED"}
-	receipt := providerreceipt.Receipt{ContractVersion: providerreceipt.Version, ReceiptID: "ars-original", AssignmentID: assignment, ProviderID: provider, ClientResponseID: key, Decision: "ACCEPTED", IntentDigest: intent.Digest(), RecordedAt: time.Now().UTC()}
+	operationType := marketplace.RelayProviderAssignmentAccept
+	var offerID *string
+	assignmentID := &assignment
+	entityPath := "assignments/"
+	version := providerreceipt.Version
+	if strings.HasPrefix(assignment, "ofr_") {
+		intent.AssignmentID = ""
+		intent.OfferID = assignment
+		version = providerreceipt.OfferVersion
+		entityPath = "marketplace-offers/"
+		offerID = &assignment
+		assignmentID = nil
+		operationType = marketplace.RelayProviderOfferAccept
+		if strings.Contains(assignment, "decline") {
+			intent.Decision = "DECLINED"
+			intent.ReasonCode = "UNSAFE_VEHICLE"
+			intent.Note = "original-offer-note"
+			intent.Evidence = []string{"original-evidence"}
+			operationType = marketplace.RelayProviderOfferDecline
+		} else {
+			intent.ReservationID = "original-source-reservation"
+			intent.RequestVersion = 7
+		}
+	}
+	receipt := providerreceipt.Receipt{ContractVersion: version, ReceiptID: "ars-original", AssignmentID: intent.AssignmentID, OfferID: intent.OfferID, ProviderID: provider, ClientResponseID: key, Decision: intent.Decision, IntentDigest: intent.Digest(), RecordedAt: time.Now().UTC()}
 	secret := []byte("receipt-execution-test-only-secret")
 	verifier := serviceauth.NewVerifier(serviceauth.Secrets{dispatchService: secret}, time.Minute)
 	var posts, reads atomic.Int32
@@ -47,7 +71,7 @@ func testRelayAuthoritativeReadback(t *testing.T, assignment string) {
 			return
 		} // owner committed; transport response is uncertain
 		reads.Add(1)
-		if r.Method != http.MethodGet || r.URL.Path != "/internal/fleet-partner/v1/assignments/"+assignment+"/provider-decision-receipt" || r.URL.Query().Get("clientResponseId") != key || r.URL.Query().Get("providerId") != provider {
+		if r.Method != http.MethodGet || r.URL.Path != "/internal/fleet-partner/v1/"+entityPath+assignment+"/provider-decision-receipt" || r.URL.Query().Get("clientResponseId") != key || r.URL.Query().Get("providerId") != provider {
 			t.Error("read-back changed original identity")
 			w.WriteHeader(400)
 			return
@@ -56,11 +80,11 @@ func testRelayAuthoritativeReadback(t *testing.T, assignment string) {
 	}))
 	defer server.Close()
 	responder, _ := marketplace.NewHTTPFleetResponder(marketplace.ResponderConfig{BaseURL: server.URL, ServiceName: dispatchService, Secret: secret})
-	payload, _ := json.Marshal(map[string]any{"providerId": provider, "providerService": "DISPATCH", "clientResponseId": key, "providerSessionId": "session-original"})
+	payload, _ := json.Marshal(map[string]any{"providerId": provider, "providerService": "DISPATCH", "clientResponseId": key, "providerSessionId": "session-original", "reasonCode": intent.ReasonCode, "note": intent.Note, "evidenceFileIds": intent.Evidence, "dispatchReservationId": intent.ReservationID, "dispatchRequestVersion": intent.RequestVersion})
 	var op *marketplace.RelayOperation
 	if err := repo.WithinTx(ctx, func(tx pgx.Tx) error {
 		var err error
-		op, _, err = repo.CreateRelay(ctx, tx, &marketplace.RelayOperation{OperationType: marketplace.RelayProviderAssignmentAccept, ProviderID: provider, AssignmentID: &assignment, IdempotencyKey: key, RequestFingerprint: "fp-original", Payload: payload})
+		op, _, err = repo.CreateRelay(ctx, tx, &marketplace.RelayOperation{OperationType: operationType, ProviderID: provider, AssignmentID: assignmentID, OfferID: offerID, IdempotencyKey: key, RequestFingerprint: "fp-original", Payload: payload})
 		return err
 	}); err != nil {
 		t.Fatal(err)

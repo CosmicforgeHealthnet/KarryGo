@@ -39,6 +39,10 @@ env:
   CUSTOMER_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/customer_test?sslmode=disable
   # The shared outbox test creates and drops its own uniquely named table.
   OUTBOX_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
+  # Source-authority suites create isolated schemas and apply real owner DDL.
+  # Their required PostgreSQL tests must execute in the broad module gates too.
+  ADMIN_CONTEXT_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
+  ADMIN_OWNER_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
 
 jobs:
   static-and-contract:

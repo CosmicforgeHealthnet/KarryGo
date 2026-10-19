@@ -56,15 +56,16 @@ type ProviderActionResult struct {
 // offer or assignment, so a compromised dispatch would still not let one
 // provider answer for another.
 type decisionPayload struct {
-	ProviderID            string   `json:"providerId"`
-	ProviderService       string   `json:"providerService"`
-	ProviderSessionID     string   `json:"providerSessionId"`
-	ClientResponseID      string   `json:"clientResponseId"`
-	ExpectedVersion       int64    `json:"expectedVersion,omitempty"`
-	ReasonCode            string   `json:"reasonCode,omitempty"`
-	Note                  string   `json:"note,omitempty"`
-	EvidenceFileIDs       []string `json:"evidenceFileIds,omitempty"`
-	DispatchReservationID string   `json:"dispatchReservationId,omitempty"`
+	ProviderID             string   `json:"providerId"`
+	ProviderService        string   `json:"providerService"`
+	ProviderSessionID      string   `json:"providerSessionId"`
+	ClientResponseID       string   `json:"clientResponseId"`
+	ExpectedVersion        int64    `json:"expectedVersion,omitempty"`
+	ReasonCode             string   `json:"reasonCode,omitempty"`
+	Note                   string   `json:"note,omitempty"`
+	EvidenceFileIDs        []string `json:"evidenceFileIds,omitempty"`
+	DispatchReservationID  string   `json:"dispatchReservationId,omitempty"`
+	DispatchRequestVersion int64    `json:"dispatchRequestVersion,omitempty"`
 }
 
 // SubmitProviderDecision records a provider's decision durably and attempts
