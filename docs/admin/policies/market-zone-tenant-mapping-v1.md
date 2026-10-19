@@ -68,3 +68,5 @@ is automatic per request after initial governance approval; there is no UI/API
 that turns a staff request into its own approval. Future source mapping ingestion
 must use authentic, ordered owner records/contracts, not manual per-request
 exceptions or an Admin-owned duplicate domain registry.
+
+Engineering continuation (2026-10-19): [source-owned resource context contracts](../../admin-bridge/owner-resource-contexts.md) provide signed owner remediation and deny-by-default typed reads. This draft supplies no context signature or production allocation. The sixteen-kind initial approval matrix remains **BLOCKED_POLICY**; Analytics thresholds/cohorts, Media grants and command approvals remain separate requirements.

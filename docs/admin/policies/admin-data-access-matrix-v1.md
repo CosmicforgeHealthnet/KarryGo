@@ -32,3 +32,5 @@ Approval evidence must identify the responsible owner(s), exact version/checksum
 canonical field contracts, privacy review and outstanding infrastructure gates.
 No administrative operator can approve their own request by supplying these
 fields in the request body.
+
+Engineering continuation (2026-10-19): [source-owned resource context contracts](../../admin-bridge/owner-resource-contexts.md) provide signed owner remediation and deny-by-default typed reads. This draft supplies no context signature or production allocation. The sixteen-kind initial approval matrix remains **BLOCKED_POLICY**; Analytics thresholds/cohorts, Media grants and command approvals remain separate requirements.

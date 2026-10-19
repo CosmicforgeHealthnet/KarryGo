@@ -23,6 +23,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
+	"cosmicforge/logistics/shared/go/adminowner"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -47,6 +48,8 @@ type Bridge struct {
 	trust                 config.Trust
 	enabled               bool
 	taxi                  *clients.Taxi
+	resources             map[string]*clients.Resources
+	resourcePolicies      map[string]*adminpolicy.Engine
 	taxiRoles             []string
 	accessPolicy          *adminpolicy.Engine
 	features              config.DomainFlags
@@ -94,6 +97,9 @@ func (b *Bridge) reply(w http.ResponseWriter, correlation string, status int, re
 	asOf := b.now().UTC()
 	if snapshot, ok := result.(adminread.TaxiSnapshot); ok && problem == nil {
 		asOf, freshness = snapshot.AsOf, snapshot.Freshness
+	}
+	if snapshot, ok := result.(adminowner.Snapshot); ok && problem == nil {
+		asOf, freshness = snapshot.AsOf, "PARTIAL"
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -250,21 +256,39 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.RequestType = capability.ID
 	a.Permission = capability.Permission
 	a.TargetService = capability.Owner
+	resourceProfile, resourceDefinition, resourceRef, resourceRead := adminowner.MatchBridge(path)
+	readPolicy := b.accessPolicy
+	if resourceRead {
+		readPolicy = b.resourcePolicies[resourceProfile.Owner]
+		if readPolicy == nil {
+			fail(503, "blocked_policy")
+			return
+		}
+	}
 	if capability.Permission == adminread.TaxiPermission && b.accessPolicy == nil {
 		fail(503, "blocked_policy")
 		return
 	}
 	var taxiQuery adminread.Query
 	query, err := strictQuery(r)
-	if capability.Permission == adminread.TaxiPermission {
+	if capability.Permission == adminread.TaxiPermission || resourceRead {
 		role := actor.Roles[0]
+		approvedRoles := b.taxiRoles
+		if resourceRead {
+			rule, e := readPolicy.Rule(resourceDefinition.Capability, b.now())
+			if e != nil || rule.Owner != resourceProfile.Owner || rule.SourceContract != resourceDefinition.SourceContract {
+				fail(503, "blocked_policy")
+				return
+			}
+			approvedRoles = rule.Roles
+		}
 		for _, candidate := range actor.Roles {
-			if config.Contains(b.taxiRoles, candidate) {
+			if config.Contains(approvedRoles, candidate) {
 				role = candidate
 				break
 			}
 		}
-		taxiQuery, query, err = taxiReadQuery(r, actor.Subject, role, b.accessPolicy, b.now())
+		taxiQuery, query, err = taxiReadQuery(r, actor.Subject, role, readPolicy, b.now())
 	}
 	if err != nil {
 		fail(400, "invalid_query")
@@ -290,10 +314,10 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(403, "forbidden")
 		return
 	}
-	if capability.Permission == adminread.TaxiPermission {
+	if capability.Permission == adminread.TaxiPermission || resourceRead {
 		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
 		requested := adminpolicy.Scope{Product: config.Product, Market: taxiQuery.Scope.Market, Zone: taxiQuery.Scope.Zone, Organization: taxiQuery.Scope.Organization, Tenant: taxiQuery.Scope.Tenant}
-		if e := b.accessPolicy.AuthorizeDelegation(delegated, adminread.TaxiPermission, taxiQuery.Purpose, requested, b.now()); e != nil {
+		if e := readPolicy.AuthorizeDelegation(delegated, capability.Permission, taxiQuery.Purpose, requested, b.now()); e != nil {
 			if errors.Is(e, adminpolicy.ErrBlocked) {
 				fail(503, "blocked_policy")
 			} else {
@@ -301,7 +325,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		a.EvidenceRef = b.accessPolicy.ID() + "@" + strconv.FormatInt(b.accessPolicy.Version(), 10) + ":" + b.accessPolicy.Checksum()
+		a.EvidenceRef = readPolicy.ID() + "@" + strconv.FormatInt(readPolicy.Version(), 10) + ":" + readPolicy.Checksum()
 	}
 	allowed, err := b.repo.Rate(r.Context(), strings.Join([]string{actor.Subject, capability.Permission, scope.Market, scope.Organization}, ":"), b.now(), b.trust.RequestsPerMinute)
 	if err != nil {
@@ -322,7 +346,9 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch capability.ID {
 	case "bridge.capabilities":
 		_, policyErr := b.accessPolicy.Rule(adminread.TaxiPermission, b.now())
-		result = contract.DiscoverWithAvailability(actor.Permissions, map[string]bool{adminread.TaxiPermission: b.taxi != nil && policyErr == nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0 && len(actor.Tenants) > 0})
+		availability := b.resourceAvailability(actor.Roles, actor.Zones, actor.Tenants)
+		availability[adminread.TaxiPermission] = b.taxi != nil && policyErr == nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0 && len(actor.Tenants) > 0
+		result = contract.DiscoverWithAvailability(actor.Permissions, availability)
 	case "taxi.rides.list", "taxi.rides.detail":
 		if b.taxi == nil {
 			fail(503, "capability_blocked")
@@ -418,8 +444,29 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.reply(w, correlation, 503, nil, &apiError{Code: "capability_blocked", Message: message, Retryable: false, OperationID: op.ID})
 		return
 	default:
-		fail(503, "capability_blocked")
-		return
+		if !resourceRead || r.Method != "GET" || b.resources[resourceProfile.Owner] == nil {
+			fail(503, "capability_blocked")
+			return
+		}
+		a.TargetRef = resourceRef
+		snapshot, e := b.resources[resourceProfile.Owner].Read(r.Context(), taxiQuery, resourceDefinition.Kind, resourceRef)
+		if errors.Is(e, clients.ErrScopeDenied) {
+			fail(403, "forbidden")
+			return
+		}
+		if errors.Is(e, clients.ErrNotFound) {
+			fail(404, "not_found")
+			return
+		}
+		if errors.Is(e, clients.ErrInvalid) {
+			fail(503, "owner_contract_invalid")
+			return
+		}
+		if e != nil {
+			fail(503, "owner_unavailable")
+			return
+		}
+		result = snapshot
 	}
 	a.Outcome = "AUTHORIZED"
 	if !b.audit(r, a) {

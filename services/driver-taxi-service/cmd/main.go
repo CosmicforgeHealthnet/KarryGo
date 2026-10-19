@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	taxiadminread "cosmicforge/logistics/services/taxi-service/internal/features/adminread"
+	"cosmicforge/logistics/services/taxi-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/taxi-service/internal/features/customertracking"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminpolicyenv"
@@ -562,8 +563,13 @@ func main() {
 			}
 		}
 	}
+	ownerAdmin, err := adminresources.Runtime(ctx, db)
+	if err != nil {
+		logging.Fatal("configuration", "Taxi owner resource configuration invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		RegisterRoot: func(root *gin.Engine) {
+			ownerAdmin.Register(root)
 			taxiadminread.Register(root, db, adminReadSecret, cfg.AdminReadEnabled, adminAccessPolicy)
 			customertracking.RegisterInternal(root, trackingReader, opsVerifier, redisClient, cfg.CustomerLiveLocationEnabled)
 			goods.RegisterCustomerShare(root, goodsService, opsVerifier)

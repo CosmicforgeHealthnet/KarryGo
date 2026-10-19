@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'services/admin-backoffice-service/**'
+      - 'services/customer-service/**'
+      - 'services/driver-hauling-service/**'
+      - 'shared/go/admincontext/**'
+      - 'shared/go/adminowner/**'
       - 'services/driver-taxi-service/**'
       - 'services/driver-dispatch-delivery-service/**'
       - 'services/fleet-partner-service/**'
@@ -20,6 +24,10 @@ on:
     branches: [staging]
     paths:
       - 'services/admin-backoffice-service/**'
+      - 'services/customer-service/**'
+      - 'services/driver-hauling-service/**'
+      - 'shared/go/admincontext/**'
+      - 'shared/go/adminowner/**'
       - 'services/driver-taxi-service/**'
       - 'services/driver-dispatch-delivery-service/**'
       - 'services/fleet-partner-service/**'
@@ -59,6 +67,8 @@ jobs:
       PGUSER: owner_test
       PGDATABASE: admin_owner_test
       ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      ADMIN_CONTEXT_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      ADMIN_OWNER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
       ANALYTICS_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
       TAXI_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
       DISPATCH_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
@@ -91,6 +101,8 @@ jobs:
           set -euo pipefail
           go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
+          go test -race -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
+          python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
           go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./services/driver-dispatch-delivery-service/internal/features/securehandover > test-artifacts/dispatch-safety.jsonl
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-safety.jsonl
           go test -race -json -count=1 -timeout=300s ./services/fleet-partner-service/internal/integration -run TestProviderDecisionReceipt > test-artifacts/fleet-receipts.jsonl

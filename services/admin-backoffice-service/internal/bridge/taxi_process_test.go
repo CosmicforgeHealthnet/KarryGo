@@ -26,9 +26,13 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/testutil"
+	"cosmicforge/logistics/shared/go/admincontext"
+	contextfixture "cosmicforge/logistics/shared/go/admincontext/testfixture"
+	"cosmicforge/logistics/shared/go/adminowner"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminpolicy/testfixture"
 	"cosmicforge/logistics/shared/go/adminread"
+	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -107,6 +111,28 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 		t.Fatal(err)
 	}
 	policy := testfixture.NewTaxi(t, adminpolicy.Scope{Product: "karryam", Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"})
+	providerPolicy := testfixture.New(t, policy.Document.Rules[0].Scopes[0], "driver-taxi-service", "taxi.providers.read", "taxi.admin-resources.v1")
+	policy.Document.Rules = append(policy.Document.Rules, providerPolicy.Document.Rules[0])
+	policy.Sign(t)
+	sourceIssuer := contextfixture.New(t, "driver-taxi-service")
+	sourceKeys := map[string]string{}
+	for id, key := range sourceIssuer.Authority.Keys {
+		sourceKeys[id] = base64.RawURLEncoding.EncodeToString(key)
+	}
+	sourceKeysRaw, _ := json.Marshal(sourceKeys)
+	sourceKeysFile := filepath.Join(t.TempDir(), "test-only-source-owner-keys.json")
+	if err = os.WriteFile(sourceKeysFile, sourceKeysRaw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	publisherSecret := bytes.Repeat([]byte{52}, 32)
+	publisherSecretFile := filepath.Join(t.TempDir(), "test-only-owner-publisher-secret")
+	if err = os.WriteFile(publisherSecretFile, []byte(base64.RawURLEncoding.EncodeToString(publisherSecret)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	providerID := uuid.NewString()
+	if _, err = owner.Exec(ctx, `INSERT INTO taxi_providers(id,first_name,license_expiry_date) VALUES($1,'PRIVATE_PROVIDER_NAME','2030-01-01')`, providerID); err != nil {
+		t.Fatal(err)
+	}
 	policyFile := filepath.Join(t.TempDir(), "test-only-policy.json")
 	keysFile := filepath.Join(t.TempDir(), "test-only-policy-keys.json")
 	if err = os.WriteFile(policyFile, policy.Envelope, 0600); err != nil {
@@ -132,6 +158,7 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 	cmd.Stderr = logFile
 	cmd.Env = append(os.Environ(), "APP_ENV=test", "HTTP_ADDR="+addr, "TAXI_DATABASE_URL="+ownerURL.String(), "TAXI_MIGRATION=false", "TAXI_ADMIN_READ_ENABLED=true", "TAXI_ADMIN_READ_SECRET_FILE="+secretFile, "TAXI_PROVIDER_TOKEN_SECRET=owner-fixture-only-token", "TAXI_PROVIDER_REFRESH_SECRET=owner-fixture-only-refresh", "TAXI_PROVIDER_OTP_SECRET=owner-fixture-only-otp", "TAXI_CUSTOMER_TOKEN_SECRET=owner-fixture-only-customer")
 	cmd.Env = append(cmd.Env, "TAXI_ADMIN_ACCESS_POLICY_FILE="+policyFile, "TAXI_ADMIN_ACCESS_POLICY_KEYS_FILE="+keysFile)
+	cmd.Env = append(cmd.Env, "TAXI_ADMIN_RESOURCE_READ_ENABLED=true", "TAXI_ADMIN_RESOURCE_SECRET_FILE="+secretFile, "TAXI_ADMIN_CONTEXT_KEYS_FILE="+sourceKeysFile, "TAXI_ADMIN_CONTEXT_PUBLISH_ENABLED=true", "TAXI_ADMIN_CONTEXT_PUBLISH_SECRET_FILE="+publisherSecretFile)
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -235,4 +262,82 @@ func TestTaxiOwnerProcessPostgresMTLS(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Complete the new owner workflow through the real binary: source-fact
+	// preparation, independent owner approval, publication, HQ read, revocation.
+	ownerCall := func(method, path string, payload []byte) (int, []byte) {
+		t.Helper()
+		req, e := http.NewRequestWithContext(ctx, method, origin+path, bytes.NewReader(payload))
+		if e != nil {
+			t.Fatal(e)
+		}
+		if method == "POST" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		if e = serviceauth.SignRequest(req, adminowner.ContextPublisher, publisherSecret, payload, time.Now()); e != nil {
+			t.Fatal(e)
+		}
+		res, e := http.DefaultClient.Do(req)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer res.Body.Close()
+		raw, e := io.ReadAll(res.Body)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return res.StatusCode, raw
+	}
+	status, prepared := ownerCall("GET", "/internal/taxi/v1/admin/authorization-contexts/bindings/providers/"+providerID+"?purpose=case-1", nil)
+	var preparation struct {
+		State   string                     `json:"state"`
+		Binding admincontext.RecordBinding `json:"binding"`
+	}
+	if status != 200 || json.Unmarshal(prepared, &preparation) != nil || preparation.State != "DRAFT_PENDING_OWNER_APPROVAL" || preparation.Binding.Canonical.Organization != "" || preparation.Binding.Canonical.Tenant != "" {
+		t.Fatalf("source preparation invented authority: %d %s", status, prepared)
+	}
+	resources, e := clients.NewResources("driver-taxi-service", origin, secret)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer resources.Close()
+	if e = b.ConfigureResources(resources, policy.Engine); e != nil {
+		t.Fatal(e)
+	}
+	resourceRead := func(want int) []byte {
+		t.Helper()
+		req := f.request(t, "GET", "/taxi/resources/providers/"+providerID+"?"+values.Encode(), nil)
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.RequestURI = ""
+		res, e := hq.Do(req)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer res.Body.Close()
+		raw, e := io.ReadAll(res.Body)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if res.StatusCode != want || strings.Contains(string(raw), "PRIVATE_PROVIDER_NAME") {
+			t.Fatalf("source-context resource read: %d %s", res.StatusCode, raw)
+		}
+		return raw
+	}
+	resourceRead(404)
+	approval := sourceIssuer.Approval("test-only-provider-context", "providers", providerID, "taxi.providers.read", preparation.Binding, policy.Document.Rules[0].Scopes[0])
+	if status, raw := ownerCall("POST", "/internal/taxi/v1/admin/authorization-contexts", sourceIssuer.Sign(t, approval)); status != 200 {
+		t.Fatalf("owner publication: %d %s", status, raw)
+	}
+	resourceWire := resourceRead(200)
+	if output := os.Getenv("ADMIN_BRIDGE_CONTRACT_CAPTURE_DIR"); output != "" {
+		if e = os.WriteFile(filepath.Join(output, "resources.json"), resourceWire, 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	approval.Revision++
+	approval.State = "REVOKED"
+	if status, raw := ownerCall("POST", "/internal/taxi/v1/admin/authorization-contexts", sourceIssuer.Sign(t, approval)); status != 200 {
+		t.Fatalf("owner revocation: %d %s", status, raw)
+	}
+	resourceRead(404)
 }

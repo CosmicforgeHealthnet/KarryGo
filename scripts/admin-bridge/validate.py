@@ -48,7 +48,9 @@ def main():
         operation = api["paths"][BASE + row["bridge_endpoint"]][row["method"].lower()]
         assert operation["x-capability-state"] == row["state"]
         assert ("200" in operation["responses"]) == (row["state"] == "READ_ONLY")
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "bridge.operations.read", "taxi.rides.list", "taxi.rides.detail"}
+    owner_kinds = {"customer": ["customers", "consents", "booking-references"], "taxi": ["providers", "vehicles", "independent-rides"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions"], "hauling": ["providers", "trucks", "missions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
+    resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "bridge.operations.read", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
     command = load(OUT / "fixtures/command.json")
     validators["Command"].validate(command)
     for mutate in [lambda c: c.update(performed_by="forged-admin"), lambda c: c.update(product="healthnet"), lambda c: c["target"].update(expected_version=0), lambda c: c.pop("idempotency_key"), lambda c: c["scope"].update(organization="*")]:
@@ -58,7 +60,7 @@ def main():
     validators["StaffAssertion"].validate(load(OUT / "fixtures/staff-assertion.json"))
     validators["Response"].validate(load(OUT / "fixtures/unavailable-response.json"))
     if args.wire_dir:
-        expected = {"discovery": "Discovery", "health": "Health", "operation": "Operation", "taxi": "TaxiSnapshot", "denied": None, "blocked": None}
+        expected = {"discovery": "Discovery", "health": "Health", "operation": "Operation", "taxi": "TaxiSnapshot", "resources": "OwnerResourcesSnapshot", "denied": None, "blocked": None}
         for name, result_schema in expected.items():
             wire = load(args.wire_dir / (name + ".json"))
             validators["Response"].validate(wire)

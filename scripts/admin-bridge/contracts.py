@@ -39,12 +39,20 @@ def build():
     event = obj({"id": string(format="uuid"), "type": opaque, "at": string(format="date-time")})
     snapshot = obj({"contract_version": {"const": "1.0"}, "scope": obj({"market": opaque, "zone": opaque, "organization": opaque, "tenant": opaque}), "policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "as_of": string(format="date-time"), "freshness": {"const": "LIVE"}, "coverage": {"const": "PARTIAL_COVERAGE"}, "items": {"type": "array", "maxItems": 100, "items": ride}, "events": {"type": "array", "maxItems": 200, "items": event}, "history_truncated": {"type": "boolean"}, "next_cursor": string(maxLength=4096)}, ["contract_version", "scope", "policy_id", "policy_version", "policy_checksum", "as_of", "freshness", "coverage", "items", "events", "history_truncated"])
     schemas.update(StaffAssertionZones=scoped_staff, TaxiSnapshot=snapshot)
+    nullable_opaque = {"anyOf": [opaque, {"type": "null"}]}
+    dimension = obj({"name": opaque, "value": nullable_opaque, "flag": {"type": ["boolean", "null"]}})
+    counter = obj({"name": opaque, "value": {"type": ["integer", "null"], "minimum": 0}})
+    reference = obj({"kind": opaque, "reference": opaque})
+    timeline = obj({"reference": opaque, "type": opaque, "at": {"type": ["string", "null"], "format": "date-time"}})
+    resource = obj({"reference": opaque, "kind": opaque, "status": nullable_opaque, "source_version": {"type": ["integer", "null"], "minimum": 1}, "snapshot_etag": string(pattern="^[0-9a-f]{64}$"), "created_at": string(format="date-time"), "updated_at": string(format="date-time"), "dimensions": {"type": "array", "maxItems": 16, "items": dimension}, "counters": {"type": "array", "maxItems": 16, "items": counter}, "references": {"type": "array", "maxItems": 16, "items": reference}, "timeline": {"type": "array", "maxItems": 200, "items": timeline}, "timeline_truncated": {"type": "boolean"}})
+    resources = obj({"contract_version": {"const": "karryam.owner-resources.v1"}, "owner": opaque, "kind": opaque, "scope": obj({"product": {"const": "karryam"}, "market": opaque, "zone": opaque, "organization": opaque, "tenant": opaque}), "policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "as_of": string(format="date-time"), "coverage": {"const": "CONTEXT_SCOPED_PARTIAL"}, "items": {"type": "array", "maxItems": 100, "items": resource}, "next_cursor": {"type": ["string", "null"], "maxLength": 4096}})
+    schemas.update(OwnerResourcesSnapshot=resources)
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read":
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"]:
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
@@ -53,7 +61,7 @@ def build():
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] == "READ_ONLY":
-            result = {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":

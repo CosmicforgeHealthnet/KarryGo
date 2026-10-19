@@ -71,3 +71,5 @@ remain disabled until all ten owner adapters have approved scope/cohort
 provenance, signed production policy, reconciled source tests, scoped transport,
 and relevant security/CI evidence. A test-only cohort fixture certifies the
 mechanism, not the production report or its governance approval.
+
+Engineering continuation (2026-10-19): [source-owned resource context contracts](../../admin-bridge/owner-resource-contexts.md) provide signed owner remediation and deny-by-default typed reads. This draft supplies no context signature or production allocation. The sixteen-kind initial approval matrix remains **BLOCKED_POLICY**; Analytics thresholds/cohorts, Media grants and command approvals remain separate requirements.

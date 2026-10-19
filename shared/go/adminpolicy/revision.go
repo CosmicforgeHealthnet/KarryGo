@@ -18,7 +18,7 @@ func PinRevision(ctx context.Context, pool *pgxpool.Pool, table string, engine *
 		return ErrBlocked
 	}
 	switch table {
-	case "admin_policy_revisions", "taxi_admin_policy_revisions", "analytics_admin_policy_revisions":
+	case "admin_policy_revisions", "taxi_admin_policy_revisions", "analytics_admin_policy_revisions", "admin_owner_policy_revisions":
 	default:
 		return ErrInvalid
 	}

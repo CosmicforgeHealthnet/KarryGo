@@ -104,6 +104,38 @@ func run() error {
 		return err
 	}
 	app.ConfigureDomainFlags(cfg.Features)
+	if len(cfg.OwnerResources) > 0 {
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid owner-approved resource policy")
+		}
+		if approved != nil {
+			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+				return errors.New("resource access policy revision refused")
+			}
+		}
+		for _, owner := range cfg.OwnerResources {
+			encoded, e := os.ReadFile(owner.SecretFile)
+			if e != nil {
+				return errors.New("owner resource secret file unavailable")
+			}
+			if len(encoded) > 4096 {
+				return errors.New("invalid owner resource secret file")
+			}
+			secret, e := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(encoded)))
+			if e != nil {
+				return errors.New("invalid owner resource secret encoding")
+			}
+			client, e := clients.NewResources(owner.Owner, owner.Origin, secret)
+			if e != nil {
+				return e
+			}
+			defer client.Close()
+			if e = app.ConfigureResources(client, approved); e != nil {
+				return e
+			}
+		}
+	}
 	if cfg.TaxiReadEnabled {
 		encoded, e := os.ReadFile(cfg.TaxiSecretFile)
 		if e != nil {

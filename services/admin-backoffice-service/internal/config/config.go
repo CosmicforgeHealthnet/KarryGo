@@ -74,6 +74,7 @@ type Config struct {
 	Trust                                           Trust
 	RemoteEnabled                                   bool
 	Features                                        DomainFlags
+	OwnerResources                                  []OwnerResources
 	TaxiReadEnabled                                 bool
 	TaxiOrigin, TaxiSecretFile                      string
 	TaxiReadRoles                                   []string
@@ -83,6 +84,11 @@ type Config struct {
 func Load() (Config, error) {
 	c := Config{Address: os.Getenv("ADMIN_TLS_ADDR"), DatabaseURL: os.Getenv("ADMIN_BACKOFFICE_DATABASE_URL"), CertFile: os.Getenv("ADMIN_TLS_CERT_FILE"), KeyFile: os.Getenv("ADMIN_TLS_KEY_FILE"), CAFile: os.Getenv("ADMIN_TLS_CLIENT_CA_FILE"), RemoteEnabled: os.Getenv("ADMIN_REMOTE_ENABLED") == "true"}
 	c.Features = loadDomainFlags()
+	var resourceErr error
+	c.OwnerResources, resourceErr = loadOwnerResources()
+	if resourceErr != nil {
+		return c, resourceErr
+	}
 	c.TaxiReadEnabled = os.Getenv("ADMIN_TAXI_READ_ENABLED") == "true"
 	c.AccessPolicyFile = os.Getenv("ADMIN_ACCESS_POLICY_FILE")
 	c.AccessPolicyKeysFile = os.Getenv("ADMIN_ACCESS_POLICY_KEYS_FILE")

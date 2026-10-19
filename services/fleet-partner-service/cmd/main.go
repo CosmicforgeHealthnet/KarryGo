@@ -30,6 +30,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -404,6 +405,10 @@ func main() {
 		}
 	}
 
+	ownerAdmin, err := adminresources.Runtime(ctx, pool)
+	if err != nil {
+		logging.Fatal("configuration", "Fleet owner admin configuration invalid")
+	}
 	router := app.BuildRouter(app.Options{
 		Config:        cfg,
 		Metrics:       metrics,
@@ -425,6 +430,7 @@ func main() {
 		OrganizationAPIRoutes: components.OrganizationAPIRoutes(),
 		CustomerRoutes:        components.CustomerRoutes(),
 		InternalRoutes: func(group *gin.RouterGroup) {
+			ownerAdmin.RegisterOn(group)
 			if routes := buildMarketplaceInternalRoutes(cfg, pool, metrics); routes != nil {
 				routes(group)
 			}
