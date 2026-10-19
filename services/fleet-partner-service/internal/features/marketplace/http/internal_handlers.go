@@ -8,6 +8,7 @@ package http
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,39 @@ func NewInternalHandler(service *usecases.Service, allowedCallers []string) *Int
 func RegisterInternalMarketplaceRoutes(group *gin.RouterGroup, handler *InternalHandler) {
 	group.GET("/assignments/:assignmentId/provider-acceptance",
 		handler.requireAllowedCaller, handler.GetProviderAcceptance)
+	group.GET("/assignments/:assignmentId/provider-decision-receipt",
+		handler.requireAllowedCaller, handler.GetProviderDecisionReceipt)
+}
+
+func (h *InternalHandler) GetProviderDecisionReceipt(c *gin.Context) {
+	service, err := h.callerProviderService(c)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	values, err := url.ParseQuery(c.Request.URL.RawQuery)
+	if err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Read-back query is invalid.", nil))
+		return
+	}
+	if c.Request.ContentLength != 0 || len(c.Request.TransferEncoding) > 0 {
+		err = apperrors.BadRequest("Read-back cannot contain a body.", nil)
+	}
+	for key, items := range values {
+		if (key != "providerId" && key != "clientResponseId") || len(items) != 1 {
+			err = apperrors.BadRequest("Read-back query is invalid.", nil)
+		}
+	}
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	receipt, err := h.service.ProviderDecisionReceipt(c.Request.Context(), c.Param("assignmentId"), values.Get("providerId"), providerServiceTokens[service], values.Get("clientResponseId"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": receipt})
 }
 
 // requireAllowedCaller enforces the per-endpoint service allowlist.

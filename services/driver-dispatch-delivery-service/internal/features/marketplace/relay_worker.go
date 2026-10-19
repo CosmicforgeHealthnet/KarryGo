@@ -94,12 +94,13 @@ func (c RelayWorkerConfig) backoffFor(attempt int) time.Duration {
 
 // RelayResult summarises one worker pass.
 type RelayResult struct {
-	Claimed   int
-	Confirmed int
-	Rejected  int
-	Unknown   int
-	Retried   int
-	Recovered int64
+	Reconciled int
+	Claimed    int
+	Confirmed  int
+	Rejected   int
+	Unknown    int
+	Retried    int
+	Recovered  int64
 }
 
 // RelayWorker delivers durable provider decisions to fleet.
@@ -133,6 +134,9 @@ func (w *RelayWorker) RunOnce(ctx context.Context) (returnedResult RelayResult, 
 		return result, err
 	}
 	result.Recovered = recovered
+	if err := w.reconcile(ctx, &result); err != nil {
+		return result, err
+	}
 
 	var claimed []RelayOperation
 	if err := w.repo.WithinTx(ctx, func(tx pgx.Tx) error {

@@ -14,6 +14,7 @@ passed = {e["Test"] for e in events if e["Action"] == "pass" and e.get("Test")}
 required = {"TestRelayWorkerUnknownOutcomeIsNotRedelivered", "TestRelayLeaseRecoveryDeadLetterAndReplay", "TestConcurrentRelayWorkersDeliverEachDecisionOnce", "TestPostgresRepositoryTripFoundation", "TestRealRedisHandoverLimitAcrossClients"}
 required |= {"TestImmediateRelayClaimFencesDuplicateRequestsAndWorker", "TestImmediateDeliveryPersistenceFailureStaysPending"}
 required.add("TestFencedLegacyDecisionCannotBeRecreatedWithFreshKey")
+required |= {"TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation", "TestRelayReadbackDeniesMissingOrMismatchedDecision", "TestRelayReadbackExpiredReaderCannotFinishNewLease", "TestRelayReadbackAuditFailureCannotConfirm"}
 if args.custody:
     required = {"TestSecureDeliveryPhoneOnlyReceiverFailsBeforeChallenge", "TestSecureDeliveryDifferentReceiverAccountCannotBeReadBySender", "TestSecureHandoverOTPAndQRRaceConsumesOnce", "TestSecureDeliveryEvidenceGatesCompletionAndIsAppendOnly", "TestRelayUncertaintyUpgradePreservesLegacyOutcomes"}
 assert required <= passed, f"Mandatory scenarios missing: {sorted(required - passed)}"

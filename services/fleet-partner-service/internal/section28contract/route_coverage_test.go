@@ -338,6 +338,7 @@ func manifestlessRoutes() []liveRoute {
 		tenant("POST", "/eligibility/evaluations"), tenant("POST", "/eligibility/policies"),
 
 		internalRoute("GET", "/assignments/:assignmentId/provider-acceptance"),
+		internalRoute("GET", "/assignments/:assignmentId/provider-decision-receipt"),
 		internalRoute("GET", "/providers/:providerId/assignments"), internalRoute("GET", "/providers/:providerId/assignments/:assignmentId"),
 		internalRoute("GET", "/providers/:providerId/memberships"),
 		internalRoute("GET", "/providers/:providerId/offers"), internalRoute("GET", "/providers/:providerId/offers/:offerId"),

@@ -175,19 +175,20 @@ var manifestlessPermissions = map[string]string{
 	// marketplace/finance internal object routes: HMAC caller-allowlist
 	// (requireAllowedCaller), not an organization permission -- same
 	// reasoning as auth's session route above.
-	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-acceptance":   internalCallerAllowlistSentinel,
-	"GET /internal/fleet-partner/v1/providers/:providerId/assignments":               internalCallerAllowlistSentinel,
-	"GET /internal/fleet-partner/v1/providers/:providerId/assignments/:assignmentId": internalCallerAllowlistSentinel,
-	"GET /internal/fleet-partner/v1/providers/:providerId/memberships":               internalCallerAllowlistSentinel,
-	"GET /internal/fleet-partner/v1/providers/:providerId/offers":                    internalCallerAllowlistSentinel,
-	"GET /internal/fleet-partner/v1/providers/:providerId/offers/:offerId":           internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-accept":      internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-acknowledge": internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-decline":     internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/finance/operations/:id/replay":                  internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/finance/projections/:id/replay":                 internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/marketplace-offers/:offerId/provider-accept":    internalCallerAllowlistSentinel,
-	"POST /internal/fleet-partner/v1/marketplace-offers/:offerId/provider-decline":   internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-acceptance":       internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/assignments/:assignmentId/provider-decision-receipt": internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/assignments":                   internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/assignments/:assignmentId":     internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/memberships":                   internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/offers":                        internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/offers/:offerId":               internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-accept":          internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-acknowledge":     internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-decline":         internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/finance/operations/:id/replay":                      internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/finance/projections/:id/replay":                     internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/marketplace-offers/:offerId/provider-accept":        internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/marketplace-offers/:offerId/provider-decline":       internalCallerAllowlistSentinel,
 
 	// documents' InternalRoutes(): a real manifest, but internal.go gates
 	// every one of these with its own h.allowed[caller] HMAC allowlist

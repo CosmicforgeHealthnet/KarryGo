@@ -57,18 +57,21 @@ func NewHTTPFleetResponder(config ResponderConfig) (FleetResponder, bool) {
 		strings.TrimSpace(config.ServiceName) == "" || len(config.Secret) == 0 {
 		return UnconfiguredResponder{}, false
 	}
-	if _, err := url.Parse(config.BaseURL); err != nil {
+	parsed, err := url.Parse(config.BaseURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
 		return UnconfiguredResponder{}, false
 	}
 	timeout := config.Timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
 	return &HTTPFleetResponder{
 		baseURL:     strings.TrimRight(config.BaseURL, "/"),
 		serviceName: config.ServiceName,
 		secret:      config.Secret,
-		client: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
+		client: &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
 	}, true
@@ -163,7 +166,7 @@ type fleetResponseEnvelope struct {
 // very different costs:
 //   - permanent  → stop; the answer will not change
 //   - temporary  → retry; fleet is briefly unwell
-//   - unknown    → retry with the SAME key; fleet may already have recorded it
+//   - unknown    → authoritative read-back; never another mutation request
 //
 // Anything ambiguous is classified as unknown, never as failure, because
 // re-sending under a new identity could record a provider's decision twice.
@@ -262,6 +265,13 @@ func (r *HTTPFleetResponder) classifySuccess(payload []byte, op RelayOperation) 
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
 	if op.OfferID != nil && data.OfferID != *op.OfferID || op.AssignmentID != nil && data.AssignmentID != *op.AssignmentID {
+		return RelayDeliveryResult{}, ErrFleetUnavailable
+	}
+	expectedDecline := op.OperationType == RelayProviderOfferDecline || op.OperationType == RelayProviderAssignmentDecline
+	if expectedDecline && data.Status != "DECLINED" {
+		return RelayDeliveryResult{}, ErrFleetUnavailable
+	}
+	if !expectedDecline && data.Status != "ACCEPTED" && data.Status != "EXECUTION_START_PENDING" && data.Status != "READY_FOR_EXECUTION" && data.Status != "IN_PROGRESS" {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
 
