@@ -3,6 +3,7 @@ package marketplace_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -12,6 +13,50 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	"cosmicforge/logistics/shared/go/providerreceipt"
 )
+
+func TestPrivateAssignmentReceiptRequiresExactRecordedIntent(t *testing.T) {
+	intent := providerreceipt.Intent{AssignmentID: "pas_private-readback", ProviderID: "provider-1", ClientResponseID: "original-key", Decision: "DECLINED", ReasonCode: "FATIGUE_OR_REST_REQUIRED", Note: "recorded-note"}
+	var posts, gets atomic.Int32
+	receipt := providerreceipt.Receipt{ContractVersion: providerreceipt.Version, ReceiptID: "pad-original", AssignmentID: intent.AssignmentID, ProviderID: intent.ProviderID, ClientResponseID: intent.ClientResponseID, Decision: intent.Decision, IntentDigest: intent.Digest(), RecordedAt: time.Now().UTC()}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			posts.Add(1)
+			w.WriteHeader(500)
+			return
+		}
+		gets.Add(1)
+		json.NewEncoder(w).Encode(map[string]any{"data": receipt})
+	}))
+	defer server.Close()
+	responder, _ := marketplace.NewHTTPFleetResponder(marketplace.ResponderConfig{BaseURL: server.URL, ServiceName: dispatchService, Secret: []byte("test-private-receipt-secret")})
+	reader := responder.(marketplace.FleetReceiptReader)
+	for _, test := range []string{"exact", "unrecorded-evidence", "different-note", "different-provider"} {
+		t.Run(test, func(t *testing.T) {
+			payload := map[string]any{"providerId": intent.ProviderID, "providerService": "DISPATCH", "clientResponseId": intent.ClientResponseID, "reasonCode": intent.ReasonCode, "note": " recorded-note "}
+			if test == "unrecorded-evidence" {
+				payload["evidenceFileIds"] = []string{"never-recorded"}
+			}
+			if test == "different-note" {
+				payload["note"] = "different-note"
+			}
+			if test == "different-provider" {
+				payload["providerId"] = "another-provider"
+			}
+			raw, _ := json.Marshal(payload)
+			op := marketplace.RelayOperation{OperationType: marketplace.RelayProviderAssignmentDecline, ProviderID: intent.ProviderID, AssignmentID: &intent.AssignmentID, IdempotencyKey: intent.ClientResponseID, Payload: raw}
+			_, err := reader.Readback(context.Background(), marketplace.CallMeta{}, op)
+			if (err == nil) != (test == "exact") {
+				t.Fatalf("%s: %v", test, err)
+			}
+			if test == "unrecorded-evidence" && !errors.Is(err, marketplace.ErrReceiptUnsupported) {
+				t.Fatal("unrecorded private evidence was treated as a receipt")
+			}
+		})
+	}
+	if posts.Load() != 0 || gets.Load() != 2 {
+		t.Fatalf("unexpected receipt transport: POST %d GET %d", posts.Load(), gets.Load())
+	}
+}
 
 func TestRelayReadbackExpiredReaderCannotFinishNewLease(t *testing.T) {
 	pool := testPool(t)

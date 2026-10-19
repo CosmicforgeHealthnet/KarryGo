@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"cosmicforge/logistics/shared/go/providerreceipt"
@@ -24,7 +25,7 @@ type FleetReceiptReader interface {
 
 // Readback has no mutation fallback, including on 404, outage or mismatch.
 func (r *HTTPFleetResponder) Readback(ctx context.Context, meta CallMeta, op RelayOperation) (*providerreceipt.Receipt, error) {
-	if op.AssignmentID == nil || privateAssignmentID(*op.AssignmentID) || (op.OperationType != RelayProviderAssignmentAccept && op.OperationType != RelayProviderAssignmentDecline) {
+	if op.AssignmentID == nil || (op.OperationType != RelayProviderAssignmentAccept && op.OperationType != RelayProviderAssignmentDecline) {
 		return nil, ErrReceiptUnsupported
 	}
 	var payload decisionPayload
@@ -38,6 +39,14 @@ func (r *HTTPFleetResponder) Readback(ctx context.Context, meta CallMeta, op Rel
 		intent.ReasonCode = payload.ReasonCode
 		intent.Note = payload.Note
 		intent.Evidence = payload.EvidenceFileIDs
+	}
+	if privateAssignmentID(*op.AssignmentID) {
+		// The native private decision contract trims its stored safe note and
+		// does not record evidence. Unrecorded evidence cannot be confirmed.
+		if len(payload.EvidenceFileIDs) > 0 {
+			return nil, ErrReceiptUnsupported
+		}
+		intent.Note = strings.TrimSpace(intent.Note)
 	}
 	query := url.Values{"providerId": {op.ProviderID}, "clientResponseId": {op.IdempotencyKey}}
 	path := "/internal/fleet-partner/v1/assignments/" + url.PathEscape(*op.AssignmentID) + "/provider-decision-receipt?" + query.Encode()

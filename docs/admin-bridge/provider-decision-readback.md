@@ -34,9 +34,7 @@ Do not downgrade to binaries that redeliver UNKNOWN_OUTCOME. The fixed Fleet
 origin rejects URL credentials/query/fragment/base paths and bypasses proxy
 environment inheritance; redirects and automatic mutation retries are disabled.
 
-Current coverage: standard assignment accept/decline. Private assignments and
-marketplace-offer decisions still return `receipt_not_supported` and stay fenced
-until their own immutable decision contracts are implemented. This is an
+Current coverage: standard and private assignment accept/decline. Private receipts use the native immutable private decision ledger, canonical planning organization/provider/service and original idempotency key. Native safe-note trimming is reproduced for digest comparison. Fresh-key private replays conflict, even when the rest of the request fingerprint is identical. Private evidence is not silently discarded: new native requests with evidence are refused before mutation, and uncertain historical requests containing unrecorded evidence stay fenced. Protected evidence support still requires its source-owned Media contract. Marketplace-offer decisions remain unsupported pending their immutable ledger. This is an
 engineering checkpoint, not completion of Sections 6–10 or release approval.
 
 Tests use Fleet's real migration chain/PostgreSQL and actual HMAC handlers,

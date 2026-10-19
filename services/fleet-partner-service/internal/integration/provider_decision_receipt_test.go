@@ -14,6 +14,7 @@ import (
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
+	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/providerreceipt"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -146,5 +147,48 @@ func TestProviderDecisionReceiptHistoricalIdentityAndIsolation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestProviderDecisionReceiptPrivateAssignmentOriginalKeyAndCanonicalProvider(t *testing.T) {
+	f, private, _, assignment := privateWorkerFixture(t, "pex_private_receipt")
+	ctx := context.Background()
+	if _, err := f.pool.Exec(ctx, `DELETE FROM fleet_partner_private_execution_operations WHERE id='pex_private_receipt';UPDATE fleet_partner_private_assignments SET status='PENDING_PROVIDER_RESPONSE' WHERE id='pas_pex_private_receipt'`); err != nil {
+		t.Fatal(err)
+	}
+	input := privateusecases.RespondInput{ProviderID: "provider_private", Decision: "DECLINE", ReasonCode: "FATIGUE_OR_REST_REQUIRED", SafeNote: " PRIVATE_DECISION_NOTE ", IdempotencyKey: "original-private-key", RequestFingerprint: "private-receipt-fingerprint", ExpectedVersion: 1}
+	if _, err := private.Respond(ctx, f.tenant.OrganizationID, assignment, input); err != nil {
+		t.Fatal(err)
+	}
+	reader := mktusecases.NewService(mktusecases.Options{Pool: f.pool})
+	receipt, err := reader.ProviderDecisionReceipt(ctx, assignment, input.ProviderID, "DISPATCH", input.IdempotencyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := providerreceipt.Intent{AssignmentID: assignment, ProviderID: input.ProviderID, ClientResponseID: input.IdempotencyKey, Decision: "DECLINED", ReasonCode: input.ReasonCode, Note: strings.TrimSpace(input.SafeNote)}
+	if receipt.IntentDigest != intent.Digest() || receipt.Decision != "DECLINED" || receipt.ReceiptID == "" {
+		t.Fatalf("private decision identity differs: %+v", receipt)
+	}
+	changed := input
+	changed.IdempotencyKey = "fresh-private-key"
+	if _, err := private.Respond(ctx, f.tenant.OrganizationID, assignment, changed); err == nil {
+		t.Fatal("fresh key replayed the old private decision")
+	}
+	for _, test := range []struct{ name, provider, service, key string }{{"foreign-provider", "another-provider", "DISPATCH", input.IdempotencyKey}, {"foreign-service", input.ProviderID, "HAULING", input.IdempotencyKey}, {"fresh-key", input.ProviderID, "DISPATCH", "fresh-private-key"}} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := reader.ProviderDecisionReceipt(ctx, assignment, test.provider, test.service, test.key); err == nil {
+				t.Fatal("private receipt crossed provider/service/original key boundary")
+			}
+		})
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE fleet_partner_private_assignments SET status='CANCELLED',version=version+1 WHERE id=$1`, assignment); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reader.ProviderDecisionReceipt(ctx, assignment, input.ProviderID, "DISPATCH", input.IdempotencyKey); err != nil {
+		t.Fatalf("later cancellation erased original private decision: %v", err)
+	}
+	var executions int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_private_execution_operations WHERE assignment_id=$1`, assignment).Scan(&executions); err != nil || executions != 0 {
+		t.Fatalf("decline/readback created execution: %d %v", executions, err)
 	}
 }

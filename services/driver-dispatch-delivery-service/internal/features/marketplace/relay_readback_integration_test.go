@@ -18,11 +18,17 @@ import (
 )
 
 func TestRelayAuthoritativeReadbackNeverRepeatsUnknownMutation(t *testing.T) {
+	for _, assignment := range []string{"asg-receipt", "pas_private-receipt"} {
+		t.Run(assignment, func(t *testing.T) { testRelayAuthoritativeReadback(t, assignment) })
+	}
+}
+
+func testRelayAuthoritativeReadback(t *testing.T, assignment string) {
 	pool := testPool(t)
 	ctx := context.Background()
 	repo := marketplace.NewRepository(pool)
 	provider := seedProvider(t, pool, "+2348030070011")
-	assignment, key := "asg-receipt", "original-receipt-key"
+	key := "original-receipt-key"
 	intent := providerreceipt.Intent{AssignmentID: assignment, ProviderID: provider, ClientResponseID: key, Decision: "ACCEPTED"}
 	receipt := providerreceipt.Receipt{ContractVersion: providerreceipt.Version, ReceiptID: "ars-original", AssignmentID: assignment, ProviderID: provider, ClientResponseID: key, Decision: "ACCEPTED", IntentDigest: intent.Digest(), RecordedAt: time.Now().UTC()}
 	secret := []byte("receipt-execution-test-only-secret")

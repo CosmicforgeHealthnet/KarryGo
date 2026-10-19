@@ -307,6 +307,9 @@ type RespondInput struct {
 }
 
 func (s *Service) Respond(ctx context.Context, org, id string, in RespondInput) (models.Assignment, error) {
+	if in.IdempotencyKey == "" || len(in.IdempotencyKey) > 128 || in.IdempotencyKey != strings.TrimSpace(in.IdempotencyKey) {
+		return models.Assignment{}, apperrors.BadRequest("A bounded original idempotency key is required.", nil)
+	}
 	decision := strings.ToUpper(strings.TrimSpace(in.Decision))
 	if decision != "ACCEPT" && decision != "DECLINE" {
 		return models.Assignment{}, apperrors.BadRequest("decision must be ACCEPT or DECLINE.", nil)
@@ -322,7 +325,7 @@ func (s *Service) Respond(ctx context.Context, org, id string, in RespondInput) 
 		return models.Assignment{}, apperrors.BadRequest("A valid decline reason and required note are required.", nil)
 	}
 	if prior, e := s.opts.Repository.GetDecision(ctx, nil, org, id); e == nil {
-		if prior.ProviderID == in.ProviderID && prior.Decision == decision && prior.RequestFingerprint == in.RequestFingerprint {
+		if prior.ProviderID == in.ProviderID && prior.Decision == decision && prior.IdempotencyKey == in.IdempotencyKey && prior.RequestFingerprint == in.RequestFingerprint {
 			a, _ := s.opts.Repository.GetAssignment(ctx, nil, org, id)
 			return a, nil
 		}

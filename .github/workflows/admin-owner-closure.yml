@@ -107,7 +107,7 @@ jobs:
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-safety.jsonl
           go test -race -json -count=1 -timeout=300s ./services/fleet-partner-service/internal/integration -run TestProviderDecisionReceipt > test-artifacts/fleet-receipts.jsonl
           python scripts/admin-bridge/receipt_testgate.py test-artifacts/fleet-receipts.jsonl
-          go test -race -count=1 ./services/fleet-partner-service/internal/section28contract ./shared/go/providerreceipt
+          go test -race -count=1 ./services/fleet-partner-service/internal/section28contract ./services/fleet-partner-service/internal/features/privateoperations/http ./shared/go/providerreceipt
           go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/migrations -run 'TestSecure|TestCustody|TestRelayUncertainty' > test-artifacts/dispatch-custody.jsonl
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-custody.jsonl --custody
           go vet ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./shared/go/adminread
