@@ -1,12 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../features/home/models/provider_booking.dart';
 import '../theme/karryam_theme.dart';
 
 /// Real map tiles and booking coordinates. No invented road route or ETA.
-/// Enable after providing restricted native Maps SDK keys (see README).
+///
+/// Shown whenever the build carries a native Maps SDK key (the platform
+/// reports it over the `karryam/maps` channel); a placeholder otherwise.
+/// `--dart-define=GOOGLE_MAPS_ENABLED=true|false` overrides the check.
 class DriverMap extends StatefulWidget {
   const DriverMap({super.key, this.booking, this.online = false});
   final ProviderBooking? booking;
@@ -18,15 +22,36 @@ class DriverMap extends StatefulWidget {
 class _DriverMapState extends State<DriverMap> {
   GoogleMapController? _map;
   LatLng? _position;
-  bool get _enabled =>
-      const bool.fromEnvironment('GOOGLE_MAPS_ENABLED') &&
+  static const _override = String.fromEnvironment('GOOGLE_MAPS_ENABLED');
+  static const _channel = MethodChannel('karryam/maps');
+
+  /// Whether a key is configured, asked once per app run.
+  static Future<bool>? _configured;
+
+  static bool get _platformSupported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
+
+  static Future<bool> _mapsConfigured() {
+    if (!_platformSupported || _override == 'false') return Future.value(false);
+    if (_override == 'true') return Future.value(true);
+    return _configured ??= _channel
+        .invokeMethod<bool>('isConfigured')
+        .then((v) => v ?? false)
+        .catchError((Object _) => false);
+  }
+
+  bool _enabled = false;
+
   @override
   void initState() {
     super.initState();
-    if (_enabled) _locate();
+    _mapsConfigured().then((configured) {
+      if (!mounted || !configured) return;
+      setState(() => _enabled = true);
+      _locate();
+    });
   }
 
   Future<void> _locate() async {
