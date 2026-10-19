@@ -81,7 +81,8 @@ VENDOR_ENV = {"VENDOR_SERVICE_TEST_DATABASE_URL": "tip:vendor-service", "VENDOR_
 GATES = [
     {"name": "shared-go", "dir": "shared/go", "packages": "list:./...:!stacke2e",
      "env": {"JOURNEY_TEST_REDIS_ADDR": "redis", "MOVEMENT_TEST_DATABASE_URL": "empty", "TEST_DATABASE_URL": "empty",
-             "POLICY_INGEST_TEST_DATABASE_URL": "empty", "CUSTODY_TEST_DATABASE_URL": "tip:driver-dispatch-delivery-service"}},
+             "POLICY_INGEST_TEST_DATABASE_URL": "empty", "CUSTODY_TEST_DATABASE_URL": "tip:driver-dispatch-delivery-service",
+             "OUTBOX_TEST_DATABASE_URL": "empty", "ADMIN_CONTEXT_TEST_DATABASE_URL": "empty", "ADMIN_OWNER_TEST_DATABASE_URL": "empty"}},
     {"name": "customer", "dir": "services/customer-service", "packages": ["./..."],
      "env": {"CUSTOMER_TEST_DATABASE_URL": "tip:customer-service", "CLOSURE_MIGRATION_DATABASE_URL": "empty",
              "JOURNEY_TEST_REDIS_ADDR": "redis"}},
@@ -95,7 +96,7 @@ GATES = [
      "env": {k: "tip:driver-dispatch-delivery-service" for k in (
          "DISPATCH_TEST_DATABASE_URL", "TEST_DATABASE_URL", "DISPATCH_TRIP_TEST_DATABASE_URL", "DISPATCH_REQUEST_TEST_DATABASE_URL",
          "DISPATCH_AVAILABILITY_TEST_DATABASE_URL", "DISPATCH_PROFILE_TEST_DATABASE_URL", "DISPATCH_VEHICLE_TEST_DATABASE_URL",
-         "DISPATCH_VERIFICATION_TEST_DATABASE_URL", "DISPATCH_VERIFICATION_EVENT_TEST_DATABASE_URL")} | {"JOURNEY_TEST_REDIS_ADDR": "redis"}},
+         "DISPATCH_VERIFICATION_TEST_DATABASE_URL", "DISPATCH_VERIFICATION_EVENT_TEST_DATABASE_URL")} | {"JOURNEY_TEST_REDIS_ADDR": "redis", "DISPATCH_ADMIN_TEST_REDIS_ADDR": "redis"}},
     {"name": "hauling", "dir": "services/driver-hauling-service",
      "packages": ["./internal/features/booking/...", "./internal/features/customershare/...", "./internal/features/movement/..."],
      "env": {"HAULING_TEST_DATABASE_URL": "empty", "JOURNEY_TEST_REDIS_ADDR": "redis"},
