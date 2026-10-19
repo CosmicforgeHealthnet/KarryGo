@@ -55,7 +55,13 @@ func Database(t *testing.T, migrations string, upOnly ...bool) *pgxpool.Pool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { pool.Close(); _, _ = root.Exec(ctx, "DROP SCHEMA "+schema+" CASCADE"); root.Close() })
+	t.Cleanup(func() {
+		pool.Close()
+		if _, err := root.Exec(ctx, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
+			t.Errorf("disposable owner schema cleanup failed: %v", err)
+		}
+		root.Close()
+	})
 	files, err := filepath.Glob(filepath.Join(migrations, "*.sql"))
 	if err != nil || len(files) == 0 {
 		t.Fatal("actual owner migrations required", err)

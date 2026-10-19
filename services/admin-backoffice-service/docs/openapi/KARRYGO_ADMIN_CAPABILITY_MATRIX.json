@@ -1474,5 +1474,57 @@
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "customer.resources.review-states.list",
+    "version": "1.0",
+    "owner": "customer-service",
+    "source_endpoint": "/internal/customer/v1/admin/resources/review-states",
+    "bridge_endpoint": "/customer/resources/review-states",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "customer.review.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_CUSTOMER_RESOURCE_READ_ENABLED; CUSTOMER_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestPostgresCustomerReviewRecordsOwnerRequestWithImmutableReadback"
+    ],
+    "blocker": "BLOCKED_POLICY. Version belongs only to the native review aggregate; no account standing or verification mutation is supported.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "customer.resources.review-states.detail",
+    "version": "1.0",
+    "owner": "customer-service",
+    "source_endpoint": "/internal/customer/v1/admin/resources/review-states/{id}",
+    "bridge_endpoint": "/customer/resources/review-states/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "customer.review.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_CUSTOMER_RESOURCE_READ_ENABLED; CUSTOMER_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestPostgresCustomerReviewRecordsOwnerRequestWithImmutableReadback"
+    ],
+    "blocker": "BLOCKED_POLICY. Version belongs only to the native review aggregate; no account standing or verification mutation is supported.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   }
 ]

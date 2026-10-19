@@ -285,6 +285,28 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "customer.review.request",
+      "owner": "customer-service",
+      "canonical_source_fields": [
+        "customer_admin_review_state.customer_id/version/status",
+        "customers.id",
+        "customer_admin_review_requests.intent_digest/recorded_revision/scope",
+        "customer_admin_review_work_items.customer_id/status"
+      ],
+      "proposed_rule": "intersection(delegated staff, approved governance and current independently signed owner allocation); actual review revision and durable original identity; no profile or lifecycle override",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability/scope approval",
+        "work-item ownership/closure/retention approval",
+        "HQ versioned command and uncertainty orchestration integration",
+        "separate native write/readback keys and private connectivity"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

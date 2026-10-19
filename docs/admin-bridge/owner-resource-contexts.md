@@ -104,3 +104,12 @@ legacy fallback. Private audit payloads, actor identities, reason free text,
 evidence and transfer credentials are omitted. Reads execute no transition and
 cannot reassign cargo. There are now 21 kinds / 42 Bridge resource read paths.
 All of these new disclosures remain BLOCKED_POLICY and disabled by default.
+
+Customer `review-states` uses `customer.review.read` and
+`customer.admin-review-state.v1`. The root is an actual source-owned review
+aggregate initialized by migration 016 for an existing Customer foreign key.
+Its stored version starts at 1 for the new aggregate and advances only its
+review-intake state. It does not version customer profile or account lifecycle.
+The separate request API/SDK, default-disabled keys, immutable outcomes and
+remaining HQ integration are documented in `customer-review-intake.md`. The
+source dictionary now has 22 kinds and 44 private resource read paths.

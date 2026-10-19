@@ -17,6 +17,7 @@ on:
       - 'services/driver-dispatch-delivery-service/**'
       - 'services/fleet-partner-service/**'
       - 'shared/go/providerreceipt/**'
+      - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
@@ -38,6 +39,7 @@ on:
       - 'services/driver-dispatch-delivery-service/**'
       - 'services/fleet-partner-service/**'
       - 'shared/go/providerreceipt/**'
+      - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
@@ -111,10 +113,11 @@ jobs:
           set -euo pipefail
           go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
-          go test -race -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
+          go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/validate_owner_wire.py test-artifacts/owner-wire
           python scripts/admin-bridge/owner_contracts.py
+          python scripts/admin-bridge/customer_review_contract.py --wire-dir test-artifacts/owner-wire
           go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./services/driver-dispatch-delivery-service/internal/features/securehandover > test-artifacts/dispatch-safety.jsonl
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-safety.jsonl
           go test -race -json -count=1 -timeout=300s ./services/fleet-partner-service/internal/integration -run 'TestProviderDecisionReceipt|TestProviderOfferReceipt|TestProviderOfferLegacy' > test-artifacts/fleet-receipts.jsonl

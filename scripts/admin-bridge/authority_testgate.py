@@ -10,6 +10,14 @@ assert not [e for e in events if e["Action"] == "fail" or e["Action"] == "skip" 
 passed = {(e["Package"], e["Test"]) for e in events if e["Action"] == "pass" and e.get("Test")}
 prefix = "cosmicforge/logistics/"
 required = {
+    (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewRecordsOwnerRequestWithImmutableReadback"),
+    (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewConcurrentIdentityAndFreshKeysCannotDuplicate"),
+    (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewAuditFailureRollsBackAndCurrentAccessIsRechecked"),
+    (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewSignedBoundaryAndReadbackKeySeparation"),
+    (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewActualTypedClientUsesOriginalReadback"),
+    (prefix + "services/customer-service/internal/features/adminreview", "TestCustomerReviewRuntimeOffDoesNotReadSecretFiles"),
+    (prefix + "shared/go/customerreview", "TestCustomerReviewClientRejectsUnboundProofAndNeverRepostsReadback"),
+
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingTruckCapabilitiesPreserveUnknownAndRequireNewContract"),
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingRecoveryReadsBindActualPlanningTenantAndMission"),
     (prefix + "services/dispatch-delivery-service/internal/features/adminresources", "TestDispatchWorkflowReadsBindCanonicalTripAndRejectCrossLinks"),

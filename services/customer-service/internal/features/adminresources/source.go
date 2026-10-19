@@ -10,6 +10,7 @@ const Owner = "customer-service"
 
 func Source() *adminowner.SQLSource {
 	return adminowner.NewSQLSource(Owner, map[string]adminowner.SQLSpec{
+		"review-states":      {Table: "customer_admin_review_state", ReferenceExpression: "t.customer_id::text", VersionColumn: "version", StateColumn: "status", JoinClause: "JOIN customers c ON c.id=t.customer_id", BindingColumns: []string{"customer_id"}},
 		"customers":          {Table: "customers", StateColumn: "status", Dimensions: map[string]string{"onboarding": "onboarding_status", "verification": "", "analytics_consent": "", "marketing_consent": ""}},
 		"booking-references": {Table: "customer_movement_history_projection", Predicate: "EXISTS(SELECT 1 FROM customers c WHERE c.id=t.customer_id)", ReferenceExpression: "t.authority||':'||t.source_ref", VersionColumn: "source_version", StateColumn: "state", BindingColumns: []string{"customer_id", "authority", "source_ref"}, Dimensions: map[string]string{"authority": "authority", "product": "product_code", "movement_type": "movement_type"}, References: map[string]string{"customer": "customer_id", "booking": "source_ref", "mission": "parent_context_ref"}},
 		// These are the actual trusted-contact sharing switches, not proof of

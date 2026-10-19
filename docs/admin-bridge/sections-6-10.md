@@ -217,7 +217,7 @@ in the PR; local results do not prove staging or production certification.
 
 **IMPLEMENTATION_INCOMPLETE.** Policy enforcement, Analytics suppression framework,
 the five-owner resource adapters and Dispatch/Fleet receipt reconciliation have
-real integration evidence. There are 21 resource kinds and 42 private Bridge read
+real integration evidence. There are 22 resource kinds and 44 private Bridge read
 paths. Production disclosure remains disabled pending owner approval. The ten
 Analytics cohort adapters, executable HQ interventions, richer owner detail and
 Media case grants remain engineering work; policy gaps do not complete them. This is not BACKEND_INTEGRATION_READY,
@@ -293,3 +293,25 @@ After the first native source integration, 209 local Bridge/Taxi/privacy/policy
 cases passed with zero skipped tests; Analytics contributes 27 privacy/lineage
 and source scenarios. Changed-package vet passed. Native source counts remain
 withheld because membership completeness is deliberately unproven.
+
+Customer now implements a default-disabled, source-owned account-review intake
+contract with native revision guards, durable original identity, immutable
+receipts, atomic audit and independent readback. This records a pending owner
+work item only; it changes no account standing, restrictions, verification,
+consent, privacy fulfillment, Trip or Wallet data. `review-states` adds native
+review-aggregate reads, bringing the source dictionary to 22 kinds / 44 Bridge
+resource paths. The signed HTTP and typed SDK are tested against real PostgreSQL;
+HQ command orchestration is not connected. Existing generic `/operations`
+continues to reject unsupported actions. See `customer-review-intake.md` for exact
+scope, configuration and remaining engineering/approval requirements.
+
+Customer review increment validation: 89 source-authority/owner-review/typed SDK
+scenarios and 211 Bridge/Taxi/privacy/policy scenarios passed locally, with zero
+skipped test cases. Actual signed Customer request/receipt output passed an
+independent source OpenAPI schema. Vet and the actual Customer route audit passed
+with zero exposed service routes, unreviewed public routes, undocumented routes,
+phantoms or security mismatches. All six CI workflows passed on the preceding
+`521fa772f80225fba23426b53bfe9bb94757335c` baseline; fresh CI is required for this
+increment. The disposable Windows cluster needed a larger lock-table setting;
+cleanup failures are now explicit, and CI runs migration-heavy owner packages
+sequentially while retaining internal concurrency tests and the race detector.

@@ -145,3 +145,23 @@ cargo matching, and known flags alone establish no eligibility or compliance.
 Hauling recovery reads require their own `hauling.recovery.read` permission and
 exact native booking/commerce-mission ownership. No new schema migration is
 needed for these reads; native mutation and cargo-fit guards remain unchanged.
+
+## Customer owner review intake
+
+See [customer-review-intake.md](customer-review-intake.md) before configuring
+migration 016 or the new owner endpoints. This records a pending review work item
+only. Its version guards the new native review aggregate, not Customer profile
+standing. Account/lifecycle/verification/consent and Trip/Wallet changes are not
+supported by this action. HQ operation orchestration remains unconnected.
+
+Both `CUSTOMER_ADMIN_REVIEW_WRITES_ENABLED` and
+`CUSTOMER_ADMIN_REVIEW_READBACK_ENABLED` default false. Enabling either requires
+the existing source resource/context/policy boundary and normal migration 016.
+Mount distinct write/readback secrets, each separate from the resource key.
+Keep write/readback controls independent so uncertain accepted requests can be
+read back after writes are disabled. Never treat a missing receipt as proof that
+the original request failed; never issue a new key or repeat a POST to reconcile.
+
+Read and retain immutable request/audit evidence. No automatic down migration
+or destructive cleanup is supplied. Owner approval of work-item handling,
+closure, retention, permissions and exact access scopes remains BLOCKED_POLICY.
