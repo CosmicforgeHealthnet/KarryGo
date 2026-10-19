@@ -1,8 +1,6 @@
 class ProviderAppConfig {
   const ProviderAppConfig({
     required this.haulingApiBaseUrl,
-    required this.mediaFileApiBaseUrl,
-    required this.mediaFileServiceToken,
     required this.notificationWsUrl,
     required this.paymentWalletApiBaseUrl,
     required this.supportApiBaseUrl,
@@ -13,8 +11,6 @@ class ProviderAppConfig {
   // any of these with --dart-define when the host differs (a different dev
   // machine, a new DHCP lease, or the 127.0.0.1 + adb reverse setup).
   static const defaultHaulingApiBaseUrl = 'http://192.168.1.112:8104/api/v1/hauling';
-  static const defaultMediaFileApiBaseUrl = 'http://192.168.1.112:8109/api/v1/media-files';
-  static const defaultMediaFileServiceToken = 'development-media-token';
   // Realtime websocket endpoint on notification-service (ws:// upgrade, token-gated).
   static const defaultNotificationWsUrl = 'ws://192.168.1.112:8106/api/v1/notifications/ws';
   // payment-wallet-service provider surface (balance, bank accounts, withdrawals).
@@ -23,22 +19,10 @@ class ProviderAppConfig {
   // support-dispute-service provider surface (complaints/disputes + chat).
   static const defaultSupportApiBaseUrl = 'http://192.168.1.112:8107/api/v1/support-disputes';
 
-  /// Provider uploads register with media-file-service as this owner service.
-  /// Must have a matching entry in the service's MEDIA_FILE_SERVICE_TOKENS.
-  static const mediaOwnerService = 'hauling-service';
-
   factory ProviderAppConfig.fromEnvironment() => const ProviderAppConfig(
         haulingApiBaseUrl: String.fromEnvironment(
           'HAULING_API_BASE_URL',
           defaultValue: defaultHaulingApiBaseUrl,
-        ),
-        mediaFileApiBaseUrl: String.fromEnvironment(
-          'MEDIA_FILE_API_BASE_URL',
-          defaultValue: defaultMediaFileApiBaseUrl,
-        ),
-        mediaFileServiceToken: String.fromEnvironment(
-          'MEDIA_FILE_SERVICE_TOKEN',
-          defaultValue: defaultMediaFileServiceToken,
         ),
         notificationWsUrl: String.fromEnvironment(
           'NOTIFICATION_WS_URL',
@@ -55,8 +39,6 @@ class ProviderAppConfig {
       );
 
   final String haulingApiBaseUrl;
-  final String mediaFileApiBaseUrl;
-  final String mediaFileServiceToken;
   final String notificationWsUrl;
   final String paymentWalletApiBaseUrl;
   final String supportApiBaseUrl;

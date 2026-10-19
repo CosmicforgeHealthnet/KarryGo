@@ -102,7 +102,7 @@ delivers (fixed on 18 October, see 3.1).
 
 | Screen | Status |
 |---|---|
-| Email sign-in | Needs server: taxi auth is phone only |
+| Email sign-in | **Done 19 Oct** |
 | Google / Apple sign-in | Needs server |
 
 ---
@@ -163,6 +163,8 @@ The truck app is much more complete. What remains:
 
 ### 3.2 App bugs
 
+All of these were fixed on 19 October (commits `55c659a5`, `0ab2339b`, `84f32010`), except the gesture-area button, which only exists in the redesigned build that is not in this repository.
+
 | App | Bug | Impact |
 |---|---|---|
 | Taxi | When the app is backgrounded for ~90 s, the server marks the driver offline, but the app still shows "You're online" and never recovers | Driver silently stops receiving rides |
@@ -181,8 +183,8 @@ The truck app is much more complete. What remains:
 | Gap | Impact | Fix |
 |---|---|---|
 | **No SMS provider** | Login codes for phone numbers are never delivered; drivers can't sign in without debug mode | Add an SMS provider to notification-service |
-| **Driver email login codes are never sent** | Truck app shows "Use email address instead", but hauling never sends the code; taxi has no email login at all | Make hauling and taxi send codes through notification-service email, as customer-service does |
-| **Document uploads go straight to media-file-service** with a token built into the app | New truck drivers can't finish sign-up on the live server; the design isn't safe to expose | Upload through the owning service (or signed upload URLs) |
+| ~~Driver email login codes are never sent~~ | **Fixed 19 Oct:** hauling and taxi now email codes through notification-service; the taxi app has "Use email address instead" | |
+| ~~Document uploads go straight to media-file-service~~ | **Fixed 19 Oct (truck):** the app uploads to hauling `POST /provider/uploads` as the signed-in driver; hauling checks the file and stores it under its own credentials. The taxi app has no upload screens yet (stage 3) | |
 | **No admin tool to approve drivers** | Taxi drivers can never go online without a database edit | Admin review screens (admin-backoffice) |
 | **Receiver must be reachable by email or a KarryGo account** | Truck bookings that give only a receiver phone number get stuck at pickup ("Receiver requires a supported verified channel") | Add SMS, or let the customer app require a receiver email/account |
 | Only the Lagos taxi zone exists on staging | Taxi drivers elsewhere can't go online | Add zones per city |

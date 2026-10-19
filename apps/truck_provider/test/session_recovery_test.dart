@@ -83,10 +83,9 @@ void main() {
       mediaUploadService: MediaUploadService(
         api: MediaFileApi(
           config: const ApiCoreConfig(
-            baseUrl: 'http://localhost:8109/api/v1/media-files',
+            baseUrl: 'http://localhost:8104/api/v1/hauling',
           ),
-          serviceToken: 'test-token',
-          ownerService: 'hauling-service',
+          accessToken: () => null,
           client: MockClient((_) async => http.Response('{}', 500)),
         ),
       ),

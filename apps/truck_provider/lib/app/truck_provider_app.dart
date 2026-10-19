@@ -84,10 +84,11 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     );
 
     _mediaUploadService = MediaUploadService(
+      // Uploads go through hauling-service as the signed-in driver.
       api: MediaFileApi(
-        config: ApiCoreConfig(baseUrl: config.mediaFileApiBaseUrl),
-        serviceToken: config.mediaFileServiceToken,
-        ownerService: ProviderAppConfig.mediaOwnerService,
+        config: ApiCoreConfig(baseUrl: config.haulingApiBaseUrl),
+        accessToken: () => _authController.state.session?.accessToken,
+        refreshSession: () => _authController.tryRefreshSession(),
       ),
     );
 

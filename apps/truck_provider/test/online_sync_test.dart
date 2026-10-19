@@ -61,9 +61,8 @@ void main() {
       sessionStore: store,
       mediaUploadService: MediaUploadService(
         api: MediaFileApi(
-          config: const ApiCoreConfig(baseUrl: 'http://localhost:8109'),
-          serviceToken: 'test-token',
-          ownerService: 'hauling-service',
+          config: const ApiCoreConfig(baseUrl: 'http://localhost:8104/api/v1/hauling'),
+          accessToken: () => null,
           client: MockClient((_) async => http.Response('{}', 500)),
         ),
       ),

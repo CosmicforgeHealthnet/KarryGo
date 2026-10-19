@@ -49,6 +49,8 @@ import (
 	providerprofilehttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/http"
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
+	provideruploadshttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_uploads/http"
+	provideruploadsusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_uploads/usecases"
 
 	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
 	haulingsettlement "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement"
@@ -330,9 +332,13 @@ func main() {
 		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
 	})
 	inboundVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
+	// uploadService forwards driver documents and photos to media-file-service
+	// under this service's credentials; nil when media is not configured.
+	var uploadService *provideruploadsusecases.UploadService
 	var custodyMedia *mediaclient.Client
 	if strings.TrimSpace(cfg.MediaURL) != "" && strings.TrimSpace(cfg.MediaToken) != "" {
 		custodyMedia = mediaclient.New(mediaclient.Config{BaseURL: cfg.MediaURL, ServiceName: "driver-hauling-service", Token: cfg.MediaToken, HTTPClient: &http.Client{Timeout: 10 * time.Second}})
+		uploadService = provideruploadsusecases.NewUploadService(custodyMedia)
 	}
 	privateExecutionService := privateexecution.NewService(
 		privateexecution.NewRepository(db),
@@ -485,6 +491,7 @@ func main() {
 			})
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService)
+			provideruploadshttp.RegisterUploadRoutes(group, uploadService, authService)
 			capability.registerRoutes(group, authService, cfg.ServiceSecrets)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
