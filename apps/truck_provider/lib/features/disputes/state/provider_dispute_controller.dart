@@ -119,6 +119,25 @@ class ProviderDisputeController extends ChangeNotifier {
 
   /// Finds the provider's open support-chat complaint or creates one.
   /// Returns null on failure (error in [supportChatError]).
+  /// Driver help articles. Throws on failure so the screen can say so.
+  Future<List<({String title, String body})>> loadFaqs() async {
+    final token = _token;
+    if (token == null) return const [];
+    return _api.listFaqs(accessToken: token);
+  }
+
+  /// Sends an SOS to support. Returns null on success, or the error message.
+  Future<String?> sendSos({required String description, double? lat, double? lng}) async {
+    final token = _token;
+    if (token == null) return 'Please sign in again.';
+    try {
+      await _api.sendSos(accessToken: token, description: description, lat: lat, lng: lng);
+      return null;
+    } catch (e) {
+      return e is ApiException ? e.message : 'Could not reach support. Call 112 if you are in danger.';
+    }
+  }
+
   Future<Complaint?> openSupportChat() async {
     final token = _token;
     if (token == null) return null;

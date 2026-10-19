@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/format/money_format.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
@@ -44,11 +45,21 @@ class ProviderWithdrawalReceiptScreen extends StatelessWidget {
                     bankName: account?.bankName ?? '',
                     accountNumber: account?.accountNumber ?? '',
                     onDone: () => Navigator.of(context).popUntil((r) => r.isFirst),
-                    onDownload: () {
+                    onDownload: () async {
+                      final result = controller.result;
+                      final lines = [
+                        'Karryam withdrawal receipt',
+                        'Amount: ₦${formatNaira(naira)}',
+                        if (account != null) 'To: ${account.accountName}, ${account.bankName} ${account.accountNumber}',
+                        if (result != null && result.reference.isNotEmpty) 'Reference: ${result.reference}',
+                        if (result != null) 'Status: ${result.status}',
+                        'Date: ${DateTime.now().toLocal().toString().substring(0, 16)}',
+                      ];
+                      await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Receipt download is coming soon'),
-                          duration: Duration(seconds: 1),
+                          content: Text('Receipt copied. Paste it into WhatsApp, email or notes.'),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
@@ -142,7 +153,7 @@ class _ReceiptCard extends StatelessWidget {
               onTap: onDownload,
               behavior: HitTestBehavior.opaque,
               child: const Text(
-                'Download Receipt',
+                'Copy Receipt',
                 style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
               ),
             ),

@@ -7,14 +7,40 @@ import '../../disputes/state/provider_dispute_controller.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import 'widgets/provider_profile_widgets.dart';
 
-/// Contact Support (Account option-4). "Start Chat" opens the Live Chat screen.
-class ProviderSupportScreen extends StatelessWidget {
+/// Contact Support (Account option-4): common questions first, then
+/// "Start Chat" opens the Live Chat screen.
+class ProviderSupportScreen extends StatefulWidget {
   const ProviderSupportScreen({super.key, required this.disputeController});
 
   final ProviderDisputeController disputeController;
 
   @override
+  State<ProviderSupportScreen> createState() => _ProviderSupportScreenState();
+}
+
+class _ProviderSupportScreenState extends State<ProviderSupportScreen> {
+  List<({String title, String body})>? _faqs;
+  bool _faqsFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFaqs();
+  }
+
+  Future<void> _loadFaqs() async {
+    setState(() => _faqsFailed = false);
+    try {
+      final faqs = await widget.disputeController.loadFaqs();
+      if (mounted) setState(() => _faqs = faqs);
+    } catch (_) {
+      if (mounted) setState(() => _faqsFailed = true);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final faqs = _faqs;
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -24,34 +50,77 @@ class ProviderSupportScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ProviderProfileHeader(title: 'Support'),
-              const Spacer(),
-              Center(
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: const BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
-                  child: const Icon(Icons.support_agent_rounded, color: kProviderGreen, size: 76),
+              const SizedBox(height: 20),
+              Expanded(
+                child: ListView(
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        decoration: const BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
+                        child: const Icon(Icons.support_agent_rounded, color: kProviderGreen, size: 48),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Contact Support!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Our dedicated team is here to assist you with any questions or issues related to your experience.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Common questions',
+                      style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 10),
+                    if (_faqsFailed)
+                      TextButton(onPressed: _loadFaqs, child: const Text('Could not load questions. Try again'))
+                    else if (faqs == null)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator(color: kProviderGreen)),
+                      )
+                    else if (faqs.isEmpty)
+                      const Text('No articles yet.', style: TextStyle(color: kProviderMuted))
+                    else
+                      for (final faq in faqs)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: kProviderBorder),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: ExpansionTile(
+                            shape: const Border(),
+                            iconColor: kProviderGreen,
+                            title: Text(
+                              faq.title,
+                              style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(faq.body, style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.4)),
+                            ],
+                          ),
+                        ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 28),
-              const Text(
-                'Contact Support!',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Our dedicated team is here to assist you with any questions or issues related to your experience.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
-              ),
-              const Spacer(),
+              const SizedBox(height: 12),
               SizedBox(
                 height: 54,
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => ProviderLiveChatScreen(controller: disputeController),
+                      builder: (_) => ProviderLiveChatScreen(controller: widget.disputeController),
                     ),
                   ),
                   icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 20),

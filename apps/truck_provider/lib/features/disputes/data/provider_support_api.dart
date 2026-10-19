@@ -75,6 +75,36 @@ class ProviderSupportApi {
     await _post('/provider/complaints/$id/messages/read', const {}, accessToken: accessToken);
   }
 
+  /// Help articles for drivers (public: no sign-in needed server-side).
+  Future<List<({String title, String body})>> listFaqs({required String accessToken}) async {
+    final data = await _get('/support/faqs?audience=provider', accessToken: accessToken);
+    final raw = data['faqs'];
+    if (raw is! List) return const [];
+    return [
+      for (final e in raw)
+        if (e is Map) (title: (e['title'] as String?) ?? '', body: (e['body'] as String?) ?? ''),
+    ];
+  }
+
+  /// Raises an emergency; support sees it at the top of their queue.
+  Future<void> sendSos({
+    required String accessToken,
+    required String description,
+    double? lat,
+    double? lng,
+  }) async {
+    await _post(
+      '/provider/sos',
+      {
+        'service_type': 'hauling',
+        'description': description,
+        'lat': ?lat,
+        'lng': ?lng,
+      },
+      accessToken: accessToken,
+    );
+  }
+
   void close() => _client.close();
 
   // ─── HTTP helpers ─────────────────────────────────────────────────────────

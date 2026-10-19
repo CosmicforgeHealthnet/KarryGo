@@ -229,6 +229,38 @@ class ProviderWithdrawalController extends ChangeNotifier {
     }
   }
 
+  /// Refreshes whether a transaction PIN is set (Security screen).
+  Future<void> loadPinStatus() async {
+    final token = _token;
+    if (token == null) return;
+    try {
+      _pinSet = await _api.getPinStatus(accessToken: token);
+      notifyListeners();
+    } catch (e) {
+      _pinError = _msg(e);
+      notifyListeners();
+    }
+  }
+
+  /// Replaces the PIN; the server checks [currentPin]. Returns true on success.
+  Future<bool> changePin({required String currentPin, required String newPin}) async {
+    final token = _token;
+    if (token == null) return false;
+    _savingPin = true;
+    _pinError = null;
+    notifyListeners();
+    try {
+      await _api.changePin(accessToken: token, currentPin: currentPin, newPin: newPin);
+      return true;
+    } catch (e) {
+      _pinError = _msg(e);
+      return false;
+    } finally {
+      _savingPin = false;
+      notifyListeners();
+    }
+  }
+
   // ─── Amount keypad ──────────────────────────────────────────────────────────
 
   void appendDigit(String digit) {

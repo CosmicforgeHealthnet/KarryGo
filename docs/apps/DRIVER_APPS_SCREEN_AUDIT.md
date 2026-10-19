@@ -109,6 +109,8 @@ delivers (fixed on 18 October, see 3.1).
 
 ## 2. Truck driver app: missing or unfinished screens
 
+These apply to the truck app code in this repository. The redesigned truck build tested on the phone is not in the repository.
+
 The truck app is much more complete. What remains:
 
 ### 2.1 Placeholders ("Coming soon" in the app)
@@ -117,23 +119,23 @@ The truck app is much more complete. What remains:
 |---|---|---|
 | Sign-in screen | Continue with Google | Needs server |
 | Sign-in screen | Continue with Apple | Needs server |
-| Profile | Security | Needs design (PIN change is server ready) |
-| Profile | Privacy | Needs design |
+| Profile | Security | **Done 19 Oct:** create or change the withdrawal PIN |
+| Profile | Privacy | **Done 19 Oct:** what is collected and why, with a link to support |
 | Profile info | Remove photo | Server ready (`PUT /provider/profile`) |
-| Earnings | View all transactions | Server ready |
-| Earnings, Earning summary | "Go to Trips" | App only: link to the existing Trips tab |
+| Earnings | View all transactions | **Done 19 Oct:** full list with Earned / Paid out filter |
+| Earnings, Earning summary | "Go to Trips" | **Done 19 Oct** |
 | Earning summary | Year filter | Needs server: earnings endpoint has no year parameter |
-| Transaction detail | Get support | App only: link to the existing disputes screens |
-| Withdrawal receipt | Download receipt | App only (generate a PDF or share image) |
+| Transaction detail | Get support | **Done 19 Oct:** opens disputes |
+| Withdrawal receipt | Download receipt | **Done 19 Oct as "Copy receipt"** (text receipt to paste anywhere; saving a file needs a new plugin) |
 
 ### 2.2 Missing screens
 
 | Screen | What it does | Status |
 |---|---|---|
-| Delivery complete confirmation | After "Confirm" the app jumps straight to "Available requests" with no summary of the finished job and earnings | App only |
-| Ratings and reviews received | Customer ratings and comments | Server ready (`GET /provider/bookings/:id/review`) |
-| Help / FAQ | | Server ready (support-dispute `GET /support/faqs`) |
-| SOS / emergency during a trip | | Server ready (support-dispute `POST /provider/sos`) |
+| Delivery complete confirmation | Route and fare of the finished job, then back to requests or to Earnings | **Done 19 Oct** |
+| Ratings and reviews received | Customer ratings and comments | Already shown on each trip's detail page |
+| Help / FAQ | | **Done 19 Oct** (on the Support screen) |
+| SOS / emergency during a trip | | **Done 19 Oct:** call 112 or alert support with location |
 | Fleet company assignments | Accept / decline fleet jobs | Server ready (hauling `/:assignmentId/accept`, `/decline`) |
 | Trip recovery / handover to a replacement truck | When a truck breaks down mid-trip | Server ready (hauling `/recovery/bookings/:id/...`) |
 | Truck capabilities | Declare what each truck can carry (cargo types, dimensions) | Server ready (`/provider/trucks/:id/capabilities`, `/eligibility`) |

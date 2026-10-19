@@ -12,9 +12,16 @@ import 'widgets/earnings_transaction_list.dart';
 /// a monthly earnings chart, and the grouped transaction list. Reuses the
 /// already-loaded [ProviderEarningsController] data.
 class ProviderEarningSummaryScreen extends StatelessWidget {
-  const ProviderEarningSummaryScreen({super.key, required this.controller});
+  const ProviderEarningSummaryScreen({
+    super.key,
+    required this.controller,
+    this.onGoToTrips,
+    this.onContactSupport,
+  });
 
   final ProviderEarningsController controller;
+  final VoidCallback? onGoToTrips;
+  final VoidCallback? onContactSupport;
 
   void _comingSoon(BuildContext context, String label) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -29,7 +36,11 @@ class ProviderEarningSummaryScreen extends StatelessWidget {
   void _openTransactionDetail(BuildContext context, EarningsTransaction txn) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ProviderTransactionDetailScreen(txn: txn, controller: controller),
+        builder: (_) => ProviderTransactionDetailScreen(
+          txn: txn,
+          controller: controller,
+          onContactSupport: onContactSupport,
+        ),
       ),
     );
   }
@@ -75,7 +86,7 @@ class ProviderEarningSummaryScreen extends StatelessWidget {
                       else
                         EarningsTransactionList(
                           transactions: e.transactions,
-                          onGoToTrips: () => _comingSoon(context, 'Trips'),
+                          onGoToTrips: onGoToTrips ?? () => _comingSoon(context, 'Trips'),
                           onTransactionTap: (txn) => _openTransactionDetail(context, txn),
                         ),
                     ],

@@ -7,6 +7,7 @@ import '../../wallet/models/wallet_models.dart';
 import '../models/earnings_models.dart';
 import '../state/provider_earnings_controller.dart';
 import 'provider_earning_summary_screen.dart';
+import 'provider_all_transactions_screen.dart';
 import 'provider_transaction_detail_screen.dart';
 import 'widgets/earnings_transaction_list.dart';
 
@@ -21,6 +22,7 @@ class ProviderEarningsScreen extends StatefulWidget {
     required this.controller,
     this.onWithdraw,
     this.onDispute,
+    this.onGoToTrips,
   });
 
   final ProviderEarningsController controller;
@@ -32,6 +34,9 @@ class ProviderEarningsScreen extends StatefulWidget {
   /// Launches the disputes flow. When null the Dispute badge shows a
   /// "coming soon" hint.
   final VoidCallback? onDispute;
+
+  /// Switches the home shell to the Trips tab.
+  final VoidCallback? onGoToTrips;
 
   @override
   State<ProviderEarningsScreen> createState() => _ProviderEarningsScreenState();
@@ -60,8 +65,23 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
   void _openEarningSummary() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            ProviderEarningSummaryScreen(controller: widget.controller),
+        builder: (_) => ProviderEarningSummaryScreen(
+          controller: widget.controller,
+          onGoToTrips: widget.onGoToTrips,
+          onContactSupport: widget.onDispute,
+        ),
+      ),
+    );
+  }
+
+  void _openAllTransactions() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProviderAllTransactionsScreen(
+          controller: widget.controller,
+          onGoToTrips: widget.onGoToTrips,
+          onTransactionTap: _openTransactionDetail,
+        ),
       ),
     );
   }
@@ -72,6 +92,7 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
         builder: (_) => ProviderTransactionDetailScreen(
           txn: txn,
           controller: widget.controller,
+          onContactSupport: widget.onDispute,
         ),
       ),
     );
@@ -121,7 +142,7 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                   ),
                   const SizedBox(height: 24),
                   _RecentTransactionsHeader(
-                    onViewAll: () => _comingSoon('View All'),
+                    onViewAll: _openAllTransactions,
                   ),
                   const SizedBox(height: 12),
                   if (c.error != null && !c.hasLoaded)
@@ -133,7 +154,8 @@ class _ProviderEarningsScreenState extends State<ProviderEarningsScreen> {
                   else
                     EarningsTransactionList(
                       transactions: earnings.transactions,
-                      onGoToTrips: () => _comingSoon('Trips'),
+                      onGoToTrips:
+                          widget.onGoToTrips ?? () => _comingSoon('Trips'),
                       onTransactionTap: _openTransactionDetail,
                     ),
                 ],

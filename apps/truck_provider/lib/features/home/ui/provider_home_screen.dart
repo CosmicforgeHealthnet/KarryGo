@@ -16,8 +16,10 @@ import '../../wallet/ui/provider_withdrawal_form_screen.dart';
 import '../state/provider_home_controller.dart';
 import 'screens/provider_active_trip_screen.dart';
 import 'screens/provider_dashboard_screen.dart';
+import 'screens/provider_delivery_complete_screen.dart';
 import 'screens/provider_notifications_screen.dart';
 import 'screens/provider_requests_screen.dart';
+import 'widgets/provider_sos_sheet.dart';
 import 'widgets/provider_app_colors.dart';
 
 /// Entry point for the provider home experience.
@@ -80,6 +82,13 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
     );
   }
 
+  /// "Go to Trips" from anywhere in Earnings: close what is open over the
+  /// shell and switch to the Trips tab.
+  void _goToTrips() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _onTabTap(2);
+  }
+
   void _openDisputes() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -100,9 +109,30 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
 
         // Active trip takes over the full screen
         if (state.status == ProviderHomeStatus.activeTrip && state.activeBooking != null) {
+          final active = state.activeBooking!;
           return ProviderActiveTripScreen(
             controller: widget.homeController,
-            booking: state.activeBooking!,
+            booking: active,
+            onSos: () => showProviderSosSheet(
+              context,
+              support: widget.disputeController,
+              bookingId: active.id,
+            ),
+          );
+        }
+
+        final delivered = state.justDelivered;
+        if (delivered != null) {
+          return ProviderDeliveryCompleteScreen(
+            booking: delivered,
+            onDone: () {
+              widget.homeController.dismissDeliveryComplete();
+              _onTabTap(0);
+            },
+            onViewEarnings: () {
+              widget.homeController.dismissDeliveryComplete();
+              _onTabTap(3);
+            },
           );
         }
 
@@ -128,6 +158,7 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                 controller: widget.earningsController,
                 onWithdraw: _openWithdrawal,
                 onDispute: _openDisputes,
+                onGoToTrips: _goToTrips,
               ),
               ProviderProfileScreen(
                 authController: widget.authController,

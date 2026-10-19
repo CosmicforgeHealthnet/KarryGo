@@ -222,4 +222,57 @@ void main() {
     expect(withdrawals, 0);
     await finish(tester, auth);
   });
+
+  testWidgets('a first withdrawal creates the PIN, then sends it once', (tester) async {
+    final auth = await signedIn((r) async => r.url.path.endsWith('/auth/refresh') ? _ok(_session('new')) : _ok({}));
+    final calls = <String>[];
+    final api = WalletApi(
+      DriverClient(
+        baseUrl: 'http://localhost/api/v1/payment-wallet',
+        auth: auth,
+        client: MockClient((r) async {
+          calls.add('${r.method} ${r.url.path} ${r.body}');
+          if (r.url.path.endsWith('/pin/status')) return _ok({'pin_set': false});
+          if (r.url.path.endsWith('/withdrawals')) return _ok({'status': 'pending'}, 201);
+          return _ok({});
+        }),
+      ),
+    );
+    const account = BankAccount(id: 'a1', bankName: 'GTBank', accountNumber: '0123456789', accountName: 'ADA OBI', isDefault: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: karryamTheme(Brightness.light),
+        home: Navigator(
+          onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (_) => WithdrawScreen(api: api, availableKobo: 100000, accounts: const [account]),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField).first, '500');
+    await tester.pump();
+    // The button's spinner animates while the PIN dialogs are open, so
+    // advance time rather than waiting for everything to settle.
+    Future<void> settle() async {
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Withdraw'));
+    await settle();
+    for (var i = 0; i < 2; i++) {
+      await tester.enterText(find.byType(TextField).last, '4321');
+      await tester.tap(find.text('Continue'));
+      await settle();
+    }
+
+    expect(calls.where((c) => c.startsWith('POST') && c.contains('/provider/pin ')).length, 1);
+    final withdrawal = calls.singleWhere((c) => c.contains('/withdrawals'));
+    expect(withdrawal, contains('"amount_kobo":50000'));
+    expect(withdrawal, contains('"pin":"4321"'));
+    expect(find.text('Withdrawal requested'), findsOneWidget);
+    await finish(tester, auth);
+  });
 }

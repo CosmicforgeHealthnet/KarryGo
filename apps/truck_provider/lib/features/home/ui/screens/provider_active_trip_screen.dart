@@ -21,10 +21,14 @@ class ProviderActiveTripScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.booking,
+    this.onSos,
   });
 
   final ProviderHomeController controller;
   final ProviderBooking booking;
+
+  /// Opens the emergency options; the SOS button is hidden when null.
+  final VoidCallback? onSos;
 
   @override
   State<ProviderActiveTripScreen> createState() => _ProviderActiveTripScreenState();
@@ -56,6 +60,33 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
             children: [
               // ─── Full-screen map ───────────────────────────────────
               const Positioned.fill(child: ProviderHomeMap()),
+
+              if (widget.onSos != null)
+                Positioned(
+                  top: 0,
+                  right: 16,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Material(
+                        color: const Color(0xFFD32F2F),
+                        shape: const StadiumBorder(),
+                        elevation: 4,
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: widget.onSos,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            child: Text(
+                              'SOS',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
               // ─── Bottom sheet: trip info ───────────────────────────
               Positioned(

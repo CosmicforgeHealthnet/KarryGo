@@ -40,6 +40,7 @@ class ProviderHomeState {
     this.currentLng,
     this.pickupCredential,
     this.isResendingPickupCredential = false,
+    this.justDelivered,
   });
 
   final ProviderHomeStatus status;
@@ -57,6 +58,10 @@ class ProviderHomeState {
   /// cleared once the customer verifies and the trip advances past pickup.
   final PickupCredential? pickupCredential;
   final bool isResendingPickupCredential;
+
+  /// The job the driver has just delivered, shown on the delivery-complete
+  /// screen until they tap Done.
+  final ProviderBooking? justDelivered;
 
   /// The provider's most recent device location (refreshed by the heartbeat).
   /// Used to show live trip progress between pickup and destination.
@@ -82,6 +87,8 @@ class ProviderHomeState {
     bool clearActive = false,
     bool clearSelectedTruck = false,
     bool clearPickupCredential = false,
+    ProviderBooking? justDelivered,
+    bool clearJustDelivered = false,
   }) {
     return ProviderHomeState(
       status: status ?? this.status,
@@ -100,6 +107,7 @@ class ProviderHomeState {
           ? null
           : (pickupCredential ?? this.pickupCredential),
       isResendingPickupCredential: isResendingPickupCredential ?? this.isResendingPickupCredential,
+      justDelivered: clearJustDelivered ? null : (justDelivered ?? this.justDelivered),
     );
   }
 }
@@ -702,12 +710,16 @@ class ProviderHomeController extends ChangeNotifier {
         isLoading: false,
         clearActive: true,
         history: [updated, ..._state.history],
+        justDelivered: updated,
       ));
       if (_state.isOnline) _startPolling();
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
     }
   }
+
+  /// Closes the delivery-complete screen.
+  void dismissDeliveryComplete() => _emit(_state.copyWith(clearJustDelivered: true));
 
   Future<void> cancelActiveTrip() async {
     final token = _token;

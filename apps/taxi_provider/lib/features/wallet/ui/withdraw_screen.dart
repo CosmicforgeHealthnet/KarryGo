@@ -205,19 +205,45 @@ Future<String?> askPin(
   BuildContext context, {
   required String title,
   String? message,
-}) {
-  final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (c) => AlertDialog(
-      title: Text(title),
+}) => showDialog<String>(
+  context: context,
+  builder: (_) => _PinDialog(title: title, message: message),
+);
+
+/// Owns its text field so the field outlives the dialog's closing animation
+/// (disposing it when the dialog returns crashes that animation).
+class _PinDialog extends StatefulWidget {
+  const _PinDialog({required this.title, this.message});
+  final String title;
+  final String? message;
+
+  @override
+  State<_PinDialog> createState() => _PinDialogState();
+}
+
+class _PinDialogState extends State<_PinDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (message != null) ...[Text(message), const SizedBox(height: 12)],
+          if (widget.message != null) ...[
+            Text(widget.message!),
+            const SizedBox(height: 12),
+          ],
           TextField(
-            controller: controller,
+            controller: _controller,
             autofocus: true,
             obscureText: true,
             maxLength: 4,
@@ -230,16 +256,18 @@ Future<String?> askPin(
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(c),
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         TextButton(
           onPressed: () {
-            if (controller.text.length == 4) Navigator.pop(c, controller.text);
+            if (_controller.text.length == 4) {
+              Navigator.pop(context, _controller.text);
+            }
           },
           child: const Text('Continue'),
         ),
       ],
-    ),
-  ).whenComplete(controller.dispose);
+    );
+  }
 }

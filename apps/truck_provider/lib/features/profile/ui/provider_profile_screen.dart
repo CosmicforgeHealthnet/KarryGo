@@ -7,7 +7,8 @@ import '../../home/ui/widgets/provider_app_colors.dart';
 import '../../wallet/state/provider_withdrawal_controller.dart';
 import '../../wallet/ui/provider_payments_screen.dart';
 import '../state/provider_profile_controller.dart';
-import 'provider_coming_soon_screen.dart';
+import 'provider_privacy_screen.dart';
+import 'provider_security_screen.dart';
 import 'provider_profile_info_screen.dart';
 import 'provider_safety_emergency_screen.dart';
 import 'provider_support_screen.dart';
@@ -191,13 +192,13 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.lock_outline_rounded,
                       label: 'Security',
-                      onTap: () => _open(const ProviderComingSoonScreen(title: 'Security')),
+                      onTap: () => _open(ProviderSecurityScreen(controller: widget.withdrawalController)),
                     ),
                     const SizedBox(height: 10),
                     _ProfileMenuItem(
                       icon: Icons.shield_outlined,
                       label: 'Privacy',
-                      onTap: () => _open(const ProviderComingSoonScreen(title: 'Privacy')),
+                      onTap: () => _open(ProviderPrivacyScreen(disputeController: widget.disputeController)),
                     ),
                     const SizedBox(height: 10),
                     _ProfileMenuItem(
