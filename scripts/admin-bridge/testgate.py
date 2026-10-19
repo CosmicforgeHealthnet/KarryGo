@@ -14,6 +14,7 @@ passed = [e for e in events if e.get("Action") == "pass" and e.get("Test")]
 required = {"TestPostgresReplayAndMigrationConcurrency", "TestPostgresIdempotencyScopeAndImmutableAudit", "TestPostgresRevocationPrincipalAndRate", "TestRealMTLSBoundary", "TestRealPostgresMTLSIntegration", "TestRuntimeRoleGuardAndGrants", "TestMigrationFailureRollsBackAndDownIsIrreversible", "TestContractWireSamples"}
 required |= {"TestTaxiOwnerProcessPostgresMTLS", "TestTaxiReadDelegationAndOwnerBoundary", "TestOwnerResourcesWireContract", "TestOwnerResourcesDelegation"}
 required |= {"TestOwnerPolicyCannotInventCanonicalTenant", "TestOwnerPolicyIntersectionAndUnmappedReferences", "TestDraftRepositoryPolicyAndMissingCanonicalMappingsDeny", "TestPolicyApprovalAuthenticityEnvironmentAndDraft", "TestPostgresDisclosureAuditFrozenReleaseAndReconstructionGuard", "TestPostgresDisclosureBudgetAndAuditFailureDenyData", "TestMissingApprovalAndUnmappedSourceCannotDisclose", "TestTenAnalyticsContractsUseFixedSignedOwnerPaths", "TestRolloutFlagsCannotCreateOwnerCapabilities"}
+required |= {"TestPostgresAnalyticsLineageUsesCanonicalEventsAndIndependentOwnerContexts", "TestPostgresAnalyticsLineageNeverCountsAggregateBucketsAsSubjects", "TestAnalyticsLineageDictionaryMatchesAllTenReports"}
 if args.suite == "gateway":
     required = {"TestPublicAdminIsolation", "TestForgedHQHeadersAreStrippedFromPublicRoutes", "TestPostgresRefreshRotationAndMigrationReplay"}
 assert not failures, f"Failed/skipped tests: {[(e.get('Package'), e.get('Test')) for e in failures]}"

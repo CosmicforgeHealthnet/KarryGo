@@ -31,7 +31,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:mission-success:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "recovery",
@@ -61,7 +65,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:recovery:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "capability-mismatches",
@@ -92,7 +100,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:capability-mismatches:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "declines",
@@ -124,7 +136,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:declines:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "demand",
@@ -155,7 +171,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:demand:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "provider-quality",
@@ -186,7 +206,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:provider-quality:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "readiness",
@@ -216,7 +240,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:readiness:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "supply",
@@ -248,7 +276,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:supply:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "mission-outcomes",
@@ -279,7 +311,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:mission-outcomes:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     },
     {
       "id": "demand-forecast",
@@ -312,7 +348,11 @@
         "Reviewed small-cell and rare-combination suppression policy",
         "Reviewed metric freshness/window/timezone policy"
       ],
-      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit"
+      "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
+      "lineage_binding_contract": "analytics.cohort-lineage.v1:demand-forecast:<explicit-native-unit-field>",
+      "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
+      "approved_cohort_unit": null,
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
     }
   ]
 }

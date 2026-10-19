@@ -263,3 +263,18 @@ All six acceptance workflows passed on committed baseline
 `528b19c6cd91c5a3045c6b80ae3d0418c85ed8ca`, including Customer certification,
 Section 31, owner race/PostgreSQL/Redis, Bridge/container, Vendor and
 Partner/Gateway. Fresh CI is required for subsequent engineering increments.
+
+Analytics now has a PostgreSQL-backed native event lineage validator and normal
+migration 006 for producer-owned authorization context history. Tests exercise
+the actual native ingest/projector and independent source-owner context import,
+expiry/revocation, cross-owner/report/tenant rejection, unit deduplication,
+payload-tamper detection and aggregate-bucket rejection. This is supporting
+engineering: complete source membership/coverage proofs, ten report reducers
+and the HQ facade remain unimplemented. No Analytics report is enabled.
+
+Local validation after lineage support: 206 Bridge/Taxi/privacy/policy cases,
+including 24 Analytics privacy/lineage scenarios, passed with no skipped tests.
+The preceding five-owner suite remains 70 scenarios across actual migrations.
+Native cohort field bindings are typed; provider/branch UUID encodings normalize
+to their canonical identifiers, while source-entity identities retain their
+native type. Hashes are internal deduplication identifiers, not anonymization.

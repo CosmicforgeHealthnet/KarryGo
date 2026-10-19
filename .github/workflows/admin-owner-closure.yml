@@ -21,7 +21,7 @@ on:
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
-      - 'services/analytics-service/migrations/005_admin_disclosure_guard.sql'
+      - 'services/analytics-service/migrations/**'
       - 'docs/admin/policies/**'
       - 'shared/go/serviceauth/**'
       - 'scripts/admin-bridge/**'
@@ -42,7 +42,7 @@ on:
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
-      - 'services/analytics-service/migrations/005_admin_disclosure_guard.sql'
+      - 'services/analytics-service/migrations/**'
       - 'docs/admin/policies/**'
       - '.github/workflows/admin-owner-closure.yml'
 permissions:

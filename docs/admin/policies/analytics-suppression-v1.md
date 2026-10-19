@@ -73,3 +73,29 @@ and relevant security/CI evidence. A test-only cohort fixture certifies the
 mechanism, not the production report or its governance approval.
 
 Engineering continuation (2026-10-19): [source-owned resource context contracts](../../admin-bridge/owner-resource-contexts.md) provide signed owner remediation and deny-by-default typed reads. This draft supplies no context signature or production allocation. The sixteen-kind initial approval matrix remains **BLOCKED_POLICY**; Analytics thresholds/cohorts, Media grants and command approvals remain separate requirements.
+
+## Canonical lineage validation (engineering only)
+
+`adminprivacy.LineageReader` validates a fixed report/unit-field selection
+against Analytics' retained, PROCESSED canonical event, original producer,
+event classification/version and recomputed minimized-payload digest. It binds
+that fact to an independently signed source-owner context using the existing
+context framework. An analytical zone, including a GPS geohash, supplies no
+market/zone/organization/tenant authorization. Missing dimensions stay unknown
+until legitimate source-owner allocation and governance approval.
+
+Repeated provider facts use the same owner/provider deduplication key across
+original/replacement role fields. Source-entity keys retain their exact native
+type and identity; no booking/Trip relationship or cross-owner person identity
+is inferred. These hashes are internal identifiers, not anonymization. The
+privacy unit remains UNAPPROVED and no production threshold is supplied.
+
+Supply snapshots and demand buckets have no retained individual roster. Their
+counts and bucket identities are explicitly rejected as individual membership,
+even if an incidental provider field exists. Existing scalar counts cannot
+backfill a legitimate distinct-subject cohort. Complete native roster/export
+contracts, membership coverage, reconciliation, all ten report reducers and the
+scoped reporting facade remain engineering work. Installing Analytics migration
+006 or preparing a signed unit binding enables no report and supplies no scope
+grant. The report registry covers all ten dictionary IDs but is not ten completed
+cohort adapters. Every affected HQ report remains disabled.
