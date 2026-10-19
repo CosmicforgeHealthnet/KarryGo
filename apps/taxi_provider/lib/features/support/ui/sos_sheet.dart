@@ -42,6 +42,9 @@ class _SosSheetState extends State<_SosSheet> {
     setState(() => _sending = true);
     double? lat, lng;
     try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw const LocationServiceDisabledException();
+      }
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           timeLimit: Duration(seconds: 8),

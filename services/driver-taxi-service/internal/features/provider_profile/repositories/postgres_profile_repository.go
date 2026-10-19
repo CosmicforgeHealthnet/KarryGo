@@ -116,6 +116,11 @@ func (r *PostgresProfileRepository) ContactTaken(ctx context.Context, excludeID,
 // onboarding_status flips profile_required -> complete on the first successful
 // update. There is no intermediate pending_verification state: this service
 // owns no verification workflow.
+//
+// Having a document on file moves its review status from not_started to pending,
+// so the driver sees "submitted, awaiting review" rather than "not started".
+// Only not_started moves: a status a reviewer has already set (verified,
+// failed, expired) is never touched here.
 func (r *PostgresProfileRepository) UpdateProfile(ctx context.Context, params UpdateProfileParams) (providerauthmodels.Provider, error) {
 	row := r.db.QueryRow(ctx, `
 		UPDATE taxi_providers
@@ -143,6 +148,20 @@ func (r *PostgresProfileRepository) UpdateProfile(ctx context.Context, params Up
 		    onboarding_status              = CASE
 		        WHEN onboarding_status = $23 THEN $24
 		        ELSE onboarding_status
+		    END,
+		    identity_verification_status   = CASE
+		        WHEN identity_verification_status = 'not_started'
+		             AND ($13 != '' OR $14 != '' OR gov_id_url != '' OR driver_license_url != '') THEN 'pending'
+		        ELSE identity_verification_status
+		    END,
+		    document_compliance_status     = CASE
+		        WHEN document_compliance_status = 'not_started'
+		             AND ($13 != '' OR $14 != '' OR $15 != '' OR gov_id_url != '' OR driver_license_url != '' OR vehicle_reg_url != '') THEN 'pending'
+		        ELSE document_compliance_status
+		    END,
+		    vehicle_verification_status    = CASE
+		        WHEN vehicle_verification_status = 'not_started' AND ($15 != '' OR vehicle_reg_url != '') THEN 'pending'
+		        ELSE vehicle_verification_status
 		    END,
 		    updated_at = now()
 		WHERE id = $1

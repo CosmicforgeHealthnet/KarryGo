@@ -61,6 +61,10 @@ class _DriverMapState extends State<DriverMap> {
           permission != LocationPermission.whileInUse) {
         return;
       }
+      // With location switched off, asking for a fix makes Google Play
+      // services show its "turn on location accuracy" prompt on every launch.
+      // The map works without a fix, so don't ask.
+      if (!await Geolocator.isLocationServiceEnabled()) return;
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           timeLimit: Duration(seconds: 10),
