@@ -182,13 +182,16 @@ All of these were fixed on 19 October (commits `55c659a5`, `0ab2339b`, `84f32010
 
 ### 3.3 Server and platform gaps
 
+Also seen on 19 Oct: the truck profile header shows "Completed Trips 0" and "0 days" for a driver with completed jobs.
+
+
 | Gap | Impact | Fix |
 |---|---|---|
 | **No SMS provider** | Login codes for phone numbers are never delivered; drivers can't sign in without debug mode | Add an SMS provider to notification-service |
 | ~~Driver email login codes are never sent~~ | **Fixed 19 Oct:** hauling and taxi now email codes through notification-service; the taxi app has "Use email address instead" | |
 | ~~Document uploads go straight to media-file-service~~ | **Fixed 19 Oct (truck):** the app uploads to hauling `POST /provider/uploads` as the signed-in driver; hauling checks the file and stores it under its own credentials. The taxi app has no upload screens yet (stage 3) | |
 | **No admin tool to approve drivers** | Taxi drivers can never go online without a database edit | Admin review screens (admin-backoffice) |
-| **Receiver must be reachable by email or a KarryGo account** | Truck bookings that give only a receiver phone number get stuck at pickup ("Receiver requires a supported verified channel") | Add SMS, or let the customer app require a receiver email/account |
+| **Receiver must have a KarryGo account** | Truck bookings without a receiver account get stuck at pickup ("Receiver requires a supported verified channel"). A receiver email is not enough: pickup checks only for an account (confirmed on the live server, 19 Oct) | Accept a verified email or SMS channel at pickup, or make the customer app require a receiver account |
 | Only the Lagos taxi zone exists on staging | Taxi drivers elsewhere can't go online | Add zones per city |
 | `HAULING_ROUTES_API_KEY` / `TAXI_ROUTES_API_KEY` not set | Routes are straight lines, not roads | Add a Google Routes key |
 
