@@ -475,3 +475,6 @@ vendor-service PUT /api/v1/vendor/shop/products/:productId/fresh-attributes
 vendor-service PUT /api/v1/vendor/staff/:id/reactivate
 vendor-service PUT /api/v1/vendor/staff/:id/suspend
 vendor-service PUT /api/v1/vendor/taxonomy/namespaces/:namespaceCode/mappings
+# Existing rate-limited OTP self-registration, native Register handler.
+# Covered by TestSelfRegistrationRequiresOTPAndCreatesOnlyDraftOwner.
+vendor-service POST /api/v1/vendor/auth/register/verify

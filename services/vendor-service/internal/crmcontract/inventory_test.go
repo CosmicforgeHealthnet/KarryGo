@@ -179,6 +179,7 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	group := router.Group("/api/v1/vendor")
 	vendorauthhttp.RegisterRoutes(group, authHandler, signer, sessionRepo, staffResolver{staff: staffRepo})
 	protected := group.Group("")
+	protected.Use(vendorauthhttp.RequireAuth(signer, sessionRepo, staffResolver{staff: staffRepo}))
 	// cmd/main.go mounts this owner-validated surface in production.
 	assets.RegisterRoutes(protected, assets.NewHandler(assets.Options{}))
 	staffhttp.RegisterRoutes(protected, staffHandler)

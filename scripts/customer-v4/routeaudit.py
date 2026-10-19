@@ -267,7 +267,7 @@ def gateway_routes() -> list[tuple[str, str]]:
     owners = {"customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service",
               "hauling": "driver-hauling-service", "payment_wallet": "payment-wallet-service", "notification": "notification-service",
               "support": "support-dispute-service", "vendor": "vendor-service", "fleet": "fleet-partner-service",
-              "admin": "admin-backoffice-service", "verification": "verification-compliance-service"}
+              "partner_web": "partner-web-service", "admin": "admin-backoffice-service", "verification": "verification-compliance-service"}
     body = source.split("func DefaultRoutes()", 1)[1].split("\n}\n", 1)[0]
     table = []
     for prefix, constant in re.findall(r'\{\s*"([^"]+)"\s*,\s*(Upstream\w+)\s*,', body):
@@ -388,8 +388,8 @@ def classify() -> dict:
     # Publicly reachable routes without a recognised auth middleware are
     # legitimate only when reviewed (auth entry, estimates, public catalogues,
     # the Share public read, signature-verified webhooks, in-handler-authed
-    # websockets, and Vendor's inventory routes whose RequireAuth group the
-    # inventory router omits). Anything new fails until it is reviewed.
+    # websockets). Vendor's inventory router uses its production RequireAuth
+    # group. Anything new fails until it is reviewed.
     open_routes = sorted(f"{r['service']} {r['method']} {r['path']}" for r in rows if r["exposed"] and r["cls"] == "NO_AUTH_MIDDLEWARE")
     baseline_path = HERE / "public-unauthenticated-routes.reviewed.txt"
     unreviewed = []

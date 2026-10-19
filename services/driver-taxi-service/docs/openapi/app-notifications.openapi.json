@@ -1,0 +1,317 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Taxi app notification proxies",
+    "version": "1.0.0"
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Matching provider or customer role/service required."
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/taxi/customer/notifications": {
+      "get": {
+        "operationId": "taxi.customer.notifications.feed",
+        "summary": "List notifications for the authenticated subject",
+        "description": "Recipient ID comes exclusively from validated bearer claims. Notification service calls are signed internally; callers cannot choose another recipient.",
+        "responses": {
+          "401": {
+            "description": "Missing or invalid matching audience bearer"
+          },
+          "400": {
+            "description": "Invalid device input"
+          },
+          "503": {
+            "description": "Notification authority unavailable"
+          },
+          "200": {
+            "description": "Native success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "Invalid/nonpositive values use 50; values above 100 are capped."
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/customer/notifications/realtime-token": {
+      "post": {
+        "operationId": "taxi.customer.notifications.realtime-token",
+        "summary": "Mint a websocket token for the authenticated subject",
+        "description": "Recipient ID comes exclusively from validated bearer claims. Notification service calls are signed internally; callers cannot choose another recipient.",
+        "responses": {
+          "401": {
+            "description": "Missing or invalid matching audience bearer"
+          },
+          "400": {
+            "description": "Invalid device input"
+          },
+          "503": {
+            "description": "Notification authority unavailable"
+          },
+          "200": {
+            "description": "Native success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/taxi/customer/notifications/devices": {
+      "post": {
+        "operationId": "taxi.customer.notifications.devices",
+        "summary": "Register the authenticated subject push device",
+        "description": "Recipient ID comes exclusively from validated bearer claims. Notification service calls are signed internally; callers cannot choose another recipient.",
+        "responses": {
+          "401": {
+            "description": "Missing or invalid matching audience bearer"
+          },
+          "400": {
+            "description": "Invalid device input"
+          },
+          "503": {
+            "description": "Notification authority unavailable"
+          },
+          "200": {
+            "description": "Native success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/taxi/provider/notifications": {
+      "get": {
+        "operationId": "taxi.provider.notifications.feed",
+        "summary": "List notifications for the authenticated subject",
+        "description": "Recipient ID comes exclusively from validated bearer claims. Notification service calls are signed internally; callers cannot choose another recipient.",
+        "responses": {
+          "401": {
+            "description": "Missing or invalid matching audience bearer"
+          },
+          "400": {
+            "description": "Invalid device input"
+          },
+          "503": {
+            "description": "Notification authority unavailable"
+          },
+          "200": {
+            "description": "Native success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "Invalid/nonpositive values use 50; values above 100 are capped."
+          }
+        ]
+      }
+    },
+    "/api/v1/taxi/provider/notifications/realtime-token": {
+      "post": {
+        "operationId": "taxi.provider.notifications.realtime-token",
+        "summary": "Mint a websocket token for the authenticated subject",
+        "description": "Recipient ID comes exclusively from validated bearer claims. Notification service calls are signed internally; callers cannot choose another recipient.",
+        "responses": {
+          "401": {
+            "description": "Missing or invalid matching audience bearer"
+          },
+          "400": {
+            "description": "Invalid device input"
+          },
+          "503": {
+            "description": "Notification authority unavailable"
+          },
+          "200": {
+            "description": "Native success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/taxi/provider/notifications/devices": {
+      "post": {
+        "operationId": "taxi.provider.notifications.devices",
+        "summary": "Register the authenticated subject push device",
+        "description": "Recipient ID comes exclusively from validated bearer claims. Notification service calls are signed internally; callers cannot choose another recipient.",
+        "responses": {
+          "401": {
+            "description": "Missing or invalid matching audience bearer"
+          },
+          "400": {
+            "description": "Invalid device input"
+          },
+          "503": {
+            "description": "Notification authority unavailable"
+          },
+          "200": {
+            "description": "Native success envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "platform": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
