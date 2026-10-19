@@ -66,3 +66,20 @@ func TestActualOwnerMigrationsAndSourceDictionary(t *testing.T) {
 		t.Fatal("provider geography/tenant inferred without source authority")
 	}
 }
+
+func TestCustomerProjectionCannotAuthorizeOrphanCustomerReference(t *testing.T) {
+	db := fixture.Database(t, "../../../migrations")
+	ctx := context.Background()
+	source := Source()
+	if _, err := db.Exec(ctx, `INSERT INTO customer_movement_history_projection(customer_id,authority,source_ref,source_version,movement_type,state,last_event_id,last_event_at) VALUES('22222222-2222-4222-8222-222222222222','DISPATCH','orphan-movement',1,'DISPATCH','assigned','test-event',now())`); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := source.Binding(ctx, tx, "booking-references", "DISPATCH:orphan-movement"); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("orphan projection supplied customer authority: %v", err)
+	}
+}

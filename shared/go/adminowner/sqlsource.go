@@ -22,6 +22,7 @@ type SQLSpec struct {
 	TimelineRefExpression, TimelineTimeColumn            string
 	ReferenceExpression, VersionColumn                   string
 	CanonicalQuery                                       string
+	BindingExpression                                    string
 	// DimensionQuery is compiled owner SQL returning only allowed dimension
 	// labels. It can read canonical related records; absent rows remain unknown.
 	DimensionQuery                                          string
@@ -61,7 +62,13 @@ func (s *SQLSource) row(ctx context.Context, tx pgx.Tx, kind, ref string, lock b
 	if updated == "" {
 		updated = "t.updated_at"
 	}
-	projection := `SELECT jsonb_build_object('id',` + refExpr + `,'created_at',` + created + `,'updated_at',` + updated + `,'status',to_jsonb(t)->$2::text,'source_version',to_jsonb(t)->$8::text,'organization',to_jsonb(t)->$3::text,'tenant',to_jsonb(t)->$9::text,'dimensions',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($4::text[]) k),'counters',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($5::text[]) k),'references',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($6::text[]) k),'bindings',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($7::text[]) k)) FROM ` + spec.Table + ` t ` + spec.JoinClause + ` WHERE ` + refExpr + `=$1`
+	bindings := spec.BindingExpression
+	if bindings == "" {
+		bindings = `(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($7::text[]) k)`
+	} else {
+		bindings = `(` + bindings + ` || jsonb_build_object('_columns',$7::text[]))`
+	}
+	projection := `SELECT jsonb_build_object('id',` + refExpr + `,'created_at',` + created + `,'updated_at',` + updated + `,'status',to_jsonb(t)->$2::text,'source_version',to_jsonb(t)->$8::text,'organization',to_jsonb(t)->$3::text,'tenant',to_jsonb(t)->$9::text,'dimensions',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($4::text[]) k),'counters',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($5::text[]) k),'references',(SELECT jsonb_object_agg(k,to_jsonb(t)->k) FROM unnest($6::text[]) k),'bindings',` + bindings + `) FROM ` + spec.Table + ` t ` + spec.JoinClause + ` WHERE ` + refExpr + `=$1`
 	if spec.Predicate != "" {
 		projection += " AND (" + spec.Predicate + ")"
 	}

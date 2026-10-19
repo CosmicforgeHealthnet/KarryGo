@@ -1,6 +1,6 @@
 # Source-owned administrative resource contexts v1
 
-Engineering implementation; production governance remains **DRAFT — PENDING OWNER APPROVAL**. These contracts add no production grant, owner signature, threshold or enabled feature flag. They are not a completion claim for Sections 6–10.
+Engineering implementation; production governance remains **DRAFT â€” PENDING OWNER APPROVAL**. These contracts add no production grant, owner signature, threshold or enabled feature flag. They are not a completion claim for Sections 6â€“10.
 
 The existing source services embed these adapters; Admin never connects to their databases. The Bridge uses fixed owner origins, dedicated HMAC v2 credentials and bounded typed responses. All new owner and Bridge read flags default to false. Fleet routes remain behind its native enrolled service-credential, nonce and rate-limit middleware as well as the new checks.
 
@@ -55,4 +55,6 @@ Secrets are base64url files of at least 32 bytes. No production values are suppl
 
 Local PostgreSQL tests execute all five actual migration sets, provider-source projections, all dictionary lookup shapes, independent source signatures, scoped cursors, revocation, source-link changes, cross-replica nonces, audit failure and immutability. A dedicated Hauling test proves even a correctly signed approval cannot override the planning tenant or use settlement identity. Wire/delegation tests cover all sixteen kinds. The real Taxi main binary test prepares/publishes a context and reads through PostgreSQL plus actual Bridge mTLS, then revokes it. These checks do not certify every requested operational field or privileged command.
 
-Remaining engineering includes full Dispatch multistop/custody/incident views, the remaining Fleet decision receipts, legitimate source command adapters, all ten scoped Analytics cohorts/façade and case-bound Media grants. Existing source APIs and draft policies are not evidence that those capabilities are complete.
+Remaining engineering includes full Dispatch multistop/custody/incident views, the remaining Fleet decision receipts, legitimate source command adapters, all ten scoped Analytics cohorts/faÃ§ade and case-bound Media grants. Existing source APIs and draft policies are not evidence that those capabilities are complete.
+
+Source reference hardening: Customer movement projections require the current authoritative customer record. Custody context fingerprints bind the mission anchor authority and custody mode as well as both matching tenant references. Changing any of those source links denies an existing context; a prior context must be prepared/reviewed again against the current binding.
