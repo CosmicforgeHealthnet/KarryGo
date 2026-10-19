@@ -437,6 +437,10 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var out customerreviewops.Operation
 		var e error
 		if r.Method == "POST" {
+			if !b.features.WriteFamilyRequested(customerreview.RequestCapability) {
+				fail(503, "capability_blocked")
+				return
+			}
 			media, _, parseErr := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if parseErr != nil || media != "application/json" {
 				fail(415, "json_required")

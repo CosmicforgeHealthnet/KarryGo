@@ -136,3 +136,11 @@ runtime grants and current source denial after confirmation. A real mTLS Bridge
 and typed HTTP owner transport test validates signed delegation and recovery;
 the native Customer handler/SDK has separate actual-migration PostgreSQL tests.
 Full real HQ to native owner target-environment certification remains outstanding.
+
+
+The dedicated Bridge POST also requires both existing rollout switches
+`ADMIN_REMOTE_WRITES_ENABLED` and `ADMIN_CUSTOMER_WRITES_ENABLED`, in addition to
+the dedicated review-write/readback flags. Each is a kill gate, never an access
+grant. Turning either off blocks new submissions and hides write availability;
+current authorized original-identity GET readback remains independent. Regression
+tests exercise both kill gates and readback after all write switches are off.

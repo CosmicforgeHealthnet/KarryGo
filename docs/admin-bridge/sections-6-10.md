@@ -376,3 +376,10 @@ with zero skips, including 30 Analytics scenarios. Native source authority remai
 vet pass. This closes the frozen-membership reauthorization gap; it does not
 supply complete cohort exports, the other report reducers, report routing or any
 production approval. All ten reports remain unavailable for production disclosure.
+
+
+The dedicated Customer review POST now also honors the existing global remote-write
+and Customer-family write kill gates, in addition to its dedicated source and
+Bridge controls. Original authorized GET readback stays available when all write
+flags are off. Discovery reflects both kill gates. Expanded validation passes 231
+Bridge/Taxi/privacy/policy cases with zero skips; source authority remains 91.

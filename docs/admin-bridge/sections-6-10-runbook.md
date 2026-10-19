@@ -199,3 +199,11 @@ rechecked for current source allocation, expiry/revocation, native binding, prod
 and time window. Release, membership witness and query audit commit together.
 Retention/access rules require Privacy/Analytics approval. All reports stay disabled
 while complete source exports, report implementations or governance are missing.
+
+
+The dedicated Bridge POST also requires both existing rollout switches
+`ADMIN_REMOTE_WRITES_ENABLED` and `ADMIN_CUSTOMER_WRITES_ENABLED`, in addition to
+the dedicated review-write/readback flags. Each is a kill gate, never an access
+grant. Turning either off blocks new submissions and hides write availability;
+current authorized original-identity GET readback remains independent. Regression
+tests exercise both kill gates and readback after all write switches are off.

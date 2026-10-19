@@ -31,6 +31,7 @@ import (
 func TestPostgresCustomerReviewBridgeTypedOwnerBoundaryAndRecovery(t *testing.T) {
 	db := testutil.Database(t)
 	f := newFixture(t)
+	f.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, CustomerWrites: true})
 	f.claims.Zones = []string{"Z1"}
 	f.claims.Tenants = []string{"org-1"}
 	pair, leaf, roots := workloadCertificate(t, f.b.trust.WorkloadURI, false)
@@ -127,6 +128,11 @@ func TestPostgresCustomerReviewBridgeTypedOwnerBoundaryAndRecovery(t *testing.T)
 	if err := f.b.ConfigureCustomerReview(service); err != nil {
 		t.Fatal(err)
 	}
+	availability := map[string]bool{}
+	f.b.customerReviewAvailability(availability, f.claims.Roles, f.claims.Zones, f.claims.Tenants)
+	if !availability[customerreview.RequestCapability] || !availability[customerreview.ReadCapability] {
+		t.Fatal("approved test-only rollout not discoverable")
+	}
 	q := adminread.Query{Scope: adminread.Scope{Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"}, Purpose: "case-1", Start: time.Now().UTC().Add(-time.Hour).Truncate(time.Second), End: time.Now().UTC().Truncate(time.Second), Limit: 1}
 	values := q.Values()
 	for _, key := range []string{"staff", "role", "policy_id", "policy_version", "policy_checksum"} {
@@ -148,6 +154,11 @@ func TestPostgresCustomerReviewBridgeTypedOwnerBoundaryAndRecovery(t *testing.T)
 		}
 	}
 	service.WriteEnabled = false
+	f.b.ConfigureDomainFlags(config.DomainFlags{})
+	f.b.customerReviewAvailability(availability, f.claims.Roles, f.claims.Zones, f.claims.Tenants)
+	if availability[customerreview.RequestCapability] || !availability[customerreview.ReadCapability] {
+		t.Fatal("write kill hid original readback or left writes discoverable")
+	}
 	w = call("GET", "/customer/review-requests/"+input.RequestID+suffix, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"CONFIRMED"`) {
 		t.Fatal(w.Code, w.Body.String())
@@ -160,9 +171,10 @@ func TestPostgresCustomerReviewBridgeTypedOwnerBoundaryAndRecovery(t *testing.T)
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"zone", "tenant", "staff_injection", "permission", "policy", "disabled"} {
+	for _, name := range []string{"zone", "tenant", "staff_injection", "permission", "policy", "disabled", "global_write_kill", "customer_write_kill"} {
 		t.Run(name, func(t *testing.T) {
 			other := newFixture(t)
+			other.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, CustomerWrites: true})
 			other.claims.Zones = []string{"Z1"}
 			other.claims.Tenants = []string{"org-1"}
 			clone := *service
@@ -187,6 +199,12 @@ func TestPostgresCustomerReviewBridgeTypedOwnerBoundaryAndRecovery(t *testing.T)
 				want = 503
 			case "disabled":
 				clone.WriteEnabled = false
+				want = 503
+			case "global_write_kill":
+				other.b.ConfigureDomainFlags(config.DomainFlags{CustomerWrites: true})
+				want = 503
+			case "customer_write_kill":
+				other.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true})
 				want = 503
 			}
 			res := invoke(other.b, other.request(t, "POST", target, body))

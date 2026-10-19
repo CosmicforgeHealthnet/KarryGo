@@ -21,7 +21,7 @@ func (b *Bridge) customerReviewAvailability(values map[string]bool, roles, zones
 		if b.customerReview == nil || !b.customerReview.ReadEnabled || len(zones) == 0 || len(tenants) == 0 {
 			continue
 		}
-		if capability == customerreview.RequestCapability && !b.customerReview.WriteEnabled {
+		if capability == customerreview.RequestCapability && (!b.customerReview.WriteEnabled || !b.features.WriteFamilyRequested(capability)) {
 			continue
 		}
 		rule, err := b.customerReview.Policy.Rule(capability, b.now())
