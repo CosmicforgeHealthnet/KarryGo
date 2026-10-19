@@ -187,6 +187,65 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "dispatch.incidents.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_delivery_incidents.trip_id/provider_id/reason_code/state/replacement_strategy/recovery_result/recovery_attempts",
+        "trips.id/organization_id/customer_id/execution_source"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, current signed source-owner context and consistent native Trip parent links)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability approval",
+        "approved exact scope allocation",
+        "no workflow mutation version claimed"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.recovery.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_delivery_recovery_actions.trip_id/booking_id/customer_id/delivery_attempt_id/action/state",
+        "dispatch_delivery_attempts.trip_id",
+        "trips.organization_id"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, current signed source-owner context and consistent native Trip parent links)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability approval",
+        "approved exact scope allocation",
+        "no workflow mutation version claimed"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.returns.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_return_workflows.original_trip_id/recovery_action_id/state/return_mission_id/return_booking_id",
+        "dispatch_delivery_recovery_actions.trip_id/booking_id/customer_id/delivery_attempt_id",
+        "trips.organization_id"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, current signed source-owner context and consistent native Trip parent links)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability approval",
+        "approved exact scope allocation",
+        "no workflow mutation version claimed"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

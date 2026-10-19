@@ -29,6 +29,23 @@ func Database(t *testing.T, migrations string, upOnly ...bool) *pgxpool.Pool {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Extensions are database-wide. Installing pgcrypto inside one disposable
+	// schema makes sibling owners' real event triggers unable to resolve digest,
+	// and that schema's cleanup can remove the extension from active tests.
+	bootstrap, err := root.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = bootstrap.Exec(ctx, "SELECT pg_advisory_xact_lock(807412569)"); err == nil {
+		_, err = bootstrap.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public")
+	}
+	if err != nil {
+		bootstrap.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if err = bootstrap.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
 	schema := "owner_source_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	if _, err := root.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
 		t.Fatal(err)

@@ -26,10 +26,13 @@ func Profiles() []Profile {
 			"independent-rides": makeDef("taxi", "independent-rides", "taxi.independent_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),
 		}},
 		{Owner: "driver-dispatch-delivery-service", Domain: "dispatch", Prefix: "DISPATCH", Path: "/internal/dispatch/v1/admin", Definitions: map[string]Definition{
-			"riders":           makeDef("dispatch", "riders", "dispatch.riders.read", providerDimensions, nil, nil),
-			"motorcycles":      makeDef("dispatch", "motorcycles", "dispatch.motorcycles.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
-			"missions":         makeDef("dispatch", "missions", "dispatch.missions.read", missionDimensions, nil, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
-			"custody-missions": makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
+			"incidents":           makeDef("dispatch", "incidents", "dispatch.incidents.read", []string{"reason", "replacement_strategy", "recovery_result"}, []string{"recovery_attempts"}, []string{"trip", "original_provider", "replacement_provider"}),
+			"delivery-recoveries": makeDef("dispatch", "delivery-recoveries", "dispatch.recovery.read", []string{"action"}, nil, []string{"trip", "delivery_attempt"}),
+			"returns":             makeDef("dispatch", "returns", "dispatch.returns.read", nil, nil, []string{"trip", "recovery_action", "return_mission", "return_booking"}),
+			"riders":              makeDef("dispatch", "riders", "dispatch.riders.read", providerDimensions, nil, nil),
+			"motorcycles":         makeDef("dispatch", "motorcycles", "dispatch.motorcycles.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
+			"missions":            makeDef("dispatch", "missions", "dispatch.missions.read", missionDimensions, nil, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
+			"custody-missions":    makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
 			"custody-missions": makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),

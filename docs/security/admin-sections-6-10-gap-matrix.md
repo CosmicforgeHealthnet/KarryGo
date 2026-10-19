@@ -21,7 +21,7 @@ actual test results and remaining release gates are documented in
 | Taxi interventions | Taxi operational usecases and `adminaudit` | PARTIAL | Existing operational commands do not satisfy delegated expected-version/approval/read-back contract; remain disabled |
 | Dispatch rider/mission directory | Dispatch request/trip/commerce owner repositories | BLOCKED | Organization metadata exists for some trips, but authoritative geographic scopes are absent. No coordinate-based guessed market |
 | Dispatch recipient binding | `securehandover/service.go`, repository and notification transport | PARTIAL | Account-bound receiver checks exist; email/SMS channel certification and real devices unavailable |
-| Dispatch relay recovery | `marketplace/relay.go`, `relay_worker.go`, Fleet responder | PARTIAL | UNKNOWN_OUTCOME is currently re-delivered. Preserve uncertainty and require owner read-back; test with PostgreSQL |
+| Dispatch relay recovery | `marketplace/relay.go`, `relay_worker.go`, Fleet responder | IMPLEMENTED_AND_TESTED | Unknown mutations stay fenced; original-action immutable standard/private assignment and offer receipts reconcile using GET only. Historical unprovable intent stays fenced |
 | Dispatch evidence/admin recovery | Securehandover, deliveryrecovery, shared custodyops and Media | PARTIAL | No scoped HQ evidence grant contract or approved recovery policy; no admin custody bypass |
 | Hauling providers/cargo missions | Hauling migrations 001,008–020 and execution usecases | BLOCKED | Corporate links do not supply geographic authorization; no owner-scoped HQ snapshot contract |
 | Fleet corporate planning/execution links | Fleet marketplace/private execution and tenant auth | PARTIAL | Preserve planning/execution distinction; add a separately authorized HQ geographic mapping/read contract |
@@ -36,3 +36,22 @@ Required release evidence: real owner PostgreSQL migration/query tests, distribu
 nonce tests, scoped HQ-to-owner integration, stale-version/concurrency/uncertain-write
 tests, protected evidence tests, and CI. Live notification delivery, callback
 cutover and real-device handover are `BLOCKED_INFRA`, not inferred from local tests.
+
+## Engineering closure after the initial audit
+
+The initial audit table above records the starting gaps. Source-owned adapters
+now implement 20 kinds / 40 private resource read paths across Customer, Taxi,
+Dispatch, Hauling and Fleet. Signed owner context remediation is implemented,
+rechecks canonical facts, and denies historical/unmapped/contradictory rows.
+All initial mapping values and production governance still require approval.
+Dispatch and Hauling typed custody inventories require new v2 disclosure
+contracts. Dispatch incident/recovery/return reads validate actual Trip parent
+links and expose no command version where the owner has no complete counter.
+Detailed implementation evidence is maintained in
+`docs/admin-bridge/owner-resource-contexts.md` and
+`docs/admin-bridge/provider-decision-readback.md`.
+
+Remaining engineering: all ten scoped Analytics cohort adapters/facade; sensitive
+Customer lifecycle/privacy/support details and commands; richer Taxi/Hauling
+incident/remediation/suitability flows; executable HQ owner interventions; scoped
+Media evidence grants. These are engineering gaps, distinct from BLOCKED_POLICY.

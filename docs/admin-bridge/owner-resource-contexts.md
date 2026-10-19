@@ -72,3 +72,15 @@ inventory is loaded. Both implementations have actual-migration HTTP tests for
 multi-manifest isolation, legacy frozen manifests and old-approval rejection.
 There are now 17 source resource kinds and 34 Bridge resource read paths.
 Both v2 custody disclosures remain BLOCKED_POLICY and disabled by default.
+
+Dispatch additionally exposes `incidents`, `delivery-recoveries` and `returns`
+with separate read capabilities. These follow their actual parent Trip's
+`organization_id` as Fleet's canonical planning tenant. A recovery's booking,
+customer and delivery-attempt Trip must agree; returns also validate their
+recovery's parent links. A historical contradictory row is excluded even with
+a signed context. Binding fingerprints include parent identity and native links,
+so changing a parent invalidates previous authorization. Captured Trip versions
+are not workflow mutation counters: `source_version` remains null. No notes,
+route geometry/snapshots, wallet references or challenge/evidence data is exposed.
+The dictionary now has 20 resource kinds / 40 private Bridge resource read paths.
+These capabilities remain disabled and BLOCKED_POLICY; they execute no recovery.

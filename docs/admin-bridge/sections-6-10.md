@@ -217,7 +217,7 @@ in the PR; local results do not prove staging or production certification.
 
 **IMPLEMENTATION_INCOMPLETE.** Policy enforcement, Analytics suppression framework,
 the five-owner resource adapters and Dispatch/Fleet receipt reconciliation have
-real integration evidence. There are 17 resource kinds and 34 private Bridge read
+real integration evidence. There are 20 resource kinds and 40 private Bridge read
 paths. Production disclosure remains disabled pending owner approval. The ten
 Analytics cohort adapters, executable HQ interventions, richer owner detail and
 Media case grants remain engineering work; policy gaps do not complete them. This is not BACKEND_INTEGRATION_READY,
@@ -234,11 +234,19 @@ are excluded. Existing v1 approvals cannot authorize the larger disclosure.
 See `owner-resource-contexts.md` and each owner's
 `docs/openapi/admin-owner-resources.openapi.json`.
 
-Local verification for this increment: 60 source authority scenarios across all
-five actual migration suites and 195 Bridge/Taxi/privacy/policy scenarios passed
+Local verification for this increment: 67 source authority scenarios across all
+five actual migration suites and 201 Bridge/Taxi/privacy/policy scenarios passed
 with zero skipped test cases. Actual custody HTTP output from both owners passed
 independent schema validation. Windows vet passed; Linux race checks run in the
 mandatory owner workflow. The preceding committed baseline passed Section 31
 mandatory acceptance, owner safety, Bridge, Vendor and Gateway CI. Customer V4
 passed all service test gates but exposed route audit defects, repaired in this
 increment; fresh current-commit CI is still required.
+
+Dispatch incident, delivery-recovery and return metadata now use three separate
+read capabilities and exact native Trip parent validation. Conflicting booking,
+customer or attempt links deny access, including dependent return workflows.
+Protected notes, route snapshots, wallet references and recipient data are
+omitted. These workflows have no complete mutation counter; source versions
+remain unknown. `TestDispatchWorkflowReadsBindCanonicalTripAndRejectCrossLinks`
+uses actual migrations, signed source contexts and canonical organization checks.

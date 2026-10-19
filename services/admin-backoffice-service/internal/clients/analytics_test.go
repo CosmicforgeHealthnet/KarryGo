@@ -49,7 +49,9 @@ func TestOwnerRefusalTimeoutAndRedirectNeverRetry(t *testing.T) {
 				case "refused":
 					w.WriteHeader(403)
 				case "timeout":
-					time.Sleep(50 * time.Millisecond)
+					// Keep the owner response pending until the actual client
+					// deadline expires; avoid a startup-vs-10ms scheduling race.
+					<-r.Context().Done()
 				case "redirect":
 					http.Redirect(w, r, "http://unapproved.example", 302)
 				case "invalid":
@@ -62,12 +64,14 @@ func TestOwnerRefusalTimeoutAndRedirectNeverRetry(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer client.Close()
-			client.client.Timeout = 10 * time.Millisecond
+			if scenario == "timeout" {
+				client.client.Timeout = time.Second
+			}
 			if _, err = client.MissionSuccess(context.Background(), "DISPATCH", 7, "test-correlation"); err == nil {
 				t.Fatal("owner failure accepted")
 			}
 			if hits.Load() != 1 {
-				t.Fatal("request automatically repeated")
+				t.Fatalf("expected one owner request, observed %d", hits.Load())
 			}
 		})
 	}
