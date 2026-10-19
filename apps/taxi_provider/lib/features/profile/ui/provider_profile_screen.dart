@@ -4,10 +4,17 @@ import '../../../core/theme/karryam_theme.dart';
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/material.dart';
 
+import '../../../app/driver_services.dart';
 import '../../auth/data/provider_auth_api.dart';
 import '../../auth/models/provider_auth_models.dart';
 import '../../auth/state/provider_auth_controller.dart';
 import '../../home/state/provider_home_controller.dart';
+import '../../notifications/ui/notifications_screen.dart';
+import '../../onboarding/ui/add_vehicle_screen.dart';
+import '../../onboarding/ui/onboarding_screen.dart';
+import '../../onboarding/ui/verification_screen.dart';
+import '../../support/ui/help_screen.dart';
+import '../../wallet/ui/wallet_screen.dart';
 
 /// Driver profile: who they are, what they drive, and whether they take
 /// packages.
@@ -17,11 +24,13 @@ class ProviderProfileScreen extends StatefulWidget {
     required this.authApi,
     required this.authController,
     required this.homeController,
+    required this.services,
   });
 
   final ProviderAuthApi authApi;
   final ProviderAuthController authController;
   final ProviderHomeController homeController;
+  final DriverServices services;
 
   @override
   State<ProviderProfileScreen> createState() => _ProviderProfileScreenState();
@@ -121,6 +130,52 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               const SizedBox(height: 24),
               if (provider != null) ...[
                 _DriverPass(provider: provider),
+                _section('Your account'),
+                _panel(
+                  Column(
+                    children: [
+                      _menu(
+                        Icons.verified_user_outlined,
+                        'Verification',
+                        driverCleared(provider)
+                            ? 'Cleared to drive'
+                            : 'See what is still being checked',
+                        () => _open(
+                          VerificationScreen(
+                            auth: widget.authController,
+                            onUpdateDetails: _openEditDetails,
+                          ),
+                        ),
+                      ),
+                      _menu(
+                        Icons.account_balance_wallet_outlined,
+                        'Wallet',
+                        'Balance, bank accounts and withdrawals',
+                        () => _open(WalletScreen(api: widget.services.wallet)),
+                      ),
+                      _menu(
+                        Icons.badge_outlined,
+                        'Details and documents',
+                        'Licence, ID, safety contacts and photo',
+                        _openEditDetails,
+                      ),
+                      _menu(
+                        Icons.notifications_none_rounded,
+                        'Notifications',
+                        'Past ride offers and updates',
+                        () => _open(
+                          NotificationsScreen(taxi: widget.services.taxi),
+                        ),
+                      ),
+                      _menu(
+                        Icons.support_agent_outlined,
+                        'Help and support',
+                        'Questions, chat and reporting a problem',
+                        () => _open(HelpScreen(api: widget.services.support)),
+                      ),
+                    ],
+                  ),
+                ),
                 _section('Personal details'),
                 _panel(
                   Column(
@@ -164,18 +219,32 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                     ],
                   ),
                 )
-              else if (_vehicles.isEmpty)
-                _panel(
-                  const Text(
-                    'No vehicle registered yet. You need an active vehicle before you can go online.',
+              else ...[
+                if (_vehicles.isEmpty)
+                  _panel(
+                    const Text(
+                      'No vehicle registered yet. You need an active vehicle before you can go online.',
+                    ),
                   ),
-                )
-              else
                 for (final vehicle in _vehicles)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _VehiclePass(vehicle: vehicle),
                   ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final added = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            AddVehicleScreen(api: widget.services.onboarding),
+                      ),
+                    );
+                    if (added == true) _loadVehicles();
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add a car'),
+                ),
+              ],
               _section('App settings'),
               const AppearanceSetting(),
               _section('How you work'),
@@ -289,6 +358,31 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
       if (mounted) setState(() => _savingPreference = false);
     }
   }
+
+  void _open(Widget screen) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+
+  void _openEditDetails() => _open(
+    OnboardingScreen(
+      api: widget.services.onboarding,
+      auth: widget.authController,
+      editing: true,
+    ),
+  );
+
+  Widget _menu(
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(icon),
+    title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+    subtitle: Text(subtitle),
+    trailing: const Icon(Icons.chevron_right_rounded),
+    onTap: onTap,
+  );
 
   Widget _section(String text) => Padding(
     padding: const EdgeInsets.only(top: 28, bottom: 14),

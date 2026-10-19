@@ -17,6 +17,8 @@ import '../features/home/data/provider_api.dart';
 import '../features/home/state/provider_home_controller.dart';
 import '../features/home/ui/provider_home_screen.dart';
 import '../features/notifications/data/firebase_push.dart';
+import '../features/onboarding/ui/onboarding_screen.dart';
+import 'driver_services.dart';
 
 /// Root of the taxi driver app. Routes purely on auth status; everything
 /// below the home screen is driven by ProviderHomeController.
@@ -35,6 +37,7 @@ class _TaxiProviderAppState extends State<TaxiProviderApp> {
   late final ProviderApi _api;
   late final ProviderAuthController _auth;
   late final ProviderHomeController _home;
+  late final DriverServices _services;
   late final bool _ownsAuth;
   final _appearance = AppearanceController();
 
@@ -74,6 +77,7 @@ class _TaxiProviderAppState extends State<TaxiProviderApp> {
       authApi: _authApi,
       authController: _auth,
     );
+    _services = DriverServices(config: config, auth: _auth);
 
     if (_ownsAuth) _auth.initialize();
 
@@ -133,6 +137,7 @@ class _TaxiProviderAppState extends State<TaxiProviderApp> {
     if (_ownsAuth) _auth.dispose();
     _api.close();
     _authApi.close();
+    _services.close();
     super.dispose();
   }
 
@@ -160,11 +165,16 @@ class _TaxiProviderAppState extends State<TaxiProviderApp> {
                 ProviderAuthStatus.otpVerification => OtpScreen(
                   controller: _auth,
                 ),
+                // A new driver sets up their account before anything else.
+                ProviderAuthStatus.authenticated
+                    when state.provider?.needsOnboarding ?? false =>
+                  OnboardingScreen(api: _services.onboarding, auth: _auth),
                 ProviderAuthStatus.authenticated => ProviderHomeScreen(
                   controller: _home,
                   authController: _auth,
                   api: _api,
                   authApi: _authApi,
+                  services: _services,
                 ),
               };
             },

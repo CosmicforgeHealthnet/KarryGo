@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:taxi_provider/app/driver_services.dart';
+import 'package:taxi_provider/core/config/taxi_provider_config.dart';
 import 'package:taxi_provider/core/theme/karryam_theme.dart';
 import 'package:taxi_provider/core/widgets/driver_code_sheet.dart';
 import 'package:taxi_provider/features/auth/data/provider_auth_api.dart';
@@ -95,6 +97,14 @@ void main() {
               authApi: authApi,
               authController: auth,
               homeController: home,
+              services: DriverServices(
+                config: const TaxiProviderConfig(
+                  taxiApiBaseUrl: 'http://localhost/api/v1/taxi',
+                  walletApiBaseUrl: 'http://localhost/api/v1/payment-wallet',
+                  supportApiBaseUrl: 'http://localhost/api/v1/support-disputes',
+                ),
+                auth: auth,
+              ),
             ),
             brightness,
           ),
@@ -102,7 +112,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Suspended'), findsOneWidget);
         expect(find.text('No ratings yet'), findsOneWidget);
-        for (var i = 0; i < 8; i++) {
+        // The profile is long (account menu, vehicles, settings); scroll to
+        // the bottom, checking every frame lays out at large text.
+        for (var i = 0; i < 16; i++) {
           await tester.drag(find.byType(ListView), const Offset(0, -400));
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);

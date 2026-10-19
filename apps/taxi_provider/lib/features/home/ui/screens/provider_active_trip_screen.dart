@@ -19,10 +19,14 @@ class ProviderActiveTripScreen extends StatelessWidget {
     super.key,
     required this.controller,
     required this.booking,
+    this.onSos,
   });
 
   final ProviderHomeController controller;
   final ProviderBooking booking;
+
+  /// Opens the emergency options; the SOS button is hidden when null.
+  final VoidCallback? onSos;
 
   Future<void> _scanAndVerify(
     BuildContext context, {
@@ -262,6 +266,20 @@ class ProviderActiveTripScreen extends StatelessWidget {
                         ),
                       ),
                       JobTypeBadge(isParcel: booking.isParcel),
+                      if (onSos != null) ...[
+                        SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: onSos,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: KarryamColors.of(context).danger,
+                            side: BorderSide(
+                              color: KarryamColors.of(context).danger,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: Text('SOS'),
+                        ),
+                      ],
                     ],
                   ),
                   SizedBox(height: 6),

@@ -14,10 +14,14 @@ class ProviderDashboardScreen extends StatelessWidget {
     super.key,
     required this.controller,
     required this.authController,
+    this.onOpenNotifications,
   });
 
   final ProviderHomeController controller;
   final ProviderAuthController authController;
+
+  /// Opens the notification history; the bell is hidden when null.
+  final VoidCallback? onOpenNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +79,21 @@ class ProviderDashboardScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (onOpenNotifications != null) ...[
+                        const SizedBox(width: 12),
+                        Material(
+                          color: colors.card,
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            tooltip: 'Notifications',
+                            icon: Icon(
+                              Icons.notifications_none_rounded,
+                              color: colors.text,
+                            ),
+                            onPressed: onOpenNotifications,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

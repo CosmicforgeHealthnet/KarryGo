@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
 import 'package:flutter/foundation.dart';
 
@@ -87,7 +89,65 @@ class ProviderAuthController extends ChangeNotifier {
 
   void _emit(ProviderAuthState next) {
     _state = next;
+    _keepSessionFresh();
     notifyListeners();
+  }
+
+  /// Access tokens last an hour. While signed in, the session is refreshed
+  /// well before that, so a long shift never hits an expired token.
+  static const _refreshEvery = Duration(minutes: 40);
+  Timer? _refreshTimer;
+
+  void _keepSessionFresh() {
+    if (_state.status == ProviderAuthStatus.authenticated) {
+      _refreshTimer ??= Timer.periodic(
+        _refreshEvery,
+        (_) => tryRefreshSession(),
+      );
+    } else {
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+    }
+  }
+
+  /// One refresh at a time: the server rotates the refresh token, so two
+  /// concurrent refreshes would revoke each other.
+  Future<bool>? _refreshing;
+
+  /// Rotates the session. Returns whether the driver is still signed in.
+  Future<bool> tryRefreshSession() {
+    return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
+  }
+
+  Future<bool> _refresh() async {
+    final session = _state.session;
+    if (session == null || session.refreshToken.isEmpty) return false;
+    try {
+      final next = await _api.refresh(refreshToken: session.refreshToken);
+      await _store.write(next);
+      _emit(_state.copyWith(session: next));
+      return true;
+    } on ApiException {
+      return false;
+    }
+  }
+
+  /// Reloads the driver's profile (statuses change as documents are
+  /// reviewed) and folds it into the session.
+  Future<void> refreshProfile() async {
+    final token = _state.accessToken;
+    if (token == null) return;
+    try {
+      applyProviderUpdate(await _api.getProfile(accessToken: token));
+    } on ApiException {
+      // Keep what we have; screens offer their own retry.
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   /// Restores a saved session, refreshing it so a stale access token never
@@ -102,10 +162,12 @@ class ProviderAuthController extends ChangeNotifier {
     try {
       final session = await _api.refresh(refreshToken: saved.refreshToken);
       await _store.write(session);
-      _emit(ProviderAuthState(
-        status: ProviderAuthStatus.authenticated,
-        session: session,
-      ));
+      _emit(
+        ProviderAuthState(
+          status: ProviderAuthStatus.authenticated,
+          session: session,
+        ),
+      );
     } on ApiException {
       await _store.clear();
       _emit(const ProviderAuthState(status: ProviderAuthStatus.phoneEntry));
@@ -122,12 +184,14 @@ class ProviderAuthController extends ChangeNotifier {
       _emit(_state.copyWith(error: 'Enter your phone number.'));
       return;
     }
-    _emit(_state.copyWith(
-      isLoading: true,
-      clearError: true,
-      phone: trimmed,
-      useEmail: false,
-    ));
+    _emit(
+      _state.copyWith(
+        isLoading: true,
+        clearError: true,
+        phone: trimmed,
+        useEmail: false,
+      ),
+    );
     await _start(() => _api.startAuth(phone: trimmed));
   }
 
@@ -139,23 +203,27 @@ class ProviderAuthController extends ChangeNotifier {
       _emit(_state.copyWith(error: 'Enter a valid email address.'));
       return;
     }
-    _emit(_state.copyWith(
-      isLoading: true,
-      clearError: true,
-      email: trimmed,
-      useEmail: true,
-    ));
+    _emit(
+      _state.copyWith(
+        isLoading: true,
+        clearError: true,
+        email: trimmed,
+        useEmail: true,
+      ),
+    );
     await _start(() => _api.startAuth(email: trimmed));
   }
 
   Future<void> _start(Future<OtpChallenge> Function() start) async {
     try {
       final challenge = await start();
-      _emit(_state.copyWith(
-        status: ProviderAuthStatus.otpVerification,
-        isLoading: false,
-        challenge: challenge,
-      ));
+      _emit(
+        _state.copyWith(
+          status: ProviderAuthStatus.otpVerification,
+          isLoading: false,
+          challenge: challenge,
+        ),
+      );
     } on ApiException catch (e) {
       _emit(_state.copyWith(isLoading: false, error: e.message));
     }
@@ -177,20 +245,21 @@ class ProviderAuthController extends ChangeNotifier {
         otp: otp.trim(),
       );
       await _store.write(session);
-      _emit(ProviderAuthState(
-        status: ProviderAuthStatus.authenticated,
-        session: session,
-      ));
+      _emit(
+        ProviderAuthState(
+          status: ProviderAuthStatus.authenticated,
+          session: session,
+        ),
+      );
     } on ApiException catch (e) {
       _emit(_state.copyWith(isLoading: false, error: e.message));
     }
   }
 
   void backToPhoneEntry() {
-    _emit(_state.copyWith(
-      status: ProviderAuthStatus.phoneEntry,
-      clearError: true,
-    ));
+    _emit(
+      _state.copyWith(status: ProviderAuthStatus.phoneEntry, clearError: true),
+    );
   }
 
   /// Reflects a profile change (e.g. the parcel toggle) back into the session
@@ -226,10 +295,16 @@ class ProviderAuthController extends ChangeNotifier {
   /// screen whose every action will fail.
   Future<void> handleAuthFailure() async {
     if (_state.status != ProviderAuthStatus.authenticated) return;
+    // An expired access token is not a lost session: refresh first, and only
+    // sign the driver out when the refresh itself is refused.
+    if (await tryRefreshSession()) return;
+    if (_state.status != ProviderAuthStatus.authenticated) return;
     await _store.clear();
-    _emit(const ProviderAuthState(
-      status: ProviderAuthStatus.phoneEntry,
-      error: 'Your session expired. Please sign in again.',
-    ));
+    _emit(
+      const ProviderAuthState(
+        status: ProviderAuthStatus.phoneEntry,
+        error: 'Your session expired. Please sign in again.',
+      ),
+    );
   }
 }

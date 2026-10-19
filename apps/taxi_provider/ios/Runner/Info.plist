@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Karryam uses the camera to scan handover codes and photograph your driver documents.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Karryam uses your location to match you with nearby trips and guide you to pickups.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Karryam lets you choose photos of your driver documents and profile picture.</string>
 	<key>GMSApiKey</key>
 	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

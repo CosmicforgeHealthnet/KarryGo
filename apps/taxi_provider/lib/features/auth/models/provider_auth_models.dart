@@ -40,6 +40,22 @@ class TaxiProvider {
     this.rating = 0,
     this.totalTrips = 0,
     this.profilePhotoUrl,
+    this.identityVerificationStatus = '',
+    this.vehicleVerificationStatus = '',
+    this.vehicleOperationalStatus = '',
+    this.documentComplianceStatus = '',
+    this.locationState = '',
+    this.locationCity = '',
+    this.driverLicenseNumber = '',
+    this.licenseExpiryDate = '',
+    this.govIdUrl = '',
+    this.driverLicenseUrl = '',
+    this.vehicleRegUrl = '',
+    this.guarantorName = '',
+    this.guarantorPhone = '',
+    this.emergencyContactName = '',
+    this.emergencyContactPhone = '',
+    this.emergencyContactRelationship = '',
   });
 
   final String id;
@@ -58,6 +74,25 @@ class TaxiProvider {
   final int totalTrips;
   final String? profilePhotoUrl;
 
+  /// Review statuses. A driver can go online only once these pass.
+  final String identityVerificationStatus;
+  final String vehicleVerificationStatus;
+  final String vehicleOperationalStatus;
+  final String documentComplianceStatus;
+
+  final String locationState;
+  final String locationCity;
+  final String driverLicenseNumber;
+  final String licenseExpiryDate;
+  final String govIdUrl;
+  final String driverLicenseUrl;
+  final String vehicleRegUrl;
+  final String guarantorName;
+  final String guarantorPhone;
+  final String emergencyContactName;
+  final String emergencyContactPhone;
+  final String emergencyContactRelationship;
+
   String get fullName {
     final name = '$firstName $lastName'.trim();
     return name.isEmpty ? 'Driver' : name;
@@ -68,19 +103,39 @@ class TaxiProvider {
 
   bool get isActive => accountStatus == 'active';
 
+  /// A new driver who has not finished setting up their account.
+  bool get needsOnboarding => onboardingStatus == 'profile_required';
+
   factory TaxiProvider.fromJson(Map<String, dynamic> json) {
+    String str(String key) => (json[key] as String?) ?? '';
     return TaxiProvider(
-      id: (json['id'] as String?) ?? '',
-      phone: (json['phone'] as String?) ?? '',
-      firstName: (json['first_name'] as String?) ?? '',
-      lastName: (json['last_name'] as String?) ?? '',
-      accountStatus: (json['account_status'] as String?) ?? '',
-      onboardingStatus: (json['onboarding_status'] as String?) ?? '',
+      id: str('id'),
+      phone: str('phone'),
+      firstName: str('first_name'),
+      lastName: str('last_name'),
+      accountStatus: str('account_status'),
+      onboardingStatus: str('onboarding_status'),
       acceptsParcels: json['accepts_parcels'] == true,
-      email: (json['email'] as String?) ?? '',
+      email: str('email'),
       rating: (json['rating'] as num?)?.toDouble() ?? 0,
       totalTrips: (json['total_trips'] as num?)?.toInt() ?? 0,
       profilePhotoUrl: json['profile_photo_url'] as String?,
+      identityVerificationStatus: str('identity_verification_status'),
+      vehicleVerificationStatus: str('vehicle_verification_status'),
+      vehicleOperationalStatus: str('vehicle_operational_status'),
+      documentComplianceStatus: str('document_compliance_status'),
+      locationState: str('location_state'),
+      locationCity: str('location_city'),
+      driverLicenseNumber: str('driver_license_number'),
+      licenseExpiryDate: str('license_expiry_date'),
+      govIdUrl: str('gov_id_url'),
+      driverLicenseUrl: str('driver_license_url'),
+      vehicleRegUrl: str('vehicle_reg_url'),
+      guarantorName: str('guarantor_name'),
+      guarantorPhone: str('guarantor_phone'),
+      emergencyContactName: str('emergency_contact_name'),
+      emergencyContactPhone: str('emergency_contact_phone'),
+      emergencyContactRelationship: str('emergency_contact_relationship'),
     );
   }
 
@@ -97,6 +152,22 @@ class TaxiProvider {
       rating: rating,
       totalTrips: totalTrips,
       profilePhotoUrl: profilePhotoUrl,
+      identityVerificationStatus: identityVerificationStatus,
+      vehicleVerificationStatus: vehicleVerificationStatus,
+      vehicleOperationalStatus: vehicleOperationalStatus,
+      documentComplianceStatus: documentComplianceStatus,
+      locationState: locationState,
+      locationCity: locationCity,
+      driverLicenseNumber: driverLicenseNumber,
+      licenseExpiryDate: licenseExpiryDate,
+      govIdUrl: govIdUrl,
+      driverLicenseUrl: driverLicenseUrl,
+      vehicleRegUrl: vehicleRegUrl,
+      guarantorName: guarantorName,
+      guarantorPhone: guarantorPhone,
+      emergencyContactName: emergencyContactName,
+      emergencyContactPhone: emergencyContactPhone,
+      emergencyContactRelationship: emergencyContactRelationship,
     );
   }
 }
