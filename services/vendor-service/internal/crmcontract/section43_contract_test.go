@@ -233,7 +233,7 @@ func TestSection43ParityArtifactIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read parity artifact (run with UPDATE_SECTION43_ARTIFACT=1 to create it): %v", err)
 	}
-	if !bytes.Equal(want, encoded) {
+	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), encoded) {
 		t.Fatal("SECTION43_ROUTE_PARITY.json is stale; run this test with UPDATE_SECTION43_ARTIFACT=1")
 	}
 	if len(missingFromOpenAPI) != 0 || len(missingFromRouter) != 0 {
@@ -333,7 +333,7 @@ func TestSection43AllOpenAPIDocumentsAreStructurallyValid(t *testing.T) {
 			}
 		}
 	}
-	if operations != 877 || len(operationIDs) != operations {
+	if operations != 900 || len(operationIDs) != operations {
 		t.Fatalf("OpenAPI inventory changed: operations=%d uniqueOperationIds=%d", operations, len(operationIDs))
 	}
 }

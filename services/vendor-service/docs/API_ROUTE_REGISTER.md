@@ -2010,4 +2010,19 @@ Vendor asset media: POST /api/v1/vendor/media/uploads and GET /api/v1/vendor/med
 
 ### Public vendor self-registration
 
+### Explicit existing read-path entries
+
+These expand previously combined prose entries into exact paths for the route
+parity guard. Existing staff/resource permissions and privacy checks still apply.
+
+| Method | Path | Existing owner boundary |
+|---|---|---|
+| GET | /api/v1/vendor/cloud-kitchen/context/{branchId} | Branch-scoped cloud-kitchen context |
+| GET | /api/v1/vendor/cloud-kitchen/corporate-references | Authorized corporate reference lookup |
+| GET | /api/v1/vendor/commerce/section21/rfqs/{rfqId} | Vendor-owned RFQ |
+| GET | /api/v1/vendor/commerce/section21/scheduling-quotes/{quoteId} | Vendor-owned scheduling quote |
+| GET | /api/v1/vendor/delivery/rider/branches | Verified rider's permitted branches |
+| GET | /api/v1/vendor/media/objects/{mediaRef}/content | Owner-bound SAFE private Media content |
+| GET | /api/v1/vendor/staff/me/access | Verified staff member's own current access |
+
 `POST /api/v1/vendor/auth/register/verify` accepts one contact identifier, challenge_id, otp and optional device_id. The ordinary auth start/resend routes issue the challenge. Only successful OTP validation reaches owner registration. Owner, role assignment, audit and staff-created outbox event commit atomically; business details are supplied later through the existing authenticated `POST /api/v1/vendor/businesses` route. Optional legal_name, currency and timezone remain accepted for older staging APKs; when supplied, the compatibility path also creates a DRAFT business and its creation event atomically. Concurrent retries reuse existing affiliations. A caller cannot select or take over an existing business, and suspended access remains suspended. See `openapi/vendor-registration.openapi.json`.

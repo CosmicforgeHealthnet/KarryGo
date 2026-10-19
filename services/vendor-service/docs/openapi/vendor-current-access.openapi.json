@@ -4,9 +4,11 @@
     "title": "Current staff access",
     "version": "1.0.0"
   },
+  "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}}},
   "paths": {
     "/api/v1/vendor/staff/me/access": {
       "get": {
+        "operationId": "getVendorCurrentStaffAccess",
         "summary": "Authenticated staff assignment grants; resource and step-up checks still apply",
         "security": [
           {

@@ -25,6 +25,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/vendor-service/internal/features/assets"
 	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/journeyshare"
@@ -132,7 +133,9 @@ import (
 //
 // Four scoped scheduling reads and the two previously added onboarding upload
 // routes are included. The figure is measured from production registration.
-const ExpectedRouteCount = 873
+// Current composition includes the existing Section 21/context/reference and
+// staff-access routes plus the three asset routes mounted by cmd/main.go.
+const ExpectedRouteCount = 890
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.
@@ -176,6 +179,8 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	group := router.Group("/api/v1/vendor")
 	vendorauthhttp.RegisterRoutes(group, authHandler, signer, sessionRepo, staffResolver{staff: staffRepo})
 	protected := group.Group("")
+	// cmd/main.go mounts this owner-validated surface in production.
+	assets.RegisterRoutes(protected, assets.NewHandler(assets.Options{}))
 	staffhttp.RegisterRoutes(protected, staffHandler)
 	vendors.RegisterRoutes(protected, vendorHandler)
 	vendors.RegisterOnboardingRoutes(protected, vendorHandler)
