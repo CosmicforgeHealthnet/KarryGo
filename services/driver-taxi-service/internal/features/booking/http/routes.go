@@ -71,6 +71,7 @@ func RegisterBookingRoutes(
 		provider.Use(financialPrivacy)
 	}
 	provider.GET("/bookings", handler.ListActiveBookings)
+	provider.GET("/trips", handler.ListTripHistory)
 	provider.GET("/bookings/:id", handler.GetBookingForProvider)
 	provider.PUT("/bookings/:id/accept", handler.AcceptBooking)
 	provider.PUT("/bookings/:id/reject", handler.RejectBooking)

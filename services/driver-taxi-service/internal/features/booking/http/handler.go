@@ -264,6 +264,25 @@ func (h *BookingHandler) ListActiveBookings(c *gin.Context) {
 	respond(c, nethttp.StatusOK, bookingListResponse{Bookings: public})
 }
 
+// ListTripHistory is the driver's Trips screen: recent completed and
+// cancelled rides, newest first.
+func (h *BookingHandler) ListTripHistory(c *gin.Context) {
+	id, ok := providerID(c)
+	if !ok {
+		return
+	}
+	bookings, err := h.bookings.ListTripHistory(c.Request.Context(), id)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	public := make([]bookingmodels.PublicBooking, len(bookings))
+	for i, b := range bookings {
+		public[i] = b.Public()
+	}
+	respond(c, nethttp.StatusOK, bookingListResponse{Bookings: public})
+}
+
 // GetPickupCode is the passenger's own display screen: the code (and, on
 // the client, a QR rendering of that same code) to show the driver at
 // pickup.

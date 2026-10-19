@@ -903,7 +903,15 @@ func (r *PostgresBookingRepository) ListTerminalByProviderInRange(ctx context.Co
 		}
 		out = append(out, b)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Trip history shows each ride's pickup and destination (batched, as in
+	// ListByCustomer); earnings ignore them.
+	if err := r.attachStops(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *PostgresBookingRepository) ListByCustomer(ctx context.Context, customerID string, limit int) ([]bookingmodels.Booking, error) {

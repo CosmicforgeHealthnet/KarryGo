@@ -465,3 +465,23 @@ func (s *BookingService) GetByIDForProvider(ctx context.Context, id, providerID 
 func (s *BookingService) ListActiveByProvider(ctx context.Context, providerID string) ([]bookingmodels.Booking, error) {
 	return s.bookings.ListActiveByProvider(ctx, strings.TrimSpace(providerID))
 }
+
+// TripHistoryWindow and TripHistoryLimit bound the driver's trip history:
+// finished and cancelled rides from the last 90 days, newest first.
+const (
+	TripHistoryWindow = 90 * 24 * time.Hour
+	TripHistoryLimit  = 100
+)
+
+// ListTripHistory returns the driver's recent completed and cancelled rides.
+func (s *BookingService) ListTripHistory(ctx context.Context, providerID string) ([]bookingmodels.Booking, error) {
+	now := time.Now()
+	trips, err := s.bookings.ListTerminalByProviderInRange(ctx, strings.TrimSpace(providerID), now.Add(-TripHistoryWindow), now)
+	if err != nil {
+		return nil, err
+	}
+	if len(trips) > TripHistoryLimit {
+		trips = trips[:TripHistoryLimit]
+	}
+	return trips, nil
+}

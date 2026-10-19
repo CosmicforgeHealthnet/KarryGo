@@ -25,6 +25,8 @@ import (
 	providerprofilehttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/http"
 	providerprofilerepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/usecases"
+	provideruploadshttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_uploads/http"
+	provideruploadsusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_uploads/usecases"
 
 	availabilityhttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/http"
 	availabilityrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_availability/repositories"
@@ -425,6 +427,9 @@ func main() {
 		goodsSettlement = goods.NewWalletAdapter(walletAuthority)
 	}
 	var goodsMedia goods.MediaAuthority
+	// uploadService forwards driver documents and photos to media-file-service
+	// under this service's credentials; nil when media is not configured.
+	var uploadService *provideruploadsusecases.UploadService
 	var taxiMediaClient *mediaclient.Client
 	if strings.TrimSpace(cfg.MediaURL) != "" && strings.TrimSpace(cfg.MediaToken) != "" {
 		taxiMediaClient = mediaclient.New(mediaclient.Config{
@@ -432,6 +437,7 @@ func main() {
 			HTTPClient: &http.Client{Timeout: 10 * time.Second},
 		})
 		goodsMedia = goods.NewMediaAdapter(taxiMediaClient)
+		uploadService = provideruploadsusecases.NewUploadService(taxiMediaClient)
 	}
 	// Fleet's private-execution authority (Section 8 TAX-012/013/014). The
 	// engine and binder are the SAME booking service and repository every
@@ -579,6 +585,7 @@ func main() {
 			custodyops.RegisterProvider(group, custodyops.NewRepository(db, "TAXI_GOODS"), authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService, cfg.OTPDebug)
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
+			provideruploadshttp.RegisterUploadRoutes(group, uploadService, authService.AccessSigner())
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,
 				authService.AccessSigner(), customerSigner, cfg.MatchMaxRadiusKm)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService.AccessSigner(), customerSigner, idempotencyStore,
