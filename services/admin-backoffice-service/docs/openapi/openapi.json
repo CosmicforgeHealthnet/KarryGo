@@ -3258,7 +3258,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -3808,7 +3833,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -4358,7 +4408,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -4908,7 +4983,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -5458,7 +5558,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -6008,7 +6133,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -6558,7 +6708,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -7108,7 +7283,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -7658,7 +7858,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -7991,7 +8216,7 @@
       "get": {
         "operationId": "dispatch.resources.custody-missions.list",
         "summary": "dispatch.resources.custody-missions.list",
-        "description": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
+        "description": "BLOCKED_POLICY until dispatch.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "driver-dispatch-delivery-service",
         "x-required-permission": "dispatch.custody.read",
@@ -8208,7 +8433,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -8261,7 +8511,7 @@
       "get": {
         "operationId": "dispatch.resources.custody-missions.detail",
         "summary": "dispatch.resources.custody-missions.detail",
-        "description": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
+        "description": "BLOCKED_POLICY until dispatch.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "driver-dispatch-delivery-service",
         "x-required-permission": "dispatch.custody.read",
@@ -8488,7 +8738,22 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "required": [
+                                  "custody"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -8758,7 +9023,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -9308,7 +9598,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -9858,7 +10173,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -10408,7 +10748,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -10958,7 +11323,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -11508,7 +11898,32 @@
                       ]
                     },
                     "result": {
-                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -11789,6 +12204,596 @@
                     },
                     "result": {
                       "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/hauling/resources/custody-missions": {
+      "get": {
+        "operationId": "hauling.resources.custody-missions.list",
+        "summary": "hauling.resources.custody-missions.list",
+        "description": "BLOCKED_POLICY until hauling.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "driver-hauling-delivery-service",
+        "x-required-permission": "hauling.custody.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/hauling/resources/custody-missions/{id}": {
+      "get": {
+        "operationId": "hauling.resources.custody-missions.detail",
+        "summary": "hauling.resources.custody-missions.detail",
+        "description": "BLOCKED_POLICY until hauling.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "driver-hauling-delivery-service",
+        "x-required-permission": "hauling.custody.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "required": [
+                                  "custody"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      ]
                     },
                     "error": {
                       "type": "object",
@@ -13123,6 +14128,387 @@
                 },
                 "timeline_truncated": {
                   "type": "boolean"
+                },
+                "custody": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "custody.inventory.v1"
+                    },
+                    "authority": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "mode": {
+                      "enum": [
+                        "LEGACY_SINGLE",
+                        "MULTI_MANIFEST"
+                      ]
+                    },
+                    "legacy_manifest": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "reference": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                              "maxLength": 128
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "pickup_stop": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                              "maxLength": 128
+                            },
+                            "package_count": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "parcel_references": {
+                              "type": "array",
+                              "minItems": 1,
+                              "maxItems": 100,
+                              "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                                "maxLength": 128
+                              }
+                            },
+                            "frozen_at": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "reference",
+                            "version",
+                            "pickup_stop",
+                            "package_count",
+                            "parcel_references",
+                            "frozen_at"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stops": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "reference": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "type": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "sequence": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "status": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "reference",
+                          "type",
+                          "sequence",
+                          "status",
+                          "version"
+                        ]
+                      }
+                    },
+                    "manifests": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "reference": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest_version": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "pickup_stop": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                                "maxLength": 128
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "authority": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "package_count": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "weight_grams": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "volume_ml": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "custodian": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                                "maxLength": 128
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "reference",
+                          "manifest_version",
+                          "pickup_stop",
+                          "authority",
+                          "package_count",
+                          "weight_grams",
+                          "volume_ml",
+                          "required",
+                          "status",
+                          "custodian",
+                          "version"
+                        ]
+                      }
+                    },
+                    "packages": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "reference": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest_version": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "package_count": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "weight_grams": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "volume_ml": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "status": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "reference",
+                          "manifest",
+                          "manifest_version",
+                          "package_count",
+                          "weight_grams",
+                          "volume_ml",
+                          "status"
+                        ]
+                      }
+                    },
+                    "holdings": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "reference": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest_version": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "custodian": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "acquired_via": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "acquired_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "release_reason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                                "maxLength": 128
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "released_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "reference",
+                          "manifest",
+                          "manifest_version",
+                          "custodian",
+                          "acquired_via",
+                          "acquired_at",
+                          "release_reason",
+                          "released_at"
+                        ]
+                      }
+                    },
+                    "transfers": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "manifest_version": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "from": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "to": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "package_count": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "manifest",
+                          "manifest_version",
+                          "from",
+                          "to",
+                          "package_count",
+                          "at"
+                        ]
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "authority",
+                    "mode",
+                    "legacy_manifest",
+                    "stops",
+                    "manifests",
+                    "packages",
+                    "holdings",
+                    "transfers",
+                    "truncated"
+                  ]
                 }
               },
               "required": [
@@ -13138,6 +14524,24 @@
                 "references",
                 "timeline",
                 "timeline_truncated"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "custody-missions"
+                      }
+                    }
+                  },
+                  "else": {
+                    "not": {
+                      "required": [
+                        "custody"
+                      ]
+                    }
+                  }
+                }
               ]
             }
           },

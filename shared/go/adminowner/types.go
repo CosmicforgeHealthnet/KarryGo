@@ -33,18 +33,19 @@ type Reference struct {
 	Reference string `json:"reference"`
 }
 type Resource struct {
-	Reference         string          `json:"reference"`
-	Kind              string          `json:"kind"`
-	Status            *string         `json:"status"`
-	SourceVersion     *int64          `json:"source_version"`
-	SnapshotETag      string          `json:"snapshot_etag"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	Dimensions        []Dimension     `json:"dimensions"`
-	Counters          []Counter       `json:"counters"`
-	References        []Reference     `json:"references"`
-	Timeline          []TimelineEvent `json:"timeline"`
-	TimelineTruncated bool            `json:"timeline_truncated"`
+	Reference         string            `json:"reference"`
+	Kind              string            `json:"kind"`
+	Status            *string           `json:"status"`
+	SourceVersion     *int64            `json:"source_version"`
+	SnapshotETag      string            `json:"snapshot_etag"`
+	CreatedAt         time.Time         `json:"created_at"`
+	UpdatedAt         time.Time         `json:"updated_at"`
+	Dimensions        []Dimension       `json:"dimensions"`
+	Counters          []Counter         `json:"counters"`
+	References        []Reference       `json:"references"`
+	Timeline          []TimelineEvent   `json:"timeline"`
+	TimelineTruncated bool              `json:"timeline_truncated"`
+	Custody           *CustodyInventory `json:"custody,omitempty"`
 }
 type Snapshot struct {
 	ContractVersion string            `json:"contract_version"`
@@ -65,8 +66,11 @@ type Snapshot struct {
 type Definition struct {
 	Kind, Capability, SourceContract string
 	Dimensions, Counters, References []string
+	Custody                          bool
 }
 type Source interface {
 	admincontext.BindingReader
+	// The final flag requests bounded detail enrichment. Read models never
+	// lock or mutate business state; native command usecases own those guards.
 	Read(context.Context, pgx.Tx, string, string, bool) (Resource, error)
 }

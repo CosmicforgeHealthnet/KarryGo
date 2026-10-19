@@ -876,7 +876,7 @@
     "permission": "dispatch.custody.read",
     "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
     "risk": "R2",
-    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "privacy": "RESTRICTED_CUSTODY_METADATA",
     "source_version_required": false,
     "idempotency_required": false,
     "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
@@ -887,7 +887,7 @@
       "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
       "TestOwnerResourcesDelegation"
     ],
-    "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
+    "blocker": "BLOCKED_POLICY until dispatch.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   },
   {
@@ -901,7 +901,7 @@
     "permission": "dispatch.custody.read",
     "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
     "risk": "R2",
-    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "privacy": "RESTRICTED_CUSTODY_METADATA",
     "source_version_required": false,
     "idempotency_required": false,
     "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
@@ -912,7 +912,7 @@
       "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
       "TestOwnerResourcesDelegation"
     ],
-    "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
+    "blocker": "BLOCKED_POLICY until dispatch.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   },
   {
@@ -1213,6 +1213,56 @@
       "TestOwnerResourcesDelegation"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "hauling.resources.custody-missions.list",
+    "version": "1.0",
+    "owner": "driver-hauling-delivery-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/custody-missions",
+    "bridge_endpoint": "/hauling/resources/custody-missions",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.custody.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "RESTRICTED_CUSTODY_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_DISPATCH_RESOURCE_READ_ENABLED; DISPATCH_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation"
+    ],
+    "blocker": "BLOCKED_POLICY until hauling.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "hauling.resources.custody-missions.detail",
+    "version": "1.0",
+    "owner": "driver-hauling-delivery-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/custody-missions/{id}",
+    "bridge_endpoint": "/hauling/resources/custody-missions/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.custody.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "RESTRICTED_CUSTODY_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_DISPATCH_RESOURCE_READ_ENABLED; DISPATCH_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation"
+    ],
+    "blocker": "BLOCKED_POLICY until hauling.admin-custody.v2 is independently approved by source owner and governance. Prior v1 grants cannot authorize detail inventory.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   }
 ]

@@ -7,7 +7,16 @@ import (
 
 var ErrContract = errors.New("invalid minimized owner resource")
 
-func ValidateResource(resource Resource, definition Definition) error {
+func ValidateResource(resource Resource, definition Definition, details ...bool) error {
+	includeCustody := definition.Custody && len(details) > 0 && details[0]
+	if includeCustody != (resource.Custody != nil) {
+		return ErrContract
+	}
+	if resource.Custody != nil {
+		if err := validateCustodyInventory(resource.Custody); err != nil {
+			return err
+		}
+	}
 	if resource.Kind != definition.Kind || !adminread.Opaque(resource.Reference) || len(resource.SnapshotETag) != 64 || resource.CreatedAt.IsZero() || resource.UpdatedAt.IsZero() || resource.SourceVersion != nil && *resource.SourceVersion < 1 || len(resource.Timeline) > 200 || len(resource.Dimensions) != len(definition.Dimensions) || len(resource.Counters) != len(definition.Counters) || len(resource.References) > len(definition.References) {
 		return ErrContract
 	}

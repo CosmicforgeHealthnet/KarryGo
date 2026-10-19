@@ -105,6 +105,12 @@
                   },
                   "device_id": {
                     "type": "string"
+                  },
+                  "referral_link_code": {
+                    "type": "string"
+                  },
+                  "referral_code": {
+                    "type": "string"
                   }
                 }
               }

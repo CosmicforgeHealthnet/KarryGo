@@ -16,6 +16,20 @@ def obj(properties, required=None):
 def string(**kw):
     return {"type": "string", **kw}
 
+def custody_schema(opaque):
+    positive = {"type": "integer", "minimum": 1}
+    nonnegative = {"type": "integer", "minimum": 0}
+    timestamp = string(format="date-time")
+    optional = {"anyOf": [opaque, {"type": "null"}]}
+    array = lambda item: {"type": "array", "maxItems": 100, "items": item}
+    legacy = obj({"reference": opaque, "version": positive, "pickup_stop": opaque, "package_count": positive, "parcel_references": {"type": "array", "minItems": 1, "maxItems": 100, "items": opaque}, "frozen_at": timestamp})
+    stop = obj({"reference": opaque, "type": opaque, "sequence": positive, "status": opaque, "version": positive})
+    manifest = obj({"reference": opaque, "manifest_version": positive, "pickup_stop": optional, "authority": opaque, "package_count": positive, "weight_grams": nonnegative, "volume_ml": nonnegative, "required": {"type": "boolean"}, "status": opaque, "custodian": optional, "version": positive})
+    package = obj({"reference": opaque, "manifest": opaque, "manifest_version": positive, "package_count": positive, "weight_grams": nonnegative, "volume_ml": nonnegative, "status": opaque})
+    holding = obj({"reference": opaque, "manifest": opaque, "manifest_version": positive, "custodian": opaque, "acquired_via": opaque, "acquired_at": timestamp, "release_reason": optional, "released_at": {"type": ["string", "null"], "format": "date-time"}})
+    transfer = obj({"operation": opaque, "manifest": opaque, "manifest_version": positive, "from": opaque, "to": opaque, "package_count": positive, "at": timestamp})
+    return obj({"contract_version": {"const": "custody.inventory.v1"}, "authority": opaque, "mode": {"enum": ["LEGACY_SINGLE", "MULTI_MANIFEST"]}, "legacy_manifest": {"anyOf": [legacy, {"type": "null"}]}, "stops": array(stop), "manifests": array(manifest), "packages": array(package), "holdings": array(holding), "transfers": array(transfer), "truncated": {"type": "boolean"}})
+
 def build():
     opaque = string(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$", maxLength=128)
     scope = obj({"market": opaque, "organization": opaque})
@@ -45,6 +59,10 @@ def build():
     reference = obj({"kind": opaque, "reference": opaque})
     timeline = obj({"reference": opaque, "type": opaque, "at": {"type": ["string", "null"], "format": "date-time"}})
     resource = obj({"reference": opaque, "kind": opaque, "status": nullable_opaque, "source_version": {"type": ["integer", "null"], "minimum": 1}, "snapshot_etag": string(pattern="^[0-9a-f]{64}$"), "created_at": string(format="date-time"), "updated_at": string(format="date-time"), "dimensions": {"type": "array", "maxItems": 16, "items": dimension}, "counters": {"type": "array", "maxItems": 16, "items": counter}, "references": {"type": "array", "maxItems": 16, "items": reference}, "timeline": {"type": "array", "maxItems": 200, "items": timeline}, "timeline_truncated": {"type": "boolean"}})
+    # Detail-only source enrichment, authorized by each owner's admin-custody.v2.
+    # Adding this optional shape grants nothing under a prior v1 source rule.
+    resource["properties"]["custody"] = custody_schema(opaque)
+    resource["allOf"] = [{"if": {"properties": {"kind": {"const": "custody-missions"}}}, "else": {"not": {"required": ["custody"]}}}]
     resources = obj({"contract_version": {"const": "karryam.owner-resources.v1"}, "owner": opaque, "kind": opaque, "scope": obj({"product": {"const": "karryam"}, "market": opaque, "zone": opaque, "organization": opaque, "tenant": opaque}), "policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "as_of": string(format="date-time"), "coverage": {"const": "CONTEXT_SCOPED_PARTIAL"}, "items": {"type": "array", "maxItems": 100, "items": resource}, "next_cursor": {"type": ["string", "null"], "maxLength": 4096}})
     schemas.update(OwnerResourcesSnapshot=resources)
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
@@ -63,6 +81,11 @@ def build():
         if c["state"] == "READ_ONLY":
             result = "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
+            if ".resources." in c["id"] and c["id"].endswith(".list"):
+                metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}
+                success_schema["properties"]["result"] = {"allOf": [{"$ref": f"#/components/schemas/{result}"}, metadata]}
+            if c["id"] in ("dispatch.resources.custody-missions.detail", "hauling.resources.custody-missions.detail"):
+                success_schema["properties"]["result"] = {"allOf": [{"$ref": f"#/components/schemas/{result}"}, {"properties": {"items": {"items": {"required": ["custody"]}}}}]}
             op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":
             op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}

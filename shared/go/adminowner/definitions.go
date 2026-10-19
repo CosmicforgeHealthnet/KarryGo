@@ -32,15 +32,26 @@ func Profiles() []Profile {
 			"custody-missions": makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
-			"providers": makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
-			"trucks":    makeDef("hauling", "trucks", "hauling.trucks.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
-			"missions":  makeDef("hauling", "missions", "hauling.missions.read", missionDimensions, []string{"cargo_weight_kg"}, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
+			"custody-missions": makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
+			"providers":        makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
+			"trucks":           makeDef("hauling", "trucks", "hauling.trucks.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
+			"missions":         makeDef("hauling", "missions", "hauling.missions.read", missionDimensions, []string{"cargo_weight_kg"}, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
 		}},
 		{Owner: "fleet-partner-service", Domain: "fleet", Prefix: "FLEET_PARTNER", Path: "/internal/fleet-partner/v1/admin", Definitions: map[string]Definition{
 			"shipments":           makeDef("fleet", "shipments", "fleet.shipments.read", []string{"planning", "custody", "return"}, nil, []string{"order", "branch"}),
 			"private-assignments": makeDef("fleet", "private-assignments", "fleet.private_assignments.read", []string{"execution_service", "work_origin"}, nil, []string{"provider", "vehicle", "shipment", "order"}),
 			"execution-links":     makeDef("fleet", "execution-links", "fleet.execution_links.read", []string{"execution_service"}, nil, []string{"provider", "vehicle", "shipment", "assignment", "response", "canonical_mission"}),
 		}},
+	}
+	for i := range profiles {
+		if profiles[i].Domain == "dispatch" || profiles[i].Domain == "hauling" {
+			definition := profiles[i].Definitions["custody-missions"]
+			definition.Custody = true
+			// The larger disclosure requires a new approved source contract;
+			// an old v1 owner/governance approval cannot authorize this shape.
+			definition.SourceContract = profiles[i].Domain + ".admin-custody.v2"
+			profiles[i].Definitions["custody-missions"] = definition
+		}
 	}
 	return profiles
 }

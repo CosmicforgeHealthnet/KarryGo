@@ -113,3 +113,26 @@ and image/deployment checks. Do not mark a skipped database test as passed.
 Real HQ, deployed edge/firewall checks, target private owner networking,
 Notification delivery, protected Media grants and real-device handover remain
 separate target-environment certification requirements.
+
+## Source-owned resource and custody reads
+
+Use the fixed five-owner configuration described in
+[owner-resource-contexts.md](owner-resource-contexts.md). All switches default
+false. Enabling a switch supplies no policy grant: read access requires both an
+approved governance rule and a current independently signed owner context bound
+to live canonical source facts. Preparation/publication uses a separate owner
+workload; HQ cannot self-approve or choose a replacement tenant.
+
+Dispatch and Hauling custody details require their respective
+`dispatch.admin-custody.v2` and `hauling.admin-custody.v2` contracts. Do not reuse
+v1 approvals. Every collection is bounded at 100 with an explicit `truncated`
+indicator. Truncated data cannot establish absence, completion or permission to
+intervene. Detail ETags are read-model fingerprints, never native command versions.
+Legacy missing/stale manifest versions fail closed.
+
+Provider decision readbacks cover original standard/private assignment and
+marketplace offer actions. Follow
+[provider-decision-readback.md](provider-decision-readback.md); a historical
+receipt never grants present execution permission. Preserve immutable receipt,
+readback and owner audit evidence during rollback. Unsupported historical proof
+must remain fenced. No HQ recovery or override command is enabled.

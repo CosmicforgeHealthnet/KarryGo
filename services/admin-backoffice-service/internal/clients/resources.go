@@ -83,10 +83,13 @@ func (c *Resources) Read(ctx context.Context, q adminread.Query, kind, ref strin
 	}
 	seen := map[string]bool{}
 	for _, item := range out.Items {
-		if adminowner.ValidateResource(item, definition) != nil || seen[item.Reference] || item.CreatedAt.After(out.AsOf) || item.UpdatedAt.After(out.AsOf) || ref == "" && (item.CreatedAt.Before(q.Start) || !item.CreatedAt.Before(q.End)) {
+		if adminowner.ValidateResource(item, definition, ref != "") != nil || seen[item.Reference] || item.CreatedAt.After(out.AsOf) || item.UpdatedAt.After(out.AsOf) || ref == "" && (item.CreatedAt.Before(q.Start) || !item.CreatedAt.Before(q.End)) {
 			return adminowner.Snapshot{}, ErrInvalid
 		}
 		seen[item.Reference] = true
+		if ref == "" && (len(item.Timeline) > 0 || item.TimelineTruncated) {
+			return adminowner.Snapshot{}, ErrInvalid
+		}
 	}
 	return out, nil
 }

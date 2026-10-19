@@ -130,8 +130,8 @@ func (s *SQLSource) Binding(ctx context.Context, tx pgx.Tx, kind, ref string) (a
 	}{spec.Definition.SourceContract, kind, ref, data["created_at"], data["bindings"], canonical})
 	return admincontext.RecordBinding{Fingerprint: fingerprint, SourceContract: spec.Definition.SourceContract, Canonical: canonical}, nil
 }
-func (s *SQLSource) Read(ctx context.Context, tx pgx.Tx, kind, ref string, lock bool) (Resource, error) {
-	data, spec, err := s.row(ctx, tx, kind, ref, lock)
+func (s *SQLSource) Read(ctx context.Context, tx pgx.Tx, kind, ref string, details bool) (Resource, error) {
+	data, spec, err := s.row(ctx, tx, kind, ref, false)
 	if err != nil {
 		return Resource{}, err
 	}
@@ -189,7 +189,7 @@ func (s *SQLSource) Read(ctx context.Context, tx pgx.Tx, kind, ref string, lock 
 			out.References = append(out.References, Reference{Kind: name, Reference: *value})
 		}
 	}
-	if spec.TimelineTable != "" {
+	if spec.TimelineTable != "" && details {
 		eventRef := spec.TimelineRefExpression
 		if eventRef == "" {
 			eventRef = "e.id::text"
@@ -224,6 +224,12 @@ func (s *SQLSource) Read(ctx context.Context, tx pgx.Tx, kind, ref string, lock 
 	}
 	// This is a content ETag for this minimized snapshot, not a fabricated
 	// monotonic owner lifecycle version or permission to mutate a trip.
+	if spec.Definition.Custody && details {
+		out.Custody, err = readCustodyInventory(ctx, tx, ref)
+		if err != nil {
+			return out, err
+		}
+	}
 	out.SnapshotETag = admincontext.Fingerprint(out)
 	return out, nil
 }

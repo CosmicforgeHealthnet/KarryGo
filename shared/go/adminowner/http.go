@@ -199,7 +199,7 @@ func (h *Handler) Serve(c *gin.Context) {
 			return
 		}
 		authorizedCandidates++
-		item, err := h.Source.Read(ctx, tx, definition.Kind, candidate, false)
+		item, err := h.Source.Read(ctx, tx, definition.Kind, candidate, ref != "")
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
 		}
@@ -210,7 +210,7 @@ func (h *Handler) Serve(c *gin.Context) {
 		if ref == "" && (item.CreatedAt.Before(query.Start) || !item.CreatedAt.Before(query.End)) {
 			continue
 		}
-		if err := ValidateResource(item, definition); err != nil {
+		if err := ValidateResource(item, definition, ref != ""); err != nil {
 			h.fail(c, 503, "owner_contract_invalid")
 			return
 		}

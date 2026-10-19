@@ -79,11 +79,15 @@ jobs:
       TAXI_REDIS_ADDR: 127.0.0.1:6379
       TAXI_NOTIFICATION_REDIS_ADDR: 127.0.0.1:6379
       ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
+      ADMIN_OWNER_CUSTODY_CAPTURE_DIR: ${{ github.workspace }}/test-artifacts/owner-wire
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/setup-go@v5
         with: {go-version: '1.26.9', cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r scripts/admin-bridge/requirements.txt
       - name: Build actual Taxi owner; install real Dispatch schema
         shell: bash
         run: |
@@ -103,6 +107,8 @@ jobs:
           python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
           go test -race -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
+          python scripts/admin-bridge/validate_owner_wire.py test-artifacts/owner-wire
+          python scripts/admin-bridge/owner_contracts.py
           go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./services/driver-dispatch-delivery-service/internal/features/securehandover > test-artifacts/dispatch-safety.jsonl
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-safety.jsonl
           go test -race -json -count=1 -timeout=300s ./services/fleet-partner-service/internal/integration -run 'TestProviderDecisionReceipt|TestProviderOfferReceipt|TestProviderOfferLegacy' > test-artifacts/fleet-receipts.jsonl

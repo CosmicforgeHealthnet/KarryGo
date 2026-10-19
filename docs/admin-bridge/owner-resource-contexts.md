@@ -58,3 +58,17 @@ Local PostgreSQL tests execute all five actual migration sets, provider-source p
 Remaining engineering includes full Dispatch multistop/custody/incident views, the remaining Fleet decision receipts, legitimate source command adapters, all ten scoped Analytics cohorts/façade and case-bound Media grants. Existing source APIs and draft policies are not evidence that those capabilities are complete.
 
 Source reference hardening: Customer movement projections require the current authoritative customer record. Custody context fingerprints bind the mission anchor authority and custody mode as well as both matching tenant references. Changing any of those source links denies an existing context; a prior context must be prepared/reviewed again against the current binding.
+
+Dispatch custody detail now additionally exposes the authoritative stop sequence, versioned manifest identities, package count/status metadata, current/historical custodian holdings and transfer inventory. Legacy frozen-manifest identities are distinguished from multi-manifest records. The view excludes challenges, credentials, contacts, coordinates, free text, raw evidence and earnings. Each collection is bounded at 100 with explicit truncation; list responses never expand inventory. These stored counters are not inferred eligibility decisions or verified measurements.
+
+This larger disclosure requires **dispatch.admin-custody.v2**, independently approved in both governance policy and source-owner context. Existing v1 approvals fail closed; no production approval is supplied. The parent tenant/authority/custody mode is revalidated, and every child is selected through its actual mission foreign key. A real HTTP/PostgreSQL test covers a second tenant, hidden challenge material, canonical manifest versions, transfers, and bounded/truncated inventory; CI validates its actual serialized response against the pinned independent schema.
+
+Hauling exposes the same bounded custody inventory from its own canonical
+`custodyops` tables, under `hauling.custody.read` and the separate
+`hauling.admin-custody.v2` source contract. Hauling tenant identifiers remain
+source-owned; this does not equate them with a Fleet organization. The native
+anchor/state tenant equality and signed binding checks apply before any child
+inventory is loaded. Both implementations have actual-migration HTTP tests for
+multi-manifest isolation, legacy frozen manifests and old-approval rejection.
+There are now 17 source resource kinds and 34 Bridge resource read paths.
+Both v2 custody disclosures remain BLOCKED_POLICY and disabled by default.

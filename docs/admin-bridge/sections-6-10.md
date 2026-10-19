@@ -27,10 +27,10 @@ the available specification; the named A-to-Z PDF was not supplied.
 | Section | Actual result | Evidence | Status / outstanding |
 |---|---|---|---|
 | 6 Analytics | Ten fixed-path typed legacy clients and source dictionary; owner-side suppression service with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. No production cohort source adapter or scoped HQ report exposure; legacy reports remain dormant |
-| 7 Customer | Owner schema and lifecycle boundary audited | `customers` has no authoritative market/zone/tenant mapping | BLOCKED_POLICY / NOT_IMPLEMENTED. Directory, sensitive details and executable lifecycle/privacy commands remain unavailable through HQ |
-| 8 Taxi | Corporate ride list/detail plus bounded real event history; fixed signed owner client, canonical tenant checks and independently approved policy at both hops | Real PostgreSQL owner tests, actual Taxi process behind mTLS bridge; deliberately incorrect signed test grant cannot override owner tenant | INTEGRATION_TESTED / BLOCKED_POLICY for production. Provider/vehicle directories, independent rides, interventions and protected documents are not implemented |
-| 9 Dispatch | Canonical relay uncertainty/replay fence, immediate-delivery claim, durable acknowledgement correction, transport hardening and active-trip geometry defect fixed | Real PostgreSQL relay/race/fault/upgrade tests; real Redis allowance test; existing PostgreSQL recipient/custody evidence suite | INTEGRATION_TESTED for these repairs. Scoped HQ rider/mission adapter, command receipts/reconciliation, recovery approval policy and Media evidence grants remain unavailable |
-| 10 Hauling/Fleet | Audited owner schemas and corporate execution/planning boundaries | Organization links do not establish geographic authority | BLOCKED_POLICY / NOT_IMPLEMENTED. No HQ cargo/provider/recovery adapter was enabled |
+| 7 Customer | Source-owned customer, consent and booking-reference reads; signed authorization-context remediation and immutable read audit | Actual Customer migrations, orphan-reference rejection, historical/unmapped and scope-isolation tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
+| 8 Taxi | Corporate rides plus source-owned provider, vehicle and independent-ride read models; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
+| 9 Dispatch | Rider, motorcycle, mission and typed multi-stop/custody inventory reads; standard/private assignment and marketplace offer immutable Fleet decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
+| 10 Hauling/Fleet | Provider/truck/mission reads and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Capacity/inspection detail and executable remediation remain engineering work |
 
 The initial source-by-source assessment is in
 `docs/security/admin-sections-6-10-gap-matrix.md`. This change is an incremental
@@ -191,8 +191,10 @@ in the PR; local results do not prove staging or production certification.
   provider tap cannot both deliver it. Failed persistence cannot acknowledge a
   confirmed result. This repairs source behavior without an admin workaround.
 * Uncertain decisions now stay unresolved until authoritative reconciliation;
-  this change does **not** implement a Fleet decision-receipt/read-back API.
-  Availability after an ambiguous outage is intentionally not claimed restored.
+  GET-only immutable Fleet receipts now reconcile standard/private assignments
+  and marketplace accepts/declines against the exact original action identity.
+  Missing or mismatched historical proof remains fenced; no POST is repeated.
+  See `provider-decision-readback.md` for native evidence limitations.
 * Recovery and evidence remain gated. No new path reads secret credentials,
   raw protected documents or custody evidence. There is no HQ handover bypass.
 
@@ -200,11 +202,11 @@ in the PR; local results do not prove staging or production certification.
 
 | Blocker | Impact / owner | Required action and evidence | Disabled? |
 |---|---|---|---|
-| BLOCKED_POLICY: missing scope provenance | Customer; Dispatch/Hauling missions and provider directories; Fleet geography | Owner-defined authoritative mapping and enforcement, including historical/unmapped rows; cross-market/tenant tests; initial approval of draft matrix | Yes, HQ adapters unavailable |
+| BLOCKED_POLICY: missing scope provenance | Customer; Dispatch/Hauling missions and provider directories; Fleet geography | Owner-defined authoritative mapping and enforcement, including historical/unmapped rows; cross-market/tenant tests; initial approval of draft matrix | Yes, adapters implemented; no approved production authorization contexts |
 | BLOCKED_POLICY: missing approved reporting policy | Analytics reports | Approve draft suppression values and privacy domains; implement owner-scoped cohorts and reconcile source tests for all ten reports | Yes; suppression framework tested |
 | BLOCKED_POLICY: Taxi approved access tuples absent | Taxi corporate reads | Owner and governance review/sign exact canonical tuples, roles, purposes and key enrollment; target-environment verification | Yes; no production grants exist |
 | No supported HQ executable command contracts | Customer, Taxi, Dispatch, Hauling/Fleet | Versioned owner mutation and receipt/read-back contracts, approvals, failure/timeout/reconciliation tests, per-family flags and write kill switch | Yes |
-| Unresolved ambiguous provider decisions | Dispatch → Fleet | Owner receipt keyed to exact original action/provider/idempotency identity; reconcile without another POST; audit legacy fences | Fenced; automatic redelivery/replay disabled |
+| Legacy decisions without immutable proof | Dispatch → Fleet | All supported native decision families have exact-action GET readbacks; historical rows without provable original intent and private evidence remain unresolved | Unprovable legacy work stays fenced |
 | Protected admin evidence access absent | Media + owner services | Case/subject/permission scoped short-lived grants and denial/revocation tests | Yes |
 | Recipient channel certification incomplete | Customer/Dispatch/Notification | Supported verified-channel contracts and real device/delivery evidence; wrong-recipient and network interruption tests | Unsupported channels fail closed |
 | Private owner connectivity not provisioned | Platform infrastructure | Approved owner-only ingress/egress path and secret mounts; verify no Gateway or domain DB exposure | Taxi reads disabled by default |
@@ -214,10 +216,29 @@ in the PR; local results do not prove staging or production certification.
 ## G. Verdict
 
 **IMPLEMENTATION_INCOMPLETE.** Policy enforcement, Analytics suppression framework,
-the corporate Taxi read subset and Dispatch source safety repairs have real local
-integration evidence. Production Taxi and Analytics disclosure remain disabled
-pending owner approval. The other requested HQ
-adapters and the executable command/reconciliation layer remain unimplemented
-or blocked by owner scope/policy contracts. This is not BACKEND_INTEGRATION_READY,
+the five-owner resource adapters and Dispatch/Fleet receipt reconciliation have
+real integration evidence. There are 17 resource kinds and 34 private Bridge read
+paths. Production disclosure remains disabled pending owner approval. The ten
+Analytics cohort adapters, executable HQ interventions, richer owner detail and
+Media case grants remain engineering work; policy gaps do not complete them. This is not BACKEND_INTEGRATION_READY,
 STAGING_CERTIFIED or END_TO_END_CERTIFIED. CI passing for this incremental change
 would not change that overall verdict.
+
+### Current custody and authority validation
+
+The v2 Dispatch/Hauling custody detail contracts expose bounded canonical stops,
+versioned manifests/packages, holdings and transfer items; legacy reads require
+the exact frozen manifest version in native state. List responses contain only
+metadata. Challenge data, raw parcel JSON, business references and evidence URLs
+are excluded. Existing v1 approvals cannot authorize the larger disclosure.
+See `owner-resource-contexts.md` and each owner's
+`docs/openapi/admin-owner-resources.openapi.json`.
+
+Local verification for this increment: 60 source authority scenarios across all
+five actual migration suites and 195 Bridge/Taxi/privacy/policy scenarios passed
+with zero skipped test cases. Actual custody HTTP output from both owners passed
+independent schema validation. Windows vet passed; Linux race checks run in the
+mandatory owner workflow. The preceding committed baseline passed Section 31
+mandatory acceptance, owner safety, Bridge, Vendor and Gateway CI. Customer V4
+passed all service test gates but exposed route audit defects, repaired in this
+increment; fresh current-commit CI is still required.

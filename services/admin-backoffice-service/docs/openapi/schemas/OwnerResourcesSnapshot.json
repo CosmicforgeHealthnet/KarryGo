@@ -242,6 +242,387 @@
           },
           "timeline_truncated": {
             "type": "boolean"
+          },
+          "custody": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "contract_version": {
+                "const": "custody.inventory.v1"
+              },
+              "authority": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "mode": {
+                "enum": [
+                  "LEGACY_SINGLE",
+                  "MULTI_MANIFEST"
+                ]
+              },
+              "legacy_manifest": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "reference": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "pickup_stop": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "package_count": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "parcel_references": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "frozen_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "version",
+                      "pickup_stop",
+                      "package_count",
+                      "parcel_references",
+                      "frozen_at"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stops": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "reference": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "type": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "sequence": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "status": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "reference",
+                    "type",
+                    "sequence",
+                    "status",
+                    "version"
+                  ]
+                }
+              },
+              "manifests": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "reference": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "pickup_stop": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "authority": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "package_count": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "weight_grams": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "volume_ml": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "custodian": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "reference",
+                    "manifest_version",
+                    "pickup_stop",
+                    "authority",
+                    "package_count",
+                    "weight_grams",
+                    "volume_ml",
+                    "required",
+                    "status",
+                    "custodian",
+                    "version"
+                  ]
+                }
+              },
+              "packages": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "reference": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "package_count": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "weight_grams": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "volume_ml": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "status": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    }
+                  },
+                  "required": [
+                    "reference",
+                    "manifest",
+                    "manifest_version",
+                    "package_count",
+                    "weight_grams",
+                    "volume_ml",
+                    "status"
+                  ]
+                }
+              },
+              "holdings": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "reference": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "custodian": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "acquired_via": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "acquired_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "release_reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "released_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "reference",
+                    "manifest",
+                    "manifest_version",
+                    "custodian",
+                    "acquired_via",
+                    "acquired_at",
+                    "release_reason",
+                    "released_at"
+                  ]
+                }
+              },
+              "transfers": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "operation": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "manifest_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "from": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "to": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "package_count": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "manifest",
+                    "manifest_version",
+                    "from",
+                    "to",
+                    "package_count",
+                    "at"
+                  ]
+                }
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "contract_version",
+              "authority",
+              "mode",
+              "legacy_manifest",
+              "stops",
+              "manifests",
+              "packages",
+              "holdings",
+              "transfers",
+              "truncated"
+            ]
           }
         },
         "required": [
@@ -257,6 +638,24 @@
           "references",
           "timeline",
           "timeline_truncated"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "custody-missions"
+                }
+              }
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "custody"
+                ]
+              }
+            }
+          }
         ]
       }
     },
