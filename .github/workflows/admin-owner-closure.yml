@@ -1,5 +1,11 @@
 name: Admin owner reads and Dispatch safety
 on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Reviewed comparison commit SHA (the stacked PR base)'
+        required: true
+        type: string
   pull_request:
     paths:
       - 'services/admin-backoffice-service/**'

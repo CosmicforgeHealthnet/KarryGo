@@ -1,5 +1,11 @@
 name: Admin bridge Sections 2-5
 on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Reviewed comparison commit SHA (the stacked PR base)'
+        required: true
+        type: string
   pull_request:
     paths:
       - 'services/admin-backoffice-service/**'
@@ -87,7 +93,7 @@ jobs:
           go build ./services/admin-backoffice-service/...
       - name: Pinned OpenAPI, actual wire responses, backward compatibility, deployment source
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}
         run: |
           python scripts/admin-bridge/contracts.py
           python scripts/admin-bridge/validate.py --wire-dir test-artifacts/wire --base "$BASE_SHA"
