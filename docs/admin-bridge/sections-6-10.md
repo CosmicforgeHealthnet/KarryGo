@@ -30,7 +30,7 @@ the available specification; the named A-to-Z PDF was not supplied.
 | 7 Customer | Source-owned customer, consent and booking-reference reads; signed authorization-context remediation and immutable read audit | Actual Customer migrations, orphan-reference rejection, historical/unmapped and scope-isolation tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus source-owned provider, vehicle and independent-ride read models; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
 | 9 Dispatch | Rider, motorcycle, mission and typed multi-stop/custody inventory reads; standard/private assignment and marketplace offer immutable Fleet decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
-| 10 Hauling/Fleet | Provider/truck/mission reads and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Capacity/inspection detail and executable remediation remain engineering work |
+| 10 Hauling/Fleet | Provider/truck/mission reads, recorded physical truck capacity/equipment, native recovery case metadata and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Protected inspections/cargo-fit detail and executable remediation remain engineering work |
 
 The initial source-by-source assessment is in
 `docs/security/admin-sections-6-10-gap-matrix.md`. This change is an incremental
@@ -217,7 +217,7 @@ in the PR; local results do not prove staging or production certification.
 
 **IMPLEMENTATION_INCOMPLETE.** Policy enforcement, Analytics suppression framework,
 the five-owner resource adapters and Dispatch/Fleet receipt reconciliation have
-real integration evidence. There are 20 resource kinds and 40 private Bridge read
+real integration evidence. There are 21 resource kinds and 42 private Bridge read
 paths. Production disclosure remains disabled pending owner approval. The ten
 Analytics cohort adapters, executable HQ interventions, richer owner detail and
 Media case grants remain engineering work; policy gaps do not complete them. This is not BACKEND_INTEGRATION_READY,
@@ -234,8 +234,8 @@ are excluded. Existing v1 approvals cannot authorize the larger disclosure.
 See `owner-resource-contexts.md` and each owner's
 `docs/openapi/admin-owner-resources.openapi.json`.
 
-Local verification for this increment: 67 source authority scenarios across all
-five actual migration suites and 201 Bridge/Taxi/privacy/policy scenarios passed
+Local verification for this increment: 70 source authority scenarios across all
+five actual migration suites and 203 Bridge/Taxi/privacy/policy scenarios passed
 with zero skipped test cases. Actual custody HTTP output from both owners passed
 independent schema validation. Windows vet passed; Linux race checks run in the
 mandatory owner workflow. The preceding committed baseline passed Section 31
@@ -250,3 +250,16 @@ Protected notes, route snapshots, wallet references and recipient data are
 omitted. These workflows have no complete mutation counter; source versions
 remain unknown. `TestDispatchWorkflowReadsBindCanonicalTripAndRejectCrossLinks`
 uses actual migrations, signed source contexts and canonical organization checks.
+
+Hauling physical truck facts require `hauling.admin-truck-capability.v2`; old v1
+approvals cannot authorize the larger view. Unknown/null remains distinct from
+recorded false and zero revisions; no catalogue-derived fit or eligibility is
+introduced. Hauling recovery reads preserve native case revisions and latest
+audit timestamps while excluding private audit bodies, actor/evidence/transfer
+and financial fields. Canonical planning ownership and exact commerce-mission
+links are validated before resolving any signed authorization context.
+
+All six acceptance workflows passed on committed baseline
+`528b19c6cd91c5a3045c6b80ae3d0418c85ed8ca`, including Customer certification,
+Section 31, owner race/PostgreSQL/Redis, Bridge/container, Vendor and
+Partner/Gateway. Fresh CI is required for subsequent engineering increments.

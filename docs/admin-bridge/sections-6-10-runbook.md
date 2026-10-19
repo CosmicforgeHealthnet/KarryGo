@@ -136,3 +136,12 @@ marketplace offer actions. Follow
 receipt never grants present execution permission. Preserve immutable receipt,
 readback and owner audit evidence during rollback. Unsupported historical proof
 must remain fenced. No HQ recovery or override command is enabled.
+
+Hauling truck capacity/equipment metadata now requires
+`hauling.admin-truck-capability.v2` owner and governance approval; a v1 rollout
+cannot silently enable the larger disclosure. Recorded capability counters are
+partial evidence, not full truck mutation versions. Null facts cannot authorize
+cargo matching, and known flags alone establish no eligibility or compliance.
+Hauling recovery reads require their own `hauling.recovery.read` permission and
+exact native booking/commerce-mission ownership. No new schema migration is
+needed for these reads; native mutation and cargo-fit guards remain unchanged.

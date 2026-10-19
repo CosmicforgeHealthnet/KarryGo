@@ -84,3 +84,23 @@ are not workflow mutation counters: `source_version` remains null. No notes,
 route geometry/snapshots, wallet references or challenge/evidence data is exposed.
 The dictionary now has 20 resource kinds / 40 private Bridge resource read paths.
 These capabilities remain disabled and BLOCKED_POLICY; they execute no recovery.
+
+Hauling truck reads now require `hauling.admin-truck-capability.v2`: physical
+payload/body/opening dimensions, equipment/protection flags and native capability
+revision counters come exclusively from recorded truck columns. Missing values
+remain null, explicit false remains false, and no type/catalogue inference or
+eligibility/compliance approval is made. Capability counters are partial evidence,
+not the full truck mutation version; `source_version` remains null. Inspection
+and certification references/bytes, plate numbers, temperatures and goods-policy
+arrays are omitted from this minimized projection. Source approval must cover
+the v2 disclosure before any production read.
+
+Hauling `recoveries` uses `hauling.recovery.read`, the actual booking's consistent
+planning tenant and exact commerce-mission ownership. Ambiguous or foreign
+mission links deny access. Settlement identity is never a tenant substitute.
+Case `version` is the native optimistic-concurrency revision; update time comes
+from the latest native audit timestamp, with stored lifecycle milestones as the
+legacy fallback. Private audit payloads, actor identities, reason free text,
+evidence and transfer credentials are omitted. Reads execute no transition and
+cannot reassign cargo. There are now 21 kinds / 42 Bridge resource read paths.
+All of these new disclosures remain BLOCKED_POLICY and disabled by default.

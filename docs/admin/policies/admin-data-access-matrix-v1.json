@@ -246,6 +246,45 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "hauling.trucks.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "trucks.provider_id/max_payload_grams/internal_length_mm/internal_width_mm/internal_height_mm/usable_volume_ml/opening_width_mm/opening_height_mm",
+        "trucks.enclosed/weather_protected/upright_safe/fragile_safe/refrigerated/tail_lift/crane/hydraulic/loading_ramp/trailer_capable/insurance_valid",
+        "trucks.capacity_kg/axle_count/capability_version/capability_source_version"
+      ],
+      "proposed_rule": "intersection(delegated staff, approved governance and current independently signed owner context bound to native source relationships)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "hauling.admin-truck-capability.v2 source-owner and governance approval",
+        "no eligibility or cargo-fit inference"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "hauling.recovery.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "hauling_recovery_cases.booking_id/mission_ref/state/trigger_code/custody_transfer_required/version",
+        "haulage_bookings.corporate_organization_id/winner_organization_id",
+        "commerce_missions.booking_id/mission_ref"
+      ],
+      "proposed_rule": "intersection(delegated staff, approved governance and current independently signed owner context bound to native source relationships)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial case field/purpose/capability approval",
+        "consistent canonical booking and commerce mission ownership",
+        "no executable transition or evidence permission"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

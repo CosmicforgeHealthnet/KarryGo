@@ -37,7 +37,8 @@ func Profiles() []Profile {
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
 			"custody-missions": makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 			"providers":        makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
-			"trucks":           makeDef("hauling", "trucks", "hauling.trucks.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
+			"trucks":           makeDef("hauling", "trucks", "hauling.trucks.read", append(append([]string{}, assetDimensions...), []string{"enclosed", "weather_protected", "upright_safe", "fragile_safe", "refrigerated", "tail_lift", "crane", "hydraulic", "loading_ramp", "trailer_capable", "insurance_valid"}...), []string{"capacity_kg", "max_payload_grams", "internal_length_mm", "internal_width_mm", "internal_height_mm", "usable_volume_ml", "opening_width_mm", "opening_height_mm", "axle_count", "capability_version", "capability_source_version"}, []string{"provider"}),
+			"recoveries":       makeDef("hauling", "recoveries", "hauling.recovery.read", []string{"trigger", "custody_transfer_required"}, nil, []string{"booking", "mission", "original_provider", "original_truck", "replacement_provider", "replacement_truck"}),
 			"missions":         makeDef("hauling", "missions", "hauling.missions.read", missionDimensions, []string{"cargo_weight_kg"}, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
 		}},
 		{Owner: "fleet-partner-service", Domain: "fleet", Prefix: "FLEET_PARTNER", Path: "/internal/fleet-partner/v1/admin", Definitions: map[string]Definition{
@@ -47,6 +48,11 @@ func Profiles() []Profile {
 		}},
 	}
 	for i := range profiles {
+		if profiles[i].Domain == "hauling" {
+			definition := profiles[i].Definitions["trucks"]
+			definition.SourceContract = "hauling.admin-truck-capability.v2"
+			profiles[i].Definitions["trucks"] = definition
+		}
 		if profiles[i].Domain == "dispatch" || profiles[i].Domain == "hauling" {
 			definition := profiles[i].Definitions["custody-missions"]
 			definition.Custody = true
