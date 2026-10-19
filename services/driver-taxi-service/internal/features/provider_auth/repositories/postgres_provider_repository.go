@@ -3,6 +3,7 @@ package providerauthrepositories
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -31,10 +32,11 @@ const providerColumns = `id::text, COALESCE(phone,''), COALESCE(email,''),
 // ─── Provider Repository ──────────────────────────────────────────────────────
 
 type ProviderRepository interface {
-	// UpsertByPhone creates the driver on first login. Taxi driver auth is
-	// phone-only; there is no email path. signup is announced to the referral
-	// programme only when the account is actually created.
+	// UpsertByPhone / UpsertByEmail create the driver on first login. signup
+	// is announced to the referral programme only when the account is
+	// actually created.
 	UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error)
+	UpsertByEmail(ctx context.Context, email string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error)
 	GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error)
 	UpdatePhone(ctx context.Context, id, phone string) (providerauthmodels.Provider, error)
 	// ContactTaken reports whether the given email and/or phone already belong to
@@ -64,6 +66,19 @@ func (r *PostgresProviderRepository) SetSignupAnnouncer(announcer SignupAnnounce
 }
 
 func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	return r.upsertBy(ctx, "phone", phone, signup)
+}
+
+func (r *PostgresProviderRepository) UpsertByEmail(ctx context.Context, email string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	return r.upsertBy(ctx, "email", email, signup)
+}
+
+// upsertBy creates or returns the driver identified by column (the fixed
+// strings "phone" or "email", never caller input).
+func (r *PostgresProviderRepository) upsertBy(ctx context.Context, column, value string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	if column != "phone" && column != "email" {
+		return providerauthmodels.Provider{}, fmt.Errorf("unsupported identifier column %q", column)
+	}
 	id := uuid.NewString()
 	var provider providerauthmodels.Provider
 	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
@@ -73,11 +88,11 @@ func (r *PostgresProviderRepository) UpsertByPhone(ctx context.Context, phone st
 		// correctly in the schema (001_taxi_core.sql) -- naming them again would
 		// just be two places to keep in sync instead of one.
 		row := tx.QueryRow(ctx, `
-			INSERT INTO taxi_providers (id, phone, onboarding_status, account_status)
+			INSERT INTO taxi_providers (id, `+column+`, onboarding_status, account_status)
 			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (phone) DO UPDATE SET updated_at = now()
+			ON CONFLICT (`+column+`) DO UPDATE SET updated_at = now()
 			RETURNING `+providerColumns+`
-		`, id, phone, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.AccountStatusActive)
+		`, id, value, providerauthmodels.OnboardingProfileNeeded, providerauthmodels.AccountStatusActive)
 		var err error
 		if provider, err = scanProvider(row); err != nil {
 			return err

@@ -32,6 +32,12 @@ func (s *stubProviders) UpsertByPhone(_ context.Context, phone string, _ provide
 	return p, nil
 }
 
+func (s *stubProviders) UpsertByEmail(_ context.Context, email string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	p := providerauthmodels.Provider{ID: "driver-1", Email: email, AccountStatus: providerauthmodels.AccountStatusActive}
+	s.byID[p.ID] = p
+	return p, nil
+}
+
 func (s *stubProviders) GetByID(_ context.Context, id string) (providerauthmodels.Provider, error) {
 	p, ok := s.byID[id]
 	if !ok {

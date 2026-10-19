@@ -29,6 +29,11 @@ func (f *fakeProfiles) UpsertByPhone(_ context.Context, phone string, _ provider
 	return f.stored, nil
 }
 
+func (f *fakeProfiles) UpsertByEmail(_ context.Context, email string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	f.stored.Email = email
+	return f.stored, nil
+}
+
 func (f *fakeProfiles) GetByID(context.Context, string) (providerauthmodels.Provider, error) {
 	return f.stored, nil
 }

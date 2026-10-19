@@ -58,7 +58,7 @@ class _OtpScreenState extends State<OtpScreen> {
               ),
               SizedBox(height: 6),
               Text(
-                'We sent a 6-digit code to ${state.phone}.',
+                'We sent a 6-digit code to ${state.destination}.',
                 style: TextStyle(
                   fontSize: 14,
                   color: KarryamColors.of(context).textMuted,

@@ -42,6 +42,7 @@ type AuthService struct {
 	otpMaxRequests  int
 	otpMaxAttempts  int
 	otpDebug        bool
+	otpSender       OTPSender
 	now             func() time.Time
 	corporate       providercompat.CorporateContextReader
 }
@@ -61,6 +62,14 @@ type Options struct {
 	OTPMaxAttempts     int
 	OTPDebug           bool
 	CorporateContext   providercompat.CorporateContextReader
+	// OTPSender delivers login codes. Nil keeps the old behaviour (codes
+	// only reach the driver as debug codes).
+	OTPSender OTPSender
+}
+
+// OTPSender delivers a login code to the identifier it was issued for.
+type OTPSender interface {
+	SendLoginCode(ctx context.Context, identifierType, identifier, code string) error
 }
 
 func NewAuthService(opts Options) *AuthService {
@@ -78,6 +87,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpMaxRequests:  opts.OTPMaxRequests,
 		otpMaxAttempts:  opts.OTPMaxAttempts,
 		otpDebug:        opts.OTPDebug,
+		otpSender:       opts.OTPSender,
 		now:             time.Now,
 		corporate:       opts.CorporateContext,
 	}
@@ -87,6 +97,7 @@ func NewAuthService(opts Options) *AuthService {
 
 type StartAuthInput struct {
 	Phone string
+	Email string
 }
 
 type StartAuthResult struct {
@@ -98,21 +109,49 @@ type StartAuthResult struct {
 	DebugOTP string `json:"-"`
 }
 
-// StartAuth issues an OTP challenge for a driver phone number. Taxi driver auth
-// is phone-only; there is no email path.
-func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (StartAuthResult, error) {
-	phone := strings.TrimSpace(input.Phone)
-	if phone == "" {
-		return StartAuthResult{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
-			{Field: "phone", Message: "Phone number is required."},
+// loginIdentifier is the one identifier a sign-in uses: a normalised
+// Nigerian phone number, or a trimmed lowercase email address. Phone wins
+// when both are sent.
+type loginIdentifier struct {
+	Type  string // "phone" or "email"
+	Value string
+}
+
+func (id loginIdentifier) key() string { return id.Type + ":" + id.Value }
+
+func normalizeLoginIdentifier(phone, email string) (loginIdentifier, error) {
+	phone = strings.TrimSpace(phone)
+	email = strings.ToLower(strings.TrimSpace(email))
+	switch {
+	case phone != "":
+		normalized, err := phonenumber.NormalizeNigerianPhoneNumber(phone)
+		if err != nil {
+			return loginIdentifier{}, err
+		}
+		return loginIdentifier{Type: "phone", Value: normalized}, nil
+	case email != "":
+		at := strings.Index(email, "@")
+		if at < 1 || at == len(email)-1 || strings.ContainsAny(email, " \t") {
+			return loginIdentifier{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+				{Field: "email", Message: "Email address is invalid."},
+			})
+		}
+		return loginIdentifier{Type: "email", Value: email}, nil
+	default:
+		return loginIdentifier{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
+			{Field: "phone", Message: "Phone number or email address is required."},
 		})
 	}
+}
 
-	normalized, err := phonenumber.NormalizeNigerianPhoneNumber(phone)
+// StartAuth issues an OTP challenge for a driver phone number or email
+// address, and sends email codes through OTPSender.
+func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (StartAuthResult, error) {
+	identifier, err := normalizeLoginIdentifier(input.Phone, input.Email)
 	if err != nil {
 		return StartAuthResult{}, err
 	}
-	identifierKey := "phone:" + normalized
+	identifierKey := identifier.key()
 
 	otp, err := sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
 	if err != nil {
@@ -122,16 +161,22 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 	challengeID := uuid.NewString()
 	challenge := providerauthmodels.OTPChallenge{
 		ID:              challengeID,
-		IdentifierType:  "phone",
-		IdentifierValue: normalized,
+		IdentifierType:  identifier.Type,
+		IdentifierValue: identifier.Value,
 		// The hash binds the OTP secret, the challenge id and the identifier, so a
-		// code is only ever valid for the challenge and phone it was minted for.
+		// code is only ever valid for the challenge and identifier it was minted for.
 		OTPHash:   sharedauth.HashOTP(s.otpSecret, challengeID, identifierKey, otp),
 		ExpiresAt: s.now().Add(s.otpTTL),
 	}
 
 	if err := s.challenges.Save(ctx, challenge, s.otpTTL, s.otpRateWindow, s.otpMaxRequests); err != nil {
 		return StartAuthResult{}, err
+	}
+
+	if s.otpSender != nil {
+		if err := s.otpSender.SendLoginCode(ctx, identifier.Type, identifier.Value, otp); err != nil {
+			return StartAuthResult{}, apperrors.Unavailable("We could not send your code right now. Please try again.", err)
+		}
 	}
 
 	result := StartAuthResult{
@@ -148,6 +193,7 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 
 type VerifyAuthInput struct {
 	Phone       string
+	Email       string
 	OTP         string
 	ChallengeID string
 	DeviceID    *string
@@ -173,11 +219,9 @@ type TokenResult struct {
 // VerifyAuth exchanges a correct OTP for a token pair, creating the driver on
 // first login with onboarding_status=profile_required.
 func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (TokenResult, error) {
-	phone := strings.TrimSpace(input.Phone)
-	if phone == "" {
-		return TokenResult{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
-			{Field: "phone", Message: "Phone number is required."},
-		})
+	identifier, err := normalizeLoginIdentifier(input.Phone, input.Email)
+	if err != nil {
+		return TokenResult{}, err
 	}
 	if input.OTP == "" {
 		return TokenResult{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
@@ -185,11 +229,7 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 		})
 	}
 
-	normalized, err := phonenumber.NormalizeNigerianPhoneNumber(phone)
-	if err != nil {
-		return TokenResult{}, err
-	}
-	identifierKey := "phone:" + normalized
+	identifierKey := identifier.key()
 
 	challenge, ok, err := s.challenges.Get(ctx, identifierKey)
 	if err != nil {
@@ -214,7 +254,12 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 	if input.DeviceID != nil {
 		signup.DeviceID = *input.DeviceID
 	}
-	provider, err := s.providers.UpsertByPhone(ctx, normalized, signup)
+	var provider providerauthmodels.Provider
+	if identifier.Type == "email" {
+		provider, err = s.providers.UpsertByEmail(ctx, identifier.Value, signup)
+	} else {
+		provider, err = s.providers.UpsertByPhone(ctx, identifier.Value, signup)
+	}
 	if err != nil {
 		return TokenResult{}, err
 	}

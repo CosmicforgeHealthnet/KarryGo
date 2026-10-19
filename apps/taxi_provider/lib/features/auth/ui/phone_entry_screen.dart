@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 
 import '../state/provider_auth_controller.dart';
 
-/// Driver sign-in. Phone only — the service issues no email challenge for
-/// drivers, so offering one would be a dead end.
+/// Driver sign-in with a phone number or an email address. Email codes
+/// arrive by email; phone codes need an SMS provider the platform does not
+/// have yet, so email is the dependable option for now.
 class PhoneEntryScreen extends StatefulWidget {
   const PhoneEntryScreen({super.key, required this.controller});
 
@@ -17,22 +18,29 @@ class PhoneEntryScreen extends StatefulWidget {
 
 class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
   final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _phoneCtrl.text = widget.controller.state.phone;
+    _emailCtrl.text = widget.controller.state.email;
   }
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
   }
 
   void _submit() {
-    final raw = _phoneCtrl.text.trim();
     if (widget.controller.state.isLoading) return;
+    if (widget.controller.state.useEmail) {
+      widget.controller.startEmailAuth(_emailCtrl.text);
+      return;
+    }
+    final raw = _phoneCtrl.text.trim();
     if (raw.isEmpty) {
       widget.controller.startAuth(raw);
       return;
@@ -86,7 +94,9 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
               ),
               SizedBox(height: 6),
               Text(
-                'Sign in with the phone number on your driver account.',
+                state.useEmail
+                    ? 'Sign in with the email address on your driver account.'
+                    : 'Sign in with the phone number on your driver account.',
                 style: TextStyle(
                   fontSize: 14,
                   color: KarryamColors.of(context).textMuted,
@@ -94,17 +104,24 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
               ),
               SizedBox(height: 28),
               TextField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
-                ],
+                key: ValueKey(state.useEmail),
+                controller: state.useEmail ? _emailCtrl : _phoneCtrl,
+                keyboardType: state.useEmail
+                    ? TextInputType.emailAddress
+                    : TextInputType.phone,
+                autocorrect: false,
+                inputFormatters: state.useEmail
+                    ? const []
+                    : [FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))],
                 onSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
-                  hintText: '+234 809 999 0001',
+                  hintText:
+                      state.useEmail ? 'you@example.com' : '+234 809 999 0001',
                   filled: true,
                   fillColor: KarryamColors.of(context).card,
-                  prefixIcon: Icon(Icons.phone_rounded),
+                  prefixIcon: Icon(
+                    state.useEmail ? Icons.mail_rounded : Icons.phone_rounded,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(
@@ -116,6 +133,19 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
                     borderSide: BorderSide(
                       color: KarryamColors.of(context).border,
                     ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: state.isLoading
+                      ? null
+                      : () => widget.controller.setUseEmail(!state.useEmail),
+                  child: Text(
+                    state.useEmail
+                        ? 'Use phone number instead'
+                        : 'Use email address instead',
                   ),
                 ),
               ),

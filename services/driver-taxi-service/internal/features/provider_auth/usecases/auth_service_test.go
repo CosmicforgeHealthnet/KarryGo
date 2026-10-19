@@ -40,6 +40,26 @@ func (f *fakeProviders) UpsertByPhone(_ context.Context, phone string, _ provide
 	return p, nil
 }
 
+// UpsertByEmail shares the phone index, keyed "email:<address>".
+func (f *fakeProviders) UpsertByEmail(_ context.Context, email string, _ providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	key := "email:" + email
+	if id, ok := f.byPhone[key]; ok {
+		return f.byID[id], nil
+	}
+	f.nextID++
+	id := string(rune('a'+f.nextID)) + "-provider"
+	p := providerauthmodels.Provider{
+		ID:               id,
+		Email:            email,
+		OnboardingStatus: providerauthmodels.OnboardingProfileNeeded,
+		AccountStatus:    providerauthmodels.AccountStatusActive,
+		Rating:           5,
+	}
+	f.byID[id] = p
+	f.byPhone[key] = id
+	return p, nil
+}
+
 func (f *fakeProviders) GetByID(_ context.Context, id string) (providerauthmodels.Provider, error) {
 	p, ok := f.byID[id]
 	if !ok {

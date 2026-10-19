@@ -67,4 +67,36 @@ void main() {
     // Debug builds surface the code so a local run needs no log tailing.
     expect(find.text('123456'), findsOneWidget);
   });
+
+  testWidgets('a driver can sign in with an email address', (tester) async {
+    Map<String, dynamic>? startBody;
+    final auth = buildAuth((request) async {
+      if (request.url.path.endsWith('/provider/auth/start')) {
+        startBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {'challenge_id': 'ch-1', 'expires_in': 600},
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404);
+    });
+    await auth.initialize();
+
+    await tester.pumpWidget(TaxiProviderApp(authController: auth));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Use email address instead'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, ' Ada@Example.com ');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(startBody, {'email': 'ada@example.com'});
+    expect(find.text('Enter your code'), findsOneWidget);
+    expect(find.textContaining('ada@example.com'), findsOneWidget);
+  });
 }

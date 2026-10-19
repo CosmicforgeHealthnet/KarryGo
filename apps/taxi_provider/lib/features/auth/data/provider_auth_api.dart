@@ -20,20 +20,22 @@ class ProviderAuthApi {
   final http.Client _client;
   final void Function()? onAuthFailure;
 
-  Future<OtpChallenge> startAuth({required String phone}) async {
+  /// Starts sign-in with exactly one of [phone] or [email].
+  Future<OtpChallenge> startAuth({String? phone, String? email}) async {
     final data = await _sendJson('POST', '/provider/auth/start', body: {
-      'phone': phone,
+      if (email != null) 'email': email else 'phone': phone,
     });
     return OtpChallenge.fromJson(data);
   }
 
   Future<ProviderSession> verifyAuth({
-    required String phone,
+    String? phone,
+    String? email,
     required String challengeId,
     required String otp,
   }) async {
     final data = await _sendJson('POST', '/provider/auth/verify', body: {
-      'phone': phone,
+      if (email != null) 'email': email else 'phone': phone,
       'challenge_id': challengeId,
       'otp': otp,
     });

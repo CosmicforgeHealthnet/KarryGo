@@ -20,6 +20,8 @@ class ProviderAuthState {
     this.isLoading = false,
     this.error,
     this.phone = '',
+    this.email = '',
+    this.useEmail = false,
     this.challenge,
     this.session,
   });
@@ -31,6 +33,13 @@ class ProviderAuthState {
   final bool isLoading;
   final String? error;
   final String phone;
+  final String email;
+
+  /// Signing in with an email address rather than a phone number.
+  final bool useEmail;
+
+  /// Where the code was sent, for the code screen.
+  String get destination => useEmail ? email : phone;
   final OtpChallenge? challenge;
   final ProviderSession? session;
 
@@ -43,6 +52,8 @@ class ProviderAuthState {
     String? error,
     bool clearError = false,
     String? phone,
+    String? email,
+    bool? useEmail,
     OtpChallenge? challenge,
     ProviderSession? session,
     bool clearSession = false,
@@ -52,13 +63,15 @@ class ProviderAuthState {
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
       phone: phone ?? this.phone,
+      email: email ?? this.email,
+      useEmail: useEmail ?? this.useEmail,
       challenge: challenge ?? this.challenge,
       session: clearSession ? null : (session ?? this.session),
     );
   }
 }
 
-/// Drives phone-only OTP sign-in and keeps the session fresh.
+/// Drives OTP sign-in (phone or email) and keeps the session fresh.
 class ProviderAuthController extends ChangeNotifier {
   ProviderAuthController({
     required ProviderAuthApi api,
@@ -99,15 +112,45 @@ class ProviderAuthController extends ChangeNotifier {
     }
   }
 
+  /// Switches the sign-in screen between phone and email.
+  void setUseEmail(bool useEmail) =>
+      _emit(_state.copyWith(useEmail: useEmail, clearError: true));
+
   Future<void> startAuth(String phone) async {
     final trimmed = phone.trim();
     if (trimmed.isEmpty) {
       _emit(_state.copyWith(error: 'Enter your phone number.'));
       return;
     }
-    _emit(_state.copyWith(isLoading: true, clearError: true, phone: trimmed));
+    _emit(_state.copyWith(
+      isLoading: true,
+      clearError: true,
+      phone: trimmed,
+      useEmail: false,
+    ));
+    await _start(() => _api.startAuth(phone: trimmed));
+  }
+
+  /// Email sign-in: the code arrives by email.
+  Future<void> startEmailAuth(String email) async {
+    final trimmed = email.trim().toLowerCase();
+    final at = trimmed.indexOf('@');
+    if (at < 1 || at == trimmed.length - 1) {
+      _emit(_state.copyWith(error: 'Enter a valid email address.'));
+      return;
+    }
+    _emit(_state.copyWith(
+      isLoading: true,
+      clearError: true,
+      email: trimmed,
+      useEmail: true,
+    ));
+    await _start(() => _api.startAuth(email: trimmed));
+  }
+
+  Future<void> _start(Future<OtpChallenge> Function() start) async {
     try {
-      final challenge = await _api.startAuth(phone: trimmed);
+      final challenge = await start();
       _emit(_state.copyWith(
         status: ProviderAuthStatus.otpVerification,
         isLoading: false,
@@ -128,7 +171,8 @@ class ProviderAuthController extends ChangeNotifier {
     _emit(_state.copyWith(isLoading: true, clearError: true));
     try {
       final session = await _api.verifyAuth(
-        phone: _state.phone,
+        phone: _state.useEmail ? null : _state.phone,
+        email: _state.useEmail ? _state.email : null,
         challengeId: challenge.challengeId,
         otp: otp.trim(),
       );

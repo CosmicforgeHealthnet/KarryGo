@@ -218,6 +218,16 @@ func main() {
 		logging.Notice("taxi-fleet", "corporate context client enabled url=%s", cfg.FleetServiceURL)
 	}
 
+	// Email login codes go through notification-service. Without its address
+	// (local dev) codes only reach the driver as debug codes.
+	var otpSender providerauthusecases.OTPSender
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		otpSender = providerauthclients.NewEmailOTPSender(notifications.Client{
+			BaseURL:     cfg.NotificationURL,
+			ServiceName: "driver-taxi-service",
+			Secret:      cfg.NotificationSecret,
+		})
+	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -233,6 +243,7 @@ func main() {
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
 		CorporateContext:   fleetProviderContext,
+		OTPSender:          otpSender,
 	})
 
 	profileService := providerprofileusecases.NewProfileService(profileRepo, vehicleRepo)

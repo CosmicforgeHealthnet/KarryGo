@@ -87,6 +87,10 @@ func (r *PostgresProfileRepository) UpsertByPhone(ctx context.Context, phone str
 	return providerauthrepositories.NewPostgresProviderRepository(r.db).UpsertByPhone(ctx, phone, signup)
 }
 
+func (r *PostgresProfileRepository) UpsertByEmail(ctx context.Context, email string, signup providerauthmodels.Signup) (providerauthmodels.Provider, error) {
+	return providerauthrepositories.NewPostgresProviderRepository(r.db).UpsertByEmail(ctx, email, signup)
+}
+
 func (r *PostgresProfileRepository) GetByID(ctx context.Context, id string) (providerauthmodels.Provider, error) {
 	return providerauthrepositories.NewPostgresProviderRepository(r.db).GetByID(ctx, id)
 }

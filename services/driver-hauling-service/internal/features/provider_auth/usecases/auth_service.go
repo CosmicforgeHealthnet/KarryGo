@@ -47,6 +47,7 @@ type AuthService struct {
 	otpMaxRequests  int
 	otpMaxAttempts  int
 	otpDebug        bool
+	otpSender       OTPSender
 	now             func() time.Time
 }
 
@@ -74,6 +75,14 @@ type Options struct {
 	// forbids, so the canonical one is authoritative wherever both exist.
 	CorporateContext providercompat.CorporateContextReader
 	ProviderService  string
+	// OTPSender delivers login codes. Nil keeps the old behaviour (codes
+	// only reach the driver as debug codes).
+	OTPSender OTPSender
+}
+
+// OTPSender delivers a login code to the identifier it was issued for.
+type OTPSender interface {
+	SendLoginCode(ctx context.Context, identifierType, identifier, code string) error
 }
 
 func NewAuthService(opts Options) *AuthService {
@@ -94,6 +103,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpMaxRequests:  opts.OTPMaxRequests,
 		otpMaxAttempts:  opts.OTPMaxAttempts,
 		otpDebug:        opts.OTPDebug,
+		otpSender:       opts.OTPSender,
 		now:             time.Now,
 	}
 }
@@ -158,6 +168,12 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 
 	if err := s.challenges.Save(ctx, challenge, s.otpTTL, s.otpRateWindow, s.otpMaxRequests); err != nil {
 		return StartAuthResult{}, err
+	}
+
+	if s.otpSender != nil {
+		if err := s.otpSender.SendLoginCode(ctx, identifierType, identifierValue, otp); err != nil {
+			return StartAuthResult{}, apperrors.Unavailable("We could not send your code right now. Please try again.", err)
+		}
 	}
 
 	result := StartAuthResult{

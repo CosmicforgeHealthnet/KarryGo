@@ -202,6 +202,16 @@ func main() {
 	if cfg.ProviderOrganizationModeEnabled && fleetCompat != nil {
 		membershipReader = fleetCompat
 	}
+	// Email login codes go through notification-service. Without its address
+	// (local dev) codes only reach the driver as debug codes.
+	var otpSender providerauthusecases.OTPSender
+	if cfg.NotificationURL != "" && len(cfg.NotificationSecret) > 0 {
+		otpSender = providerauthclients.NewEmailOTPSender(notifications.Client{
+			BaseURL:     cfg.NotificationURL,
+			ServiceName: "driver-hauling-service",
+			Secret:      cfg.NotificationSecret,
+		})
+	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -219,6 +229,7 @@ func main() {
 		MembershipReader:   membershipReader,
 		CorporateContext:   fleetCorporateContext,
 		ProviderService:    cfg.FleetServiceCaller,
+		OTPSender:          otpSender,
 	})
 
 	// customerSigner verifies customer bearer tokens (read-only; same secret as customer-service).

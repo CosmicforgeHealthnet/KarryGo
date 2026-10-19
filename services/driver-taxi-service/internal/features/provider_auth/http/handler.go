@@ -41,6 +41,7 @@ func (h *AuthHandler) StartAuth(c *gin.Context) {
 
 	result, err := h.auth.StartAuth(c.Request.Context(), providerauthusecases.StartAuthInput{
 		Phone: req.Phone,
+		Email: req.Email,
 	})
 	if err != nil {
 		httpx.Abort(c, err)
@@ -59,6 +60,7 @@ func (h *AuthHandler) VerifyAuth(c *gin.Context) {
 
 	result, err := h.auth.VerifyAuth(c.Request.Context(), providerauthusecases.VerifyAuthInput{
 		Phone:       req.Phone,
+		Email:       req.Email,
 		OTP:         req.OTP,
 		ChallengeID: req.ChallengeID,
 		DeviceID:    req.DeviceID,
