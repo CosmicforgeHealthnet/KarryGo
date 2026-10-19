@@ -15,7 +15,7 @@ import (
 )
 
 const specPath = "../../docs/openapi/sections10-11-production.openapi.json"
-const expectedOperations = 128
+const expectedOperations = 131
 
 type operation struct {
 	OperationID string                     `json:"operationId"`
@@ -106,10 +106,27 @@ func registered(t *testing.T) map[string]bool {
 
 func TestBidirectionalRouteParity(t *testing.T) {
 	docRoutes := documented(t, load(t))
-	codeRoutes := registered(t)
-	if len(docRoutes) != expectedOperations || len(codeRoutes) != expectedOperations {
-		t.Fatalf("Sections 10/11 route count: code=%d OpenAPI=%d want=%d", len(codeRoutes), len(docRoutes), expectedOperations)
+	// These source-owned read contracts live in dedicated documents. Include
+	// them in parity without duplicating their paths or operation IDs in the
+	// production-capacity specification.
+	for _, path := range []string{"../../docs/openapi/vendor-cloud-kitchen-context.openapi.json", "../../docs/openapi/pastry-request-references.openapi.json"} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc document
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatal(err)
+		}
+		for key, op := range documented(t, doc) {
+			key = strings.Replace(key, " /api/v1/vendor/", " /", 1)
+			if _, exists := docRoutes[key]; exists {
+				t.Fatalf("duplicate documented route: %s", key)
+			}
+			docRoutes[key] = op
+		}
 	}
+	codeRoutes := registered(t)
 	var specOnly, codeOnly []string
 	for key := range docRoutes {
 		if !codeRoutes[key] {
@@ -125,6 +142,9 @@ func TestBidirectionalRouteParity(t *testing.T) {
 	sort.Strings(codeOnly)
 	if len(specOnly) != 0 || len(codeOnly) != 0 {
 		t.Fatalf("route drift: spec-only=%v code-only=%v", specOnly, codeOnly)
+	}
+	if len(docRoutes) != expectedOperations || len(codeRoutes) != expectedOperations {
+		t.Fatalf("Sections 10/11 route count: code=%d OpenAPI=%d want=%d", len(codeRoutes), len(docRoutes), expectedOperations)
 	}
 }
 

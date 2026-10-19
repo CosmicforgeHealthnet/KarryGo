@@ -62,6 +62,9 @@ CUSTOMER_FLAGS = dict(
     PAYMENT_WALLET_FINANCE_PRIVATE_API_ENABLED="true", SUPPORT_NETWORK_CONTEXT_ENABLED="true",
 )
 SERVICE_FLAGS = {
+	# Gateway reads its upstream inventory from shared/gatewayupstreams, outside
+	# the service config scan below. The audit never serves or calls this origin.
+	"api-gateway": dict(GATEWAY_UPSTREAM_PARTNER_WEB_URL="http://127.0.0.1:1"),
     # Dispatch's customer secure-handover and recovery routes mount only for
     # an enabled rollout cohort (their config refuses the flag without one).
     "driver-dispatch-delivery-service": dict(
