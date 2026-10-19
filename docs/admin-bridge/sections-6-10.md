@@ -383,3 +383,14 @@ and Customer-family write kill gates, in addition to its dedicated source and
 Bridge controls. Original authorized GET readback stays available when all write
 flags are off. Discovery reflects both kill gates. Expanded validation passes 231
 Bridge/Taxi/privacy/policy cases with zero skips; source authority remains 91.
+
+
+Media native content redemption now rechecks the current RequireSafeForDownload
+policy against the current stored verdict. A still-valid token minted while SAFE
+cannot serve content after safety becomes UNKNOWN/PENDING when SAFE is required;
+UNSAFE/QUARANTINED remain blocked under every policy. Existing configurations that
+permit unconfirmed files retain their documented semantics. This repairs an
+existing native boundary and adds no HQ access. All 125 Media cases pass against
+real PostgreSQL with zero skipped cases; changed-package vet passes. Case-bound
+HQ grants, dedicated workload enrollment, canonical case/object proof and scoped
+purpose/permission/expiry/revocation orchestration remain engineering work.
