@@ -113,3 +113,17 @@ review-intake state. It does not version customer profile or account lifecycle.
 The separate request API/SDK, default-disabled keys, immutable outcomes and
 remaining HQ integration are documented in `customer-review-intake.md`. The
 source dictionary now has 22 kinds and 44 private resource read paths.
+
+
+Taxi `recoveries` binds `taxi_recovery_cases` to its exact native passenger booking
+or goods mission parent. Passenger canonical scope comes from actual booking,
+market and zone records; zone.market_id must agree. Fleet-origin organization is
+the native planning tenant. Goods missions have no canonical organization/tenant
+or geographic columns: quote geography, coordinates, customer/vendor strings and
+source-service labels grant nothing. Signed owner allocation must resolve all
+unknown dimensions and is invalidated by changed native parent identity. Case
+version describes only the recovery case. The timestamp uses the latest stored
+lifecycle/audit timestamp, including resolution after the last audit entry. Raw
+audit bodies/actors, contacts, GPS, money and evidence/transfer references are omitted.
+Permission `taxi.recovery.read` and its field/scope approval remain BLOCKED_POLICY;
+no recovery command, Media grant or automatic remediation is supplied by this read.

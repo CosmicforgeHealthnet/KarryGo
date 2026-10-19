@@ -22,6 +22,7 @@ func Profiles() []Profile {
 			"booking-references": makeDef("customer", "booking-references", "customer.references.read", []string{"authority", "product", "movement_type"}, nil, []string{"customer", "booking", "mission"}),
 		}},
 		{Owner: "driver-taxi-service", Domain: "taxi", Prefix: "TAXI", Path: "/internal/taxi/v1/admin", Definitions: map[string]Definition{
+			"recoveries":        makeDef("taxi", "recoveries", "taxi.recovery.read", []string{"subject_type", "trigger", "custody_transfer_required"}, nil, []string{"booking", "goods_mission", "original_provider", "original_vehicle", "replacement_provider", "replacement_vehicle"}),
 			"providers":         makeDef("taxi", "providers", "taxi.providers.read", providerDimensions, nil, nil),
 			"vehicles":          makeDef("taxi", "vehicles", "taxi.vehicles.read", assetDimensions, []string{"capacity_kg", "seat_capacity"}, []string{"provider"}),
 			"independent-rides": makeDef("taxi", "independent-rides", "taxi.independent_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),

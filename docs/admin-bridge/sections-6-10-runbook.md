@@ -180,3 +180,11 @@ uncertain requests have been investigated through their original GET identities.
 A missing receipt, failed source authorization, Bridge restart or failed audit
 never permits another POST. Preserve Bridge claims, immutable operation audits and
 native Customer receipts. Target-environment approval/certification remains pending.
+
+
+Taxi recovery reads use existing native migration 014 plus the owner-resource
+boundary. Approve `taxi.recovery.read` for exact native case allocations and
+reviewed field/purpose/scope tuples; no new flag bypasses the existing source read
+switch. Booking zone/market inconsistency denies reads. Goods scope must come from
+explicit owner allocation, never quote/GPS or vendor/customer inference. These
+reads expose no evidence download or recovery transition capability.

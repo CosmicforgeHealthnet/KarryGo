@@ -19,3 +19,9 @@ for filename, kind in (("hauling-capability-resource.json", "trucks"), ("hauling
     jsonschema.Draft202012Validator(schema["properties"]["items"]["items"], format_checker=jsonschema.FormatChecker()).validate(resource)
     assert resource["kind"] == kind
 print("Actual Hauling capability/recovery SQL projections satisfy the pinned resource contract")
+
+for filename in ("taxi-passenger-recovery-resource.json", "taxi-goods-recovery-resource.json"):
+    resource = json.loads((Path(sys.argv[1]) / filename).read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema["properties"]["items"]["items"], format_checker=jsonschema.FormatChecker()).validate(resource)
+    assert resource["kind"] == "recoveries" and resource["source_version"] > 0
+print("Actual Taxi passenger/goods recovery SQL projections satisfy the pinned resource contract")

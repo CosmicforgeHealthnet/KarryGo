@@ -307,6 +307,27 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "taxi.recovery.read",
+      "owner": "driver-taxi-service",
+      "canonical_source_fields": [
+        "taxi_recovery_cases.subject_type/booking_id/goods_mission_id/state/version",
+        "taxi_bookings.customer_id/market_id/operating_zone_id/organization_id/source_context",
+        "operating_zones.market_id",
+        "taxi_goods_missions.id/customer_ref/source_service/mission_ref/quote_id/plan_ref"
+      ],
+      "proposed_rule": "Intersection of delegated staff, approved governance and current independently signed owner allocation. Native passenger market/zone/organization must agree; goods unknown scope requires explicit owner allocation, never quote/GPS/vendor/customer inference.",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "owner field/purpose/scope and capability approval",
+        "case revision guards only the native recovery record",
+        "no transition, evidence URL, contact, GPS or custody-transfer capability"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

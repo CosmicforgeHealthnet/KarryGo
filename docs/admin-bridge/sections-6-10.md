@@ -26,10 +26,10 @@ the available specification; the named A-to-Z PDF was not supplied.
 
 | Section | Actual result | Evidence | Status / outstanding |
 |---|---|---|---|
-| 6 Analytics | Ten fixed-path typed legacy clients and source dictionary; owner-side suppression service with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. No production cohort source adapter or scoped HQ report exposure; legacy reports remain dormant |
-| 7 Customer | Source-owned customer, consent and booking-reference reads; signed authorization-context remediation and immutable read audit | Actual Customer migrations, orphan-reference rejection, historical/unmapped and scope-isolation tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
-| 8 Taxi | Corporate rides plus source-owned provider, vehicle and independent-ride read models; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
-| 9 Dispatch | Rider, motorcycle, mission and typed multi-stop/custody inventory reads; standard/private assignment and marketplace offer immutable Fleet decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
+| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first partial mission-success source; suppression with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. Complete membership exports, remaining report reducers and scoped HQ report exposure missing; all reports remain dormant |
+| 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
+| 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
+| 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
 | 10 Hauling/Fleet | Provider/truck/mission reads, recorded physical truck capacity/equipment, native recovery case metadata and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Protected inspections/cargo-fit detail and executable remediation remain engineering work |
 
 The initial source-by-source assessment is in
@@ -336,3 +336,23 @@ increment. All production review flags remain off; approval and real HQ/native
 owner target-environment certification are pending. Other lifecycle interventions,
 all ten complete Analytics sources/facade and protected Media are still engineering
 work. This is not a Sections 6–10 completion or deployment-readiness claim.
+
+
+Taxi native recovery reads now cover passenger booking and goods mission cases.
+They expose only native state/revision, subject/trigger/transfer-needed flags and
+bounded parent/provider/vehicle identifiers. Native booking market/zone and
+Fleet-origin organization are authoritative; a zone from a different market is
+excluded. Goods quote geography, route GPS, customer/vendor strings and settlement
+facts supply no scope. Owner allocation is required for every missing dimension.
+Current signed contexts bind actual case parents and are invalidated by a changed
+goods customer/source/mission relationship. Raw audit bodies, actors, free text,
+contacts, coordinates, operation/evidence/transfer references remain excluded.
+The source dictionary now has 23 kinds / 46 resource read paths, plus dedicated
+Customer review submit/readback. No new recovery intervention is enabled.
+
+Taxi increment validation: 91 source-authority scenarios across all five actual
+owner migration suites and 226 Bridge/Taxi/privacy/policy cases, zero skipped
+tests. Both actual Taxi passenger and goods recovery projections pass independent
+wire schemas. The current Taxi executable was rebuilt for the process integration
+test; changed-package vet passed. Current-head Linux CI is recorded in PR14 and
+must pass before any readiness claim. Production approvals remain BLOCKED_POLICY.

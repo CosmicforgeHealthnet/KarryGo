@@ -1576,5 +1576,55 @@
     ],
     "blocker": "Default off; BLOCKED_POLICY until owner mappings, purposes and staff permissions are approved. Review intake only; no account standing changes.",
     "fallback": "Use original operation GET readback. Never automatically resubmit or create a fresh key."
+  },
+  {
+    "id": "taxi.resources.recoveries.list",
+    "version": "1.0",
+    "owner": "driver-taxi-service",
+    "source_endpoint": "/internal/taxi/v1/admin/resources/recoveries",
+    "bridge_endpoint": "/taxi/resources/recoveries",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "taxi.recovery.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "Native taxi_recovery_cases version and actual passenger booking/goods mission ownership; private audit and evidence excluded.",
+    "feature_flag": "ADMIN_TAXI_RESOURCE_READ_ENABLED; TAXI_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestTaxiRecoveryReadsBindNativeParentsAndNeverInferGoodsScope",
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestOwnerResourcesDelegation"
+    ],
+    "blocker": "BLOCKED_POLICY: canonical owner allocation and governance approvals required. Goods missions have no native organization/tenant/geography; quote coordinates do not establish authorization.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "taxi.resources.recoveries.detail",
+    "version": "1.0",
+    "owner": "driver-taxi-service",
+    "source_endpoint": "/internal/taxi/v1/admin/resources/recoveries/{id}",
+    "bridge_endpoint": "/taxi/resources/recoveries/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "taxi.recovery.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "Native taxi_recovery_cases version and actual passenger booking/goods mission ownership; private audit and evidence excluded.",
+    "feature_flag": "ADMIN_TAXI_RESOURCE_READ_ENABLED; TAXI_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestTaxiRecoveryReadsBindNativeParentsAndNeverInferGoodsScope",
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestOwnerResourcesDelegation"
+    ],
+    "blocker": "BLOCKED_POLICY: canonical owner allocation and governance approvals required. Goods missions have no native organization/tenant/geography; quote coordinates do not establish authorization.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   }
 ]
