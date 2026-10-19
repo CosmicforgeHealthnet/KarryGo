@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -65,13 +67,15 @@ func NewHTTPFleetResponder(config ResponderConfig) (FleetResponder, bool) {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
+	// The composition root instruments DefaultTransport with a RoundTripper.
+	// Own the security-sensitive transport instead of asserting its concrete
+	// type or inheriting a process/environment proxy. Keep dependency metrics.
+	transport := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: timeout, ResponseHeaderTimeout: timeout, IdleConnTimeout: 90 * time.Second, MaxIdleConns: 32, MaxIdleConnsPerHost: 8, ExpectContinueTimeout: time.Second}
 	return &HTTPFleetResponder{
 		baseURL:     strings.TrimRight(config.BaseURL, "/"),
 		serviceName: config.ServiceName,
 		secret:      config.Secret,
-		client: &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
+		client: &http.Client{Transport: observability.DependencyTransport{Base: transport, Hosts: map[string]string{parsed.Host: "fleet"}}, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
 	}, true
