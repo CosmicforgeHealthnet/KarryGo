@@ -24,6 +24,7 @@ import (
 // It is never an HQ response. The subject hash is a deduplication key, not an
 // anonymity guarantee. Repeated provider facts share one key across role fields.
 type LineageFact struct {
+	Authority, ProductCode                                       string
 	Owner, EventID, EntityType, EntityID, EventName, PayloadHash string
 	NativeVersion                                                int64
 	OccurredAt, RecordedAt                                       time.Time
@@ -160,6 +161,8 @@ func (r LineageReader) ReadUnit(ctx context.Context, tx pgx.Tx, report, field, e
 	}
 	out.OccurredAt = out.OccurredAt.UTC()
 	out.RecordedAt = out.RecordedAt.UTC()
+	out.Authority = actualAuthority
+	out.ProductCode = networkanalytics.ProductFor(out.EventName, out.EntityType, values)
 	out.Owner = expected
 	out.Report = report
 	out.Field = field

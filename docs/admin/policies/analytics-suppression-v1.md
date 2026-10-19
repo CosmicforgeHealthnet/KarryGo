@@ -99,3 +99,14 @@ scoped reporting facade remain engineering work. Installing Analytics migration
 006 or preparing a signed unit binding enables no report and supplies no scope
 grant. The report registry covers all ten dictionary IDs but is not ten completed
 cohort adapters. Every affected HQ report remains disabled.
+
+`MissionSuccessSource` now implements the first bounded native source adapter.
+Its privacy unit is an explicit field in the source contract, with no default.
+Every contributing event requires a current independently signed source-owner
+context; authority, product and UTC window filters use actual event facts.
+Source events are held stable while their context/unit is checked. Distinct
+provider UUIDs normalize before deduplication. It always sets partial coverage
+until a legitimate membership/export proof is implemented, and the disclosure
+service withholds all values. This software behavior is tested; neither the
+unit choice nor production scope/threshold values are approved by this draft.
+The other report adapters and reporting facade remain unimplemented.

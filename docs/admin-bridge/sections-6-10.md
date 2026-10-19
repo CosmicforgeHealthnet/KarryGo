@@ -278,3 +278,18 @@ The preceding five-owner suite remains 70 scenarios across actual migrations.
 Native cohort field bindings are typed; provider/branch UUID encodings normalize
 to their canonical identifiers, while source-entity identities retain their
 native type. Hashes are internal deduplication identifiers, not anonymization.
+
+The mission-success source adapter now reads a bounded approved subset directly
+from canonical Analytics events and signed producer contexts, applies exact
+native authority/product/time filters, and counts distinct canonical units per
+cell. It feeds the existing disclosure service in real PostgreSQL tests. Six
+native completion events for one provider produce a cohort of one. It is not
+registered at runtime and always reports partial membership, so suppression
+withholds every value. Complete membership exports/coverage and remaining
+report adapters are still engineering requirements; no reporting readiness is
+claimed from this partial source implementation.
+
+After the first native source integration, 209 local Bridge/Taxi/privacy/policy
+cases passed with zero skipped tests; Analytics contributes 27 privacy/lineage
+and source scenarios. Changed-package vet passed. Native source counts remain
+withheld because membership completeness is deliberately unproven.

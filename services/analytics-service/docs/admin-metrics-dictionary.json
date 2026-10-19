@@ -29,13 +29,16 @@
       "blockers": [
         "Owner-enforced market/zone/tenant mapping and filters",
         "Reviewed small-cell and rare-combination suppression policy",
-        "Reviewed metric freshness/window/timezone policy"
+        "Reviewed metric freshness/window/timezone policy",
+        "Complete independently verifiable source membership/coverage and source export pipeline; current native adapter always withholds partial results"
       ],
       "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
       "lineage_binding_contract": "analytics.cohort-lineage.v1:mission-success:<explicit-native-unit-field>",
       "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
       "approved_cohort_unit": null,
-      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership",
+      "native_adapter_state": "IMPLEMENTED_BOUNDED_APPROVED_SUBSET_WITH_MANDATORY_PARTIAL_SUPPRESSION",
+      "native_source_contract": "analytics.scoped-mission-success.v1:<explicit-native-unit-field>"
     },
     {
       "id": "recovery",
