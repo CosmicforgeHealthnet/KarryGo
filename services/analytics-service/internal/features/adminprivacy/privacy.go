@@ -36,7 +36,10 @@ type Cell struct {
 	Count      *int64
 }
 type Snapshot struct {
-	Facts         adminpolicy.Facts
+	Facts adminpolicy.Facts
+	// Authorization records the original private membership witness. It is
+	// never serialized into a Release or treated as complete cohort coverage.
+	Authorization json.RawMessage
 	SourceVersion string
 	AsOf          time.Time
 	Cells         []Cell

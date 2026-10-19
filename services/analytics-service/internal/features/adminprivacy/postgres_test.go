@@ -46,15 +46,17 @@ func privacyDB(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	_, file, _, _ := runtime.Caller(0)
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(file), "../../../migrations/005_admin_disclosure_guard.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	// The owner's migration is idempotent for safe operator reapplication;
 	// Analytics' normal runner additionally tracks each applied filename.
-	for i := 0; i < 2; i++ {
-		if _, err = pool.Exec(ctx, string(raw)); err != nil {
+	for _, name := range []string{"005_admin_disclosure_guard.sql", "007_admin_disclosure_authorizations.sql"} {
+		raw, err := os.ReadFile(filepath.Join(filepath.Dir(file), "../../../migrations", name))
+		if err != nil {
 			t.Fatal(err)
+		}
+		for i := 0; i < 2; i++ {
+			if _, err = pool.Exec(ctx, string(raw)); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return pool
@@ -63,9 +65,10 @@ func privacyDB(t *testing.T) *pgxpool.Pool {
 // This fixture tests disclosure mechanics, not a production metrics adapter.
 // Real network reports remain unmapped; no source scopes are synthesized there.
 type testCohortSource struct {
-	snapshot Snapshot
-	reads    atomic.Int32
-	deny     atomic.Bool
+	snapshot         Snapshot
+	reads            atomic.Int32
+	deny             atomic.Bool
+	membershipDenied atomic.Bool
 }
 
 func (s *testCohortSource) ResolveScope(context.Context, pgx.Tx, Query) (adminpolicy.Facts, error) {
@@ -77,7 +80,97 @@ func (s *testCohortSource) ResolveScope(context.Context, pgx.Tx, Query) (adminpo
 }
 func (s *testCohortSource) Snapshot(context.Context, pgx.Tx, Query) (Snapshot, error) {
 	s.reads.Add(1)
-	return s.snapshot, nil
+	out := s.snapshot
+	out.Authorization = json.RawMessage(`{"fixture":"TEST_ONLY_ORIGINAL_MEMBERSHIP"}`)
+	return out, nil
+}
+func (s *testCohortSource) AuthorizeRelease(_ context.Context, _ pgx.Tx, _ Query, _ string, raw json.RawMessage) error {
+	var witness struct {
+		Fixture string `json:"fixture"`
+	}
+	if s.membershipDenied.Load() || json.Unmarshal(raw, &witness) != nil || witness.Fixture != "TEST_ONLY_ORIGINAL_MEMBERSHIP" {
+		return ErrUnmapped
+	}
+	return nil
+}
+
+func TestPostgresFrozenReleaseRequiresOriginalMembershipWithoutResampling(t *testing.T) {
+	db := privacyDB(t)
+	f, actor, q, snapshot := privacyFixture(t)
+	source := &testCohortSource{snapshot: snapshot}
+	service := &Service{DB: db, Policy: f.Engine, Source: source}
+	ctx := context.Background()
+	first, err := service.Disclose(ctx, actor, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.membershipDenied.Store(true)
+	if _, err := service.Disclose(ctx, actor, q); !errors.Is(err, ErrUnmapped) {
+		t.Fatal("frozen members not reauthorized", err)
+	}
+	source.membershipDenied.Store(false)
+	source.snapshot.SourceVersion = "NEW_NATIVE_VERSION"
+	source.snapshot.Cells[0].Count = number(99)
+	again, err := service.Disclose(ctx, actor, q)
+	if err != nil || again.SourceVersion != first.SourceVersion || *again.Cells[0].Value != *first.Cells[0].Value || source.reads.Load() != 1 {
+		t.Fatal("membership check resampled or altered frozen data", again, err)
+	}
+}
+
+func TestPostgresLegacyFrozenReleaseWithoutMembershipFailsClosed(t *testing.T) {
+	db := privacyDB(t)
+	f, actor, q, snapshot := privacyFixture(t)
+	source := &testCohortSource{snapshot: snapshot}
+	service := &Service{DB: db, Policy: f.Engine, Source: source}
+	ctx := context.Background()
+	p, err := f.Engine.Disclosure(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	queryHash := hash(struct {
+		Scope                      adminpolicy.Scope
+		Capability, Metric, Domain string
+		Start, End                 time.Time
+		Filters                    map[string]string
+	}{q.Scope, q.Capability, q.Metric, p.PrivacyDomain, q.Start, q.End, q.Filters})
+	release, err := suppress(q, snapshot, p, f.Engine, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(release)
+	if _, err := db.Exec(ctx, `INSERT INTO analytics_admin_disclosures(release_id,query_hash,policy_checksum,released_payload) VALUES($1,$1,$2,$3)`, queryHash, f.Engine.Checksum(), raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Disclose(ctx, actor, q); !errors.Is(err, ErrUnmapped) {
+		t.Fatal("legacy cache invented original membership", err)
+	}
+	if source.reads.Load() != 0 {
+		t.Fatal("legacy cache resampled values")
+	}
+	var count int
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM analytics_admin_query_audit WHERE outcome='FROZEN_MEMBERSHIP_UNPROVEN'`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("missing proof not audited", count, err)
+	}
+}
+
+func TestPostgresDisclosureMembershipAndReleaseRollBackTogetherOnAuditFailure(t *testing.T) {
+	db := privacyDB(t)
+	f, actor, q, snapshot := privacyFixture(t)
+	source := &testCohortSource{snapshot: snapshot}
+	service := &Service{DB: db, Policy: f.Engine, Source: source}
+	ctx := context.Background()
+	if _, err := db.Exec(ctx, `ALTER TABLE analytics_admin_query_audit RENAME TO unavailable_audit`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Disclose(ctx, actor, q); err == nil {
+		t.Fatal("missing audit released values")
+	}
+	for _, table := range []string{"analytics_admin_disclosures", "analytics_admin_disclosure_authorizations", "analytics_admin_disclosure_partitions"} {
+		var count int
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatal("partial disclosure evidence committed", table, count, err)
+		}
+	}
 }
 
 func TestPostgresDisclosureAuditFrozenReleaseAndReconstructionGuard(t *testing.T) {

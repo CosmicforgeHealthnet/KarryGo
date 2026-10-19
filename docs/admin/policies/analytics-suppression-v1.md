@@ -110,3 +110,15 @@ until a legitimate membership/export proof is implemented, and the disclosure
 service withholds all values. This software behavior is tested; neither the
 unit choice nor production scope/threshold values are approved by this draft.
 The other report adapters and reporting facade remain unimplemented.
+
+
+Frozen-release authorization now requires a private immutable record of the
+original member set, retained separately from released values. Every cache read
+must reauthorize each original native fact against current independent source
+contexts. General scope resolution, a newly smaller candidate list or a cached
+hash alone cannot bypass expiry/revocation or changed native identity. Missing
+historical membership proof denies disclosure; no synthetic backfill or automatic
+resampling is allowed. The privacy owner must approve witness retention/access
+and eventual deletion rules. Native event identifiers and deduplication hashes
+remain restricted evidence, not anonymized output. This mechanism approves no
+production cohort unit, suppression threshold, purpose, access grant or report.

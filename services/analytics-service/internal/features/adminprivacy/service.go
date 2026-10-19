@@ -20,6 +20,9 @@ import (
 type Source interface {
 	ResolveScope(context.Context, pgx.Tx, Query) (adminpolicy.Facts, error)
 	Snapshot(context.Context, pgx.Tx, Query) (Snapshot, error)
+	// AuthorizeRelease rechecks every original member under current source
+	// authorization. It must not recompute or disclose revised aggregate values.
+	AuthorizeRelease(context.Context, pgx.Tx, Query, string, json.RawMessage) error
 }
 type Service struct {
 	DB     *pgxpool.Pool
@@ -127,8 +130,9 @@ func (s *Service) Disclose(ctx context.Context, actor adminpolicy.Actor, q Query
 		}
 	}
 	var raw []byte
+	var authorization []byte
 	var approvedChecksum string
-	err = tx.QueryRow(ctx, `SELECT released_payload,policy_checksum FROM analytics_admin_disclosures WHERE release_id=$1`, queryHash).Scan(&raw, &approvedChecksum)
+	err = tx.QueryRow(ctx, `SELECT d.released_payload,d.policy_checksum,a.authorization_payload FROM analytics_admin_disclosures d LEFT JOIN analytics_admin_disclosure_authorizations a ON a.release_id=d.release_id WHERE d.release_id=$1`, queryHash).Scan(&raw, &approvedChecksum, &authorization)
 	if err == nil {
 		if approvedChecksum != s.Policy.Checksum() {
 			return finishDenied(ErrReconstruction, "POLICY_CHANGED_RELEASE_FROZEN")
@@ -136,6 +140,12 @@ func (s *Service) Disclose(ctx context.Context, actor adminpolicy.Actor, q Query
 		var cached Release
 		if json.Unmarshal(raw, &cached) != nil {
 			return empty, ErrSource
+		}
+		if len(authorization) == 0 || len(authorization) > 65536 {
+			return finishDenied(ErrUnmapped, "FROZEN_MEMBERSHIP_UNPROVEN")
+		}
+		if e := s.Source.AuthorizeRelease(ctx, tx, q, cached.SourceVersion, authorization); e != nil {
+			return finishDenied(ErrUnmapped, "FROZEN_MEMBERSHIP_DENIED")
 		}
 		cached = suppressStale(cached, p, now)
 		if err = audit("FROZEN_RELEASE_READ"); err != nil {
@@ -162,6 +172,12 @@ func (s *Service) Disclose(ctx context.Context, actor adminpolicy.Actor, q Query
 	if snapshot.Facts != facts {
 		return finishDenied(adminpolicy.ErrDenied, "SOURCE_SCOPE_CHANGED")
 	}
+	if len(snapshot.Authorization) == 0 || len(snapshot.Authorization) > 65536 || !json.Valid(snapshot.Authorization) {
+		return finishDenied(ErrUnmapped, "SOURCE_MEMBERSHIP_UNPROVEN")
+	}
+	if e := s.Source.AuthorizeRelease(ctx, tx, q, snapshot.SourceVersion, snapshot.Authorization); e != nil {
+		return finishDenied(ErrUnmapped, "SOURCE_MEMBERSHIP_DENIED")
+	}
 	release, err := suppress(q, snapshot, p, s.Policy, now)
 	if err != nil {
 		return finishDenied(err, "SOURCE_INVALID")
@@ -171,6 +187,9 @@ func (s *Service) Disclose(ctx context.Context, actor adminpolicy.Actor, q Query
 		return empty, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO analytics_admin_disclosures(release_id,query_hash,policy_checksum,released_payload) VALUES($1,$1,$2,$3)`, queryHash, s.Policy.Checksum(), raw); err != nil {
+		return empty, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO analytics_admin_disclosure_authorizations(release_id,authorization_payload) VALUES($1,$2)`, queryHash, []byte(snapshot.Authorization)); err != nil {
 		return empty, err
 	}
 	for _, partition := range partitions {

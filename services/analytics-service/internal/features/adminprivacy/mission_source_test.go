@@ -33,6 +33,7 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 	kind, _ := LineageKind("mission-success", "provider_id")
 	native := usecases.NewService(repositories.NewRepository(db))
 	payload, _ := json.Marshal(map[string]any{"provider_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"})
+	var lastApproval admincontext.Approval
 	for i := 0; i < 6; i++ {
 		id := fmt.Sprintf("native-mission-%d", i)
 		if _, err := native.Ingest(ctx, owner, events.Envelope{EventID: id, EventName: "taxi.booking.completed", SchemaVersion: 1, SourceService: owner, SourceEntityType: "booking", SourceEntityID: id, SourceVersion: 1, OccurredAt: q.Start.Add(10 * time.Minute), Payload: payload}); err != nil {
@@ -48,6 +49,7 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 			t.Fatal(err)
 		}
 		approval := issuer.Approval("allocation-"+id, kind, id, "analytics.cohorts.mission-success.export", binding, q.Scope)
+		lastApproval = approval
 		if err := store.Import(ctx, issuer.Sign(t, approval), time.Now()); err != nil {
 			t.Fatal(err)
 		}
@@ -80,6 +82,25 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 	for _, cell := range release.Cells {
 		if cell.Value != nil {
 			t.Fatal("incomplete source membership released a value", cell)
+		}
+	}
+	// General source scope still resolves from the other five authorized facts.
+	// The frozen release must separately reauthorize its sixth original member.
+	lastApproval.Revision++
+	lastApproval.State = "REVOKED"
+	if err := store.Import(ctx, issuer.Sign(t, lastApproval), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Disclose(ctx, actor, q); !errors.Is(err, ErrUnmapped) {
+		t.Fatal("cached release survived original-member revocation", err)
+	}
+	var denied int
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM analytics_admin_query_audit WHERE outcome='FROZEN_MEMBERSHIP_DENIED'`).Scan(&denied); err != nil || denied != 1 {
+		t.Fatal("original-membership denial not audited", denied, err)
+	}
+	for _, sql := range []string{`UPDATE analytics_admin_disclosure_authorizations SET authorization_payload='{}'`, `DELETE FROM analytics_admin_disclosure_authorizations`, `TRUNCATE analytics_admin_disclosure_authorizations`} {
+		if _, err := db.Exec(ctx, sql); err == nil {
+			t.Fatal("original membership evidence mutable", sql)
 		}
 	}
 	// Supplying another tenant, product or absent unit field cannot repurpose

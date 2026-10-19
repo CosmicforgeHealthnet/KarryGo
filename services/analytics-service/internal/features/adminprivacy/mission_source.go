@@ -1,7 +1,11 @@
 package adminprivacy
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
+	"io"
 	"time"
 
 	"cosmicforge/logistics/shared/go/admincontext"
@@ -139,9 +143,87 @@ func (s *MissionSuccessSource) Snapshot(ctx context.Context, tx pgx.Tx, q Query)
 		return empty, ErrUnmapped
 	}
 	out := Snapshot{Facts: adminpolicy.Facts{Owner: "analytics-service", Reference: facts[0].EventID, SourceContract: s.SourceContract(), Scope: sourceScope}, SourceVersion: admincontext.Fingerprint(facts), AsOf: asOf, Partial: true, Cells: []Cell{}}
+	witness := missionAuthorization{Version: 1, Owner: owner, Metric: q.Metric, Field: s.UnitField, SourceVersion: out.SourceVersion, Scope: sourceScope, Members: []missionMember{}}
+	for _, fact := range facts {
+		witness.Members = append(witness.Members, missionMember{EventID: fact.EventID, FactHash: admincontext.Fingerprint(fact)})
+	}
+	out.Authorization, err = json.Marshal(witness)
+	if err != nil {
+		return empty, err
+	}
 	for _, key := range keys {
 		count, cohort := counts[key], int64(len(units[key]))
 		out.Cells = append(out.Cells, Cell{Key: key, Count: &count, CohortSize: &cohort})
 	}
 	return out, nil
+}
+
+type missionMember struct {
+	EventID  string `json:"event_id"`
+	FactHash string `json:"fact_hash"`
+}
+type missionAuthorization struct {
+	Version       int               `json:"version"`
+	Owner         string            `json:"owner"`
+	Metric        string            `json:"metric"`
+	Field         string            `json:"field"`
+	SourceVersion string            `json:"source_version"`
+	Scope         adminpolicy.Scope `json:"scope"`
+	Members       []missionMember   `json:"members"`
+}
+
+// AuthorizeRelease checks the frozen original member set rather than today's
+// candidate index. Dropping one revoked member from a new snapshot cannot make
+// an earlier release authorized. Counts and release values are never resampled.
+func (s *MissionSuccessSource) AuthorizeRelease(ctx context.Context, tx pgx.Tx, q Query, version string, raw json.RawMessage) error {
+	if s == nil || len(raw) == 0 || len(raw) > 65536 || q.Metric != "mission-success" || q.Capability != "analytics.network.read" || len(q.Filters) != 2 {
+		return ErrUnmapped
+	}
+	var witness missionAuthorization
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if d.Decode(&witness) != nil {
+		return ErrUnmapped
+	}
+	if _, err := d.Token(); err != io.EOF {
+		return ErrUnmapped
+	}
+	if witness.Version != 1 || witness.Metric != q.Metric || witness.Field != s.UnitField || witness.SourceVersion != version || witness.Scope != q.Scope || len(witness.Members) == 0 || len(witness.Members) > 100 {
+		return ErrUnmapped
+	}
+	owner, authorityCode := canonicalLineageOwner(witness.Owner)
+	authority, ok := s.Authorities[owner]
+	if !ok || owner != witness.Owner || authority.Owner != owner || authorityCode != q.Filters["authority"] {
+		return ErrUnmapped
+	}
+	kind, err := LineageKind(q.Metric, s.UnitField)
+	if err != nil {
+		return err
+	}
+	reader := LineageReader{Owner: owner}
+	store := admincontext.Store{Reader: reader, Authority: authority}
+	seen := map[string]bool{}
+	for _, member := range witness.Members {
+		digest, err := hex.DecodeString(member.FactHash)
+		if !adminread.Opaque(member.EventID) || seen[member.EventID] || err != nil || len(digest) != 32 {
+			return ErrUnmapped
+		}
+		seen[member.EventID] = true
+		var locked int
+		if err := tx.QueryRow(ctx, "SELECT 1 FROM analytics_network_events WHERE event_id=$1 FOR SHARE", member.EventID).Scan(&locked); err != nil {
+			return err
+		}
+		allocation, err := store.Resolve(ctx, tx, kind, member.EventID, "analytics.cohorts.mission-success.export", q.Scope, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		fact, err := reader.ReadUnit(ctx, tx, q.Metric, s.UnitField, member.EventID)
+		if err != nil {
+			return err
+		}
+		if allocation.Scope != q.Scope || allocation.SourceContract != fact.SourceContract || admincontext.Fingerprint(fact) != member.FactHash || fact.Authority != q.Filters["authority"] || fact.ProductCode != q.Filters["product_code"] || fact.OccurredAt.Before(q.Start) || !fact.OccurredAt.Before(q.End) {
+			return ErrUnmapped
+		}
+	}
+	return nil
 }

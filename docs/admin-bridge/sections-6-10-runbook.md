@@ -188,3 +188,14 @@ reviewed field/purpose/scope tuples; no new flag bypasses the existing source re
 switch. Booking zone/market inconsistency denies reads. Goods scope must come from
 explicit owner allocation, never quote/GPS or vendor/customer inference. These
 reads expose no evidence download or recovery transition capability.
+
+
+Analytics normal migration 007 adds immutable private disclosure-membership
+evidence. It contains original native event identities/fingerprints, never public
+output or raw metric values. Missing historical witnesses deliberately block
+cached releases; do not delete reconstruction partitions, synthesize membership
+or rerun a query under a new key to work around denial. Every original member is
+rechecked for current source allocation, expiry/revocation, native binding, product
+and time window. Release, membership witness and query audit commit together.
+Retention/access rules require Privacy/Analytics approval. All reports stay disabled
+while complete source exports, report implementations or governance are missing.

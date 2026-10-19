@@ -356,3 +356,23 @@ tests. Both actual Taxi passenger and goods recovery projections pass independen
 wire schemas. The current Taxi executable was rebuilt for the process integration
 test; changed-package vet passed. Current-head Linux CI is recorded in PR14 and
 must pass before any readiness claim. Production approvals remain BLOCKED_POLICY.
+
+
+Frozen Analytics releases now retain a private immutable original-membership
+witness under normal migration 007. The Source interface requires explicit
+reauthorization of each original member before any cached disclosure. The native
+mission-success adapter checks current independent contexts, native fingerprints,
+product, time and scope for every original event. Revoking a non-first member
+blocks its old release even while other members still establish general report
+scope. Missing historical proof denies disclosure with immutable audit; original
+values stay frozen and are never resampled. Release/witness/audit rollback is
+atomic. Witnesses never appear in HQ output and establish no complete coverage.
+No production report, privacy unit or threshold is approved by this software.
+
+
+After cached-membership hardening, 229 Bridge/Taxi/privacy/policy test cases pass
+with zero skips, including 30 Analytics scenarios. Native source authority remains
+91 actual-migration scenarios. Analytics architecture checks and changed-package
+vet pass. This closes the frozen-membership reauthorization gap; it does not
+supply complete cohort exports, the other report reducers, report routing or any
+production approval. All ten reports remain unavailable for production disclosure.
