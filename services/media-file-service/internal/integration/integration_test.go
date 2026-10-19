@@ -140,6 +140,13 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("replay migrations: %v", err)
 	}
+	migrations, err := database.ListMigrations(migrationsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(migrations) == 0 || migrations[len(migrations)-1].Version != "000006_vendor_asset_privacy" {
+		t.Fatal("Review and update the tip-specific rollback assertions for the new migration")
+	}
 
 	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("rollback last migration: %v", err)
@@ -166,8 +173,8 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if !exists {
 		t.Fatal("latest rollback removed the media_objects baseline table")
 	}
-	// The tip is 000005, network evidence binding. Rolling it back removes the
-	// binding and evidence-state columns and nothing else.
+	// The current tip is 000006, vendor-asset privacy. Its rollback removes
+	// only its two constraints; earlier evidence binding must remain intact.
 	var bindingExists bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
@@ -175,8 +182,15 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	)`).Scan(&bindingExists); err != nil {
 		t.Fatalf("check rolled-back binding metadata: %v", err)
 	}
-	if bindingExists {
-		t.Fatal("expected the evidence binding columns to be removed by rolling back the tip")
+	if !bindingExists {
+		t.Fatal("rolling back vendor privacy removed earlier evidence binding columns")
+	}
+	var vendorConstraints int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_constraint WHERE conname IN ('vendor_asset_private_ck','vendor_asset_authorization_private_ck')`).Scan(&vendorConstraints); err != nil {
+		t.Fatal(err)
+	}
+	if vendorConstraints != 0 {
+		t.Fatalf("tip rollback left %d vendor privacy constraints", vendorConstraints)
 	}
 	// 000004's data-export visibility is NOT the tip's, so it must survive.
 	var visibilityExists bool
@@ -219,6 +233,12 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	}
 	if !bindingExists {
 		t.Fatal("expected the evidence binding columns to exist after reapply")
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_constraint WHERE conname IN ('vendor_asset_private_ck','vendor_asset_authorization_private_ck')`).Scan(&vendorConstraints); err != nil {
+		t.Fatal(err)
+	}
+	if vendorConstraints != 2 {
+		t.Fatalf("reapply restored %d vendor privacy constraints, want 2", vendorConstraints)
 	}
 	// The private-only rule is part of the schema, not just the use case, so it
 	// must come back with the reapply.
