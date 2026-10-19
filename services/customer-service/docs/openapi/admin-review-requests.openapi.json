@@ -13,7 +13,7 @@
     "/internal/customer/v1/admin/account-review-requests": {
       "post": {
         "operationId": "customer.admin.review.request",
-        "description": "Default off. Distinct write key, approved staff permission customer.review.request, source-owner allocation and native review revision guard. The revision versions only review intake. Original identity is durable and audit failure rolls back work. HQ orchestration is not implemented.",
+        "description": "Default off. Distinct write key, approved staff permission customer.review.request, source-owner allocation and native review revision guard. The revision versions only review intake. Original identity is durable and audit failure rolls back work. Bridge orchestration uses a separate durable no-retry fence and original-identity GET recovery.",
         "parameters": [
           {
             "name": "market",

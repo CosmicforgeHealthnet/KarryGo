@@ -5,6 +5,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/bridge"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
 	"cosmicforge/logistics/shared/go/adminpolicy"
@@ -134,6 +135,18 @@ func run() error {
 			if e = app.ConfigureResources(client, approved); e != nil {
 				return e
 			}
+		}
+	}
+	if client, write, read, e := cfg.CustomerReviewClient(); e != nil {
+		return e
+	} else if client != nil {
+		defer client.Close()
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid Customer review policy")
+		}
+		if e = app.ConfigureCustomerReview(&customerreviewops.Service{DB: pool, Owner: client, Policy: approved, WriteEnabled: write, ReadEnabled: read}); e != nil {
+			return e
 		}
 	}
 	if cfg.TaxiReadEnabled {

@@ -152,7 +152,8 @@ See [customer-review-intake.md](customer-review-intake.md) before configuring
 migration 016 or the new owner endpoints. This records a pending review work item
 only. Its version guards the new native review aggregate, not Customer profile
 standing. Account/lifecycle/verification/consent and Trip/Wallet changes are not
-supported by this action. HQ operation orchestration remains unconnected.
+supported by this action. Dedicated five-scope HQ intake/readback orchestration
+is now implemented; generic interventions remain blocked.
 
 Both `CUSTOMER_ADMIN_REVIEW_WRITES_ENABLED` and
 `CUSTOMER_ADMIN_REVIEW_READBACK_ENABLED` default false. Enabling either requires
@@ -165,3 +166,17 @@ the original request failed; never issue a new key or repeat a POST to reconcile
 Read and retain immutable request/audit evidence. No automatic down migration
 or destructive cleanup is supplied. Owner approval of work-item handling,
 closure, retention, permissions and exact access scopes remains BLOCKED_POLICY.
+
+
+For the dedicated Bridge review paths, apply Bridge migration 004 and reviewed
+runtime grants. `ADMIN_CUSTOMER_REVIEW_WRITES_ENABLED` and
+`ADMIN_CUSTOMER_REVIEW_READBACK_ENABLED` both default false; writes require
+readback. Configure separate matching owner write/readback key files via
+`ADMIN_CUSTOMER_REVIEW_WRITE_SECRET_FILE` and
+`ADMIN_CUSTOMER_REVIEW_READBACK_SECRET_FILE`. Existing configured Customer origin
+is mandatory; HQ/resource credentials cannot be reused. No production keys or
+policy values are included. Turning writes off must leave readback on until all
+uncertain requests have been investigated through their original GET identities.
+A missing receipt, failed source authorization, Bridge restart or failed audit
+never permits another POST. Preserve Bridge claims, immutable operation audits and
+native Customer receipts. Target-environment approval/certification remains pending.

@@ -22,7 +22,7 @@ type Store struct{ Pool *pgxpool.Pool }
 
 func (s *Store) Ready(ctx context.Context) error {
 	var version int
-	err := s.Pool.QueryRow(ctx, `SELECT version FROM admin_schema_versions WHERE version=3`).Scan(&version)
+	err := s.Pool.QueryRow(ctx, `SELECT version FROM admin_schema_versions WHERE version=4`).Scan(&version)
 	return err
 }
 

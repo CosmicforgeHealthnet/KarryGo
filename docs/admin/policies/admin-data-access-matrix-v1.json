@@ -300,7 +300,7 @@
       "dependencies": [
         "initial owner field/purpose/capability/scope approval",
         "work-item ownership/closure/retention approval",
-        "HQ versioned command and uncertainty orchestration integration",
+        "real HQ/native owner target-environment integration certification",
         "separate native write/readback keys and private connectivity"
       ],
       "approval_status": "BLOCKED_POLICY",

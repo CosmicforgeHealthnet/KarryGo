@@ -20,12 +20,14 @@ import (
 	contract "cosmicforge/logistics/services/admin-backoffice-service/docs/openapi"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
 	"cosmicforge/logistics/shared/go/adminowner"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
+	"cosmicforge/logistics/shared/go/customerreview"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"github.com/google/uuid"
 	"strconv"
@@ -53,6 +55,7 @@ type Bridge struct {
 	taxiRoles             []string
 	accessPolicy          *adminpolicy.Engine
 	features              config.DomainFlags
+	customerReview        *customerreviewops.Service
 	verifiers             map[string]*serviceauth.Verifier
 	now                   func() time.Time
 	Denied, AuditFailures atomic.Uint64
@@ -257,7 +260,15 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Permission = capability.Permission
 	a.TargetService = capability.Owner
 	resourceProfile, resourceDefinition, resourceRef, resourceRead := adminowner.MatchBridge(path)
+	reviewRequest := capability.ID == "customer.review.submit" || capability.ID == "customer.review.readback"
 	readPolicy := b.accessPolicy
+	if reviewRequest {
+		if b.customerReview == nil {
+			fail(503, "capability_blocked")
+			return
+		}
+		readPolicy = b.customerReview.Policy
+	}
 	if resourceRead {
 		readPolicy = b.resourcePolicies[resourceProfile.Owner]
 		if readPolicy == nil {
@@ -271,9 +282,21 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var taxiQuery adminread.Query
 	query, err := strictQuery(r)
-	if capability.Permission == adminread.TaxiPermission || resourceRead {
+	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest {
 		role := actor.Roles[0]
 		approvedRoles := b.taxiRoles
+		if reviewRequest {
+			rule, e := readPolicy.Rule(capability.Permission, b.now())
+			expected := customerreview.Contract
+			if r.Method == "GET" {
+				expected = customerreview.StateContract
+			}
+			if e != nil || rule.Owner != customerreview.Owner || rule.SourceContract != expected {
+				fail(503, "blocked_policy")
+				return
+			}
+			approvedRoles = rule.Roles
+		}
 		if resourceRead {
 			rule, e := readPolicy.Rule(resourceDefinition.Capability, b.now())
 			if e != nil || rule.Owner != resourceProfile.Owner || rule.SourceContract != resourceDefinition.SourceContract {
@@ -314,7 +337,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(403, "forbidden")
 		return
 	}
-	if capability.Permission == adminread.TaxiPermission || resourceRead {
+	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest {
 		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
 		requested := adminpolicy.Scope{Product: config.Product, Market: taxiQuery.Scope.Market, Zone: taxiQuery.Scope.Zone, Organization: taxiQuery.Scope.Organization, Tenant: taxiQuery.Scope.Tenant}
 		if e := readPolicy.AuthorizeDelegation(delegated, capability.Permission, taxiQuery.Purpose, requested, b.now()); e != nil {
@@ -347,6 +370,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "bridge.capabilities":
 		_, policyErr := b.accessPolicy.Rule(adminread.TaxiPermission, b.now())
 		availability := b.resourceAvailability(actor.Roles, actor.Zones, actor.Tenants)
+		b.customerReviewAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		availability[adminread.TaxiPermission] = b.taxi != nil && policyErr == nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0 && len(actor.Tenants) > 0
 		result = contract.DiscoverWithAvailability(actor.Permissions, availability)
 	case "taxi.rides.list", "taxi.rides.detail":
@@ -408,6 +432,60 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			a.SourceVersion = *op.SourceVersion
 		}
 		result = op
+	case "customer.review.submit", "customer.review.readback":
+		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
+		var out customerreviewops.Operation
+		var e error
+		if r.Method == "POST" {
+			media, _, parseErr := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if parseErr != nil || media != "application/json" {
+				fail(415, "json_required")
+				return
+			}
+			input, decodeErr := customerreview.DecodeRequest(body)
+			if decodeErr != nil {
+				fail(400, "invalid_command")
+				return
+			}
+			a.TargetRef = input.CustomerID
+			a.ReasonCode = input.ReasonCode
+			out, e = b.customerReview.Submit(r.Context(), delegated, taxiQuery, input)
+		} else {
+			id := strings.TrimPrefix(path, "/customer/review-requests/")
+			a.TargetRef = id
+			out, e = b.customerReview.Reconcile(r.Context(), delegated, taxiQuery, id)
+		}
+		if e != nil {
+			status, code := 503, "operation_unavailable"
+			switch {
+			case errors.Is(e, customerreviewops.ErrDisabled):
+				code = "capability_blocked"
+			case errors.Is(e, adminpolicy.ErrBlocked):
+				code = "blocked_policy"
+			case errors.Is(e, adminpolicy.ErrDenied), errors.Is(e, customerreview.ErrRefused):
+				status, code = 403, "forbidden"
+			case errors.Is(e, customerreviewops.ErrConflict):
+				status, code = 409, "idempotency_conflict"
+			case errors.Is(e, customerreviewops.ErrNotFound):
+				status, code = 404, "not_found"
+			case errors.Is(e, customerreview.ErrInvalid):
+				status, code = 400, "invalid_command"
+			case errors.Is(e, customerreviewops.ErrProof):
+				code = "owner_contract_invalid"
+			}
+			// Generic transport retry advice must never cause a command resubmit.
+			a.Outcome = code
+			if !b.audit(r, a) {
+				status, code = 503, "audit_unavailable"
+			}
+			b.reply(w, correlation, status, nil, &apiError{Code: code, Message: "Use original operation readback to resolve the outcome.", Retryable: false})
+			return
+		}
+		a.Status = out.Status
+		if out.Receipt != nil {
+			a.SourceVersion = out.Receipt.RecordedReviewRevision
+		}
+		result = out
 	case "bridge.operations.submit":
 		media, _, e := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if e != nil || media != "application/json" {
@@ -470,7 +548,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	a.Outcome = "AUTHORIZED"
 	if !b.audit(r, a) {
-		b.reply(w, correlation, 503, nil, &apiError{Code: "audit_unavailable", Message: "Request could not be completed.", Retryable: true})
+		b.reply(w, correlation, 503, nil, &apiError{Code: "audit_unavailable", Message: "Request could not be completed.", Retryable: !reviewRequest})
 		return
 	}
 	b.reply(w, correlation, 200, result, nil)

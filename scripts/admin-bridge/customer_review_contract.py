@@ -1,4 +1,4 @@
-"""Pin the Customer-owned review-intake API; no HQ executor is implied."""
+"""Pin the Customer-owned review-intake API; with a separate scoped Bridge orchestration contract."""
 import argparse
 import json
 from pathlib import Path
@@ -24,7 +24,7 @@ def build():
     errors = {str(status): {"description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."} for status in (400, 401, 403, 404, 409, 413, 415, 503)}
     success = {"description": "Immutable proof that Customer recorded an owner review work item. No account, verification, restriction, privacy fulfillment, Trip or Wallet outcome is asserted.", "content": {"application/json": {"schema": receipt}}}
     base = "/internal/customer/v1/admin/account-review-requests"
-    post = {"operationId": "customer.admin.review.request", "description": "Default off. Distinct write key, approved staff permission customer.review.request, source-owner allocation and native review revision guard. The revision versions only review intake. Original identity is durable and audit failure rolls back work. HQ orchestration is not implemented.", "parameters": query, "requestBody": {"required": True, "content": {"application/json": {"schema": request}}}, "responses": {"200": success, **errors}}
+    post = {"operationId": "customer.admin.review.request", "description": "Default off. Distinct write key, approved staff permission customer.review.request, source-owner allocation and native review revision guard. The revision versions only review intake. Original identity is durable and audit failure rolls back work. Bridge orchestration uses a separate durable no-retry fence and original-identity GET recovery.", "parameters": query, "requestBody": {"required": True, "content": {"application/json": {"schema": request}}}, "responses": {"200": success, **errors}}
     get = {"operationId": "customer.admin.review.readback", "description": "Default off. Distinct readback key and current customer.review.read permission/allocation; immutable historical receipt under the exact original scope. Write kill switch does not disable readback. No missing or malformed proof permits another POST.", "parameters": query + [parameter("customer", identifier, "path"), parameter("key", segment, "path")], "responses": {"200": success, **errors}}
     return {"openapi": "3.1.0", "info": {"title": "Customer private owner review intake", "version": "1.0.0"}, "security": [{"ServiceHMAC": []}], "paths": {base: {"post": post}, base + "/{customer}/{key}": {"get": get}}, "components": {"securitySchemes": {"ServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 identity. Full service version/name/timestamp/nonce/signature headers, body and exact query; durable cross-replica nonce claims. Write and readback keys are distinct from each other and the resource-read key."}}}}
 

@@ -65,12 +65,18 @@ def build():
     resource["allOf"] = [{"if": {"properties": {"kind": {"const": "custody-missions"}}}, "else": {"not": {"required": ["custody"]}}}]
     resources = obj({"contract_version": {"const": "karryam.owner-resources.v1"}, "owner": opaque, "kind": opaque, "scope": obj({"product": {"const": "karryam"}, "market": opaque, "zone": opaque, "organization": opaque, "tenant": opaque}), "policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "as_of": string(format="date-time"), "coverage": {"const": "CONTEXT_SCOPED_PARTIAL"}, "items": {"type": "array", "maxItems": 100, "items": resource}, "next_cursor": {"type": ["string", "null"], "maxLength": 4096}})
     schemas.update(OwnerResourcesSnapshot=resources)
+    source_review = json.loads((ROOT / "services/customer-service/docs/openapi/admin-review-requests.openapi.json").read_text(encoding="utf-8"))["paths"]["/internal/customer/v1/admin/account-review-requests"]["post"]
+    review_request = source_review["requestBody"]["content"]["application/json"]["schema"]
+    review_receipt = source_review["responses"]["200"]["content"]["application/json"]["schema"]
+    review_operation = obj({"operation_id": string(format="uuid"), "customer_id": string(format="uuid"), "scope": review_receipt["properties"]["scope"], "status": {"enum": ["EXECUTING", "UNKNOWN_OUTCOME", "CONFIRMED"]}, "created_at": string(format="date-time"), "as_of": string(format="date-time"), "receipt": review_receipt}, ["operation_id", "customer_id", "scope", "status", "created_at", "as_of"])
+    review_operation["allOf"] = [{"if": {"properties": {"status": {"const": "CONFIRMED"}}}, "then": {"required": ["receipt"]}, "else": {"not": {"required": ["receipt"]}}}]
+    schemas.update(CustomerReviewRequest=review_request, CustomerReviewOperation=review_operation)
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"]:
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review."):
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
@@ -78,8 +84,8 @@ def build():
             if segment.startswith("{"):
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
-        if c["state"] == "READ_ONLY":
-            result = "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+        if c["state"] in ("READ_ONLY", "AVAILABLE"):
+            result = "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}
@@ -88,9 +94,9 @@ def build():
                 success_schema["properties"]["result"] = {"allOf": [{"$ref": f"#/components/schemas/{result}"}, {"properties": {"items": {"items": {"required": ["custody"]}}}}]}
             op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":
-            op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
+            op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("CustomerReviewRequest" if c["id"] == "customer.review.submit" else "Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
         paths.setdefault(BASE + c["bridge_endpoint"], {})[c["method"].lower()] = op
-    api = {"openapi": "3.1.0", "info": {"title": "Karryam private HQ bridge", "version": "1.0.0", "description": "Private transport plus mTLS, HMAC v2 and delegated Ed25519 JWT are all mandatory. No domain writes enabled."}, "paths": paths, "security": [{"WorkloadMTLS": [], "ServiceHMAC": [], "StaffAssertion": []}], "components": {"securitySchemes": {"WorkloadMTLS": {"type": "mutualTLS"}, "ServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 profile in signing-profile.md; requires all X-Service-* headers and X-HQ-Key-ID."}, "StaffAssertion": {"type": "http", "scheme": "bearer", "bearerFormat": "EdDSA JWT"}}, "schemas": schemas}}
+    api = {"openapi": "3.1.0", "info": {"title": "Karryam private HQ bridge", "version": "1.0.0", "description": "Private transport plus mTLS, HMAC v2 and delegated Ed25519 JWT are all mandatory. Owner review intake is compiled and default off; all production access requires approved governance and current source authorization."}, "paths": paths, "security": [{"WorkloadMTLS": [], "ServiceHMAC": [], "StaffAssertion": []}], "components": {"securitySchemes": {"WorkloadMTLS": {"type": "mutualTLS"}, "ServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 profile in signing-profile.md; requires all X-Service-* headers and X-HQ-Key-ID."}, "StaffAssertion": {"type": "http", "scheme": "bearer", "bearerFormat": "EdDSA JWT"}}, "schemas": schemas}}
     files = {"openapi.json": api}
     files.update({f"schemas/{name}.json": {"$schema": "https://json-schema.org/draft/2020-12/schema", **schema} for name, schema in schemas.items()})
     return files

@@ -301,7 +301,7 @@ work item only; it changes no account standing, restrictions, verification,
 consent, privacy fulfillment, Trip or Wallet data. `review-states` adds native
 review-aggregate reads, bringing the source dictionary to 22 kinds / 44 Bridge
 resource paths. The signed HTTP and typed SDK are tested against real PostgreSQL;
-HQ command orchestration is not connected. Existing generic `/operations`
+The subsequent dedicated scoped Bridge orchestration below is connected. Generic `/operations`
 continues to reject unsupported actions. See `customer-review-intake.md` for exact
 scope, configuration and remaining engineering/approval requirements.
 
@@ -315,3 +315,24 @@ phantoms or security mismatches. All six CI workflows passed on the preceding
 increment. The disposable Windows cluster needed a larger lock-table setting;
 cleanup failures are now explicit, and CI runs migration-heavy owner packages
 sequentially while retaining internal concurrency tests and the race detector.
+
+
+Customer review Bridge orchestration is now implemented on separate versioned
+request/readback paths. It persists an EXECUTING claim and immutable audit before
+one owner POST, fences the original request/key/customer/native-review-revision,
+and reconciles uncertain results only by exact original GET. Full five-dimensional
+scope, staff, purpose, current governance and current owner authorization are
+required; confirmed receipts cannot bypass later revocation. Confirmation and
+its audit are atomic. Bridge normal migration 004 and reviewed runtime grants are
+required. The generic intervention API still rejects unsupported commands.
+
+Validation: 224 Bridge/Taxi/privacy/policy scenarios passed locally, zero skipped
+tests, including real PostgreSQL, the actual Taxi process, real mTLS Customer
+orchestration transport and least-privilege runtime-role verification. Independent
+OpenAPI/schema checks validate actual UNKNOWN_OUTCOME and CONFIRMED responses,
+and existing v1 contracts remain compatible. Changed-service vet passed. The
+89-case native owner authority suite remains passing from the preceding source
+increment. All production review flags remain off; approval and real HQ/native
+owner target-environment certification are pending. Other lifecycle interventions,
+all ten complete Analytics sources/facade and protected Media are still engineering
+work. This is not a Sections 6–10 completion or deployment-readiness claim.

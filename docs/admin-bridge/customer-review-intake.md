@@ -1,8 +1,8 @@
 # Customer-owned review intake
 
 Status: implemented and tested owner contract; **BLOCKED_POLICY**, disabled by
-default. HQ command orchestration is not connected. Existing Bridge operation
-submission still durably rejects unsupported commands.
+default. A dedicated scoped Bridge submit/readback path is implemented. Existing
+generic Bridge operation submission still durably rejects unsupported commands.
 
 The action records a Customer-owned work item and an immutable original-action
 receipt. It changes no account status, verification, restriction, consent,
@@ -66,8 +66,8 @@ initialized, with approved governance and independent source-owner keys. Mount
 Switches cannot create policy grants. No production values or keys are supplied.
 
 Before any production rollout: approve field/purpose/capability/scope and work-item
-ownership/closure/retention rules; complete HQ versioned command transport and
-uncertainty orchestration; provision private connectivity and separate keys;
+ownership/closure/retention rules; certify the real HQ integration and native owner
+path in the target environment; provision private connectivity and separate keys;
 verify real HQ and kill-switch/readback behavior. Do not merge/deploy this
 privileged capability while approvals or engineering are outstanding.
 
@@ -79,3 +79,60 @@ audit-failure rollback, immutable proof, current context revocation, signed HTTP
 boundaries, key separation, durable nonce rejection, strict body parsing and the
 actual typed client. Source grants and governance in these tests are ephemeral
 TEST_ONLY approvals; they confer no production access.
+
+## Dedicated Bridge orchestration
+
+POST `/internal/karryam-admin/v1/customer/review-requests` accepts the exact
+versioned Customer request DTO. GET the same path plus `/{operation_id}` resolves
+only the original request. Both require the existing private mTLS, HQ HMAC v2,
+delegated staff assertion, rate limit and audit boundaries. Query scope explicitly
+includes market, zone, organization and tenant; product is fixed to Karryam.
+Purpose, staff and the signed policy revision are bound to the operation. No
+body actor, legacy two-dimensional command scope or arbitrary action is accepted.
+
+Bridge migration 004 creates only orchestration and immutable audit metadata.
+Apply it with the migration role and reapply the reviewed `admin-db-grants.sql`;
+readiness requires version 4. Runtime can append audit and update only operation
+status/receipt/time. It cannot change durable identity, delete operation evidence,
+read the audit ledger or alter its guards. No Customer tables are accessed.
+
+Before POST, the Bridge atomically commits EXECUTING plus audit and a unique
+claim. A global original key, request ID and customer/review-revision fence prevent
+parallel callers, changed intent or a fresh key from resubmitting that revision.
+There is no automatic worker or transport POST retry. A process crash before POST
+also remains fenced: safety takes precedence over silently replaying an action.
+After any uncertain response, the state is UNKNOWN_OUTCOME (or remains EXECUTING
+if persisting the status failed); either state permits only original GET recovery.
+Absence/refusal is not a terminal failure and permits no second POST.
+
+Current read delegation and source-owner authorization are checked on every GET,
+including confirmed receipts. Readback must match original request/customer/key,
+intent digest, native review revision and all five scope dimensions. Confirmation
+and immutable audit commit together. Failed audit returns no receipt. Concurrent
+readbacks cannot replace a previously confirmed receipt. This is immutable proof
+of intake; account standing and fulfillment remain governed by native owners.
+
+Bridge flags default false and read no secret files when both are off:
+
+- `ADMIN_CUSTOMER_REVIEW_WRITES_ENABLED`
+- `ADMIN_CUSTOMER_REVIEW_READBACK_ENABLED`
+
+Writes require readback enabled. Set `ADMIN_CUSTOMER_REVIEW_WRITE_SECRET_FILE`
+and `ADMIN_CUSTOMER_REVIEW_READBACK_SECRET_FILE` to the matching dedicated owner
+keys. The origin comes from existing canonical Customer owner-resource wiring;
+these keys must differ from each other, the resource key and HQ workload keys.
+Readback-only startup needs no write key. Governance documents and independent
+owner context keys are still required. Flags provision no policy, role or scope.
+
+The compiled capability matrix marks submit AVAILABLE and readback READ_ONLY;
+discovery changes either to DISABLED when flags, approved policy, delegated roles,
+zones or tenants are missing. Production remains disabled and BLOCKED_POLICY.
+Legacy generic operation/health contracts remain unchanged; their remote-write
+indicator concerns the still-disabled generic intervention family.
+
+Tests cover real PostgreSQL orchestration, 12 concurrent submissions, crash and
+lost-response fences, exact proof validation, immutable evidence, least-privilege
+runtime grants and current source denial after confirmation. A real mTLS Bridge
+and typed HTTP owner transport test validates signed delegation and recovery;
+the native Customer handler/SDK has separate actual-migration PostgreSQL tests.
+Full real HQ to native owner target-environment certification remains outstanding.

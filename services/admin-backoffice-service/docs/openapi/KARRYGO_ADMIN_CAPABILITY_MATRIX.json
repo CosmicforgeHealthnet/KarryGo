@@ -1526,5 +1526,55 @@
     ],
     "blocker": "BLOCKED_POLICY. Version belongs only to the native review aggregate; no account standing or verification mutation is supported.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "customer.review.submit",
+    "version": "1.0",
+    "owner": "customer-service",
+    "source_endpoint": "/internal/customer/v1/admin/account-review-requests",
+    "bridge_endpoint": "/customer/review-requests",
+    "method": "POST",
+    "state": "AVAILABLE",
+    "permission": "customer.review.request",
+    "scope": "product,market,zone,organization,tenant,staff,purpose",
+    "risk": "R2",
+    "privacy": "MINIMIZED_REVIEW_INTAKE",
+    "source_version_required": true,
+    "idempotency_required": true,
+    "approval": "Signed owner allocation and approved governance; no production approval supplied.",
+    "evidence": "Durable original intent, native review aggregate revision, immutable owner receipt and atomic Bridge audit.",
+    "feature_flag": "ADMIN_CUSTOMER_REVIEW_WRITES_ENABLED",
+    "tests": [
+      "TestPostgresCustomerReviewBridgeConcurrentSubmissionPostsOnce",
+      "TestPostgresCustomerReviewBridgeUnknownOutcomeOnlyReadsOriginal",
+      "TestPostgresCustomerReviewBridgeScopeAndAuditFailureFence"
+    ],
+    "blocker": "Default off; BLOCKED_POLICY until owner mappings, purposes and staff permissions are approved. Review intake only; no account standing changes.",
+    "fallback": "Use original operation GET readback. Never automatically resubmit or create a fresh key."
+  },
+  {
+    "id": "customer.review.readback",
+    "version": "1.0",
+    "owner": "customer-service",
+    "source_endpoint": "/internal/customer/v1/admin/account-review-requests/{customer}/{key}",
+    "bridge_endpoint": "/customer/review-requests/{operation_id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "customer.review.read",
+    "scope": "product,market,zone,organization,tenant,staff,purpose",
+    "risk": "R1",
+    "privacy": "MINIMIZED_REVIEW_INTAKE",
+    "source_version_required": true,
+    "idempotency_required": false,
+    "approval": "Signed owner allocation and approved governance; no production approval supplied.",
+    "evidence": "Durable original intent, native review aggregate revision, immutable owner receipt and atomic Bridge audit.",
+    "feature_flag": "ADMIN_CUSTOMER_REVIEW_READBACK_ENABLED",
+    "tests": [
+      "TestPostgresCustomerReviewBridgeConcurrentSubmissionPostsOnce",
+      "TestPostgresCustomerReviewBridgeUnknownOutcomeOnlyReadsOriginal",
+      "TestPostgresCustomerReviewBridgeScopeAndAuditFailureFence"
+    ],
+    "blocker": "Default off; BLOCKED_POLICY until owner mappings, purposes and staff permissions are approved. Review intake only; no account standing changes.",
+    "fallback": "Use original operation GET readback. Never automatically resubmit or create a fresh key."
   }
 ]
