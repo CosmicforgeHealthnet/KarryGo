@@ -212,7 +212,7 @@ func (r *PostgresRepository) withBookingGeometry(ctx context.Context, item *Trip
 	if lookupErr != nil || item == nil {
 		return item, lookupErr
 	}
-	err := r.db.QueryRow(ctx, `SELECT COALESCE(route_pickup_polyline,''), COALESCE(route_dropoff_polyline,'') FROM bookings WHERE id=$1`, item.BookingID).Scan(&item.RoutePickupPolyline, &item.RouteDropoffPolyline)
+	err := r.db.QueryRow(ctx, `SELECT COALESCE(route_pickup_polyline,''), COALESCE(route_dropoff_polyline,'') FROM dispatch_bookings WHERE id=$1`, item.BookingID).Scan(&item.RoutePickupPolyline, &item.RouteDropoffPolyline)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return item, nil
 	}

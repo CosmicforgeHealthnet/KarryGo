@@ -1,0 +1,147 @@
+name: Admin owner reads and Dispatch safety
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Reviewed comparison commit SHA (the stacked PR base)'
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - 'services/admin-backoffice-service/**'
+      - 'services/customer-service/**'
+      - 'services/driver-hauling-service/**'
+      - 'shared/go/admincontext/**'
+      - 'shared/go/adminowner/**'
+      - 'services/driver-taxi-service/**'
+      - 'services/driver-dispatch-delivery-service/**'
+      - 'services/fleet-partner-service/**'
+      - 'services/media-file-service/**'
+      - 'shared/go/providerreceipt/**'
+      - 'shared/go/customerreview/**'
+      - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
+      - 'shared/go/adminmedia/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
+      - 'services/analytics-service/migrations/**'
+      - 'docs/admin/policies/**'
+      - 'shared/go/serviceauth/**'
+      - 'scripts/admin-bridge/**'
+      - '.github/workflows/admin-owner-closure.yml'
+  push:
+    branches: [staging]
+    paths:
+      - 'services/admin-backoffice-service/**'
+      - 'services/customer-service/**'
+      - 'services/driver-hauling-service/**'
+      - 'shared/go/admincontext/**'
+      - 'shared/go/adminowner/**'
+      - 'services/driver-taxi-service/**'
+      - 'services/driver-dispatch-delivery-service/**'
+      - 'services/fleet-partner-service/**'
+      - 'services/media-file-service/**'
+      - 'shared/go/providerreceipt/**'
+      - 'shared/go/customerreview/**'
+      - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
+      - 'shared/go/adminmedia/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
+      - 'services/analytics-service/migrations/**'
+      - 'docs/admin/policies/**'
+      - '.github/workflows/admin-owner-closure.yml'
+permissions:
+  contents: read
+concurrency:
+  group: admin-owner-closure-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  owner-contract-and-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: owner_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: admin_owner_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U owner_test" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGPASSWORD: disposable_ci_only
+      PGHOST: 127.0.0.1
+      PGUSER: owner_test
+      PGDATABASE: admin_owner_test
+      ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      ADMIN_CONTEXT_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      ADMIN_OWNER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      ANALYTICS_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      TAXI_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_owner_test?sslmode=disable
+      DISPATCH_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
+      DISPATCH_TRIP_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
+      DISPATCH_ADMIN_TEST_REDIS_ADDR: 127.0.0.1:6379
+      MEDIA_FILE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/media_admin_test?sslmode=disable
+      FLEET_PARTNER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/fleet_admin_test?sslmode=disable
+      TAXI_REDIS_ADDR: 127.0.0.1:6379
+      TAXI_NOTIFICATION_REDIS_ADDR: 127.0.0.1:6379
+      ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
+      ADMIN_OWNER_CUSTODY_CAPTURE_DIR: ${{ github.workspace }}/test-artifacts/owner-wire
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26.9', cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r scripts/admin-bridge/requirements.txt
+      - name: Build actual Taxi owner; install real Dispatch schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-artifacts
+          go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
+          createdb dispatch_admin_test
+          createdb fleet_admin_test
+          createdb media_admin_test
+          for migration in services/driver-dispatch-delivery-service/migrations/*.up.sql; do
+            psql -d dispatch_admin_test -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
+          done
+      - name: Required race and real database tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/analyticsadmin ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
+          python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
+          python scripts/admin-bridge/scoped_analytics_contract.py
+          go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
+          python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
+          go test -race -p 1 -json -count=1 -timeout=300s ./services/media-file-service/... ./shared/go/adminmedia/... > test-artifacts/media-cases.jsonl
+          python scripts/admin-bridge/media_testgate.py test-artifacts/media-cases.jsonl
+          python scripts/admin-bridge/media_case_contract.py
+          python scripts/admin-bridge/validate_owner_wire.py test-artifacts/owner-wire
+          python scripts/admin-bridge/owner_contracts.py
+          python scripts/admin-bridge/customer_review_contract.py --wire-dir test-artifacts/owner-wire
+          go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./services/driver-dispatch-delivery-service/internal/features/securehandover > test-artifacts/dispatch-safety.jsonl
+          python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-safety.jsonl
+          go test -race -json -count=1 -timeout=300s ./services/fleet-partner-service/internal/integration -run 'TestProviderDecisionReceipt|TestProviderOfferReceipt|TestProviderOfferLegacy' > test-artifacts/fleet-receipts.jsonl
+          python scripts/admin-bridge/receipt_testgate.py test-artifacts/fleet-receipts.jsonl
+          go test -race -count=1 ./services/fleet-partner-service/internal/section28contract ./services/fleet-partner-service/internal/features/privateoperations/http ./shared/go/providerreceipt
+          go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/migrations -run 'TestSecure|TestCustody|TestRelayUncertainty' > test-artifacts/dispatch-custody.jsonl
+          python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-custody.jsonl --custody
+          go vet ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./shared/go/adminread ./services/analytics-service/cmd ./services/analytics-service/internal/features/adminprivacy ./shared/go/analyticsadmin
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-owner-closure-evidence
+          path: test-artifacts/

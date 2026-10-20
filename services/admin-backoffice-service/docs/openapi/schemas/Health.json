@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "bridge": {
+      "const": "READY"
+    },
+    "owners": {
+      "const": "UNAVAILABLE"
+    },
+    "remote_writes": {
+      "const": "DISABLED"
+    },
+    "contract_version": {
+      "const": "1.0"
+    }
+  },
+  "required": [
+    "bridge",
+    "owners",
+    "remote_writes",
+    "contract_version"
+  ]
+}

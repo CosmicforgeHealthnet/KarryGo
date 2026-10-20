@@ -76,6 +76,17 @@ func main() {
 		logging.Fatal("media", "configure private media contract: %v", err)
 	}
 
+	// No live source-case adapter is enrolled until canonical modern-object
+	// membership/remediation contracts exist. Nil keeps issue/redemption blocked.
+	caseLegacyCredentials := serviceauth.ParseSecrets(cfg.ServiceSecrets)
+	for owner, token := range cfg.ServiceTokens {
+		caseLegacyCredentials["legacy-upload:"+owner] = []byte(token)
+	}
+	caseHandler, err := mediahttp.AdminCaseRuntime(ctx, mediaService, db, caseLegacyCredentials, cfg.DownloadSecret, nil)
+	if err != nil {
+		logging.Fatal("media", "private case configuration refused")
+	}
+
 	var workers []func(context.Context) error
 	if mediaService != nil && cfg.MediaWorkersEnabled && !cfg.MediaKillSwitch {
 		owner := ids.New("mwrk")
@@ -138,7 +149,8 @@ func main() {
 			mediahttp.RegisterVendorUploadRoute(group, mediaService, cfg.PrivateMaxUploadBytes)
 			logging.Success("media", "private media contract mounted")
 		},
-		Workers: workers,
+		RegisterRoot: func(root *gin.Engine) { caseHandler.Register(root) },
+		Workers:      workers,
 	})
 }
 

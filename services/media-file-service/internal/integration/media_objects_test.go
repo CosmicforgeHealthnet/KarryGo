@@ -930,6 +930,42 @@ func TestPrivateDownloadGrantIsShortLivedAndUnstored(t *testing.T) {
 	}
 }
 
+func TestExistingDownloadGrantRechecksCurrentSafetyPolicy(t *testing.T) {
+	for _, requireSafe := range []bool{true, false} {
+		t.Run(fmt.Sprintf("require_safe_%v", requireSafe), func(t *testing.T) {
+			f := newMediaFixture(t, fixtureOptions{scanner: cleanScanner{}, requireSafeForDownload: requireSafe})
+			_, response := f.authorizeUpload(t, "current-safety", nil)
+			upload := dataOf(t, response)
+			content := pdfFile(64)
+			if status, body := f.completeUpload(t, upload, content, nil); status != http.StatusOK {
+				t.Fatal(status, body)
+			}
+			id := upload["mediaObjectId"].(string)
+			status, response := f.call(t, callOptions{method: http.MethodPost, path: "/objects/" + id + "/download-authorizations"})
+			if status != http.StatusOK {
+				t.Fatal(status, response)
+			}
+			token := dataOf(t, response)["downloadToken"].(string)
+			// Stored native safety is authoritative at redemption, even when a
+			// still-valid grant was minted while the file was confirmed SAFE.
+			for _, state := range []string{mediamodels.SafetyUnknown, mediamodels.SafetyPending, mediamodels.SafetyUnsafe, mediamodels.SafetyQuarantined, mediamodels.SafetySafe} {
+				if _, err := f.pool.Exec(context.Background(), `UPDATE media_objects SET safety_status=$2,version=version+1 WHERE id=$1`, id, state); err != nil {
+					t.Fatal(err)
+				}
+				data, _, err := f.service.ReadContent(context.Background(), id, token)
+				blocked := state == mediamodels.SafetyUnsafe || state == mediamodels.SafetyQuarantined || requireSafe && state != mediamodels.SafetySafe
+				if blocked {
+					if !errors.Is(err, mediausecases.ErrNotDownloadable) || len(data) != 0 {
+						t.Fatalf("existing grant bypassed current policy: state=%s error=%v bytes=%d", state, err, len(data))
+					}
+				} else if err != nil || !bytes.Equal(data, content) {
+					t.Fatalf("native allowed content semantics changed: state=%s error=%v", state, err)
+				}
+			}
+		})
+	}
+}
+
 // TestDownloadGrantIsBoundToOneObject proves a grant for one object cannot
 // unlock another.
 func TestDownloadGrantIsBoundToOneObject(t *testing.T) {

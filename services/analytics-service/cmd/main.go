@@ -9,6 +9,7 @@ import (
 
 	"cosmicforge/logistics/services/analytics-service/internal/config"
 	"cosmicforge/logistics/services/analytics-service/internal/database"
+	"cosmicforge/logistics/services/analytics-service/internal/features/adminprivacy"
 	commercehttp "cosmicforge/logistics/services/analytics-service/internal/features/commerceanalytics/http"
 	"cosmicforge/logistics/services/analytics-service/internal/features/commerceanalytics/repositories"
 	"cosmicforge/logistics/services/analytics-service/internal/features/commerceanalytics/usecases"
@@ -64,6 +65,15 @@ func main() {
 		ReadCallers:   strings.Split(cfg.NetworkReadCallers, ","),
 		AdminCaller:   cfg.AdminCaller,
 	})
+	scopedAnalytics, err := adminprivacy.Runtime(ctx, db, serviceauth.ParseSecrets(cfg.ServiceSecrets))
+	if err != nil {
+		panic("scoped Analytics configuration refused")
+	}
+
+	lineagePublisher, err := adminprivacy.PublisherRuntime(ctx, db, serviceauth.ParseSecrets(cfg.ServiceSecrets), scopedAnalytics.Secret)
+	if err != nil {
+		panic("Analytics lineage publisher configuration refused")
+	}
 
 	serviceapp.Run(serviceapp.Options{
 		Name:        "analytics-service",
@@ -86,6 +96,8 @@ func main() {
 			networkhttp.RegisterAdminRoutes(group, networkHandler)
 		},
 		RegisterRoot: func(router *gin.Engine) {
+			scopedAnalytics.Register(router)
+			lineagePublisher.Register(router)
 			commercehttp.RegisterInternalRoutes(router, handler)
 			networkhttp.RegisterInternalRoutes(router, networkHandler)
 		},

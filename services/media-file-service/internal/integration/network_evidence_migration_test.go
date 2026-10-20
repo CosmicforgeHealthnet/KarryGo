@@ -20,14 +20,25 @@ func TestEvidenceMigrationPreservesLegacyRows(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
-	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
-		t.Fatalf("rollback 000005: %v", err)
-	}
 	t.Cleanup(func() {
 		if err := database.ApplyMigrations(context.Background(), pool, migrationsDir); err != nil {
 			t.Errorf("cleanup reapply: %v", err)
 		}
 	})
+	// Roll back every newer migration as well: this test must truly place
+	// its legacy row before 000005, even after later migrations are added.
+	for {
+		var version string
+		if err := pool.QueryRow(ctx, `SELECT version FROM media_file_schema_migrations ORDER BY split_part(version,'_',1)::integer DESC LIMIT 1`).Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		if version == "000004_data_export_artifacts" {
+			break
+		}
+		if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
+			t.Fatalf("rollback to 000004: %v", err)
+		}
+	}
 
 	id := "mob_legacy_" + uuid.NewString()
 	if _, err := pool.Exec(ctx, `

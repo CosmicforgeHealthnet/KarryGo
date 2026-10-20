@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/adminresources"
 	"errors"
 	"log"
 	"net/http"
@@ -343,9 +344,15 @@ func main() {
 		}).Run(ctx, 5*time.Second)
 	}
 
+	engine := router.New(cfg, db, redisClient, authService, requestService, tripService, bookingService, mediaClient)
+	ownerAdmin, err := adminresources.Runtime(ctx, db)
+	if err != nil {
+		log.Fatal("Dispatch owner admin configuration invalid")
+	}
+	ownerAdmin.Register(engine)
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router.New(cfg, db, redisClient, authService, requestService, tripService, bookingService, mediaClient),
+		Handler:           engine,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

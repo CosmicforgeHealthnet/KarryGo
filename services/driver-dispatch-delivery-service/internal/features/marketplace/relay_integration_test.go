@@ -161,7 +161,7 @@ func TestRelayWorkerConfirmsAndReusesOriginalKey(t *testing.T) {
 	}
 }
 
-func TestRelayWorkerUnknownOutcomeThenRecovery(t *testing.T) {
+func TestRelayWorkerUnknownOutcomeIsNotRedelivered(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	repo := marketplace.NewRepository(pool)
@@ -202,7 +202,11 @@ func TestRelayWorkerUnknownOutcomeThenRecovery(t *testing.T) {
 		t.Fatalf("decision mutated: %v", decision)
 	}
 
-	// Fleet recovers: the SAME key is redelivered, not a new decision.
+	// Fleet recovering does not prove the outcome. Force the retry due so this
+	// test cannot accidentally pass because the backoff has not elapsed.
+	if _, err := pool.Exec(ctx, `UPDATE dispatch_fleet_relay_operations SET next_attempt_at=now()-interval '1 minute'`); err != nil {
+		t.Fatal(err)
+	}
 	up := &countingResponder{configured: true,
 		result: marketplace.RelayDeliveryResult{Accepted: true}}
 	recovered := marketplace.NewRelayWorker(repo, up, marketplace.RelayWorkerConfig{
@@ -213,11 +217,11 @@ func TestRelayWorkerUnknownOutcomeThenRecovery(t *testing.T) {
 	}
 	final, _ := repo.GetRelayByIdempotencyKey(ctx, nil,
 		marketplace.RelayProviderAssignmentAccept, "relay-unk")
-	if final.Status != marketplace.RelayConfirmed {
-		t.Fatalf("after recovery status = %s, want CONFIRMED", final.Status)
+	if final.Status != marketplace.RelayUnknownOutcome {
+		t.Fatalf("after recovery status = %s, want UNKNOWN_OUTCOME", final.Status)
 	}
-	if keys := up.deliveries(); len(keys) != 1 || keys[0] != "relay-unk" {
-		t.Fatalf("recovery deliveries = %v, want the original key", keys)
+	if keys := up.deliveries(); len(keys) != 0 {
+		t.Fatalf("uncertain decision was redelivered: %v", keys)
 	}
 
 	var rows int
@@ -292,27 +296,26 @@ func TestRelayLeaseRecoveryDeadLetterAndReplay(t *testing.T) {
 		t.Fatalf("recovered status = %s, want UNKNOWN_OUTCOME", reloaded.Status)
 	}
 
-	// Exhaust the attempt budget to reach dead letter.
+	// An attempt budget must not erase uncertainty.
 	for i := 0; i < 3; i++ {
 		if err := repo.MarkRelayUnknown(ctx, nil, op.ID, "fleet_service_unavailable", 0, 3); err != nil {
 			t.Fatalf("mark unknown: %v", err)
 		}
 	}
 	dead, _ := repo.GetRelayByID(ctx, nil, op.ID)
-	if dead.Status != marketplace.RelayDeadLetter {
-		t.Fatalf("status = %s, want DEAD_LETTER", dead.Status)
+	if dead.Status != marketplace.RelayUnknownOutcome {
+		t.Fatalf("status = %s, want UNKNOWN_OUTCOME", dead.Status)
 	}
 
-	// Operator replay returns it to the queue.
-	if err := repo.ReplayRelay(ctx, op.ID); err != nil {
-		t.Fatalf("replay: %v", err)
-	}
-	replayed, _ := repo.GetRelayByID(ctx, nil, op.ID)
-	if replayed.Status != marketplace.RelayPending || replayed.AttemptCount != 0 {
-		t.Fatalf("after replay: status=%s attempts=%d", replayed.Status, replayed.AttemptCount)
-	}
+	// Neither UNKNOWN_OUTCOME nor a legacy dead-letter fence may be replayed.
 	if err := repo.ReplayRelay(ctx, op.ID); !errors.Is(err, marketplace.ErrNotFound) {
 		t.Fatalf("replay of live relay = %v, want ErrNotFound", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE dispatch_fleet_relay_operations SET status='DEAD_LETTER' WHERE id=$1`, op.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.ReplayRelay(ctx, op.ID); !errors.Is(err, marketplace.ErrNotFound) {
+		t.Fatalf("replay of fenced dead letter = %v, want ErrNotFound", err)
 	}
 }
 

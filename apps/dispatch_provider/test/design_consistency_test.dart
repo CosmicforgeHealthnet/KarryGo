@@ -51,6 +51,7 @@ void main() {
         );
     DispatchHomeMock.reset();
     FlutterSecureStorage.setMockInitialValues({});
+    AppModeConfig.instance.resetMemoryForTesting();
     await AppModeConfig.instance.setMode(AppMode.mock);
   });
   Future<void> capture(WidgetTester tester, GlobalKey key, String name) async {
@@ -208,9 +209,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     DispatchHomeMock.isOnline = false;
-    await AppModeConfig.instance.setMode(
-      AppMode.mock,
-      mockEntry: MockEntry.dashboard,
+    // Storage and persisted preview reset must finish outside fake widget time.
+    await tester.runAsync(
+      () => AppModeConfig.instance.setMode(
+        AppMode.mock,
+        mockEntry: MockEntry.dashboard,
+      ),
     );
     final theme = ThemeController();
     final previewKey = GlobalKey();
@@ -322,12 +326,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Complete your delivery'), findsOneWidget);
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.inactive,
-    );
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.resumed,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Complete your delivery'), findsOneWidget);
@@ -346,9 +346,12 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await AppModeConfig.instance.setMode(
-      AppMode.mock,
-      mockEntry: MockEntry.dashboard,
+    // Storage and persisted preview reset must finish outside fake widget time.
+    await tester.runAsync(
+      () => AppModeConfig.instance.setMode(
+        AppMode.mock,
+        mockEntry: MockEntry.dashboard,
+      ),
     );
     final theme = ThemeController();
     await tester.pumpWidget(DispatchProviderApp(themeController: theme));

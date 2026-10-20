@@ -141,8 +141,15 @@ func TestPostgresRepositoryTripFoundation(t *testing.T) {
 	if other, err := repo.GetProviderTripByID(ctx, created.ID, providerB); err != nil || other != nil {
 		t.Fatalf("cross-provider lookup=%+v err=%v", other, err)
 	}
+	// Geometry belongs to dispatch_bookings. A lookup against the nonexistent
+	// legacy name "bookings" broke every active-trip read on the real schema.
+	if _, err := pool.Exec(ctx, `INSERT INTO dispatch_bookings(id,customer_id,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone,route_pickup_polyline,route_dropoff_polyline) VALUES($1,$2,'test',0,0,'test',0,0,1,'test','test','pickup-shape','delivery-shape')`, bookingID, customerID); err != nil {
+		t.Fatal(err)
+	}
 	if active, err := repo.GetProviderActiveTrip(ctx, providerA); err != nil || active == nil || active.ID != created.ID {
 		t.Fatalf("active=%+v err=%v", active, err)
+	} else if active.RoutePickupPolyline != "pickup-shape" || active.RouteDropoffPolyline != "delivery-shape" {
+		t.Fatalf("canonical booking geometry missing: %+v", active)
 	}
 	changedAt := time.Now().UTC()
 	transition := TransitionTripInput{

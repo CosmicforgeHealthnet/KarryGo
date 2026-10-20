@@ -56,15 +56,16 @@ type ProviderActionResult struct {
 // offer or assignment, so a compromised dispatch would still not let one
 // provider answer for another.
 type decisionPayload struct {
-	ProviderID            string   `json:"providerId"`
-	ProviderService       string   `json:"providerService"`
-	ProviderSessionID     string   `json:"providerSessionId"`
-	ClientResponseID      string   `json:"clientResponseId"`
-	ExpectedVersion       int64    `json:"expectedVersion,omitempty"`
-	ReasonCode            string   `json:"reasonCode,omitempty"`
-	Note                  string   `json:"note,omitempty"`
-	EvidenceFileIDs       []string `json:"evidenceFileIds,omitempty"`
-	DispatchReservationID string   `json:"dispatchReservationId,omitempty"`
+	ProviderID             string   `json:"providerId"`
+	ProviderService        string   `json:"providerService"`
+	ProviderSessionID      string   `json:"providerSessionId"`
+	ClientResponseID       string   `json:"clientResponseId"`
+	ExpectedVersion        int64    `json:"expectedVersion,omitempty"`
+	ReasonCode             string   `json:"reasonCode,omitempty"`
+	Note                   string   `json:"note,omitempty"`
+	EvidenceFileIDs        []string `json:"evidenceFileIds,omitempty"`
+	DispatchReservationID  string   `json:"dispatchReservationId,omitempty"`
+	DispatchRequestVersion int64    `json:"dispatchRequestVersion,omitempty"`
 }
 
 // SubmitProviderDecision records a provider's decision durably and attempts
@@ -185,6 +186,10 @@ func (s *Service) attemptImmediateDelivery(ctx context.Context, stored *RelayOpe
 	}
 
 	meta := CallMeta{RequestID: decision.RequestID, CorrelationID: decision.CorrelationID}
+	claimed, claimErr := s.repo.ClaimRelayForImmediateDelivery(ctx, stored.ID)
+	if claimErr != nil || !claimed {
+		return result
+	}
 	delivery, err := s.responder.Deliver(ctx, meta, *stored)
 	if err != nil {
 		// Unknown: fleet may already hold the decision. Keep the original key.
@@ -195,10 +200,14 @@ func (s *Service) attemptImmediateDelivery(ctx context.Context, stored *RelayOpe
 
 	switch {
 	case delivery.Accepted:
-		_ = s.repo.ConfirmRelay(ctx, nil, stored.ID, delivery.Snapshot)
+		if err := s.repo.ConfirmRelay(ctx, nil, stored.ID, delivery.Snapshot); err != nil {
+			return result
+		}
 		result.Status = ProviderActionConfirmed
 	case delivery.Permanent:
-		_ = s.repo.FailRelay(ctx, nil, stored.ID, delivery.ErrorCode, 0, s.relayMaxAttempts(), true)
+		if err := s.repo.FailRelay(ctx, nil, stored.ID, delivery.ErrorCode, 0, s.relayMaxAttempts(), true); err != nil {
+			return result
+		}
 		result.Status = ProviderActionRejected
 		result.ErrorCode = delivery.ErrorCode
 	default:

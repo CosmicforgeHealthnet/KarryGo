@@ -53,6 +53,7 @@ import (
 	provideruploadsusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_uploads/usecases"
 
 	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
+	"cosmicforge/logistics/services/hauling-service/internal/features/adminresources"
 	haulingsettlement "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement"
 	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
@@ -421,8 +422,13 @@ func main() {
 		}).Run(ctx, 5*time.Second)
 	}
 
+	ownerAdmin, err := adminresources.Runtime(ctx, db)
+	if err != nil {
+		logging.Fatal("configuration", "Hauling owner admin configuration invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		RegisterRoot: func(root *gin.Engine) {
+			ownerAdmin.Register(root)
 			customershare.Register(root, shareService, fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"customer-service"}), fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"vendor-service"}))
 		},
 		Name:        "hauling-service",

@@ -371,11 +371,12 @@ func (h *Handler) providerGet(c *gin.Context) {
 }
 
 type providerResponseRequest struct {
-	OrganizationID  string `json:"organizationId"`
-	ProviderID      string `json:"providerId"`
-	ReasonCode      string `json:"reasonCode"`
-	Note            string `json:"note"`
-	ExpectedVersion int64  `json:"expectedVersion"`
+	OrganizationID  string   `json:"organizationId"`
+	ProviderID      string   `json:"providerId"`
+	ReasonCode      string   `json:"reasonCode"`
+	Note            string   `json:"note"`
+	ExpectedVersion int64    `json:"expectedVersion"`
+	EvidenceFileIDs []string `json:"evidenceFileIds"`
 }
 
 func responseFingerprint(assignmentID, providerID, decision, reason, note string, version int64) string {
@@ -389,7 +390,15 @@ func (h *Handler) respondProvider(c *gin.Context, decision string) {
 	caller, _ := callerRaw.(string)
 	service, callerOK := callerExecutionService[caller]
 	var body providerResponseRequest
-	if !callerOK || !bindJSON(c, &body) {
+	if !callerOK {
+		respond.Error(c, apperrors.Forbidden("Authenticated provider service is required.", nil))
+		return
+	}
+	if !bindJSON(c, &body) {
+		return
+	}
+	if len(body.EvidenceFileIDs) > 0 {
+		respond.Error(c, apperrors.BadRequest("Private assignment evidence requires a source-owned evidence contract.", nil))
 		return
 	}
 	body.ExpectedVersion = expectedVersion(c, body.ExpectedVersion)

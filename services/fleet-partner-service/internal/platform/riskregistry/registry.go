@@ -140,6 +140,12 @@ var generated = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/wallet/transactions", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/wallet/transactions/:transactionId", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/internal/fleet-partner/v1/assignments/:assignmentId/provider-acceptance", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/marketplace-offers/:offerId/provider-decision-receipt", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/assignments/:assignmentId/provider-decision-receipt", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/admin/authorization-contexts/bindings/:kind/:id", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/admin/resources/:kind", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/admin/resources/:kind/:id", RiskClass: ratelimit.RiskInternalService},
+	{Method: "POST", Path: "/internal/fleet-partner/v1/admin/authorization-contexts", RiskClass: ratelimit.RiskInternalService},
 	{Method: "GET", Path: "/internal/fleet-partner/v1/customers/:customerId/orders/:orderId/documents", RiskClass: ratelimit.RiskInternalService},
 	{Method: "GET", Path: "/internal/fleet-partner/v1/customers/:customerId/orders/:orderId/documents/:documentId", RiskClass: ratelimit.RiskInternalService},
 	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/assignments", RiskClass: ratelimit.RiskInternalService},
@@ -922,7 +928,7 @@ var validRiskClasses = map[string]bool{
 // number of entries and every one carries a real, recognized risk class.
 // It is NOT the full "every mounted route is covered" cross-reference
 // internal/section28contract's TestRouteRiskRegistry_CoversEveryMountedRoute
-// performs — that test enumerates every live feature's route manifest, a
+// performs â€” that test enumerates every live feature's route manifest, a
 // build-time/CI concern this package deliberately does not duplicate into
 // the production binary (doing so would mean either importing a
 // test-oriented package into cmd/main.go, or hand-duplicating ~30 manifest
@@ -930,7 +936,7 @@ var validRiskClasses = map[string]bool{
 // exists to catch). SelfCheck instead catches the failure mode a
 // readiness probe can meaningfully detect at process startup: the
 // registry ending up empty or corrupted (a bad merge, an init-order bug,
-// a build that stripped the generated table) — used by cmd/main.go's
+// a build that stripped the generated table) â€” used by cmd/main.go's
 // "risk_registry" readiness check.
 func SelfCheck() error {
 	if len(index) == 0 {

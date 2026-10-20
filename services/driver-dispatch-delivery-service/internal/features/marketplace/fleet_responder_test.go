@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/shared/go/serviceauth"
 
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
@@ -165,6 +166,19 @@ func okOfferBody() string {
 
 func okAssignmentBody() string {
 	return `{"data":{"assignmentId":"asg-1","status":"ACCEPTED","allowedActions":[]}}`
+}
+
+func TestResponderSupportsInstrumentedProcessDefaultTransport(t *testing.T) {
+	original := http.DefaultTransport
+	http.DefaultTransport = observability.DependencyTransport{Base: original, Hosts: map[string]string{}}
+	t.Cleanup(func() { http.DefaultTransport = original })
+	stub := newFleetResponderStub(t)
+	stub.bodyJSON = okAssignmentBody()
+	responder := stub.responder(t, responderSecret, time.Second)
+	_, err := responder.Deliver(context.Background(), marketplace.CallMeta{}, assignmentRelay(marketplace.RelayProviderAssignmentAccept, "asg-1", "instrumented-default"))
+	if err != nil {
+		t.Fatalf("instrumented process prevented safe Fleet request: %v", err)
+	}
 }
 
 func TestResponderDeliversAllFourDecisionKinds(t *testing.T) {
@@ -326,8 +340,14 @@ func TestResponderClassifiesTemporaryFailures(t *testing.T) {
 
 		result, err := responder.Deliver(context.Background(), marketplace.CallMeta{},
 			assignmentRelay(marketplace.RelayProviderAssignmentAccept, "asg-1", "k-temp"))
+		if status != http.StatusTooManyRequests {
+			if err != marketplace.ErrFleetUnavailable {
+				t.Fatalf("status %d must preserve unknown commit: %v", status, err)
+			}
+			continue
+		}
 		if err != nil {
-			t.Fatalf("status %d returned an error rather than a retryable result: %v", status, err)
+			t.Fatalf("rate limit should be retryable: %v", err)
 		}
 		if result.Accepted {
 			t.Fatalf("status %d was treated as success", status)

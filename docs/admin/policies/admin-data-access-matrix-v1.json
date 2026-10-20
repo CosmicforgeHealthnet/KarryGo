@@ -1,0 +1,516 @@
+{
+  "version": 1,
+  "status": "DRAFT — PENDING OWNER APPROVAL",
+  "production_grants_enabled": false,
+  "capabilities": [
+    {
+      "capability": "analytics.network.reports",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "analytics_network_events.source_version",
+        "supply_product_snapshots.market_id/zone",
+        "demand_buckets.market_id/zone"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "dependencies": [
+        "tenant/cohort provenance",
+        "approved suppression and composition values"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "customers.directory",
+      "owner": "customer-service",
+      "canonical_source_fields": [
+        "customers.id/status/onboarding_status/updated_at"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "PERSONAL_MINIMIZED",
+      "dependencies": [
+        "owner market/zone/tenant context",
+        "approved field list"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "customers.lifecycle",
+      "owner": "customer-service",
+      "canonical_source_fields": [
+        "owner consent/preferences/verification records"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "SENSITIVE_PERSONAL",
+      "dependencies": [
+        "versioned owner commands",
+        "approval and read-back policy"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "taxi.rides.read",
+      "owner": "driver-taxi-service",
+      "canonical_source_fields": [
+        "taxi_bookings.market_id/operating_zone_id/organization_id/source_context",
+        "markets.code",
+        "operating_zones.code/market_id",
+        "Fleet tenant.Context.OrganizationID"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "MINIMIZED_OPERATIONAL",
+      "dependencies": [
+        "signed production tuples/roles/purposes",
+        "private owner connectivity"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "taxi.providers.vehicles",
+      "owner": "driver-taxi-service",
+      "canonical_source_fields": [
+        "taxi_providers compliance dimensions",
+        "vehicles compliance dimensions"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "PERSONAL_COMPLIANCE",
+      "dependencies": [
+        "provider-wide owner scope",
+        "Media grants"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.missions.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "trips.organization_id",
+        "trips.settlement_organization_id",
+        "owner assignment/custody references"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "PERSONAL_OPERATIONAL_CUSTODY",
+      "dependencies": [
+        "geographic provenance",
+        "minimized snapshot contract"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.recovery",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "securehandover recipient binding",
+        "owner recovery/custody operations",
+        "dispatch_fleet_relay_operations"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "SECURITY_EVIDENCE",
+      "dependencies": [
+        "approved recovery rules",
+        "decision receipt/read-back",
+        "protected Media grants"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "hauling.cargo.providers",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "truck_providers/trucks",
+        "owner cargo missions",
+        "hauling_authority_restrictions.organization_id"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "OPERATIONAL_COMPLIANCE",
+      "dependencies": [
+        "geographic source facts",
+        "cargo/recovery policy"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "fleet.private.links",
+      "owner": "fleet-partner-service",
+      "canonical_source_fields": [
+        "fleet_partner_organizations.id",
+        "fleet_partner_branches.organization_id",
+        "tenant.Context.OrganizationID"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "CORPORATE_PRIVATE",
+      "dependencies": [
+        "HQ geographic mapping",
+        "planning/execution scope"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "media.admin.evidence",
+      "owner": "media-file-service",
+      "canonical_source_fields": [
+        "owner subject/case grant contract"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, authoritative owner facts)",
+      "privacy": "HIGHLY_SENSITIVE",
+      "dependencies": [
+        "short-lived scoped grants",
+        "revocation/denial evidence"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.incidents.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_delivery_incidents.trip_id/provider_id/reason_code/state/replacement_strategy/recovery_result/recovery_attempts",
+        "trips.id/organization_id/customer_id/execution_source"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, current signed source-owner context and consistent native Trip parent links)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability approval",
+        "approved exact scope allocation",
+        "no workflow mutation version claimed"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.recovery.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_delivery_recovery_actions.trip_id/booking_id/customer_id/delivery_attempt_id/action/state",
+        "dispatch_delivery_attempts.trip_id",
+        "trips.organization_id"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, current signed source-owner context and consistent native Trip parent links)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability approval",
+        "approved exact scope allocation",
+        "no workflow mutation version claimed"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.returns.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_return_workflows.original_trip_id/recovery_action_id/state/return_mission_id/return_booking_id",
+        "dispatch_delivery_recovery_actions.trip_id/booking_id/customer_id/delivery_attempt_id",
+        "trips.organization_id"
+      ],
+      "proposed_rule": "intersection(delegated staff, signed approved policy tuples, current signed source-owner context and consistent native Trip parent links)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability approval",
+        "approved exact scope allocation",
+        "no workflow mutation version claimed"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "hauling.trucks.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "trucks.provider_id/max_payload_grams/internal_length_mm/internal_width_mm/internal_height_mm/usable_volume_ml/opening_width_mm/opening_height_mm",
+        "trucks.enclosed/weather_protected/upright_safe/fragile_safe/refrigerated/tail_lift/crane/hydraulic/loading_ramp/trailer_capable/insurance_valid",
+        "trucks.capacity_kg/axle_count/capability_version/capability_source_version"
+      ],
+      "proposed_rule": "intersection(delegated staff, approved governance and current independently signed owner context bound to native source relationships)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "hauling.admin-truck-capability.v2 source-owner and governance approval",
+        "no eligibility or cargo-fit inference"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "hauling.recovery.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "hauling_recovery_cases.booking_id/mission_ref/state/trigger_code/custody_transfer_required/version",
+        "haulage_bookings.corporate_organization_id/winner_organization_id",
+        "commerce_missions.booking_id/mission_ref"
+      ],
+      "proposed_rule": "intersection(delegated staff, approved governance and current independently signed owner context bound to native source relationships)",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial case field/purpose/capability approval",
+        "consistent canonical booking and commerce mission ownership",
+        "no executable transition or evidence permission"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "customer.review.request",
+      "owner": "customer-service",
+      "canonical_source_fields": [
+        "customer_admin_review_state.customer_id/version/status",
+        "customers.id",
+        "customer_admin_review_requests.intent_digest/recorded_revision/scope",
+        "customer_admin_review_work_items.customer_id/status"
+      ],
+      "proposed_rule": "intersection(delegated staff, approved governance and current independently signed owner allocation); actual review revision and durable original identity; no profile or lifecycle override",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "initial owner field/purpose/capability/scope approval",
+        "work-item ownership/closure/retention approval",
+        "real HQ/native owner target-environment integration certification",
+        "separate native write/readback keys and private connectivity"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "taxi.recovery.read",
+      "owner": "driver-taxi-service",
+      "canonical_source_fields": [
+        "taxi_recovery_cases.subject_type/booking_id/goods_mission_id/state/version",
+        "taxi_bookings.customer_id/market_id/operating_zone_id/organization_id/source_context",
+        "operating_zones.market_id",
+        "taxi_goods_missions.id/customer_ref/source_service/mission_ref/quote_id/plan_ref"
+      ],
+      "proposed_rule": "Intersection of delegated staff, approved governance and current independently signed owner allocation. Native passenger market/zone/organization must agree; goods unknown scope requires explicit owner allocation, never quote/GPS/vendor/customer inference.",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "owner field/purpose/scope and capability approval",
+        "case revision guards only the native recovery record",
+        "no transition, evidence URL, contact, GPS or custody-transfer capability"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "analytics.scoped.mission-success.read",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "analytics_network_events.source_version",
+        "analytics_network_events normalized event payload and immutable hash",
+        "independent producer-signed resource context and current authorization head"
+      ],
+      "proposed_rule": "delegated staff intersected with approved five-scope policy and current authorization of every original native member; mandatory partial suppression",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "dependencies": [
+        "complete independently verifiable cohort coverage",
+        "approved native privacy unit",
+        "approved suppression/composition/freshness policy",
+        "producer context publication pipeline",
+        "success-rate reducer"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "dispatch.handover.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_handover_challenges.trip_id/booking_id",
+        "trips.organization_id (Fleet planning tenant)",
+        "dispatch_delivery_missions.trip_id/delivery_group_id",
+        "dispatch_mission_stops.mission_id/stop_ref/stop_type",
+        "dispatch_parcel_manifests.manifest_ref/version (exact captured version)"
+      ],
+      "proposed_rule": "delegated staff intersect approved scope/purpose and current signed native parent binding; reject conflicting booking/customer/mission/group/stop/frozen-manifest links",
+      "privacy": "MINIMIZED_SECURITY_OPERATIONAL_METADATA",
+      "dependencies": [
+        "dedicated dispatch.admin-handover-state.v1 approval",
+        "source-owned market/zone allocation",
+        "reviewed staff roles/purposes/retention"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "media.case.content.read",
+      "owner": "media-file-service + authoritative source-case owner",
+      "canonical_source_fields": [
+        "media_objects.organization_id/owner_service/owner_type/owner_reference",
+        "media_objects.binding_type/binding_id and immutable secondary bindings",
+        "media_objects upload/safety/deletion/evidence/retention/version",
+        "live authoritative owner case/subject/object-membership proof (adapters pending)"
+      ],
+      "proposed_rule": "current delegated staff intersect signed Media rule and allowed signed source-case rule for exact five-scope tuple/purpose; independently resolve native case/subject/object; revalidate every redemption; explicit signed lifetime; immutable grant and audit",
+      "privacy": "PROTECTED_EVIDENCE",
+      "dependencies": [
+        "live source-case adapters and authoritative modern-object membership/remediation contracts",
+        "production workload enrollment and HQ facade",
+        "approved source capabilities/contracts and grant lifetime",
+        "reviewed staff roles, purposes, retention and target certification"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "implementation_status": "NATIVE_CORE_AND_PRIVATE_TRANSPORT_TESTED_DOMAIN_ADAPTERS_AND_HQ_PENDING",
+      "approved_max_grant_seconds": null,
+      "approved_source_capabilities": [],
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "hauling.restrictions.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "hauling_authority_restrictions.organization_id/subject_type/subject_reference/version/source_version",
+        "truck_providers.id and active hauling_organization_provider_links.organization_id/membership_id/version",
+        "trucks.id/provider_id and active hauling_organization_truck_links + owner provider membership"
+      ],
+      "proposed_rule": "current delegated staff intersect approved five-scope tuple and current signed owner binding; actual provider/truck and live organization links must match; unresolved/external subjects deny",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "dedicated hauling.admin-authority-restriction.v1 field/purpose/role approval",
+        "approved market/zone owner allocation",
+        "reviewed privacy/retention policy; no apply/clear grant"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "analytics.scoped.mission-success-rate.read",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "privacy-released completed/failed cells of analytics.scoped-mission-success.v1:<explicit unit>",
+        "same original native membership witness and current producer authorization as counts"
+      ],
+      "proposed_rule": "require both current counts and dedicated rate delegation/governance for same five-scope tuple/purpose; derive only from live complete disclosed component counts retaining approved rounding; suppressed/partial/stale/undefined remains null",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "dependencies": [
+        "complete independently verifiable membership export and producer integration",
+        "dedicated analytics.scoped-mission-success-rate.v1 approval matching counts unit",
+        "approved privacy/composition/rounding/freshness/window semantics"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "hauling.fit_decisions.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "hauling_match_decisions.booking_id/provider_id/truck_id/mission_ref",
+        "haulage_bookings.corporate_organization_id/winner_organization_id",
+        "trucks.provider_id"
+      ],
+      "responsible_owner": [
+        "Hauling",
+        "Fleet/IAM",
+        "Security/Privacy"
+      ],
+      "dependencies": [
+        "Native source parents",
+        "Independent owner allocation",
+        "Dedicated source-contract and role/purpose/retention approval"
+      ],
+      "proposed_rule": "Exact delegated five-scope intersection with approved governance and current independently signed owner context under hauling.admin-fit-decision.v1. Actual historical candidate parents must exist and agree; native planning organization is tenant. Missing/contradictory mappings deny. No current eligibility inference.",
+      "privacy": "R3 RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "analytics.cohorts.readiness.export",
+      "owner": "vendor-service",
+      "canonical_source_fields": [
+        "analytics_network_events native Vendor PROCESSED identity/payload_hash/source_version",
+        "recorded branch_id canonical UUID in vendor.branch.readiness_observed.v1",
+        "native vendor_order source_entity_type and canonical order UUID; Vendor readiness outbox at cmd/readiness_orchestration_wiring.go"
+      ],
+      "proposed_rule": "Independently signed Vendor context binds exact native readiness event/unit fingerprint and explicit five-scope allocation; runtime publication accepts no driver signatures or inferred operational geography. No HQ disclosure or complete-cohort assertion.",
+      "privacy": "PRIVATE_SOURCE_LINEAGE",
+      "responsible_owner": [
+        "Vendor",
+        "Analytics",
+        "Security/Privacy"
+      ],
+      "dependencies": [
+        "Independent Vendor authority enrollment",
+        "Complete Vendor source export and branch membership validation",
+        "Approved allocation and report privacy rules"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    },
+    {
+      "capability": "analytics.scoped.readiness-components.read",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "native Vendor PROCESSED vendor_order readiness events with independently signed scope",
+        "recorded branch_id or canonical native order identity; explicit unit selection",
+        "on_time/lateness_seconds/prep_seconds; no bucket cohort inference"
+      ],
+      "proposed_rule": "Intersect delegated five-scope access, independent current Vendor allocations and dedicated governance. Bounded partial native components always suppressed; frozen original membership rechecked. Internal source only, unregistered; no HQ route.",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "responsible_owner": [
+        "Vendor",
+        "Analytics",
+        "Security/Privacy"
+      ],
+      "dependencies": [
+        "Complete verifiable owner cohort export and integration",
+        "Scoped source HTTP/SDK/HQ transport",
+        "Approved privacy unit, components/derived metrics, rounding, freshness and reconstruction rules"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
+    }
+  ]
+}

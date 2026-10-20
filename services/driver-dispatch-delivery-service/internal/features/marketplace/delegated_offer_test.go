@@ -133,7 +133,7 @@ func TestDelegatedAcceptanceLeavesNoOrphanWhenReservationLost(t *testing.T) {
 
 // TestDelegatedAcceptanceOutageKeepsBothAndReturnsPending proves the outage
 // path end to end: both rows survive, the provider is told PENDING, and
-// recovery reuses the original key without duplicating anything.
+// no subsequent worker may blindly repeat an ambiguous write.
 func TestDelegatedAcceptanceOutageKeepsBothAndReturnsPending(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -177,8 +177,8 @@ func TestDelegatedAcceptanceOutageKeepsBothAndReturnsPending(t *testing.T) {
 		t.Fatalf("idempotency key = %s; the original must be preserved", key)
 	}
 
-	// Fleet recovers. The existing worker delivers the SAME decision, and the
-	// provider is never asked to accept again.
+	// Fleet recovering does not resolve the previous commit. The existing
+	// decision remains durable and requires authoritative reconciliation.
 	if _, err := pool.Exec(ctx,
 		`UPDATE dispatch_fleet_relay_operations SET next_attempt_at = now()`); err != nil {
 		t.Fatalf("make due: %v", err)
@@ -190,8 +190,8 @@ func TestDelegatedAcceptanceOutageKeepsBothAndReturnsPending(t *testing.T) {
 	if _, err := worker.RunOnce(ctx); err != nil {
 		t.Fatalf("worker: %v", err)
 	}
-	if len(up.seen) != 1 || up.seen[0].IdempotencyKey != "c-out" {
-		t.Fatalf("recovery deliveries = %+v; must reuse the original key", up.seen)
+	if len(up.seen) != 0 {
+		t.Fatalf("ambiguous decision was redelivered: %+v", up.seen)
 	}
 
 	var relays int

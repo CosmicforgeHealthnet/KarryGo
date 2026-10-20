@@ -1,6 +1,10 @@
 # Operations Feature
 
-This folder is reserved for this feature's backend implementation.
+`models.go` defines commands, operation records and safe state transitions.
+`internal/persistence` stores orchestration metadata; `internal/bridge` enforces
+authentication and scoped policy. No domain mutation adapter is registered.
+Valid submissions are durably REJECTED, never reported as completed domain work.
+UNKNOWN_OUTCOME cannot transition to execution or be automatically repeated.
 
 ```text
 http/          HTTP routes, handlers, and request/response DTOs

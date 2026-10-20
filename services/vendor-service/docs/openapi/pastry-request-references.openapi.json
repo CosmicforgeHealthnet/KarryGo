@@ -4,6 +4,7 @@
     "title": "Pastry reference discovery",
     "version": "1.0.0"
   },
+  "servers": [{"url": "/api/v1/vendor"}],
   "paths": {
     "/pastry/request-references": {
       "get": {

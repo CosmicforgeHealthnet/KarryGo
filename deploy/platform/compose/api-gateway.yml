@@ -1,6 +1,5 @@
-# api-gateway: adopts the container that already runs on the server.
-# Its database and Redis containers keep running untouched; the settings file
-# points at them by container name.
+# Routing-only public gateway. Staged cutover: never deploy before the
+# independent Partner Web service is live and its workers are unique.
 name: karrygo-api-gateway
 
 services:
@@ -11,7 +10,7 @@ services:
     image: ${IMAGE:?IMAGE must name an immutable image (set by deploy-service.sh)}
     container_name: karrygo-api-gateway
     env_file:
-      - /opt/karrygo/api-gateway/gateway.env
+      - /opt/karrygo/api-gateway/public-gateway.env
     # Reachable only from the server itself (nginx), never from the internet.
     ports:
       - "127.0.0.1:4100:8080"

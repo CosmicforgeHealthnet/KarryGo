@@ -56,7 +56,9 @@ func TestSensitiveColumnInventory_MatchesLiveSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read committed inventory (run with UPDATE_SENSITIVE_COLUMN_INVENTORY=1 to generate it first): %v", err)
 	}
-	if string(got) != string(want) {
+	// Git may check out CRLF on Windows. Line-ending normalization does not
+	// change the parsed schema or any classification in the inventory.
+	if string(got) != strings.ReplaceAll(string(want), "\r\n", "\n") {
 		t.Fatalf("docs/section28-sensitive-column-inventory.json is stale (%d entries computed from migrations). "+
 			"Re-run with UPDATE_SENSITIVE_COLUMN_INVENTORY=1 and review the diff before committing.", len(entries))
 	}

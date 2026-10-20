@@ -1,0 +1,152 @@
+name: Admin bridge Sections 2-5
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Reviewed comparison commit SHA (the stacked PR base)'
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - 'services/admin-backoffice-service/**'
+      - 'services/api-gateway/**'
+      - 'services/partner-web-service/**'
+      - 'shared/go/serviceauth/**'
+      - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
+      - 'shared/go/customerreview/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
+      - 'services/analytics-service/migrations/**'
+      - 'docs/admin/policies/**'
+      - 'services/driver-taxi-service/**'
+      - 'deploy/platform/**'
+      - 'scripts/admin-bridge/**'
+      - '.github/workflows/admin-bridge.yml'
+      - '.github/workflows/deploy-platform.yml'
+  push:
+    branches: [staging]
+    paths:
+      - 'services/admin-backoffice-service/**'
+      - 'services/api-gateway/**'
+      - 'services/partner-web-service/**'
+      - 'shared/go/serviceauth/**'
+      - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
+      - 'shared/go/customerreview/**'
+      - 'shared/go/adminpolicy/**'
+      - 'shared/go/adminpolicyenv/**'
+      - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
+      - 'services/analytics-service/migrations/**'
+      - 'docs/admin/policies/**'
+      - 'services/driver-taxi-service/**'
+      - 'deploy/platform/**'
+      - 'scripts/admin-bridge/**'
+      - '.github/workflows/admin-bridge.yml'
+      - '.github/workflows/deploy-platform.yml'
+permissions:
+  contents: read
+concurrency:
+  group: admin-bridge-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  security-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: admin_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: admin_bridge_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U admin_test" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
+      API_GATEWAY_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
+      ANALYTICS_ADMIN_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
+      TAXI_ADMIN_TEST_DATABASE_URL: postgres://admin_test:disposable_ci_only@127.0.0.1:5432/admin_bridge_test?sslmode=disable
+      ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
+      ADMIN_BRIDGE_CONTRACT_CAPTURE_DIR: ${{ github.workspace }}/test-artifacts/wire
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.9'
+          cache-dependency-path: |
+            services/admin-backoffice-service/go.sum
+            services/api-gateway/go.sum
+            services/partner-web-service/go.sum
+            shared/go/go.sum
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r scripts/admin-bridge/requirements.txt
+      - name: Required PostgreSQL, race, mTLS, policy and contract suites (zero skips)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-artifacts
+          go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
+          go test -race -json ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/analyticsadmin ./shared/go/adminpolicy/... -count=1 -timeout=300s > test-artifacts/admin-tests.jsonl
+          python scripts/admin-bridge/testgate.py test-artifacts/admin-tests.jsonl
+          python scripts/admin-bridge/scoped_analytics_contract.py
+          go test -race -json ./services/api-gateway/... ./services/partner-web-service/... ./shared/go/serviceauth/... -count=1 -timeout=300s > test-artifacts/gateway-tests.jsonl
+          python scripts/admin-bridge/testgate.py test-artifacts/gateway-tests.jsonl --suite gateway
+          go vet ./services/admin-backoffice-service/... ./services/api-gateway/... ./services/partner-web-service/... ./services/analytics-service/cmd ./services/analytics-service/internal/features/adminprivacy ./shared/go/analyticsadmin
+          go build ./services/admin-backoffice-service/...
+      - name: Pinned OpenAPI, actual wire responses, backward compatibility, deployment source
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}
+        run: |
+          python scripts/admin-bridge/contracts.py
+          python scripts/admin-bridge/validate.py --wire-dir test-artifacts/wire --base "$BASE_SHA"
+          python scripts/admin-bridge/test_network.py
+          bash -n deploy/platform/bin/deploy-service.sh
+          git diff --check
+      - name: Dependency vulnerability scan
+        working-directory: services/admin-backoffice-service
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          govulncheck ./...
+      - name: Credential scan
+        shell: bash
+        run: |
+          if git grep -n -I -E -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|sk-proj-[A-Za-z0-9_-]{20,}' -- ':!**/*_test.go' ':!**/testdata/**'; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-bridge-security-evidence
+          path: test-artifacts/
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build non-root bridge image
+        run: docker build -f services/Dockerfile --build-arg GO_VERSION=1.26.9-alpine --build-arg SERVICE_DIR=admin-backoffice-service -t karrygo-admin:test .
+      - name: Check container and resolved deployment configuration
+        env:
+          IMAGE: karrygo-admin:test
+        run: |
+          test "$(docker inspect -f '{{.Config.User}}' karrygo-admin:test)" = cosmicforge
+          test "$(docker run --rm --entrypoint id karrygo-admin:test -u)" != 0
+          sudo mkdir -p /opt/karrygo/admin-backoffice-service
+          for file in admin.env admin.migrate.env db.env; do sudo touch "/opt/karrygo/admin-backoffice-service/$file"; done
+          docker compose -f deploy/platform/compose/admin-backoffice-service.yml config --quiet
+      - name: Image dependency scan
+        uses: aquasecurity/trivy-action@v0.33.1
+        with:
+          version: v0.76.0
+          image-ref: karrygo-admin:test
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+      - name: Validate Nginx syntax with disposable certificates
+        if: always()
+        run: |
+          mkdir -p test-nginx
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout test-nginx/key.pem -out test-nginx/cert.pem -subj /CN=localhost -days 1
+          sed -e 's#ssl_certificate .*#ssl_certificate /test/cert.pem;#' -e 's#ssl_certificate_key .*#ssl_certificate_key /test/key.pem;#' -e '/include \/etc\/letsencrypt/d' -e '/ssl_dhparam/d' deploy/platform/nginx/api-gateway.staging.karryam.com.conf > test-nginx/default.conf
+          docker run --rm -v "$PWD/test-nginx:/test:ro" -v "$PWD/test-nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.28-alpine nginx -t

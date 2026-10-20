@@ -188,7 +188,7 @@ type AssignmentResult struct {
 func (s *Service) AcceptAssignment(ctx context.Context, input AcceptAssignmentInput) (*AssignmentResult, error) {
 	// A retrying mobile client replays the original outcome instead of
 	// colliding with its own earlier response.
-	if replay, err := s.findReplay(ctx, input.Actor.MembershipID, input.ClientResponseID, input.AssignmentID); err != nil {
+	if replay, err := s.findReplay(ctx, input.Actor.MembershipID, input.ClientResponseID, input.AssignmentID, models.ResponseAccepted, "", "", nil); err != nil {
 		return nil, err
 	} else if replay != nil {
 		return replay, nil
@@ -361,7 +361,7 @@ func (s *Service) DeclineAssignment(ctx context.Context, input DeclineAssignment
 			"The note is too long.")
 	}
 
-	if replay, err := s.findReplay(ctx, input.Actor.MembershipID, input.ClientResponseID, input.AssignmentID); err != nil {
+	if replay, err := s.findReplay(ctx, input.Actor.MembershipID, input.ClientResponseID, input.AssignmentID, models.ResponseDeclined, input.ReasonCode, input.Note, input.EvidenceFileIDs); err != nil {
 		return nil, err
 	} else if replay != nil {
 		return replay, nil
@@ -649,7 +649,7 @@ func (s *Service) recheckEligibility(ctx context.Context, assignment *models.Ass
 }
 
 // findReplay returns the original outcome when a client retries a response.
-func (s *Service) findReplay(ctx context.Context, membershipID string, clientResponseID string, assignmentID string) (*AssignmentResult, error) {
+func (s *Service) findReplay(ctx context.Context, membershipID string, clientResponseID string, assignmentID string, decision, reason, note string, evidence []string) (*AssignmentResult, error) {
 	if clientResponseID == "" {
 		return nil, nil
 	}
@@ -665,6 +665,9 @@ func (s *Service) findReplay(ctx context.Context, membershipID string, clientRes
 	if response.AssignmentID != assignmentID {
 		return nil, errorcodes.Conflict(errorcodes.IdempotencyConflictCode,
 			"This response identifier was already used for another assignment.")
+	}
+	if err := s.matchRecordedDecision(ctx, response, decision, reason, note, evidence); err != nil {
+		return nil, err
 	}
 	assignment, err := s.opts.Assignments.GetByID(ctx, response.OrganizationID, response.AssignmentID)
 	if err != nil {

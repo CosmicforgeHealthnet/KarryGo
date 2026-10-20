@@ -1171,6 +1171,11 @@ func (s *Service) ReadContent(ctx context.Context, id string, token string) ([]b
 	if !object.Downloadable() {
 		return nil, nil, ErrNotDownloadable
 	}
+	// A previously issued token does not freeze the scanner verdict or the
+	// current download policy. Recheck the same SAFE floor before reading bytes.
+	if s.opts.Policy.RequireSafeForDownload && !object.SafetyConfirmed() {
+		return nil, nil, ErrNotDownloadable
+	}
 	if object.AccessExpired(s.opts.Now().UTC()) {
 		return nil, nil, ErrNotDownloadable
 	}

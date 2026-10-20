@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "source_endpoint": {
+      "type": "string"
+    },
+    "bridge_endpoint": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "permission": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "privacy": {
+      "type": "string"
+    },
+    "approval": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "string"
+    },
+    "feature_flag": {
+      "type": "string"
+    },
+    "blocker": {
+      "type": "string"
+    },
+    "fallback": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "AVAILABLE",
+        "READ_ONLY",
+        "DISABLED",
+        "BLOCKED_DEPENDENCY",
+        "UNAVAILABLE"
+      ]
+    },
+    "risk": {
+      "enum": [
+        "R0",
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ]
+    },
+    "source_version_required": {
+      "type": "boolean"
+    },
+    "idempotency_required": {
+      "type": "boolean"
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "owner",
+    "source_endpoint",
+    "bridge_endpoint",
+    "method",
+    "permission",
+    "scope",
+    "privacy",
+    "approval",
+    "evidence",
+    "feature_flag",
+    "blocker",
+    "fallback",
+    "state",
+    "risk",
+    "source_version_required",
+    "idempotency_required",
+    "tests"
+  ]
+}

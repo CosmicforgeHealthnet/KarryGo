@@ -1472,7 +1472,7 @@
         }
       }
     },
-    "/commerce/section21/recurring-setup-contexts": {
+    "/vendor/commerce/section21/recurring-setup-contexts": {
       "get": {
         "operationId": "listRecurringSetupContexts",
         "summary": "Scoped active corporate accounts linked to approved food quote customers; fixed immutable menu and checkout delivery address",
@@ -1560,6 +1560,7 @@
   ],
   "components": {
     "securitySchemes": {
+      "VendorBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"},
       "CustomerBearer": {
         "type": "http",
         "scheme": "bearer",
