@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "policy_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "policy_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_checksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "product": {
+          "const": "karryam"
+        },
+        "market": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "zone": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "organization": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "tenant": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "product",
+        "market",
+        "zone",
+        "organization",
+        "tenant"
+      ]
+    },
+    "metric": {
+      "const": "mission-success-rate"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness": {
+      "enum": [
+        "LIVE",
+        "STALE"
+      ]
+    },
+    "coverage": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL_COVERAGE"
+      ]
+    },
+    "formula": {
+      "const": "completed/(completed+failed)"
+    },
+    "basis": {
+      "const": "DISCLOSED_COMPONENT_COUNTS"
+    },
+    "rate": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "suppression": {
+      "enum": [
+        "NONE",
+        "PARTIAL_COVERAGE",
+        "STALE",
+        "SOURCE_SUPPRESSED",
+        "NO_DENOMINATOR"
+      ]
+    }
+  },
+  "required": [
+    "policy_id",
+    "policy_version",
+    "policy_checksum",
+    "scope",
+    "metric",
+    "source_version",
+    "as_of",
+    "freshness",
+    "coverage",
+    "formula",
+    "basis",
+    "rate",
+    "suppression"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "suppression": {
+            "const": "NONE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "rate": {
+            "type": "number"
+          },
+          "freshness": {
+            "const": "LIVE"
+          },
+          "coverage": {
+            "const": "COMPLETE"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "rate": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

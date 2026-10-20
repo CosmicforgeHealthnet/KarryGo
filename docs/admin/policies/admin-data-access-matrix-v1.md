@@ -88,3 +88,11 @@ classes deny; supplying tenant cannot override the native organization. Full
 eligibility and apply/clear are excluded. Initial scope/role/purpose/retention
 review remains **BLOCKED_POLICY** with empty grants; see the JSON entry and
 [precise read model](../../admin-bridge/hauling-restriction-read-model.md).
+
+
+`analytics.scoped.mission-success-rate.read` (Analytics + Privacy + source owners)
+requires both approved counts and dedicated rate access, matching native unit and
+source contracts. Formula is completed/(completed+failed) from already disclosed
+components, retaining approved rounding; incomplete/stale/suppressed/undefined
+results stay null. The current real native source remains partial, so no rate is
+released. All production grants and definitions remain **BLOCKED_POLICY**.

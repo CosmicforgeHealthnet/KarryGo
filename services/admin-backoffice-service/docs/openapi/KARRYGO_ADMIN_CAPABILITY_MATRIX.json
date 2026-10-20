@@ -1758,5 +1758,30 @@
     ],
     "blocker": "Default disabled. Requires dedicated hauling.admin-authority-restriction.v1 approval plus current independent source context and live native organization/subject links. Unsupported or unresolved subject classes deny. Stored row state is not global eligibility and grants no apply/clear command.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "analytics.scoped.mission-success-rate.read",
+    "version": "1.0",
+    "owner": "analytics-service",
+    "source_endpoint": "/internal/analytics/v1/admin/scoped-network/mission-success",
+    "bridge_endpoint": "/analytics/scoped/network/mission-success/rate",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "analytics.scoped.mission-success-rate.read",
+    "scope": "product,market,zone,organization,tenant,staff,purpose,authority,product_code,time window",
+    "risk": "R1",
+    "privacy": "SUPPRESSED_COUNT_METADATA",
+    "source_version_required": true,
+    "idempotency_required": false,
+    "approval": "Signed report-specific governance and current producer-owned source contexts; no production approval supplied.",
+    "evidence": "Suppression/reconstruction ledger, original-membership witness, producer context history and source query audit.",
+    "feature_flag": "ADMIN_ANALYTICS_SCOPED_READ_ENABLED; ADMIN_ANALYTICS_SCOPED_RATE_READ_ENABLED",
+    "tests": [
+      "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
+      "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts",
+      "TestPostgresScopedMissionRateRequiresBothPermissionsAndPreservesSuppression"
+    ],
+    "blocker": "Default disabled; both approved counts and dedicated rate permission/source-contract approvals required. Only derives completed/(completed+failed) from disclosed component counts, retaining approved source rounding. Every partial/stale/suppressed/undefined value stays null. Current native source always partial; complete coverage exports still missing.",
+    "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   }
 ]

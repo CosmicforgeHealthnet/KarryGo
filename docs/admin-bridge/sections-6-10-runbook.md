@@ -295,3 +295,19 @@ not exposed to HQ because some native enforcement spans organizations. The finit
 dictionary now has 25 kinds / 50 resource paths, all default disabled and subject
 to BLOCKED_POLICY. Details and command limits are in
 [the read model](hauling-restriction-read-model.md).
+
+
+Scoped mission-success rate continuation: an additive HQ projection now derives
+completed/(completed+failed) only from the same staff's authorized, privacy-
+released component counts. Both counts and a dedicated rate permission/source-
+contract approval are required, plus a separate default-off rate flag. Missing
+permission/contract/flag/scope denies before owner access. Approved count rounding
+is retained and labeled. Partial/stale/suppressed/undefined inputs remain null;
+overflow is rejected. The real source still has no complete membership export and
+publishes no numeric rate. Complete numeric-source tests are explicitly TEST_ONLY.
+310 Bridge/Taxi/privacy/policy/SDK cases pass with zero skips, including actual
+mTLS delegation, independent partial-rate wire schema and calculation edge cases.
+Changed-package vet and unchanged v1 contracts pass. Source authority remains 105
+and Media/private-client coverage 166 from their preceding increments. Remaining
+nine Analytics reducers/routes, complete owner exports/integration, production
+privacy approvals and real target certification remain incomplete.

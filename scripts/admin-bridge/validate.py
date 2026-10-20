@@ -50,7 +50,7 @@ def main():
         assert ("200" in operation["responses"]) == (row["state"] in ("READ_ONLY", "AVAILABLE"))
     owner_kinds = {"customer": ["customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
     command = load(OUT / "fixtures/command.json")
     validators["Command"].validate(command)
     for mutate in [lambda c: c.update(performed_by="forged-admin"), lambda c: c.update(product="healthnet"), lambda c: c["target"].update(expected_version=0), lambda c: c.pop("idempotency_key"), lambda c: c["scope"].update(organization="*")]:
@@ -77,6 +77,12 @@ def main():
             # Verify the ref itself exists; a missing ref is not an initial API.
             subprocess.run(["git", "rev-parse", "--verify", args.base], cwd=ROOT, check=True, capture_output=True)
             print("Base predates this initial v1 contract")
+
+    if args.wire_dir:
+        rate = load(args.wire_dir / "scoped-analytics-rate.json")
+        validators["Response"].validate(rate)
+        validators["ScopedMissionSuccessRateRelease"].validate(rate["result"])
+        assert rate["result"]["rate"] is None and rate["result"]["coverage"] == "PARTIAL_COVERAGE"
     compose = yaml.safe_load((ROOT / "deploy/platform/compose/admin-backoffice-service.yml").read_text())
     app = compose["services"]["app"]
     assert app["ports"] == ["${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}:8110:8110"]

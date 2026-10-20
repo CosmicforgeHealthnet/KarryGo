@@ -44,7 +44,7 @@ the SDK to a strict owner endpoint. Independent schemas validate both actual wir
 captures. This is not a combined deployed-process or staging certification.
 
 Remaining engineering: complete independently verifiable membership exports and
-producer publication pipeline, success-rate reduction, the other nine report
+producer publication integration, complete-source rate validation, the other nine report
 adapters and their scoped routes, and end-to-end environment certification.
 Privacy/Analytics and source owners must approve units, mappings, suppression,
 composition, freshness and release semantics before any production activation.
@@ -88,3 +88,32 @@ No proposed mapping is accepted. The audit must commit before any binding leaves
 the owner; failure returns no fingerprint. Owner review and independent signing
 remain mandatory before publishing an allocation. This eliminates direct database
 queries for preparing fingerprints, without manufacturing approval or coverage.
+
+
+## Mission-success rate projection
+
+The private HQ GET `/internal/karryam-admin/v1/analytics/scoped/network/mission-success/rate`
+now derives `completed/(completed+failed)` exclusively from the existing privacy-
+released component counts. It requires both `analytics.scoped.mission-success.read`
+and `analytics.scoped.mission-success-rate.read`, all existing workload/staff/
+five-scope controls, and `ADMIN_ANALYTICS_SCOPED_RATE_READ_ENABLED=true` in addition
+to the global/scoped counts flags. The dedicated approved rate rule must exactly
+name `analytics.scoped-mission-success-rate.v1:<the-counts-rule-unit-field>`.
+An old counts-only approval or a rate-only delegated permission is insufficient.
+The native owner still independently authorizes/discloses the underlying counts.
+
+The response names the formula and `DISCLOSED_COMPONENT_COUNTS` basis: approved
+source count rounding is retained, never replaced by raw/private inputs. Partial
+coverage, stale data or suppressed completed/failed cells yield a null rate and
+an explicit reason. A zero denominator remains unknown; invalid/overflowed source
+arithmetic fails closed. No cohort members, cohort size or private witness is
+returned. This deterministic projection adds no information beyond counts the
+same staff must already be authorized to receive. Native frozen membership,
+privacy journal, budgets and reconstruction guards still apply to the underlying
+count request; no unscoped legacy endpoint is called.
+
+The actual native source remains obligatorily partial and therefore yields no
+production rate. The numeric 3/(3+1)=0.75 boundary scenario is explicitly TEST_ONLY,
+not a complete producer export or production source proof. This closes the rate
+calculation/facade step while complete verifiable membership/export integration,
+the remaining nine report reducers/routes and initial privacy policy stay pending.

@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/analyticsadmin"
@@ -10,12 +11,13 @@ import (
 	"time"
 )
 
-func (b *Bridge) ConfigureScopedAnalytics(client *analyticsadmin.Client, policy *adminpolicy.Engine) error {
+func (b *Bridge) ConfigureScopedAnalytics(client *analyticsadmin.Client, policy *adminpolicy.Engine, rates ...bool) error {
 	if client == nil || b.scopedAnalytics != nil {
 		return errors.New("invalid scoped Analytics configuration")
 	}
 	b.scopedAnalytics = client
 	b.scopedAnalyticsPolicy = policy
+	b.scopedAnalyticsRate = len(rates) == 1 && rates[0]
 	return nil
 }
 func (b *Bridge) scopedAnalyticsAvailable(roles, zones, tenants []string) bool {
@@ -45,4 +47,21 @@ func scopedAnalyticsQuery(r *http.Request, staff, role string, policy *adminpoli
 		_, err = analyticsadmin.Values(query, filters)
 	}
 	return query, filters, parsed, err
+}
+
+func (b *Bridge) scopedRateApproved() bool {
+	counts, e := b.scopedAnalyticsPolicy.Rule(analyticsadmin.MissionSuccessPermission, b.now())
+	if e != nil {
+		return false
+	}
+	rate, e := b.scopedAnalyticsPolicy.Rule(analyticsadmin.MissionRatePermission, b.now())
+	return b.scopedAnalyticsRate && e == nil && rate.Owner == "analytics-service" && analyticsadmin.MissionRateSourceContract(counts.SourceContract) != "" && rate.SourceContract == analyticsadmin.MissionRateSourceContract(counts.SourceContract)
+}
+
+func (b *Bridge) scopedRateAvailable(roles, zones, tenants, permissions []string) bool {
+	if !b.scopedAnalyticsAvailable(roles, zones, tenants) || !b.scopedRateApproved() {
+		return false
+	}
+	rate, _ := b.scopedAnalyticsPolicy.Rule(analyticsadmin.MissionRatePermission, b.now())
+	return hasRole(roles, rate.Roles) && config.Contains(permissions, analyticsadmin.MissionSuccessPermission)
 }

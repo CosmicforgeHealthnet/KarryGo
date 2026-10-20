@@ -417,6 +417,25 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "analytics.scoped.mission-success-rate.read",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "privacy-released completed/failed cells of analytics.scoped-mission-success.v1:<explicit unit>",
+        "same original native membership witness and current producer authorization as counts"
+      ],
+      "proposed_rule": "require both current counts and dedicated rate delegation/governance for same five-scope tuple/purpose; derive only from live complete disclosed component counts retaining approved rounding; suppressed/partial/stale/undefined remains null",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "dependencies": [
+        "complete independently verifiable membership export and producer integration",
+        "dedicated analytics.scoped-mission-success-rate.v1 approval matching counts unit",
+        "approved privacy/composition/rounding/freshness/window semantics"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

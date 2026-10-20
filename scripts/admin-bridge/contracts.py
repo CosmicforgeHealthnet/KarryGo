@@ -65,6 +65,10 @@ def build():
     resource["allOf"] = [{"if": {"properties": {"kind": {"const": "custody-missions"}}}, "else": {"not": {"required": ["custody"]}}}]
     resources = obj({"contract_version": {"const": "karryam.owner-resources.v1"}, "owner": opaque, "kind": opaque, "scope": obj({"product": {"const": "karryam"}, "market": opaque, "zone": opaque, "organization": opaque, "tenant": opaque}), "policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "as_of": string(format="date-time"), "coverage": {"const": "CONTEXT_SCOPED_PARTIAL"}, "items": {"type": "array", "maxItems": 100, "items": resource}, "next_cursor": {"type": ["string", "null"], "maxLength": 4096}})
     schemas.update(OwnerResourcesSnapshot=resources)
+    rate = obj({"policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "scope": obj({"product": {"const": "karryam"}, **{k: opaque for k in ("market", "zone", "organization", "tenant")}}), "metric": {"const": "mission-success-rate"}, "source_version": opaque, "as_of": string(format="date-time"), "freshness": {"enum": ["LIVE", "STALE"]}, "coverage": {"enum": ["COMPLETE", "PARTIAL_COVERAGE"]}, "formula": {"const": "completed/(completed+failed)"}, "basis": {"const": "DISCLOSED_COMPONENT_COUNTS"}, "rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1}, "suppression": {"enum": ["NONE", "PARTIAL_COVERAGE", "STALE", "SOURCE_SUPPRESSED", "NO_DENOMINATOR"]}})
+    rate["allOf"] = [{"if": {"properties": {"suppression": {"const": "NONE"}}}, "then": {"properties": {"rate": {"type": "number"}, "freshness": {"const": "LIVE"}, "coverage": {"const": "COMPLETE"}}}, "else": {"properties": {"rate": {"type": "null"}}}}]
+    schemas["ScopedMissionSuccessRateRelease"] = rate
+
     source_review = json.loads((ROOT / "services/customer-service/docs/openapi/admin-review-requests.openapi.json").read_text(encoding="utf-8"))["paths"]["/internal/customer/v1/admin/account-review-requests"]["post"]
     review_request = source_review["requestBody"]["content"]["application/json"]["schema"]
     review_receipt = source_review["responses"]["200"]["content"]["application/json"]["schema"]
@@ -82,11 +86,11 @@ def build():
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"] == "analytics.scoped.mission-success.read":
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"] in ("analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read"):
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
-        if c["id"] == "analytics.scoped.mission-success.read":
+        if c["id"] in ("analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read"):
             params = [p for p in params if p["name"] not in ("limit", "cursor")]
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("authority", "product_code")]
         for segment in c["bridge_endpoint"].split("/"):
@@ -94,7 +98,7 @@ def build():
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}

@@ -59,6 +59,7 @@ type Bridge struct {
 	customerReview        *customerreviewops.Service
 	scopedAnalytics       *analyticsadmin.Client
 	scopedAnalyticsPolicy *adminpolicy.Engine
+	scopedAnalyticsRate   bool
 	verifiers             map[string]*serviceauth.Verifier
 	now                   func() time.Time
 	Denied, AuditFailures atomic.Uint64
@@ -109,6 +110,9 @@ func (b *Bridge) reply(w http.ResponseWriter, correlation string, status int, re
 	}
 	if snapshot, ok := result.(analyticsadmin.Release); ok && problem == nil {
 		asOf, freshness = snapshot.AsOf, snapshot.Freshness
+	}
+	if rate, ok := result.(analyticsadmin.RateRelease); ok && problem == nil {
+		asOf, freshness = rate.AsOf, rate.Freshness
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -267,11 +271,16 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.TargetService = capability.Owner
 	resourceProfile, resourceDefinition, resourceRef, resourceRead := adminowner.MatchBridge(path)
 	reviewRequest := capability.ID == "customer.review.submit" || capability.ID == "customer.review.readback"
-	analyticsRead := capability.ID == analyticsadmin.MissionSuccessPermission
+	analyticsRate := capability.ID == analyticsadmin.MissionRatePermission
+	analyticsRead := capability.ID == analyticsadmin.MissionSuccessPermission || analyticsRate
 	readPolicy := b.accessPolicy
 	if analyticsRead {
 		if b.scopedAnalytics == nil || !b.features.AnalyticsReads {
 			fail(503, "capability_blocked")
+			return
+		}
+		if analyticsRate && !b.scopedRateApproved() {
+			fail(503, "blocked_policy")
 			return
 		}
 		readPolicy = b.scopedAnalyticsPolicy
@@ -375,6 +384,12 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		if analyticsRate {
+			if e := readPolicy.AuthorizeDelegation(delegated, analyticsadmin.MissionSuccessPermission, taxiQuery.Purpose, requested, b.now()); e != nil {
+				fail(403, "forbidden")
+				return
+			}
+		}
 		a.EvidenceRef = readPolicy.ID() + "@" + strconv.FormatInt(readPolicy.Version(), 10) + ":" + readPolicy.Checksum()
 	}
 	allowed, err := b.repo.Rate(r.Context(), strings.Join([]string{actor.Subject, capability.Permission, scope.Market, scope.Organization}, ":"), b.now(), b.trust.RequestsPerMinute)
@@ -399,6 +414,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		availability := b.resourceAvailability(actor.Roles, actor.Zones, actor.Tenants)
 		b.customerReviewAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		availability[analyticsadmin.MissionSuccessPermission] = b.scopedAnalyticsAvailable(actor.Roles, actor.Zones, actor.Tenants)
+		availability[analyticsadmin.MissionRatePermission] = b.scopedRateAvailable(actor.Roles, actor.Zones, actor.Tenants, actor.Permissions)
 		availability[adminread.TaxiPermission] = b.taxi != nil && policyErr == nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0 && len(actor.Tenants) > 0
 		result = contract.DiscoverWithAvailability(actor.Permissions, availability)
 	case "taxi.rides.list", "taxi.rides.detail":
@@ -460,7 +476,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			a.SourceVersion = *op.SourceVersion
 		}
 		result = op
-	case analyticsadmin.MissionSuccessPermission:
+	case analyticsadmin.MissionSuccessPermission, analyticsadmin.MissionRatePermission:
 		out, e := b.scopedAnalytics.MissionSuccess(r.Context(), taxiQuery, analyticsFilters)
 		if errors.Is(e, analyticsadmin.ErrDenied) {
 			fail(403, "forbidden")
@@ -478,7 +494,16 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fail(503, "owner_unavailable")
 			return
 		}
-		result = out
+		if analyticsRate {
+			rate, e := analyticsadmin.MissionRate(out)
+			if e != nil {
+				fail(503, "owner_contract_invalid")
+				return
+			}
+			result = rate
+		} else {
+			result = out
+		}
 	case "customer.review.submit", "customer.review.readback":
 		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
 		var out customerreviewops.Operation

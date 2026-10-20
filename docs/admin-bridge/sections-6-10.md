@@ -26,7 +26,7 @@ the available specification; the named A-to-Z PDF was not supplied.
 
 | Section | Actual result | Evidence | Status / outstanding |
 |---|---|---|---|
-| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first scoped partial counts source/SDK/HQ facade, audited producer binding preparation/publication; durable suppression/audit/reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Complete membership exports, success rate and remaining nine reducers/routes missing; production dormant |
+| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first scoped partial counts source/SDK/HQ facade, audited producer binding preparation/publication; durable suppression/audit/reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Rate projection implemented over disclosed counts but withheld by the partial native source. Complete membership exports and remaining nine reducers/routes missing; production dormant |
 | 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
 | 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return, minimal secure-handover state and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
@@ -515,3 +515,19 @@ Restriction increment validation: 294 Bridge/Taxi/privacy/policy/SDK cases and
 migration suites. Actual source wire, contract compatibility and changed-package
 vet pass. The preceding transport head 49a0362e passed all six acceptance workflows;
 this increment still requires its own Linux/current-head CI certification.
+
+
+Scoped mission-success rate continuation: an additive HQ projection now derives
+completed/(completed+failed) only from the same staff's authorized, privacy-
+released component counts. Both counts and a dedicated rate permission/source-
+contract approval are required, plus a separate default-off rate flag. Missing
+permission/contract/flag/scope denies before owner access. Approved count rounding
+is retained and labeled. Partial/stale/suppressed/undefined inputs remain null;
+overflow is rejected. The real source still has no complete membership export and
+publishes no numeric rate. Complete numeric-source tests are explicitly TEST_ONLY.
+310 Bridge/Taxi/privacy/policy/SDK cases pass with zero skips, including actual
+mTLS delegation, independent partial-rate wire schema and calculation edge cases.
+Changed-package vet and unchanged v1 contracts pass. Source authority remains 105
+and Media/private-client coverage 166 from their preceding increments. Remaining
+nine Analytics reducers/routes, complete owner exports/integration, production
+privacy approvals and real target certification remain incomplete.

@@ -162,7 +162,7 @@ func run() error {
 				return errors.New("scoped Analytics policy revision refused")
 			}
 		}
-		if e = app.ConfigureScopedAnalytics(client, approved); e != nil {
+		if e = app.ConfigureScopedAnalytics(client, approved, os.Getenv("ADMIN_ANALYTICS_SCOPED_RATE_READ_ENABLED") == "true"); e != nil {
 			return e
 		}
 	}

@@ -49,6 +49,17 @@
         "production_approval": null,
         "lineage_ingestion": "IMPLEMENTED_DEFAULT_OFF_SIGNED_OWNER_CONTEXTS_AND_REVOCATIONS",
         "lineage_preparation": "IMPLEMENTED_AUDITED_DRAFT_ONLY_NATIVE_BINDING"
+      },
+      "scoped_rate_projection": {
+        "hq_route": "/internal/karryam-admin/v1/analytics/scoped/network/mission-success/rate",
+        "permission": "analytics.scoped.mission-success-rate.read",
+        "also_requires": "analytics.scoped.mission-success.read",
+        "source_contract": "analytics.scoped-mission-success-rate.v1:<explicit-native-unit-field>",
+        "formula": "completed/(completed+failed)",
+        "basis": "DISCLOSED_COMPONENT_COUNTS",
+        "state": "IMPLEMENTED_TESTED_CURRENT_NATIVE_PARTIAL_SOURCE_ALWAYS_WITHHELD",
+        "missing_denominator_rule": "null; never substitute zero",
+        "production_approval": null
       }
     },
     {
