@@ -29,7 +29,7 @@ the available specification; the named A-to-Z PDF was not supplied.
 | 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first partial mission-success source; suppression with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Complete membership exports, success rate and remaining nine reducers/routes missing; production dormant |
 | 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
-| 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
+| 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return, minimal secure-handover state and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
 | 10 Hauling/Fleet | Provider/truck/mission reads, recorded physical truck capacity/equipment, native recovery case metadata and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Protected inspections/cargo-fit detail and executable remediation remain engineering work |
 
 The initial source-by-source assessment is in
@@ -441,3 +441,18 @@ cases pass with zero skips. Actual preparation/read wire schemas, architecture,
 production builds and changed-package vet pass. Linux race CI remains required.
 Producer-side native approval issuance/integration, complete coverage exports,
 report reduction, remaining nine scoped reports and policy approvals are pending.
+
+
+Dispatch handover continuation: a separate `dispatch.admin-handover-state.v1`
+contract now provides stored status/stage/notification and parent Trip metadata,
+with secret challenge/recipient/evidence material excluded. Full revision remains
+unknown because native notification leasing does not advance every optimistic
+counter. Legacy and planned parents are validated through actual Booking,
+Customer, mission, group, stop and exact frozen manifest. Broad prior approvals
+and supplied foreign tenants deny. The finite resource dictionary is now 24 kinds /
+48 list/detail paths. All capabilities remain default disabled / BLOCKED_POLICY.
+286 Bridge/Taxi/privacy/policy/SDK and 99 actual-migration source-authority scenarios
+pass with zero skips. Actual signed native wire validates independently, unchanged
+v1 schemas remain compatible and changed-package vet passes. Linux race/current-
+head CI remains required. No challenge mutation, validity or Media grant is implied.
+See [the precise read contract](dispatch-handover-read-model.md).

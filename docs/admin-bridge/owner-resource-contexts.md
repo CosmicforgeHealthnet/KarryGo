@@ -127,3 +127,12 @@ lifecycle/audit timestamp, including resolution after the last audit entry. Raw
 audit bodies/actors, contacts, GPS, money and evidence/transfer references are omitted.
 Permission `taxi.recovery.read` and its field/scope approval remain BLOCKED_POLICY;
 no recovery command, Media grant or automatic remediation is supplied by this read.
+
+
+Dispatch now additionally defines `handover-states` under the dedicated
+`dispatch.admin-handover-state.v1` contract and `dispatch.handover.read` permission.
+It returns stored minimal state and parent Trip only; no secret handover material
+or complete revision is disclosed. Exact native Booking/mission/group/stop/frozen
+manifest links must agree. See [read model and limits](dispatch-handover-read-model.md).
+The current finite dictionary contains 24 kinds / 48 list/detail resource paths;
+all governance and owner allocation requirements remain unchanged.

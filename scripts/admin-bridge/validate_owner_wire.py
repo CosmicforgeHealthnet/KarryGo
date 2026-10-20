@@ -39,3 +39,12 @@ jsonschema.Draft202012Validator(prepare_schema, format_checker=jsonschema.Format
 assert preparation["state"] == "DRAFT_PENDING_OWNER_APPROVAL"
 assert preparation["binding"]["known_source_dimensions"] == {"product": "karryam", "market": "", "zone": "", "organization": "", "tenant": ""}
 print("Actual Analytics producer preparation is draft-only and supplies no geographic/tenant mapping")
+
+handover = json.loads((Path(sys.argv[1]) / "dispatch-handover-state.json").read_text(encoding="utf-8"))
+jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker()).validate(handover)
+assert handover["kind"] == "handover-states" and len(handover["items"]) == 1
+item = handover["items"][0]
+assert item["source_version"] is None and {d["name"] for d in item["dimensions"]} == {"stage", "notification"}
+assert item["counters"] == [] and item["timeline"] == [] and {r["kind"] for r in item["references"]} == {"trip"}
+assert "PRIVATE_" not in json.dumps(handover)
+print("Actual native Dispatch handover wire contains only minimized stored metadata and no complete revision")

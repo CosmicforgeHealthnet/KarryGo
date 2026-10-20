@@ -240,3 +240,10 @@ cases pass with zero skips. Actual preparation/read wire schemas, architecture,
 production builds and changed-package vet pass. Linux race CI remains required.
 Producer-side native approval issuance/integration, complete coverage exports,
 report reduction, remaining nine scoped reports and policy approvals are pending.
+
+
+Dispatch handover metadata uses the existing source/Bridge resource flags but
+requires a new dedicated source contract and permission. Existing broad approvals
+must remain insufficient. Stored state is not a validity/completion verdict; full
+revision stays null. See [contract and parent checks](dispatch-handover-read-model.md).
+Keep production disabled pending owner/privacy review and signed allocations.

@@ -1650,5 +1650,59 @@
     ],
     "blocker": "BLOCKED_POLICY and incomplete report: source is always partial and withholds every count. Complete cohort exports, success-rate semantics and other report reducers remain work.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
+  },
+  {
+    "id": "dispatch.resources.handover-states.list",
+    "version": "1.0",
+    "owner": "driver-dispatch-delivery-service",
+    "source_endpoint": "/internal/dispatch/v1/admin/resources/handover-states",
+    "bridge_endpoint": "/dispatch/resources/handover-states",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "dispatch.handover.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_DISPATCH_RESOURCE_READ_ENABLED; DISPATCH_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestDispatchWorkflowReadsBindCanonicalTripAndRejectCrossLinks",
+      "TestDispatchHandoverStateReadsBindFrozenNativeParentsAndExcludeCredentials"
+    ],
+    "blocker": "Default disabled. Requires dedicated dispatch.admin-handover-state.v1 approval and independently signed native parent context; broad resource approvals cannot enable. Stored state does not assert credential validity or custody completion; source version remains unknown.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "dispatch.resources.handover-states.detail",
+    "version": "1.0",
+    "owner": "driver-dispatch-delivery-service",
+    "source_endpoint": "/internal/dispatch/v1/admin/resources/handover-states/{id}",
+    "bridge_endpoint": "/dispatch/resources/handover-states/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "dispatch.handover.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_DISPATCH_RESOURCE_READ_ENABLED; DISPATCH_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestDispatchWorkflowReadsBindCanonicalTripAndRejectCrossLinks",
+      "TestDispatchHandoverStateReadsBindFrozenNativeParentsAndExcludeCredentials"
+    ],
+    "blocker": "Default disabled. Requires dedicated dispatch.admin-handover-state.v1 approval and independently signed native parent context; broad resource approvals cannot enable. Stored state does not assert credential validity or custody completion; source version remains unknown.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   }
 ]

@@ -50,3 +50,13 @@ access. All counts are withheld while coverage is partial. Initial unit, scope,
 suppression/composition and freshness approvals remain **BLOCKED_POLICY**; no
 production grants exist. Complete membership/publication and rate reduction are
 engineering dependencies. The JSON matrix records the approval-ready entry.
+
+
+`dispatch.handover.read` (Dispatch + Security/Privacy owner): stored handover status,
+stage and notification state only, with parent Trip reference. Dedicated source
+contract `dispatch.admin-handover-state.v1` is required; all grants remain empty
+and **BLOCKED_POLICY**. Canonical Trip planning organization/tenant and exact
+booking/mission/group/stop/frozen-manifest links must agree. Market/zone still
+require independent owner allocation. No credential-validity, custody completion,
+full revision, challenge/contact/evidence material or intervention is supplied.
+Roles, purposes and retention require owner review; see JSON matrix dependencies.

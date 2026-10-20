@@ -350,6 +350,28 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "dispatch.handover.read",
+      "owner": "driver-dispatch-delivery-service",
+      "canonical_source_fields": [
+        "dispatch_handover_challenges.trip_id/booking_id",
+        "trips.organization_id (Fleet planning tenant)",
+        "dispatch_delivery_missions.trip_id/delivery_group_id",
+        "dispatch_mission_stops.mission_id/stop_ref/stop_type",
+        "dispatch_parcel_manifests.manifest_ref/version (exact captured version)"
+      ],
+      "proposed_rule": "delegated staff intersect approved scope/purpose and current signed native parent binding; reject conflicting booking/customer/mission/group/stop/frozen-manifest links",
+      "privacy": "MINIMIZED_SECURITY_OPERATIONAL_METADATA",
+      "dependencies": [
+        "dedicated dispatch.admin-handover-state.v1 approval",
+        "source-owned market/zone allocation",
+        "reviewed staff roles/purposes/retention"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

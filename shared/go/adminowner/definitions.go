@@ -28,6 +28,7 @@ func Profiles() []Profile {
 			"independent-rides": makeDef("taxi", "independent-rides", "taxi.independent_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),
 		}},
 		{Owner: "driver-dispatch-delivery-service", Domain: "dispatch", Prefix: "DISPATCH", Path: "/internal/dispatch/v1/admin", Definitions: map[string]Definition{
+			"handover-states":     makeDef("dispatch", "handover-states", "dispatch.handover.read", []string{"stage", "notification"}, nil, []string{"trip"}),
 			"incidents":           makeDef("dispatch", "incidents", "dispatch.incidents.read", []string{"reason", "replacement_strategy", "recovery_result"}, []string{"recovery_attempts"}, []string{"trip", "original_provider", "replacement_provider"}),
 			"delivery-recoveries": makeDef("dispatch", "delivery-recoveries", "dispatch.recovery.read", []string{"action"}, nil, []string{"trip", "delivery_attempt"}),
 			"returns":             makeDef("dispatch", "returns", "dispatch.returns.read", nil, nil, []string{"trip", "recovery_action", "return_mission", "return_booking"}),
@@ -50,6 +51,11 @@ func Profiles() []Profile {
 		}},
 	}
 	for i := range profiles {
+		if profiles[i].Domain == "dispatch" {
+			definition := profiles[i].Definitions["handover-states"]
+			definition.SourceContract = "dispatch.admin-handover-state.v1"
+			profiles[i].Definitions["handover-states"] = definition
+		}
 		if profiles[i].Domain == "customer" {
 			definition := profiles[i].Definitions["review-states"]
 			definition.SourceContract = "customer.admin-review-state.v1"
