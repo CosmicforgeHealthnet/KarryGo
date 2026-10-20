@@ -16,6 +16,7 @@ on:
       - 'services/driver-taxi-service/**'
       - 'services/driver-dispatch-delivery-service/**'
       - 'services/fleet-partner-service/**'
+      - 'services/media-file-service/**'
       - 'shared/go/providerreceipt/**'
       - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
@@ -40,6 +41,7 @@ on:
       - 'services/driver-taxi-service/**'
       - 'services/driver-dispatch-delivery-service/**'
       - 'services/fleet-partner-service/**'
+      - 'services/media-file-service/**'
       - 'shared/go/providerreceipt/**'
       - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
@@ -87,6 +89,7 @@ jobs:
       DISPATCH_TRIP_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
       TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/dispatch_admin_test?sslmode=disable
       DISPATCH_ADMIN_TEST_REDIS_ADDR: 127.0.0.1:6379
+      MEDIA_FILE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/media_admin_test?sslmode=disable
       FLEET_PARTNER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/fleet_admin_test?sslmode=disable
       TAXI_REDIS_ADDR: 127.0.0.1:6379
       TAXI_NOTIFICATION_REDIS_ADDR: 127.0.0.1:6379
@@ -108,6 +111,7 @@ jobs:
           go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
           createdb dispatch_admin_test
           createdb fleet_admin_test
+          createdb media_admin_test
           for migration in services/driver-dispatch-delivery-service/migrations/*.up.sql; do
             psql -d dispatch_admin_test -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
@@ -120,6 +124,8 @@ jobs:
           python scripts/admin-bridge/scoped_analytics_contract.py
           go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
+          go test -race -p 1 -json -count=1 -timeout=300s ./services/media-file-service/... > test-artifacts/media-cases.jsonl
+          python scripts/admin-bridge/media_testgate.py test-artifacts/media-cases.jsonl
           python scripts/admin-bridge/validate_owner_wire.py test-artifacts/owner-wire
           python scripts/admin-bridge/owner_contracts.py
           python scripts/admin-bridge/customer_review_contract.py --wire-dir test-artifacts/owner-wire

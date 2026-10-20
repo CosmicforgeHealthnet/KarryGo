@@ -26,11 +26,16 @@ the available specification; the named A-to-Z PDF was not supplied.
 
 | Section | Actual result | Evidence | Status / outstanding |
 |---|---|---|---|
-| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first partial mission-success source; suppression with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Complete membership exports, success rate and remaining nine reducers/routes missing; production dormant |
+| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first scoped partial counts source/SDK/HQ facade, audited producer binding preparation/publication; durable suppression/audit/reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Complete membership exports, success rate and remaining nine reducers/routes missing; production dormant |
 | 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
 | 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return, minimal secure-handover state and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
 | 10 Hauling/Fleet | Provider/truck/mission reads, recorded physical truck capacity/equipment, native recovery case metadata and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Protected inspections/cargo-fit detail and executable remediation remain engineering work |
+
+Crosscutting Media: native case enforcement/ledger is tested but unexposed. Native
+safety and revocation repairs preserve established owner APIs. Live case adapters,
+dedicated private transport and HQ orchestration remain engineering; initial
+production grants and lifetime/source-capability policy remain BLOCKED_POLICY.
 
 The initial source-by-source assessment is in
 `docs/security/admin-sections-6-10-gap-matrix.md`. This change is an incremental
@@ -456,3 +461,22 @@ pass with zero skips. Actual signed native wire validates independently, unchang
 v1 schemas remain compatible and changed-package vet passes. Linux race/current-
 head CI remains required. No challenge mutation, validity or Media grant is implied.
 See [the precise read contract](dispatch-handover-read-model.md).
+
+
+Media enforcement-core continuation: a separate immutable case-grant ledger now
+binds staff, five-scope tuple, case, subject, purpose, source permission, modern
+object/revision, proof, policy and explicit signed expiry. Each redemption repeats
+current permissions/source authority and authoritative Media private/safety/
+deletion/revocation/binding checks; audit failure releases no bytes. Withdrawal
+serializes with in-flight redemption and remains possible for the same staff after
+read kills or case closure. Accepted policy revisions cannot roll back. Signed
+Media values have no defaults; production values are not supplied. The core has
+no enrolled HTTP/Bridge route or live source-case adapter. Canonical legacy asset /
+modern object mapping and private transport remain engineering, not approval gaps
+alone. Native owner downloadability also now refuses revoked evidence, including
+previously minted tokens; this native repair operates under existing contracts.
+152 complete Media cases and 292 Bridge/Taxi/privacy/policy/SDK cases pass with
+zero skips; source authority remains 99 actual-migration cases from the preceding
+increment. Vet and unchanged v1 contract/wire validation pass. Linux Media race
+coverage is mandatory on the next pushed head. See
+[framework, guarantees and remaining work](media-case-access-framework.md).

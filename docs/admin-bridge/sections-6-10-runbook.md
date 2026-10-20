@@ -247,3 +247,22 @@ requires a new dedicated source contract and permission. Existing broad approval
 must remain insufficient. Stored state is not a validity/completion verdict; full
 revision stays null. See [contract and parent checks](dispatch-handover-read-model.md).
 Keep production disabled pending owner/privacy review and signed allocations.
+
+
+Media enforcement-core continuation: a separate immutable case-grant ledger now
+binds staff, five-scope tuple, case, subject, purpose, source permission, modern
+object/revision, proof, policy and explicit signed expiry. Each redemption repeats
+current permissions/source authority and authoritative Media private/safety/
+deletion/revocation/binding checks; audit failure releases no bytes. Withdrawal
+serializes with in-flight redemption and remains possible for the same staff after
+read kills or case closure. Accepted policy revisions cannot roll back. Signed
+Media values have no defaults; production values are not supplied. The core has
+no enrolled HTTP/Bridge route or live source-case adapter. Canonical legacy asset /
+modern object mapping and private transport remain engineering, not approval gaps
+alone. Native owner downloadability also now refuses revoked evidence, including
+previously minted tokens; this native repair operates under existing contracts.
+152 complete Media cases and 292 Bridge/Taxi/privacy/policy/SDK cases pass with
+zero skips; source authority remains 99 actual-migration cases from the preceding
+increment. Vet and unchanged v1 contract/wire validation pass. Linux Media race
+coverage is mandatory on the next pushed head. See
+[framework, guarantees and remaining work](media-case-access-framework.md).

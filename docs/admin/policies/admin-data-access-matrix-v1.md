@@ -60,3 +60,13 @@ booking/mission/group/stop/frozen-manifest links must agree. Market/zone still
 require independent owner allocation. No credential-validity, custody completion,
 full revision, challenge/contact/evidence material or intervention is supplied.
 Roles, purposes and retention require owner review; see JSON matrix dependencies.
+
+
+`media.case.content.read` now has a native enforcement core and immutable ledger,
+with current five-scope staff/source/Media intersection on every redemption. It
+is **FRAMEWORK_TESTED_NOT_EXPOSED**, not an integrated HQ grant API. Live owner case
+adapters, canonical modern-object membership/remediation, private transport and
+HQ facade remain engineering. Media + each source-case owner + Security/Privacy
+must approve lifetime, allowed source contracts/capabilities, roles, purposes and
+retention. All production values/grants remain empty and **BLOCKED_POLICY**.
+See [the precise framework and limits](../../admin-bridge/media-case-access-framework.md).

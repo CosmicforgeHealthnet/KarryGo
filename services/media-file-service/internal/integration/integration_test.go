@@ -101,12 +101,31 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	if len(tables) == 0 {
 		t.Fatal("no media tables found; migrations did not apply")
 	}
-	// TRUNCATE bypasses the row-level append-only triggers by design — it is
-	// test tooling, never a runtime path.
-	if _, err := pool.Exec(context.Background(),
-		"TRUNCATE "+strings.Join(tables, ", ")+" CASCADE"); err != nil {
-		t.Fatalf("clean test database: %v", err)
+	// The disposable database is verified and exclusively locked above. Keep
+	// statement-level evidence guards enabled during every test; disable only
+	// the two new ledger guards inside this atomic cleanup transaction.
+	clean, err := pool.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer clean.Rollback(context.Background())
+	for _, pair := range [][2]string{{"media_admin_case_grants", "media_admin_case_grant_immutable"}, {"media_admin_case_revocations", "media_admin_case_revocation_immutable"}} {
+		if _, err := clean.Exec(context.Background(), "ALTER TABLE "+pgx.Identifier{pair[0]}.Sanitize()+" DISABLE TRIGGER "+pgx.Identifier{pair[1]}.Sanitize()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := clean.Exec(context.Background(), "TRUNCATE "+strings.Join(tables, ", ")+" CASCADE"); err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range [][2]string{{"media_admin_case_grants", "media_admin_case_grant_immutable"}, {"media_admin_case_revocations", "media_admin_case_revocation_immutable"}} {
+		if _, err := clean.Exec(context.Background(), "ALTER TABLE "+pgx.Identifier{pair[0]}.Sanitize()+" ENABLE TRIGGER "+pgx.Identifier{pair[1]}.Sanitize()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := clean.Commit(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
 	return pool
 }
 
@@ -144,7 +163,7 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(migrations) == 0 || migrations[len(migrations)-1].Version != "000006_vendor_asset_privacy" {
+	if len(migrations) == 0 || migrations[len(migrations)-1].Version != "000007_admin_case_grants" {
 		t.Fatal("Review and update the tip-specific rollback assertions for the new migration")
 	}
 
@@ -173,8 +192,8 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if !exists {
 		t.Fatal("latest rollback removed the media_objects baseline table")
 	}
-	// The current tip is 000006, vendor-asset privacy. Its rollback removes
-	// only its two constraints; earlier evidence binding must remain intact.
+	// The current tip removes only empty case ledgers; native privacy, binding
+	// and export constraints must remain intact.
 	var bindingExists bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
@@ -189,8 +208,12 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_constraint WHERE conname IN ('vendor_asset_private_ck','vendor_asset_authorization_private_ck')`).Scan(&vendorConstraints); err != nil {
 		t.Fatal(err)
 	}
-	if vendorConstraints != 0 {
-		t.Fatalf("tip rollback left %d vendor privacy constraints", vendorConstraints)
+	if vendorConstraints != 2 {
+		t.Fatalf("tip rollback changed native vendor privacy constraints: %d", vendorConstraints)
+	}
+	var caseExists bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.media_admin_case_grants') IS NOT NULL OR to_regclass('public.media_admin_case_revocations') IS NOT NULL OR to_regclass('public.media_admin_case_policy_heads') IS NOT NULL`).Scan(&caseExists); err != nil || caseExists {
+		t.Fatal("empty case ledger rollback failed", err)
 	}
 	// 000004's data-export visibility is NOT the tip's, so it must survive.
 	var visibilityExists bool
@@ -239,6 +262,9 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	}
 	if vendorConstraints != 2 {
 		t.Fatalf("reapply restored %d vendor privacy constraints, want 2", vendorConstraints)
+	}
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.media_admin_case_grants') IS NOT NULL AND to_regclass('public.media_admin_case_revocations') IS NOT NULL AND to_regclass('public.media_admin_case_policy_heads') IS NOT NULL`).Scan(&caseExists); err != nil || !caseExists {
+		t.Fatal("case ledger reapply failed", err)
 	}
 	// The private-only rule is part of the schema, not just the use case, so it
 	// must come back with the reapply.

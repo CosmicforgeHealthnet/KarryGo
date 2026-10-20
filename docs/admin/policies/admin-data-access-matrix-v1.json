@@ -372,6 +372,31 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "media.case.content.read",
+      "owner": "media-file-service + authoritative source-case owner",
+      "canonical_source_fields": [
+        "media_objects.organization_id/owner_service/owner_type/owner_reference",
+        "media_objects.binding_type/binding_id and immutable secondary bindings",
+        "media_objects upload/safety/deletion/evidence/retention/version",
+        "live authoritative owner case/subject/object-membership proof (adapters pending)"
+      ],
+      "proposed_rule": "current delegated staff intersect signed Media rule and allowed signed source-case rule for exact five-scope tuple/purpose; independently resolve native case/subject/object; revalidate every redemption; explicit signed lifetime; immutable grant and audit",
+      "privacy": "PROTECTED_EVIDENCE",
+      "dependencies": [
+        "live source-case adapters and authoritative modern-object membership/remediation contracts",
+        "dedicated private transport, workload enrollment and HQ facade",
+        "approved source capabilities/contracts and grant lifetime",
+        "reviewed staff roles, purposes, retention and target certification"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "implementation_status": "FRAMEWORK_TESTED_NOT_EXPOSED",
+      "approved_max_grant_seconds": null,
+      "approved_source_capabilities": [],
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

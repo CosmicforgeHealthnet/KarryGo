@@ -57,18 +57,27 @@ type Disclosure struct {
 	FreshnessSeconds         int                 `json:"freshness_seconds"`
 	FilterSets               [][]string          `json:"filter_sets"`
 }
+
+// MediaDisclosure has no defaults. A signed owner-approved document must
+// explicitly bound grant lifetime and eligible source-case permissions.
+type MediaDisclosure struct {
+	MaxGrantSeconds    int      `json:"max_grant_seconds"`
+	SourceCapabilities []string `json:"source_capabilities"`
+}
+
 type Document struct {
-	SchemaVersion     int         `json:"schema_version"`
-	ID                string      `json:"id"`
-	Version           int64       `json:"version"`
-	State             string      `json:"state"`
-	Environment       string      `json:"environment"`
-	ApprovalReference string      `json:"approval_reference"`
-	ApprovedOwners    []string    `json:"approved_owners"`
-	EffectiveAt       time.Time   `json:"effective_at"`
-	ExpiresAt         time.Time   `json:"expires_at"`
-	Rules             []Rule      `json:"rules"`
-	Analytics         *Disclosure `json:"analytics,omitempty"`
+	SchemaVersion     int              `json:"schema_version"`
+	ID                string           `json:"id"`
+	Version           int64            `json:"version"`
+	State             string           `json:"state"`
+	Environment       string           `json:"environment"`
+	ApprovalReference string           `json:"approval_reference"`
+	ApprovedOwners    []string         `json:"approved_owners"`
+	EffectiveAt       time.Time        `json:"effective_at"`
+	ExpiresAt         time.Time        `json:"expires_at"`
+	Rules             []Rule           `json:"rules"`
+	Analytics         *Disclosure      `json:"analytics,omitempty"`
+	Media             *MediaDisclosure `json:"media,omitempty"`
 }
 type Envelope struct {
 	Document  json.RawMessage `json:"document"`
@@ -217,6 +226,11 @@ func Verify(raw []byte, keys map[string]ed25519.PublicKey, environment string, n
 			scopes[scope] = true
 		}
 	}
+	if p := document.Media; p != nil {
+		if p.MaxGrantSeconds < 1 || p.MaxGrantSeconds > 86400 || !validList(p.SourceCapabilities) {
+			return nil, ErrInvalid
+		}
+	}
 	if p := document.Analytics; p != nil {
 		if p.MaxLookbackSeconds < p.ReleaseBucketSeconds || p.MaxLookbackSeconds > 10*366*86400 || !adminread.Opaque(p.PrivacyDomain) || !validList(p.AllowedCellKeys) || p.MinimumCohort < 1 || p.RoundingMultiple < 1 || p.RoundingMultiple > 1_000_000 || p.MaxQueriesPerStaffWindow < 1 || p.MaxQueriesPerStaffWindow > 10000 || p.QueryWindowSeconds < 1 || p.QueryWindowSeconds > 86400 || p.ReleaseBucketSeconds < 1 || p.ReleaseBucketSeconds > 31*86400 || p.FreshnessSeconds < 1 || len(p.FilterSets) == 0 || len(p.FilterSets) > 32 {
 			return nil, ErrInvalid
@@ -360,4 +374,13 @@ func (e *Engine) AuthorizeOwner(actor Actor, capability, purpose string, scope S
 		return ErrDenied
 	}
 	return nil
+}
+
+func (e *Engine) MediaDisclosure(now time.Time) (MediaDisclosure, error) {
+	if e == nil || !e.document.ExpiresAt.After(now) || now.Before(e.document.EffectiveAt) || e.document.Media == nil {
+		return MediaDisclosure{}, ErrBlocked
+	}
+	out := *e.document.Media
+	out.SourceCapabilities = append([]string{}, out.SourceCapabilities...)
+	return out, nil
 }
