@@ -71,21 +71,30 @@ def build():
     review_operation = obj({"operation_id": string(format="uuid"), "customer_id": string(format="uuid"), "scope": review_receipt["properties"]["scope"], "status": {"enum": ["EXECUTING", "UNKNOWN_OUTCOME", "CONFIRMED"]}, "created_at": string(format="date-time"), "as_of": string(format="date-time"), "receipt": review_receipt}, ["operation_id", "customer_id", "scope", "status", "created_at", "as_of"])
     review_operation["allOf"] = [{"if": {"properties": {"status": {"const": "CONFIRMED"}}}, "then": {"required": ["receipt"]}, "else": {"not": {"required": ["receipt"]}}}]
     schemas.update(CustomerReviewRequest=review_request, CustomerReviewOperation=review_operation)
+    released_cell = obj({"key": {"enum": ["completed", "failed", "cancelled", "guarantee_breaches"]}, "value": {"type": ["integer", "null"], "minimum": 0}, "suppression": {"enum": ["NONE", "UNKNOWN", "SMALL_CELL", "COMPLEMENTARY", "PARTIAL_COVERAGE", "STALE"]}})
+    released_cell["allOf"] = [{"if": {"properties": {"suppression": {"const": "NONE"}}}, "then": {"properties": {"value": {"type": "integer"}}}, "else": {"properties": {"value": {"type": "null"}}}}]
+    released_cells = {"type": "array", "minItems": 4, "maxItems": 4, "items": released_cell, "allOf": [{"contains": {"properties": {"key": {"const": key}}, "required": ["key"]}, "minContains": 1, "maxContains": 1} for key in ("completed", "failed", "cancelled", "guarantee_breaches")]}
+    release = obj({"policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "scope": review_receipt["properties"]["scope"], "metric": {"const": "mission-success"}, "source_version": opaque, "as_of": string(format="date-time"), "freshness": {"enum": ["LIVE", "STALE"]}, "coverage": {"enum": ["COMPLETE", "PARTIAL_COVERAGE"]}, "cells": released_cells})
+    release["allOf"] = [{"if": {"anyOf": [{"properties": {"coverage": {"const": "PARTIAL_COVERAGE"}}}, {"properties": {"freshness": {"const": "STALE"}}}]}, "then": {"properties": {"cells": {"items": {"properties": {"value": {"type": "null"}, "suppression": {"not": {"const": "NONE"}}}}}}}}]
+    schemas["ScopedMissionSuccessRelease"] = release
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review."):
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"] == "analytics.scoped.mission-success.read":
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
+        if c["id"] == "analytics.scoped.mission-success.read":
+            params = [p for p in params if p["name"] not in ("limit", "cursor")]
+            params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("authority", "product_code")]
         for segment in c["bridge_endpoint"].split("/"):
             if segment.startswith("{"):
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}

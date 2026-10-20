@@ -25,3 +25,9 @@ for filename in ("taxi-passenger-recovery-resource.json", "taxi-goods-recovery-r
     jsonschema.Draft202012Validator(schema["properties"]["items"]["items"], format_checker=jsonschema.FormatChecker()).validate(resource)
     assert resource["kind"] == "recoveries" and resource["source_version"] > 0
 print("Actual Taxi passenger/goods recovery SQL projections satisfy the pinned resource contract")
+
+release = json.loads((Path(sys.argv[1]) / "scoped-analytics-owner.json").read_text(encoding="utf-8"))
+release_schema = json.loads((root / "services/admin-backoffice-service/docs/openapi/schemas/ScopedMissionSuccessRelease.json").read_text(encoding="utf-8"))
+jsonschema.Draft202012Validator(release_schema, format_checker=jsonschema.FormatChecker()).validate(release)
+assert release["coverage"] == "PARTIAL_COVERAGE" and all(cell["value"] is None for cell in release["cells"])
+print("Actual native Analytics scoped HTTP output satisfies the suppressed release schema")

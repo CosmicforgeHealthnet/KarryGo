@@ -1626,5 +1626,29 @@
     ],
     "blocker": "BLOCKED_POLICY: canonical owner allocation and governance approvals required. Goods missions have no native organization/tenant/geography; quote coordinates do not establish authorization.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "analytics.scoped.mission-success.read",
+    "version": "1.0",
+    "owner": "analytics-service",
+    "source_endpoint": "/internal/analytics/v1/admin/scoped-network/mission-success",
+    "bridge_endpoint": "/analytics/scoped/network/mission-success",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "analytics.scoped.mission-success.read",
+    "scope": "product,market,zone,organization,tenant,staff,purpose,authority,product_code,time window",
+    "risk": "R1",
+    "privacy": "SUPPRESSED_COUNT_METADATA",
+    "source_version_required": true,
+    "idempotency_required": false,
+    "approval": "Signed report-specific governance and current producer-owned source contexts; no production approval supplied.",
+    "evidence": "Suppression/reconstruction ledger, original-membership witness, producer context history and source query audit.",
+    "feature_flag": "ADMIN_ANALYTICS_SCOPED_READ_ENABLED",
+    "tests": [
+      "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
+      "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
+    ],
+    "blocker": "BLOCKED_POLICY and incomplete report: source is always partial and withholds every count. Complete cohort exports, success-rate semantics and other report reducers remain work.",
+    "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   }
 ]

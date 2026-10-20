@@ -122,3 +122,9 @@ resampling is allowed. The privacy owner must approve witness retention/access
 and eventual deletion rules. Native event identifiers and deduplication hashes
 remain restricted evidence, not anonymized output. This mechanism approves no
 production cohort unit, suppression threshold, purpose, access grant or report.
+
+
+Scoped counts-only mission-success transport is implemented with mandatory partial
+suppression and distinct report approval. All values remain null. Production
+activation remains BLOCKED_POLICY; complete memberships, producer publication and
+rate reduction are incomplete. Configuration and exact limits: [transport runbook](../../admin-bridge/scoped-analytics-transport.md).

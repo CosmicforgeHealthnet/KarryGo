@@ -1,10 +1,15 @@
 package adminprivacy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,14 +17,21 @@ import (
 	"cosmicforge/logistics/services/analytics-service/internal/features/networkanalytics/usecases"
 	"cosmicforge/logistics/shared/go/admincontext"
 	contextfixture "cosmicforge/logistics/shared/go/admincontext/testfixture"
+	"cosmicforge/logistics/shared/go/adminread"
+	"cosmicforge/logistics/shared/go/analyticsadmin"
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/networkanalytics"
+	"github.com/gin-gonic/gin"
 )
 
 func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage(t *testing.T) {
 	db := lineageDB(t)
 	ctx := context.Background()
 	fixture, actor, q, _ := privacyFixture(t)
+	q.Capability = analyticsadmin.MissionSuccessPermission
+	fixture.Document.Rules[0].Capability = q.Capability
+	fixture.Document.Rules[0].Permission = q.Capability
+	actor.Permissions = []string{q.Capability}
 	q.Filters["product_code"] = networkanalytics.ProductTaxiPassenger
 	owner := "driver-taxi-service"
 	issuer := contextfixture.New(t, owner)
@@ -83,6 +95,49 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 		if cell.Value != nil {
 			t.Fatal("incomplete source membership released a value", cell)
 		}
+	}
+	// General source scope still resolves from the other five authorized facts.
+	engine := gin.New()
+	secret := bytes.Repeat([]byte{81}, 32)
+	(&Handler{Enabled: true, Secret: secret, Service: &service}).Register(engine)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorded := httptest.NewRecorder()
+		engine.ServeHTTP(recorded, r)
+		for key, values := range recorded.Header() {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		w.WriteHeader(recorded.Code)
+		w.Write(recorded.Body.Bytes())
+		dir := os.Getenv("ADMIN_OWNER_CUSTODY_CAPTURE_DIR")
+		if dir == "" {
+			dir = os.Getenv("ADMIN_BRIDGE_CONTRACT_CAPTURE_DIR")
+		}
+		if dir != "" && recorded.Code == 200 {
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Error(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "scoped-analytics-owner.json"), recorded.Body.Bytes(), 0600); err != nil {
+				t.Error(err)
+			}
+		}
+	}))
+	defer server.Close()
+	client, err := analyticsadmin.NewClient(server.URL, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	meta := adminread.Query{Scope: adminread.Scope{Market: q.Scope.Market, Zone: q.Scope.Zone, Organization: q.Scope.Organization, Tenant: q.Scope.Tenant}, Staff: actor.Staff, Role: actor.Roles[0], Purpose: q.Purpose, PolicyID: fixture.Engine.ID(), PolicyVersion: fixture.Engine.Version(), PolicyChecksum: fixture.Engine.Checksum(), Start: q.Start, End: q.End, Limit: 1}
+	wire, err := client.MissionSuccess(ctx, meta, analyticsadmin.Filters{Authority: q.Filters["authority"], ProductCode: q.Filters["product_code"]})
+	if err != nil || wire.Coverage != "PARTIAL_COVERAGE" || wire.SourceVersion != release.SourceVersion {
+		t.Fatal("actual native scoped HTTP/SDK did not preserve frozen suppression", wire, err)
+	}
+	wrongRole := meta
+	wrongRole.Role = "other"
+	if _, err := client.MissionSuccess(ctx, wrongRole, analyticsadmin.Filters{Authority: q.Filters["authority"], ProductCode: q.Filters["product_code"]}); !errors.Is(err, analyticsadmin.ErrDenied) {
+		t.Fatal("native report ignored current role", err)
 	}
 	// General source scope still resolves from the other five authorized facts.
 	// The frozen release must separately reauthorize its sixth original member.

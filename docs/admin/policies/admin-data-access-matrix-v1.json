@@ -328,6 +328,28 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "analytics.scoped.mission-success.read",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "analytics_network_events.source_version",
+        "analytics_network_events normalized event payload and immutable hash",
+        "independent producer-signed resource context and current authorization head"
+      ],
+      "proposed_rule": "delegated staff intersected with approved five-scope policy and current authorization of every original native member; mandatory partial suppression",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "dependencies": [
+        "complete independently verifiable cohort coverage",
+        "approved native privacy unit",
+        "approved suppression/composition/freshness policy",
+        "producer context publication pipeline",
+        "success-rate reducer"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

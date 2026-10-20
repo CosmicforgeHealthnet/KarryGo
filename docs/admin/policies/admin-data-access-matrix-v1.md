@@ -41,3 +41,12 @@ No administrative operator can approve their own request by supplying these
 fields in the request body.
 
 Engineering continuation (2026-10-19): [source-owned resource context contracts](../../admin-bridge/owner-resource-contexts.md) provide signed owner remediation and deny-by-default typed reads. This draft supplies no context signature or production allocation. The sixteen-kind initial approval matrix remains **BLOCKED_POLICY**; Analytics thresholds/cohorts, Media grants and command approvals remain separate requirements.
+
+
+`analytics.scoped.mission-success.read` is a separate counts-only framework
+capability owned by Analytics + Privacy + source owners. It binds native event
+version/hash and independent current producer context to delegated five-scope
+access. All counts are withheld while coverage is partial. Initial unit, scope,
+suppression/composition and freshness approvals remain **BLOCKED_POLICY**; no
+production grants exist. Complete membership/publication and rate reduction are
+engineering dependencies. The JSON matrix records the approval-ready entry.

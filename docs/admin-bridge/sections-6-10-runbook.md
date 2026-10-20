@@ -207,3 +207,9 @@ the dedicated review-write/readback flags. Each is a kill gate, never an access
 grant. Turning either off blocks new submissions and hides write availability;
 current authorized original-identity GET readback remains independent. Regression
 tests exercise both kill gates and readback after all write switches are off.
+
+
+Scoped counts-only mission-success transport is implemented with mandatory partial
+suppression and distinct report approval. All values remain null. Production
+activation remains BLOCKED_POLICY; complete memberships, producer publication and
+rate reduction are incomplete. Configuration and exact limits: [transport runbook](scoped-analytics-transport.md).

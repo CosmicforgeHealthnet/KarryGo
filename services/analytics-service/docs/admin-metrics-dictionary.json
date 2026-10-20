@@ -38,7 +38,16 @@
       "approved_cohort_unit": null,
       "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership",
       "native_adapter_state": "IMPLEMENTED_BOUNDED_APPROVED_SUBSET_WITH_MANDATORY_PARTIAL_SUPPRESSION",
-      "native_source_contract": "analytics.scoped-mission-success.v1:<explicit-native-unit-field>"
+      "native_source_contract": "analytics.scoped-mission-success.v1:<explicit-native-unit-field>",
+      "scoped_counts_transport": {
+        "source_route": "/internal/analytics/v1/admin/scoped-network/mission-success",
+        "hq_route": "/internal/karryam-admin/v1/analytics/scoped/network/mission-success",
+        "permission": "analytics.scoped.mission-success.read",
+        "state": "IMPLEMENTED_TESTED_ALL_VALUES_WITHHELD",
+        "semantics": "counts-only bounded subset; not the success rate defined above",
+        "coverage": "PARTIAL_COVERAGE",
+        "production_approval": null
+      }
     },
     {
       "id": "recovery",

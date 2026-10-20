@@ -13,10 +13,12 @@ on:
       - 'services/partner-web-service/**'
       - 'shared/go/serviceauth/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
       - 'shared/go/customerreview/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
       - 'services/analytics-service/migrations/**'
       - 'docs/admin/policies/**'
       - 'services/driver-taxi-service/**'
@@ -32,10 +34,12 @@ on:
       - 'services/partner-web-service/**'
       - 'shared/go/serviceauth/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
       - 'shared/go/customerreview/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
       - 'services/analytics-service/migrations/**'
       - 'docs/admin/policies/**'
       - 'services/driver-taxi-service/**'
@@ -87,11 +91,12 @@ jobs:
           set -euo pipefail
           mkdir -p test-artifacts
           go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
-          go test -race -json ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminpolicy/... -count=1 -timeout=300s > test-artifacts/admin-tests.jsonl
+          go test -race -json ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/analyticsadmin ./shared/go/adminpolicy/... -count=1 -timeout=300s > test-artifacts/admin-tests.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-tests.jsonl
+          python scripts/admin-bridge/scoped_analytics_contract.py
           go test -race -json ./services/api-gateway/... ./services/partner-web-service/... ./shared/go/serviceauth/... -count=1 -timeout=300s > test-artifacts/gateway-tests.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/gateway-tests.jsonl --suite gateway
-          go vet ./services/admin-backoffice-service/... ./services/api-gateway/... ./services/partner-web-service/...
+          go vet ./services/admin-backoffice-service/... ./services/api-gateway/... ./services/partner-web-service/... ./services/analytics-service/cmd ./services/analytics-service/internal/features/adminprivacy ./shared/go/analyticsadmin
           go build ./services/admin-backoffice-service/...
       - name: Pinned OpenAPI, actual wire responses, backward compatibility, deployment source
         env:

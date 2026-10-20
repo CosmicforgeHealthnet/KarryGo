@@ -50,7 +50,7 @@ def main():
         assert ("200" in operation["responses"]) == (row["state"] in ("READ_ONLY", "AVAILABLE"))
     owner_kinds = {"customer": ["customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns"], "hauling": ["providers", "trucks", "missions", "custody-missions", "recoveries"], "fleet": ["shipments", "private-assignments", "execution-links"]}
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
     command = load(OUT / "fixtures/command.json")
     validators["Command"].validate(command)
     for mutate in [lambda c: c.update(performed_by="forged-admin"), lambda c: c.update(product="healthnet"), lambda c: c["target"].update(expected_version=0), lambda c: c.pop("idempotency_key"), lambda c: c["scope"].update(organization="*")]:
@@ -60,7 +60,7 @@ def main():
     validators["StaffAssertion"].validate(load(OUT / "fixtures/staff-assertion.json"))
     validators["Response"].validate(load(OUT / "fixtures/unavailable-response.json"))
     if args.wire_dir:
-        expected = {"discovery": "Discovery", "health": "Health", "operation": "Operation", "taxi": "TaxiSnapshot", "resources": "OwnerResourcesSnapshot", "denied": None, "blocked": None, "customer-review-unknown": "CustomerReviewOperation", "customer-review-confirmed": "CustomerReviewOperation"}
+        expected = {"discovery": "Discovery", "health": "Health", "operation": "Operation", "taxi": "TaxiSnapshot", "resources": "OwnerResourcesSnapshot", "denied": None, "blocked": None, "customer-review-unknown": "CustomerReviewOperation", "customer-review-confirmed": "CustomerReviewOperation", "scoped-analytics": "ScopedMissionSuccessRelease"}
         for name, result_schema in expected.items():
             wire = load(args.wire_dir / (name + ".json"))
             validators["Response"].validate(wire)

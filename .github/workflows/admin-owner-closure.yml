@@ -19,9 +19,11 @@ on:
       - 'shared/go/providerreceipt/**'
       - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
       - 'services/analytics-service/migrations/**'
       - 'docs/admin/policies/**'
       - 'shared/go/serviceauth/**'
@@ -41,9 +43,11 @@ on:
       - 'shared/go/providerreceipt/**'
       - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
+      - 'shared/go/analyticsadmin/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
+      - 'services/analytics-service/cmd/**'
       - 'services/analytics-service/migrations/**'
       - 'docs/admin/policies/**'
       - '.github/workflows/admin-owner-closure.yml'
@@ -111,8 +115,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
+          go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/analyticsadmin ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
+          python scripts/admin-bridge/scoped_analytics_contract.py
           go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/validate_owner_wire.py test-artifacts/owner-wire
@@ -125,7 +130,7 @@ jobs:
           go test -race -count=1 ./services/fleet-partner-service/internal/section28contract ./services/fleet-partner-service/internal/features/privateoperations/http ./shared/go/providerreceipt
           go test -race -json -count=1 -timeout=300s ./services/driver-dispatch-delivery-service/migrations -run 'TestSecure|TestCustody|TestRelayUncertainty' > test-artifacts/dispatch-custody.jsonl
           python scripts/admin-bridge/owner_testgate.py test-artifacts/dispatch-custody.jsonl --custody
-          go vet ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./shared/go/adminread
+          go vet ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/driver-dispatch-delivery-service/internal/features/marketplace ./services/driver-dispatch-delivery-service/internal/features/trip ./shared/go/adminread ./services/analytics-service/cmd ./services/analytics-service/internal/features/adminprivacy ./shared/go/analyticsadmin
       - uses: actions/upload-artifact@v4
         if: always()
         with:

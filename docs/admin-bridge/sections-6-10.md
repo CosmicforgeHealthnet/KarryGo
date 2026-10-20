@@ -26,7 +26,7 @@ the available specification; the named A-to-Z PDF was not supplied.
 
 | Section | Actual result | Evidence | Status / outstanding |
 |---|---|---|---|
-| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first partial mission-success source; suppression with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. Complete membership exports, remaining report reducers and scoped HQ report exposure missing; all reports remain dormant |
+| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first partial mission-success source; suppression with durable disclosure journal, audit and reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Complete membership exports, success rate and remaining nine reducers/routes missing; production dormant |
 | 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
 | 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
@@ -394,3 +394,17 @@ existing native boundary and adds no HQ access. All 125 Media cases pass against
 real PostgreSQL with zero skipped cases; changed-package vet passes. Case-bound
 HQ grants, dedicated workload enrollment, canonical case/object proof and scoped
 purpose/permission/expiry/revocation orchestration remain engineering work.
+
+
+Scoped Analytics transport continuation (2026-10-20): the first counts-only native
+HTTP endpoint, strict typed SDK and private HQ façade now enforce the dedicated
+report permission, exact source contract, independent owner contexts and five-scope
+policy. Durable nonces, immutable membership reauthorization and audit failure
+remain fail closed. Actual native and HQ wire captures validate independently.
+259 local Bridge/Taxi/privacy/policy/SDK cases pass with zero skips. Production
+flags remain off and all counts remain null under mandatory PARTIAL_COVERAGE.
+This is not the dictionary success rate. Complete membership exports, producer
+publication, success-rate reduction, nine other reducers/routes and deployed
+certification remain engineering work; all governance gaps remain BLOCKED_POLICY.
+See [operator configuration](scoped-analytics-transport.md). Linux race CI must
+pass on the pushed head before this increment is certified.

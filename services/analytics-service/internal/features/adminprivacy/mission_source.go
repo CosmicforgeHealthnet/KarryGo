@@ -11,6 +11,7 @@ import (
 	"cosmicforge/logistics/shared/go/admincontext"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
+	"cosmicforge/logistics/shared/go/analyticsadmin"
 	"cosmicforge/logistics/shared/go/networkanalytics"
 	"github.com/jackc/pgx/v5"
 )
@@ -34,7 +35,7 @@ func (s *MissionSuccessSource) ResolveScope(ctx context.Context, tx pgx.Tx, q Qu
 }
 func (s *MissionSuccessSource) Snapshot(ctx context.Context, tx pgx.Tx, q Query) (Snapshot, error) {
 	var empty Snapshot
-	if s == nil || q.Metric != "mission-success" || q.Capability != "analytics.network.read" || len(q.Filters) != 2 || !networkanalytics.ValidAuthority(q.Filters["authority"]) || !adminread.Opaque(q.Filters["product_code"]) || q.Start.IsZero() || !q.End.After(q.Start) {
+	if s == nil || q.Metric != "mission-success" || q.Capability != analyticsadmin.MissionSuccessPermission || len(q.Filters) != 2 || !networkanalytics.ValidAuthority(q.Filters["authority"]) || !adminread.Opaque(q.Filters["product_code"]) || q.Start.IsZero() || !q.End.After(q.Start) {
 		return empty, ErrUnmapped
 	}
 	kind, err := LineageKind(q.Metric, s.UnitField)
@@ -176,7 +177,7 @@ type missionAuthorization struct {
 // candidate index. Dropping one revoked member from a new snapshot cannot make
 // an earlier release authorized. Counts and release values are never resampled.
 func (s *MissionSuccessSource) AuthorizeRelease(ctx context.Context, tx pgx.Tx, q Query, version string, raw json.RawMessage) error {
-	if s == nil || len(raw) == 0 || len(raw) > 65536 || q.Metric != "mission-success" || q.Capability != "analytics.network.read" || len(q.Filters) != 2 {
+	if s == nil || len(raw) == 0 || len(raw) > 65536 || q.Metric != "mission-success" || q.Capability != analyticsadmin.MissionSuccessPermission || len(q.Filters) != 2 {
 		return ErrUnmapped
 	}
 	var witness missionAuthorization

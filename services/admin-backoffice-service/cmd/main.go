@@ -149,6 +149,23 @@ func run() error {
 			return e
 		}
 	}
+	if client, e := cfg.ScopedAnalyticsClient(); e != nil {
+		return e
+	} else if client != nil {
+		defer client.Close()
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid scoped Analytics policy")
+		}
+		if approved != nil {
+			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+				return errors.New("scoped Analytics policy revision refused")
+			}
+		}
+		if e = app.ConfigureScopedAnalytics(client, approved); e != nil {
+			return e
+		}
+	}
 	if cfg.TaxiReadEnabled {
 		encoded, e := os.ReadFile(cfg.TaxiSecretFile)
 		if e != nil {

@@ -48,7 +48,7 @@ func privacyDB(t *testing.T) *pgxpool.Pool {
 	_, file, _, _ := runtime.Caller(0)
 	// The owner's migration is idempotent for safe operator reapplication;
 	// Analytics' normal runner additionally tracks each applied filename.
-	for _, name := range []string{"005_admin_disclosure_guard.sql", "007_admin_disclosure_authorizations.sql"} {
+	for _, name := range []string{"005_admin_disclosure_guard.sql", "007_admin_disclosure_authorizations.sql", "008_admin_scoped_http_nonces.sql"} {
 		raw, err := os.ReadFile(filepath.Join(filepath.Dir(file), "../../../migrations", name))
 		if err != nil {
 			t.Fatal(err)

@@ -13,6 +13,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
+	"cosmicforge/logistics/shared/go/analyticsadmin"
 )
 
 var ErrRestricted = errors.New("restricted analytics query")
@@ -45,23 +46,8 @@ type Snapshot struct {
 	Cells         []Cell
 	Partial       bool
 }
-type ReleasedCell struct {
-	Key         string `json:"key"`
-	Value       *int64 `json:"value"`
-	Suppression string `json:"suppression"`
-}
-type Release struct {
-	PolicyID       string            `json:"policy_id"`
-	PolicyVersion  int64             `json:"policy_version"`
-	PolicyChecksum string            `json:"policy_checksum"`
-	Scope          adminpolicy.Scope `json:"scope"`
-	Metric         string            `json:"metric"`
-	SourceVersion  string            `json:"source_version"`
-	AsOf           time.Time         `json:"as_of"`
-	Freshness      string            `json:"freshness"`
-	Coverage       string            `json:"coverage"`
-	Cells          []ReleasedCell    `json:"cells"`
-}
+type ReleasedCell = analyticsadmin.Cell
+type Release = analyticsadmin.Release
 
 func hash(value any) string {
 	raw, _ := json.Marshal(value)
