@@ -38,6 +38,7 @@ func Profiles() []Profile {
 			"custody-missions":    makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
+			"restrictions":     makeDef("hauling", "restrictions", "hauling.restrictions.read", []string{"subject_type", "reason"}, []string{"source_revision"}, []string{"subject"}),
 			"custody-missions": makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 			"providers":        makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
 			"trucks":           makeDef("hauling", "trucks", "hauling.trucks.read", append(append([]string{}, assetDimensions...), []string{"enclosed", "weather_protected", "upright_safe", "fragile_safe", "refrigerated", "tail_lift", "crane", "hydraulic", "loading_ramp", "trailer_capable", "insurance_valid"}...), []string{"capacity_kg", "max_payload_grams", "internal_length_mm", "internal_width_mm", "internal_height_mm", "usable_volume_ml", "opening_width_mm", "opening_height_mm", "axle_count", "capability_version", "capability_source_version"}, []string{"provider"}),
@@ -62,6 +63,9 @@ func Profiles() []Profile {
 			profiles[i].Definitions["review-states"] = definition
 		}
 		if profiles[i].Domain == "hauling" {
+			restriction := profiles[i].Definitions["restrictions"]
+			restriction.SourceContract = "hauling.admin-authority-restriction.v1"
+			profiles[i].Definitions["restrictions"] = restriction
 			definition := profiles[i].Definitions["trucks"]
 			definition.SourceContract = "hauling.admin-truck-capability.v2"
 			profiles[i].Definitions["trucks"] = definition

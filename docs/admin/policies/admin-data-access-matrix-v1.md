@@ -78,3 +78,13 @@ case adapter. Flags/keys cannot replace missing membership proof. The remaining
 engineering dependencies are concrete case/modern-object mapping adapters and HQ
 facade, followed by production workload enrollment/certification and initial
 BLOCKED_POLICY decisions. The JSON matrix reflects this narrower remaining scope.
+
+
+`hauling.restrictions.read` (Hauling + Fleet/IAM/Privacy): stored provider/asset
+restriction records require actual native subjects, ACTIVE same-organization
+truck/provider links and current signed allocation under the dedicated
+`hauling.admin-authority-restriction.v1` contract. Unresolved/external subject
+classes deny; supplying tenant cannot override the native organization. Full
+eligibility and apply/clear are excluded. Initial scope/role/purpose/retention
+review remains **BLOCKED_POLICY** with empty grants; see the JSON entry and
+[precise read model](../../admin-bridge/hauling-restriction-read-model.md).

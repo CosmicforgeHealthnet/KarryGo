@@ -397,6 +397,26 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "hauling.restrictions.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "hauling_authority_restrictions.organization_id/subject_type/subject_reference/version/source_version",
+        "truck_providers.id and active hauling_organization_provider_links.organization_id/membership_id/version",
+        "trucks.id/provider_id and active hauling_organization_truck_links + owner provider membership"
+      ],
+      "proposed_rule": "current delegated staff intersect approved five-scope tuple and current signed owner binding; actual provider/truck and live organization links must match; unresolved/external subjects deny",
+      "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+      "dependencies": [
+        "dedicated hauling.admin-authority-restriction.v1 field/purpose/role approval",
+        "approved market/zone owner allocation",
+        "reviewed privacy/retention policy; no apply/clear grant"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

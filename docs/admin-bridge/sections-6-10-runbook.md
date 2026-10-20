@@ -283,3 +283,15 @@ native-core head 5250846f passed all six workflows, including mandatory Linux Me
 race; current transport-head CI must pass independently. Production approvals,
 keys, grants and lifetimes remain absent. See the
 [private transport configuration](media-case-access-framework.md).
+
+
+Hauling restriction-read continuation: the native provider/asset restriction
+ledger is now available under a dedicated signed source contract. Actual subjects
+and current same-organization truck/provider links are required; absent subjects,
+external subject classes, revoked links, replaced membership and foreign tenant
+claims deny. Native state/revision/source revision are observed without exposing
+private source references or claiming global eligibility. Native Apply/Clear are
+not exposed to HQ because some native enforcement spans organizations. The finite
+dictionary now has 25 kinds / 50 resource paths, all default disabled and subject
+to BLOCKED_POLICY. Details and command limits are in
+[the read model](hauling-restriction-read-model.md).

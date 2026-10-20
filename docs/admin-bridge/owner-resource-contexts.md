@@ -136,3 +136,12 @@ or complete revision is disclosed. Exact native Booking/mission/group/stop/froze
 manifest links must agree. See [read model and limits](dispatch-handover-read-model.md).
 The current finite dictionary contains 24 kinds / 48 list/detail resource paths;
 all governance and owner allocation requirements remain unchanged.
+
+
+Hauling now additionally supports `restrictions` under
+`hauling.admin-authority-restriction.v1`. Native provider/asset existence and
+current matching organization links are mandatory; replaced/revoked membership
+invalidates prior allocation. Only stored state/provenance counters are exposed,
+with no apply/clear or complete eligibility authority. The finite dictionary is
+now 25 kinds / 50 resource paths. See
+[the subject and scope checks](hauling-restriction-read-model.md).

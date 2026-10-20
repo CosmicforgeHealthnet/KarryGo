@@ -48,7 +48,7 @@ def main():
         operation = api["paths"][BASE + row["bridge_endpoint"]][row["method"].lower()]
         assert operation["x-capability-state"] == row["state"]
         assert ("200" in operation["responses"]) == (row["state"] in ("READ_ONLY", "AVAILABLE"))
-    owner_kinds = {"customer": ["customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["providers", "trucks", "missions", "custody-missions", "recoveries"], "fleet": ["shipments", "private-assignments", "execution-links"]}
+    owner_kinds = {"customer": ["customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
     assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
     command = load(OUT / "fixtures/command.json")

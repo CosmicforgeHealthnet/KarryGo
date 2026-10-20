@@ -1704,5 +1704,59 @@
     ],
     "blocker": "Default disabled. Requires dedicated dispatch.admin-handover-state.v1 approval and independently signed native parent context; broad resource approvals cannot enable. Stored state does not assert credential validity or custody completion; source version remains unknown.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "hauling.resources.restrictions.list",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/restrictions",
+    "bridge_endpoint": "/hauling/resources/restrictions",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.restrictions.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestHaulingRecoveryReadsBindActualPlanningTenantAndMission",
+      "TestHaulingRestrictionReadsRequireActualSubjectsAndCurrentCanonicalLinks"
+    ],
+    "blocker": "Default disabled. Requires dedicated hauling.admin-authority-restriction.v1 approval plus current independent source context and live native organization/subject links. Unsupported or unresolved subject classes deny. Stored row state is not global eligibility and grants no apply/clear command.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "hauling.resources.restrictions.detail",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/restrictions/{id}",
+    "bridge_endpoint": "/hauling/resources/restrictions/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.restrictions.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R2",
+    "privacy": "MINIMIZED_OPERATIONAL_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestHaulingRecoveryReadsBindActualPlanningTenantAndMission",
+      "TestHaulingRestrictionReadsRequireActualSubjectsAndCurrentCanonicalLinks"
+    ],
+    "blocker": "Default disabled. Requires dedicated hauling.admin-authority-restriction.v1 approval plus current independent source context and live native organization/subject links. Unsupported or unresolved subject classes deny. Stored row state is not global eligibility and grants no apply/clear command.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   }
 ]

@@ -48,3 +48,12 @@ assert item["source_version"] is None and {d["name"] for d in item["dimensions"]
 assert item["counters"] == [] and item["timeline"] == [] and {r["kind"] for r in item["references"]} == {"trip"}
 assert "PRIVATE_" not in json.dumps(handover)
 print("Actual native Dispatch handover wire contains only minimized stored metadata and no complete revision")
+
+restriction = json.loads((Path(sys.argv[1]) / "hauling-restriction.json").read_text(encoding="utf-8"))
+jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker()).validate(restriction)
+assert restriction["kind"] == "restrictions" and restriction["owner"] == "driver-hauling-service" and len(restriction["items"]) == 1
+item = restriction["items"][0]
+assert item["source_version"] == 1 and item["status"] == "APPLIED"
+assert {d["name"] for d in item["dimensions"]} == {"subject_type", "reason"}
+assert "PRIVATE_" not in json.dumps(restriction)
+print("Actual Hauling restriction HTTP output preserves native revision and excludes private provenance")
