@@ -263,13 +263,17 @@
       "blockers": [
         "Owner-enforced market/zone/tenant mapping and filters",
         "Reviewed small-cell and rare-combination suppression policy",
-        "Reviewed metric freshness/window/timezone policy"
+        "Reviewed metric freshness/window/timezone policy",
+        "Readiness reducer/scoped report and complete independently verifiable source membership export remain unimplemented"
       ],
       "missing_data_rule": "Do not expose owner default zero as a verified HQ observation; unavailable or insufficient data must remain explicit",
       "lineage_binding_contract": "analytics.cohort-lineage.v1:readiness:<explicit-native-unit-field>",
       "lineage_binding_state": "VALIDATOR_IMPLEMENTED_REPORT_ADAPTER_INCOMPLETE",
       "approved_cohort_unit": null,
-      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership"
+      "cohort_membership_coverage": "UNPROVEN: native bucket totals cannot establish distinct-subject membership",
+      "lineage_ingestion": "IMPLEMENTED_DEFAULT_OFF_VENDOR_SIGNED_CONTEXTS_AND_REVOCATIONS",
+      "lineage_preparation": "IMPLEMENTED_AUDITED_DRAFT_ONLY_NATIVE_BRANCH_BINDING",
+      "lineage_transport_owner": "vendor-service"
     },
     {
       "id": "supply",

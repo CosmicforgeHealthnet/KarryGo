@@ -54,7 +54,8 @@ Never synthesize missing membership or retry a denied release under a fresh key.
 
 Normal migration 009 adds durable publication nonce storage. Native fixed POSTs
 `/internal/analytics/v1/admin/source-contexts/{canonical-owner}` are available only
-for driver-taxi-service, driver-dispatch-delivery-service and driver-hauling-service.
+for driver-taxi-service, driver-dispatch-delivery-service, driver-hauling-service
+and vendor-service.
 They require `ANALYTICS_ADMIN_CONTEXT_PUBLISH_ENABLED=true`, pinned producer public
 keys in the existing source-context keys file, and
 `ANALYTICS_ADMIN_CONTEXT_PUBLISH_SECRETS_FILE`: a JSON object mapping exactly those
@@ -117,3 +118,38 @@ production rate. The numeric 3/(3+1)=0.75 boundary scenario is explicitly TEST_O
 not a complete producer export or production source proof. This closes the rate
 calculation/facade step while complete verifiable membership/export integration,
 the remaining nine report reducers/routes and initial privacy policy stay pending.
+
+
+## Vendor readiness lineage prerequisite
+
+Vendor now has the same separate fixed publication and draft-binding preparation
+paths under `/internal/analytics/v1/admin/source-contexts/vendor-service`.
+`ANALYTICS_ADMIN_SOURCE_CONTEXT_KEYS_FILE` may pin its independent Ed25519 keys;
+`ANALYTICS_ADMIN_CONTEXT_PUBLISH_SECRETS_FILE` requires a distinct Vendor workload
+key. It cannot reuse another producer, scoped-read or legacy service key.
+There are four compiled publisher owners; arbitrary owner names remain rejected.
+
+The native readiness event is `vendor.branch.readiness_observed.v1`; the branch
+unit must be a recorded canonical UUID. Preparation returns only the immutable
+native lineage fingerprint and known product. Operational zone hints do not
+supply market/zone/organization/tenant authorization. A current independently
+signed Vendor allocation is required, including after publication; monotonic
+revocation and immutable history apply. Driver keys/signatures cannot publish
+Vendor authority, and Vendor publication grants no HQ report access.
+
+Real native ingest → runtime → signed HTTP → typed SDK preparation/publication
+and revocation is tested with an ephemeral TEST_ONLY allocation. Production
+runtime rejects TEST_ONLY, and all defaults remain disabled. The readiness
+reducer, scoped report route, complete membership exports and initial approved
+privacy/access rules remain missing; no readiness value is released by this step.
+
+
+Vendor source audit: `cmd/readiness_orchestration_wiring.go` emits readiness
+from the native `vendor_order` transaction with a recorded branch ID. The lineage
+validator now requires that actual entity contract and a canonical order UUID;
+a fabricated branch snapshot cannot acquire a binding. Business/branch IDs are
+not treated as organization/tenant authority. The production runtime rejects the
+TEST_ONLY allocation before the native test installs its ephemeral authority.
+Validation: 313 combined Bridge/Taxi/Analytics/policy cases passed with no skips;
+final Analytics/SDK regressions also pass. Source route capture/classification,
+OpenAPI drift and route-register checks have zero violations/stale entries.

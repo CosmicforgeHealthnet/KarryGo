@@ -123,6 +123,16 @@ func (r LineageReader) ReadUnit(ctx context.Context, tx pgx.Tx, report, field, e
 	if !permitted {
 		return LineageFact{}, ErrUnmapped
 	}
+
+	// Vendor readiness is emitted from the native vendor_order outbox transaction,
+	// not a caller-created branch snapshot. Business IDs remain analytical facts;
+	// they are not canonical organization/tenant authorization here.
+	if actualKind == networkanalytics.KindBranchReadiness {
+		order, err := uuid.Parse(out.EntityID)
+		if out.EntityType != "vendor_order" || err != nil || order == uuid.Nil || order.String() != out.EntityID {
+			return LineageFact{}, ErrUnmapped
+		}
+	}
 	// Counts in a supply snapshot or demand bucket carry no individual roster.
 	// Even an incidental provider_id cannot prove membership of that aggregate.
 	if actualKind == networkanalytics.KindSupplySnapshot || actualKind == networkanalytics.KindDemandBucket {

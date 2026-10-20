@@ -24,7 +24,7 @@ type PublisherClient struct {
 
 func NewPublisherClient(origin, owner string, key []byte) (*PublisherClient, error) {
 	switch owner {
-	case "driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service":
+	case "driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service", "vendor-service":
 	default:
 		return nil, ErrInvalid
 	}

@@ -19,7 +19,7 @@ required |= {"TestPostgresCustomerReviewBridgeConcurrentSubmissionPostsOnce", "T
 required |= {"TestPostgresFrozenReleaseRequiresOriginalMembershipWithoutResampling", "TestPostgresLegacyFrozenReleaseWithoutMembershipFailsClosed", "TestPostgresDisclosureMembershipAndReleaseRollBackTogetherOnAuditFailure"}
 required |= {"TestPostgresScopedAnalyticsBridgeMTLSFiveScopeAndSuppressedWire", "TestScopedAnalyticsConfigurationNeedsBothFlagsAndDistinctCredential", "TestPostgresScopedAnalyticsNonceStrictQueryAndPolicyBoundary", "TestPostgresScopedAnalyticsRuntimeCredentialSeparationAndNoInventedApproval", "TestScopedAnalyticsRuntimeOffDoesNotReadFiles", "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"}
 required |= {"TestAnalyticsProducerPreparationReturnsOnlyDraftNativeBinding", "TestAnalyticsProducerPublisherClientUsesFixedOwnerAndNoAutomaticRetry", "TestPostgresAnalyticsProducerPublicationBindsNativeFactsAndRevokes", "TestPostgresAnalyticsPublisherRuntimeIsIndependentAndSeparatesCredentials"}
-required |= {"TestMediaCasePolicyNeedsExplicitSignedValuesWithoutProductionDefaults"}
+required |= {"TestMediaCasePolicyNeedsExplicitSignedValuesWithoutProductionDefaults", "TestPostgresVendorReadinessPublicationUsesIndependentNativeBranchBinding"}
 required |= {"TestMissionRateUsesOnlyDisclosedCountsAndNeverGuessesUnknownValues", "TestPostgresScopedMissionRateRequiresBothPermissionsAndPreservesSuppression"}
 if args.suite == "gateway":
     required = {"TestPublicAdminIsolation", "TestForgedHQHeadersAreStrippedFromPublicRoutes", "TestPostgresRefreshRotationAndMigrationReplay"}

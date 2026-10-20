@@ -21,7 +21,7 @@ def document():
     result = {"openapi": "3.1.0", "info": {"title": "Analytics private scoped mission-success counts", "version": "1.0.0"}, "security": [{"ScopedServiceHMAC": []}], "paths": {"/internal/analytics/v1/admin/scoped-network/mission-success": {"get": op}}, "components": {"securitySchemes": {"ScopedServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."}}}}
 
     result["components"]["securitySchemes"]["ProducerPublicationHMAC"] = {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Separate per-owner publisher workload secret, caller owner-authorization-context-publisher, exact body/path/query HMAC v2 and durable replay protection. Every document additionally requires an independent Ed25519 signature from the pinned source owner. No HQ authority."}
-    for owner in ("driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service"):
+    for owner in ("driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service", "vendor-service"):
         publish = owner_document(owner, "lineage")["paths"]["/internal/lineage/v1/admin/authorization-contexts"]["post"]
         publish["operationId"] = "analytics.lineage.publish." + owner
         publish["security"] = [{"ProducerPublicationHMAC": []}]

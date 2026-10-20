@@ -1419,6 +1419,336 @@
           }
         ]
       }
+    },
+    "/internal/analytics/v1/admin/source-contexts/vendor-service": {
+      "post": {
+        "operationId": "analytics.lineage.publish.vendor-service",
+        "description": "Default off, independent of report reads. Verify this producer's signature against immutable PROCESSED native event identity/unit fingerprint; atomically record monotonic context history/head. Signed revocations remain ingestible when report reads are killed. No membership completeness assertion or approval issuance. Body maximum 32 KiB.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "RECORDED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "document": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "owner": {
+                        "const": "vendor-service"
+                      },
+                      "environment": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "source_contract": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "provenance_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "approval_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "schema_version": {
+                        "const": 1
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "binding_fingerprint": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "type": "string"
+                          },
+                          "market": {
+                            "type": "string"
+                          },
+                          "zone": {
+                            "type": "string"
+                          },
+                          "organization": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "minItems": 1,
+                        "maxItems": 32
+                      },
+                      "effective_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "owner",
+                      "environment",
+                      "state",
+                      "resource_kind",
+                      "resource_ref",
+                      "source_contract",
+                      "provenance_ref",
+                      "approval_ref",
+                      "schema_version",
+                      "revision",
+                      "binding_fingerprint",
+                      "scope",
+                      "capabilities",
+                      "effective_at",
+                      "expires_at"
+                    ]
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "document",
+                  "key_id",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
+    },
+    "/internal/analytics/v1/admin/source-contexts/vendor-service/bindings/{kind}/{id}": {
+      "get": {
+        "operationId": "analytics.lineage.prepare.vendor-service",
+        "description": "Default off. Return only a native PROCESSED event/unit fingerprint, source contract and known canonical product for independent owner review. Unknown geography/organization/tenant remain empty. No context grant, signature or completeness assertion. Immutable audit must commit before disclosure. Report/unit kind is fixed to the ten lineage reports and five explicitly supported native unit fields. HQ read credentials cannot prepare bindings.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "DRAFT_PENDING_OWNER_APPROVAL"
+                    },
+                    "binding": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "fingerprint": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "source_contract": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "known_source_dimensions": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "product": {
+                              "type": "string"
+                            },
+                            "market": {
+                              "type": "string"
+                            },
+                            "zone": {
+                              "type": "string"
+                            },
+                            "organization": {
+                              "type": "string"
+                            },
+                            "tenant": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "product",
+                            "market",
+                            "zone",
+                            "organization",
+                            "tenant"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "fingerprint",
+                        "source_contract",
+                        "known_source_dimensions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "binding"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
     }
   },
   "components": {

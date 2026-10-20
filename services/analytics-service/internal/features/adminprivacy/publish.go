@@ -19,7 +19,7 @@ import (
 
 const lineagePublishBase = analyticsadmin.SourceContextPath
 
-var lineageOwners = []string{"driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service"}
+var lineageOwners = []string{"driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service", "vendor-service"}
 
 // LineagePublisher accepts only independently signed owner allocations. It never
 // issues approvals, computes missing mappings or declares complete coverage.

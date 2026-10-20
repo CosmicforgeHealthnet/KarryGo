@@ -128,12 +128,12 @@ func sourceAuthorities(path string) (map[string]admincontext.Authority, error) {
 		if _, err := d.Token(); err != io.EOF {
 			return nil, errors.New("multiple Analytics source authority documents")
 		}
-		if json.Unmarshal(raw, &keys) != nil || keys == nil || len(keys) > 3 {
+		if json.Unmarshal(raw, &keys) != nil || keys == nil || len(keys) > 4 {
 			return nil, errors.New("invalid Analytics source authorities")
 		}
 		for owner, values := range keys {
 			canonical, _ := canonicalLineageOwner(owner)
-			if canonical == "" || canonical != owner || owner == "vendor-service" || len(values) == 0 || len(values) > 32 {
+			if canonical == "" || canonical != owner || len(values) == 0 || len(values) > 32 {
 				return nil, errors.New("unmapped Analytics source authority")
 			}
 			authority := admincontext.Authority{Owner: owner, Environment: adminpolicyenv.Environment, Keys: map[string]ed25519.PublicKey{}}

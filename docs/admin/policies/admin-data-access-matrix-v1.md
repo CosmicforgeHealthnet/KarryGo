@@ -105,3 +105,12 @@ and dedicated `hauling.admin-fit-decision.v1` governance. Private evidence/dista
 and current eligibility inference are excluded. All roles, scopes, purposes and
 retention await approval: **BLOCKED_POLICY**, no production grants. See the
 [exact source fields and checks](../../admin-bridge/hauling-fit-decision-read-model.md).
+
+
+`analytics.cohorts.readiness.export` (Vendor + Analytics + Security/Privacy):
+native Vendor branch-readiness lineage can be prepared/published/revoked using
+independently pinned owner signatures and a separate workload audience. Unknown
+scope dimensions remain empty until independently allocated. This grants no HQ
+report and asserts no complete cohort. Native owner export/membership validation,
+scoped reporting and production policy approval remain **BLOCKED_POLICY** / missing
+engineering, as recorded in the JSON matrix. No production grants are supplied.

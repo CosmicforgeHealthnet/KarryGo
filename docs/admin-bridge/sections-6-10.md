@@ -418,7 +418,7 @@ See [operator configuration](scoped-analytics-transport.md). Linux race CI must
 pass on the pushed head before this increment is certified.
 
 
-Producer lineage ingestion continuation: three fixed, default-disabled per-owner
+Producer lineage ingestion continuation: four fixed, default-disabled per-owner
 publication endpoints and a typed SDK now receive independently signed allocations
 and revocations without direct database writes. Distinct publication credentials
 cannot read reports; report kill gates do not prevent revocation ingestion. Native
@@ -549,3 +549,23 @@ source-authority scenarios passed with PostgreSQL and zero skips, followed by
 the targeted unknown-policy/null-truck regression. Independent native HTTP wire,
 OpenAPI determinism, unchanged earlier v1 schema checks and Go vet passed.
 Local Windows execution does not replace mandatory Linux race acceptance.
+
+
+Vendor readiness lineage now has fixed native preparation/publication paths and
+a typed SDK, closing the missing fourth producer audience. Native processed
+branch identity is bound without inferring geographic/tenant mappings. Independent
+Vendor signatures, distinct workload keys, revocation and disabled routes are
+tested against PostgreSQL. This supplies a readiness prerequisite; it does not
+supply the remaining reducer, complete membership or approved disclosure policy.
+See [the transport contract](scoped-analytics-transport.md).
+
+
+Vendor source audit: `cmd/readiness_orchestration_wiring.go` emits readiness
+from the native `vendor_order` transaction with a recorded branch ID. The lineage
+validator now requires that actual entity contract and a canonical order UUID;
+a fabricated branch snapshot cannot acquire a binding. Business/branch IDs are
+not treated as organization/tenant authority. The production runtime rejects the
+TEST_ONLY allocation before the native test installs its ephemeral authority.
+Validation: 313 combined Bridge/Taxi/Analytics/policy cases passed with no skips;
+final Analytics/SDK regressions also pass. Source route capture/classification,
+OpenAPI drift and route-register checks have zero violations/stale entries.

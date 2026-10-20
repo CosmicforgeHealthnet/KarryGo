@@ -461,6 +461,31 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "analytics.cohorts.readiness.export",
+      "owner": "vendor-service",
+      "canonical_source_fields": [
+        "analytics_network_events native Vendor PROCESSED identity/payload_hash/source_version",
+        "recorded branch_id canonical UUID in vendor.branch.readiness_observed.v1",
+        "native vendor_order source_entity_type and canonical order UUID; Vendor readiness outbox at cmd/readiness_orchestration_wiring.go"
+      ],
+      "proposed_rule": "Independently signed Vendor context binds exact native readiness event/unit fingerprint and explicit five-scope allocation; runtime publication accepts no driver signatures or inferred operational geography. No HQ disclosure or complete-cohort assertion.",
+      "privacy": "PRIVATE_SOURCE_LINEAGE",
+      "responsible_owner": [
+        "Vendor",
+        "Analytics",
+        "Security/Privacy"
+      ],
+      "dependencies": [
+        "Independent Vendor authority enrollment",
+        "Complete Vendor source export and branch membership validation",
+        "Approved allocation and report privacy rules"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }
