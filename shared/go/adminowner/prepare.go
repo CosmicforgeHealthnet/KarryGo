@@ -25,7 +25,11 @@ func (h *Handler) PrepareContext(c *gin.Context) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
 	defer cancel()
-	if !h.PublishEnabled || h.DB == nil || h.Source == nil || len(h.PublishSecret) < 32 {
+	reader := h.PreparationReader
+	if reader == nil {
+		reader = h.Source
+	}
+	if !h.PublishEnabled || h.DB == nil || reader == nil || len(h.PublishSecret) < 32 {
 		h.fail(c, 503, "owner_context_publication_disabled")
 		return
 	}
@@ -72,7 +76,7 @@ func (h *Handler) PrepareContext(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback(ctx)
-	binding, err := h.Source.Binding(ctx, tx, definition.Kind, ref)
+	binding, err := reader.Binding(ctx, tx, definition.Kind, ref)
 	if err != nil || binding.SourceContract != definition.SourceContract {
 		h.fail(c, 404, "not_found")
 		return

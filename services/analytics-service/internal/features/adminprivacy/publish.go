@@ -34,6 +34,7 @@ func (p *LineagePublisher) Register(root *gin.Engine) {
 			h = &adminowner.Handler{}
 		}
 		root.POST(lineagePublishBase+owner, h.PublishContext)
+		root.GET(lineagePublishBase+owner+"/bindings/:kind/:id", h.PrepareContext)
 	}
 }
 
@@ -80,13 +81,27 @@ func PublisherRuntime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.
 			}
 		}
 		used = append(used, secret)
-		p.handlers[owner] = &adminowner.Handler{Owner: owner, DB: db, PublishEnabled: true, PublishSecret: secret, Contexts: &admincontext.Store{DB: db, Reader: LineageReader{Owner: owner}, Authority: authority}}
+		p.handlers[owner] = &adminowner.Handler{Owner: owner, DB: db, PublishEnabled: true, PublishSecret: secret, PreparationReader: LineageReader{Owner: owner}, Definitions: lineageDefinitions(), Contexts: &admincontext.Store{DB: db, Reader: LineageReader{Owner: owner}, Authority: authority}}
 	}
 	ready, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var ok bool
-	if err := db.QueryRow(ready, `SELECT to_regclass('admin_owner_read_nonces') IS NOT NULL AND to_regclass('admin_owner_context_history') IS NOT NULL`).Scan(&ok); err != nil || !ok {
+	if err := db.QueryRow(ready, `SELECT to_regclass('admin_owner_read_nonces') IS NOT NULL AND to_regclass('admin_owner_context_history') IS NOT NULL AND to_regclass('admin_owner_context_preparation_audit') IS NOT NULL`).Scan(&ok); err != nil || !ok {
 		return nil, errors.New("Analytics publication schema unavailable; apply normal migrations")
 	}
 	return p, nil
+}
+
+func lineageDefinitions() map[string]adminowner.Definition {
+	out := map[string]adminowner.Definition{}
+	for report := range lineageReports {
+		for _, field := range []string{"provider_id", "original_provider_id", "replacement_provider_id", "branch_id", "source_entity_id"} {
+			kind, err := LineageKind(report, field)
+			if err != nil {
+				continue
+			}
+			out[kind] = adminowner.Definition{Kind: kind, SourceContract: "analytics.cohort-lineage.v1:" + kind}
+		}
+	}
+	return out
 }

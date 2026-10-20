@@ -46,7 +46,9 @@
         "state": "IMPLEMENTED_TESTED_ALL_VALUES_WITHHELD",
         "semantics": "counts-only bounded subset; not the success rate defined above",
         "coverage": "PARTIAL_COVERAGE",
-        "production_approval": null
+        "production_approval": null,
+        "lineage_ingestion": "IMPLEMENTED_DEFAULT_OFF_SIGNED_OWNER_CONTEXTS_AND_REVOCATIONS",
+        "lineage_preparation": "IMPLEMENTED_AUDITED_DRAFT_ONLY_NATIVE_BINDING"
       }
     },
     {

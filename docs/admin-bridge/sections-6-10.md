@@ -425,3 +425,19 @@ pass with zero skips, including producer HTTP/SDK, revocation, stale revision,
 credential audience and atomic history failure scenarios. Generated source/Bridge
 contracts, actual source/HQ wire schemas, architecture and changed-package vet
 pass. Linux race CI remains required on this increment; no production activation.
+
+
+Audited lineage preparation continuation (2026-10-20): normal Analytics migration
+010 and fixed publisher-only binding GETs now expose a minimized native fingerprint
+and source contract for owner review. Known product is retained; market/zone/org/
+tenant remain unknown. Ten report names and five native unit fields are bounded,
+not approved. The typed client rejects inferred mappings, non-draft states and
+path injection. Audit failure returns no binding; evidence cannot be updated,
+deleted or truncated. The native mission source scenario now traverses actual
+preparation SDK/HTTP, independent TEST_ONLY signing, publication SDK/HTTP and scoped
+report HTTP/SDK. Existing five-owner preparation behavior remains unchanged.
+284 Bridge/Taxi/privacy/policy/SDK cases and 91 actual-migration source-authority
+cases pass with zero skips. Actual preparation/read wire schemas, architecture,
+production builds and changed-package vet pass. Linux race CI remains required.
+Producer-side native approval issuance/integration, complete coverage exports,
+report reduction, remaining nine scoped reports and policy approvals are pending.

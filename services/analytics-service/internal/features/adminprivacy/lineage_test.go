@@ -23,7 +23,7 @@ import (
 func lineageDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	db := privacyDB(t)
-	for _, name := range []string{"003_network_analytics.sql", "004_network_supply_demand_outcomes.sql", "006_admin_cohort_lineage_contexts.sql"} {
+	for _, name := range []string{"003_network_analytics.sql", "004_network_supply_demand_outcomes.sql", "006_admin_cohort_lineage_contexts.sql", "010_admin_lineage_preparation_audit.sql"} {
 		raw, err := os.ReadFile(filepath.Join("../../../migrations", name))
 		if err != nil {
 			t.Fatal(err)

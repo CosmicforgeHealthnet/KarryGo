@@ -31,3 +31,11 @@ release_schema = json.loads((root / "services/admin-backoffice-service/docs/open
 jsonschema.Draft202012Validator(release_schema, format_checker=jsonschema.FormatChecker()).validate(release)
 assert release["coverage"] == "PARTIAL_COVERAGE" and all(cell["value"] is None for cell in release["cells"])
 print("Actual native Analytics scoped HTTP output satisfies the suppressed release schema")
+
+preparation = json.loads((Path(sys.argv[1]) / "scoped-analytics-binding.json").read_text(encoding="utf-8"))
+source_contract = json.loads((root / "services/analytics-service/docs/openapi/admin-scoped-mission-success.openapi.json").read_text(encoding="utf-8"))
+prepare_schema = source_contract["paths"]["/internal/analytics/v1/admin/source-contexts/driver-taxi-service/bindings/{kind}/{id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+jsonschema.Draft202012Validator(prepare_schema, format_checker=jsonschema.FormatChecker()).validate(preparation)
+assert preparation["state"] == "DRAFT_PENDING_OWNER_APPROVAL"
+assert preparation["binding"]["known_source_dimensions"] == {"product": "karryam", "market": "", "zone": "", "organization": "", "tenant": ""}
+print("Actual Analytics producer preparation is draft-only and supplies no geographic/tenant mapping")

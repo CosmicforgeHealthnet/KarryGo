@@ -44,7 +44,7 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 	reader := LineageReader{Owner: owner}
 	store := admincontext.Store{DB: db, Reader: reader, Authority: issuer.Authority}
 	publishKey := bytes.Repeat([]byte{94}, 32)
-	publisher := &LineagePublisher{handlers: map[string]*adminowner.Handler{owner: {Owner: owner, DB: db, PublishEnabled: true, PublishSecret: publishKey, Contexts: &store}}}
+	publisher := &LineagePublisher{handlers: map[string]*adminowner.Handler{owner: {Owner: owner, DB: db, PublishEnabled: true, PublishSecret: publishKey, PreparationReader: reader, Definitions: lineageDefinitions(), Contexts: &store}}}
 	publicationHTTP := gin.New()
 	publisher.Register(publicationHTTP)
 	publicationServer := httptest.NewServer(publicationHTTP)
@@ -63,14 +63,9 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 		if _, err := native.Ingest(ctx, owner, events.Envelope{EventID: id, EventName: "taxi.booking.completed", SchemaVersion: 1, SourceService: owner, SourceEntityType: "booking", SourceEntityID: id, SourceVersion: 1, OccurredAt: q.Start.Add(10 * time.Minute), Payload: payload}); err != nil {
 			t.Fatal(err)
 		}
-		tx, err := db.Begin(ctx)
+		binding, err := publicationClient.PrepareBinding(ctx, kind, id, "TEST_ONLY_LINEAGE_REVIEW")
 		if err != nil {
-			t.Fatal(err)
-		}
-		binding, err := reader.Binding(ctx, tx, kind, id)
-		tx.Rollback(ctx)
-		if err != nil {
-			t.Fatal(err)
+			t.Fatal("producer preparation SDK", err)
 		}
 		approval := issuer.Approval("allocation-"+id, kind, id, "analytics.cohorts.mission-success.export", binding, q.Scope)
 		lastApproval = approval

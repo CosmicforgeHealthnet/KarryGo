@@ -48,7 +48,7 @@ func TestPostgresAnalyticsProducerPublicationBindsNativeFactsAndRevokes(t *testi
 	approval := issuer.Approval("published-context", kind, id, "analytics.cohorts.mission-success.export", binding, q.Scope)
 	key := bytes.Repeat([]byte{91}, 32)
 	store := &admincontext.Store{DB: db, Reader: reader, Authority: issuer.Authority}
-	p := &LineagePublisher{handlers: map[string]*adminowner.Handler{owner: {Owner: owner, DB: db, PublishEnabled: true, PublishSecret: key, Contexts: store}}}
+	p := &LineagePublisher{handlers: map[string]*adminowner.Handler{owner: {Owner: owner, DB: db, PublishEnabled: true, PublishSecret: key, PreparationReader: reader, Definitions: lineageDefinitions(), Contexts: store}}}
 	engine := gin.New()
 	p.Register(engine)
 	request := func(path string, raw, secret []byte, caller string) *http.Request {
@@ -67,6 +67,45 @@ func TestPostgresAnalyticsProducerPublicationBindsNativeFactsAndRevokes(t *testi
 			t.Error("private context leaked")
 		}
 		return w.Code
+	}
+	prepare := func(caller string) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest("GET", lineagePublishBase+owner+"/bindings/"+kind+"/"+id+"?purpose=TEST_ONLY_REVIEW", nil)
+		if err := serviceauth.SignRequest(r, caller, key, nil, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, r)
+		return w
+	}
+	if w := prepare(adminread.Caller); w.Code != 401 {
+		t.Fatal("read caller prepared lineage", w.Code)
+	}
+	prepared := prepare(adminowner.ContextPublisher)
+	if prepared.Code != 200 || !bytes.Contains(prepared.Body.Bytes(), []byte(binding.Fingerprint)) || bytes.Contains(prepared.Body.Bytes(), []byte("provider_id\":")) {
+		t.Fatal("native binding preparation", prepared.Code, prepared.Body.String())
+	}
+	if dir := os.Getenv("ADMIN_OWNER_CUSTODY_CAPTURE_DIR"); dir != "" {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "scoped-analytics-binding.json"), prepared.Body.Bytes(), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, sql := range []string{`UPDATE admin_owner_context_preparation_audit SET purpose_code='rewrite'`, `DELETE FROM admin_owner_context_preparation_audit`, `TRUNCATE admin_owner_context_preparation_audit`} {
+		if _, err := db.Exec(ctx, sql); err == nil {
+			t.Fatal("preparation evidence mutable")
+		}
+	}
+	if _, err := db.Exec(ctx, `CREATE FUNCTION fail_lineage_preparation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test-only'; END $$; CREATE TRIGGER fail_lineage_preparation BEFORE INSERT ON admin_owner_context_preparation_audit FOR EACH STATEMENT EXECUTE FUNCTION fail_lineage_preparation()`); err != nil {
+		t.Fatal(err)
+	}
+	if w := prepare(adminowner.ContextPublisher); w.Code != 503 || bytes.Contains(w.Body.Bytes(), []byte("fingerprint")) {
+		t.Fatal("preparation disclosed despite audit failure", w.Code)
+	}
+	if _, err := db.Exec(ctx, `DROP TRIGGER fail_lineage_preparation ON admin_owner_context_preparation_audit`); err != nil {
+		t.Fatal(err)
 	}
 	raw := issuer.Sign(t, approval)
 	path := lineagePublishBase + owner

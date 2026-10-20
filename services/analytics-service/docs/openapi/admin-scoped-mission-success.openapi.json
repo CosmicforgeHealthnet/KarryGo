@@ -627,6 +627,139 @@
         ]
       }
     },
+    "/internal/analytics/v1/admin/source-contexts/driver-taxi-service/bindings/{kind}/{id}": {
+      "get": {
+        "operationId": "analytics.lineage.prepare.driver-taxi-service",
+        "description": "Default off. Return only a native PROCESSED event/unit fingerprint, source contract and known canonical product for independent owner review. Unknown geography/organization/tenant remain empty. No context grant, signature or completeness assertion. Immutable audit must commit before disclosure. Report/unit kind is fixed to the ten lineage reports and five explicitly supported native unit fields. HQ read credentials cannot prepare bindings.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "DRAFT_PENDING_OWNER_APPROVAL"
+                    },
+                    "binding": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "fingerprint": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "source_contract": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "known_source_dimensions": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "product": {
+                              "type": "string"
+                            },
+                            "market": {
+                              "type": "string"
+                            },
+                            "zone": {
+                              "type": "string"
+                            },
+                            "organization": {
+                              "type": "string"
+                            },
+                            "tenant": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "product",
+                            "market",
+                            "zone",
+                            "organization",
+                            "tenant"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "fingerprint",
+                        "source_contract",
+                        "known_source_dimensions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "binding"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
+    },
     "/internal/analytics/v1/admin/source-contexts/driver-dispatch-delivery-service": {
       "post": {
         "operationId": "analytics.lineage.publish.driver-dispatch-delivery-service",
@@ -824,6 +957,139 @@
         ]
       }
     },
+    "/internal/analytics/v1/admin/source-contexts/driver-dispatch-delivery-service/bindings/{kind}/{id}": {
+      "get": {
+        "operationId": "analytics.lineage.prepare.driver-dispatch-delivery-service",
+        "description": "Default off. Return only a native PROCESSED event/unit fingerprint, source contract and known canonical product for independent owner review. Unknown geography/organization/tenant remain empty. No context grant, signature or completeness assertion. Immutable audit must commit before disclosure. Report/unit kind is fixed to the ten lineage reports and five explicitly supported native unit fields. HQ read credentials cannot prepare bindings.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "DRAFT_PENDING_OWNER_APPROVAL"
+                    },
+                    "binding": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "fingerprint": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "source_contract": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "known_source_dimensions": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "product": {
+                              "type": "string"
+                            },
+                            "market": {
+                              "type": "string"
+                            },
+                            "zone": {
+                              "type": "string"
+                            },
+                            "organization": {
+                              "type": "string"
+                            },
+                            "tenant": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "product",
+                            "market",
+                            "zone",
+                            "organization",
+                            "tenant"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "fingerprint",
+                        "source_contract",
+                        "known_source_dimensions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "binding"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
+    },
     "/internal/analytics/v1/admin/source-contexts/driver-hauling-service": {
       "post": {
         "operationId": "analytics.lineage.publish.driver-hauling-service",
@@ -1012,6 +1278,139 @@
                 ]
               }
             }
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
+    },
+    "/internal/analytics/v1/admin/source-contexts/driver-hauling-service/bindings/{kind}/{id}": {
+      "get": {
+        "operationId": "analytics.lineage.prepare.driver-hauling-service",
+        "description": "Default off. Return only a native PROCESSED event/unit fingerprint, source contract and known canonical product for independent owner review. Unknown geography/organization/tenant remain empty. No context grant, signature or completeness assertion. Immutable audit must commit before disclosure. Report/unit kind is fixed to the ten lineage reports and five explicitly supported native unit fields. HQ read credentials cannot prepare bindings.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "DRAFT_PENDING_OWNER_APPROVAL"
+                    },
+                    "binding": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "fingerprint": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "source_contract": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "known_source_dimensions": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "product": {
+                              "type": "string"
+                            },
+                            "market": {
+                              "type": "string"
+                            },
+                            "zone": {
+                              "type": "string"
+                            },
+                            "organization": {
+                              "type": "string"
+                            },
+                            "tenant": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "product",
+                            "market",
+                            "zone",
+                            "organization",
+                            "tenant"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "fingerprint",
+                        "source_contract",
+                        "known_source_dimensions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "binding"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
           }
         },
         "security": [

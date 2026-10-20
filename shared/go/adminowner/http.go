@@ -26,16 +26,18 @@ import (
 )
 
 type Handler struct {
-	Owner, Path    string
-	DB             *pgxpool.Pool
-	Source         Source
-	Contexts       *admincontext.Store
-	Policy         *adminpolicy.Engine
-	Secret         []byte
-	Enabled        bool
-	PublishEnabled bool
-	PublishSecret  []byte
-	Definitions    map[string]Definition
+	Owner, Path string
+	DB          *pgxpool.Pool
+	// PreparationReader supports binding-only producers without exposing resource reads.
+	PreparationReader admincontext.BindingReader
+	Source            Source
+	Contexts          *admincontext.Store
+	Policy            *adminpolicy.Engine
+	Secret            []byte
+	Enabled           bool
+	PublishEnabled    bool
+	PublishSecret     []byte
+	Definitions       map[string]Definition
 }
 
 func (h *Handler) Register(root *gin.Engine) {

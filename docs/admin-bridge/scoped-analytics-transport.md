@@ -70,5 +70,21 @@ expiry, native PROCESSED event/unit fingerprint and monotonic context revision.
 History and current head commit atomically; revocation blocks subsequent source
 resolution and cannot be undone by an older allocation. History failure rolls back
 the head. This ingestion endpoint issues no signatures, source mappings or complete
-coverage assertion. Owner-side approval issuance, binding preparation and automated
+coverage assertion. Owner-side approval issuance, automated
 producer export/publication integration still require engineering and governance.
+
+
+## Native binding preparation
+
+Normal migration 010 adds immutable binding-preparation audit. Under the same
+publisher persona, fixed GET `/internal/analytics/v1/admin/source-contexts/{owner}/bindings/{report}:{native-field}/{event-id}?purpose={purpose}`
+returns `DRAFT_PENDING_OWNER_APPROVAL`, the native fingerprint/source contract and
+known canonical product only. Geographic, organization and tenant dimensions remain
+empty. Ten report names and five native unit field selectors are explicitly
+bounded; event type/unit validity is checked against the actual PROCESSED event.
+`PublisherClient.PrepareBinding` accepts only a single path segment for kind/event
+ID, rejects path/query injection and validates the exact contract and draft state.
+No proposed mapping is accepted. The audit must commit before any binding leaves
+the owner; failure returns no fingerprint. Owner review and independent signing
+remain mandatory before publishing an allocation. This eliminates direct database
+queries for preparing fingerprints, without manufacturing approval or coverage.

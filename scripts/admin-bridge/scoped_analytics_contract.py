@@ -28,6 +28,12 @@ def document():
         publish["description"] = "Default off, independent of report reads. Verify this producer's signature against immutable PROCESSED native event identity/unit fingerprint; atomically record monotonic context history/head. Signed revocations remain ingestible when report reads are killed. No membership completeness assertion or approval issuance. Body maximum 32 KiB."
         publish["requestBody"]["content"]["application/json"]["schema"]["properties"]["document"]["properties"]["owner"] = {"const": owner}
         result["paths"]["/internal/analytics/v1/admin/source-contexts/" + owner] = {"post": publish}
+        prepare = owner_document(owner, "lineage")["paths"]["/internal/lineage/v1/admin/authorization-contexts/bindings/{kind}/{id}"]["get"]
+        prepare["operationId"] = "analytics.lineage.prepare." + owner
+        prepare["security"] = [{"ProducerPublicationHMAC": []}]
+        prepare["description"] = "Default off. Return only a native PROCESSED event/unit fingerprint, source contract and known canonical product for independent owner review. Unknown geography/organization/tenant remain empty. No context grant, signature or completeness assertion. Immutable audit must commit before disclosure. Report/unit kind is fixed to the ten lineage reports and five explicitly supported native unit fields. HQ read credentials cannot prepare bindings."
+        result["paths"]["/internal/analytics/v1/admin/source-contexts/" + owner + "/bindings/{kind}/{id}"] = {"get": prepare}
+
     return result
 
 def main():
