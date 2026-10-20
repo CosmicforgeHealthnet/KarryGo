@@ -8,6 +8,10 @@ assert events, "Missing Media test evidence"
 assert not [e for e in events if e["Action"] == "fail" or e["Action"] == "skip" and e.get("Test")], "Failed/skipped Media tests"
 passed = {e["Test"] for e in events if e["Action"] == "pass" and e.get("Test")}
 required = {
+ "TestPrivateMediaCaseClientUsesFixedPathsAndRejectsUnboundOrRawResponses",
+ "TestPostgresMediaCasePrivateHTTPAndTypedClientEnforceActorScopeAndReplay",
+ "TestPostgresMediaCaseRuntimeSeparatesKeysAndCannotInventAdaptersOrPolicy",
+ "TestMediaCaseRuntimeOffReadsNoCredentialOrPolicyFiles",
  "TestNativeMediaDownloadGrantCannotOutliveEvidenceRevocation",
  "TestExistingDownloadGrantRechecksCurrentSafetyPolicy",
  "TestPostgresMediaCaseGrantBindsStaffCaseSubjectScopeAndNativeObject",
@@ -20,4 +24,4 @@ required = {
  "TestMigrationsReplayAndRollback",
 }
 assert required <= passed, "Mandatory actual Media storage/case/migration tests did not run"
-print(f"{len(passed)} Media cases passed, zero failed/skipped tests; case source adapters and HQ transport remain disabled/unimplemented")
+print(f"{len(passed)} Media cases passed, zero failed/skipped tests; live case source adapters and HQ facade remain disabled/unimplemented")

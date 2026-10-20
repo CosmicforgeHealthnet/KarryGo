@@ -21,6 +21,7 @@ on:
       - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
       - 'shared/go/analyticsadmin/**'
+      - 'shared/go/adminmedia/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
@@ -46,6 +47,7 @@ on:
       - 'shared/go/customerreview/**'
       - 'shared/go/adminread/**'
       - 'shared/go/analyticsadmin/**'
+      - 'shared/go/adminmedia/**'
       - 'shared/go/adminpolicy/**'
       - 'shared/go/adminpolicyenv/**'
       - 'services/analytics-service/internal/features/adminprivacy/**'
@@ -124,8 +126,9 @@ jobs:
           python scripts/admin-bridge/scoped_analytics_contract.py
           go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
-          go test -race -p 1 -json -count=1 -timeout=300s ./services/media-file-service/... > test-artifacts/media-cases.jsonl
+          go test -race -p 1 -json -count=1 -timeout=300s ./services/media-file-service/... ./shared/go/adminmedia/... > test-artifacts/media-cases.jsonl
           python scripts/admin-bridge/media_testgate.py test-artifacts/media-cases.jsonl
+          python scripts/admin-bridge/media_case_contract.py
           python scripts/admin-bridge/validate_owner_wire.py test-artifacts/owner-wire
           python scripts/admin-bridge/owner_contracts.py
           python scripts/admin-bridge/customer_review_contract.py --wire-dir test-artifacts/owner-wire

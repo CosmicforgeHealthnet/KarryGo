@@ -70,3 +70,11 @@ HQ facade remain engineering. Media + each source-case owner + Security/Privacy
 must approve lifetime, allowed source contracts/capabilities, roles, purposes and
 retention. All production values/grants remain empty and **BLOCKED_POLICY**.
 See [the precise framework and limits](../../admin-bridge/media-case-access-framework.md).
+
+
+Media private transport continuation: typed fixed-path HMAC client and native
+HTTP boundary are now tested, default disabled and supplied with no production
+case adapter. Flags/keys cannot replace missing membership proof. The remaining
+engineering dependencies are concrete case/modern-object mapping adapters and HQ
+facade, followed by production workload enrollment/certification and initial
+BLOCKED_POLICY decisions. The JSON matrix reflects this narrower remaining scope.

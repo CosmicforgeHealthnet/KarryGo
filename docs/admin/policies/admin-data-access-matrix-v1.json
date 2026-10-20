@@ -386,12 +386,12 @@
       "privacy": "PROTECTED_EVIDENCE",
       "dependencies": [
         "live source-case adapters and authoritative modern-object membership/remediation contracts",
-        "dedicated private transport, workload enrollment and HQ facade",
+        "production workload enrollment and HQ facade",
         "approved source capabilities/contracts and grant lifetime",
         "reviewed staff roles, purposes, retention and target certification"
       ],
       "approval_status": "BLOCKED_POLICY",
-      "implementation_status": "FRAMEWORK_TESTED_NOT_EXPOSED",
+      "implementation_status": "NATIVE_CORE_AND_PRIVATE_TRANSPORT_TESTED_DOMAIN_ADAPTERS_AND_HQ_PENDING",
       "approved_max_grant_seconds": null,
       "approved_source_capabilities": [],
       "approved_role_grants": [],

@@ -266,3 +266,20 @@ zero skips; source authority remains 99 actual-migration cases from the precedin
 increment. Vet and unchanged v1 contract/wire validation pass. Linux Media race
 coverage is mandatory on the next pushed head. See
 [framework, guarantees and remaining work](media-case-access-framework.md).
+
+
+Media private transport continuation: fixed native POST grant/content/withdrawal
+routes and typed SDK now preserve the native case core through a distinct HMAC
+audience, exact signed metadata/body, durable replay storage, strict bounded JSON,
+no URL token, no redirects/proxy/retry and current actor/request checks. Reads and
+withdrawals have separate default-off controls; key reuse across owner/legacy
+upload/download audiences is rejected. Runtime still enrolls no live case adapter,
+so policy/flags alone cannot disclose bytes. HQ facade and real canonical case /
+modern-object membership or owner-supported remediation remain engineering.
+166 Media/private-client cases pass with zero skips; main Bridge/policy coverage
+remains 292 and owner authority 99. Production builds, vet, standalone source
+OpenAPI and refreshed route classification/drift/register checks pass. The prior
+native-core head 5250846f passed all six workflows, including mandatory Linux Media
+race; current transport-head CI must pass independently. Production approvals,
+keys, grants and lifetimes remain absent. See the
+[private transport configuration](media-case-access-framework.md).

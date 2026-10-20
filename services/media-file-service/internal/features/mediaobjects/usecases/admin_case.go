@@ -13,32 +13,24 @@ import (
 	"cosmicforge/logistics/services/media-file-service/internal/features/mediaobjects/models"
 	"cosmicforge/logistics/services/media-file-service/internal/platform/audit"
 	"cosmicforge/logistics/shared/go/admincontext"
+	"cosmicforge/logistics/shared/go/adminmedia"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-const CaseContentPermission = "media.case.content.read"
-const CaseContentContract = "media.admin-case-content.v1"
+const CaseContentPermission = adminmedia.Permission
+const CaseContentContract = adminmedia.Contract
 
 // CaseActor must come from the existing authenticated staff boundary, never
-// from an end-user JSON body. No HTTP endpoint enrolls this framework yet.
+// from an end-user JSON body. The private transport accepts metadata only
+// from its separately credentialed, trusted Bridge workload.
 type CaseActor struct {
 	Delegation adminpolicy.Actor
 	ExpiresAt  time.Time
 }
-type CaseRequest struct {
-	Scope            adminpolicy.Scope `json:"scope"`
-	Purpose          string            `json:"purpose"`
-	SourceCapability string            `json:"source_capability"`
-	CaseOwner        string            `json:"case_owner"`
-	CaseKind         string            `json:"case_kind"`
-	CaseReference    string            `json:"case_reference"`
-	SubjectType      string            `json:"subject_type"`
-	SubjectReference string            `json:"subject_reference"`
-	MediaObjectID    string            `json:"media_object_id"`
-}
+type CaseRequest = adminmedia.Request
 
 // CaseProof comes from a live authoritative case adapter. Caller-supplied
 // object IDs, tenant labels and legacy media_assets references are not proof.
@@ -61,13 +53,10 @@ type CaseAccessService struct {
 	media  *Service
 	config CaseAccessConfig
 }
-type CaseGrant struct {
-	ID, Token, MediaObjectID string
-	ExpiresAt                time.Time
-}
+type CaseGrant = adminmedia.Grant
 
-// NewCaseAccess is deliberately not wired to runtime or an ambient owner API.
-// Concrete source adapters, private transport and approved policy are pending.
+// NewCaseAccess uses a separate private transport and credential audience.
+// Concrete production source adapters and approved policy remain pending.
 // Default configuration denies before reading the ledger or any object bytes.
 func (s *Service) NewCaseAccess(config CaseAccessConfig) *CaseAccessService {
 	return &CaseAccessService{media: s, config: config}
@@ -206,7 +195,7 @@ func (s *CaseAccessService) Issue(ctx context.Context, actor CaseActor, q CaseRe
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return &CaseGrant{ID: id, Token: token, MediaObjectID: object.ID, ExpiresAt: expires}, nil
+	return &CaseGrant{ContractVersion: CaseContentContract, ID: id, Token: token, MediaObjectID: object.ID, ExpiresAt: expires}, nil
 }
 func (s *CaseAccessService) Read(ctx context.Context, actor CaseActor, q CaseRequest, id, token string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
