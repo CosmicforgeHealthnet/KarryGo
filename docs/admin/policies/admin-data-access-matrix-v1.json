@@ -486,6 +486,31 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "analytics.scoped.readiness-components.read",
+      "owner": "analytics-service",
+      "canonical_source_fields": [
+        "native Vendor PROCESSED vendor_order readiness events with independently signed scope",
+        "recorded branch_id or canonical native order identity; explicit unit selection",
+        "on_time/lateness_seconds/prep_seconds; no bucket cohort inference"
+      ],
+      "proposed_rule": "Intersect delegated five-scope access, independent current Vendor allocations and dedicated governance. Bounded partial native components always suppressed; frozen original membership rechecked. Internal source only, unregistered; no HQ route.",
+      "privacy": "AGGREGATE_SENSITIVE",
+      "responsible_owner": [
+        "Vendor",
+        "Analytics",
+        "Security/Privacy"
+      ],
+      "dependencies": [
+        "Complete verifiable owner cohort export and integration",
+        "Scoped source HTTP/SDK/HQ transport",
+        "Approved privacy unit, components/derived metrics, rounding, freshness and reconstruction rules"
+      ],
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

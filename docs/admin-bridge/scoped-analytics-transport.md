@@ -153,3 +153,13 @@ TEST_ONLY allocation before the native test installs its ephemeral authority.
 Validation: 313 combined Bridge/Taxi/Analytics/policy cases passed with no skips;
 final Analytics/SDK regressions also pass. Source route capture/classification,
 OpenAPI drift and route-register checks have zero violations/stale entries.
+
+
+A private readiness component Source adapter is now implemented and tested over
+native Vendor order facts for explicitly selected branch/order units. It remains
+unregistered, always partial and fully suppressed; it implements no score or HQ
+readiness route. Native timing unknowns deny, distinct units are deduplicated and
+frozen original-member revocation is enforced. See the
+[precise remaining dependencies](readiness-cohort-reducer.md). Eight other report
+reducers and nine non-mission scoped report transports remain engineering work,
+along with complete verifiable owner membership exports for all reports.

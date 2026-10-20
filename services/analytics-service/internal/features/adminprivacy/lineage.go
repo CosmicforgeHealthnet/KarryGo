@@ -150,6 +150,12 @@ func (r LineageReader) ReadUnit(ctx context.Context, tx pgx.Tx, report, field, e
 		switch out.EntityType {
 		case "booking", "taxi_booking", "taxi_goods_mission", "haulage_booking", "trip", "dispatch_booking", "delivery_mission":
 			family = "SOURCE_ENTITY." + out.EntityType
+
+		case "vendor_order":
+			if report != "readiness" || expected != "vendor-service" {
+				return LineageFact{}, ErrUnmapped
+			}
+			family = "SOURCE_ENTITY.vendor_order"
 		case "recovery_case", "delivery_recovery_action":
 			family = "SOURCE_ENTITY." + out.EntityType
 		default:

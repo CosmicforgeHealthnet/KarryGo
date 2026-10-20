@@ -26,7 +26,7 @@ the available specification; the named A-to-Z PDF was not supplied.
 
 | Section | Actual result | Evidence | Status / outstanding |
 |---|---|---|---|
-| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first scoped partial counts source/SDK/HQ facade, audited producer binding preparation/publication; durable suppression/audit/reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Rate projection implemented over disclosed counts but withheld by the partial native source. Complete membership exports and remaining nine reducers/routes missing; production dormant |
+| 6 Analytics | Ten fixed-path legacy clients, native lineage validator, first scoped partial counts source/SDK/HQ facade, private Vendor readiness component reducer, audited producer binding preparation/publication; durable suppression/audit/reconstruction guard | Real PostgreSQL concurrency, frozen release, filter restriction, suppression and audit-failure tests | FRAMEWORK_TESTED / BLOCKED_POLICY. First counts-only scoped native/SDK/HQ transport tested with every value withheld. Rate projection implemented over disclosed counts but withheld by the partial native source. Complete membership exports, eight other reducers and nine non-mission scoped report transports missing; production dormant |
 | 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
 | 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return, minimal secure-handover state and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
@@ -569,3 +569,19 @@ TEST_ONLY allocation before the native test installs its ephemeral authority.
 Validation: 313 combined Bridge/Taxi/Analytics/policy cases passed with no skips;
 final Analytics/SDK regressions also pass. Source route capture/classification,
 OpenAPI drift and route-register checks have zero violations/stale entries.
+
+
+A private readiness component Source adapter is now implemented and tested over
+native Vendor order facts for explicitly selected branch/order units. It remains
+unregistered, always partial and fully suppressed; it implements no score or HQ
+readiness route. Native timing unknowns deny, distinct units are deduplicated and
+frozen original-member revocation is enforced. See the
+[precise remaining dependencies](readiness-cohort-reducer.md). Eight other report
+reducers and nine non-mission scoped report transports remain engineering work,
+along with complete verifiable owner membership exports for all reports.
+
+
+Readiness reducer validation: 317 combined Bridge/Taxi/Analytics/policy test cases
+passed with real PostgreSQL, zero skips, plus Go vet, deterministic contracts and
+independent actual-wire validation. Mandatory Linux race/acceptance remains a
+separate current-head CI gate. No production capability is enabled by this result.

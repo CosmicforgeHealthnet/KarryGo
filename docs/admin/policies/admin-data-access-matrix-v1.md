@@ -114,3 +114,11 @@ scope dimensions remain empty until independently allocated. This grants no HQ
 report and asserts no complete cohort. Native owner export/membership validation,
 scoped reporting and production policy approval remain **BLOCKED_POLICY** / missing
 engineering, as recorded in the JSON matrix. No production grants are supplied.
+
+
+`analytics.scoped.readiness-components.read` is an internal, unregistered
+component reducer with a separate source contract. Branch/order cohort units
+are explicit candidates awaiting approval. Native components always remain
+partial and suppressed. Complete owner exports, scoped source/SDK/HQ transport
+and disclosure decisions remain dependencies; all grants are empty and
+**BLOCKED_POLICY**. See [the reducer contract](../../admin-bridge/readiness-cohort-reducer.md).
