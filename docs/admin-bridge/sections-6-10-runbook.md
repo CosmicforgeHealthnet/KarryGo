@@ -213,3 +213,14 @@ Scoped counts-only mission-success transport is implemented with mandatory parti
 suppression and distinct report approval. All values remain null. Production
 activation remains BLOCKED_POLICY; complete memberships, producer publication and
 rate reduction are incomplete. Configuration and exact limits: [transport runbook](scoped-analytics-transport.md).
+
+
+Producer lineage ingestion continuation: three fixed, default-disabled per-owner
+publication endpoints and a typed SDK now receive independently signed allocations
+and revocations without direct database writes. Distinct publication credentials
+cannot read reports; report kill gates do not prevent revocation ingestion. Native
+binding validation, monotonic revisions, durable nonces and immutable atomic
+history/head preserve existing boundaries. A failed evidence insert changes no
+head. The first native source test now uses the actual publication SDK/HTTP before
+native report HTTP/SDK validation. Complete exports, owner approval issuance,
+binding preparation, producer integration and production policy remain missing.

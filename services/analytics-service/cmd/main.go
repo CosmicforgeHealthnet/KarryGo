@@ -70,6 +70,11 @@ func main() {
 		panic("scoped Analytics configuration refused")
 	}
 
+	lineagePublisher, err := adminprivacy.PublisherRuntime(ctx, db, serviceauth.ParseSecrets(cfg.ServiceSecrets), scopedAnalytics.Secret)
+	if err != nil {
+		panic("Analytics lineage publisher configuration refused")
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "analytics-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -92,6 +97,7 @@ func main() {
 		},
 		RegisterRoot: func(router *gin.Engine) {
 			scopedAnalytics.Register(router)
+			lineagePublisher.Register(router)
 			commercehttp.RegisterInternalRoutes(router, handler)
 			networkhttp.RegisterInternalRoutes(router, networkHandler)
 		},

@@ -17,6 +17,7 @@ import (
 	"cosmicforge/logistics/services/analytics-service/internal/features/networkanalytics/usecases"
 	"cosmicforge/logistics/shared/go/admincontext"
 	contextfixture "cosmicforge/logistics/shared/go/admincontext/testfixture"
+	"cosmicforge/logistics/shared/go/adminowner"
 	"cosmicforge/logistics/shared/go/adminread"
 	"cosmicforge/logistics/shared/go/analyticsadmin"
 	"cosmicforge/logistics/shared/go/events"
@@ -42,6 +43,17 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 	fixture.Sign(t)
 	reader := LineageReader{Owner: owner}
 	store := admincontext.Store{DB: db, Reader: reader, Authority: issuer.Authority}
+	publishKey := bytes.Repeat([]byte{94}, 32)
+	publisher := &LineagePublisher{handlers: map[string]*adminowner.Handler{owner: {Owner: owner, DB: db, PublishEnabled: true, PublishSecret: publishKey, Contexts: &store}}}
+	publicationHTTP := gin.New()
+	publisher.Register(publicationHTTP)
+	publicationServer := httptest.NewServer(publicationHTTP)
+	defer publicationServer.Close()
+	publicationClient, err := analyticsadmin.NewPublisherClient(publicationServer.URL, owner, publishKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer publicationClient.Close()
 	kind, _ := LineageKind("mission-success", "provider_id")
 	native := usecases.NewService(repositories.NewRepository(db))
 	payload, _ := json.Marshal(map[string]any{"provider_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"})
@@ -62,8 +74,8 @@ func TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncom
 		}
 		approval := issuer.Approval("allocation-"+id, kind, id, "analytics.cohorts.mission-success.export", binding, q.Scope)
 		lastApproval = approval
-		if err := store.Import(ctx, issuer.Sign(t, approval), time.Now()); err != nil {
-			t.Fatal(err)
+		if err := publicationClient.Publish(ctx, issuer.Sign(t, approval)); err != nil {
+			t.Fatal("producer SDK publication", err)
 		}
 	}
 	tx, err := db.Begin(ctx)

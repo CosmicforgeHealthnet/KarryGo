@@ -55,38 +55,9 @@ func Runtime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.Secrets) 
 			return nil, errors.New("invalid native Analytics unit selector")
 		}
 	}
-	authorities := map[string]admincontext.Authority{}
-	if path := os.Getenv("ANALYTICS_ADMIN_SOURCE_CONTEXT_KEYS_FILE"); path != "" {
-		raw, err := os.ReadFile(path)
-		if err != nil || len(raw) > 65536 {
-			return nil, errors.New("Analytics source authority keys unavailable")
-		}
-		var keys map[string]map[string]string
-		d := json.NewDecoder(bytes.NewReader(raw))
-		if uniqueKeyMap(d, 0) != nil {
-			return nil, errors.New("duplicate or malformed Analytics source authorities")
-		}
-		if _, err := d.Token(); err != io.EOF {
-			return nil, errors.New("multiple Analytics source authority documents")
-		}
-		if json.Unmarshal(raw, &keys) != nil || keys == nil || len(keys) > 3 {
-			return nil, errors.New("invalid Analytics source authorities")
-		}
-		for owner, values := range keys {
-			canonical, _ := canonicalLineageOwner(owner)
-			if canonical == "" || canonical != owner || owner == "vendor-service" || len(values) == 0 || len(values) > 32 {
-				return nil, errors.New("unmapped Analytics source authority")
-			}
-			authority := admincontext.Authority{Owner: owner, Environment: adminpolicyenv.Environment, Keys: map[string]ed25519.PublicKey{}}
-			for id, encoded := range values {
-				key, err := base64.RawURLEncoding.DecodeString(encoded)
-				if err != nil || len(key) != ed25519.PublicKeySize || !adminread.Opaque(id) {
-					return nil, errors.New("invalid Analytics source authority key")
-				}
-				authority.Keys[id] = ed25519.PublicKey(key)
-			}
-			authorities[owner] = authority
-		}
+	authorities, err := sourceAuthorities(os.Getenv("ANALYTICS_ADMIN_SOURCE_CONTEXT_KEYS_FILE"))
+	if err != nil {
+		return nil, err
 	}
 	source := &MissionSuccessSource{Authorities: authorities, UnitField: field}
 	if policy != nil {
@@ -140,4 +111,41 @@ func uniqueKeyMap(d *json.Decoder, depth int) error {
 		return errors.New("invalid authority key value")
 	}
 	return nil
+}
+
+func sourceAuthorities(path string) (map[string]admincontext.Authority, error) {
+	authorities := map[string]admincontext.Authority{}
+	if path != "" {
+		raw, err := os.ReadFile(path)
+		if err != nil || len(raw) > 65536 {
+			return nil, errors.New("Analytics source authority keys unavailable")
+		}
+		var keys map[string]map[string]string
+		d := json.NewDecoder(bytes.NewReader(raw))
+		if uniqueKeyMap(d, 0) != nil {
+			return nil, errors.New("duplicate or malformed Analytics source authorities")
+		}
+		if _, err := d.Token(); err != io.EOF {
+			return nil, errors.New("multiple Analytics source authority documents")
+		}
+		if json.Unmarshal(raw, &keys) != nil || keys == nil || len(keys) > 3 {
+			return nil, errors.New("invalid Analytics source authorities")
+		}
+		for owner, values := range keys {
+			canonical, _ := canonicalLineageOwner(owner)
+			if canonical == "" || canonical != owner || owner == "vendor-service" || len(values) == 0 || len(values) > 32 {
+				return nil, errors.New("unmapped Analytics source authority")
+			}
+			authority := admincontext.Authority{Owner: owner, Environment: adminpolicyenv.Environment, Keys: map[string]ed25519.PublicKey{}}
+			for id, encoded := range values {
+				key, err := base64.RawURLEncoding.DecodeString(encoded)
+				if err != nil || len(key) != ed25519.PublicKeySize || !adminread.Opaque(id) {
+					return nil, errors.New("invalid Analytics source authority key")
+				}
+				authority.Keys[id] = ed25519.PublicKey(key)
+			}
+			authorities[owner] = authority
+		}
+	}
+	return authorities, nil
 }

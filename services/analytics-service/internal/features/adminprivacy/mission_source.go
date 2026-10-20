@@ -20,7 +20,7 @@ import (
 // canonical native events. It intentionally never claims complete membership:
 // a source-owned coverage/export contract is still required before any values
 // can be disclosed. No legacy aggregate, bucket count or query tuple is used
-// as a privacy cohort. This adapter is not registered in a production runtime.
+// as a privacy cohort. Runtime registration is default-disabled and requires approval.
 type MissionSuccessSource struct {
 	Authorities map[string]admincontext.Authority
 	UnitField   string // explicit approved field; no default privacy-unit choice

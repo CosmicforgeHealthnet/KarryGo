@@ -408,3 +408,20 @@ publication, success-rate reduction, nine other reducers/routes and deployed
 certification remain engineering work; all governance gaps remain BLOCKED_POLICY.
 See [operator configuration](scoped-analytics-transport.md). Linux race CI must
 pass on the pushed head before this increment is certified.
+
+
+Producer lineage ingestion continuation: three fixed, default-disabled per-owner
+publication endpoints and a typed SDK now receive independently signed allocations
+and revocations without direct database writes. Distinct publication credentials
+cannot read reports; report kill gates do not prevent revocation ingestion. Native
+binding validation, monotonic revisions, durable nonces and immutable atomic
+history/head preserve existing boundaries. A failed evidence insert changes no
+head. The first native source test now uses the actual publication SDK/HTTP before
+native report HTTP/SDK validation. Complete exports, owner approval issuance,
+binding preparation, producer integration and production policy remain missing.
+
+Publication increment validation: 275 local Bridge/Taxi/privacy/policy/SDK cases
+pass with zero skips, including producer HTTP/SDK, revocation, stale revision,
+credential audience and atomic history failure scenarios. Generated source/Bridge
+contracts, actual source/HQ wire schemas, architecture and changed-package vet
+pass. Linux race CI remains required on this increment; no production activation.

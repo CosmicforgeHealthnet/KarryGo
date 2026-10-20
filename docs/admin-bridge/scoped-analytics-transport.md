@@ -49,3 +49,26 @@ adapters and their scoped routes, and end-to-end environment certification.
 Privacy/Analytics and source owners must approve units, mappings, suppression,
 composition, freshness and release semantics before any production activation.
 Never synthesize missing membership or retry a denied release under a fresh key.
+
+## Producer allocation ingestion
+
+Normal migration 009 adds durable publication nonce storage. Native fixed POSTs
+`/internal/analytics/v1/admin/source-contexts/{canonical-owner}` are available only
+for driver-taxi-service, driver-dispatch-delivery-service and driver-hauling-service.
+They require `ANALYTICS_ADMIN_CONTEXT_PUBLISH_ENABLED=true`, pinned producer public
+keys in the existing source-context keys file, and
+`ANALYTICS_ADMIN_CONTEXT_PUBLISH_SECRETS_FILE`: a JSON object mapping exactly those
+configured owners to distinct raw base64url workload secrets of at least 32 bytes.
+Every secret must differ from the scoped read key, legacy keys and other publishers.
+Caller identity is `owner-authorization-context-publisher`; HQ read identity fails.
+Publication stays independent of the report read kill gate so revocations can land.
+
+The typed `analyticsadmin.PublisherClient` sends only an already signed envelope to
+its fixed canonical owner path, with a fresh HMAC and no automatic retries. Maximum
+body is 32 KiB. The receiver checks the independent owner signature, environment,
+expiry, native PROCESSED event/unit fingerprint and monotonic context revision.
+History and current head commit atomically; revocation blocks subsequent source
+resolution and cannot be undone by an older allocation. History failure rolls back
+the head. This ingestion endpoint issues no signatures, source mappings or complete
+coverage assertion. Owner-side approval issuance, binding preparation and automated
+producer export/publication integration still require engineering and governance.

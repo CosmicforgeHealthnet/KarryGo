@@ -429,6 +429,597 @@
           }
         }
       }
+    },
+    "/internal/analytics/v1/admin/source-contexts/driver-taxi-service": {
+      "post": {
+        "operationId": "analytics.lineage.publish.driver-taxi-service",
+        "description": "Default off, independent of report reads. Verify this producer's signature against immutable PROCESSED native event identity/unit fingerprint; atomically record monotonic context history/head. Signed revocations remain ingestible when report reads are killed. No membership completeness assertion or approval issuance. Body maximum 32 KiB.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "RECORDED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "document": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "owner": {
+                        "const": "driver-taxi-service"
+                      },
+                      "environment": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "source_contract": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "provenance_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "approval_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "schema_version": {
+                        "const": 1
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "binding_fingerprint": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "type": "string"
+                          },
+                          "market": {
+                            "type": "string"
+                          },
+                          "zone": {
+                            "type": "string"
+                          },
+                          "organization": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "minItems": 1,
+                        "maxItems": 32
+                      },
+                      "effective_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "owner",
+                      "environment",
+                      "state",
+                      "resource_kind",
+                      "resource_ref",
+                      "source_contract",
+                      "provenance_ref",
+                      "approval_ref",
+                      "schema_version",
+                      "revision",
+                      "binding_fingerprint",
+                      "scope",
+                      "capabilities",
+                      "effective_at",
+                      "expires_at"
+                    ]
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "document",
+                  "key_id",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
+    },
+    "/internal/analytics/v1/admin/source-contexts/driver-dispatch-delivery-service": {
+      "post": {
+        "operationId": "analytics.lineage.publish.driver-dispatch-delivery-service",
+        "description": "Default off, independent of report reads. Verify this producer's signature against immutable PROCESSED native event identity/unit fingerprint; atomically record monotonic context history/head. Signed revocations remain ingestible when report reads are killed. No membership completeness assertion or approval issuance. Body maximum 32 KiB.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "RECORDED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "document": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "owner": {
+                        "const": "driver-dispatch-delivery-service"
+                      },
+                      "environment": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "source_contract": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "provenance_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "approval_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "schema_version": {
+                        "const": 1
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "binding_fingerprint": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "type": "string"
+                          },
+                          "market": {
+                            "type": "string"
+                          },
+                          "zone": {
+                            "type": "string"
+                          },
+                          "organization": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "minItems": 1,
+                        "maxItems": 32
+                      },
+                      "effective_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "owner",
+                      "environment",
+                      "state",
+                      "resource_kind",
+                      "resource_ref",
+                      "source_contract",
+                      "provenance_ref",
+                      "approval_ref",
+                      "schema_version",
+                      "revision",
+                      "binding_fingerprint",
+                      "scope",
+                      "capabilities",
+                      "effective_at",
+                      "expires_at"
+                    ]
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "document",
+                  "key_id",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
+    },
+    "/internal/analytics/v1/admin/source-contexts/driver-hauling-service": {
+      "post": {
+        "operationId": "analytics.lineage.publish.driver-hauling-service",
+        "description": "Default off, independent of report reads. Verify this producer's signature against immutable PROCESSED native event identity/unit fingerprint; atomically record monotonic context history/head. Signed revocations remain ingestible when report reads are killed. No membership completeness assertion or approval issuance. Body maximum 32 KiB.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "RECORDED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "document": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "owner": {
+                        "const": "driver-hauling-service"
+                      },
+                      "environment": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "source_contract": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "provenance_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "approval_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "schema_version": {
+                        "const": 1
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "binding_fingerprint": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "type": "string"
+                          },
+                          "market": {
+                            "type": "string"
+                          },
+                          "zone": {
+                            "type": "string"
+                          },
+                          "organization": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "minItems": 1,
+                        "maxItems": 32
+                      },
+                      "effective_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "owner",
+                      "environment",
+                      "state",
+                      "resource_kind",
+                      "resource_ref",
+                      "source_contract",
+                      "provenance_ref",
+                      "approval_ref",
+                      "schema_version",
+                      "revision",
+                      "binding_fingerprint",
+                      "scope",
+                      "capabilities",
+                      "effective_at",
+                      "expires_at"
+                    ]
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "document",
+                  "key_id",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ProducerPublicationHMAC": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -438,6 +1029,12 @@
         "in": "header",
         "name": "X-Service-Signature",
         "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."
+      },
+      "ProducerPublicationHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "Separate per-owner publisher workload secret, caller owner-authorization-context-publisher, exact body/path/query HMAC v2 and durable replay protection. Every document additionally requires an independent Ed25519 signature from the pinned source owner. No HQ authority."
       }
     }
   }

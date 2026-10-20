@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 from contracts import build, string
+from owner_contracts import document as owner_document
 from openapi_spec_validator import validate_spec
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +18,17 @@ def document():
     params += [parameter("limit", {"const": 1})]
     release = build()["openapi.json"]["components"]["schemas"]["ScopedMissionSuccessRelease"]
     op = {"operationId": "analytics.scoped.mission-success.read", "description": "Default off. Dedicated credential, durable nonce, report-specific permission, five-scope governance, independent producer contexts, suppression/reconstruction journal and original-member reauthorization. This is an incomplete counts-only source: complete membership and rate semantics remain engineering work. Current source always returns PARTIAL_COVERAGE with every value withheld; it cannot publish metrics by turning a flag on.", "parameters": params, "responses": {"200": {"description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.", "content": {"application/json": {"schema": release}}}, **{str(code): {"description": "Sanitized denial/unavailable; no release values"} for code in (400, 401, 403, 409, 429, 503)}}}
-    return {"openapi": "3.1.0", "info": {"title": "Analytics private scoped mission-success counts", "version": "1.0.0"}, "security": [{"ScopedServiceHMAC": []}], "paths": {"/internal/analytics/v1/admin/scoped-network/mission-success": {"get": op}}, "components": {"securitySchemes": {"ScopedServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."}}}}
+    result = {"openapi": "3.1.0", "info": {"title": "Analytics private scoped mission-success counts", "version": "1.0.0"}, "security": [{"ScopedServiceHMAC": []}], "paths": {"/internal/analytics/v1/admin/scoped-network/mission-success": {"get": op}}, "components": {"securitySchemes": {"ScopedServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."}}}}
+
+    result["components"]["securitySchemes"]["ProducerPublicationHMAC"] = {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Separate per-owner publisher workload secret, caller owner-authorization-context-publisher, exact body/path/query HMAC v2 and durable replay protection. Every document additionally requires an independent Ed25519 signature from the pinned source owner. No HQ authority."}
+    for owner in ("driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service"):
+        publish = owner_document(owner, "lineage")["paths"]["/internal/lineage/v1/admin/authorization-contexts"]["post"]
+        publish["operationId"] = "analytics.lineage.publish." + owner
+        publish["security"] = [{"ProducerPublicationHMAC": []}]
+        publish["description"] = "Default off, independent of report reads. Verify this producer's signature against immutable PROCESSED native event identity/unit fingerprint; atomically record monotonic context history/head. Signed revocations remain ingestible when report reads are killed. No membership completeness assertion or approval issuance. Body maximum 32 KiB."
+        publish["requestBody"]["content"]["application/json"]["schema"]["properties"]["document"]["properties"]["owner"] = {"const": owner}
+        result["paths"]["/internal/analytics/v1/admin/source-contexts/" + owner] = {"post": publish}
+    return result
 
 def main():
     parser = argparse.ArgumentParser()
