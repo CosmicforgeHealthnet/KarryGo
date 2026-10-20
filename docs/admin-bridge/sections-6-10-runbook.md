@@ -292,7 +292,7 @@ external subject classes, revoked links, replaced membership and foreign tenant
 claims deny. Native state/revision/source revision are observed without exposing
 private source references or claiming global eligibility. Native Apply/Clear are
 not exposed to HQ because some native enforcement spans organizations. The finite
-dictionary now has 25 kinds / 50 resource paths, all default disabled and subject
+dictionary now has 26 kinds / 52 resource paths, all default disabled and subject
 to BLOCKED_POLICY. Details and command limits are in
 [the read model](hauling-restriction-read-model.md).
 
@@ -311,3 +311,18 @@ Changed-package vet and unchanged v1 contracts pass. Source authority remains 10
 and Media/private-client coverage 166 from their preceding increments. Remaining
 nine Analytics reducers/routes, complete owner exports/integration, production
 privacy approvals and real target certification remain incomplete.
+
+
+Historical Hauling candidate fit reads now have a separate R3 permission and
+source contract. Stored outcomes/captured revisions are minimized and actual
+booking/provider/truck/mission parents are checked. They confer no current fit
+or assignment authority. Independent schema and deny-by-default tests are
+mandatory. All production disclosure remains BLOCKED_POLICY/default disabled;
+see [the exact read model](hauling-fit-decision-read-model.md).
+
+
+Fit-decision validation: 312 Bridge/Taxi/Analytics/policy cases and 113 native
+source-authority scenarios passed with PostgreSQL and zero skips, followed by
+the targeted unknown-policy/null-truck regression. Independent native HTTP wire,
+OpenAPI determinism, unchanged earlier v1 schema checks and Go vet passed.
+Local Windows execution does not replace mandatory Linux race acceptance.

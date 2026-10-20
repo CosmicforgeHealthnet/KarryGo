@@ -10,6 +10,7 @@ assert not [e for e in events if e["Action"] == "fail" or e["Action"] == "skip" 
 passed = {(e["Package"], e["Test"]) for e in events if e["Action"] == "pass" and e.get("Test")}
 prefix = "cosmicforge/logistics/"
 required = {
+    (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingFitDecisionReadsBindHistoricalCandidateParents"),
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingRestrictionReadsRequireActualSubjectsAndCurrentCanonicalLinks"),
     (prefix + "services/dispatch-delivery-service/internal/features/adminresources", "TestDispatchHandoverStateReadsBindFrozenNativeParentsAndExcludeCredentials"),
     (prefix + "services/taxi-service/internal/features/adminresources", "TestTaxiRecoveryReadsBindNativeParentsAndNeverInferGoodsScope"),

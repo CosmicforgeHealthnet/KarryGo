@@ -57,3 +57,14 @@ assert item["source_version"] == 1 and item["status"] == "APPLIED"
 assert {d["name"] for d in item["dimensions"]} == {"subject_type", "reason"}
 assert "PRIVATE_" not in json.dumps(restriction)
 print("Actual Hauling restriction HTTP output preserves native revision and excludes private provenance")
+
+fit = json.loads((Path(sys.argv[1]) / "hauling-fit-decision.json").read_text(encoding="utf-8"))
+jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker()).validate(fit)
+assert fit["kind"] == "fit-decisions" and fit["owner"] == "driver-hauling-service" and len(fit["items"]) == 1
+item = fit["items"][0]
+assert item["source_version"] is None and item["status"] == "ELIGIBLE"
+assert {d["name"] for d in item["dimensions"]} == {"shadow", "policy_revision"}
+assert item["counters"] == [{"name": "captured_capability_revision", "value": 7}]
+assert {r["kind"] for r in item["references"]} == {"booking", "provider", "truck"}
+assert item["timeline"] == [] and "PRIVATE_" not in json.dumps(fit) and "987654" not in json.dumps(fit)
+print("Actual historical Hauling fit-decision HTTP output excludes private evidence and does not assert current eligibility")

@@ -96,3 +96,12 @@ source contracts. Formula is completed/(completed+failed) from already disclosed
 components, retaining approved rounding; incomplete/stale/suppressed/undefined
 results stay null. The current real native source remains partial, so no rate is
 released. All production grants and definitions remain **BLOCKED_POLICY**.
+
+
+`hauling.fit_decisions.read` (Hauling + Fleet/IAM + Security/Privacy): R3 historical
+candidate outcomes require actual booking/provider/truck/captured mission links,
+canonical planning organization/tenant, explicit independent source allocation
+and dedicated `hauling.admin-fit-decision.v1` governance. Private evidence/distance
+and current eligibility inference are excluded. All roles, scopes, purposes and
+retention await approval: **BLOCKED_POLICY**, no production grants. See the
+[exact source fields and checks](../../admin-bridge/hauling-fit-decision-read-model.md).

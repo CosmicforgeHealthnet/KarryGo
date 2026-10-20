@@ -143,5 +143,13 @@ Hauling now additionally supports `restrictions` under
 current matching organization links are mandatory; replaced/revoked membership
 invalidates prior allocation. Only stored state/provenance counters are exposed,
 with no apply/clear or complete eligibility authority. The finite dictionary is
-now 25 kinds / 50 resource paths. See
+now 26 kinds / 52 resource paths. See
 [the subject and scope checks](hauling-restriction-read-model.md).
+
+
+Historical Hauling candidate fit reads now have a separate R3 permission and
+source contract. Stored outcomes/captured revisions are minimized and actual
+booking/provider/truck/mission parents are checked. They confer no current fit
+or assignment authority. Independent schema and deny-by-default tests are
+mandatory. All production disclosure remains BLOCKED_POLICY/default disabled;
+see [the exact read model](hauling-fit-decision-read-model.md).

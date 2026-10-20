@@ -436,6 +436,31 @@
       "approved_role_grants": [],
       "approved_scope_tuples": [],
       "approval_reference": null
+    },
+    {
+      "capability": "hauling.fit_decisions.read",
+      "owner": "driver-hauling-service",
+      "canonical_source_fields": [
+        "hauling_match_decisions.booking_id/provider_id/truck_id/mission_ref",
+        "haulage_bookings.corporate_organization_id/winner_organization_id",
+        "trucks.provider_id"
+      ],
+      "responsible_owner": [
+        "Hauling",
+        "Fleet/IAM",
+        "Security/Privacy"
+      ],
+      "dependencies": [
+        "Native source parents",
+        "Independent owner allocation",
+        "Dedicated source-contract and role/purpose/retention approval"
+      ],
+      "proposed_rule": "Exact delegated five-scope intersection with approved governance and current independently signed owner context under hauling.admin-fit-decision.v1. Actual historical candidate parents must exist and agree; native planning organization is tenant. Missing/contradictory mappings deny. No current eligibility inference.",
+      "privacy": "R3 RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+      "approval_status": "BLOCKED_POLICY",
+      "approved_role_grants": [],
+      "approved_scope_tuples": [],
+      "approval_reference": null
     }
   ]
 }

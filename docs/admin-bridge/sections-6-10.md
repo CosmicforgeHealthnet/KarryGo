@@ -30,11 +30,12 @@ the available specification; the named A-to-Z PDF was not supplied.
 | 7 Customer | Source-owned directory/sharing-preference/booking-reference/review-state reads; native review intake with durable five-scope Bridge orchestration and immutable GET readback | Actual Customer migrations, source ownership and scope-isolation tests; concurrent no-retry orchestration, real mTLS, audit rollback and runtime-role tests | INTEGRATION_TESTED / BLOCKED_POLICY. Sensitive support/privacy detail and executable lifecycle commands remain engineering work |
 | 8 Taxi | Corporate rides plus provider, vehicle, independent-ride and native passenger/goods recovery reads; signed context publication and binding preparation | Real PostgreSQL owner tests and actual Taxi process behind the mTLS Bridge; revoke/read isolation | INTEGRATION_TESTED / BLOCKED_POLICY. Incidents, executable interventions and Media grants remain engineering work |
 | 9 Dispatch | Rider, motorcycle, mission, incident/recovery/return, minimal secure-handover state and typed multi-stop/custody reads; immutable Fleet assignment and offer decision readbacks | Actual owner migrations, scoped HTTP/schema tests, PostgreSQL/Redis uncertainty and concurrency tests | INTEGRATION_TESTED / BLOCKED_POLICY for HQ disclosure. Intervention commands, richer incident/return detail and Media grants remain engineering work |
-| 10 Hauling/Fleet | Provider/truck/mission reads, recorded physical truck capacity/equipment, native recovery case metadata and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Protected inspections/cargo-fit detail and executable remediation remain engineering work |
+| 10 Hauling/Fleet | Provider/truck/mission reads, recorded physical truck capacity/equipment, native recovery/restriction metadata, historical candidate fit decisions and typed custody inventory; Fleet shipment/private-assignment/execution-link reads; canonical planning tenant checks | Actual five-owner migrations, conflicting/settlement tenant denial, scoped custody HTTP/schema tests | INTEGRATION_TESTED / BLOCKED_POLICY. Protected inspections, richer cargo-fit detail and executable remediation remain engineering work |
 
-Crosscutting Media: native case enforcement/ledger is tested but unexposed. Native
-safety and revocation repairs preserve established owner APIs. Live case adapters,
-dedicated private transport and HQ orchestration remain engineering; initial
+Crosscutting Media: native case enforcement/ledger, fixed-path typed SDK and
+private signed HTTP boundary are tested and default disabled. Native safety and
+revocation repairs preserve established owner APIs. Live case adapters, canonical
+modern-object membership/remediation and HQ orchestration remain engineering;
 production grants and lifetime/source-capability policy remain BLOCKED_POLICY.
 
 The initial source-by-source assessment is in
@@ -81,7 +82,9 @@ every lifecycle update; it must not be used for administrative writes.
 
 ### Command catalog
 
-No new HQ command is executable. Existing `/operations` persists a durable
+Customer review intake is executable only behind its default-disabled owner and
+Bridge switches and approved current authorization; it changes no account
+standing. The generic `/operations` path persists a durable
 REJECTED record with `capability_blocked`; it does not execute an owner action.
 
 | Command family | State | Gate before implementation/enablement |
@@ -506,7 +509,7 @@ external subject classes, revoked links, replaced membership and foreign tenant
 claims deny. Native state/revision/source revision are observed without exposing
 private source references or claiming global eligibility. Native Apply/Clear are
 not exposed to HQ because some native enforcement spans organizations. The finite
-dictionary now has 25 kinds / 50 resource paths, all default disabled and subject
+dictionary now has 26 kinds / 52 resource paths, all default disabled and subject
 to BLOCKED_POLICY. Details and command limits are in
 [the read model](hauling-restriction-read-model.md).
 
@@ -531,3 +534,18 @@ Changed-package vet and unchanged v1 contracts pass. Source authority remains 10
 and Media/private-client coverage 166 from their preceding increments. Remaining
 nine Analytics reducers/routes, complete owner exports/integration, production
 privacy approvals and real target certification remain incomplete.
+
+
+Historical Hauling candidate fit reads now have a separate R3 permission and
+source contract. Stored outcomes/captured revisions are minimized and actual
+booking/provider/truck/mission parents are checked. They confer no current fit
+or assignment authority. Independent schema and deny-by-default tests are
+mandatory. All production disclosure remains BLOCKED_POLICY/default disabled;
+see [the exact read model](hauling-fit-decision-read-model.md).
+
+
+Fit-decision validation: 312 Bridge/Taxi/Analytics/policy cases and 113 native
+source-authority scenarios passed with PostgreSQL and zero skips, followed by
+the targeted unknown-policy/null-truck regression. Independent native HTTP wire,
+OpenAPI determinism, unchanged earlier v1 schema checks and Go vet passed.
+Local Windows execution does not replace mandatory Linux race acceptance.

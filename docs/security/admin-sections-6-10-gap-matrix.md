@@ -55,3 +55,18 @@ Remaining engineering: all ten scoped Analytics cohort adapters/facade; sensitiv
 Customer lifecycle/privacy/support details and commands; richer Taxi/Hauling
 incident/remediation/suitability flows; executable HQ owner interventions; scoped
 Media evidence grants. These are engineering gaps, distinct from BLOCKED_POLICY.
+
+
+## Current continuation: scoped transport and historical fit reads
+
+The current resource dictionary is 26 kinds / 52 fixed list/detail paths.
+Customer review intake/readback, Taxi recovery, Dispatch minimal handover state,
+Hauling restriction and historical fit-decision reads are implemented and tested.
+The first native scoped Analytics counts transport plus a rate projection,
+producer binding preparation and independently signed context publication are
+implemented; complete source membership and nine other reducers/routes remain
+engineering gaps. All current native Analytics values remain withheld.
+Native Media case enforcement, signed private HTTP and typed SDK are tested,
+with live case adapters, canonical object membership and HQ facade still missing.
+The A–G report and focused read-model documents give the current evidence.
+All new HQ production access remains default disabled / BLOCKED_POLICY.

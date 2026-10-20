@@ -1783,5 +1783,57 @@
     ],
     "blocker": "Default disabled; both approved counts and dedicated rate permission/source-contract approvals required. Only derives completed/(completed+failed) from disclosed component counts, retaining approved source rounding. Every partial/stale/suppressed/undefined value stays null. Current native source always partial; complete coverage exports still missing.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
+  },
+  {
+    "id": "hauling.resources.fit-decisions.list",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/fit-decisions",
+    "bridge_endpoint": "/hauling/resources/fit-decisions",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.fit_decisions.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R3",
+    "privacy": "RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestHaulingFitDecisionReadsBindHistoricalCandidateParents"
+    ],
+    "blocker": "Default disabled. Dedicated hauling.admin-fit-decision.v1 approval and current independently signed owner context required. Actual booking/provider/truck and captured mission parents must agree. Historical outcome only; no current eligibility, recomputation, raw evidence or distance disclosure.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "hauling.resources.fit-decisions.detail",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/fit-decisions/{id}",
+    "bridge_endpoint": "/hauling/resources/fit-decisions/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.fit_decisions.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R3",
+    "privacy": "RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "authenticated staff purpose; immutable owner disclosure audit and bridge audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestActualOwnerMigrationsAndSourceDictionary",
+      "TestPostgresOwnerReadScopedPaginationRevocationAndMinimization",
+      "TestOwnerResourcesDelegation",
+      "TestHaulingFitDecisionReadsBindHistoricalCandidateParents"
+    ],
+    "blocker": "Default disabled. Dedicated hauling.admin-fit-decision.v1 approval and current independently signed owner context required. Actual booking/provider/truck and captured mission parents must agree. Historical outcome only; no current eligibility, recomputation, raw evidence or distance disclosure.",
+    "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
   }
 ]

@@ -10,6 +10,7 @@ const Owner = "driver-hauling-service"
 
 func Source() *adminowner.SQLSource {
 	return adminowner.NewSQLSource(Owner, map[string]adminowner.SQLSpec{
+		"fit-decisions":    fitDecisionSource(),
 		"restrictions":     restrictionSource(),
 		"custody-missions": {Table: "custody_mission_state", BindingExpression: `jsonb_build_object('tenant',t.tenant_ref,'source_tenant',m.tenant_ref,'authority',m.authority,'custody_mode',m.custody_mode)`, VersionColumn: "version", ReferenceExpression: "t.mission_ref", JoinClause: "JOIN custody_missions m ON m.mission_ref=t.mission_ref", CreatedAtExpression: "m.created_at", StateColumn: "status", TenantColumn: "tenant_ref", Predicate: "t.tenant_ref=m.tenant_ref", BindingColumns: []string{"tenant_ref"}, Dimensions: map[string]string{"phase": "status", "handover": "", "return": ""}, References: map[string]string{"mission": "mission_ref"}, TimelineTable: "custody_operations", TimelineParentColumn: "mission_ref", TimelineTypeColumn: "operation_type", TimelineRefExpression: "e.operation_ref", TimelineTimeColumn: "created_at"},
 		"providers":        {Table: "truck_providers", DimensionQuery: `SELECT jsonb_build_object('availability',(SELECT state FROM hauling_provider_availability WHERE provider_id::text=$1))`, StateColumn: "status", Dimensions: map[string]string{"account": "status", "onboarding": "onboarding_status", "identity_verification": "", "vehicle_verification": "", "document_compliance": "", "eligibility": "", "availability": "", "license_expiry": "license_expiry_date"}},

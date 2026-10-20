@@ -38,6 +38,7 @@ func Profiles() []Profile {
 			"custody-missions":    makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
+			"fit-decisions":    makeDef("hauling", "fit-decisions", "hauling.fit_decisions.read", []string{"shadow", "policy_revision"}, []string{"captured_capability_revision"}, []string{"booking", "provider", "truck", "mission"}),
 			"restrictions":     makeDef("hauling", "restrictions", "hauling.restrictions.read", []string{"subject_type", "reason"}, []string{"source_revision"}, []string{"subject"}),
 			"custody-missions": makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 			"providers":        makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
@@ -63,6 +64,9 @@ func Profiles() []Profile {
 			profiles[i].Definitions["review-states"] = definition
 		}
 		if profiles[i].Domain == "hauling" {
+			fit := profiles[i].Definitions["fit-decisions"]
+			fit.SourceContract = "hauling.admin-fit-decision.v1"
+			profiles[i].Definitions["fit-decisions"] = fit
 			restriction := profiles[i].Definitions["restrictions"]
 			restriction.SourceContract = "hauling.admin-authority-restriction.v1"
 			profiles[i].Definitions["restrictions"] = restriction
