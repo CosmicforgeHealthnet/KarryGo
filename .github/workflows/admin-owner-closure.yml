@@ -7,54 +7,8 @@ on:
         required: true
         type: string
   pull_request:
-    paths:
-      - 'services/admin-backoffice-service/**'
-      - 'services/customer-service/**'
-      - 'services/driver-hauling-service/**'
-      - 'shared/go/admincontext/**'
-      - 'shared/go/adminowner/**'
-      - 'services/driver-taxi-service/**'
-      - 'services/driver-dispatch-delivery-service/**'
-      - 'services/fleet-partner-service/**'
-      - 'services/media-file-service/**'
-      - 'shared/go/providerreceipt/**'
-      - 'shared/go/customerreview/**'
-      - 'shared/go/adminread/**'
-      - 'shared/go/analyticsadmin/**'
-      - 'shared/go/adminmedia/**'
-      - 'shared/go/adminpolicy/**'
-      - 'shared/go/adminpolicyenv/**'
-      - 'services/analytics-service/internal/features/adminprivacy/**'
-      - 'services/analytics-service/cmd/**'
-      - 'services/analytics-service/migrations/**'
-      - 'docs/admin/policies/**'
-      - 'shared/go/serviceauth/**'
-      - 'scripts/admin-bridge/**'
-      - '.github/workflows/admin-owner-closure.yml'
   push:
     branches: [staging]
-    paths:
-      - 'services/admin-backoffice-service/**'
-      - 'services/customer-service/**'
-      - 'services/driver-hauling-service/**'
-      - 'shared/go/admincontext/**'
-      - 'shared/go/adminowner/**'
-      - 'services/driver-taxi-service/**'
-      - 'services/driver-dispatch-delivery-service/**'
-      - 'services/fleet-partner-service/**'
-      - 'services/media-file-service/**'
-      - 'shared/go/providerreceipt/**'
-      - 'shared/go/customerreview/**'
-      - 'shared/go/adminread/**'
-      - 'shared/go/analyticsadmin/**'
-      - 'shared/go/adminmedia/**'
-      - 'shared/go/adminpolicy/**'
-      - 'shared/go/adminpolicyenv/**'
-      - 'services/analytics-service/internal/features/adminprivacy/**'
-      - 'services/analytics-service/cmd/**'
-      - 'services/analytics-service/migrations/**'
-      - 'docs/admin/policies/**'
-      - '.github/workflows/admin-owner-closure.yml'
 permissions:
   contents: read
 concurrency:

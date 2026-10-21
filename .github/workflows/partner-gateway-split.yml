@@ -7,18 +7,8 @@ on:
         required: true
         type: string
   pull_request:
-    paths:
-      - 'services/partner-web-service/**'
-      - 'services/api-gateway/**'
-      - 'deploy/platform/**'
-      - 'go.work'
-      - '.github/workflows/partner-gateway-split.yml'
   push:
     branches: [staging]
-    paths:
-      - 'services/partner-web-service/**'
-      - 'services/api-gateway/**'
-      - 'go.work'
 permissions:
   contents: read
 jobs:

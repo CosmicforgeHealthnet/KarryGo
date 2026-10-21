@@ -8,10 +8,6 @@ on:
         required: true
         type: string
   pull_request:
-    paths:
-      - 'services/vendor-service/**'
-      - 'shared/go/**'
-      - '.github/workflows/vendor-section46-48.yml'
   push:
     branches: [staging]
 

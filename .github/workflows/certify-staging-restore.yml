@@ -1,0 +1,62 @@
+name: Certify operator staging restore evidence
+# Records reviewed operator evidence; DOES NOT connect to a server or restore it.
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current staging SHA
+        required: true
+        type: string
+      services:
+        description: Exact explicitly certified service keys
+        required: true
+        type: string
+      restore_manifest:
+        description: JSON from actual isolated restore of staging backup, with operator compatibility attestation
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: staging-release-runtime
+  cancel-in-progress: false
+jobs:
+  certify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    permissions:
+      contents: read
+      actions: read
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_SERVICES: ${{ inputs.services }}
+      RESTORE_MANIFEST: ${{ inputs.restore_manifest }}
+      GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate actual protection, separate approval, actor, CI and operator evidence
+        env:
+          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
+        run: python scripts/release/gate.py --kind certify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-restore-evidence
+          path: restore-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: restore-certification-authorization
+          path: release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false

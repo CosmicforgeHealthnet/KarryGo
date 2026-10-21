@@ -1,5 +1,56 @@
 # Secure Admin staging integration — full implementation report
 
+## Deployment-safety revision — 21 October 2026
+
+This draft continues from `fa66ab5eb9895c7764981ee07068fb81f82d138c`.
+Before edits, the review branch still matched that SHA; remote staging had moved
+to `75aee3c64f6621207286a9699aeceb8f8151379a` (three newer commits). No staging
+merge/rebase or deployment was performed. The original 13 staging-only commits
+remain ancestors. Reassess current staging drift and mergeability before any
+later explicit merge approval.
+
+Both platform and Vendor deployment workflows are now manual-only, with exact
+current staging SHA, explicit service selection, separately verified GitHub
+environment approval, authorized initiator, environment-only credentials, exact
+SHA acceptance and approved restore provenance. Neither push nor CI completion
+automatically deploys owners. Broad selectors, test skipping, workflow reuse and
+Dispatch/Admin/Analytics/Gateway/Partner selectors are rejected. Release images
+are pinned by digest, authorization is rechecked before host access, and evidence
+is preserved before mutation. No Nginx/cutover files or live settings are replaced
+by the new release bundle mechanism. Admin default-disabled flags are retained
+and the release script refuses enabled privileged flags.
+
+The restore helper now propagates every failed command/SQL/validation and requires
+artifact integrity, matching PostgreSQL version and operator-owned semantic
+assertions. A genuine disposable PostgreSQL 18 backup/restore cycle passed locally,
+including preserved audit trigger, migration ledger, original decision identity
+and uncertainty fence. Seven failure scenarios were rejected. The actual Dispatch
+deployment and rollback shell scripts refuse unsafe transitions before host tools.
+There is no automated Dispatch transition; live compatibility/consumer retirement
+and recovery must be certified separately.
+
+**Actual GitHub setting verification:** the staging environment API still showed
+no required reviewers, admin bypass enabled and no branch restriction; the new
+gate independently denied it. Initiator/reviewer identities have been requested,
+not invented. New scoped release credentials, audit token and real staging restore
+evidence have not been provisioned. Consequently the protected release process is
+**BLOCKED_INFRASTRUCTURE**, not operationally certified. No production policy,
+signing identity, access grant, suppression threshold or Media lifetime was added.
+
+All six existing acceptance workflows remain mandatory and now run on every
+PR/staging push; the new Deployment safety acceptance also certifies the exact
+SHA. Fresh CI run IDs/results for the final revision are recorded in draft PR #15
+and the final review evidence rather than copying old-head results here. Until
+those results and actual infrastructure protection are confirmed, the merge and
+runtime decisions remain **NO-GO**. No merge, server deployment, feature enabling,
+Partner/Gateway cutover or Sections 11–15 work is authorized by this report.
+
+See [the deployment gate runbook](../deployment/staging-release-approval.md) for
+exact API configuration instructions, workflow inputs, evidence schema, rollout
+boundaries and Dispatch stop/migrate/verify/start/recovery order.
+
+---
+
 Status: **PREPARED INTEGRATION; NOT MERGED, DEPLOYED OR BACKEND_READY**.
 Date: 2026-10-20. This report describes the integration candidate; current-head
 CI results and its final commit SHA are recorded in its staging-targeted PR.

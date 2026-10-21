@@ -8,24 +8,8 @@ name: Customer V4 backend certification
 
 on:
   pull_request:
-    paths:
-      - 'services/**'
-      - 'shared/go/**'
-      - 'deploy/**'
-      - 'scripts/customer-v4/**'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/customer-v4-certification.yml'
   push:
     branches: [staging, main]
-    paths:
-      - 'services/**'
-      - 'shared/go/**'
-      - 'deploy/**'
-      - 'scripts/customer-v4/**'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/customer-v4-certification.yml'
   workflow_dispatch:
 
 permissions:

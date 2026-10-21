@@ -7,46 +7,8 @@ on:
         required: true
         type: string
   pull_request:
-    paths:
-      - 'services/admin-backoffice-service/**'
-      - 'services/api-gateway/**'
-      - 'services/partner-web-service/**'
-      - 'shared/go/serviceauth/**'
-      - 'shared/go/adminread/**'
-      - 'shared/go/analyticsadmin/**'
-      - 'shared/go/customerreview/**'
-      - 'shared/go/adminpolicy/**'
-      - 'shared/go/adminpolicyenv/**'
-      - 'services/analytics-service/internal/features/adminprivacy/**'
-      - 'services/analytics-service/cmd/**'
-      - 'services/analytics-service/migrations/**'
-      - 'docs/admin/policies/**'
-      - 'services/driver-taxi-service/**'
-      - 'deploy/platform/**'
-      - 'scripts/admin-bridge/**'
-      - '.github/workflows/admin-bridge.yml'
-      - '.github/workflows/deploy-platform.yml'
   push:
     branches: [staging]
-    paths:
-      - 'services/admin-backoffice-service/**'
-      - 'services/api-gateway/**'
-      - 'services/partner-web-service/**'
-      - 'shared/go/serviceauth/**'
-      - 'shared/go/adminread/**'
-      - 'shared/go/analyticsadmin/**'
-      - 'shared/go/customerreview/**'
-      - 'shared/go/adminpolicy/**'
-      - 'shared/go/adminpolicyenv/**'
-      - 'services/analytics-service/internal/features/adminprivacy/**'
-      - 'services/analytics-service/cmd/**'
-      - 'services/analytics-service/migrations/**'
-      - 'docs/admin/policies/**'
-      - 'services/driver-taxi-service/**'
-      - 'deploy/platform/**'
-      - 'scripts/admin-bridge/**'
-      - '.github/workflows/admin-bridge.yml'
-      - '.github/workflows/deploy-platform.yml'
 permissions:
   contents: read
 concurrency:

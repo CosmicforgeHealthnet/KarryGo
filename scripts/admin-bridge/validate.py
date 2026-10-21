@@ -97,15 +97,19 @@ def main():
     assert compose["services"]["migrate"]["env_file"] != app["env_file"]
     nginx = (ROOT / "deploy/platform/nginx/api-gateway.staging.karryam.com.conf").read_text()
     assert nginx.index("location ~* ^/api/v1/admin") < nginx.index("location /api/v1/")
-    workflow = (ROOT / ".github/workflows/deploy-platform.yml").read_text()
-    # The Admin bridge and both cutover-dependent services are not eligible
-    # for automatic pushes or the broad/all deploy selector.
-    assert "grep -vE '^(admin-backoffice-service|api-gateway|partner-web-service)$'" in workflow
-    # Nor can the generic deploy iteration accidentally schedule their images.
-    import re
-    orders = re.findall(r'^\s+order="([^"]+)"', workflow, re.MULTILINE)
-    assert len(orders) == 1
-    assert not {"admin-backoffice-service", "api-gateway", "partner-web-service"}.intersection(orders[0].split())
+    # Manual-only releases replace the old broad auto-deploy planner. Keep the
+    # isolation invariant for BOTH deployment paths, not a historical grep.
+    for name in ("deploy-platform.yml", "deploy-vendor-service.yml"):
+        workflow = yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
+        assert set(workflow["on"]) == {"workflow_dispatch"}
+        assert set(workflow["on"]["workflow_dispatch"]["inputs"]) == {"release_sha", "services", "restore_run_id"}
+        job = workflow["jobs"]["release"]
+        assert job["environment"] == "staging"
+        steps = job["steps"]
+        check = next(i for i, s in enumerate(steps) if "gate.py --kind" in s.get("run", ""))
+        deploy = next(i for i, s in enumerate(steps) if s.get("run") == "python scripts/release/execute.py deploy")
+        assert check < deploy
+        assert "secrets.VPS_" not in str(workflow)
     print(f"OpenAPI 3.1, {len(schemas)} schemas, fixtures, capability states and deployment source checks passed")
 
 if __name__ == "__main__":

@@ -1,331 +1,74 @@
-# Builds, tests and deploys the KarryGo backend services to the VPS.
-#
-# On every push to `staging` it works out which services changed, tests them,
-# builds an image per service tagged with the commit, stores it in GHCR, and
-# deploys it on the server with deploy/platform/bin/deploy-service.sh, which
-# waits for the service to be healthy and rolls back automatically if not.
-#
-# vendor-service keeps its own workflow (deploy-vendor-service.yml).
-# The service list lives in deploy/platform/services.tsv.
-#
-# Required repository secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY.
-# Optional repository variable: PUBLIC_BASE_URL (default below).
-# Full walkthrough: docs/deployment/VPS_DEPLOYMENT_GUIDE.md
-
-name: Deploy platform
-
+name: Deploy platform (explicit approved release)
+# Deliberately NO push, pull_request, workflow_call or workflow_run trigger.
 on:
-  push:
-    branches: [staging]
-    paths:
-      - 'services/**'
-      - 'shared/go/**'
-      - 'deploy/platform/**'
-      - '.github/workflows/deploy-platform.yml'
   workflow_dispatch:
     inputs:
-      services:
-        description: 'Services to deploy: "all", or comma-separated keys from deploy/platform/services.tsv (e.g. customer-service,driver-hauling-service)'
+      release_sha:
+        description: Exact current staging commit (40 lowercase hex characters)
         required: true
-        default: all
-      skip_tests:
-        description: 'Skip the Go tests (emergency use only)'
-        type: boolean
-        default: false
-
-# Only one deploy at a time; a newer push waits instead of cancelling a deploy
-# that is half-way through.
+        type: string
+      services:
+        description: Explicit comma-separated service keys; all and cutovers forbidden
+        required: true
+        type: string
+      restore_run_id:
+        description: Approved successful staging restore certification run for this SHA
+        required: true
+        type: string
+permissions:
+  contents: read
 concurrency:
-  group: deploy-platform-staging
+  group: staging-release-runtime
   cancel-in-progress: false
-
-env:
-  REGISTRY: ghcr.io/cosmicforgehealthnet
-  PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://api-gateway.staging.karryam.com' }}
-
 jobs:
-  plan:
-    name: Work out what changed
+  release:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: staging
     permissions:
       contents: read
-    outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
-      keys: ${{ steps.plan.outputs.keys }}
-      count: ${{ steps.plan.outputs.count }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - id: plan
-        env:
-          EVENT: ${{ github.event_name }}
-          INPUT_SERVICES: ${{ github.event.inputs.services }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          registry=deploy/platform/services.tsv
-          rows="$(grep -vE '^\s*(#|$)' "$registry" | tr -d ' ')"
-          all_keys="$(echo "$rows" | cut -d'|' -f1)"
-
-          if [ "$EVENT" = workflow_dispatch ]; then
-            if [ "$INPUT_SERVICES" = all ]; then
-              selected="$all_keys"
-            else
-              selected="$(echo "$INPUT_SERVICES" | tr ',' '\n' | tr -d ' ' | grep -v '^$')"
-              for k in $selected; do
-                echo "$all_keys" | grep -qxF "$k" || { echo "::error::unknown service '$k'"; exit 1; }
-              done
-            fi
-          else
-            if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \
-               || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-              changed="ALL"
-            else
-              changed="$(git diff --name-only "$BEFORE" "$GITHUB_SHA")"
-            fi
-            # A change to shared code or to the deploy machinery affects every service.
-            if [ "$changed" = ALL ] || echo "$changed" | grep -qE '^(shared/go/|services/Dockerfile$|deploy/platform/bin/|deploy/platform/compose/common\.yml$|deploy/platform/services\.tsv$|\.github/workflows/deploy-platform\.yml$)'; then
-              selected="$all_keys"
-            else
-              selected=""
-              for k in $all_keys; do
-                if echo "$changed" | grep -qE "^(services/$k/|deploy/platform/compose/$k\.yml$)"; then
-                  selected="$selected $k"
-                fi
-              done
-            fi
-          fi
-
-          # Gateway/Partner Web form one stateful cutover: a normal workflow
-          # cannot perform the necessary worker transfer and private callback
-          # rewiring atomically. Reject explicit selectors rather than showing
-          # a green deploy that actually skipped these two services.
-          if [ "$EVENT" = workflow_dispatch ] && [ "$INPUT_SERVICES" != all ]; then
-            for k in $selected; do
-              case "$k" in
-                api-gateway|partner-web-service)
-                  echo "::error::$k requires the separately certified manual Partner Web/Gateway cutover (docs/migrations/partner-web-gateway-split.md)"
-                  exit 1 ;;
-              esac
-            done
-          fi
-
-          # Admin requires an exact manual selector and operator certification;
-          # pushes and the broad "all" selector must never start this bridge.
-          if [ "$EVENT" != workflow_dispatch ] || [ "$INPUT_SERVICES" = all ]; then
-            selected="$(printf '%s\n' $selected | grep -vE '^(admin-backoffice-service|api-gateway|partner-web-service)$' || true)"
-          fi
-
-          matrix="$(for k in $selected; do
-            df="$(echo "$rows" | awk -F'|' -v k="$k" '$1 == k { print $2 }')"
-            [ "$df" = shared ] && df=services/Dockerfile
-            printf '{"key":"%s","dockerfile":"%s"}\n' "$k" "$df"
-          done | jq -sc '.')"
-          count="$(echo "$matrix" | jq length)"
-          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
-          echo "keys=$(echo $selected)" >>"$GITHUB_OUTPUT"
-          echo "count=$count" >>"$GITHUB_OUTPUT"
-          echo "### Services in this run ($count)" >>"$GITHUB_STEP_SUMMARY"
-          for k in $selected; do echo "- $k" >>"$GITHUB_STEP_SUMMARY"; done
-
-  build:
-    # Each service is tested and built in its own job, so one service's failing
-    # tests hold back only that service; the others still build and deploy.
-    name: Test and build ${{ matrix.service.key }}
-    needs: plan
-    if: needs.plan.outputs.count != '0'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
+      actions: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        service: ${{ fromJson(needs.plan.outputs.matrix) }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_SERVICES: ${{ inputs.services }}
+      RESTORE_RUN_ID: ${{ inputs.restore_run_id }}
+      GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        if: github.event.inputs.skip_tests != 'true'
         with:
-          go-version-file: go.work
-          cache-dependency-path: services/${{ matrix.service.key }}/go.sum
-      - name: go vet and go test
-        if: github.event.inputs.skip_tests != 'true'
-        working-directory: services/${{ matrix.service.key }}
-        # Database-backed tests skip themselves here (no test database is
-        # configured); section31-mandatory.yml runs those separately.
-        run: |
-          go vet ./...
-          go test ./...
-
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Independently verify initiator, actual protection, approval, SHA, CI and restore
+        env:
+          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
+        run: python scripts/release/gate.py --kind platform
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      - name: Build approved selection, record immutable image digests (no mutable staging tag)
+        run: python scripts/release/execute.py build
+      - name: Preserve authorization and image evidence BEFORE host mutation
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          file: ${{ matrix.service.dockerfile }}
-          push: true
-          # The commit tag is the one that gets deployed (it never changes, so
-          # it can always be rolled back to). :staging is a convenience label.
-          tags: |
-            ${{ env.REGISTRY }}/${{ matrix.service.key }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ matrix.service.key }}:staging
-          # SERVICE_DIR is used by the shared Dockerfile and ignored by the
-          # services that have their own. The commit is stamped into the binary
-          # so a running service can say which commit it is (OPS-002).
-          build-args: |
-            SERVICE_DIR=${{ matrix.service.key }}
-            GO_VERSION=${{ matrix.service.key == 'admin-backoffice-service' && '1.26.9-alpine' || '1.26-alpine' }}
-            BUILD_COMMIT_SHA=${{ github.sha }}
-            BUILD_VERSION=${{ github.ref_name }}-${{ github.run_number }}
-          cache-from: type=gha,scope=${{ matrix.service.key }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service.key }}
-
-      # A marker that this service's image exists, so the deploy job deploys
-      # exactly the services that built (matrix jobs cannot return a list).
-      - name: Record the built service
-        run: mkdir -p built && echo "${{ matrix.service.key }}" > "built/${{ matrix.service.key }}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: built-${{ matrix.service.key }}
-          path: built/
-          retention-days: 1
-
-  deploy:
-    name: Deploy to the VPS
-    needs: [plan, build]
-    # Runs even if some services failed to build: it deploys the ones that did.
-    # The run still shows red so a failed service is not missed.
-    if: always() && needs.plan.outputs.count != '0'
-    runs-on: ubuntu-latest
-    # Add required reviewers to this environment in the repo settings if you
-    # want a person to approve each deploy.
-    environment: staging
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Find the services that built
-        id: built
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          pattern: built-*
-          path: built
-          merge-multiple: true
-      - name: List them
-        id: list
-        run: |
-          keys="$(ls built 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
-          echo "keys=$keys" >>"$GITHUB_OUTPUT"
-          echo "Built and ready to deploy: ${keys:-none}"
-          echo "### Deploying: ${keys:-nothing (no service built)}" >>"$GITHUB_STEP_SUMMARY"
-
-      - name: Copy the deploy files to the server
-        if: steps.list.outputs.keys != ''
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: deploy/platform
-          target: /opt/karrygo/platform
-          strip_components: 2
-          overwrite: true
-
-      - name: Deploy each service
-        if: steps.list.outputs.keys != ''
-        uses: appleboy/ssh-action@v1.0.3
+          name: staging-release-${{ github.run_id }}
+          path: release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+      - name: Reauthorize immediately before approved runtime operations
         env:
-          SERVICES: ${{ steps.list.outputs.keys }}
-          SHA: ${{ github.sha }}
-          REGISTRY: ${{ env.REGISTRY }}
-          GHCR_USER: ${{ github.actor }}
+          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
+          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          STAGING_DEPLOY_USER: ${{ secrets.STAGING_DEPLOY_USER }}
+          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          envs: SERVICES,SHA,REGISTRY,GHCR_USER,GHCR_TOKEN
-          command_timeout: 30m
-          script_stop: true
-          script: |
-            set -euo pipefail
-            cd /opt/karrygo/platform
-            chmod +x bin/*.sh
-            # Log in to GHCR with this run's short-lived token (images are private).
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
-
-            # Download every image this run built while logged in, including
-            # services not deployed by the pipeline yet. A private image can then
-            # be deployed by hand later (deploy-service.sh uses the local copy)
-            # without logging the server in to GHCR.
-            for key in $SERVICES; do
-              docker pull -q "$REGISTRY/$key:$SHA" >/dev/null || echo "::warning::could not pre-download $key"
-            done
-
-            # Dependencies first. Gateway and Partner Web require separately certified manual cutover.
-            order="notification-service payment-wallet-service media-file-service verification-compliance-service customer-service support-dispute-service referral-service pricing-service driver-taxi-service driver-hauling-service driver-dispatch-delivery-service fleet-partner-service"
-            failed=""
-            for key in $order; do
-              case " $SERVICES " in *" $key "*) ;; *) continue ;; esac
-              home="$(grep -vE '^\s*(#|$)' services.tsv | tr -d ' ' | awk -F'|' -v k="$key" '$1 == k { print $3 }')"
-              if [ ! -f "/opt/karrygo/$home/release.env" ]; then
-                echo "::notice::$key has never been deployed by this pipeline, so it is skipped."
-                echo "  First deploy it by hand (guide, section K):"
-                echo "  /opt/karrygo/platform/bin/deploy-service.sh $key $REGISTRY/$key:$SHA"
-                continue
-              fi
-              if ! bin/deploy-service.sh "$key" "$REGISTRY/$key:$SHA"; then
-                failed="$failed $key"
-              fi
-            done
-            docker logout ghcr.io >/dev/null 2>&1 || true
-            if [ -n "$failed" ]; then
-              echo "::error::these services failed and were rolled back:$failed"
-              exit 1
-            fi
-            bin/status.sh
-
-      - name: Check the public address
-        if: steps.list.outputs.keys != ''
-        run: |
-          set -euo pipefail
-          code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_BASE_URL/health")"
-          echo "GET $PUBLIC_BASE_URL/health -> $code"
-          [ "$code" = 200 ]
-          # Private pages must stay private.
-          code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_BASE_URL/api/v1/customer/internal/check")"
-          echo "GET .../internal/... -> $code (must be 404)"
-          [ "$code" = 404 ]
-
-  cleanup:
-    name: Remove old images
-    needs: [plan, deploy]
-    if: always() && needs.deploy.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        service: ${{ fromJson(needs.plan.outputs.matrix) }}
-    steps:
-      # Keeps the 10 newest images of each service: plenty for rollbacks while
-      # keeping GHCR storage within the GitHub plan.
-      - uses: actions/delete-package-versions@v5
-        continue-on-error: true
-        with:
-          package-name: ${{ matrix.service.key }}
-          package-type: container
-          min-versions-to-keep: 10
+        run: python scripts/release/execute.py deploy

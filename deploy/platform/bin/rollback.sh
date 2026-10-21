@@ -14,6 +14,8 @@ source "$(dirname "$0")/lib.sh"
 [ $# -ge 1 ] && [ $# -le 2 ] || die "usage: rollback.sh <service-key> [image]"
 load_service "$1"
 
+[ "$SVC_KEY" != driver-dispatch-delivery-service ] || die "Dispatch rollback BLOCKED: old consumers ignore the uncertainty fence; retain evidence and use an approved forward recovery"
+
 if [ $# -eq 2 ]; then
   target="$2"
 else

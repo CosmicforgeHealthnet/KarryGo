@@ -19,12 +19,18 @@ source "$(dirname "$0")/lib.sh"
 load_service "$1"
 NEW_IMAGE="$2"
 
+# No automated transition or binary fallback may ignore migration 070's fence.
+# This hold has no environment-variable bypass. Lift only in a separately
+# reviewed transition after live consumer/receipt/rollback certification.
+[ "$SVC_KEY" != driver-dispatch-delivery-service ] || die "Dispatch transition BLOCKED: use the reviewed stop/migrate/verify/start recovery plan; no automated deploy or downgrade"
+
 case "$NEW_IMAGE" in
   *:latest|*:staging) die "refusing a reusable tag ($NEW_IMAGE). Deploy an immutable :<commit> tag so it can be rolled back." ;;
 esac
 
 log "== deploying $SVC_KEY -> $NEW_IMAGE"
 check_service_files
+python3 "$PLATFORM_DIR/bin/check-admin-disabled.py" "$SVC_ENV_PATH"
 
 # Operator-provisioned, image-specific certification is mandatory for Admin.
 if [ "$SVC_KEY" = admin-backoffice-service ]; then
