@@ -41,7 +41,8 @@ class Docker:
         # must not exist in the source archive, and is never a live target.
         with gzip.open(archive, "rb") as source:
             process = subprocess.Popen([*self.prefix, "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1",
-                                        "-U", self.user, "-d", "restore_bootstrap"], stdin=subprocess.PIPE)
+                                        "-U", self.user, "-d", "restore_bootstrap"], stdin=subprocess.PIPE,
+                                       stdout=subprocess.DEVNULL)
             try:
                 shutil.copyfileobj(source, process.stdin)
                 process.stdin.close()
@@ -128,7 +129,9 @@ def sandbox(archive, manifest_path, output):
              "-e", "POSTGRES_PASSWORD=" + uuid.uuid4().hex, "-e", "POSTGRES_DB=restore_bootstrap", image])
         created = True
         for attempt in range(60):
-            if subprocess.run(["docker", "exec", name, "pg_isready", "-U", user, "-d", "template1"],
+            # The image's temporary init server accepts Unix sockets before it
+            # shuts down. Only TCP readiness proves the final server is running.
+            if subprocess.run(["docker", "exec", name, "pg_isready", "-h", "127.0.0.1", "-U", user, "-d", "restore_bootstrap"],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 break
             time.sleep(1)

@@ -24,7 +24,9 @@ The restore helper now propagates every failed command/SQL/validation and requir
 artifact integrity, matching PostgreSQL version and operator-owned semantic
 assertions. A genuine disposable PostgreSQL 18 backup/restore cycle passed locally,
 including preserved audit trigger, migration ledger, original decision identity
-and uncertainty fence. Seven failure scenarios were rejected. The actual Dispatch
+and uncertainty fence. Seven failure scenarios were rejected. Linux CI additionally exercises the exact
+network-isolated Docker verifier; its readiness check waits for TCP on the final
+server, excluding the image entrypoint's temporary Unix-socket initialization server. The actual Dispatch
 deployment and rollback shell scripts refuse unsafe transitions before host tools.
 There is no automated Dispatch transition; live compatibility/consumer retirement
 and recovery must be certified separately.
@@ -37,8 +39,10 @@ evidence have not been provisioned. Consequently the protected release process i
 **BLOCKED_INFRASTRUCTURE**, not operationally certified. No production policy,
 signing identity, access grant, suppression threshold or Media lifetime was added.
 
-All six existing acceptance workflows remain mandatory and now run on every
-PR/staging push; the new Deployment safety acceptance also certifies the exact
+GitHub now reports conflicts with the three newer staging commits and does not
+schedule PR-triggered CI. No native conflict resolution is attempted in this
+deployment-only task. All six existing acceptance workflows remain mandatory and
+now run on every PR/staging push and on pushes to this exact review branch; the new Deployment safety acceptance also certifies the exact
 SHA. Fresh CI run IDs/results for the final revision are recorded in draft PR #15
 and the final review evidence rather than copying old-head results here. Until
 those results and actual infrastructure protection are confirmed, the merge and

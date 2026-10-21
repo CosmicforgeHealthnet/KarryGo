@@ -68,7 +68,7 @@ class Container(restore.Docker):
                         "postgres:16-alpine"], check=True, capture_output=True)
         super().__init__(self.name, user)
         for _ in range(60):
-            if subprocess.run(["docker", "exec", self.name, "pg_isready", "-U", user, "-d", "postgres"], capture_output=True).returncode == 0:
+            if subprocess.run(["docker", "exec", self.name, "pg_isready", "-h", "127.0.0.1", "-U", user, "-d", "postgres"], capture_output=True).returncode == 0:
                 return
             time.sleep(1)
         self.close()
