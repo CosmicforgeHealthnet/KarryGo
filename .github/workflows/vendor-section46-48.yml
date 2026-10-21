@@ -48,7 +48,7 @@ jobs:
         run: |
           # Keep the frontend scope guard; accept only exact newly added
           # review-branch preview holds, never application/deployment settings.
-          python scripts/release/frontend_scope.py "$COMPARISON_BASE_SHA"
+          python -m unittest scripts/release/test_frontend_scope.py\n          python scripts/release/frontend_scope.py "$COMPARISON_BASE_SHA"
       - name: Formatting and whitespace
         env:
           COMPARISON_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}
