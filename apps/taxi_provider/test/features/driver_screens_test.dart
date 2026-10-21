@@ -13,6 +13,7 @@ import 'package:taxi_provider/features/auth/data/provider_auth_api.dart';
 import 'package:taxi_provider/features/auth/data/provider_session_store.dart';
 import 'package:taxi_provider/features/auth/models/provider_auth_models.dart';
 import 'package:taxi_provider/features/auth/state/provider_auth_controller.dart';
+import 'package:taxi_provider/features/notifications/ui/notifications_screen.dart';
 import 'package:taxi_provider/features/trips/data/trips_api.dart';
 import 'package:taxi_provider/features/trips/ui/trips_screen.dart';
 import 'package:taxi_provider/features/wallet/data/wallet_api.dart';
@@ -273,6 +274,25 @@ void main() {
     expect(withdrawal, contains('"amount_kobo":50000'));
     expect(withdrawal, contains('"pin":"4321"'));
     expect(find.text('Withdrawal requested'), findsOneWidget);
+    await finish(tester, auth);
+  });
+
+  testWidgets('the notification feed reads the server\'s field names', (tester) async {
+    final auth = await signedIn((r) async => r.url.path.endsWith('/auth/refresh') ? _ok(_session('new')) : _ok({}));
+    // notification-service sends Go field names (Title, Body, CreatedAt).
+    final taxi = DriverClient(
+      baseUrl: _base,
+      auth: auth,
+      client: MockClient((_) async => _ok([
+        {'ID': 'n1', 'Title': 'Ride completed', 'Body': 'Your ride to Eko Hotel is complete.', 'CreatedAt': '2026-10-20T10:00:00Z'},
+      ])),
+    );
+
+    await tester.pumpWidget(MaterialApp(theme: karryamTheme(Brightness.light), home: NotificationsScreen(taxi: taxi)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ride completed'), findsOneWidget);
+    expect(find.text('Your ride to Eko Hotel is complete.'), findsOneWidget);
     await finish(tester, auth);
   });
 }

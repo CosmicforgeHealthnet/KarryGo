@@ -16,14 +16,25 @@ class DriverNotification {
   final String body;
   final DateTime? createdAt;
 
-  factory DriverNotification.fromJson(Map<String, dynamic> j) =>
-      DriverNotification(
-        title: (j['title'] as String?) ?? '',
-        body: (j['body'] as String?) ?? '',
-        createdAt: DateTime.tryParse(
-          (j['created_at'] as String?) ?? '',
-        )?.toLocal(),
-      );
+  /// notification-service sends Go field names (Title, Body, CreatedAt);
+  /// snake_case is accepted too, as in the truck and customer apps.
+  factory DriverNotification.fromJson(Map<String, dynamic> j) {
+    String pick(List<String> keys) {
+      for (final k in keys) {
+        final v = j[k];
+        if (v is String && v.isNotEmpty) return v;
+      }
+      return '';
+    }
+
+    return DriverNotification(
+      title: pick(['Title', 'title']),
+      body: pick(['Body', 'body']),
+      createdAt: DateTime.tryParse(
+        pick(['CreatedAt', 'created_at']),
+      )?.toLocal(),
+    );
+  }
 }
 
 /// The driver's notification history: ride offers, payouts and the rest.
