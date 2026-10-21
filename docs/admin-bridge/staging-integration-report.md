@@ -32,7 +32,9 @@ There is no automated Dispatch transition; live compatibility/consumer retiremen
 and recovery must be certified separately.
 
 **Actual GitHub setting verification:** the staging environment API still showed
-no required reviewers, admin bypass enabled and no branch restriction; the new
+no required reviewers, admin bypass enabled and no branch restriction; separate
+secret metadata responses show an empty environment and repository-scoped legacy
+`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` credentials; the new
 gate independently denied it. Initiator/reviewer identities have been requested,
 not invented. New scoped release credentials, audit token and real staging restore
 evidence have not been provisioned. Consequently the protected release process is

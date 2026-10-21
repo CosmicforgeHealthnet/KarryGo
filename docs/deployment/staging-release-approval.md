@@ -92,8 +92,9 @@ assign release authority arbitrarily.
    merge authority. Use a narrowly scoped GitHub App or fine-grained credential.
    If inherited organization-secret scope cannot be audited, fail closed.
 4. Confirm no repository/inherited organization secrets with those names or
-   `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Existing `VPS_*` environment-only secrets
-   are not used by the revised workflows. Do not remove credentials used by other
+   `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. The currently observed `VPS_*` secrets are repository-scoped and must be
+   replaced through the approved operator channel; the revised workflows reject
+   their repository/inherited presence and never use them. Do not remove credentials used by other
    approved operations without separately reviewing their ownership.
 5. Configure staging PR protection/rulesets to require the six acceptance suites
    plus Deployment safety acceptance, dismiss stale reviews and require review
@@ -138,7 +139,9 @@ secret metadata. Here the owner is a User, so organization inheritance cannot
 apply. Run `gate.environment(GitHub(read_only_metadata_token))` independently after
 configuration; it must return successfully. Do not dispatch a deployment as a test.
 Current verified snapshot (21 October 2026): no reviewer rules, admin bypass true,
-no branch policy or initiator variable, only legacy `VPS_*` environment credentials.
+no branch policy or initiator variable, no environment secrets, and three legacy
+`VPS_*` repository secrets. The earlier scope interpretation was incorrect;
+separate API metadata responses establish this snapshot.
 The real-API gate denied this state. It is **not configured/operational** yet.
 
 ## Backup, isolated restore and certification
