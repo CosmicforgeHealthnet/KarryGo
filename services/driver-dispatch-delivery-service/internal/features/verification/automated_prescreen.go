@@ -39,7 +39,9 @@ func inspectSelfieImage(body io.Reader) (PrescreenResult, error) {
 		return PrescreenResult{}, ErrLowQualitySelfie
 	}
 	picture, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil { return PrescreenResult{}, ErrLowQualitySelfie }
+	if err != nil {
+		return PrescreenResult{}, ErrLowQualitySelfie
+	}
 
 	bounds := picture.Bounds()
 	stepX := int(math.Max(1, float64(bounds.Dx()/80)))
@@ -57,7 +59,9 @@ func inspectSelfieImage(body io.Reader) (PrescreenResult, error) {
 			count++
 		}
 	}
-	if count < 1 { return PrescreenResult{}, ErrLowQualitySelfie }
+	if count < 1 {
+		return PrescreenResult{}, ErrLowQualitySelfie
+	}
 	mean := sum / count
 	variance := math.Max(0, squared/count-mean*mean)
 	std := math.Sqrt(variance)
