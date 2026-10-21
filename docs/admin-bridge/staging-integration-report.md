@@ -2,6 +2,12 @@
 
 ## Deployment-safety revision — 21 October 2026
 
+Fresh acceptance discovered GO-2026-6809 in the previous Go 1.26.9 standard
+library. CI, Admin toolchain and all four service image builders now pin Go
+1.26.10, the source-reported fixed patch; the vulnerability scanner remains
+mandatory and unchanged. No vulnerability exception or product logic change
+was introduced.
+
 This draft continues from `fa66ab5eb9895c7764981ee07068fb81f82d138c`.
 Before edits, the review branch still matched that SHA; remote staging had moved
 to `75aee3c64f6621207286a9699aeceb8f8151379a` (three newer commits). No staging

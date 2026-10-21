@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.9', cache: true}
+        with: {go-version: '1.26.10', cache: true}
       - name: Go formatting of changed files
         env:
           COMPARISON_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}
@@ -138,7 +138,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.9', cache: true}
+        with: {go-version: '1.26.10', cache: true}
       - name: Create isolated PostgreSQL databases
         shell: bash
         run: |
@@ -227,7 +227,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.9', cache: true}
+        with: {go-version: '1.26.10', cache: true}
       - name: Create service databases
         shell: bash
         run: |

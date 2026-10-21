@@ -1,5 +1,7 @@
 go 1.26.3
 
+toolchain go1.26.10
+
 use (
 	./services/admin-backoffice-service
 	./services/analytics-service
