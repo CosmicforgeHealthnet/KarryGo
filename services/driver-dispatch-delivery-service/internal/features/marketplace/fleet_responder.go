@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -57,18 +59,25 @@ func NewHTTPFleetResponder(config ResponderConfig) (FleetResponder, bool) {
 		strings.TrimSpace(config.ServiceName) == "" || len(config.Secret) == 0 {
 		return UnconfiguredResponder{}, false
 	}
-	if _, err := url.Parse(config.BaseURL); err != nil {
+	parsed, err := url.Parse(config.BaseURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
 		return UnconfiguredResponder{}, false
 	}
 	timeout := config.Timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
+	// The composition root instruments DefaultTransport with a RoundTripper.
+	// Own the security-sensitive transport instead of asserting its concrete
+	// type or inheriting a process/environment proxy. Keep dependency metrics.
+	transport := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: timeout, ResponseHeaderTimeout: timeout, IdleConnTimeout: 90 * time.Second, MaxIdleConns: 32, MaxIdleConnsPerHost: 8, ExpectContinueTimeout: time.Second}
 	return &HTTPFleetResponder{
 		baseURL:     strings.TrimRight(config.BaseURL, "/"),
 		serviceName: config.ServiceName,
 		secret:      config.Secret,
-		client:      &http.Client{Timeout: timeout},
+		client: &http.Client{Transport: observability.DependencyTransport{Base: transport, Hosts: map[string]string{parsed.Host: "fleet"}}, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}},
 	}, true
 }
 
@@ -161,7 +170,7 @@ type fleetResponseEnvelope struct {
 // very different costs:
 //   - permanent  → stop; the answer will not change
 //   - temporary  → retry; fleet is briefly unwell
-//   - unknown    → retry with the SAME key; fleet may already have recorded it
+//   - unknown    → authoritative read-back; never another mutation request
 //
 // Anything ambiguous is classified as unknown, never as failure, because
 // re-sending under a new identity could record a provider's decision twice.
@@ -203,19 +212,18 @@ func (r *HTTPFleetResponder) Deliver(ctx context.Context, meta CallMeta,
 		// been transmitted and committed. Unknown, never a rejection.
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
-	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxFleetResponseBytes))
-	if err != nil {
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxFleetResponseBytes+1))
+	if err != nil || len(payload) > maxFleetResponseBytes {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		return r.classifySuccess(payload)
+		return r.classifySuccess(payload, op)
+	case resp.StatusCode == http.StatusRequestTimeout:
+		return RelayDeliveryResult{}, ErrFleetUnavailable
 
 	case resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden:
@@ -235,8 +243,9 @@ func (r *HTTPFleetResponder) Deliver(ctx context.Context, meta CallMeta,
 	case resp.StatusCode == http.StatusServiceUnavailable ||
 		resp.StatusCode == http.StatusBadGateway ||
 		resp.StatusCode == http.StatusGatewayTimeout:
-		// Fleet is briefly unwell and almost certainly did not process it.
-		return RelayDeliveryResult{ErrorCode: fleetErrorCode(payload, "fleet_unavailable")}, nil
+		// A gateway timeout or unavailable response does not prove that Fleet
+		// failed before commit. Preserve uncertainty; never schedule a POST.
+		return RelayDeliveryResult{}, ErrFleetUnavailable
 
 	default:
 		// A 500 may have committed before failing to answer. Ambiguous.
@@ -249,7 +258,7 @@ func (r *HTTPFleetResponder) Deliver(ctx context.Context, meta CallMeta,
 // A 2xx with an unparseable or empty body is NOT success: fleet may have
 // committed, or a proxy may have produced it. Reporting fake success would
 // confirm a relay that was never recorded, losing the provider's decision.
-func (r *HTTPFleetResponder) classifySuccess(payload []byte) (RelayDeliveryResult, error) {
+func (r *HTTPFleetResponder) classifySuccess(payload []byte, op RelayOperation) (RelayDeliveryResult, error) {
 	var envelope fleetResponseEnvelope
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
@@ -257,6 +266,16 @@ func (r *HTTPFleetResponder) classifySuccess(payload []byte) (RelayDeliveryResul
 	data := envelope.Data
 	// A real answer always names what it answered and how.
 	if data.Status == "" || (data.OfferID == "" && data.AssignmentID == "") {
+		return RelayDeliveryResult{}, ErrFleetUnavailable
+	}
+	if op.OfferID != nil && data.OfferID != *op.OfferID || op.AssignmentID != nil && data.AssignmentID != *op.AssignmentID {
+		return RelayDeliveryResult{}, ErrFleetUnavailable
+	}
+	expectedDecline := op.OperationType == RelayProviderOfferDecline || op.OperationType == RelayProviderAssignmentDecline
+	if expectedDecline && data.Status != "DECLINED" {
+		return RelayDeliveryResult{}, ErrFleetUnavailable
+	}
+	if !expectedDecline && data.Status != "ACCEPTED" && data.Status != "EXECUTION_START_PENDING" && data.Status != "READY_FOR_EXECUTION" && data.Status != "IN_PROGRESS" {
 		return RelayDeliveryResult{}, ErrFleetUnavailable
 	}
 

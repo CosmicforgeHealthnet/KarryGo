@@ -1,0 +1,7 @@
+# Canonical contract hashes must be identical on Windows and Linux checkouts.
+services/admin-backoffice-service/docs/openapi/** text eol=lf
+
+# Native Admin contracts and embedded authorization schemas are byte-canonical.
+services/*/docs/openapi/admin-*.json text eol=lf
+services/*/migrations/*admin*.sql text eol=lf
+shared/go/admin*/schema.sql text eol=lf

@@ -419,6 +419,24 @@ func (r *AssignmentRepository) GetResponse(ctx context.Context, q database.Queri
 	return &response, nil
 }
 
+// ResponseEvidence reads the immutable decision's owner-bound evidence set.
+func (r *AssignmentRepository) ResponseEvidence(ctx context.Context, response *models.Response) ([]string, error) {
+	rows, err := r.db.Query(ctx, `SELECT file_id FROM fleet_partner_assignment_response_evidence WHERE response_id=$1 AND organization_id=$2 ORDER BY file_id`, response.ID, response.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	files := []string{}
+	for rows.Next() {
+		var file string
+		if err := rows.Scan(&file); err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, rows.Err()
+}
+
 // FindResponseByClientID resolves a replayed mobile response so a retry
 // returns the original result instead of failing.
 func (r *AssignmentRepository) FindResponseByClientID(ctx context.Context, membershipID string, clientResponseID string) (*models.Response, error) {

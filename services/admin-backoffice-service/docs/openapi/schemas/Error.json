@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z_]+$"
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "operation_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "retryable"
+  ]
+}

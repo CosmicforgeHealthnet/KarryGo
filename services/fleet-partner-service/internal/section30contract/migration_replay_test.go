@@ -10,6 +10,8 @@ package section30contract
 
 import (
 	"context"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -19,7 +21,7 @@ import (
 // TestMigrationReplay_EmptySchemaAppliesCleanly is WP8(A): apply
 // 000001->tip against a genuinely empty database and verify the resulting
 // schema, constraints, and indexes -- representative objects spanning the
-// earliest (000001-000002) and the latest (000079) migrations.
+// earliest (000001-000002) and the latest (000081) migrations.
 func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_empty")
 	ctx := context.Background()
@@ -32,8 +34,8 @@ func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	if len(applied) < 76 {
 		t.Fatalf("recorded %d applied migrations, want at least 76", len(applied))
 	}
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000079") {
-		t.Fatalf("last applied migration = %s, want prefix 000079", got)
+	if got := applied[len(applied)-1]; got != replayMigrationTip(t) {
+		t.Fatalf("last applied migration = %s, want current repository tip %s", got, replayMigrationTip(t))
 	}
 
 	for _, table := range []string{
@@ -71,17 +73,17 @@ func TestMigrationReplay_EmptySchemaAppliesCleanly(t *testing.T) {
 	}
 }
 
-// TestMigrationReplay_LatestMigrationRollbackAndReapply is WP8(B): apply
-// everything, roll back the safely-reversible latest migration (000079),
+// TestMigrationReplay_ManagedProviderMigrationRollbackAndReapply preserves
+// WP8(B) at the managed-provider migration (000079),
 // verify its additions are actually gone, then reapply and verify the
 // state is fully restored. Earlier migrations -- 000078's work-settled
 // components and 000077's completed-work tables among them -- must survive
 // rolling back 000079.
-func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
+func TestMigrationReplay_ManagedProviderMigrationRollbackAndReapply(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_rollback")
 	ctx := context.Background()
 
-	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000079"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	if !tableExists(t, pool, "fleet_partner_completed_work_records") {
@@ -133,12 +135,12 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 		t.Error("000073 media_deletion_status column was removed by rolling back 000079")
 	}
 
-	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000079"); err != nil {
 		t.Fatalf("reapply after rollback: %v", err)
 	}
 	applied = appliedMigrationVersions(t, pool)
 	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000079") {
-		t.Fatalf("last applied migration after reapply = %s, want prefix 000079", got)
+		t.Fatalf("last applied migration after reapply = %s, want managed-provider prefix 000079", got)
 	}
 	if !tableExists(t, pool, "fleet_partner_managed_provider_members") {
 		t.Error("managed provider members table not restored after reapply")
@@ -159,7 +161,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 
 // TestMigrationReplay_MultiStepRangeAcrossSections is WP8(C): replay a
 // range spanning Section 25's introduction of fleet_partner_export_jobs
-// (000055) through the release tip (000079) in two separate apply calls,
+// (000055) through the current release tip in two separate apply calls,
 // proving the schema is valid and correctly incremental at the pause point,
 // not just at the final tip.
 func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
@@ -179,7 +181,7 @@ func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
 		t.Fatalf("last applied migration after staged apply = %s, want prefix 000054", got)
 	}
 
-	// Stage 2: resume to the tip (000079). The table must now exist WITH
+	// Stage 2: resume to the current tip. The table must now exist WITH
 	// both its founding (000055) and later-added (000073) columns.
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("resume migrations to tip: %v", err)
@@ -194,8 +196,8 @@ func TestMigrationReplay_MultiStepRangeAcrossSections(t *testing.T) {
 		t.Error("fleet_partner_export_jobs.media_deletion_status (000073) missing after resumed replay")
 	}
 	applied = appliedMigrationVersions(t, pool)
-	if got := applied[len(applied)-1]; !strings.HasPrefix(got, "000079") {
-		t.Fatalf("last applied migration after resumed replay = %s, want prefix 000079", got)
+	if got := applied[len(applied)-1]; got != replayMigrationTip(t) {
+		t.Fatalf("last applied migration after resumed replay = %s, want current repository tip %s", got, replayMigrationTip(t))
 	}
 }
 
@@ -236,5 +238,65 @@ func TestMigrationReplay_ExistingDataSurvivesUpgrade(t *testing.T) {
 	if legalName != "Pre-Existing Data Co" || registrationNumber != "RC-PRE-1" || countryCode != "NG" || status != "PENDING_REVIEW" {
 		t.Errorf("pre-existing row's original field values changed across upgrade: legal_name=%q registration_number=%q country_code=%q status=%q",
 			legalName, registrationNumber, countryCode, status)
+	}
+}
+
+// replayMigrationTip reads the same versioned source files as the runner. The
+// old managed-provider rollback remains separately verified at its own target.
+func replayMigrationTip(t *testing.T) string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
+	if err != nil || len(paths) == 0 {
+		t.Fatal("versioned source migrations required", err)
+	}
+	sort.Strings(paths)
+	return strings.TrimSuffix(filepath.Base(paths[len(paths)-1]), ".up.sql")
+}
+
+func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
+	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_current_tip")
+	ctx := context.Background()
+	if replayMigrationTip(t) != "000081_provider_offer_decision_receipts" {
+		t.Fatal("review latest migration object/retention assertions for the new tip")
+	}
+	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"fleet_partner_provider_offer_decision_receipts", "admin_owner_context_heads", "admin_owner_context_history", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
+		if !tableExists(t, pool, table) {
+			t.Fatalf("missing source object %s", table)
+		}
+	}
+	before := appliedMigrationVersions(t, pool)
+	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	after := appliedMigrationVersions(t, pool)
+	if len(after) != len(before)-1 || after[len(after)-1] != before[len(before)-2] {
+		t.Fatal("rollback changed the wrong migration ledger entries")
+	}
+	if tableExists(t, pool, "fleet_partner_provider_offer_decision_receipts") {
+		t.Fatal("latest table survived its own empty rollback")
+	}
+	for _, table := range []string{"admin_owner_context_history", "admin_owner_read_audit", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
+		if !tableExists(t, pool, table) {
+			t.Fatalf("rollback removed earlier source object %s", table)
+		}
+	}
+	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	if !tableExists(t, pool, "fleet_partner_provider_offer_decision_receipts") {
+		t.Fatal("receipt ledger not restored")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fleet_partner_provider_offer_decision_receipts(id,organization_id,offer_id,recipient_id,membership_id,provider_id,source_service,client_response_id,decision,intent_digest) VALUES('test-receipt','test-org','test-offer','test-recipient','test-membership','test-provider','DISPATCH','test-key','DECLINED',repeat('a',64))`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err == nil {
+		t.Fatal("rollback erased immutable source decision evidence")
+	}
+	current := appliedMigrationVersions(t, pool)
+	if current[len(current)-1] != replayMigrationTip(t) || !tableExists(t, pool, "fleet_partner_provider_offer_decision_receipts") {
+		t.Fatal("refused retention rollback changed source schema or ledger")
 	}
 }

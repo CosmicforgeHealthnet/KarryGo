@@ -2,9 +2,16 @@ package main
 
 import (
 	"context"
+	taxiadminread "cosmicforge/logistics/services/taxi-service/internal/features/adminread"
+	"cosmicforge/logistics/services/taxi-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/taxi-service/internal/features/customertracking"
+	"cosmicforge/logistics/shared/go/adminpolicy"
+	"cosmicforge/logistics/shared/go/adminpolicyenv"
 	"cosmicforge/logistics/shared/go/journeyshare"
+	"encoding/base64"
+	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -562,8 +569,38 @@ func main() {
 		taxioutbox.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
 
 	trackingReader := &customertracking.Postgres{DB: db, FreshFor: cfg.CustomerLocationFreshFor}
+	var adminReadSecret []byte
+	var adminAccessPolicy *adminpolicy.Engine
+	if cfg.AdminReadEnabled {
+		encoded, readErr := os.ReadFile(cfg.AdminReadSecretFile)
+		if readErr == nil {
+			adminReadSecret, readErr = base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(encoded)))
+		}
+		if readErr != nil || len(adminReadSecret) < 32 || len(adminReadSecret) > 128 {
+			logging.Fatal("configuration", "Taxi admin reads require a dedicated base64url secret file (32–128 decoded bytes)")
+		}
+		var adminSchemaReady bool
+		if readErr = db.QueryRow(ctx, `SELECT to_regclass('taxi_admin_read_audit') IS NOT NULL AND to_regclass('taxi_admin_read_nonces') IS NOT NULL AND to_regclass('taxi_admin_policy_revisions') IS NOT NULL`).Scan(&adminSchemaReady); readErr != nil || !adminSchemaReady {
+			logging.Fatal("configuration", "Taxi admin read schema unavailable; apply owner migrations first")
+		}
+		adminAccessPolicy, readErr = adminpolicy.LoadFiles(cfg.AdminAccessPolicyFile, cfg.AdminAccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if readErr != nil && !errors.Is(readErr, adminpolicy.ErrBlocked) {
+			logging.Fatal("configuration", "Taxi owner-approved access policy is invalid")
+		}
+		if adminAccessPolicy != nil {
+			if readErr = adminpolicy.PinRevision(ctx, db, "taxi_admin_policy_revisions", adminAccessPolicy); readErr != nil {
+				logging.Fatal("configuration", "Taxi access policy revision refused")
+			}
+		}
+	}
+	ownerAdmin, err := adminresources.Runtime(ctx, db)
+	if err != nil {
+		logging.Fatal("configuration", "Taxi owner resource configuration invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		RegisterRoot: func(root *gin.Engine) {
+			ownerAdmin.Register(root)
+			taxiadminread.Register(root, db, adminReadSecret, cfg.AdminReadEnabled, adminAccessPolicy)
 			customertracking.RegisterInternal(root, trackingReader, opsVerifier, redisClient, cfg.CustomerLiveLocationEnabled)
 			goods.RegisterCustomerShare(root, goodsService, opsVerifier)
 		},

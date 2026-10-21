@@ -1,9 +1,12 @@
 go 1.26.3
 
+toolchain go1.26.10
+
 use (
 	./services/admin-backoffice-service
 	./services/analytics-service
 	./services/api-gateway
+	./services/partner-web-service
 	./services/customer-service
 	./services/driver-dispatch-delivery-service
 	./services/driver-hauling-service

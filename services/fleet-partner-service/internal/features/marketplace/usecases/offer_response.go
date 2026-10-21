@@ -50,14 +50,14 @@ type OfferResponseResult struct {
 //
 // It must never ask the provider to accept a second time. They already did.
 func (s *Service) AcceptOffer(ctx context.Context, input OfferResponseInput) (*OfferResponseResult, error) {
-	if input.ClientResponseID == "" {
+	if !validOfferDecisionIdentity(input) {
 		return nil, errorcodes.BadRequest(errorcodes.ValidationFailed,
 			"A client response identifier is required.")
 	}
 
 	// A retrying relay replays the original outcome rather than colliding with
 	// its own earlier delivery.
-	if replay, err := s.findOfferReplay(ctx, input); err != nil {
+	if replay, err := s.findOfferReplay(ctx, input, models.ResponseAccepted); err != nil {
 		return nil, err
 	} else if replay != nil {
 		return replay, nil
@@ -232,6 +232,9 @@ func (s *Service) AcceptOffer(ctx context.Context, input OfferResponseInput) (*O
 		}
 
 		assignment.Status = models.AssignmentAccepted
+		if err := s.recordOfferReceipt(ctx, tx, offer, recipient, input, models.ResponseAccepted); err != nil {
+			return err
+		}
 		result = OfferResponseResult{
 			OfferID: offer.ID, RecipientID: recipient.ID,
 			Status: models.RecipientAccepted, Assignment: assignment,
@@ -257,6 +260,9 @@ func (s *Service) AcceptOffer(ctx context.Context, input OfferResponseInput) (*O
 // This path consults no feature flag. Accepting work can be disabled; refusing
 // work already offered cannot.
 func (s *Service) DeclineOffer(ctx context.Context, input OfferResponseInput) (*OfferResponseResult, error) {
+	if !validOfferDecisionIdentity(input) {
+		return nil, errorcodes.BadRequest(errorcodes.ValidationFailed, "A bounded original decision identity is required.")
+	}
 	if input.ReasonCode == "" {
 		return nil, errorcodes.BadRequest(errorcodes.DeclineReasonRequired,
 			"A decline reason is required.")
@@ -272,6 +278,11 @@ func (s *Service) DeclineOffer(ctx context.Context, input OfferResponseInput) (*
 	if len(input.Note) > models.MaxDeclineNoteLength {
 		return nil, errorcodes.BadRequest(errorcodes.DeclineReasonInvalid,
 			"The explanation is too long.")
+	}
+	if replay, err := s.findOfferReplay(ctx, input, models.ResponseDeclined); err != nil {
+		return nil, err
+	} else if replay != nil {
+		return replay, nil
 	}
 
 	var result OfferResponseResult
@@ -327,6 +338,9 @@ func (s *Service) DeclineOffer(ctx context.Context, input OfferResponseInput) (*
 			return err
 		}
 
+		if err := s.recordOfferReceipt(ctx, tx, offer, recipient, input, models.ResponseDeclined); err != nil {
+			return err
+		}
 		result = OfferResponseResult{
 			OfferID: offer.ID, RecipientID: recipient.ID,
 			Status: models.RecipientDeclined, AllowedActions: []string{},
@@ -344,13 +358,13 @@ func (s *Service) DeclineOffer(ctx context.Context, input OfferResponseInput) (*
 
 // lockOwnedRecipient loads the provider's own recipient row under lock.
 //
-// Ownership is proved in SQL, not in Go: LockRecipientForMembership matches on
-// both the recipient id and the membership, so a valid service signature can
-// never be used to answer another provider's offer.
+// Ownership is proved in SQL against the recipient, canonical organization,
+// provider membership/category and original source projection. A valid service
+// signature cannot answer another provider's or another source's offer.
 func (s *Service) lockOwnedRecipient(ctx context.Context, tx pgx.Tx, input OfferResponseInput,
 	offer *models.Offer) (*models.OfferRecipient, error) {
 	recipient, err := s.opts.Offers.LockRecipientForProvider(ctx, tx, input.OfferID,
-		input.Actor.ExecutingProviderID)
+		input.Actor.ExecutingProviderID, input.Actor.SourceService)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return nil, errorcodes.Forbidden(errorcodes.AssignmentNotOwnedByProvider,
@@ -378,17 +392,31 @@ func (s *Service) loadOffer(ctx context.Context, offerID string) (*models.Offer,
 }
 
 // findOfferReplay returns the original outcome for a redelivered decision.
-func (s *Service) findOfferReplay(ctx context.Context, input OfferResponseInput) (*OfferResponseResult, error) {
-	recipient, err := s.opts.Offers.FindRecipientByClientResponse(ctx, input.OfferID, input.ClientResponseID)
+func (s *Service) findOfferReplay(ctx context.Context, input OfferResponseInput, decision string) (*OfferResponseResult, error) {
+	recipient, err := s.opts.Offers.GetRecipientForProvider(ctx, input.OfferID, input.Actor.ExecutingProviderID, input.Actor.SourceService)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, nil
+			return nil, errorcodes.Forbidden(errorcodes.AssignmentNotOwnedByProvider, "This offer was not made to that provider service.")
 		}
 		return nil, err
 	}
+	if recipient.ClientResponseID == nil || *recipient.ClientResponseID != input.ClientResponseID {
+		return nil, nil
+	}
+	var recordedDecision, digest string
+	err = s.opts.Pool.QueryRow(ctx, `SELECT decision,intent_digest FROM fleet_partner_provider_offer_decision_receipts WHERE offer_id=$1 AND recipient_id=$2 AND provider_id=$3 AND source_service=$4 AND client_response_id=$5`, input.OfferID, recipient.ID, input.Actor.ExecutingProviderID, input.Actor.SourceService, input.ClientResponseID).Scan(&recordedDecision, &digest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, offerReplayConflict()
+	}
+	if err != nil {
+		return nil, err
+	}
+	if recordedDecision != decision || digest != offerIntent(input, decision).Digest() {
+		return nil, offerReplayConflict()
+	}
 	return &OfferResponseResult{
 		OfferID: input.OfferID, RecipientID: recipient.ID,
-		Status: recipient.Status, AllowedActions: []string{}, Replayed: true,
+		Status: recordedDecision, AllowedActions: []string{}, Replayed: true,
 	}, nil
 }
 

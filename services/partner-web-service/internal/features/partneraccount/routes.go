@@ -1,0 +1,113 @@
+package partneraccount
+
+import (
+	"cosmicforge/logistics/shared/go/browserauth"
+	"github.com/gin-gonic/gin"
+	"net/http"
+	"strings"
+
+	"cosmicforge/logistics/services/partner-web-service/internal/features/partner/billing"
+)
+
+// Dependencies holds what the dashboard/internal routes need.
+//
+// BillingService is optional: when nil, the /billing routes are not
+// registered at all (rather than registered and 500-ing), so existing wiring
+// that doesn't yet construct a billing.Service keeps working unchanged.
+type Dependencies struct {
+	BrowserPolicy      *browserauth.Policy
+	Service            *Service
+	BillingService     *billing.Service
+	InternalServiceKey string
+}
+
+// RegisterAccountRoutes mounts the partner DASHBOARD auth + key management +
+// profile + billing routes (session JWT) and the internal service-to-service
+// routes (X-Internal-Service-Key). These are separate from the partner API KEY
+// execution routes registered by partner/http.RegisterPartnerRoutes.
+func RegisterAccountRoutes(r *gin.Engine, deps Dependencies) {
+	h := NewHandlers(deps.Service)
+	h.cookie = browserauth.Policy{Name: "karrygo_partner_refresh", Path: "/api/v1/partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode}
+	if deps.BrowserPolicy != nil {
+		h.cookie = *deps.BrowserPolicy
+	}
+	r.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/partner/v1/auth/") {
+			h.cookie.Boundary()(c)
+			return
+		}
+		c.Next()
+	})
+	r.OPTIONS("/api/v1/partner/v1/auth/*path", h.cookie.Boundary())
+
+	// Browser refresh/logout use the cookie and trusted Origin; me uses bearer.
+	auth := r.Group("/api/v1/partner/v1/auth")
+	{
+		auth.POST("/register", h.Register)
+		auth.POST("/login", h.Login)
+		auth.POST("/refresh", h.Refresh)
+		auth.POST("/logout", h.Logout)
+
+		protected := auth.Group("")
+		protected.Use(RequirePartnerSession(deps.Service))
+		{
+			protected.GET("/me", h.Me)
+		}
+	}
+
+	// Public OTP web signup flow. These routes intentionally do not use session,
+	// API-key, or active-account middleware; email ownership is proven by OTP.
+	signup := r.Group("/api/v1/partner/v1/auth/signup")
+	{
+		signup.POST("/start", h.StartSignup)
+		signup.POST("/verify", h.VerifySignup)
+		signup.POST("/resend", h.ResendSignup)
+	}
+
+	// Public OTP web login flow. Same no-account-creation OTP proof as signup,
+	// but against an existing account instead of a new one.
+	loginOTP := r.Group("/api/v1/partner/v1/auth/login")
+	{
+		loginOTP.POST("/start", h.StartLogin)
+		loginOTP.POST("/verify", h.VerifyLogin)
+	}
+
+	// 2. Dashboard key management: all require session.
+	keys := r.Group("/api/v1/partner/v1/keys")
+	keys.Use(RequirePartnerSession(deps.Service))
+	{
+		keys.POST("", h.GenerateKey)
+		keys.GET("", h.ListKeys)
+		keys.DELETE("/:id", h.RevokeKey)
+	}
+
+	// 3. Dashboard profile (Settings > Profile): requires session.
+	profile := r.Group("/api/v1/partner/v1/profile")
+	profile.Use(RequirePartnerSession(deps.Service))
+	{
+		profile.PATCH("", h.UpdateProfile)
+		profile.DELETE("/account", h.DeleteAccount) // <-- ADD THIS LINE
+	}
+
+	// 4. Dashboard billing (Billing & Usage): requires session. Registered
+	// only when a billing.Service was actually wired in.
+	if deps.BillingService != nil {
+		bh := NewBillingHandlers(deps.BillingService)
+		billingGroup := r.Group("/api/v1/partner/v1/billing")
+		billingGroup.Use(RequirePartnerSession(deps.Service))
+		{
+			billingGroup.GET("/overview", bh.GetOverview)
+			billingGroup.GET("/dashboard-summary", bh.GetDashboardSummary)
+			billingGroup.GET("/invoices", bh.ListInvoices)
+			billingGroup.POST("/payment-methods", bh.AttachPaymentMethod)
+		}
+	}
+
+	// 5. Internal partner routes: service-to-service only.
+	internal := r.Group("/api/v1/internal/partner")
+	internal.Use(RequireServiceKey(deps.InternalServiceKey))
+	{
+		internal.POST("/accounts/:id/activate-live", h.ActivateLive)
+		internal.PATCH("/accounts/:id/status", h.UpdateStatus)
+	}
+}

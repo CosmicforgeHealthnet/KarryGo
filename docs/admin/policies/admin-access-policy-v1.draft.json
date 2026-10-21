@@ -1,0 +1,17 @@
+{
+  "document": {
+    "schema_version": 1,
+    "id": "karryam-admin-access-v1",
+    "version": 1,
+    "state": "DRAFT",
+    "environment": "PRODUCTION",
+    "approval_reference": "",
+    "approved_owners": [],
+    "effective_at": null,
+    "expires_at": null,
+    "rules": [],
+    "analytics": null
+  },
+  "key_id": "",
+  "signature": ""
+}

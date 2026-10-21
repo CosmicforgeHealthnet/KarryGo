@@ -541,7 +541,8 @@ func TestRelayWorkerPicksUpPendingProviderDecisions(t *testing.T) {
 	ctx := context.Background()
 	provider := seedProvider(t, pool, "+2348049000001")
 
-	down := &scriptedResponder{configured: true, err: marketplace.ErrFleetUnavailable}
+	// No network attempt has occurred: this decision is safe to deliver later.
+	down := &scriptedResponder{configured: false}
 	server := newProviderServer(t, pool, down,
 		providerSession(provider, "sess-1", authmodels.RoleDispatchProvider), providerFlags())
 

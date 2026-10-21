@@ -334,12 +334,16 @@ type Object struct {
 }
 
 // Downloadable reports whether media may issue a content grant for this
-// object at all.
+// object at all. Revoked evidence is never downloadable, including through
+// a token minted before revocation.
 //
 // This is media's own floor, not the consumer's policy. Fleet applies its
 // document rules on top; what is refused here is refused regardless of what
 // any consumer believes, because these are facts about the bytes.
 func (o Object) Downloadable() bool {
+	if o.EvidenceState == EvidenceRevoked {
+		return false
+	}
 	if o.UploadStatus != UploadCompleted {
 		return false
 	}

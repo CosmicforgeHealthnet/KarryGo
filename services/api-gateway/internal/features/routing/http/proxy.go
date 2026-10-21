@@ -63,6 +63,10 @@ func NewEdge(options Options) (*Edge, error) {
 	}
 	edge := &Edge{table: models.NewTable(options.Routes), upstreams: map[string]*Upstream{}}
 	for name, raw := range options.Origins {
+		// Admin is never an edge destination, even under custom route tables.
+		if name == models.UpstreamAdmin {
+			continue
+		}
 		raw = strings.TrimSpace(raw)
 		if raw == "" {
 			continue
@@ -98,7 +102,7 @@ func (e *Edge) Handle(c *gin.Context) {
 		return
 	}
 	route, ok := e.table.Match(path)
-	if !ok {
+	if !ok || route.Upstream == models.UpstreamAdmin {
 		notFound(c)
 		return
 	}
@@ -136,7 +140,7 @@ type correlationKey struct{}
 // A client that sends one is either confused or attempting to impersonate a
 // service; either way it is dropped before forwarding, and the edge sets the
 // ones it owns afresh.
-var untrustedHeaderPrefixes = []string{"x-service-", "x-internal-", "x-gateway-", "x-forwarded-"}
+var untrustedHeaderPrefixes = []string{"x-service-", "x-internal-", "x-gateway-", "x-forwarded-", "x-hq-", "x-admin-", "x-delegated-"}
 var untrustedHeaders = map[string]bool{"forwarded": true, "x-real-ip": true, "x-analytics-business-id": true}
 
 func (e *Edge) reverseProxy(upstream *Upstream, transport http.RoundTripper) *httputil.ReverseProxy {

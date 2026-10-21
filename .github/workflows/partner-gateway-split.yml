@@ -1,0 +1,82 @@
+name: Partner Web and public Gateway split
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Reviewed comparison commit SHA (the stacked PR base)'
+        required: true
+        type: string
+  pull_request:
+  push:
+    branches: [staging, codex/staging-secure-admin-integration-20261020]
+permissions:
+  contents: read
+jobs:
+  partner-and-edge:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: partner_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: partner_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U partner_test" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      API_GATEWAY_TEST_DATABASE_URL: postgres://partner_test:disposable_ci_only@127.0.0.1:5432/partner_test?sslmode=disable
+      API_GATEWAY_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: |
+            services/partner-web-service/go.sum
+            services/api-gateway/go.sum
+            shared/go/go.sum
+      - name: Verify formatted Go source
+        run: |
+          unformatted="$(gofmt -l services/api-gateway/cmd/*.go services/api-gateway/internal/config/*.go services/api-gateway/internal/features/routing/models/routes.go services/partner-web-service/cmd/*.go)"
+          if [ -n "$unformatted" ]; then
+            for file in $unformatted; do gofmt -d "$file" || true; done
+            exit 1
+          fi
+      - name: Go vet, build and race regression of both owners
+        run: |
+          go vet ./services/api-gateway/... ./services/partner-web-service/...
+          go build ./services/api-gateway/... ./services/partner-web-service/...
+          go test -race -count=1 ./services/api-gateway/... ./services/partner-web-service/... ./shared/go/serviceauth/...
+      - name: Real-process partner/gateway routing and private boundary (disposable DB)
+        shell: bash
+        run: bash scripts/partner-gateway/two-process-smoke.sh
+      - name: Source and migration invariants
+        run: |
+          test -z "$(find services/api-gateway -path '*/migrations/*.sql' -o -path '*/features/partner/*' -o -path '*/features/partneraccount/*')"
+          test -f services/partner-web-service/migrations/010_partner_refresh_cookie.sql
+          grep -q 'partner-web-service' go.work
+          git diff --check
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build both non-root images
+        run: |
+          docker build -f services/Dockerfile --build-arg GO_VERSION=1.26.10-alpine --build-arg SERVICE_DIR=api-gateway -t karryam-public-gateway:test .
+          docker build -f services/Dockerfile --build-arg GO_VERSION=1.26.10-alpine --build-arg SERVICE_DIR=partner-web-service -t karryam-partner-web:test .
+          for image in karryam-public-gateway:test karryam-partner-web:test; do
+            test "$(docker inspect -f '{{.Config.User}}' "$image")" = cosmicforge
+            test "$(docker run --rm --entrypoint id "$image" -u)" != 0
+          done
+      - name: Validate both Compose configurations
+        env:
+          IMAGE: karryam-public-gateway:test
+        run: |
+          sudo mkdir -p /opt/karrygo/api-gateway /opt/karrygo/partner-web-service
+          sudo touch /opt/karrygo/api-gateway/public-gateway.env /opt/karrygo/partner-web-service/partner.env
+          docker compose -f deploy/platform/compose/api-gateway.yml config --quiet
+          docker compose -f deploy/platform/compose/partner-web-service.yml config --quiet

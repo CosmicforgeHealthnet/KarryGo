@@ -18,6 +18,8 @@ import (
 
 	"cosmicforge/logistics/services/customer-service/internal/config"
 	"cosmicforge/logistics/services/customer-service/internal/database"
+	"cosmicforge/logistics/services/customer-service/internal/features/adminresources"
+	"cosmicforge/logistics/services/customer-service/internal/features/adminreview"
 	authclients "cosmicforge/logistics/services/customer-service/internal/features/auth/clients"
 	customerhttp "cosmicforge/logistics/services/customer-service/internal/features/auth/http"
 	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
@@ -204,6 +206,14 @@ func main() {
 	shareService := &shareusecases.Service{Repository: shareRepo, Enabled: cfg.ShareJourneyEnabled, TTL: cfg.ShareJourneyTTL, CompletedRetention: cfg.ShareCompletedRetention, Reader: &journeyshare.Client{Endpoints: map[string]journeyshare.Endpoint{
 		"TAXI": {BaseURL: cfg.ShareTaxiURL, Secret: cfg.ShareTaxiSecret}, "DISPATCH": {BaseURL: cfg.ShareDispatchURL, Secret: cfg.ShareDispatchSecret}, "HAULING": {BaseURL: cfg.ShareHaulingURL, Secret: cfg.ShareHaulingSecret}, "VENDOR_COMMERCE": {BaseURL: cfg.ShareVendorURL, Secret: cfg.ShareVendorSecret},
 	}}}
+	ownerAdmin, err := adminresources.Runtime(ctx, db)
+	if err != nil {
+		logging.Fatal("configuration", "Customer owner admin configuration invalid")
+	}
+	reviewAdmin, err := adminreview.Runtime(ownerAdmin)
+	if err != nil {
+		logging.Fatal("configuration", "Customer review capability configuration invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		Workers: append(workers,
 			shareworkers.Expiry(shareService, cfg.ShareJourneyEnabled),
@@ -247,6 +257,8 @@ func main() {
 			preferences.RegisterInternalRoutes(group, preferenceStore, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 		},
 		RegisterRoot: func(engine *gin.Engine) {
+			ownerAdmin.Register(engine)
+			reviewAdmin.Register(engine)
 			engine.GET("/internal/customer/v1/journey-share-metrics", append(journeyshare.RedisBoundary(serviceVerifier, redisClient, "admin-backoffice-service"), journeyshare.Metrics)...)
 			// Customer V4 §27.2 private scrape: movement ingestion, projection
 			// age and Share counters. Same caller boundary as the Share metrics.

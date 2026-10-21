@@ -1,0 +1,34 @@
+name: Deployment safety acceptance
+on:
+  pull_request:
+  push:
+    branches: [staging, codex/staging-secure-admin-integration-20261020]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deployment-safety-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  release-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install PyYAML==6.0.3
+      - name: Authorization denial paths, workflow surfaces and genuine disposable restore
+        run: python -m unittest discover -s scripts/release -p 'test_*.py' -v
+      - name: Shell syntax
+        run: bash -n deploy/platform/bin/backup.sh deploy/platform/bin/deploy-service.sh deploy/platform/bin/rollback.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: disposable-restore-test-evidence
+          path: .codex-cache/release-restore-cycle.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

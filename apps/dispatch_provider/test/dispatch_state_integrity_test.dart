@@ -196,8 +196,8 @@ void main() {
     await tester.enterText(fields.at(1), '222222');
     await tester.enterText(fields.at(2), '222222');
     await tester.pump();
-    await tester.ensureVisible(find.text('Update PIN'));
-    await tester.tap(find.text('Update PIN'));
+    await tester.ensureVisible(find.text('Save new PIN'));
+    await tester.tap(find.text('Save new PIN'));
     await tester.pumpAndSettle();
     expect(find.text('Your current PIN is incorrect.'), findsOneWidget);
     expect(find.text('Done'), findsNothing);
@@ -222,7 +222,7 @@ void main() {
       );
       expect(find.textContaining('424,350'), findsNothing);
       expect(find.text('48'), findsNothing);
-      expect(find.text('Available earnings'), findsOneWidget);
+      expect(find.text('Available to withdraw'), findsOneWidget);
     },
   );
 }

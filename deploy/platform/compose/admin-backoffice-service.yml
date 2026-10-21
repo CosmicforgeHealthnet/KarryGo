@@ -1,0 +1,75 @@
+# Independent bridge lifecycle. No public Gateway network or domain DB access.
+name: karrygo-admin-backoffice-service
+services:
+  app:
+    image: ${IMAGE:?IMAGE must be an immutable certified image}
+    container_name: karrygo-admin-backoffice-service
+    env_file:
+      - /opt/karrygo/admin-backoffice-service/admin.env
+    environment:
+      ADMIN_TLS_ADDR: ":8110"
+    ports:
+      # Only an approved VPN address may replace this loopback default.
+      - "${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}:8110:8110"
+    networks: [admin-private]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
+    stop_grace_period: 30s
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=8m"]
+    volumes:
+      - /opt/karrygo/admin-backoffice-service/secrets/server.crt:/run/admin-secrets/server.crt:ro
+      - /opt/karrygo/admin-backoffice-service/secrets/server.key:/run/admin-secrets/server.key:ro
+      - /opt/karrygo/admin-backoffice-service/secrets/hq-client-ca.pem:/run/admin-secrets/hq-client-ca.pem:ro
+      - /opt/karrygo/admin-backoffice-service/secrets/trust.json:/run/admin-secrets/trust.json:ro
+    healthcheck:
+      test: ["CMD", "/bin/cosmicforge-logistics-service", "--probe"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 15s
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+  db:
+    image: postgres:16-alpine
+    container_name: karrygo-admin-db
+    env_file:
+      - /opt/karrygo/admin-backoffice-service/db.env
+    networks: [admin-private]
+    restart: unless-stopped
+    volumes: ["admin-data:/var/lib/postgresql/data"]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  migrate:
+    image: ${IMAGE:?IMAGE must be an immutable certified image}
+    profiles: [tools]
+    command: ["--migrate"]
+    env_file:
+      - /opt/karrygo/admin-backoffice-service/admin.migrate.env
+    networks: [admin-private]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 128m
+networks:
+  admin-private:
+    internal: true
+volumes:
+  admin-data:
+    name: karrygo-admin-db-data

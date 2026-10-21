@@ -19,12 +19,26 @@ source "$(dirname "$0")/lib.sh"
 load_service "$1"
 NEW_IMAGE="$2"
 
+# No automated transition or binary fallback may ignore migration 070's fence.
+# This hold has no environment-variable bypass. Lift only in a separately
+# reviewed transition after live consumer/receipt/rollback certification.
+[ "$SVC_KEY" != driver-dispatch-delivery-service ] || die "Dispatch transition BLOCKED: use the reviewed stop/migrate/verify/start recovery plan; no automated deploy or downgrade"
+
 case "$NEW_IMAGE" in
   *:latest|*:staging) die "refusing a reusable tag ($NEW_IMAGE). Deploy an immutable :<commit> tag so it can be rolled back." ;;
 esac
 
 log "== deploying $SVC_KEY -> $NEW_IMAGE"
 check_service_files
+python3 "$PLATFORM_DIR/bin/check-admin-disabled.py" "$SVC_ENV_PATH"
+
+# Operator-provisioned, image-specific certification is mandatory for Admin.
+if [ "$SVC_KEY" = admin-backoffice-service ]; then
+  python3 "$PLATFORM_DIR/network/admin_policy.py" --validate-bind "${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}"
+  check_private_file "$SVC_DIR/bridge.certification"
+  grep -Fxq "$NEW_IMAGE" "$SVC_DIR/bridge.certification" || die "Admin image lacks operator certification"
+  check_private_file "$SVC_DIR/admin.migrate.env"
+fi
 
 # Commit-tagged images never change, so a copy already on the server is the
 # right one. The pipeline pre-downloads every image it builds (while it is
@@ -61,7 +75,7 @@ fi
 helpers="$(awk '
   /^services:/ { in_services = 1; next }
   /^[^ #]/     { in_services = 0 }
-  in_services && /^  [a-z][a-z0-9_-]*:/ { s = $1; sub(":", "", s); if (s != "app" && s != "worker" && s != "db" && s != "redis") print s }
+  in_services && /^  [a-z][a-z0-9_-]*:/ { s = $1; sub(":", "", s); if (s != "app" && s != "worker" && s != "db" && s != "redis" && s != "migrate") print s }
 ' "$SVC_COMPOSE")"
 if [ -n "$helpers" ]; then
   log "making sure $(echo $helpers) is running"
@@ -70,7 +84,10 @@ if [ -n "$helpers" ]; then
 fi
 
 # 4. Database tables.
-if [ "$SVC_MIGRATE" = "script" ]; then
+if [ "$SVC_MIGRATE" = "bridge" ]; then
+  log "applying bridge-only migrations with isolated DDL credentials"
+  RELEASE_OVERRIDE="$NEW_RELEASE" svc_compose run --rm --no-deps -T migrate
+elif [ "$SVC_MIGRATE" = "script" ]; then
   log "preparing database tables (migrate.sh, setting $SVC_DB_URL_VAR)"
   RELEASE_OVERRIDE="$NEW_RELEASE" svc_compose run --rm --no-deps -T \
     -e MIGRATE_DB_URL_VAR="$SVC_DB_URL_VAR" \

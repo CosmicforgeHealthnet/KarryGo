@@ -8,24 +8,8 @@ name: Customer V4 backend certification
 
 on:
   pull_request:
-    paths:
-      - 'services/**'
-      - 'shared/go/**'
-      - 'deploy/**'
-      - 'scripts/customer-v4/**'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/customer-v4-certification.yml'
   push:
-    branches: [staging, main]
-    paths:
-      - 'services/**'
-      - 'shared/go/**'
-      - 'deploy/**'
-      - 'scripts/customer-v4/**'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/customer-v4-certification.yml'
+    branches: [staging, main, codex/staging-secure-admin-integration-20261020]
   workflow_dispatch:
 
 permissions:
@@ -71,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.6', cache: true}
+        with: {go-version: '1.26.10', cache: true}
 
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}

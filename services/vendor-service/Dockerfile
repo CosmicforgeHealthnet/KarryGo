@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.26-alpine
+ARG GO_VERSION=1.26.10-alpine
 FROM golang:${GO_VERSION} AS build
 
 # Stamped by the deployment pipeline. They are build ARGs rather than anything

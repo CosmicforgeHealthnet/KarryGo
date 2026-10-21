@@ -1,9 +1,15 @@
 name: Section 31 mandatory acceptance
 
 on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: 'Reviewed comparison commit SHA (the stacked PR base)'
+        required: true
+        type: string
   pull_request:
   push:
-    branches: [staging]
+    branches: [staging, codex/staging-secure-admin-integration-20261020]
 
 permissions:
   contents: read
@@ -39,6 +45,10 @@ env:
   CUSTOMER_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/customer_test?sslmode=disable
   # The shared outbox test creates and drops its own uniquely named table.
   OUTBOX_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
+  # Source-authority suites create isolated schemas and apply real owner DDL.
+  # Their required PostgreSQL tests must execute in the broad module gates too.
+  ADMIN_CONTEXT_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
+  ADMIN_OWNER_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/karrygo_test?sslmode=disable
 
 jobs:
   static-and-contract:
@@ -58,15 +68,24 @@ jobs:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.6', cache: true}
+        with: {go-version: '1.26.10', cache: true}
       - name: Go formatting of changed files
+        env:
+          COMPARISON_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}
         shell: bash
         run: |
-          base="${{ github.event.pull_request.base.sha }}"
-          if [ -z "$base" ]; then base="${{ github.event.before }}"; fi
+          base="$COMPARISON_BASE_SHA"
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$base^{commit}"
           git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.go' > /tmp/changed-go.txt
           if [ -s /tmp/changed-go.txt ]; then
-            test -z "$(xargs -r gofmt -l < /tmp/changed-go.txt)"
+            unformatted="$(xargs -r gofmt -l < /tmp/changed-go.txt)"
+            if [ -n "$unformatted" ]; then
+              echo "::error::Go source requires formatting:"
+              printf '%s\\n' "$unformatted"
+              for file in $unformatted; do gofmt -d "$file" || true; done
+              exit 1
+            fi
           fi
       - name: Section 31 contract coverage
         working-directory: services/fleet-partner-service
@@ -76,7 +95,12 @@ jobs:
         run: |
           while IFS= read -r module; do
             directory="$(dirname "$module")"
-            (cd "$directory" && go vet ./... && go build ./...)
+            if [ "$directory" = "scripts/customer-v4/openapigen" ]; then
+              # Standalone generator intentionally not part of the platform go.work.
+              (cd "$directory" && GOWORK=off go vet ./... && GOWORK=off go build ./...)
+            else
+              (cd "$directory" && go vet ./... && go build ./...)
+            fi
           done < <(git ls-files '**/go.mod' 'go.mod')
       - name: Reachable Go vulnerability scan
         shell: bash
@@ -84,7 +108,11 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
           while IFS= read -r module; do
             directory="$(dirname "$module")"
-            (cd "$directory" && govulncheck ./...)
+            if [ "$directory" = "scripts/customer-v4/openapigen" ]; then
+              (cd "$directory" && GOWORK=off govulncheck ./...)
+            else
+              (cd "$directory" && govulncheck ./...)
+            fi
           done < <(git ls-files '**/go.mod' 'go.mod')
       - run: git diff --check
 
@@ -110,7 +138,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.6', cache: true}
+        with: {go-version: '1.26.10', cache: true}
       - name: Create isolated PostgreSQL databases
         shell: bash
         run: |
@@ -183,6 +211,7 @@ jobs:
           - services/admin-backoffice-service
           - services/analytics-service
           - services/api-gateway
+          - services/partner-web-service
           - services/customer-service
           - services/driver-dispatch-delivery-service
           - services/driver-hauling-service
@@ -198,7 +227,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: {go-version: '1.26.6', cache: true}
+        with: {go-version: '1.26.10', cache: true}
       - name: Create service databases
         shell: bash
         run: |

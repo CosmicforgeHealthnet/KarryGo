@@ -1,0 +1,774 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Media private case-bound content transport",
+    "version": "1.0.0"
+  },
+  "security": [
+    {
+      "CaseWorkloadHMAC": []
+    }
+  ],
+  "paths": {
+    "/internal/media/v1/admin/case-grants": {
+      "post": {
+        "operationId": "media.case.grants.issue",
+        "description": "Default disabled. Dedicated Bridge workload credential and durable namespaced nonce; metadata comes from existing authenticated staff assertions. No browser/native owner credential reuse. Native signed policy and a live authoritative source-case adapter are mandatory for issuance/redemption. Production source adapters remain unenrolled; flags alone cannot grant access.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "actor": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "product": {
+                        "const": "karryam"
+                      },
+                      "staff": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "roles": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "permissions": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "market_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "zone_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "organization_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "tenant_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "staff",
+                      "expires_at"
+                    ]
+                  },
+                  "request": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "const": "karryam"
+                          },
+                          "market": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "zone": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "organization": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "tenant": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "purpose": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "source_capability": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "case_owner": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "case_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "case_reference": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "subject_type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "subject_reference": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "media_object_id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "purpose",
+                      "source_capability",
+                      "case_owner",
+                      "case_kind",
+                      "case_reference",
+                      "subject_type",
+                      "subject_reference",
+                      "media_object_id"
+                    ]
+                  }
+                },
+                "required": [
+                  "actor",
+                  "request"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorized private result; no storage URL or raw source evidence metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "media.admin-case-content.v1"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "token": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
+                    "media_object_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "id",
+                    "token",
+                    "media_object_id",
+                    "expires_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "404": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "413": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          }
+        },
+        "x-strict-json": true,
+        "x-max-request-bytes": 32768
+      }
+    },
+    "/internal/media/v1/admin/case-grants/{id}/content": {
+      "post": {
+        "operationId": "media.case.grants.redeem",
+        "description": "Default disabled. Dedicated Bridge workload credential and durable namespaced nonce; metadata comes from existing authenticated staff assertions. No browser/native owner credential reuse. Native signed policy and a live authoritative source-case adapter are mandatory for issuance/redemption. Production source adapters remain unenrolled; flags alone cannot grant access.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "actor": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "product": {
+                        "const": "karryam"
+                      },
+                      "staff": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "roles": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "permissions": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "market_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "zone_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "organization_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "tenant_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "staff",
+                      "expires_at"
+                    ]
+                  },
+                  "request": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "const": "karryam"
+                          },
+                          "market": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "zone": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "organization": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          },
+                          "tenant": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "purpose": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "source_capability": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "case_owner": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "case_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "case_reference": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "subject_type": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "subject_reference": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "media_object_id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "scope",
+                      "purpose",
+                      "source_capability",
+                      "case_owner",
+                      "case_kind",
+                      "case_reference",
+                      "subject_type",
+                      "subject_reference",
+                      "media_object_id"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  }
+                },
+                "required": [
+                  "actor",
+                  "request",
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorized private result; no storage URL or raw source evidence metadata",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Media-Case-Contract": {
+                "schema": {
+                  "const": "media.admin-case-content.v1"
+                }
+              },
+              "X-Media-Object-ID": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                  "maxLength": 128
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "404": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "413": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          }
+        },
+        "x-strict-json": true,
+        "x-max-request-bytes": 32768
+      }
+    },
+    "/internal/media/v1/admin/case-grants/{id}/revocations": {
+      "post": {
+        "operationId": "media.case.grants.withdraw",
+        "description": "Default disabled. Dedicated Bridge workload credential and durable namespaced nonce; metadata comes from existing authenticated staff assertions. No browser/native owner credential reuse. Native signed policy and a live authoritative source-case adapter are mandatory for issuance/redemption. Production source adapters remain unenrolled; flags alone cannot grant access. Authenticated staff may withdraw only their own grant after read kills or case closure. This can only reduce access.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "actor": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "product": {
+                        "const": "karryam"
+                      },
+                      "staff": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                        "maxLength": 128
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "roles": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "permissions": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "market_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "zone_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "organization_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      },
+                      "tenant_scopes": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "maxItems": 128,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                          "maxLength": 128
+                        }
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "staff",
+                      "expires_at"
+                    ]
+                  },
+                  "reason_code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "actor",
+                  "reason_code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorized private result; no storage URL or raw source evidence metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "REVOKED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "404": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "413": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable, no content or grant"
+          }
+        },
+        "x-strict-json": true,
+        "x-max-request-bytes": 32768
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CaseWorkloadHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2 exact method/path/query/body plus service-name/version/timestamp/nonce/signature headers. Fixed caller admin-backoffice-service, distinct case key, timestamp window 30 seconds, durable replay protection. Current staff metadata is trusted only from that authenticated workload; the Bridge must validate its HQ staff assertion on every request."
+      }
+    }
+  }
+}
