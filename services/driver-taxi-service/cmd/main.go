@@ -22,6 +22,9 @@ import (
 	providerauthrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/repositories"
 	providerauthusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/usecases"
 
+	providerapprovalhttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_approval/http"
+	providerapprovalrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_approval/repositories"
+	providerapprovalusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_approval/usecases"
 	providerprofilehttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/http"
 	providerprofilerepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/usecases"
@@ -636,6 +639,7 @@ func main() {
 				customerSigner,
 			)
 			capabilities.RegisterRoutes(group, capabilityService, authService.AccessSigner(), customerSigner, opsVerifier, strings.Split(cfg.CapabilityInternalCallers, ","))
+			providerapprovalhttp.RegisterRoutes(group, providerapprovalusecases.NewService(providerapprovalrepositories.NewPostgresRepository(db)), opsVerifier)
 			if opsVerifier != nil {
 				group.GET("/internal/metrics", serviceauth.Middleware(opsVerifier), func(c *gin.Context) {
 					c.String(http.StatusOK, metrics.Render()+taxiOutboxMetrics.Render()+journeyshare.Render())

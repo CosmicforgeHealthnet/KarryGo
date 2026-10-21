@@ -46,6 +46,9 @@ import (
 	providerauthrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
 
+	providerapprovalhttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_approval/http"
+	providerapprovalrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_approval/repositories"
+	providerapprovalusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_approval/usecases"
 	providerprofilehttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/http"
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
@@ -507,6 +510,7 @@ func main() {
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			providerapprovalhttp.RegisterRoutes(group, providerapprovalusecases.NewService(providerapprovalrepositories.NewPostgresRepository(db)), serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 			if len(serviceauth.ParseSecrets(cfg.ServiceSecrets)) > 0 {
 				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "HAULING"), inboundVerifier,
 					custodyops.MediaFileAuthorizer{Client: custodyMedia, AllowedOwners: map[string]struct{}{"driver-hauling-service": {}, "vendor-service": {}}},
