@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../app_mode.dart';
 
@@ -7,6 +10,7 @@ class TokenStorage {
   static const _accessTokenKey = 'dp_access_token';
   static const _refreshTokenKey = 'dp_refresh_token';
   static const _providerIdKey = 'dp_provider_id';
+  static const _deviceIdKey = 'dp_install_device_id';
 
   final FlutterSecureStorage _storage;
   final String _scope = AppModeConfig.instance.current.name;
@@ -22,6 +26,19 @@ class TokenStorage {
       await _storage.read(key: _key('dp_intro_seen')) == 'true';
   Future<void> markIntroductionSeen() =>
       _storage.write(key: _key('dp_intro_seen'), value: 'true');
+
+  /// A non-hardware identifier, stable within the current installation
+  /// and isolated from mock-mode credentials. Logout does not rotate it.
+  Future<String> getOrCreateDeviceId() async {
+    final key = _key(_deviceIdKey);
+    final current = await _storage.read(key: key);
+    if (current != null && current.isNotEmpty) return current;
+    final secureRandom = Random.secure();
+    final randomBytes = List<int>.generate(24, (_) => secureRandom.nextInt(256));
+    final deviceId = 'dp-${base64UrlEncode(randomBytes).replaceAll('=', '')}';
+    await _storage.write(key: key, value: deviceId);
+    return deviceId;
+  }
 
   /// Saves access token, refresh token, and provider ID atomically.
   Future<void> saveTokens({

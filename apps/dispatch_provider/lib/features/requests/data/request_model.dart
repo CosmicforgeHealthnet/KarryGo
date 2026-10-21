@@ -143,7 +143,9 @@ class RequestModel {
       lifecycle == RequestLifecycleState.expired ||
       (expiresAt != null && !expiresAt!.isAfter(DateTime.now()));
   bool get isAcceptable =>
-      !isExpired && lifecycle == RequestLifecycleState.available;
+      !isExpired &&
+      (lifecycle == RequestLifecycleState.available ||
+       lifecycle == RequestLifecycleState.requoted);
 
   static String _groupThousands(String whole) {
     final buf = StringBuffer();

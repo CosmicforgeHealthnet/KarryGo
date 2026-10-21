@@ -203,7 +203,7 @@ type StepSubmissionResponse struct {
 type FaceSubmissionResponse struct {
 	Step       Step       `json:"step"`
 	Result     string     `json:"result"`
-	MatchScore float64    `json:"match_score"`
+	MatchScore float64    `json:"match_score,omitempty"`
 	Status     StepStatus `json:"status"`
 	Message    string     `json:"message"`
 }
@@ -214,6 +214,50 @@ const (
 	AdminActionApprove AdminReviewAction = "approve"
 	AdminActionReject  AdminReviewAction = "reject"
 )
+
+// AdminFaceEvidenceResponse is restricted to platform administrators. File
+// references must be resolved through private, access-controlled media storage.
+// Do not expose this object through rider-facing or public read routes.
+type AdminFaceEvidenceResponse struct {
+	ProviderID string `json:"provider_id"`
+	FaceStepStatus StepStatus `json:"face_step_status"`
+	IdentityStepStatus StepStatus `json:"identity_step_status"`
+	SelfieReference string `json:"selfie_reference"`
+	GovernmentIDReference string `json:"government_id_reference"`
+	FaceCheckStatus string `json:"face_check_status"`
+	FaceCheckID string `json:"face_check_id"`
+}
+
+// The admin sees a single dossier after automation has checked every
+// available document and onboarding step. Biometric/liveness remains explicitly
+// unverified until independently certified automation exists.
+type FinalReviewCheck struct {
+	Name string `json:"name"`
+	Status string `json:"status"` // pass, needs_action, pending_manual
+	Detail string `json:"detail"`
+}
+
+type FinalReviewDossier struct {
+	ProviderID string `json:"provider_id"`
+	ReadyForReview bool `json:"ready_for_review"`
+	Checks []FinalReviewCheck `json:"checks"`
+	Steps []VerificationStepSummary `json:"steps"`
+	Evidence *AdminFaceEvidenceResponse `json:"evidence,omitempty"`
+	// Reviewer must inspect images through authenticated private-asset routes.
+	NoAutomatedBiometrics bool `json:"no_automated_biometrics"`
+}
+
+type FinalReviewDecision struct {
+	Action string `json:"action"`
+	Notes string `json:"notes"`
+}
+
+type FinalReviewOutcome struct {
+	ProviderID string `json:"provider_id"`
+	Decision string `json:"decision"`
+	ApprovedSteps []Step `json:"approved_steps"`
+	Message string `json:"message"`
+}
 
 type AdminReviewRequest struct {
 	Step   Step              `json:"step"`

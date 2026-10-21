@@ -155,6 +155,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       itemBuilder: (context, i) => OpportunityCard(
         request: items[i],
         busy: _working,
+        actionsAvailable: _ctrl.canAcceptOffers,
         onTap: () => _detail(items[i]),
         onAccept: () => _accept(items[i]),
         onDecline: () => _decline(items[i]),

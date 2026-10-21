@@ -29,6 +29,9 @@ type Service struct {
 	faceClient FaceMatcher
 	uploader   FileUploader
 	events     EventPublisher
+	// Self-owned verification: only a human admin can approve the face step.
+	// This mode must never invent a face-match or liveness score.
+	inHouseManualReview bool
 }
 
 type ServiceOption func(*Service)
@@ -45,6 +48,14 @@ func WithEventPublisher(events EventPublisher) ServiceOption {
 	}
 }
 
+// WithInHouseManualFaceReview replaces third-party face matching with an
+// auditable manual review. The selfie and ID are still required and uploaded.
+func WithInHouseManualFaceReview() ServiceOption {
+	return func(s *Service) {
+		s.inHouseManualReview = true
+	}
+}
+
 func NewService(repository Repository, faceClient FaceMatcher, options ...ServiceOption) *Service {
 	service := &Service{
 		repository: repository,
@@ -54,7 +65,7 @@ func NewService(repository Repository, faceClient FaceMatcher, options ...Servic
 	for _, option := range options {
 		option(service)
 	}
-	if service.faceClient == nil {
+	if service.faceClient == nil && !service.inHouseManualReview {
 		service.faceClient = NewStubSmileIdentityClient()
 	}
 	if service.uploader == nil {
@@ -247,6 +258,20 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 		return FaceSubmissionResponse{}, err
 	}
 
+	if s.inHouseManualReview {
+		// Early local image prescreen avoids storing or queuing empty/blank
+		// captures. This is not a biometric verification result.
+		imageFile, openErr := input.Selfie.Header.Open()
+		if openErr != nil {
+			return FaceSubmissionResponse{}, apperrors.Internal("Could not inspect selfie.", openErr)
+		}
+		_, qualityErr := inspectSelfieImage(imageFile)
+		_ = imageFile.Close()
+		if qualityErr != nil {
+			return FaceSubmissionResponse{}, validationError("selfie", "The selfie is unreadable, too dark, too bright, or lacks detail. Please retake it.")
+		}
+	}
+
 	identity, ok, err := s.repository.GetStep(ctx, input.ProviderID, StepIdentity)
 	if err != nil {
 		return FaceSubmissionResponse{}, err
@@ -276,17 +301,43 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 		StepID:       step.ID,
 		SelfieURL:    selfieURL,
 		IDDocURL:     govtIDDoc.FileURL,
-		ProviderUsed: "smile_identity",
+		ProviderUsed: s.faceProviderName(),
 	})
 	if err != nil {
 		return FaceSubmissionResponse{}, err
+	}
+
+	if s.inHouseManualReview {
+		// A genuine verification document and selfie are present. Record that
+		// no automatic identity/liveness decision was performed.
+		pending := "pending_review"
+		if _, err := s.repository.UpdateFaceCheckResult(ctx, FaceCheckResultInput{
+			ID: check.ID, Result: &pending,
+		}); err != nil {
+			return FaceSubmissionResponse{}, err
+		}
+		updated, err := s.repository.UpdateStepSubmitted(ctx, input.ProviderID, StepFace)
+		if err != nil {
+			return FaceSubmissionResponse{}, err
+		}
+		notes := "Selfie and ID submitted for in-house face review; no automatic match or liveness decision."
+		if err := s.insertSubmissionAudit(ctx, input.ProviderID, StepFace, step.Status, notes); err != nil {
+			return FaceSubmissionResponse{}, err
+		}
+		if err := s.publishStepSubmitted(ctx, input.CorrelationID, input.ProviderID, StepFace); err != nil {
+			return FaceSubmissionResponse{}, apperrors.Internal("Event publishing failed.", err)
+		}
+		return FaceSubmissionResponse{
+			Step: StepFace, Result: pending, Status: updated.Status,
+			Message: "Selfie received. Our verification team will compare it with your ID before approving.",
+		}, nil
 	}
 
 	match, err := s.faceClient.MatchFace(ctx, selfieURL, govtIDDoc.FileURL)
 	if err != nil {
 		message := err.Error()
 		_, _ = s.repository.UpdateFaceCheckResult(ctx, FaceCheckResultInput{ID: check.ID, ErrorMessage: &message})
-		return FaceSubmissionResponse{}, apperrors.Internal("Smile Identity API unavailable.", err)
+		return FaceSubmissionResponse{}, apperrors.Unavailable("Face verification is temporarily unavailable. Please try again later.", err)
 	}
 
 	result := "fail"
@@ -347,6 +398,13 @@ func (s *Service) SubmitFace(ctx context.Context, input FaceSubmissionInput) (Fa
 	}, nil
 }
 
+func (s *Service) faceProviderName() string {
+	if s.inHouseManualReview {
+		return "karryam_manual_review"
+	}
+	return "smile_identity"
+}
+
 // manualReviewSteps are the only steps that accept manual admin review.
 // vehicle is handled by the vehicle feature event.
 // guarantor and emergency are auto-confirmed and cannot be manually reviewed.
@@ -364,6 +422,14 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 	}
 	if err := validateAdminReviewInput(input); err != nil {
 		return AdminReviewResponse{}, err
+	}
+
+	// A rider should reach the admin exactly once. In-house identity and
+	// face approval must be a single atomic final-case decision.
+	if s.inHouseManualReview && input.Action == AdminActionApprove &&
+		(input.Step == StepIdentity || input.Step == StepFace || input.Step == StepLicence) {
+		return AdminReviewResponse{}, apperrors.Conflict(
+			"Use the final-review endpoint to approve the complete verification case once.", nil)
 	}
 
 	// Enforce manual-review-only steps.
@@ -388,6 +454,42 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 		return AdminReviewResponse{}, apperrors.Conflict("Verification step is already approved.", nil)
 	}
 
+	if s.inHouseManualReview && input.Step == StepFace && input.Action == AdminActionApprove {
+		if current.Status != StatusSubmitted {
+			return AdminReviewResponse{}, preconditionFailed("Selfie must be submitted before a human reviewer can approve it.")
+		}
+		if reviewerID == providerID {
+			return AdminReviewResponse{}, apperrors.Forbidden("A provider cannot approve their own selfie.", nil)
+		}
+		if len(strings.TrimSpace(input.Reason)) < 12 {
+			return AdminReviewResponse{}, validationError("reason", "Record what you checked when comparing the selfie against the government ID (at least 12 characters).")
+		}
+		identity, exists, err := s.repository.GetStep(ctx, providerID, StepIdentity)
+		if err != nil {
+			return AdminReviewResponse{}, err
+		}
+		if !exists || identity.Status != StatusApproved {
+			return AdminReviewResponse{}, preconditionFailed("Government identity must be approved before in-house face approval.")
+		}
+		check, exists, err := s.repository.GetLastFaceCheck(ctx, providerID)
+		if err != nil {
+			return AdminReviewResponse{}, err
+		}
+		if !exists || check.StepID != current.ID ||
+			check.ProviderUsed != "karryam_manual_review" ||
+			check.SelfieURL == "" || check.IDDocURL == "" ||
+			check.Result == nil || *check.Result != "pending_review" {
+			return AdminReviewResponse{}, preconditionFailed("A pending first-party selfie and matching ID evidence are required.")
+		}
+		govtIDDoc, exists, err := s.repository.GetLatestIdentityGovtIDDocument(ctx, providerID)
+		if err != nil {
+			return AdminReviewResponse{}, err
+		}
+		if !exists || govtIDDoc.FileURL == "" || govtIDDoc.FileURL != check.IDDocURL {
+			return AdminReviewResponse{}, preconditionFailed("Identity evidence changed. Ask the rider for a new selfie before approval.")
+		}
+	}
+
 	var updated VerificationStep
 	var auditAction AuditAction
 
@@ -404,6 +506,22 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 			return AdminReviewResponse{}, err
 		}
 		auditAction = AuditActionRejected
+	}
+
+	// Reconcile the human decision on the stored face check. No numeric
+	// face-match score is invented during manual approval or rejection.
+	if s.inHouseManualReview && input.Step == StepFace {
+		check, found, lookupErr := s.repository.GetLastFaceCheck(ctx, providerID)
+		if lookupErr != nil { return AdminReviewResponse{}, lookupErr }
+		if found && check.ProviderUsed == "karryam_manual_review" && check.StepID == current.ID {
+			decision := "manual_rejected"
+			if input.Action == AdminActionApprove { decision = "manual_approved" }
+			if _, lookupErr = s.repository.UpdateFaceCheckResult(ctx, FaceCheckResultInput{
+				ID: check.ID, Result: &decision,
+			}); lookupErr != nil {
+				return AdminReviewResponse{}, lookupErr
+			}
+		}
 	}
 
 	// Insert audit row.
@@ -462,6 +580,78 @@ func (s *Service) AdminReview(ctx context.Context, reviewerID, correlationID, pr
 		ReviewerID:      updated.ReviewerID,
 		RejectionReason: updated.RejectionReason,
 	}, nil
+}
+
+// GetAdminFaceEvidence exposes the uploaded identity document and latest
+// selfie ONLY to the existing platform_admin-protected route. These references
+// are for the human reviewer; private media authorization is an external
+// deployment precondition, not implied by possessing a reference.
+func (s *Service) GetAdminFaceEvidence(ctx context.Context, providerID string) (AdminFaceEvidenceResponse, error) {
+	if err := validateProviderID(providerID); err != nil {
+		return AdminFaceEvidenceResponse{}, err
+	}
+	face, ok, err := s.repository.GetStep(ctx, providerID, StepFace)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok { return AdminFaceEvidenceResponse{}, apperrors.NotFound("Face verification not found.", nil) }
+	identity, ok, err := s.repository.GetStep(ctx, providerID, StepIdentity)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok { return AdminFaceEvidenceResponse{}, apperrors.NotFound("Identity verification not found.", nil) }
+	check, ok, err := s.repository.GetLastFaceCheck(ctx, providerID)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok || check.ProviderUsed != "karryam_manual_review" || check.StepID != face.ID ||
+		check.SelfieURL == "" || check.IDDocURL == "" {
+		return AdminFaceEvidenceResponse{}, apperrors.NotFound("Submitted first-party selfie evidence not found.", nil)
+	}
+	idDoc, ok, err := s.repository.GetLatestIdentityGovtIDDocument(ctx, providerID)
+	if err != nil { return AdminFaceEvidenceResponse{}, err }
+	if !ok || idDoc.FileURL == "" || idDoc.FileURL != check.IDDocURL {
+		return AdminFaceEvidenceResponse{}, preconditionFailed("Government identity evidence changed. New selfie is required.")
+	}
+	result := ""
+	if check.Result != nil { result = *check.Result }
+	return AdminFaceEvidenceResponse{
+		ProviderID: providerID, FaceStepStatus: face.Status,
+		IdentityStepStatus: identity.Status, SelfieReference: check.SelfieURL,
+		GovernmentIDReference: check.IDDocURL, FaceCheckStatus: result,
+		FaceCheckID: check.ID,
+	}, nil
+}
+
+// GetAdminFaceAsset reads a verified reference from the DB, not a client
+// supplied URL. Served only via platform_admin auth. MediaFileUploader requires
+// a separately authenticated media reader; unsupported backends fail closed.
+func (s *Service) GetAdminFaceAsset(ctx context.Context, providerID, kind string) ([]byte, string, error) {
+	if kind != "selfie" && kind != "government-id" {
+		return nil, "", validationError("kind", "Expected selfie or government-id.")
+	}
+	evidence, err := s.GetAdminFaceEvidence(ctx, providerID)
+	if err != nil { return nil, "", err }
+	reader, ok := s.uploader.(interface{
+		OpenPrivate(context.Context, string) (io.ReadCloser, error)
+	})
+	if !ok {
+		return nil, "", apperrors.Unavailable("Private reviewer media access is not configured.", nil)
+	}
+	reference := evidence.SelfieReference
+	if kind == "government-id" { reference = evidence.GovernmentIDReference }
+	asset, err := reader.OpenPrivate(ctx, reference)
+	if err != nil {
+		return nil, "", apperrors.Unavailable("Reviewer evidence is currently unavailable.", err)
+	}
+	defer asset.Close()
+	bytes, err := io.ReadAll(io.LimitReader(asset, maxGovtIDFileSize+1))
+	if err != nil { return nil, "", apperrors.Internal("Could not read private evidence.", err) }
+	if len(bytes) == 0 || int64(len(bytes)) > maxGovtIDFileSize {
+		return nil, "", apperrors.BadRequest("Evidence file is invalid.", nil)
+	}
+	mimeType := http.DetectContentType(bytes)
+	if kind == "selfie" && mimeType != "image/jpeg" && mimeType != "image/png" {
+		return nil, "", apperrors.BadRequest("Selfie has unsupported content.", nil)
+	}
+	if kind == "government-id" && mimeType != "image/jpeg" && mimeType != "image/png" && mimeType != "application/pdf" {
+		return nil, "", apperrors.BadRequest("Identity evidence has unsupported content.", nil)
+	}
+	return bytes, mimeType, nil
 }
 
 func (s *Service) GetAllStatus(ctx context.Context, providerID string) (AllStatusResponse, error) {

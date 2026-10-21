@@ -124,11 +124,14 @@ func (u *LocalFileUploader) Upload(ctx context.Context, objectPath string, file 
 		return "", err
 	}
 	targetPath := filepath.Join(u.rootDir, filepath.FromSlash(cleanPath))
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	// Government IDs and selfies are sensitive: owner-only directories.
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o700); err != nil {
 		return "", err
 	}
 
-	out, err := os.Create(targetPath)
+	// Never create world-readable identity material or overwrite an existing
+	// verification capture. Callers always use a newly generated UUID path.
+	out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", err
 	}
@@ -139,6 +142,50 @@ func (u *LocalFileUploader) Upload(ctx context.Context, objectPath string, file 
 	}
 
 	return joinStorageURL(u.baseURL, cleanPath), nil
+}
+
+// OpenPrivate is intentionally implemented only by the in-house local-private
+// uploader. An admin must first pass the authenticated evidence lookup; this
+// method never accepts a caller-supplied arbitrary filesystem location.
+func (u *LocalFileUploader) OpenPrivate(ctx context.Context, reference string) (io.ReadCloser, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	const prefix = "local-private://"
+	if !strings.HasPrefix(reference, prefix) || strings.Contains(reference, "%") {
+		return nil, fmt.Errorf("not a local-private verification reference")
+	}
+	objectPath := strings.TrimPrefix(reference, prefix)
+	if !strings.HasPrefix(objectPath, "verifications/") ||
+		strings.Contains(objectPath, "\\") ||
+		!filepath.IsLocal(filepath.FromSlash(objectPath)) {
+		return nil, fmt.Errorf("invalid verification reference")
+	}
+	clean, err := cleanStoragePath(objectPath)
+	if err != nil || clean != objectPath {
+		return nil, fmt.Errorf("invalid verification reference")
+	}
+	root, err := filepath.Abs(u.rootDir)
+	if err != nil { return nil, err }
+	filename := filepath.Join(root, filepath.FromSlash(clean))
+	// Resolve symlinks in storage to prevent following links outside the
+	// verification volume, even after a compromised local filesystem write.
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil { return nil, err }
+	resolvedFile, err := filepath.EvalSymlinks(filename)
+	if err != nil { return nil, err }
+	relative, err := filepath.Rel(resolvedRoot, resolvedFile)
+	if err != nil || !filepath.IsLocal(relative) {
+		return nil, fmt.Errorf("verification reference escapes private storage")
+	}
+	file, err := os.Open(resolvedFile)
+	if err != nil { return nil, err }
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxGovtIDFileSize {
+		_ = file.Close()
+		return nil, fmt.Errorf("invalid private evidence file")
+	}
+	return file, nil
 }
 
 func cleanStoragePath(objectPath string) (string, error) {

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -51,6 +52,72 @@ func TestNewUploaderFromEnvUsesGenericLocalPrivateRoot(t *testing.T) {
 	}
 	if string(stored) != string(header.content) {
 		t.Fatalf("stored content = %q, want %q", stored, header.content)
+	}
+}
+
+func TestLocalVerificationEvidenceUsesOwnerOnlyPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows ACL semantics differ from POSIX mode bits")
+	}
+	root := t.TempDir()
+	uploader := NewLocalFileUploader(root, "local-private://")
+	header := stubFileHeader{
+		filename: "selfie.jpg", contentType: "image/jpeg",
+		content: []byte("private-biometric-capture"),
+	}
+	object := "verifications/provider-123/face/test-private-selfie.jpg"
+	first, err := header.Open()
+	if err != nil { t.Fatal(err) }
+	_, err = uploader.Upload(context.Background(), object, first, header)
+	_ = first.Close()
+	if err != nil { t.Fatal(err) }
+	path := filepath.Join(root, filepath.FromSlash(object))
+	info, err := os.Stat(path)
+	if err != nil { t.Fatal(err) }
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("selfie mode=%#o, want 0600", info.Mode().Perm())
+	}
+	folder, err := os.Stat(filepath.Dir(path))
+	if err != nil { t.Fatal(err) }
+	if folder.Mode().Perm() != 0o700 {
+		t.Fatalf("verification folder mode=%#o, want 0700", folder.Mode().Perm())
+	}
+	second, err := header.Open()
+	if err != nil { t.Fatal(err) }
+	_, err = uploader.Upload(context.Background(), object, second, header)
+	_ = second.Close()
+	if err == nil { t.Fatal("must refuse overwriting existing biometric evidence") }
+}
+
+func TestLocalPrivateReaderRejectsTraversalAndAllowsStoredEvidence(t *testing.T) {
+	root := t.TempDir()
+	uploader := NewLocalFileUploader(root, "local-private://")
+	header := stubFileHeader{
+		filename: "proof.pdf", contentType: "application/pdf",
+		content: []byte("%PDF-1.4\\nPrivate identity evidence"),
+	}
+	file, err := header.Open()
+	if err != nil { t.Fatal(err) }
+	reference, err := uploader.Upload(context.Background(), "verifications/provider-1/identity/proof.pdf", file, header)
+	_ = file.Close()
+	if err != nil { t.Fatal(err) }
+	stored, err := uploader.OpenPrivate(context.Background(), reference)
+	if err != nil { t.Fatal(err) }
+	buf := make([]byte, 64)
+	n, err := stored.Read(buf)
+	_ = stored.Close()
+	if n == 0 || string(buf[:n]) != string(header.content) {
+		t.Fatalf("unexpected private evidence content: n=%d error=%v", n, err)
+	}
+	for _, malformed := range []string{
+		"file:///etc/passwd",
+		"local-private://../../etc/passwd",
+		"local-private://verifications/../private",
+		"local-private://verifications/%2e%2e/secret",
+	} {
+		asset, err := uploader.OpenPrivate(context.Background(), malformed)
+		if asset != nil { _ = asset.Close() }
+		if err == nil { t.Fatalf("accepted unsafe file reference: %q", malformed) }
 	}
 }
 

@@ -361,7 +361,16 @@ class _DispatchProviderAppState extends State<_DispatchSessionApp> {
     return refreshed;
   }
 
+  void _invalidateRiderSessionData() {
+    // Stop background work immediately, before a slow logout HTTP request.
+    _stopRealtimeAndPush();
+    _offlineUpdates.stop();
+    _availabilityController.stopTracking();
+    _requestsController.resetSession();
+  }
+
   Future<void> _handleSessionExpired() async {
+    _invalidateRiderSessionData();
     await _authController.clearSession();
     _profileController.clearLocalState();
     if (mounted) {
@@ -488,7 +497,7 @@ class _DispatchProviderAppState extends State<_DispatchSessionApp> {
                   child: _buildScreen(),
                 ),
               ),
-              if (_screen != _DispatchScreen.home)
+              if (!kReleaseMode && _screen != _DispatchScreen.home)
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 8,
                   right: 12,
@@ -1032,6 +1041,7 @@ class _DispatchProviderAppState extends State<_DispatchSessionApp> {
 
   Future<void> _handleLogout() async {
     debugPrint('[AUTH] User initiated logout');
+    _invalidateRiderSessionData();
     await _authController.logout();
     if (!mounted) return;
     _profileController.clearLocalState();
@@ -1046,6 +1056,7 @@ class _DispatchProviderAppState extends State<_DispatchSessionApp> {
 
   Future<void> _handleAccountDeleted() async {
     debugPrint('[AUTH] Account deleted — clearing local session');
+    _invalidateRiderSessionData();
     await _authController.clearSession();
     if (!mounted) return;
     _profileController.clearLocalState();

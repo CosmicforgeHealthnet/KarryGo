@@ -79,9 +79,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final r = request,
-        unavailable =
-            request.isExpired ||
-            request.lifecycle == RequestLifecycleState.taken;
+        unavailable = !request.isAcceptable,
+        degraded = widget.controller != null &&
+            !widget.controller!.canAcceptOffers;
     return PopScope(
       canPop: !_busy,
       child: Scaffold(
@@ -117,9 +117,18 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
+                  if (degraded && !unavailable) ...[
+                    const ActionNotice(
+                      message: 'This opportunity has not been refreshed. '
+                          'Return to Opportunities and retry before accepting.',
+                      isError: true,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   OpportunityCard(
                     request: r,
                     busy: _busy,
+                    actionsAvailable: !degraded,
                     detailed: true,
                     onTap: () {},
                     onAccept: () => _act(true),
@@ -138,7 +147,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               color: context.palette.surface,
               border: Border(top: BorderSide(color: context.palette.divider)),
             ),
-            child: unavailable
+            child: unavailable || degraded
                 ? FilledButton(
                     onPressed: widget.onBrowseNew,
                     child: const Text('Back to opportunities'),

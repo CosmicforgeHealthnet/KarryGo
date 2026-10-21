@@ -10,24 +10,38 @@ import 'request_model.dart';
 class RequestsApi {
   final ApiCoreConfig config;
   final http.Client _client;
+  final Map<String, String> _operationKeys = {};
+
+  // Reuse the same identity on retry. A timed-out POST may already be done.
+  String _operationKey(
+    String token,
+    RequestModel request,
+    String operation, [
+    String? reason,
+  ]) {
+    final identity =
+        '${token.hashCode}:${request.kind.name}:${request.id}:'
+        '${request.version}:$operation:${reason ?? ''}';
+    return _operationKeys.putIfAbsent(identity, _newIdempotencyKey);
+  }
 
   RequestsApi(this.config, {http.Client? client})
-    : _client = client ?? http.Client();
+      : _client = client ?? http.Client();
 
   static void _debugLog(String message) {
     if (kDebugMode) debugPrint(message);
   }
 
   Map<String, String> _jsonHeaders(String accessToken) => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Authorization': 'Bearer $accessToken',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      };
 
   Map<String, String> _getHeaders(String accessToken) => {
-    'Accept': 'application/json',
-    'Authorization': 'Bearer $accessToken',
-  };
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      };
 
   static Map<String, dynamic>? _tryDecode(String body) {
     try {
@@ -81,43 +95,50 @@ class RequestsApi {
 
   Future<ApiResult<List<RequestModel>>> listBroadcasts({
     required String accessToken,
-  }) => _listSimple(
-    accessToken: accessToken,
-    path: '/api/v1/provider/requests',
-    logTag: 'REQUESTS:broadcast',
-  );
+  }) =>
+      _listSimple(
+        accessToken: accessToken,
+        path: '/api/v1/provider/requests',
+        logTag: 'REQUESTS:broadcast',
+      );
 
   // ── Assignment: GET /api/v1/provider/assignment-offers ───────────────────
 
   Future<ApiResult<List<RequestModel>>> listAssignmentOffers({
     required String accessToken,
-  }) => _listSimple(
-    accessToken: accessToken,
-    path: '/api/v1/provider/assignment-offers',
-    logTag: 'REQUESTS:assignment',
-  );
+  }) =>
+      _listSimple(
+        accessToken: accessToken,
+        path: '/api/v1/provider/assignment-offers',
+        logTag: 'REQUESTS:assignment',
+        optionalFeature: true,
+      );
 
   // ── Commerce: GET /api/v1/provider/organization-offers ───────────────────
 
   Future<ApiResult<List<RequestModel>>> listOrganizationOffers({
     required String accessToken,
-  }) => _listSimple(
-    accessToken: accessToken,
-    path: '/api/v1/provider/organization-offers',
-    logTag: 'REQUESTS:commerce',
-    listKey: 'offers',
-  );
+  }) =>
+      _listSimple(
+        accessToken: accessToken,
+        path: '/api/v1/provider/organization-offers',
+        logTag: 'REQUESTS:commerce',
+        listKey: 'offers',
+        optionalFeature: true,
+      );
 
   // ── Commerce: GET /api/v1/provider/company-assignments ───────────────────
 
   Future<ApiResult<List<RequestModel>>> listCompanyAssignments({
     required String accessToken,
-  }) => _listSimple(
-    accessToken: accessToken,
-    path: '/api/v1/provider/company-assignments',
-    logTag: 'REQUESTS:assignments',
-    listKey: 'assignments',
-  );
+  }) =>
+      _listSimple(
+        accessToken: accessToken,
+        path: '/api/v1/provider/company-assignments',
+        logTag: 'REQUESTS:assignments',
+        listKey: 'assignments',
+        optionalFeature: true,
+      );
 
   /// Shared list reader. Handles both a bare array under `data` and an
   /// object with a named key (`{"offers": [...]}`).
@@ -126,6 +147,7 @@ class RequestsApi {
     required String path,
     required String logTag,
     String? listKey,
+    bool optionalFeature = false,
   }) async {
     final uri = config.uri(path);
     _debugLog('[$logTag] GET $uri');
@@ -135,27 +157,20 @@ class RequestsApi {
           .timeout(const Duration(seconds: 15));
       _debugLog('[$logTag] status=${response.statusCode}');
 
+      // Only an optional endpoint's 404 can mean the feature is disabled.
+      // A 503 is a real outage and must never be presented as an empty inbox.
+      if (optionalFeature && response.statusCode == 404) {
+        return const ApiSuccess([]);
+      }
+
       if (response.statusCode == 200) {
         final body = _tryDecode(response.body);
-        if (body != null && body['success'] == true) {
-          final data = body['data'];
-          final raw = _extractList(data, listKey);
-          return ApiSuccess(
-            raw
-                .whereType<Map<String, dynamic>>()
-                .map(RequestModel.fromJson)
-                .toList(),
-          );
-        }
-        // Marketplace uses a different envelope: {"data": ..., "meta": ...}
-        if (body != null && body.containsKey('data')) {
-          final raw = _extractList(body['data'], listKey);
-          return ApiSuccess(
-            raw
-                .whereType<Map<String, dynamic>>()
-                .map(RequestModel.fromJson)
-                .toList(),
-          );
+        // Marketplace may omit the success field, but an explicit false
+        // must never be treated as success even when it includes data.
+        if (body != null &&
+            body['success'] != false &&
+            (body['success'] == true || body.containsKey('data'))) {
+          return _decodeRequestList(body['data'], listKey);
         }
         return _failureFromResponse(response);
       }
@@ -166,19 +181,58 @@ class RequestsApi {
     }
   }
 
-  static List<dynamic> _extractList(dynamic data, String? listKey) {
+  static ApiResult<List<RequestModel>> _decodeRequestList(
+      dynamic data, String? listKey) {
+    final raw = _extractList(data, listKey);
+    if (raw == null || !raw.every((item) => item is Map<String, dynamic>)) {
+      return _invalidOfferPayload();
+    }
+    final offers = raw.cast<Map<String, dynamic>>()
+        .map(RequestModel.fromJson).toList();
+    // Missing offer IDs must never result in an actionable phantom request.
+    if (offers.any((offer) => offer.id.trim().isEmpty)) {
+      return _invalidOfferPayload();
+    }
+    return ApiSuccess(offers);
+  }
+
+  static ApiFailure<List<RequestModel>> _invalidOfferPayload() =>
+      const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.unknown,
+          message: 'Received an invalid opportunities response. Please retry.',
+          statusCode: 200,
+        ),
+      );
+
+  static List<dynamic>? _extractList(dynamic data, String? listKey) {
     if (data is List) return data;
     if (data is Map<String, dynamic>) {
       if (listKey != null && data[listKey] is List) {
         return data[listKey] as List;
       }
-      // Common fallbacks.
-      for (final k in ['items', 'offers', 'assignments', 'data']) {
-        if (data[k] is List) return data[k] as List;
+      for (final key in ['items', 'offers', 'assignments', 'data']) {
+        if (data[key] is List) return data[key] as List;
       }
     }
-    return const [];
+    return null;
   }
+
+  // A 202 only acknowledges asynchronous processing. It does not prove
+  // that this provider won the assignment race or can start a trip.
+  static ApiFailure<T> _pendingOutcome<T>() => const ApiFailure(
+        ApiException(
+          code: ApiErrorCode.conflict,
+          message: 'This request is being processed. Check your trips '
+              'before attempting the action again.',
+          statusCode: 202,
+        ),
+      );
+
+  static bool _acknowledged(Map<String, dynamic>? parsed) =>
+      parsed != null &&
+      parsed['success'] != false &&
+      (parsed['success'] == true || parsed['data'] is Map);
 
   // ── Accept ────────────────────────────────────────────────────────────────
 
@@ -187,25 +241,24 @@ class RequestsApi {
     required RequestModel request,
   }) async {
     final path = _acceptPath(request);
-    final body = _acceptBody(request);
+    final operationKey = _operationKey(accessToken, request, 'accept');
+    final body = _acceptBody(request, operationKey);
     _debugLog('[REQUESTS] POST accept $path');
     try {
       final headers = _jsonHeaders(accessToken);
-      headers['Idempotency-Key'] = _newIdempotencyKey();
+      headers['Idempotency-Key'] = operationKey;
       final response = await _client
-          .post(config.uri(path), headers: headers, body: jsonEncode(body))
+          .post(
+            config.uri(path),
+            headers: headers,
+            body: jsonEncode(body),
+          )
           .timeout(const Duration(seconds: 15));
       _debugLog('[REQUESTS] accept status=${response.statusCode}');
-      if (response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 202) {
+      if (response.statusCode == 202) return _pendingOutcome();
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final parsed = _tryDecode(response.body);
-        // Two envelopes exist: {"success": true} and {"data": {...}}.
-        if (parsed != null &&
-            parsed['success'] != false &&
-            (parsed['success'] == true || parsed['data'] is Map)) {
-          return const ApiSuccess(true);
-        }
+        if (_acknowledged(parsed)) return const ApiSuccess(true);
         return _failureFromResponse(response);
       }
       return _failureFromResponse(response);
@@ -223,24 +276,24 @@ class RequestsApi {
     required String reason,
   }) async {
     final path = _rejectPath(request);
-    final body = _rejectBody(request, reason);
+    final operationKey = _operationKey(accessToken, request, 'decline', reason);
+    final body = _rejectBody(request, reason, operationKey);
     _debugLog('[REQUESTS] POST reject $path');
     try {
       final headers = _jsonHeaders(accessToken);
-      headers['Idempotency-Key'] = _newIdempotencyKey();
+      headers['Idempotency-Key'] = operationKey;
       final response = await _client
-          .post(config.uri(path), headers: headers, body: jsonEncode(body))
+          .post(
+            config.uri(path),
+            headers: headers,
+            body: jsonEncode(body),
+          )
           .timeout(const Duration(seconds: 15));
       _debugLog('[REQUESTS] reject status=${response.statusCode}');
-      if (response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 202) {
+      if (response.statusCode == 202) return _pendingOutcome();
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final parsed = _tryDecode(response.body);
-        if (parsed != null &&
-            parsed['success'] != false &&
-            (parsed['success'] == true || parsed['data'] is Map)) {
-          return const ApiSuccess(true);
-        }
+        if (_acknowledged(parsed)) return const ApiSuccess(true);
         return _failureFromResponse(response);
       }
       return _failureFromResponse(response);
@@ -253,60 +306,66 @@ class RequestsApi {
   // ── Per-source path & body ───────────────────────────────────────────────
 
   static String _acceptPath(RequestModel r) => switch (r.kind) {
-    RequestServerKind.broadcast => '/api/v1/provider/requests/${r.id}/accept',
-    RequestServerKind.assignmentOffer =>
-      '/api/v1/provider/assignment-offers/${r.id}/accept',
-    RequestServerKind.organizationOffer =>
-      '/api/v1/provider/organization-offers/${r.id}/accept',
-    RequestServerKind.companyAssignment =>
-      '/api/v1/provider/company-assignments/${r.id}/accept',
-  };
+        RequestServerKind.broadcast =>
+          '/api/v1/provider/requests/${r.id}/accept',
+        RequestServerKind.assignmentOffer =>
+          '/api/v1/provider/assignment-offers/${r.id}/accept',
+        RequestServerKind.organizationOffer =>
+          '/api/v1/provider/organization-offers/${r.id}/accept',
+        RequestServerKind.companyAssignment =>
+          '/api/v1/provider/company-assignments/${r.id}/accept',
+      };
 
   static String _rejectPath(RequestModel r) => switch (r.kind) {
-    RequestServerKind.broadcast => '/api/v1/provider/requests/${r.id}/reject',
-    RequestServerKind.assignmentOffer =>
-      '/api/v1/provider/assignment-offers/${r.id}/decline',
-    RequestServerKind.organizationOffer =>
-      '/api/v1/provider/organization-offers/${r.id}/decline',
-    RequestServerKind.companyAssignment =>
-      '/api/v1/provider/company-assignments/${r.id}/decline',
-  };
+        RequestServerKind.broadcast =>
+          '/api/v1/provider/requests/${r.id}/reject',
+        RequestServerKind.assignmentOffer =>
+          '/api/v1/provider/assignment-offers/${r.id}/decline',
+        RequestServerKind.organizationOffer =>
+          '/api/v1/provider/organization-offers/${r.id}/decline',
+        RequestServerKind.companyAssignment =>
+          '/api/v1/provider/company-assignments/${r.id}/decline',
+      };
 
-  static Map<String, dynamic> _acceptBody(RequestModel r) => switch (r.kind) {
-    RequestServerKind.broadcast => <String, dynamic>{},
-    RequestServerKind.assignmentOffer => {'expected_version': r.version},
-    RequestServerKind.organizationOffer => {
-      'clientResponseId': _newIdempotencyKey(),
-      'expectedVersion': r.version,
-      'requestId': r.bookingId,
-    },
-    RequestServerKind.companyAssignment => {
-      'clientResponseId': _newIdempotencyKey(),
-      'expectedVersion': r.version,
-      'requestId': r.bookingId,
-    },
-  };
+  static Map<String, dynamic> _acceptBody(
+      RequestModel r, String operationKey) => switch (r.kind) {
+        RequestServerKind.broadcast => <String, dynamic>{},
+        RequestServerKind.assignmentOffer => {
+            'expected_version': r.version,
+          },
+        RequestServerKind.organizationOffer => {
+            'clientResponseId': operationKey,
+            'expectedVersion': r.version,
+            'requestId': r.bookingId,
+          },
+        RequestServerKind.companyAssignment => {
+            'clientResponseId': operationKey,
+            'expectedVersion': r.version,
+            'requestId': r.bookingId,
+          },
+      };
 
-  static Map<String, dynamic> _rejectBody(RequestModel r, String reason) =>
+  static Map<String, dynamic> _rejectBody(
+          RequestModel r, String reason, String operationKey) =>
       switch (r.kind) {
         RequestServerKind.broadcast => <String, dynamic>{
-          // Backend whitelist is strictly {too_far, busy, other}.
-          'reason': _normalizeBroadcastReason(reason),
-        },
+            // Backend whitelist is strictly {too_far, busy, other}.
+            'reason': _normalizeBroadcastReason(reason),
+          },
         RequestServerKind.assignmentOffer => {
-          'expected_version': r.version,
-          'reason': reason,
-        },
+            'expected_version': r.version,
+            'reason': reason,
+          },
         RequestServerKind.organizationOffer => {
-          'clientResponseId': _newIdempotencyKey(),
-          'expectedVersion': r.version,
-          'reasonCode': reason,
-        },
+            'clientResponseId': operationKey,
+            'expectedVersion': r.version,
+            'reasonCode': reason,
+          },
         RequestServerKind.companyAssignment => {
-          'clientResponseId': _newIdempotencyKey(),
-          'expectedVersion': r.version,
-          'reasonCode': reason,
-        },
+            'clientResponseId': operationKey,
+            'expectedVersion': r.version,
+            'reasonCode': reason,
+          },
       };
 
   static String _normalizeBroadcastReason(String input) {

@@ -146,7 +146,8 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	verificationHandler := verification.NewHandlerWithService(
 		verification.NewService(
 			verificationRepository,
-			verification.NewSmileIdentityClientFromEnv(cfg.AppEnv),
+			nil, // No external biometric service is required for Karryam manual review.
+			verification.WithInHouseManualFaceReview(),
 			verification.WithUploader(verificationUploader),
 			verification.WithEventPublisher(verification.NewRedisEventPublisher(redisClient)),
 		),
