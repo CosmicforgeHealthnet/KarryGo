@@ -42,6 +42,7 @@ type AuthService struct {
 	otpMaxRequests  int
 	otpMaxAttempts  int
 	otpDebug        bool
+	testLogin       *sharedauth.TestLogin
 	otpSender       OTPSender
 	now             func() time.Time
 	corporate       providercompat.CorporateContextReader
@@ -61,7 +62,9 @@ type Options struct {
 	OTPMaxRequests     int
 	OTPMaxAttempts     int
 	OTPDebug           bool
-	CorporateContext   providercompat.CorporateContextReader
+	// TestLogin gives listed test numbers a fixed code (staging only).
+	TestLogin        *sharedauth.TestLogin
+	CorporateContext providercompat.CorporateContextReader
 	// OTPSender delivers login codes. Nil keeps the old behaviour (codes
 	// only reach the driver as debug codes).
 	OTPSender OTPSender
@@ -87,6 +90,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpMaxRequests:  opts.OTPMaxRequests,
 		otpMaxAttempts:  opts.OTPMaxAttempts,
 		otpDebug:        opts.OTPDebug,
+		testLogin:       opts.TestLogin,
 		otpSender:       opts.OTPSender,
 		now:             time.Now,
 		corporate:       opts.CorporateContext,
@@ -146,6 +150,15 @@ func normalizeLoginIdentifier(phone, email string) (loginIdentifier, error) {
 
 // StartAuth issues an OTP challenge for a driver phone number or email
 // address, and sends email codes through OTPSender.
+// loginCode is the fixed code for a listed test number (staging only),
+// otherwise a fresh random one.
+func (s *AuthService) loginCode(identifierType, value string) (string, error) {
+	if code, ok := s.testLogin.CodeFor(identifierType, value); ok {
+		return code, nil
+	}
+	return sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
+}
+
 func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (StartAuthResult, error) {
 	identifier, err := normalizeLoginIdentifier(input.Phone, input.Email)
 	if err != nil {
@@ -153,7 +166,7 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 	}
 	identifierKey := identifier.key()
 
-	otp, err := sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
+	otp, err := s.loginCode(identifier.Type, identifier.Value)
 	if err != nil {
 		return StartAuthResult{}, apperrors.Internal("OTP could not be generated.", err)
 	}

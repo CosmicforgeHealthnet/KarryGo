@@ -47,6 +47,7 @@ type AuthService struct {
 	otpMaxRequests  int
 	otpMaxAttempts  int
 	otpDebug        bool
+	testLogin       *sharedauth.TestLogin
 	otpSender       OTPSender
 	now             func() time.Time
 }
@@ -65,7 +66,9 @@ type Options struct {
 	OTPMaxRequests     int
 	OTPMaxAttempts     int
 	OTPDebug           bool
-	MembershipReader   providercompat.Reader
+	// TestLogin gives listed test numbers a fixed code (staging only).
+	TestLogin        *sharedauth.TestLogin
+	MembershipReader providercompat.Reader
 	// CorporateContext reads Fleet's CANONICAL Section 7 corporate context.
 	//
 	// It is separate from MembershipReader on purpose: the legacy
@@ -103,6 +106,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpMaxRequests:  opts.OTPMaxRequests,
 		otpMaxAttempts:  opts.OTPMaxAttempts,
 		otpDebug:        opts.OTPDebug,
+		testLogin:       opts.TestLogin,
 		otpSender:       opts.OTPSender,
 		now:             time.Now,
 	}
@@ -119,6 +123,15 @@ type StartAuthResult struct {
 	ChallengeID string `json:"challenge_id"`
 	ExpiresIn   int64  `json:"expires_in"`
 	DebugOTP    string `json:"debug_otp,omitempty"`
+}
+
+// loginCode is the fixed code for a listed test number (staging only),
+// otherwise a fresh random one.
+func (s *AuthService) loginCode(identifierType, value string) (string, error) {
+	if code, ok := s.testLogin.CodeFor(identifierType, value); ok {
+		return code, nil
+	}
+	return sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
 }
 
 func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (StartAuthResult, error) {
@@ -152,7 +165,7 @@ func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (Star
 		identifierKey = "email:" + email
 	}
 
-	otp, err := sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
+	otp, err := s.loginCode(identifierType, identifierValue)
 	if err != nil {
 		return StartAuthResult{}, apperrors.Internal("OTP could not be generated.", err)
 	}

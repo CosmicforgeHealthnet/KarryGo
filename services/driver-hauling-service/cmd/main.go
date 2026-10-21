@@ -66,6 +66,7 @@ import (
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
+	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -214,6 +215,14 @@ func main() {
 			Secret:      cfg.NotificationSecret,
 		})
 	}
+	// Staging-only: reserved test numbers sign in with a fixed code.
+	testLogin, err := sharedauth.ParseTestLogin(cfg.AppEnv, cfg.TestLoginPhones, cfg.TestLoginCode, phonenumber.NormalizeNigerianPhoneNumber)
+	if err != nil {
+		logging.Fatal("configuration", "HAULING_TEST_LOGIN_PHONES: %v", err)
+	}
+	if testLogin != nil {
+		logging.Notice("test-login", "%d test numbers sign in with the fixed code", testLogin.Count())
+	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -228,6 +237,7 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		TestLogin:          testLogin,
 		MembershipReader:   membershipReader,
 		CorporateContext:   fleetCorporateContext,
 		ProviderService:    cfg.FleetServiceCaller,

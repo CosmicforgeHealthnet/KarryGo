@@ -42,6 +42,10 @@ type Config struct {
 	OTPMaxRequests  int
 	OTPMaxAttempts  int
 	OTPDebug        bool
+	// TestLoginPhones / TestLoginCode: staging-only fixed sign-in code for
+	// reserved test numbers (see shared/go/auth TestLogin).
+	TestLoginPhones string
+	TestLoginCode   string
 
 	// Referral feed: announces providers who sign up themselves (and their
 	// completed onboarding) to referral-service. Off by default; when on, the
@@ -230,6 +234,8 @@ func Load() Config {
 		OTPMaxRequests:  getEnvInt("HAULING_OTP_MAX_REQUESTS", 5),
 		OTPMaxAttempts:  getEnvInt("HAULING_OTP_MAX_ATTEMPTS", 5),
 		OTPDebug:        getEnvBool("HAULING_OTP_DEBUG", false),
+		TestLoginPhones: os.Getenv("HAULING_TEST_LOGIN_PHONES"),
+		TestLoginCode:   os.Getenv("HAULING_TEST_LOGIN_CODE"),
 
 		ReferralFeedEnabled:    getEnvBool("HAULING_REFERRAL_FEED_ENABLED", false),
 		ReferralServiceURL:     os.Getenv("HAULING_REFERRAL_SERVICE_URL"),
