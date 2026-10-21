@@ -1,8 +1,11 @@
-# Staging release approval gates
+# Optional developer-managed staging deployment workflows
 
-Status: engineering controls implemented; **NOT AUTHORIZATION TO MERGE OR RELEASE**.
-The deployment workflows must remain unused until an administrator completes and
-independently verifies the configuration below. No production access/policy key,
+Staging is a development/integration branch. **The controls below apply only to
+explicitly invoking these optional runtime deployment workflows; they are not
+requirements for ordinary staging code merges.** Hosting is managed separately
+by the hosting developer. The manual workflows remain unused unless the operator
+chooses to adopt them and verifies their configuration. No deployment approver
+has been selected, and no repository configuration is changed here. No production access/policy key,
 Admin grant, suppression threshold or Media lifetime is provisioned here.
 
 ## Release boundaries
@@ -69,9 +72,9 @@ remain. Do not invoke a release until live owners and operators approve it.
 
 The repository owner is a GitHub **User** account. Select actual individual
 reviewers with repository access; do not invent a team or approver. Release
-initiators and approvers must be separate people for each run. The pending user
-question requests these identities. Having API admin access is not permission to
-assign release authority arbitrarily.
+initiators and approvers must be separate people for each runtime deployment
+using these workflows. No identity request is pending for code integration.
+Having API admin access is not permission to assign release authority arbitrarily.
 
 1. In repository Settings → Environments → `staging`, select Required reviewers,
    enable Prevent self-review, and turn OFF administrator bypass. Restrict
@@ -96,10 +99,10 @@ assign release authority arbitrarily.
    replaced through the approved operator channel; the revised workflows reject
    their repository/inherited presence and never use them. Do not remove credentials used by other
    approved operations without separately reviewing their ownership.
-5. Configure staging PR protection/rulesets to require the six acceptance suites
-   plus Deployment safety acceptance, dismiss stale reviews and require review
-   of workflow/release-script changes by the selected responsible owner. No check
-   is disabled here. Review the current branch drift before merge approval.
+5. The workflow independently verifies acceptance results for its selected SHA.
+   This does not introduce new branch-protection, PR-approval or release-initiator
+   requirements for ordinary staging code merges. Existing security checks remain
+   enabled. Repository workflow adoption is a separate operator decision.
 
 Equivalent environment API payload (replace the reviewer ID only after selection):
 

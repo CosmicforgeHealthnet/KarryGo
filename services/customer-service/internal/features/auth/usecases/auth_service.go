@@ -38,6 +38,7 @@ type AuthService struct {
 	otpMaxRequests     int
 	otpMaxAttempts     int
 	otpDebug           bool
+	testLogin          *sharedauth.TestLogin
 	now                func() time.Time
 }
 
@@ -56,6 +57,8 @@ type Options struct {
 	OTPMaxRequests     int
 	OTPMaxAttempts     int
 	OTPDebug           bool
+	// TestLogin gives listed test numbers a fixed code (staging only).
+	TestLogin *sharedauth.TestLogin
 }
 
 func NewAuthService(opts Options) *AuthService {
@@ -74,6 +77,7 @@ func NewAuthService(opts Options) *AuthService {
 		otpMaxRequests:     opts.OTPMaxRequests,
 		otpMaxAttempts:     opts.OTPMaxAttempts,
 		otpDebug:           opts.OTPDebug,
+		testLogin:          opts.TestLogin,
 		now:                time.Now,
 	}
 }
@@ -89,13 +93,22 @@ type StartAuthResult struct {
 	DebugOTP    string `json:"debug_otp,omitempty"`
 }
 
+// loginCode is the fixed code for a listed test number (staging only),
+// otherwise a fresh random one.
+func (s *AuthService) loginCode(identifierType, value string) (string, error) {
+	if code, ok := s.testLogin.CodeFor(identifierType, value); ok {
+		return code, nil
+	}
+	return sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
+}
+
 func (s *AuthService) StartAuth(ctx context.Context, input StartAuthInput) (StartAuthResult, error) {
 	identifier, err := authmodels.NormalizeAuthIdentifier(input.Phone, input.Email)
 	if err != nil {
 		return StartAuthResult{}, err
 	}
 
-	otp, err := sharedauth.GenerateNumericOTP(sharedauth.DefaultOTPLength)
+	otp, err := s.loginCode(identifier.Type, identifier.Value)
 	if err != nil {
 		return StartAuthResult{}, apperrors.Internal("OTP could not be generated.", err)
 	}

@@ -210,3 +210,43 @@ func (r *fakeAssetRepository) MarkDeleted(ctx context.Context, id string) error 
 	r.assets[id] = asset
 	return nil
 }
+
+// Profile photos are shown to other people, so they keep the storage's public
+// link; every other purpose stays behind the access-checked download route.
+func TestOnlyProfilePhotosGetAPublicLink(t *testing.T) {
+	for _, tc := range []struct {
+		purpose    string
+		wantPublic bool
+	}{
+		{filemetadatamodels.PurposeProfilePhoto, true},
+		{filemetadatamodels.PurposeDocumentFile, false},
+		{filemetadatamodels.PurposeProofImage, false},
+	} {
+		storage := &recordingStorage{}
+		service := NewUploadService(Options{Storage: storage, Assets: newFakeAssetRepository(), MaxUploadBytes: 1024})
+		asset, err := service.Upload(context.Background(), UploadInput{
+			CallerService: "driver-taxi-service", OwnerService: "driver-taxi-service", OwnerID: "driver-1",
+			Purpose: tc.purpose, OriginalFilename: "photo.jpg", ContentType: "image/jpeg",
+			Body: bytes.NewReader(jpegBytes()),
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.purpose, err)
+		}
+		if storage.public != tc.wantPublic {
+			t.Errorf("%s: storage asked for public=%v, want %v", tc.purpose, storage.public, tc.wantPublic)
+		}
+		if got := strings.HasPrefix(asset.PublicURL, "https://"); got != tc.wantPublic {
+			t.Errorf("%s: public url %q", tc.purpose, asset.PublicURL)
+		}
+	}
+}
+
+type recordingStorage struct {
+	fakeStorage
+	public bool
+}
+
+func (s *recordingStorage) Upload(ctx context.Context, input uploadclients.UploadObjectInput) (uploadclients.StorageObject, error) {
+	s.public = input.Public
+	return s.fakeStorage.Upload(ctx, input)
+}

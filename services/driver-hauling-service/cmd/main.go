@@ -46,6 +46,9 @@ import (
 	providerauthrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/repositories"
 	providerauthusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_auth/usecases"
 
+	providerapprovalhttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_approval/http"
+	providerapprovalrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_approval/repositories"
+	providerapprovalusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_approval/usecases"
 	providerprofilehttp "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/http"
 	providerprofilerepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_profile/usecases"
@@ -67,6 +70,7 @@ import (
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
+	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -215,6 +219,14 @@ func main() {
 			Secret:      cfg.NotificationSecret,
 		})
 	}
+	// Staging-only: reserved test numbers sign in with a fixed code.
+	testLogin, err := sharedauth.ParseTestLogin(cfg.AppEnv, cfg.TestLoginPhones, cfg.TestLoginCode, phonenumber.NormalizeNigerianPhoneNumber)
+	if err != nil {
+		logging.Fatal("configuration", "HAULING_TEST_LOGIN_PHONES: %v", err)
+	}
+	if testLogin != nil {
+		logging.Notice("test-login", "%d test numbers sign in with the fixed code", testLogin.Count())
+	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -229,6 +241,7 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		TestLogin:          testLogin,
 		MembershipReader:   membershipReader,
 		CorporateContext:   fleetCorporateContext,
 		ProviderService:    cfg.FleetServiceCaller,
@@ -503,6 +516,7 @@ func main() {
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			providerapprovalhttp.RegisterRoutes(group, providerapprovalusecases.NewService(providerapprovalrepositories.NewPostgresRepository(db)), serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 			if len(serviceauth.ParseSecrets(cfg.ServiceSecrets)) > 0 {
 				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "HAULING"), inboundVerifier,
 					custodyops.MediaFileAuthorizer{Client: custodyMedia, AllowedOwners: map[string]struct{}{"driver-hauling-service": {}, "vendor-service": {}}},

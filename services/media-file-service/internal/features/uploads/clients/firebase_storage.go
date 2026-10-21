@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"net/url"
 	"strings"
@@ -26,6 +27,10 @@ type UploadObjectInput struct {
 	Body        io.Reader
 	ContentType string
 	Metadata    map[string]string
+	// Public asks for a link anyone can open (profile photos). Firebase
+	// attaches a random download token, the same way its own SDKs make a
+	// download URL: unguessable, and readable without security-rule access.
+	Public bool
 }
 
 type ObjectStorage interface {
@@ -101,7 +106,15 @@ func (c *FirebaseStorageClient) Upload(ctx context.Context, input UploadObjectIn
 	writer := c.bucket.Object(input.Path).NewWriter(ctx)
 	writer.ContentType = input.ContentType
 	writer.CacheControl = "public, max-age=31536000, immutable"
-	writer.Metadata = input.Metadata
+	writer.Metadata = map[string]string{}
+	for k, v := range input.Metadata {
+		writer.Metadata[k] = v
+	}
+	token := ""
+	if input.Public {
+		token = uuid.NewString()
+		writer.Metadata["firebaseStorageDownloadTokens"] = token
+	}
 
 	if _, err := io.Copy(writer, input.Body); err != nil {
 		_ = writer.CloseWithError(err)
@@ -118,11 +131,23 @@ func (c *FirebaseStorageClient) Upload(ctx context.Context, input UploadObjectIn
 	// access, so we no longer generate a GCS signed URL (which has a hard
 	// 7-day expiry cap and was previously being requested with a 365-day
 	// expiry, causing every upload to fail).
+	objectURL := c.publicURL(input.Path)
+	if token != "" {
+		objectURL = c.tokenURL(input.Path, token)
+	}
 	return StorageObject{
 		Bucket: c.bucketName,
 		Path:   input.Path,
-		URL:    c.publicURL(input.Path),
+		URL:    objectURL,
 	}, nil
+}
+
+// tokenURL is Firebase's download URL for an object carrying a download
+// token: the whole object path is one escaped segment.
+func (c *FirebaseStorageClient) tokenURL(path, token string) string {
+	return "https://firebasestorage.googleapis.com/v0/b/" + url.PathEscape(c.bucketName) +
+		"/o/" + strings.ReplaceAll(url.PathEscape(path), "/", "%2F") +
+		"?alt=media&token=" + url.QueryEscape(token)
 }
 
 func (c *FirebaseStorageClient) generateSignedURL(ctx context.Context, path string) (string, error) {

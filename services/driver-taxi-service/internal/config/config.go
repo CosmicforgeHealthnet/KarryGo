@@ -77,6 +77,10 @@ type Config struct {
 	OTPMaxRequests  int
 	OTPMaxAttempts  int
 	OTPDebug        bool
+	// TestLoginPhones / TestLoginCode: staging-only fixed sign-in code for
+	// reserved test numbers (see shared/go/auth TestLogin).
+	TestLoginPhones string
+	TestLoginCode   string
 
 	// Internal service clients.
 	//
@@ -290,6 +294,8 @@ func Load() Config {
 		OTPMaxRequests:  getEnvInt("TAXI_OTP_MAX_REQUESTS", 5),
 		OTPMaxAttempts:  getEnvInt("TAXI_OTP_MAX_ATTEMPTS", 5),
 		OTPDebug:        getEnvBool("TAXI_OTP_DEBUG", false),
+		TestLoginPhones: os.Getenv("TAXI_TEST_LOGIN_PHONES"),
+		TestLoginCode:   os.Getenv("TAXI_TEST_LOGIN_CODE"),
 
 		NotificationURL:    os.Getenv("TAXI_NOTIFICATION_URL"),
 		NotificationSecret: []byte(os.Getenv("TAXI_NOTIFICATION_SECRET")),

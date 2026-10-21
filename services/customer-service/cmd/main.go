@@ -43,9 +43,11 @@ import (
 	savedlocationhttp "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/http"
 	savedlocationrepositories "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/repositories"
 	savedlocationusecases "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/usecases"
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/ratelimit"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/serviceapp"
@@ -174,6 +176,14 @@ func main() {
 		logging.Notice("referral-feed", "off (CUSTOMER_REFERRAL_FEED_ENABLED=false): new customers are not announced to referral-service")
 	}
 
+	// Staging-only: reserved test numbers sign in with a fixed code.
+	testLogin, err := sharedauth.ParseTestLogin(cfg.AppEnv, cfg.TestLoginPhones, cfg.TestLoginCode, phonenumber.NormalizeNigerianPhoneNumber)
+	if err != nil {
+		logging.Fatal("configuration", "CUSTOMER_TEST_LOGIN_PHONES: %v", err)
+	}
+	if testLogin != nil {
+		logging.Notice("test-login", "%d test numbers sign in with the fixed code", testLogin.Count())
+	}
 	authService := authusecases.NewAuthService(authusecases.Options{
 		Customers:          customerRepo,
 		Sessions:           sessionRepo,
@@ -189,6 +199,7 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		TestLogin:          testLogin,
 	})
 
 	shareRepo := &sharerepositories.Postgres{DB: db}

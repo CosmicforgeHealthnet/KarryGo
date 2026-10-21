@@ -340,6 +340,11 @@ func Test5F_LocationUpdatePublishesWSMessageToChannel(t *testing.T) {
 
 	sub := client.Subscribe(ctx, ProviderLocationChannel(providerID))
 	defer sub.Close()
+	// Wait for the subscription to be confirmed before publishing; otherwise a
+	// slow machine can publish first and the message is lost (flaky in CI).
+	if _, err := sub.Receive(ctx); err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
 	ch := sub.Channel()
 
 	repo := newFakeAvailabilityRepository()

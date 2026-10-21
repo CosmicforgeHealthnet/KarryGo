@@ -1,67 +1,59 @@
 # Secure Admin staging integration — full implementation report
 
-## Deployment-safety revision — 21 October 2026
+## Code integration revision — 21 October 2026
 
-Fresh acceptance discovered GO-2026-6809 in the previous Go 1.26.9 standard
-library. CI, Admin toolchain and all four service image builders now pin Go
-1.26.10, the source-reported fixed patch; the vulnerability scanner remains
-mandatory and unchanged. No vulnerability exception or product logic change
-was introduced.
+Staging is the development/integration branch. Hosting and runtime deployments
+are managed separately by the hosting developer. Optional release-workflow
+reviewers, initiator configuration, environment protection and restore attestations
+are **not prerequisites for ordinary staging code merges**. No approvers are
+selected or repository settings changed by this integration.
 
-This draft continues from `fa66ab5eb9895c7764981ee07068fb81f82d138c`.
-Before edits, the review branch still matched that SHA; remote staging had moved
-to `75aee3c64f6621207286a9699aeceb8f8151379a` (three newer commits). No staging
-merge/rebase or deployment was performed. The original 13 staging-only commits
-remain ancestors. Reassess current staging drift and mergeability before any
-later explicit merge approval.
+Starting reference: `fa66ab5eb9895c7764981ee07068fb81f82d138c`.
+The review branch incorporates staging `75aee3c64f6621207286a9699aeceb8f8151379a`,
+including its three newer development commits. All original 13 staging-only
+commits are preserved, together with the feature history. The Taxi environment
+example conflict preserves staging test-login/internal approval configuration
+and the disabled private Admin configuration. Automatically merged Customer,
+Taxi and Hauling composition retains both source-owned staging behavior and
+private Admin registrations. Public profile photos remain distinct from private
+documents and disabled Admin case access.
 
-Both platform and Vendor deployment workflows are now manual-only, with exact
-current staging SHA, explicit service selection, separately verified GitHub
-environment approval, authorized initiator, environment-only credentials, exact
-SHA acceptance and approved restore provenance. Neither push nor CI completion
-automatically deploys owners. Broad selectors, test skipping, workflow reuse and
-Dispatch/Admin/Analytics/Gateway/Partner selectors are rejected. Release images
-are pinned by digest, authorization is rechecked before host access, and evidence
-is preserved before mutation. No Nginx/cutover files or live settings are replaced
-by the new release bundle mechanism. Admin default-disabled flags are retained
-and the release script refuses enabled privileged flags.
+**Trigger verification:** GitHub reports both old deployment workflows active;
+the existing staging versions contain push-to-staging deployment hooks. This is
+an actual repository-level discrepancy with the hosting confirmation, although
+it does not establish that the VPS accepts those jobs. This candidate removes
+both push triggers: platform and Vendor are manual-only, with no workflow reuse,
+CI completion or PR deployment trigger. A merge push therefore cannot invoke
+these backend deployment jobs. No host inspection or server mutation occurred.
 
-The restore helper now propagates every failed command/SQL/validation and requires
-artifact integrity, matching PostgreSQL version and operator-owned semantic
-assertions. A genuine disposable PostgreSQL 18 backup/restore cycle passed locally,
-including preserved audit trigger, migration ledger, original decision identity
-and uncertainty fence. Seven failure scenarios were rejected. Linux CI additionally exercises the exact
-network-isolated Docker verifier; its readiness check waits for TCP on the final
-server, excluding the image entrypoint's temporary Unix-socket initialization server. The actual Dispatch
-deployment and rollback shell scripts refuse unsafe transitions before host tools.
-There is no automated Dispatch transition; live compatibility/consumer retirement
-and recovery must be certified separately.
+Useful optional deployment safeguards remain: explicit commit/service selection,
+backup/restore failure propagation, immutable image evidence and guarded Dispatch
+transitions. Their incomplete GitHub environment setup affects only use of those
+manual workflows. It does not prevent integrating code into staging. See the
+[optional deployment runbook](../deployment/staging-release-approval.md).
 
-**Actual GitHub setting verification:** the staging environment API still showed
-no required reviewers, admin bypass enabled and no branch restriction; separate
-secret metadata responses show an empty environment and repository-scoped legacy
-`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` credentials; the new
-gate independently denied it. Initiator/reviewer identities have been requested,
-not invented. New scoped release credentials, audit token and real staging restore
-evidence have not been provisioned. Consequently the protected release process is
-**BLOCKED_INFRASTRUCTURE**, not operationally certified. No production policy,
-signing identity, access grant, suppression threshold or Media lifetime was added.
+All unapproved Secure Admin capabilities retain disabled defaults. No access
+grants, signing keys, suppression thresholds or Media lifetime policy are added.
+The existing staging driver-approval endpoint remains source-owned and HMAC
+restricted; preserving that staging change does not enable Bridge remote access.
+Dispatch migration 070 and consumer transition are not executed; deployment and
+unsafe rollback remain blocked pending operator compatibility verification.
 
-GitHub now reports conflicts with the three newer staging commits and does not
-schedule PR-triggered CI. No native conflict resolution is attempted in this
-deployment-only task. All six existing acceptance workflows remain mandatory and
-now run on every PR/staging push and on pushes to this exact review branch; the new Deployment safety acceptance also certifies the exact
-SHA. Fresh CI run IDs/results for the final revision are recorded in draft PR #15
-and the final review evidence rather than copying old-head results here. Until
-those results and actual infrastructure protection are confirmed, the merge and
-runtime decisions remain **NO-GO**. No merge, server deployment, feature enabling,
-Partner/Gateway cutover or Sections 11–15 work is authorized by this report.
+CI and service image builders pin Go 1.26.10 after acceptance found GO-2026-6809;
+mandatory vulnerability scanning remains enabled. All six acceptance workflows
+and Deployment safety acceptance run against the integration head. Exact SHA,
+run IDs and final results are recorded in PR #15 and the final evidence report;
+older-head results do not certify this revision.
 
-See [the deployment gate runbook](../deployment/staging-release-approval.md) for
-exact API configuration instructions, workflow inputs, evidence schema, rollout
-boundaries and Dispatch stop/migrate/verify/start/recovery order.
+Code merge is ready only once that head has six successful mandatory workflows,
+no unresolved integration conflicts and preserved staging ancestry. Runtime
+rollout is a separate hosting decision. PR #15 stays draft; this work does not
+merge into staging, change main, deploy to the VPS, enable Admin functionality,
+execute Partner/Gateway cutover or start Sections 11–15.
 
 ---
+
+Historical integration snapshot below (20 October; superseded by the revision above).
 
 Status: **PREPARED INTEGRATION; NOT MERGED, DEPLOYED OR BACKEND_READY**.
 Date: 2026-10-20. This report describes the integration candidate; current-head

@@ -29,6 +29,9 @@ import (
 	providerauthrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/repositories"
 	providerauthusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_auth/usecases"
 
+	providerapprovalhttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_approval/http"
+	providerapprovalrepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_approval/repositories"
+	providerapprovalusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_approval/usecases"
 	providerprofilehttp "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/http"
 	providerprofilerepositories "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/repositories"
 	providerprofileusecases "cosmicforge/logistics/services/taxi-service/internal/features/provider_profile/usecases"
@@ -80,6 +83,7 @@ import (
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/observability"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
+	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	sharedrouting "cosmicforge/logistics/shared/go/routing"
@@ -237,6 +241,14 @@ func main() {
 			Secret:      cfg.NotificationSecret,
 		})
 	}
+	// Staging-only: reserved test numbers sign in with a fixed code.
+	testLogin, err := sharedauth.ParseTestLogin(cfg.AppEnv, cfg.TestLoginPhones, cfg.TestLoginCode, phonenumber.NormalizeNigerianPhoneNumber)
+	if err != nil {
+		logging.Fatal("configuration", "TAXI_TEST_LOGIN_PHONES: %v", err)
+	}
+	if testLogin != nil {
+		logging.Notice("test-login", "%d test numbers sign in with the fixed code", testLogin.Count())
+	}
 	authService := providerauthusecases.NewAuthService(providerauthusecases.Options{
 		Providers:          providerRepo,
 		Sessions:           sessionRepo,
@@ -251,6 +263,7 @@ func main() {
 		OTPMaxRequests:     cfg.OTPMaxRequests,
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
+		TestLogin:          testLogin,
 		CorporateContext:   fleetProviderContext,
 		OTPSender:          otpSender,
 	})
@@ -663,6 +676,7 @@ func main() {
 				customerSigner,
 			)
 			capabilities.RegisterRoutes(group, capabilityService, authService.AccessSigner(), customerSigner, opsVerifier, strings.Split(cfg.CapabilityInternalCallers, ","))
+			providerapprovalhttp.RegisterRoutes(group, providerapprovalusecases.NewService(providerapprovalrepositories.NewPostgresRepository(db)), opsVerifier)
 			if opsVerifier != nil {
 				group.GET("/internal/metrics", serviceauth.Middleware(opsVerifier), func(c *gin.Context) {
 					c.String(http.StatusOK, metrics.Render()+taxiOutboxMetrics.Render()+journeyshare.Render())

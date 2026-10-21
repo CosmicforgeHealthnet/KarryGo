@@ -36,6 +36,10 @@ type Config struct {
 	OTPMaxRequests int
 	OTPMaxAttempts int
 	OTPDebug       bool
+	// TestLoginPhones / TestLoginCode: staging-only fixed sign-in code for
+	// reserved test numbers (see shared/go/auth TestLogin).
+	TestLoginPhones string
+	TestLoginCode   string
 
 	NotificationBaseURL string
 	NotificationSecret  []byte
@@ -112,9 +116,11 @@ func Load() Config {
 		OTPTTL:          time.Duration(getEnvInt("CUSTOMER_OTP_TTL_SECONDS", 300)) * time.Second,
 		OTPRateWindow:   time.Duration(getEnvInt("CUSTOMER_OTP_RATE_LIMIT_WINDOW_SECONDS", 600)) * time.Second,
 
-		OTPMaxRequests: getEnvInt("CUSTOMER_OTP_MAX_REQUESTS", 5),
-		OTPMaxAttempts: getEnvInt("CUSTOMER_OTP_MAX_ATTEMPTS", 5),
-		OTPDebug:       getEnvBool("CUSTOMER_DEBUG_OTP", false),
+		OTPMaxRequests:  getEnvInt("CUSTOMER_OTP_MAX_REQUESTS", 5),
+		OTPMaxAttempts:  getEnvInt("CUSTOMER_OTP_MAX_ATTEMPTS", 5),
+		OTPDebug:        getEnvBool("CUSTOMER_DEBUG_OTP", false),
+		TestLoginPhones: os.Getenv("CUSTOMER_TEST_LOGIN_PHONES"),
+		TestLoginCode:   os.Getenv("CUSTOMER_TEST_LOGIN_CODE"),
 
 		NotificationBaseURL: getEnv("CUSTOMER_NOTIFICATION_BASE_URL", ""),
 		NotificationSecret:  []byte(getEnv("CUSTOMER_NOTIFICATION_SECRET", "")),
