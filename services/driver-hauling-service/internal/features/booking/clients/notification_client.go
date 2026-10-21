@@ -172,8 +172,19 @@ func (n *BookingNotifier) send(ctx context.Context, eventType, recipientType, re
 		TemplateKey:  eventType,
 		Data:         data,
 		TemplateData: data,
+		Priority:     priorityFor(eventType),
 	})
 	if err != nil {
 		logging.Error("notification", "send event=%s booking=%s recipient=%s: %v", eventType, bookingID, recipientID, err)
 	}
+}
+
+// priorityFor sends a new request to the driver as a high-priority push:
+// Android delivers those at once even while the phone is idle, and a request
+// that arrives late has already expired. Everything else can wait.
+func priorityFor(eventType string) string {
+	if eventType == notifications.EventBookingMatched {
+		return notifications.PriorityHigh
+	}
+	return notifications.PriorityNormal
 }

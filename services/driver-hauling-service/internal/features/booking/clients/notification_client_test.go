@@ -35,3 +35,19 @@ func TestDeliveryCredentialVersionsUseSafeDistinctNotificationKeys(t *testing.T)
 		}
 	}
 }
+
+func TestNewRequestPushIsHighPriority(t *testing.T) {
+	capture := &capturingNotifier{}
+	notifier := NewBookingNotifierWith(capture)
+	notifier.NotifyProviderMatched(context.Background(), "provider", "booking", map[string]interface{}{})
+	notifier.NotifyCustomerAccepted(context.Background(), "customer", "booking", map[string]interface{}{})
+	if len(capture.requests) != 2 {
+		t.Fatalf("got %d requests", len(capture.requests))
+	}
+	if capture.requests[0].Priority != notifications.PriorityHigh {
+		t.Fatalf("new request priority = %q, want high", capture.requests[0].Priority)
+	}
+	if capture.requests[1].Priority != notifications.PriorityNormal {
+		t.Fatalf("customer update priority = %q, want normal", capture.requests[1].Priority)
+	}
+}
