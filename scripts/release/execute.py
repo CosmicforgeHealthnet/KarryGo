@@ -70,6 +70,7 @@ def build(evidence):
                  "--build-arg", "SERVICE_DIR=" + service,
                  "--build-arg", "BUILD_COMMIT_SHA=" + evidence["release_sha"],
                  "--build-arg", "BUILD_VERSION=release-" + str(evidence["run_id"]),
+                 "--label", "org.opencontainers.image.revision=" + evidence["release_sha"],
                  "--tag", tag, "--metadata-file", metadata, "."])
             digest = json.loads(Path(metadata).read_text())["containerimage.digest"]
             gate.require(re.fullmatch(r"sha256:[0-9a-f]{64}", digest), "missing image digest")
@@ -85,6 +86,9 @@ def deploy(evidence):
     context = {k: os.environ.get("GITHUB_" + k.upper(), "") for k in
                ("repository", "event_name", "ref", "sha", "workflow_sha", "run_attempt", "run_id", "actor", "triggering_actor")}
     gate.require(str(evidence["run_id"]) == context["run_id"], "foreign release bundle")
+    gate.require(evidence["release_sha"] == os.environ["RELEASE_SHA"], "release bundle differs from approved input SHA")
+    gate.require(evidence["services"] == gate.selected(os.environ["RELEASE_SERVICES"], evidence["kind"]),
+                 "release bundle selection differs from approved inputs")
     gate.authorize(gate.GitHub(os.environ.get("RELEASE_AUDIT_TOKEN")), context,
                    evidence["release_sha"], ",".join(evidence["services"]), evidence["kind"], os.environ["RESTORE_RUN_ID"])
     commands = command_plan(evidence)

@@ -180,6 +180,16 @@ class Gates(unittest.TestCase):
         result = self.authorize(); result["images"] = {SERVICE: "ghcr.io/cosmicforgehealthnet/customer-service:staging"}
         with self.assertRaises(ValueError): execute.command_plan(result)
 
+    def test_modified_release_bundle_cannot_change_approved_service_selection(self):
+        result = self.authorize()
+        result["services"] = ["fleet-partner-service"]
+        with patch.dict(os.environ, {"GITHUB_RUN_ID": "100", "RELEASE_SHA": SHA, "RELEASE_SERVICES": SERVICE}), \
+             patch.object(gate, "GitHub") as api, patch.object(execute, "run") as command:
+            with self.assertRaisesRegex(ValueError, "selection differs"):
+                execute.deploy(result)
+            api.assert_not_called()
+            command.assert_not_called()
+
     def test_workflow_surfaces_and_credentials(self):
         for name in ["deploy-platform.yml", "deploy-vendor-service.yml", "certify-staging-restore.yml"]:
             data = yaml.load(Path(".github/workflows", name).read_text(), Loader=yaml.BaseLoader)
