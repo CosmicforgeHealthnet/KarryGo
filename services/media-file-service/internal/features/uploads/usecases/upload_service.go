@@ -103,6 +103,7 @@ func (s *UploadService) Upload(ctx context.Context, input UploadInput) (filemeta
 			"owner_id":       input.OwnerID,
 			"purpose":        input.Purpose,
 		},
+		Public: isPublicPurpose(input.Purpose),
 	})
 	if errors.Is(err, errUploadTooLarge) {
 		return filemetadatamodels.MediaAsset{}, validationError("file", fmt.Sprintf("File must be %d bytes or smaller.", s.maxUploadBytes))
@@ -111,7 +112,13 @@ func (s *UploadService) Upload(ctx context.Context, input UploadInput) (filemeta
 		return filemetadatamodels.MediaAsset{}, apperrors.Unavailable("File storage is temporarily unavailable.", err)
 	}
 
+	// Documents, proof photos and signatures are served only through this
+	// service's access-checked download route. Profile photos are shown to
+	// other people, so they keep the storage's public token link instead.
 	downloadURL := fmt.Sprintf("/%s/download", assetID)
+	if isPublicPurpose(input.Purpose) && strings.HasPrefix(object.URL, "https://") {
+		downloadURL = object.URL
+	}
 
 	asset, err := s.assets.Create(ctx, filemetadatamodels.CreateMediaAssetInput{
 		ID:                assetID,
@@ -341,4 +348,9 @@ func (r *maxBytesReader) Read(p []byte) (int, error) {
 
 	r.bytesRead += int64(n)
 	return n, err
+}
+
+// isPublicPurpose: only profile photos get a public link.
+func isPublicPurpose(purpose string) bool {
+	return purpose == filemetadatamodels.PurposeProfilePhoto
 }
