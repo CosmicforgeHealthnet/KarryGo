@@ -136,7 +136,7 @@ class _ProviderGuarantorScreenState extends State<ProviderGuarantorScreen> {
         'We need you to provide guarantor information. This could be a family member or close relative.',
       ),
       const SizedBox(height: 20),
-      const Text(
+      Text(
         'Guarantor Information',
         style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
       ),
@@ -146,7 +146,7 @@ class _ProviderGuarantorScreenState extends State<ProviderGuarantorScreen> {
         controller: _nameCtrl,
         onChanged: (_) => setState(() {}),
         textCapitalization: TextCapitalization.words,
-        style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
+        style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
         decoration: providerGrayField('Enter name'),
       ),
       const SizedBox(height: 16),

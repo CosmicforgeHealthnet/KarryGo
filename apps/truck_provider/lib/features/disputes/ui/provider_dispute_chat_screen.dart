@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
+
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../models/dispute_models.dart';
 import '../state/provider_dispute_controller.dart';
@@ -52,7 +54,7 @@ class _ProviderDisputeChatScreenState extends State<ProviderDisputeChatScreen> {
                 const SizedBox(height: 8),
                 Expanded(
                   child: c.loadingMessages && c.messages.isEmpty
-                      ? const Center(child: CircularProgressIndicator(color: kProviderGreen))
+                      ? Center(child: CircularProgressIndicator(color: kProviderGreen))
                       : c.messages.isEmpty
                           ? const _EmptyChat()
                           : ListView.builder(
@@ -75,13 +77,13 @@ class _EmptyChat extends StatelessWidget {
   const _EmptyChat();
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
         padding: EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chat_bubble_outline_rounded, color: kProviderMuted, size: 40),
+            const KAnimArt(KArt.chat, size: 130),
             SizedBox(height: 12),
             Text(
               'Start the conversation with support.',
@@ -119,7 +121,7 @@ class _Bubble extends StatelessWidget {
         ),
         child: Text(
           message.content,
-          style: TextStyle(color: mine ? Colors.white : kProviderText, fontSize: 14, height: 1.3),
+          style: TextStyle(color: mine ? kOnPrimary : kProviderText, fontSize: 14, height: 1.3),
         ),
       ),
     );
@@ -147,7 +149,7 @@ class _Composer extends StatelessWidget {
               onSubmitted: (_) => onSend(),
               decoration: InputDecoration(
                 hintText: 'Type a message…',
-                hintStyle: const TextStyle(color: kProviderMuted),
+                hintStyle: TextStyle(color: kProviderMuted),
                 filled: true,
                 fillColor: kProviderSurface,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -161,13 +163,13 @@ class _Composer extends StatelessWidget {
             child: Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(color: kProviderGreen, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: kProviderGreen, shape: BoxShape.circle),
               child: sending
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.all(14),
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kOnPrimary),
                     )
-                  : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                  : Icon(Icons.send_rounded, color: kOnPrimary, size: 20),
             ),
           ),
         ],

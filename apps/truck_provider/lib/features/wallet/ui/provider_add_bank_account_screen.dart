@@ -62,7 +62,7 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
   Future<void> _pickBank() async {
     final selected = await showModalBottomSheet<NigerianBank>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: kCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -95,7 +95,7 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     children: [
-                      const Text(
+                      Text(
                         'Enter New Bank Details',
                         style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w800),
                       ),
@@ -152,7 +152,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
+      style: TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
     );
   }
 }
@@ -186,7 +186,7 @@ class _BankSelector extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+            Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
           ],
         ),
       ),
@@ -207,7 +207,7 @@ class _AccountNumberField extends StatelessWidget {
       keyboardType: TextInputType.number,
       maxLength: 10,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      style: const TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w600),
+      style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         counterText: '',
         hintText: 'Enter Acct No',
@@ -246,12 +246,12 @@ class _AccountNameField extends StatelessWidget {
             ),
           ),
           if (resolving)
-            const SizedBox.square(
+            SizedBox.square(
               dimension: 18,
               child: CircularProgressIndicator(strokeWidth: 2, color: kProviderGreen),
             )
           else if (name != null)
-            const Icon(Icons.check_circle, color: kTealText, size: 20),
+            Icon(Icons.check_circle, color: kTealText, size: 20),
         ],
       ),
     );
@@ -280,7 +280,7 @@ class _BankPickerSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -294,9 +294,9 @@ class _BankPickerSheet extends StatelessWidget {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: banks.length,
-                separatorBuilder: (_, _) => const Divider(height: 1, color: kProviderBorder),
+                separatorBuilder: (_, _) => Divider(height: 1, color: kProviderBorder),
                 itemBuilder: (context, i) => ListTile(
-                  title: Text(banks[i].name, style: const TextStyle(color: kProviderText, fontSize: 15)),
+                  title: Text(banks[i].name, style: TextStyle(color: kProviderText, fontSize: 15)),
                   onTap: () => Navigator.of(context).pop(banks[i]),
                 ),
               ),

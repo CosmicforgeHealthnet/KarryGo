@@ -73,7 +73,7 @@ class _ProviderTripsScreenState extends State<ProviderTripsScreen>
                     height: 44,
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE9ECF1),
+                      color: kProviderGreenTint,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: TabBar(

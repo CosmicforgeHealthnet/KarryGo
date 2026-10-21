@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'provider_app_colors.dart';
+
 /// Full-screen live map for the provider home and active-trip screens.
 class ProviderHomeMap extends StatefulWidget {
   const ProviderHomeMap({
@@ -22,6 +24,8 @@ class ProviderHomeMap extends StatefulWidget {
 
 class _ProviderHomeMapState extends State<ProviderHomeMap> {
   static const _lagosCenter = LatLng(6.5244, 3.3792);
+  static const _darkStyle =
+      '[{"elementType":"geometry","stylers":[{"color":"#12284c"}]},{"elementType":"labels.text.fill","stylers":[{"color":"#ced2da"}]},{"elementType":"labels.text.stroke","stylers":[{"color":"#0b1f44"}]},{"featureType":"water","elementType":"geometry","stylers":[{"color":"#103c43"}]}]';
 
   final Completer<GoogleMapController> _controller = Completer();
   Set<Marker> _vehicleMarkers = {};
@@ -73,7 +77,7 @@ class _ProviderHomeMapState extends State<ProviderHomeMap> {
         Polyline(
           polylineId: const PolylineId('route'),
           points: widget.polylinePoints,
-          color: const Color(0xFF05124D),
+          color: kTeal,
           width: 5,
         ),
       };
@@ -85,6 +89,8 @@ class _ProviderHomeMapState extends State<ProviderHomeMap> {
       myLocationEnabled: _myLocationEnabled,
       myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
+      // Same night palette as the taxi driver app.
+      style: KPalette.dark ? _darkStyle : null,
       mapToolbarEnabled: false,
       compassEnabled: false,
       onMapCreated: (ctrl) {

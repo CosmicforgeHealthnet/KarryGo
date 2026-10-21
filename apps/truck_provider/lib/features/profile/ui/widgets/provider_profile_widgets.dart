@@ -36,11 +36,11 @@ class ProviderProfileHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(subtitle!, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+                Text(subtitle!, style: TextStyle(color: kProviderMuted, fontSize: 12.5)),
               ],
             ],
           ),
@@ -72,7 +72,7 @@ InputDecoration providerGrayField(String hint) => providerWhiteField(hint);
 /// White field with a hairline border and a teal focus ring.
 InputDecoration providerWhiteField(String hint, {Widget? suffixIcon}) => InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: kProviderMuted, fontSize: 14),
+      hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
       filled: true,
       fillColor: kCard,
       suffixIcon: suffixIcon,
@@ -129,8 +129,9 @@ Future<bool?> showProviderConfirmDialog(
   required String message,
   required String confirmLabel,
   String? cancelLabel,
-  Color confirmColor = kNavy,
+  Color? confirmColor,
 }) {
+  confirmColor ??= kPrimary;
   final destructive = confirmColor == kProviderRejectText;
   return showDialog<bool>(
     context: context,
@@ -151,13 +152,13 @@ Future<bool?> showProviderConfirmDialog(
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: kProviderText, fontSize: 19, fontWeight: FontWeight.w700),
+              style: TextStyle(color: kProviderText, fontSize: 19, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: kProviderMuted, fontSize: 13.5, height: 1.5),
+              style: TextStyle(color: kProviderMuted, fontSize: 13.5, height: 1.5),
             ),
             const SizedBox(height: 22),
             KPrimaryButton(

@@ -182,7 +182,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const Divider(height: 22, color: kProviderBorder),
+            if (i > 0) Divider(height: 22, color: kProviderBorder),
             _kvRow(rows[i].$1, rows[i].$2),
           ],
         ],
@@ -196,7 +196,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
       children: [
         Expanded(
           flex: 5,
-          child: Text(label, style: const TextStyle(color: kProviderMuted, fontSize: 13.5)),
+          child: Text(label, style: TextStyle(color: kProviderMuted, fontSize: 13.5)),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -204,7 +204,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
           child: Text(
             value.isEmpty ? '—' : value,
             textAlign: TextAlign.right,
-            style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
+            style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
           ),
         ),
       ],
@@ -215,7 +215,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
   Widget _goodsCard() {
     if (truck.goodsTypes.isEmpty) {
       return _card(
-        child: const Text(
+        child: Text(
           'No goods types specified yet.',
           style: TextStyle(color: kProviderMuted, fontSize: 13.5),
         ),
@@ -233,7 +233,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
                 color: kProviderGreenTint,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(g, style: const TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600)),
+              child: Text(g, style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -260,7 +260,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Text(
               'Active vehicle insurance',
               style: TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
@@ -289,14 +289,14 @@ class ProviderTruckDetailScreen extends StatelessWidget {
   // ── Shared section helpers ──
   Widget _sectionTitle(String text) => Padding(
         padding: const EdgeInsets.only(left: 4),
-        child: Text(text, style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
+        child: Text(text, style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
       );
 
   Widget _card({required Widget child}) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: kCard,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: kProviderBorder),
           boxShadow: [

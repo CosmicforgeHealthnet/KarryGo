@@ -120,12 +120,7 @@ class _ErrorScaffold extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              Container(
-                width: 80,
-                height: 80,
-                decoration: const BoxDecoration(color: kProviderRejectBg, shape: BoxShape.circle),
-                child: const Icon(Icons.error_outline_rounded, color: kProviderRejectText, size: 40),
-              ),
+              const KAnimArt(KArt.cloud, size: 160),
               const SizedBox(height: 20),
               KHeading(center: true, title: 'Withdrawal failed', subtitle: message),
               const Spacer(flex: 2),

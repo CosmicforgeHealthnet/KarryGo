@@ -57,7 +57,7 @@ class ProviderPrivacyScreen extends StatelessWidget {
                     Container(
                       width: 40,
                       height: 40,
-                      decoration: const BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
                       child: Icon(icon, color: kProviderGreen, size: 20),
                     ),
                     const SizedBox(width: 12),
@@ -65,9 +65,9 @@ class ProviderPrivacyScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 15)),
+                          Text(title, style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 15)),
                           const SizedBox(height: 4),
-                          Text(body, style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.4)),
+                          Text(body, style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.4)),
                         ],
                       ),
                     ),

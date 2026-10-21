@@ -37,7 +37,7 @@ class UploadArea extends StatelessWidget {
     return KCard(
       onTap: onTap,
       borderColor: uploaded ? kTeal : kProviderBorder,
-      color: uploaded ? const Color(0xFFF4FCFB) : kCard,
+      color: uploaded ? kSelectedWash : kCard,
       child: Row(
         children: [
           KIconTile(
@@ -51,7 +51,7 @@ class UploadArea extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(label, style: TextStyle(color: kProviderText, fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 2),
                 Text(
                   uploaded ? fileName! : subtitle,
@@ -65,7 +65,7 @@ class UploadArea extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             uploaded ? 'Change' : 'Upload',
-            style: const TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600),
+            style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -85,7 +85,7 @@ class OnboardingSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
+        style: TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -96,17 +96,17 @@ class OnboardingSectionLabel extends StatelessWidget {
 InputDecoration onboardingFieldDecoration(String hint, {Widget? prefix}) =>
     InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: kProviderMuted, fontSize: 14),
+      hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: kCard,
       prefixIcon: prefix,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderBorder),
+        borderSide: BorderSide(color: kProviderBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderBorder),
+        borderSide: BorderSide(color: kProviderBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -146,7 +146,7 @@ class OnboardingScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: KTopBar(title: 'Karryam partner', showBack: showBack, onBack: onBack),
+      appBar: KTopBar(title: 'Karryam Trucks', showBack: showBack, onBack: onBack),
       body: SafeArea(
         top: false,
         child: Column(

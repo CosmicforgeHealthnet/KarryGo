@@ -139,7 +139,7 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
             children: [
               const WalletFlowAppBar(title: 'Transaction Authorization'),
               const SizedBox(height: 28),
-              const KIconTile(Icons.lock_outline_rounded, size: 56),
+              KIconTile(Icons.lock_outline_rounded, size: 56),
               const SizedBox(height: 16),
               Expanded(child: _buildPin()),
               Padding(
@@ -164,7 +164,7 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
           child: Text(
             _prompt,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w500, height: 1.4),
+            style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w500, height: 1.4),
           ),
         ),
         const SizedBox(height: 22),
@@ -185,7 +185,7 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
             child: Text(
               _localError!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: kProviderRejectText, fontSize: 13),
+              style: TextStyle(color: kProviderRejectText, fontSize: 13),
             ),
           ),
         ],
@@ -212,7 +212,7 @@ class _PinDot extends StatelessWidget {
         border: Border.all(color: filled ? kTeal : kProviderBorder, width: filled ? 1.8 : 1.2),
         color: kCard,
       ),
-      child: filled ? const Center(child: Icon(Icons.circle, size: 12, color: kNavy)) : null,
+      child: filled ? Center(child: Icon(Icons.circle, size: 12, color: kProviderText)) : null,
     );
   }
 }

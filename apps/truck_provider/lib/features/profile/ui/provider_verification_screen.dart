@@ -145,7 +145,7 @@ class _ProviderVerificationScreenState extends State<ProviderVerificationScreen>
                 children: [
                   Row(
                     children: [
-                      const Text('Verification Status:  ',
+                      Text('Verification Status:  ',
                           style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800)),
                       Text(status,
                           style: TextStyle(color: statusColor, fontSize: 16, fontWeight: FontWeight.w800)),
@@ -168,8 +168,8 @@ class _ProviderVerificationScreenState extends State<ProviderVerificationScreen>
                             DropdownButtonFormField<String>(
                               initialValue: _expiryYear,
                               isExpanded: true,
-                              hint: const Text('Select Year', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-                              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+                              hint: Text('Select Year', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+                              icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
                               decoration: providerWhiteField(''),
                               items: years.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
                               onChanged: (v) => setState(() => _expiryYear = v),
@@ -190,7 +190,7 @@ class _ProviderVerificationScreenState extends State<ProviderVerificationScreen>
                                   controller: TextEditingController(text: _expiryDate ?? ''),
                                   decoration: providerWhiteField(
                                     'Select Expiry Date',
-                                    suffixIcon: const Icon(Icons.calendar_today_rounded, size: 18, color: kProviderMuted),
+                                    suffixIcon: Icon(Icons.calendar_today_rounded, size: 18, color: kProviderMuted),
                                   ),
                                 ),
                               ),
@@ -277,9 +277,9 @@ class _UploadField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
+        Text(title, style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
-        Text(helper, style: const TextStyle(color: kTealText, fontSize: 12, height: 1.5)),
+        Text(helper, style: TextStyle(color: kTealText, fontSize: 12, height: 1.5)),
         const SizedBox(height: 10),
         if (slot.uploading)
           _uploadingRow()
@@ -297,18 +297,18 @@ class _UploadField extends StatelessWidget {
       child: DottedBorderBox(
         child: Column(
           children: [
-            const Icon(Icons.file_download_outlined, color: kProviderText, size: 28),
+            Icon(Icons.file_download_outlined, color: kProviderText, size: 28),
             const SizedBox(height: 8),
-            const Text('Upload ID', style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700)),
+            Text('Upload ID', style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               "(International passport, NIN, Voter's card or Driver's License)",
               textAlign: TextAlign.center,
               style: TextStyle(color: kProviderMuted, fontSize: 10),
             ),
             const SizedBox(height: 2),
-            const Text('Supported File type: JPEG, PNG', style: TextStyle(color: kProviderMuted, fontSize: 10)),
-            const Text('Maximum File Size: 500MB', style: TextStyle(color: kProviderMuted, fontSize: 10)),
+            Text('Supported File type: JPEG, PNG', style: TextStyle(color: kProviderMuted, fontSize: 10)),
+            Text('Maximum File Size: 500MB', style: TextStyle(color: kProviderMuted, fontSize: 10)),
           ],
         ),
       ),
@@ -318,7 +318,7 @@ class _UploadField extends StatelessWidget {
   Widget _uploadingRow() {
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.all(Radius.circular(8)),
             child: LinearProgressIndicator(
@@ -329,7 +329,7 @@ class _UploadField extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        const SizedBox.square(
+        SizedBox.square(
           dimension: 22,
           child: CircularProgressIndicator(strokeWidth: 2.4, color: kProviderGreen),
         ),
@@ -367,7 +367,7 @@ class _UploadField extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.check_circle_rounded, color: kProviderGreen, size: 16),
                   SizedBox(width: 4),
@@ -380,11 +380,11 @@ class _UploadField extends StatelessWidget {
                   slot.fileName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: kProviderMuted, fontSize: 12),
+                  style: TextStyle(color: kProviderMuted, fontSize: 12),
                 ),
               ] else if (isNetwork) ...[
                 const SizedBox(height: 2),
-                const Text('Tap to view', style: TextStyle(color: kProviderMuted, fontSize: 12)),
+                Text('Tap to view', style: TextStyle(color: kProviderMuted, fontSize: 12)),
               ],
             ],
           ),
@@ -398,7 +398,7 @@ class _UploadField extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: kProviderBorder),
             ),
-            child: const Icon(Icons.close_rounded, size: 16, color: kProviderMuted),
+            child: Icon(Icons.close_rounded, size: 16, color: kProviderMuted),
           ),
         ),
       ],
@@ -410,11 +410,11 @@ class _UploadField extends StatelessWidget {
       color: kProviderGreenTint,
       child: Center(
         child: loading
-            ? const SizedBox.square(
+            ? SizedBox.square(
                 dimension: 18,
                 child: CircularProgressIndicator(strokeWidth: 2, color: kProviderGreen),
               )
-            : const Icon(Icons.image_rounded, color: kProviderGreen, size: 20),
+            : Icon(Icons.image_rounded, color: kProviderGreen, size: 20),
       ),
     );
   }

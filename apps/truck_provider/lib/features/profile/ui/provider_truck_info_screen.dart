@@ -74,7 +74,7 @@ class _ProviderTruckInfoScreenState extends State<ProviderTruckInfoScreen> {
                 ),
                 Expanded(
                   child: loading
-                      ? const Center(child: CircularProgressIndicator(color: kProviderGreen))
+                      ? Center(child: CircularProgressIndicator(color: kProviderGreen))
                       : trucks.isEmpty
                           ? _emptyState()
                           : ListView.separated(
@@ -112,10 +112,10 @@ class _ProviderTruckInfoScreenState extends State<ProviderTruckInfoScreen> {
           children: [
             const TruckGlyphTile(size: 96, iconSize: 46),
             const SizedBox(height: 22),
-            const Text('No truck added yet',
+            Text('No truck added yet',
                 style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Add your truck details so customers can book your haulage service.',
               textAlign: TextAlign.center,
               style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
@@ -139,7 +139,7 @@ class _TruckCard extends StatelessWidget {
     final makeModel = [truck.make, truck.model].where((s) => s.isNotEmpty).join(' ');
 
     return Material(
-      color: Colors.white,
+      color: kCard,
       borderRadius: BorderRadius.circular(20),
       elevation: 0,
       shadowColor: Colors.transparent,
@@ -149,7 +149,7 @@ class _TruckCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: kCard,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: kProviderBorder),
             boxShadow: [
@@ -173,12 +173,12 @@ class _TruckCard extends StatelessWidget {
                       children: [
                         Text(
                           truck.displayType.isEmpty ? 'Truck' : truck.displayType,
-                          style: const TextStyle(color: kProviderText, fontSize: 16.5, fontWeight: FontWeight.w800),
+                          style: TextStyle(color: kProviderText, fontSize: 16.5, fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           makeModel.isEmpty ? 'Tap to view details' : makeModel,
-                          style: const TextStyle(color: kProviderMuted, fontSize: 13),
+                          style: TextStyle(color: kProviderMuted, fontSize: 13),
                         ),
                       ],
                     ),
@@ -187,7 +187,7 @@ class _TruckCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              const Divider(height: 1, color: kProviderBorder),
+              Divider(height: 1, color: kProviderBorder),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -205,7 +205,7 @@ class _TruckCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right_rounded, color: kProviderMuted),
+                  Icon(Icons.chevron_right_rounded, color: kProviderMuted),
                 ],
               ),
             ],

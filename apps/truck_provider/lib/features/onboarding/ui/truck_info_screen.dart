@@ -114,8 +114,8 @@ class _TruckInfoScreenState extends State<TruckInfoScreen> {
           DropdownButtonFormField<String>(
             initialValue: _truckType,
             isExpanded: true,
-            hint: const Text('Select Truck Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+            hint: Text('Select Truck Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+            icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
             decoration: onboardingFieldDecoration(''),
             items: providerTruckTypeOptions
                 .map((o) => DropdownMenuItem(value: o.slug, child: Text(o.label)))
@@ -128,8 +128,8 @@ class _TruckInfoScreenState extends State<TruckInfoScreen> {
           DropdownButtonFormField<String>(
             initialValue: _licenseType,
             isExpanded: true,
-            hint: const Text('Select License Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+            hint: Text('Select License Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+            icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
             decoration: onboardingFieldDecoration(''),
             items: _licenseTypes.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
             onChanged: (v) => setState(() => _licenseType = v),
@@ -195,7 +195,7 @@ class _TruckInfoScreenState extends State<TruckInfoScreen> {
           ),
           const SizedBox(height: 20),
 
-          const Text(
+          Text(
             'Select types of goods you can carry',
             style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800),
           ),
@@ -208,7 +208,7 @@ class _TruckInfoScreenState extends State<TruckInfoScreen> {
             ),
           const SizedBox(height: 12),
 
-          const Text(
+          Text(
             'Do you have active vehicle insurance?',
             style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800),
           ),
@@ -252,10 +252,10 @@ class _GoodsRow extends StatelessWidget {
                 border: Border.all(color: selected ? kTealText : kProviderBorder, width: 2),
                 color: selected ? kTealText : Colors.transparent,
               ),
-              child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
+              child: selected ? Icon(Icons.check_rounded, size: 14, color: kCard) : null,
             ),
             const SizedBox(width: 12),
-            Text(label, style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(label, style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -288,13 +288,13 @@ class _YesNo extends StatelessWidget {
                     child: Container(
                       width: 12,
                       height: 12,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: kTealText),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: kTealText),
                     ),
                   )
                 : null,
           ),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(label, style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
         ],
       ),
     );

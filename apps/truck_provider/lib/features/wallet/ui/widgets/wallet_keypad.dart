@@ -19,7 +19,7 @@ class WalletKeypad extends StatelessWidget {
   /// Background tint of the delete key (green-tinted on the PIN screen).
   final Color deleteTint;
 
-  static const _digitColor = kProviderText;
+  static Color get _digitColor => kProviderText;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,7 @@ class WalletKeypad extends StatelessWidget {
           onTap: () => onDigit(d),
           child: Text(
             d,
-            style: const TextStyle(
+            style: TextStyle(
               color: _digitColor,
               fontSize: 26,
               fontWeight: FontWeight.w600,
@@ -55,7 +55,7 @@ class WalletKeypad extends StatelessWidget {
                     color: deleteTint,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.backspace_outlined, size: 20, color: _digitColor),
+                  child: Icon(Icons.backspace_outlined, size: 20, color: _digitColor),
                 ),
               ),
             ),

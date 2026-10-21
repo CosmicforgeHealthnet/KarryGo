@@ -133,7 +133,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     if (_contactError == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Text(_contactError!, style: const TextStyle(color: kProviderRejectText, fontSize: 12)),
+      child: Text(_contactError!, style: TextStyle(color: kProviderRejectText, fontSize: 12)),
     );
   }
 
@@ -301,7 +301,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
           // Gov ID upload
           const OnboardingSectionLabel('Government ID'),
-          const Text(
+          Text(
             'Upload a valid government-issued ID (NIN slip, passport, voter\'s card).',
             style: TextStyle(color: kProviderMuted, fontSize: 12, height: 1.4),
           ),
@@ -338,9 +338,9 @@ class _ReadOnlyPhone extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text('🇳🇬  +234 ', style: TextStyle(color: kProviderText, fontSize: 14)),
-          Expanded(child: Text(phone, style: const TextStyle(color: kProviderText, fontSize: 14))),
-          const Icon(Icons.lock_outline_rounded, size: 16, color: kProviderMuted),
+          Text('🇳🇬  +234 ', style: TextStyle(color: kProviderText, fontSize: 14)),
+          Expanded(child: Text(phone, style: TextStyle(color: kProviderText, fontSize: 14))),
+          Icon(Icons.lock_outline_rounded, size: 16, color: kProviderMuted),
         ],
       ),
     );
@@ -363,8 +363,8 @@ class _ReadOnlyEmail extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: Text(email, style: const TextStyle(color: kProviderText, fontSize: 14))),
-          const Icon(Icons.lock_outline_rounded, size: 16, color: kProviderMuted),
+          Expanded(child: Text(email, style: TextStyle(color: kProviderText, fontSize: 14))),
+          Icon(Icons.lock_outline_rounded, size: 16, color: kProviderMuted),
         ],
       ),
     );
@@ -381,13 +381,13 @@ class _PhoneField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: kProviderBorder),
       ),
       child: Row(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
             child: Text('🇳🇬  +234', style: TextStyle(fontSize: 14, color: kProviderText)),
           ),
@@ -398,7 +398,7 @@ class _PhoneField extends StatelessWidget {
               keyboardType: TextInputType.phone,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               onChanged: onChanged,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: '801 234 5678',
                 hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
                 border: InputBorder.none,

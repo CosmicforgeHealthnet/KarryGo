@@ -71,13 +71,13 @@ class _ProviderSecurityScreenState extends State<ProviderSecurityScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.password_rounded, color: kProviderGreen),
+                      Icon(Icons.password_rounded, color: kProviderGreen),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Transaction PIN',
+                            Text('Transaction PIN',
                                 style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 16)),
                             const SizedBox(height: 4),
                             Text(
@@ -86,7 +86,7 @@ class _ProviderSecurityScreenState extends State<ProviderSecurityScreen> {
                                   : pinSet
                                   ? 'Set. You enter it to approve every withdrawal.'
                                   : 'Not set yet. You will need one to withdraw.',
-                              style: const TextStyle(color: kProviderMuted, fontSize: 13),
+                              style: TextStyle(color: kProviderMuted, fontSize: 13),
                             ),
                           ],
                         ),
@@ -101,7 +101,7 @@ class _ProviderSecurityScreenState extends State<ProviderSecurityScreen> {
                   onPressed: pinSet == null ? null : () => _setOrChange(pinSet),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'After 5 wrong attempts the PIN locks for 15 minutes. If you forget it, contact support from your profile.',
                   style: TextStyle(color: kProviderMuted, fontSize: 12, height: 1.4),
                 ),
@@ -136,7 +136,7 @@ class _PinDialogState extends State<_PinDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.title, style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 18)),
+      title: Text(widget.title, style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 18)),
       content: TextField(
         controller: _field,
         autofocus: true,
@@ -153,7 +153,7 @@ class _PinDialogState extends State<_PinDialog> {
           onPressed: () {
             if (_field.text.length == 4) Navigator.pop(context, _field.text);
           },
-          child: const Text('Continue', style: TextStyle(color: kProviderGreen)),
+          child: Text('Continue', style: TextStyle(color: kProviderGreen)),
         ),
       ],
     );

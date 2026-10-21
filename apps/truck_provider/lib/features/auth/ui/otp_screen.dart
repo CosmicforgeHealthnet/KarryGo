@@ -86,7 +86,7 @@ class _ProviderOtpScreenState extends State<ProviderOtpScreen> {
     final state = widget.controller.state;
     final destination = state.identifierType == 'email' ? state.email : _internationalPhone(state.phone);
     return Scaffold(
-      appBar: KTopBar(title: 'Karryam partner', onBack: widget.controller.backToPhoneEntry),
+      appBar: KTopBar(title: 'Karryam Trucks', onBack: widget.controller.backToPhoneEntry),
       body: SafeArea(
         top: false,
         child: Column(
@@ -95,7 +95,7 @@ class _ProviderOtpScreenState extends State<ProviderOtpScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
                 children: [
-                  const Center(child: KIconTile(Icons.sms_outlined, size: 64)),
+                  Center(child: KIconTile(Icons.sms_outlined, size: 64)),
                   const SizedBox(height: 20),
                   KHeading(
                     title: 'Check your phone.',
@@ -120,11 +120,11 @@ class _ProviderOtpScreenState extends State<ProviderOtpScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.schedule_rounded, size: 16, color: kProviderMuted),
+                      Icon(Icons.schedule_rounded, size: 16, color: kProviderMuted),
                       const SizedBox(width: 6),
                       Text(
                         _secondsLeft == 0 ? "Didn't get it?" : 'Resend available in $_timerLabel',
-                        style: const TextStyle(color: kProviderMuted, fontSize: 13),
+                        style: TextStyle(color: kProviderMuted, fontSize: 13),
                       ),
                       const Spacer(),
                       TextButton(
@@ -205,13 +205,13 @@ class _CodeBoxes extends StatelessWidget {
                           border: Border.all(
                             color: focusNode.hasFocus && i == code.length.clamp(0, 5)
                                 ? kTeal
-                                : (i < code.length ? kNavy : kProviderBorder),
+                                : (i < code.length ? kProviderText : kProviderBorder),
                             width: focusNode.hasFocus && i == code.length.clamp(0, 5) ? 2 : 1.2,
                           ),
                         ),
                         child: Text(
                           i < code.length ? code[i] : '',
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: kProviderText),
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: kProviderText),
                         ),
                       ),
                     ),

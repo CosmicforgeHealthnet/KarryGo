@@ -140,7 +140,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
           Container(
             padding: const EdgeInsets.all(4),
             child: RichText(
-              text: const TextSpan(
+              text: TextSpan(
                 style: TextStyle(color: kProviderMuted, fontSize: 12, height: 1.5),
                 children: [
                   TextSpan(text: '🔒  ', style: TextStyle(fontSize: 14)),
@@ -152,7 +152,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Guarantor Information',
             style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 15),
           ),
@@ -173,7 +173,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
           Container(
             padding: const EdgeInsets.all(4),
             child: RichText(
-              text: const TextSpan(
+              text: TextSpan(
                 style: TextStyle(color: kProviderMuted, fontSize: 12, height: 1.5),
                 children: [
                   TextSpan(text: '🆘  ', style: TextStyle(fontSize: 14)),
@@ -185,7 +185,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Emergency Contact',
             style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 15),
           ),
@@ -204,7 +204,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
           const OnboardingSectionLabel('Relationship'),
           DropdownButtonFormField<String>(
             initialValue: _emergencyRelationship.isEmpty ? null : _emergencyRelationship,
-            hint: const Text('Select relationship', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+            hint: Text('Select relationship', style: TextStyle(color: kProviderMuted, fontSize: 14)),
             decoration: onboardingFieldDecoration(''),
             items: _relationships
                 .map((r) => DropdownMenuItem(value: r, child: Text(r)))
@@ -231,13 +231,13 @@ class _PhoneField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: kProviderBorder),
       ),
       child: Row(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
             child: Text('🇳🇬  +234', style: TextStyle(fontSize: 14, color: kProviderText)),
           ),
@@ -248,7 +248,7 @@ class _PhoneField extends StatelessWidget {
               keyboardType: TextInputType.phone,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               onChanged: onChanged,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: '801 234 5678',
                 hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
                 border: InputBorder.none,

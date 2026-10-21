@@ -15,14 +15,14 @@ const kCardRadius = BorderRadius.all(Radius.circular(18));
 
 /// Back circle, centred title, optional trailing action.
 class KTopBar extends StatelessWidget implements PreferredSizeWidget {
-  const KTopBar({
+  KTopBar({
     super.key,
     this.title,
     this.onBack,
     this.trailing,
     this.showBack = true,
-    this.background = kCanvas,
-  });
+    Color? background,
+  }) : background = background ?? kCanvas;
 
   final String? title;
   final VoidCallback? onBack;
@@ -62,7 +62,7 @@ class KTopBar extends StatelessWidget implements PreferredSizeWidget {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: kProviderText,
@@ -81,14 +81,14 @@ class KTopBar extends StatelessWidget implements PreferredSizeWidget {
 
 /// A 44px round white button with a hairline border.
 class KCircleButton extends StatelessWidget {
-  const KCircleButton({
+  KCircleButton({
     super.key,
     required this.icon,
     required this.onTap,
     this.tooltip,
     this.badge = false,
-    this.background = kCard,
-  });
+    Color? background,
+  }) : background = background ?? kCard;
 
   final IconData icon;
   final VoidCallback? onTap;
@@ -100,7 +100,7 @@ class KCircleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final button = Material(
       color: background,
-      shape: const CircleBorder(side: BorderSide(color: kProviderBorder)),
+      shape: CircleBorder(side: BorderSide(color: kProviderBorder)),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
@@ -138,7 +138,7 @@ class KCircleButton extends StatelessWidget {
 
 /// Small-caps label above a heading: "FIND YOUR NEXT MOVE".
 class KEyebrow extends StatelessWidget {
-  const KEyebrow(this.text, {super.key, this.color = kProviderMuted});
+  KEyebrow(this.text, {super.key, Color? color}) : color = color ?? kProviderMuted;
   final String text;
   final Color color;
 
@@ -182,7 +182,7 @@ class KHeading extends StatelessWidget {
         Text(
           title,
           textAlign: textAlign,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 26,
             height: 1.15,
             fontWeight: FontWeight.w700,
@@ -195,7 +195,7 @@ class KHeading extends StatelessWidget {
           Text(
             subtitle!,
             textAlign: textAlign,
-            style: const TextStyle(fontSize: 14, height: 1.45, color: kProviderMuted),
+            style: TextStyle(fontSize: 14, height: 1.45, color: kProviderMuted),
           ),
         ],
       ],
@@ -222,7 +222,7 @@ class KSectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kProviderText),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kProviderText),
           ),
         ),
         if (action != null)
@@ -236,10 +236,10 @@ class KSectionHeader extends StatelessWidget {
                 children: [
                   Text(
                     action!,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kTealText),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kTealText),
                   ),
                   const SizedBox(width: 2),
-                  const Icon(Icons.north_east_rounded, size: 14, color: kTealText),
+                  Icon(Icons.north_east_rounded, size: 14, color: kTealText),
                 ],
               ),
             ),
@@ -253,16 +253,16 @@ class KSectionHeader extends StatelessWidget {
 
 /// The navy 52px primary action. Shows a spinner while [loading].
 class KPrimaryButton extends StatelessWidget {
-  const KPrimaryButton({
+  KPrimaryButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.loading = false,
     this.arrow = false,
     this.icon,
-    this.color = kNavy,
-    this.foreground = Colors.white,
-  });
+    Color? color,
+    Color? foreground,
+  }) : color = color ?? kPrimary, foreground = foreground ?? kOnPrimary;
 
   final String label;
   final VoidCallback? onPressed;
@@ -348,14 +348,14 @@ class KSecondaryButton extends StatelessWidget {
 
 /// White rounded card with a hairline border.
 class KCard extends StatelessWidget {
-  const KCard({
+  KCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.onTap,
-    this.color = kCard,
-    this.borderColor = kProviderBorder,
-  });
+    Color? color,
+    Color? borderColor,
+  }) : color = color ?? kCard, borderColor = borderColor ?? kProviderBorder;
 
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -382,13 +382,13 @@ class KCard extends StatelessWidget {
 
 /// Soft tinted square holding an icon — the leading element of list rows.
 class KIconTile extends StatelessWidget {
-  const KIconTile(
+  KIconTile(
     this.icon, {
     super.key,
-    this.color = kTealText,
-    this.background = kTealTint,
+    Color? color,
+    Color? background,
     this.size = 40,
-  });
+  }) : color = color ?? kTealText, background = background ?? kTealTint;
 
   final IconData icon;
   final Color color;
@@ -409,7 +409,7 @@ class KIconTile extends StatelessWidget {
 
 /// Tinted icon tile, title, optional subtitle, trailing chevron.
 class KListRow extends StatelessWidget {
-  const KListRow({
+  KListRow({
     super.key,
     required this.title,
     this.subtitle,
@@ -417,12 +417,12 @@ class KListRow extends StatelessWidget {
     this.leading,
     this.trailing,
     this.onTap,
-    this.iconColor = kTealText,
-    this.iconBackground = kTealTint,
-    this.titleColor = kProviderText,
+    Color? iconColor,
+    Color? iconBackground,
+    Color? titleColor,
     this.showChevron = true,
     this.dense = false,
-  });
+  }) : iconColor = iconColor ?? kTealText, iconBackground = iconBackground ?? kTealTint, titleColor = titleColor ?? kProviderText;
 
   final String title;
   final String? subtitle;
@@ -460,7 +460,7 @@ class KListRow extends StatelessWidget {
                       subtitle!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5, height: 1.35, color: kProviderMuted),
+                      style: TextStyle(fontSize: 12.5, height: 1.35, color: kProviderMuted),
                     ),
                   ],
                 ],
@@ -469,7 +469,7 @@ class KListRow extends StatelessWidget {
             if (trailing != null) ...[const SizedBox(width: 10), trailing!],
             if (showChevron && onTap != null) ...[
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 22),
+              Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 22),
             ],
           ],
         ),
@@ -507,10 +507,10 @@ class KStatusChip extends StatelessWidget {
 
   (Color, Color) get _colors => switch (tone) {
         KTone.success => (kTealText, kTealTint),
-        KTone.info => (kNavy, kProviderGreenTint),
+        KTone.info => (kProviderText, kProviderGreenTint),
         KTone.warning => (kWarning, kWarningTint),
         KTone.danger => (kProviderRejectText, kProviderRejectBg),
-        KTone.neutral => (kProviderMuted, const Color(0xFFEEF0F3)),
+        KTone.neutral => (kProviderMuted, kProviderGreenTint),
       };
 
   @override
@@ -579,7 +579,7 @@ class KRouteStops extends StatelessWidget {
                   height: 12,
                   decoration: BoxDecoration(
                     color: kCard,
-                    border: Border.all(color: kNavy, width: 2.5),
+                    border: Border.all(color: kProviderText, width: 2.5),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -621,7 +621,7 @@ class _Stop extends StatelessWidget {
           address.isEmpty ? '—' : address,
           maxLines: maxLines,
           overflow: maxLines == null ? null : TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3, color: kProviderText),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3, color: kProviderText),
         ),
       ],
     );
@@ -706,12 +706,12 @@ class KStatTile extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: kProviderText),
+              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: kProviderText),
             ),
           ),
           if (caption != null) ...[
             const SizedBox(height: 4),
-            Text(caption!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: kProviderMuted)),
+            Text(caption!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: kProviderMuted)),
           ],
         ],
       ),
@@ -771,7 +771,7 @@ class KAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: kTealTint, shape: BoxShape.circle),
       child: Text(
         initials(name),
         style: TextStyle(fontSize: size * 0.34, fontWeight: FontWeight.w700, color: kTealText),
@@ -793,11 +793,64 @@ class KAvatar extends StatelessWidget {
 
 // ─── States ──────────────────────────────────────────────────────────────────
 
-/// Centered icon, title, message and an optional action.
+/// The animated illustrations that stand in for icons on empty, error,
+/// waiting and success states.
+enum KArt { truck, wallet, bell, cloud, success, pending, chat }
+
+/// Picks the animation that fits a state's icon, so every [KEmptyState]
+/// gets one without each screen choosing.
+KArt kArtFor(IconData icon) {
+  final c = icon.codePoint;
+  bool any(List<IconData> icons) => icons.any((i) => i.codePoint == c);
+  if (any([Icons.cloud_off_rounded, Icons.wifi_off_rounded, Icons.error_outline_rounded])) return KArt.cloud;
+  if (any([Icons.notifications_none_rounded, Icons.notifications_rounded])) return KArt.bell;
+  if (any([
+    Icons.receipt_long_outlined,
+    Icons.account_balance_rounded,
+    Icons.account_balance_outlined,
+    Icons.account_balance_wallet_outlined,
+  ])) {
+    return KArt.wallet;
+  }
+  if (any([Icons.chat_bubble_outline_rounded, Icons.forum_outlined, Icons.report_gmailerrorred_rounded])) {
+    return KArt.chat;
+  }
+  if (any([Icons.hourglass_top_rounded, Icons.schedule_rounded])) return KArt.pending;
+  if (any([Icons.check_rounded, Icons.check_circle_rounded, Icons.verified_rounded])) return KArt.success;
+  return KArt.truck;
+}
+
+/// A looping Karryam animation, in the variant drawn for the current theme
+/// and the surface it sits on.
+class KAnimArt extends StatelessWidget {
+  const KAnimArt(this.art, {super.key, this.size = 150, this.onCard = false});
+  final KArt art;
+  final double size;
+
+  /// Sits on a card rather than the page background (success art only).
+  final bool onCard;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = KPalette.dark ? 'dark' : 'light';
+    final card = onCard && art == KArt.success ? '_card' : '';
+    return ExcludeSemantics(
+      child: Image.asset(
+        'assets/anim/${art.name}_$theme$card.gif',
+        width: size,
+        height: size,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+      ),
+    );
+  }
+}
+
 class KEmptyState extends StatelessWidget {
   const KEmptyState({
     super.key,
     required this.icon,
+    this.art,
     required this.title,
     this.message,
     this.actionLabel,
@@ -805,6 +858,9 @@ class KEmptyState extends StatelessWidget {
   });
 
   final IconData icon;
+
+  /// Overrides the animation picked from [icon].
+  final KArt? art;
   final String title;
   final String? message;
   final String? actionLabel;
@@ -817,24 +873,19 @@ class KEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
-            child: Icon(icon, color: kTealText, size: 32),
-          ),
-          const SizedBox(height: 18),
+          KAnimArt(art ?? kArtFor(icon), size: 150),
+          const SizedBox(height: 14),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kProviderText),
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kProviderText),
           ),
           if (message != null) ...[
             const SizedBox(height: 6),
             Text(
               message!,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13.5, height: 1.45, color: kProviderMuted),
+              style: TextStyle(fontSize: 13.5, height: 1.45, color: kProviderMuted),
             ),
           ],
           if (actionLabel != null && onAction != null) ...[
@@ -858,10 +909,10 @@ class KNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final (fg, bg) = switch (tone) {
       KTone.success => (kTealText, kTealTint),
-      KTone.info => (kNavy, kProviderGreenTint),
+      KTone.info => (kProviderText, kProviderGreenTint),
       KTone.warning => (kWarning, kWarningTint),
       KTone.danger => (kProviderRejectText, kProviderRejectBg),
-      KTone.neutral => (kProviderMuted, const Color(0xFFEEF0F3)),
+      KTone.neutral => (kProviderMuted, kProviderGreenTint),
     };
     return Container(
       width: double.infinity,
@@ -897,13 +948,14 @@ class KFieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kProviderText)),
+        child: Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kProviderText)),
       );
 }
 
 /// Key–value row used in detail cards.
 class KInfoRow extends StatelessWidget {
-  const KInfoRow(this.label, this.value, {super.key, this.valueColor = kProviderText, this.bold = false});
+  KInfoRow(this.label, this.value, {super.key, Color? valueColor, this.bold = false})
+      : valueColor = valueColor ?? kProviderText;
   final String label;
   final String value;
   final Color valueColor;
@@ -916,7 +968,7 @@ class KInfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: kProviderMuted)),
+          Text(label, style: TextStyle(fontSize: 13, color: kProviderMuted)),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
@@ -1090,7 +1142,7 @@ class KChoiceCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF4FCFB) : kCard,
+          color: selected ? kSelectedWash : kCard,
           borderRadius: kCardRadius,
           border: Border.all(color: selected ? kTeal : kProviderBorder, width: selected ? 1.8 : 1),
         ),
@@ -1114,10 +1166,10 @@ class KChoiceCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: kProviderText)),
+                        Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: kProviderText)),
                         if (subtitle != null) ...[
                           const SizedBox(height: 3),
-                          Text(subtitle!, style: const TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted)),
+                          Text(subtitle!, style: TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted)),
                         ],
                       ],
                     ),
@@ -1132,7 +1184,7 @@ class KChoiceCard extends StatelessWidget {
                       color: selected ? kTealText : Colors.transparent,
                       border: Border.all(color: selected ? kTealText : kProviderGreenSoft, width: 2),
                     ),
-                    child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
+                    child: selected ? Icon(Icons.check_rounded, size: 14, color: kCard) : null,
                   ),
                 ],
               ),

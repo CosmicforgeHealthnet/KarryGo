@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../auth/state/provider_auth_controller.dart';
 import '../../disputes/state/provider_dispute_controller.dart';
+import '../../../core/provider_appearance.dart';
 import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../../wallet/state/provider_withdrawal_controller.dart';
@@ -127,7 +128,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                 children: [
                                   Text(
                                     provider?.displayName ?? '—',
-                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kProviderText),
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kProviderText),
                                   ),
                                   const SizedBox(height: 6),
                                   if (provider != null)
@@ -171,7 +172,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else ...[
-                    const KEyebrow('Account'),
+                    KEyebrow('Account'),
                     const SizedBox(height: 10),
                     KGroup(
                       children: [
@@ -199,7 +200,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const KEyebrow('Money'),
+                    KEyebrow('Money'),
                     const SizedBox(height: 10),
                     KGroup(
                       children: [
@@ -212,7 +213,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const KEyebrow('Safety & privacy'),
+                    KEyebrow('Safety & privacy'),
                     const SizedBox(height: 10),
                     KGroup(
                       children: [
@@ -237,7 +238,11 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const KEyebrow('Help'),
+                    KEyebrow('App settings'),
+                    const SizedBox(height: 10),
+                    const _AppearanceCard(),
+                    const SizedBox(height: 20),
+                    KEyebrow('Help'),
                     const SizedBox(height: 10),
                     KGroup(
                       children: [
@@ -312,7 +317,7 @@ class _ProviderIdRow extends StatelessWidget {
       children: [
         Text(
           id,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: kProviderMuted,
@@ -331,7 +336,7 @@ class _ProviderIdRow extends StatelessWidget {
               ),
             );
           },
-          child: const Icon(Icons.copy_outlined, size: 14, color: kProviderMuted),
+          child: Icon(Icons.copy_outlined, size: 14, color: kProviderMuted),
         ),
       ],
     );
@@ -353,13 +358,13 @@ class _StatsRow extends StatelessWidget {
       child: Row(
         children: [
           _StatCell(label: 'Trips', value: _formatNumber(totalTrips)),
-          const VerticalDivider(color: kProviderBorder, width: 1),
+          VerticalDivider(color: kProviderBorder, width: 1),
           _StatCell(
             label: 'Rating',
             value: rating > 0 ? rating.toStringAsFixed(2) : 'New',
             icon: rating > 0 ? Icons.star_rounded : null,
           ),
-          const VerticalDivider(color: kProviderBorder, width: 1),
+          VerticalDivider(color: kProviderBorder, width: 1),
           _StatCell(label: 'With Karryam', value: tenure),
         ],
       ),
@@ -388,14 +393,99 @@ class _StatCell extends StatelessWidget {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kProviderText),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kProviderText),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 3),
-          Text(label, style: const TextStyle(fontSize: 11.5, color: kProviderMuted)),
+          Text(label, style: TextStyle(fontSize: 11.5, color: kProviderMuted)),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Appearance ──────────────────────────────────────────────────────────────
+
+/// Light, dark, or follow the phone — saved on this device.
+class _AppearanceCard extends StatelessWidget {
+  const _AppearanceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: providerAppearance,
+      builder: (context, mode, _) => KCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                KIconTile(Icons.brightness_6_outlined),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Appearance',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kProviderText)),
+                      const SizedBox(height: 3),
+                      Text('Choose a look, or match your phone.',
+                          style: TextStyle(fontSize: 12.5, color: kProviderMuted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: kProviderGreenTint, borderRadius: BorderRadius.circular(14)),
+              child: Row(
+                children: [
+                  for (final (option, label, icon) in const [
+                    (ThemeMode.light, 'Light', Icons.light_mode_outlined),
+                    (ThemeMode.dark, 'Dark', Icons.dark_mode_outlined),
+                    (ThemeMode.system, 'System', Icons.settings_brightness_outlined),
+                  ])
+                    Expanded(
+                      child: Semantics(
+                        selected: mode == option,
+                        button: true,
+                        child: GestureDetector(
+                          onTap: () => providerAppearance.select(option),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: mode == option ? kCard : Colors.transparent,
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(icon, size: 17, color: mode == option ? kTealText : kProviderMuted),
+                                const SizedBox(width: 6),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: mode == option ? FontWeight.w700 : FontWeight.w500,
+                                    color: mode == option ? kProviderText : kProviderMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

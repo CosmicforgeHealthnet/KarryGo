@@ -118,12 +118,12 @@ class _ProviderPaymentsScreenState extends State<ProviderPaymentsScreen> {
                             const SizedBox(height: 12),
                           ],
                           const SizedBox(height: 16),
-                          const Text(
+                          Text(
                             'Set Default withdrawal Account',
                             style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Withdrawals go to this account unless you choose another.',
                             style: TextStyle(color: kProviderMuted, fontSize: 12.5),
                           ),
@@ -159,7 +159,7 @@ class _AccountDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const KIconTile(Icons.account_balance_rounded),
+        KIconTile(Icons.account_balance_rounded),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -167,12 +167,12 @@ class _AccountDetails extends StatelessWidget {
             children: [
               Text(
                 account.accountName,
-                style: const TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
+                style: TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 2),
-              Text(account.bankName, style: const TextStyle(color: kProviderText, fontSize: 13)),
+              Text(account.bankName, style: TextStyle(color: kProviderText, fontSize: 13)),
               const SizedBox(height: 1),
-              Text(account.accountNumber, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+              Text(account.accountNumber, style: TextStyle(color: kProviderMuted, fontSize: 12.5)),
             ],
           ),
         ),
@@ -197,7 +197,7 @@ class _LinkedAccountCard extends StatelessWidget {
           if (account.isDefault) const KStatusChip('Default'),
           IconButton(
             onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline_rounded, color: kProviderRejectText, size: 22),
+            icon: Icon(Icons.delete_outline_rounded, color: kProviderRejectText, size: 22),
             tooltip: 'Remove account',
           ),
         ],

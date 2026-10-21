@@ -19,12 +19,7 @@ class VerificationPendingScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
                 children: [
                   Center(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
-                      child: const Icon(Icons.hourglass_top_rounded, size: 44, color: kTealText),
-                    ),
+                    child: const KAnimArt(KArt.pending, size: 160),
                   ),
                   const SizedBox(height: 20),
                   const Center(child: KStatusChip('Verification in review', tone: KTone.warning)),
@@ -77,8 +72,8 @@ class _Item extends StatelessWidget {
       title: title,
       subtitle: detail,
       trailing: done
-          ? const Icon(Icons.check_circle_rounded, color: kTealText, size: 20)
-          : const Icon(Icons.schedule_rounded, color: kWarning, size: 20),
+          ? Icon(Icons.check_circle_rounded, color: kTealText, size: 20)
+          : Icon(Icons.schedule_rounded, color: kWarning, size: 20),
     );
   }
 }

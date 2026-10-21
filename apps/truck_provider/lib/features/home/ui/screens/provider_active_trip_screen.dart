@@ -45,7 +45,7 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel this trip?'),
-        content: const Text(
+        content: Text(
           "The customer will be told you can't make it, and the booking goes back to the queue.",
           style: TextStyle(height: 1.45, color: kProviderMuted),
         ),
@@ -91,7 +91,7 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
                   top: topPadding + 12,
                   right: 16,
                   child: Material(
-                    color: kProviderRejectText,
+                    color: const Color(0xFFC62838),
                     shape: const StadiumBorder(),
                     elevation: 3,
                     shadowColor: const Color(0x55AD263A),
@@ -213,7 +213,7 @@ class _TripSheet extends StatelessWidget {
     };
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: kCanvas,
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
         boxShadow: [BoxShadow(color: Color(0x1F0B1F44), blurRadius: 24, offset: Offset(0, -6))],
@@ -239,7 +239,7 @@ class _TripSheet extends StatelessWidget {
                     const Spacer(),
                     Text(
                       '#${booking.shortId}',
-                      style: const TextStyle(fontSize: 12, color: kProviderMuted),
+                      style: TextStyle(fontSize: 12, color: kProviderMuted),
                     ),
                   ],
                 ),
@@ -289,7 +289,7 @@ class _TripSheet extends StatelessWidget {
                           ),
                           Text(
                             formatNairaShort(booking.fareNaira),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kProviderText),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kProviderText),
                           ),
                         ],
                       ),
@@ -392,7 +392,7 @@ class _StageTracker extends StatelessWidget {
                   duration: const Duration(milliseconds: 250),
                   height: 4,
                   decoration: BoxDecoration(
-                    color: i < current ? kTeal : (i == current ? kNavy : kProviderBorder),
+                    color: i < current ? kTeal : (i == current ? kProviderText : kProviderBorder),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -439,7 +439,7 @@ class _ContactCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
-                const Text('Receiver at delivery', style: TextStyle(fontSize: 12.5, color: kProviderMuted)),
+                Text('Receiver at delivery', style: TextStyle(fontSize: 12.5, color: kProviderMuted)),
               ],
             ),
           ),
@@ -473,7 +473,7 @@ class _ActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: kCard,
         border: Border(top: BorderSide(color: kProviderBorder)),
       ),
@@ -547,11 +547,11 @@ class _ProgressBar extends StatelessWidget {
                         width: marker,
                         height: marker,
                         decoration: BoxDecoration(
-                          color: kNavy,
+                          color: kPrimary,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(color: kCard, width: 2),
                         ),
-                        child: const Icon(Icons.local_shipping_rounded, size: 11, color: Colors.white),
+                        child: Icon(Icons.local_shipping_rounded, size: 11, color: kOnPrimary),
                       ),
                     ),
                   ],
@@ -562,14 +562,14 @@ class _ProgressBar extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('Pickup', style: TextStyle(color: kProviderMuted, fontSize: 11.5)),
+              Text('Pickup', style: TextStyle(color: kProviderMuted, fontSize: 11.5)),
               const Spacer(),
               Text(
                 '${(value * 100).round()}% of the way',
-                style: const TextStyle(color: kTealText, fontSize: 11.5, fontWeight: FontWeight.w600),
+                style: TextStyle(color: kTealText, fontSize: 11.5, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
-              const Text('Drop-off', style: TextStyle(color: kProviderMuted, fontSize: 11.5)),
+              Text('Drop-off', style: TextStyle(color: kProviderMuted, fontSize: 11.5)),
             ],
           ),
         ],
@@ -728,7 +728,8 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                       Container(
                         height: 160,
                         decoration: BoxDecoration(
-                          color: kCard,
+                          // Always white: the signature is saved as dark ink on white.
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: kProviderBorder, width: 1.5),
                         ),
@@ -737,7 +738,7 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                           child: Stack(
                             children: [
                               if (_signaturePoints.isEmpty)
-                                const Center(
+                                Center(
                                   child: Text(
                                     'Sign here',
                                     style: TextStyle(color: kProviderGreenSoft, fontSize: 18, fontWeight: FontWeight.w600),
@@ -777,7 +778,7 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                   ),
                 ),
                 DecoratedBox(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: kCard,
                     border: Border(top: BorderSide(color: kProviderBorder)),
                   ),
@@ -820,17 +821,17 @@ class _StepTitle extends StatelessWidget {
           width: 24,
           height: 24,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(color: kNavy, shape: BoxShape.circle),
-          child: Text('$number', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+          decoration: BoxDecoration(color: kPrimary, shape: BoxShape.circle),
+          child: Text('$number', style: TextStyle(color: kOnPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kProviderText)),
+              Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kProviderText)),
               const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted)),
+              Text(subtitle, style: TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted)),
             ],
           ),
         ),
@@ -863,7 +864,7 @@ class _PhotoBox extends StatelessWidget {
               errorBuilder: (_, _, _) => Container(
                 height: 180,
                 color: kTealTint,
-                child: const Center(child: Icon(Icons.image_rounded, color: kTealText, size: 40)),
+                child: Center(child: Icon(Icons.image_rounded, color: kTealText, size: 40)),
               ),
             ),
             Positioned(
@@ -896,7 +897,7 @@ class _PhotoBox extends StatelessWidget {
           child: Center(
             child: busy
                 ? const CircularProgressIndicator()
-                : const Column(
+                : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       KIconTile(Icons.photo_camera_outlined, size: 44),

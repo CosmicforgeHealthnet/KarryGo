@@ -40,7 +40,7 @@ class ProviderDisputeDetailsScreen extends StatelessWidget {
               trailing: GestureDetector(
                 onTap: () => _openChat(context),
                 behavior: HitTestBehavior.opaque,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.only(right: 4),
                   child: Text(
                     'Live Chat',
@@ -53,7 +53,7 @@ class ProviderDisputeDetailsScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                 children: [
-                  const Text('Dispute Type',
+                  Text('Dispute Type',
                       style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 10),
                   _TypePill(label: complaint.subject),
@@ -62,7 +62,7 @@ class ProviderDisputeDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   _StatusStepper(stage: complaint.stage, date: complaint.createdAt, resolvedAt: complaint.resolvedAt),
                   const SizedBox(height: 24),
-                  const Text('Processing Record',
+                  Text('Processing Record',
                       style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 14),
                   _ProcessingRecord(complaint: complaint),
@@ -95,7 +95,7 @@ class _TypePill extends StatelessWidget {
       ),
       child: Text(
         label.isEmpty ? 'Dispute' : label,
-        style: const TextStyle(color: kProviderDarkGreen, fontSize: 14, fontWeight: FontWeight.w600),
+        style: TextStyle(color: kProviderDarkGreen, fontSize: 14, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -131,7 +131,7 @@ class _TransactionSummary extends StatelessWidget {
         Center(
           child: Column(
             children: [
-              const Text('Total Amount', style: TextStyle(color: kProviderMuted, fontSize: 13)),
+              Text('Total Amount', style: TextStyle(color: kProviderMuted, fontSize: 13)),
               const SizedBox(height: 8),
               Text('$sign₦${formatNaira(gross)}',
                   style: TextStyle(color: status.color, fontSize: 26, fontWeight: FontWeight.w800)),
@@ -155,7 +155,7 @@ class _TransactionSummary extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        const Text('Transaction Details',
+        Text('Transaction Details',
             style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
         _row('Transaction ID', '#${_ref(txn.id)}'),
@@ -177,7 +177,7 @@ class _TransactionSummary extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(child: Text(label, style: const TextStyle(color: kProviderMuted, fontSize: 14))),
+          Expanded(child: Text(label, style: TextStyle(color: kProviderMuted, fontSize: 14))),
           const SizedBox(width: 12),
           Text(value,
               style: TextStyle(
@@ -201,14 +201,14 @@ class _StatusStepper extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: kProviderBorder),
         boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 4))],
       ),
       child: Column(
         children: [
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
             child: Text('Status', style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
           ),
@@ -288,7 +288,7 @@ class _RecordRow extends StatelessWidget {
                 height: 14,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: done ? kTealText : Colors.white,
+                  color: done ? kTealText : kCard,
                   border: Border.all(color: done ? kTealText : kProviderBorder, width: 2),
                 ),
               ),
@@ -303,14 +303,14 @@ class _RecordRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w800)),
+                  Text(title, style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 2),
                   Text(
                     when != null ? formatTransactionDate(when!) : 'Pending',
-                    style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
+                    style: TextStyle(color: kProviderMuted, fontSize: 12.5),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Record note here…',
                     style: TextStyle(color: kProviderMuted, fontSize: 12.5),
                   ),

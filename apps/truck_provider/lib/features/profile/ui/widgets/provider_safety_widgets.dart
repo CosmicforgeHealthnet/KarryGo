@@ -18,7 +18,7 @@ class SafetyFieldLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
+        style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -45,7 +45,7 @@ class SafetyPhoneField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(left: 16),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -67,7 +67,7 @@ class SafetyPhoneField extends StatelessWidget {
               onChanged: onChanged,
               keyboardType: TextInputType.phone,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
+              style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 16),
@@ -95,9 +95,9 @@ class SafetyAddNewPill extends StatelessWidget {
           color: kProviderGreen,
           borderRadius: BorderRadius.circular(999),
         ),
-        child: const Text(
+        child: Text(
           '+ Add New',
-          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+          style: TextStyle(color: kOnPrimary, fontSize: 13, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -123,14 +123,14 @@ class SafetyContactCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: kCard,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Ink(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: kCard,
             borderRadius: BorderRadius.circular(12),
             boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 4))],
           ),
@@ -143,18 +143,18 @@ class SafetyContactCard extends StatelessWidget {
                   children: [
                     Text(
                       name,
-                      style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
-                    Text(phone, style: const TextStyle(color: kProviderMuted, fontSize: 13)),
+                    Text(phone, style: TextStyle(color: kProviderMuted, fontSize: 13)),
                     if (relationship != null && relationship!.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(relationship!, style: const TextStyle(color: kProviderMuted, fontSize: 13)),
+                      Text(relationship!, style: TextStyle(color: kProviderMuted, fontSize: 13)),
                     ],
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 22),
+              Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 22),
             ],
           ),
         ),
@@ -172,7 +172,7 @@ class SafetyHelperText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(color: kTealText, fontSize: 13, height: 1.5),
+      style: TextStyle(color: kTealText, fontSize: 13, height: 1.5),
     );
   }
 }

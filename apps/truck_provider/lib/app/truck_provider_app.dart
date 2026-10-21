@@ -5,7 +5,11 @@ import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.da
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../core/provider_appearance.dart';
 import '../core/theme/karryam_theme.dart';
+import '../core/widgets/karryam_ui.dart';
+import '../features/home/ui/widgets/provider_app_colors.dart';
+import 'package:flutter/services.dart';
 
 import '../core/config/provider_app_config.dart';
 import '../features/auth/data/provider_auth_api.dart';
@@ -70,6 +74,8 @@ class _TruckProviderAppState extends State<TruckProviderApp>
   @override
   void initState() {
     super.initState();
+    providerAppearance.addListener(_onAppearanceChanged);
+    providerAppearance.restore();
 
     final config = ProviderAppConfig.fromEnvironment();
     final coreConfig = ApiCoreConfig(baseUrl: config.haulingApiBaseUrl);
@@ -232,6 +238,7 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     _disputeController.dispose();
     _tripsController.dispose();
     _notificationController.dispose();
+    providerAppearance.removeListener(_onAppearanceChanged);
     _authApi.close();
     _providerApi.close();
     _profileApi.close();
@@ -242,12 +249,45 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     super.dispose();
   }
 
+  void _onAppearanceChanged() => _repaintAll();
+
+  @override
+  void didChangePlatformBrightness() => _repaintAll();
+
+  /// The colour tokens are read at build time, so a theme switch rebuilds
+  /// every element (navigation stack included) instead of just the theme
+  /// dependants.
+  void _repaintAll() {
+    if (!mounted) return;
+    setState(() {});
+    void mark(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(mark);
+    }
+
+    (context as Element).visitChildren(mark);
+  }
+
+  Brightness get _brightness => switch (providerAppearance.value) {
+        ThemeMode.light => Brightness.light,
+        ThemeMode.dark => Brightness.dark,
+        ThemeMode.system => WidgetsBinding.instance.platformDispatcher.platformBrightness,
+      };
+
   @override
   Widget build(BuildContext context) {
+    final brightness = _brightness;
+    KPalette.apply(brightness);
+    final dark = brightness == Brightness.dark;
     return MaterialApp(
-      title: 'Karryam Partner',
+      title: 'Karryam Trucks',
       debugShowCheckedModeBanner: false,
-      theme: karryamTruckTheme(),
+      theme: karryamTruckTheme(brightness),
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+            .copyWith(statusBarColor: Colors.transparent),
+        child: child!,
+      ),
       home: AnimatedBuilder(
         animation: _authController,
         builder: (context, _) {
@@ -318,28 +358,36 @@ class _SplashScreen extends StatelessWidget {
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(-0.3, -0.3),
-            radius: 1.2,
-            colors: [Color(0xFF2761A7), Color(0xFF0A1F5C), Color(0xFF05124D)],
-            stops: [0.0, 0.5, 1.0],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF173468), kNavy, kNavyDeep],
           ),
         ),
-        child: Center(
+        child: SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset('assets/figma/splash_logo.png', width: 180),
-              const SizedBox(height: 12),
+              const Spacer(flex: 3),
+              Image.asset('assets/brand/karryam-logo.png', width: 190, semanticLabel: 'Karryam'),
+              const SizedBox(height: 36),
+              const KTruckIllustration(width: 210, onDark: true),
+              const SizedBox(height: 28),
               const Text(
-                'Cosmicforge Logistics',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
+                'Karryam Trucks',
+                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.4),
               ),
+              const SizedBox(height: 6),
+              const Text(
+                'Carry more. Go further.',
+                style: TextStyle(color: Color(0xFF99E7DC), fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(flex: 3),
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4, color: kTeal),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

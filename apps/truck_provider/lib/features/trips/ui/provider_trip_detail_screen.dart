@@ -57,7 +57,7 @@ class _ProviderTripDetailScreenState extends State<ProviderTripDetailScreen> {
     final hasReceiver = b.receiverName.isNotEmpty || b.receiverPhone.isNotEmpty;
 
     return Scaffold(
-      appBar: const KTopBar(title: 'Trip details'),
+      appBar: KTopBar(title: 'Trip details'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
@@ -65,18 +65,18 @@ class _ProviderTripDetailScreenState extends State<ProviderTripDetailScreen> {
             children: [
               TripStatusBadge(status: b.status),
               const Spacer(),
-              Text('#${b.shortId}', style: const TextStyle(fontSize: 12.5, color: kProviderMuted)),
+              Text('#${b.shortId}', style: TextStyle(fontSize: 12.5, color: kProviderMuted)),
             ],
           ),
           const SizedBox(height: 14),
           Text(
             formatNairaShort(b.fareNaira),
-            style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -1, color: kProviderText),
+            style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -1, color: kProviderText),
           ),
           const SizedBox(height: 4),
           Text(
             formatLongDate(b.createdAt),
-            style: const TextStyle(fontSize: 13.5, color: kProviderMuted),
+            style: TextStyle(fontSize: 13.5, color: kProviderMuted),
           ),
           const SizedBox(height: 20),
           KCard(
@@ -101,7 +101,7 @@ class _ProviderTripDetailScreenState extends State<ProviderTripDetailScreen> {
             const KSectionHeader('Customer review'),
             const SizedBox(height: 10),
             if (_reviewLoading)
-              const KCard(
+              KCard(
                 child: Center(
                   child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
                 ),
@@ -109,7 +109,7 @@ class _ProviderTripDetailScreenState extends State<ProviderTripDetailScreen> {
             else if (_review != null)
               _ReviewSection(review: _review!)
             else
-              const KCard(
+              KCard(
                 child: Text(
                   'The customer has not left a review for this trip.',
                   style: TextStyle(fontSize: 13, color: kProviderMuted),
@@ -156,7 +156,7 @@ class _ProviderTripDetailScreenState extends State<ProviderTripDetailScreen> {
                         const SizedBox(height: 2),
                         Text(
                           b.receiverPhone.isNotEmpty ? b.receiverPhone : 'No phone number',
-                          style: const TextStyle(fontSize: 12.5, color: kProviderMuted),
+                          style: TextStyle(fontSize: 12.5, color: kProviderMuted),
                         ),
                       ],
                     ),
@@ -204,7 +204,7 @@ class _ReviewSection extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               '"${review.reviewText.trim()}"',
-              style: const TextStyle(fontSize: 13.5, height: 1.45, color: kProviderText),
+              style: TextStyle(fontSize: 13.5, height: 1.45, color: kProviderText),
             ),
           ],
         ],

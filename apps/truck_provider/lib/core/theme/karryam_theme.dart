@@ -6,20 +6,22 @@ import '../../features/home/ui/widgets/provider_app_colors.dart';
 /// 12–20px corners and 52px primary actions — the same system as the taxi
 /// driver app. Material components pick it up, so screens built from plain
 /// buttons, fields, dialogs and sheets match without per-screen styling.
-ThemeData karryamTruckTheme() {
+ThemeData karryamTruckTheme([Brightness brightness = Brightness.light]) {
   const radius12 = BorderRadius.all(Radius.circular(12));
   const radius14 = BorderRadius.all(Radius.circular(14));
   final scheme = ColorScheme.fromSeed(
     seedColor: kNavy,
-    primary: kNavy,
-    onPrimary: Colors.white,
+    brightness: brightness,
+    primary: kPrimary,
+    onPrimary: kOnPrimary,
     secondary: kTeal,
     onSecondary: kNavy,
+    surfaceContainerHighest: kProviderGreenTint,
     surface: kCard,
     onSurface: kProviderText,
     error: kProviderRejectText,
   );
-  final base = ThemeData(useMaterial3: true, colorScheme: scheme, fontFamily: 'Inter');
+  final base = ThemeData(useMaterial3: true, brightness: brightness, colorScheme: scheme, fontFamily: 'Inter');
   final text = base.textTheme.apply(bodyColor: kProviderText, displayColor: kProviderText);
 
   OutlineInputBorder outline(Color color, [double width = 1]) =>
@@ -33,7 +35,7 @@ ThemeData karryamTruckTheme() {
       titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
       titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: kCanvas,
       foregroundColor: kProviderText,
       surfaceTintColor: Colors.transparent,
@@ -43,10 +45,10 @@ ThemeData karryamTruckTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: kNavy,
-        foregroundColor: Colors.white,
+        backgroundColor: kPrimary,
+        foregroundColor: kOnPrimary,
         disabledBackgroundColor: kProviderGreenSoft,
-        disabledForegroundColor: Colors.white,
+        disabledForegroundColor: kOnPrimary,
         minimumSize: const Size.fromHeight(52),
         shape: const RoundedRectangleBorder(borderRadius: radius14),
         textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w700),
@@ -54,8 +56,8 @@ ThemeData karryamTruckTheme() {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: kNavy,
-        foregroundColor: Colors.white,
+        backgroundColor: kPrimary,
+        foregroundColor: kOnPrimary,
         elevation: 0,
         minimumSize: const Size.fromHeight(52),
         shape: const RoundedRectangleBorder(borderRadius: radius14),
@@ -67,7 +69,7 @@ ThemeData karryamTruckTheme() {
         foregroundColor: kProviderText,
         backgroundColor: kCard,
         minimumSize: const Size.fromHeight(52),
-        side: const BorderSide(color: kProviderBorder),
+        side: BorderSide(color: kProviderBorder),
         shape: const RoundedRectangleBorder(borderRadius: radius14),
         textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w600),
       ),
@@ -82,15 +84,15 @@ ThemeData karryamTruckTheme() {
       filled: true,
       fillColor: kCard,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      hintStyle: const TextStyle(color: kProviderMuted, fontWeight: FontWeight.w400),
-      labelStyle: const TextStyle(color: kProviderMuted),
+      hintStyle: TextStyle(color: kProviderMuted, fontWeight: FontWeight.w400),
+      labelStyle: TextStyle(color: kProviderMuted),
       border: outline(kProviderBorder),
       enabledBorder: outline(kProviderBorder),
       focusedBorder: outline(kTeal, 1.6),
       errorBorder: outline(kProviderRejectText),
       focusedErrorBorder: outline(kProviderRejectText, 1.6),
     ),
-    cardTheme: const CardThemeData(
+    cardTheme: CardThemeData(
       color: kCard,
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -99,23 +101,23 @@ ThemeData karryamTruckTheme() {
         side: BorderSide(color: kProviderBorder),
       ),
     ),
-    dividerTheme: const DividerThemeData(color: kProviderBorder, thickness: 1, space: 1),
-    bottomSheetTheme: const BottomSheetThemeData(
+    dividerTheme: DividerThemeData(color: kProviderBorder, thickness: 1, space: 1),
+    bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: kCard,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     ),
-    dialogTheme: const DialogThemeData(
+    dialogTheme: DialogThemeData(
       backgroundColor: kCard,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
       titleTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700, color: kProviderText),
     ),
-    snackBarTheme: const SnackBarThemeData(
+    snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: kNavy,
-      contentTextStyle: TextStyle(fontFamily: 'Inter', color: Colors.white),
+      backgroundColor: KPalette.dark ? const Color(0xFF1D3F78) : kNavy,
+      contentTextStyle: const TextStyle(fontFamily: 'Inter', color: Colors.white),
       shape: RoundedRectangleBorder(borderRadius: radius12),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(color: kTeal),
@@ -134,11 +136,11 @@ ThemeData karryamTruckTheme() {
     chipTheme: ChipThemeData(
       backgroundColor: kCard,
       selectedColor: kTealTint,
-      side: const BorderSide(color: kProviderBorder),
-      labelStyle: const TextStyle(fontFamily: 'Inter', color: kProviderText, fontWeight: FontWeight.w600),
+      side: BorderSide(color: kProviderBorder),
+      labelStyle: TextStyle(fontFamily: 'Inter', color: kProviderText, fontWeight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
     ),
-    tabBarTheme: const TabBarThemeData(
+    tabBarTheme: TabBarThemeData(
       labelColor: kProviderText,
       unselectedLabelColor: kProviderMuted,
       indicatorColor: kTeal,

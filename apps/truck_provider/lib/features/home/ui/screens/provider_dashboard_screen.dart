@@ -126,7 +126,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
           snap: true,
           builder: (context, scroll) {
             return DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: kCanvas,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
                 boxShadow: [
@@ -284,7 +284,7 @@ class _LivePill extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             isOnline ? 'Online' : 'Offline',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: kProviderText,

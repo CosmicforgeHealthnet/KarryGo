@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
+
 import '../../home/ui/widgets/provider_app_colors.dart';
 import 'widgets/provider_profile_widgets.dart';
 
@@ -68,7 +70,7 @@ class _ProviderFaceVerificationScreenState extends State<ProviderFaceVerificatio
         Text(
           scanning ? 'Please keep your face centered on the screen and facing forward.' : 'We will automatically detect the face!',
           textAlign: TextAlign.center,
-          style: const TextStyle(color: kProviderText, fontSize: 14, height: 1.5),
+          style: TextStyle(color: kProviderText, fontSize: 14, height: 1.5),
         ),
         const SizedBox(height: 40),
         Expanded(
@@ -84,7 +86,7 @@ class _ProviderFaceVerificationScreenState extends State<ProviderFaceVerificatio
                           color: kProviderGreenTint,
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        child: const Icon(Icons.face_rounded, size: 96, color: kProviderGreen),
+                        child: Icon(Icons.face_rounded, size: 96, color: kProviderGreen),
                       )
                     : const SizedBox.expand(),
               ),
@@ -96,9 +98,9 @@ class _ProviderFaceVerificationScreenState extends State<ProviderFaceVerificatio
           Column(
             children: [
               Text('$_percent%',
-                  style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w800)),
+                  style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              const Text('Verifying your face...', style: TextStyle(color: kProviderMuted, fontSize: 13)),
+              Text('Verifying your face...', style: TextStyle(color: kProviderMuted, fontSize: 13)),
               const SizedBox(height: 8),
             ],
           )
@@ -112,30 +114,21 @@ class _ProviderFaceVerificationScreenState extends State<ProviderFaceVerificatio
     return Column(
       children: [
         const Spacer(),
-        Container(
-          width: 150,
-          height: 150,
-          decoration: BoxDecoration(
-            color: kProviderGreenTint,
-            shape: BoxShape.circle,
-            border: Border.all(color: kProviderGreen, width: 3),
-          ),
-          child: const Icon(Icons.check_rounded, color: kProviderGreen, size: 72),
-        ),
+        const KAnimArt(KArt.success, size: 170),
         const SizedBox(height: 28),
-        const Text(
+        Text(
           'Identity Verification request Submitted!',
           textAlign: TextAlign.center,
           style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 10),
-        const Text(
+        Text(
           'Your request has been submitted successfully, your documents are now being processed.',
           textAlign: TextAlign.center,
           style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'You will receive a follow up mail on verification status.',
           textAlign: TextAlign.center,
           style: TextStyle(color: kTealText, fontSize: 13, height: 1.5),

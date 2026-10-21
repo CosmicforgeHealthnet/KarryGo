@@ -76,7 +76,7 @@ class _ProviderTransactionDetailScreenState extends State<ProviderTransactionDet
     };
 
     return Scaffold(
-      appBar: const KTopBar(title: 'Transaction Details'),
+      appBar: KTopBar(title: 'Transaction Details'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
@@ -99,7 +99,7 @@ class _ProviderTransactionDetailScreenState extends State<ProviderTransactionDet
                 Text(
                   txn.title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: kProviderMuted),
+                  style: TextStyle(fontSize: 14, color: kProviderMuted),
                 ),
                 const SizedBox(height: 12),
                 KStatusChip(statusLabel, tone: tone),
@@ -123,11 +123,11 @@ class _ProviderTransactionDetailScreenState extends State<ProviderTransactionDet
             const KSectionHeader('Trip'),
             const SizedBox(height: 10),
             if (_loadingTrip)
-              const KCard(child: Center(child: CircularProgressIndicator()))
+              KCard(child: Center(child: CircularProgressIndicator()))
             else if (_booking != null)
               _TripSection(booking: _booking!)
             else
-              const KCard(
+              KCard(
                 child: Text(
                   "We couldn't load this trip right now.",
                   style: TextStyle(fontSize: 13, color: kProviderMuted),

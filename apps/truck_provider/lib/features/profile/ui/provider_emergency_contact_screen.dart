@@ -146,7 +146,7 @@ class _ProviderEmergencyContactScreenState extends State<ProviderEmergencyContac
         'Provide emergency Contact information. This could be a family member or close relative but not same individual as guarantor.',
       ),
       const SizedBox(height: 20),
-      const Text(
+      Text(
         'Emergency Contact',
         style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
       ),
@@ -156,7 +156,7 @@ class _ProviderEmergencyContactScreenState extends State<ProviderEmergencyContac
         controller: _nameCtrl,
         onChanged: (_) => setState(() {}),
         textCapitalization: TextCapitalization.words,
-        style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
+        style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
         decoration: providerGrayField('Enter name'),
       ),
       const SizedBox(height: 16),
@@ -167,9 +167,9 @@ class _ProviderEmergencyContactScreenState extends State<ProviderEmergencyContac
       DropdownButtonFormField<String>(
         initialValue: _relationship,
         isExpanded: true,
-        hint: const Text('Select Relationship Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
-        style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
+        hint: Text('Select Relationship Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+        icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+        style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w500),
         decoration: providerGrayField(''),
         items: _relationships.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
         onChanged: (v) => setState(() => _relationship = v),

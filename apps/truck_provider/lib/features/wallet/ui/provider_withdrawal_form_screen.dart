@@ -51,7 +51,7 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
                   child: _AvailableBalanceCard(naira: c.balance.availableNaira, loading: c.loading),
                 ),
                 const SizedBox(height: 22),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(horizontal: 20),
                   child: Align(alignment: Alignment.centerLeft, child: KEyebrow('How much?')),
                 ),
@@ -64,7 +64,7 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
                   ),
                 ),
                 if (c.exceedsBalance)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 10),
                     child: Text(
                       'Amount exceeds your available balance.',
@@ -133,7 +133,7 @@ class _AmountField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text('₦', style: TextStyle(color: kProviderMuted, fontSize: 22, fontWeight: FontWeight.w600)),
+          Text('₦', style: TextStyle(color: kProviderMuted, fontSize: 22, fontWeight: FontWeight.w600)),
           Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,

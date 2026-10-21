@@ -40,7 +40,7 @@ class ProviderSelectDisputeTypeScreen extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     children: [
-                      const Align(
+                      Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Select a Transaction',
@@ -51,7 +51,7 @@ class ProviderSelectDisputeTypeScreen extends StatelessWidget {
                       if (txn != null)
                         DisputeTransactionCard(txn: txn, selected: true),
                       const SizedBox(height: 24),
-                      const Align(
+                      Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Select Dispute Type',
@@ -69,7 +69,7 @@ class ProviderSelectDisputeTypeScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           controller.submitError!,
-                          style: const TextStyle(color: kProviderRejectText, fontSize: 13),
+                          style: TextStyle(color: kProviderRejectText, fontSize: 13),
                         ),
                       ],
                     ],
@@ -123,7 +123,7 @@ class _DisputeTypeRow extends StatelessWidget {
                 ),
               ),
             ),
-            if (selected) const Icon(Icons.check_circle, color: kProviderGreen, size: 20),
+            if (selected) Icon(Icons.check_circle, color: kProviderGreen, size: 20),
           ],
         ),
       ),

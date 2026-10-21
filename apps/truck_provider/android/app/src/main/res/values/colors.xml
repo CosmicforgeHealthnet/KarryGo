@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#D5DEFF</color>
+    <!-- Karryam navy behind the logo while the app starts. -->
+    <color name="launch_navy">#0B1F44</color>
 </resources>

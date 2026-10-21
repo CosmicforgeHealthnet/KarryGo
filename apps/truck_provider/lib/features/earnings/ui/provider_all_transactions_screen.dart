@@ -30,7 +30,7 @@ class _ProviderAllTransactionsScreenState extends State<ProviderAllTransactionsS
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const KTopBar(title: 'All transactions'),
+      appBar: KTopBar(title: 'All transactions'),
       body: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {

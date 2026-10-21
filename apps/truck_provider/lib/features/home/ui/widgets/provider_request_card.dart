@@ -38,7 +38,7 @@ class ProviderRequestCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '#${booking.shortId}',
-                style: const TextStyle(fontSize: 12, color: kProviderMuted, fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 12, color: kProviderMuted, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -52,7 +52,7 @@ class ProviderRequestCard extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     formatNairaShort(booking.fareNaira),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.8,
@@ -170,7 +170,7 @@ class BookingCargoRow extends StatelessWidget {
       decoration: BoxDecoration(color: kCanvas, borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
-          const KIconTile(Icons.inventory_2_outlined, size: 38),
+          KIconTile(Icons.inventory_2_outlined, size: 38),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -180,14 +180,14 @@ class BookingCargoRow extends StatelessWidget {
                   booking.cargoTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: kProviderText),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: kProviderText),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   booking.cargoSummary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: kProviderMuted),
+                  style: TextStyle(fontSize: 12, color: kProviderMuted),
                 ),
               ],
             ),

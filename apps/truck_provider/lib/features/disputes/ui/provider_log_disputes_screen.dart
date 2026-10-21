@@ -39,7 +39,7 @@ class _ProviderLogDisputesScreenState extends State<ProviderLogDisputesScreen> {
     final selected = await showModalBottomSheet<EarningsTransaction>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: kCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -68,7 +68,7 @@ class _ProviderLogDisputesScreenState extends State<ProviderLogDisputesScreen> {
               children: [
                 const DisputeAppBar(title: 'Log Disputes'),
                 const SizedBox(height: 16),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     'Select a Transaction',
@@ -84,10 +84,10 @@ class _ProviderLogDisputesScreenState extends State<ProviderLogDisputesScreen> {
                       height: 56,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE9EBEC),
+                        color: kProviderGreenTint,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Expanded(
                             child: Text(
@@ -122,7 +122,7 @@ class _FeedbackSection extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: kCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kProviderBorder),
         boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6))],
@@ -133,11 +133,11 @@ class _FeedbackSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Feedbacks',
                 style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800),
               ),
-              const Text(
+              Text(
                 'More',
                 style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600),
               ),
@@ -146,9 +146,9 @@ class _FeedbackSection extends StatelessWidget {
           const SizedBox(height: 12),
           Expanded(
             child: controller.loading && controller.complaints.isEmpty
-                ? const Center(child: CircularProgressIndicator(color: kProviderGreen))
+                ? Center(child: CircularProgressIndicator(color: kProviderGreen))
                 : controller.complaints.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'No disputes yet.',
                           style: TextStyle(color: kProviderMuted, fontSize: 13),
@@ -191,7 +191,7 @@ class _TransactionPickerSheetState extends State<_TransactionPickerSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
@@ -203,7 +203,7 @@ class _TransactionPickerSheetState extends State<_TransactionPickerSheet> {
               ),
               Flexible(
                 child: widget.transactions.isEmpty
-                    ? const Padding(
+                    ? Padding(
                         padding: EdgeInsets.all(40),
                         child: Text('No transactions to dispute.',
                             style: TextStyle(color: kProviderMuted, fontSize: 13)),
@@ -216,7 +216,7 @@ class _TransactionPickerSheetState extends State<_TransactionPickerSheet> {
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: Text(group.label,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: kProviderText, fontSize: 14, fontWeight: FontWeight.w800)),
                             ),
                             for (final txn in group.items)

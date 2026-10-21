@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/format/money_format.dart';
 import '../../../../core/widgets/karryam_ui.dart';
 import '../../../auth/models/provider_auth_models.dart';
-import '../widgets/provider_app_colors.dart';
 
 /// Shown right after the driver confirms a delivery: what they finished and
 /// what it paid, before going back to new requests.
@@ -30,19 +29,7 @@ class ProviderDeliveryCompleteScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 40, 20, 24),
                 children: [
                   Center(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
-                      child: Center(
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          decoration: const BoxDecoration(color: kTeal, shape: BoxShape.circle),
-                          child: const Icon(Icons.check_rounded, color: kNavy, size: 38),
-                        ),
-                      ),
-                    ),
+                    child: const KAnimArt(KArt.success, size: 170),
                   ),
                   const SizedBox(height: 24),
                   const KHeading(
@@ -56,7 +43,7 @@ class ProviderDeliveryCompleteScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const KEyebrow('Trip fare', color: Color(0xB3FFFFFF)),
+                        KEyebrow('Trip fare', color: Color(0xB3FFFFFF)),
                         const SizedBox(height: 6),
                         Text(
                           formatNairaShort(booking.fareNaira),

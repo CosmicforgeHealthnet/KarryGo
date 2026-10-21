@@ -26,7 +26,7 @@ class _ProviderNotificationsScreenState extends State<ProviderNotificationsScree
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const KTopBar(title: 'Notifications'),
+      appBar: KTopBar(title: 'Notifications'),
       body: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {
@@ -117,7 +117,7 @@ class _NotificationRow extends StatelessWidget {
           KIconTile(
             _icon,
             color: isUnread ? kTealText : kProviderMuted,
-            background: isUnread ? kTealTint : const Color(0xFFEEF0F3),
+            background: isUnread ? kTealTint : kProviderGreenTint,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -136,11 +136,11 @@ class _NotificationRow extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     item.body,
-                    style: const TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted),
+                    style: TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted),
                   ),
                 ],
                 const SizedBox(height: 4),
-                Text(formatClock(item.createdAt), style: const TextStyle(fontSize: 11.5, color: kProviderMuted)),
+                Text(formatClock(item.createdAt), style: TextStyle(fontSize: 11.5, color: kProviderMuted)),
               ],
             ),
           ),

@@ -22,7 +22,7 @@ class ProviderRequestDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const KTopBar(title: 'Request details'),
+      appBar: KTopBar(title: 'Request details'),
       body: AnimatedBuilder(
         animation: homeController,
         builder: (context, _) {
@@ -39,14 +39,14 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                         const Spacer(),
                         Text(
                           '#${booking.shortId}',
-                          style: const TextStyle(fontSize: 12.5, color: kProviderMuted),
+                          style: TextStyle(fontSize: 12.5, color: kProviderMuted),
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
                     Text(
                       formatNairaShort(booking.fareNaira),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 36,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -1,
@@ -60,7 +60,7 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                         if (booking.distanceKm != null) '${booking.distanceKm!.toStringAsFixed(1)} km',
                         if (booking.estimatedMinutes != null) '~${booking.estimatedMinutes} min',
                       ].join(' · '),
-                      style: const TextStyle(fontSize: 13.5, color: kProviderMuted),
+                      style: TextStyle(fontSize: 13.5, color: kProviderMuted),
                     ),
                     const SizedBox(height: 20),
                     KCard(
@@ -77,7 +77,7 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              const KIconTile(Icons.inventory_2_outlined),
+                              KIconTile(Icons.inventory_2_outlined),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -90,7 +90,7 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                                     const SizedBox(height: 2),
                                     Text(
                                       booking.cargoSummary,
-                                      style: const TextStyle(fontSize: 12.5, color: kProviderMuted),
+                                      style: TextStyle(fontSize: 12.5, color: kProviderMuted),
                                     ),
                                   ],
                                 ),
@@ -141,7 +141,7 @@ class ProviderRequestDetailScreen extends StatelessWidget {
                                     style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
+                                  Text(
                                     'Receiver at delivery',
                                     style: TextStyle(fontSize: 12.5, color: kProviderMuted),
                                   ),
@@ -202,7 +202,7 @@ class _BottomActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: kCard,
         border: Border(top: BorderSide(color: kProviderBorder)),
       ),

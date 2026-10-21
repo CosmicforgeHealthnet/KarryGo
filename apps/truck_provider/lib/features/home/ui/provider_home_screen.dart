@@ -204,7 +204,7 @@ class _ProviderBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: kCard,
         border: Border(top: BorderSide(color: kProviderBorder)),
       ),
@@ -249,7 +249,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? kNavy : kProviderMuted;
+    final color = selected ? kProviderText : kProviderMuted;
     return Semantics(
       button: true,
       selected: selected,
@@ -286,7 +286,7 @@ class _NavItem extends StatelessWidget {
                           height: 16,
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           decoration: BoxDecoration(
-                            color: kProviderRejectText,
+                            color: const Color(0xFFC62838),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: kCard, width: 1.5),
                           ),

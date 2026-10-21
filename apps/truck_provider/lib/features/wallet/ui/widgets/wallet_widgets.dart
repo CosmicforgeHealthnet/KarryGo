@@ -31,10 +31,10 @@ class WalletFlowAppBar extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 if (subtitle != null)
-                  Text(subtitle!, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+                  Text(subtitle!, style: TextStyle(color: kProviderMuted, fontSize: 12.5)),
               ],
             ),
           ),
@@ -55,7 +55,7 @@ class WalletAmountToPayCard extends StatelessWidget {
     return KMoneyCard(
       child: Column(
         children: [
-          const KEyebrow('Amount to pay', color: Color(0xB3FFFFFF)),
+          KEyebrow('Amount to pay', color: Color(0xB3FFFFFF)),
           const SizedBox(height: 4),
           const Text('Total', style: TextStyle(fontSize: 13, color: Color(0xCCFFFFFF))),
           const SizedBox(height: 6),
@@ -94,10 +94,10 @@ class WalletBankAccountTile extends StatelessWidget {
     return KCard(
       onTap: onTap,
       borderColor: selected ? kTeal : kProviderBorder,
-      color: selected ? const Color(0xFFF4FCFB) : kCard,
+      color: selected ? kSelectedWash : kCard,
       child: Row(
         children: [
-          const KIconTile(Icons.account_balance_rounded),
+          KIconTile(Icons.account_balance_rounded),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -105,12 +105,12 @@ class WalletBankAccountTile extends StatelessWidget {
               children: [
                 Text(
                   accountName,
-                  style: const TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
-                Text(bankName, style: const TextStyle(color: kProviderText, fontSize: 13)),
+                Text(bankName, style: TextStyle(color: kProviderText, fontSize: 13)),
                 const SizedBox(height: 1),
-                Text(accountNumber, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+                Text(accountNumber, style: TextStyle(color: kProviderMuted, fontSize: 12.5)),
               ],
             ),
           ),
@@ -137,7 +137,7 @@ class WalletRadioDot extends StatelessWidget {
         color: selected ? kTealText : Colors.transparent,
         border: Border.all(color: selected ? kTealText : kProviderGreenSoft, width: 2),
       ),
-      child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
+      child: selected ? Icon(Icons.check_rounded, size: 14, color: kCard) : null,
     );
   }
 }

@@ -166,7 +166,7 @@ class _ChartPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: months[i],
-          style: const TextStyle(color: kProviderMuted, fontSize: 10.5),
+          style: TextStyle(color: kProviderMuted, fontSize: 10.5),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -176,7 +176,7 @@ class _ChartPainter extends CustomPainter {
 
   void _drawHighlight(Canvas canvas, Size size, Offset point) {
     // Dot.
-    canvas.drawCircle(point, 6, Paint()..color = Colors.white);
+    canvas.drawCircle(point, 6, Paint()..color = kCard);
     canvas.drawCircle(
       point,
       6,
@@ -190,7 +190,7 @@ class _ChartPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
         text: highlightLabel,
-        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+        style: TextStyle(color: kOnPrimary, fontSize: 11, fontWeight: FontWeight.w700),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -206,14 +206,14 @@ class _ChartPainter extends CustomPainter {
       Rect.fromLTWH(left, top, bubbleW, bubbleH),
       const Radius.circular(8),
     );
-    canvas.drawRRect(rect, Paint()..color = kNavy);
+    canvas.drawRRect(rect, Paint()..color = kPrimary);
     // Little pointer triangle.
     final tri = Path()
       ..moveTo(point.dx - 5, top + bubbleH)
       ..lineTo(point.dx + 5, top + bubbleH)
       ..lineTo(point.dx, top + bubbleH + 6)
       ..close();
-    canvas.drawPath(tri, Paint()..color = kNavy);
+    canvas.drawPath(tri, Paint()..color = kPrimary);
     tp.paint(canvas, Offset(left + padH, top + padV));
   }
 

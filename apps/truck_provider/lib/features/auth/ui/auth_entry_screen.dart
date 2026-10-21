@@ -54,11 +54,11 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const KBrandHero(
+            KBrandHero(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  KEyebrow('Karryam truck partner', color: Color(0xFF99E7DC)),
+                  KEyebrow('Karryam Trucks', color: Color(0xFF99E7DC)),
                   SizedBox(height: 8),
                   Text(
                     'Your road\nstarts here.',
@@ -76,7 +76,7 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
                     _useEmail
                         ? 'Sign in or join Karryam with your email address.'
                         : 'Sign in or join Karryam with your phone number.',
-                    style: const TextStyle(color: kProviderMuted, fontSize: 14, height: 1.45),
+                    style: TextStyle(color: kProviderMuted, fontSize: 14, height: 1.45),
                   ),
                   const SizedBox(height: 20),
                   KFieldLabel(_useEmail ? 'Email address' : 'Phone number'),
@@ -87,7 +87,7 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
                       autofillHints: const [AutofillHints.email],
                       onChanged: (_) => setState(() {}),
                       onSubmitted: (_) => _submit(),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'you@example.com',
                         prefixIcon: Icon(Icons.mail_outline_rounded, color: kProviderMuted),
                       ),
@@ -101,7 +101,7 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
                       onChanged: (_) => setState(() {}),
                       onSubmitted: (_) => _submit(),
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: 0.4),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: '0801 234 5678',
                         prefixIcon: Padding(
                           padding: EdgeInsets.only(left: 16, right: 10),
@@ -111,7 +111,7 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     "We'll send you a verification code.",
                     style: TextStyle(color: kProviderMuted, fontSize: 12.5),
                   ),
@@ -133,8 +133,8 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
                     onPressed: _toggleMode,
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'By continuing you agree to the Karryam partner terms and privacy policy.',
+                  Text(
+                    'By continuing you agree to the Karryam Trucks terms and privacy policy.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: kProviderMuted, fontSize: 12, height: 1.4),
                   ),

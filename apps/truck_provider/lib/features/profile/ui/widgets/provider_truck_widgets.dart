@@ -144,7 +144,7 @@ class TruckInfoChip extends StatelessWidget {
             Icon(icon, size: 14, color: kProviderMuted),
             const SizedBox(width: 6),
           ],
-          Text(label, style: const TextStyle(color: kProviderText, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          Text(label, style: TextStyle(color: kProviderText, fontSize: 12.5, fontWeight: FontWeight.w600)),
         ],
       ),
     );

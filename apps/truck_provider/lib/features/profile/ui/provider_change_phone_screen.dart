@@ -106,7 +106,7 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
           onBack: _back,
         ),
         const SizedBox(height: 28),
-        const Text(
+        Text(
           'Enter your Phone Number',
           style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
         ),
@@ -116,11 +116,11 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: kCard,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: kProviderBorder),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Text('🇳🇬', style: TextStyle(fontSize: 18)),
                   SizedBox(width: 6),
@@ -135,7 +135,7 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(color: kTealText, fontSize: 15, fontWeight: FontWeight.w600),
+                style: TextStyle(color: kTealText, fontSize: 15, fontWeight: FontWeight.w600),
                 decoration: providerWhiteField('8067735987'),
               ),
             ),
@@ -168,12 +168,12 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
         const SizedBox(height: 8),
         RichText(
           text: TextSpan(
-            style: const TextStyle(color: kProviderMuted, fontSize: 14, height: 1.5),
+            style: TextStyle(color: kProviderMuted, fontSize: 14, height: 1.5),
             children: [
               const TextSpan(text: 'We sent you a  6-digit code via your number\n'),
               TextSpan(
                 text: phone,
-                style: const TextStyle(color: kTealText, fontWeight: FontWeight.w700),
+                style: TextStyle(color: kTealText, fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -190,11 +190,11 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
             ),
             child: Column(
               children: [
-                const Text('Your OTP code', style: TextStyle(color: kProviderMuted, fontSize: 12)),
+                Text('Your OTP code', style: TextStyle(color: kProviderMuted, fontSize: 12)),
                 const SizedBox(height: 4),
                 Text(
                   debugOtp,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: kProviderGreen, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 8),
                 ),
               ],
@@ -202,7 +202,7 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        const Text('Enter OTP',
+        Text('Enter OTP',
             style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 14),
         ProviderOtpBoxes(
@@ -292,11 +292,11 @@ class _ProviderOtpBoxesState extends State<ProviderOtpBoxes> {
               textAlign: TextAlign.center,
               maxLength: 1,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kProviderGreen),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kProviderGreen),
               decoration: InputDecoration(
                 counterText: '',
                 filled: true,
-                fillColor: filled ? kTealTint : Colors.white,
+                fillColor: filled ? kTealTint : kCard,
                 contentPadding: EdgeInsets.zero,
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
@@ -304,7 +304,7 @@ class _ProviderOtpBoxesState extends State<ProviderOtpBoxes> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
-                  borderSide: const BorderSide(color: kProviderGreen, width: 2),
+                  borderSide: BorderSide(color: kProviderGreen, width: 2),
                 ),
               ),
               onChanged: (v) => _onChanged(i, v),

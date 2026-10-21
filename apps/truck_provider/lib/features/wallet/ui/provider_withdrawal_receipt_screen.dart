@@ -20,7 +20,7 @@ class ProviderWithdrawalReceiptScreen extends StatelessWidget {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(gradient: kProviderBalanceGradient),
+        decoration: BoxDecoration(gradient: kProviderBalanceGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -92,33 +92,33 @@ class _ReceiptCard extends StatelessWidget {
     return ClipPath(
       clipper: _ReceiptClipper(),
       child: Container(
-        color: Colors.white,
+        color: kCard,
         padding: const EdgeInsets.fromLTRB(22, 28, 22, 40),
         child: Column(
           children: [
-            const _SuccessSeal(),
+            const KAnimArt(KArt.success, size: 150, onCard: true),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Withdrawal Success!',
               style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Your withdrawal has successfully been processed.',
               textAlign: TextAlign.center,
               style: TextStyle(color: kProviderMuted, fontSize: 13),
             ),
             const SizedBox(height: 24),
-            const Text('Total Amount', style: TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w700)),
+            Text('Total Amount', style: TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
               '₦ ${formatNaira(naira)}',
-              style: const TextStyle(color: kTealText, fontSize: 24, fontWeight: FontWeight.w800),
+              style: TextStyle(color: kTealText, fontSize: 24, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 20),
             const _DashedDivider(),
             const SizedBox(height: 20),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Payment To',
@@ -138,26 +138,6 @@ class _ReceiptCard extends StatelessWidget {
   }
 }
 
-class _SuccessSeal extends StatelessWidget {
-  const _SuccessSeal();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 96,
-      height: 96,
-      decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
-      child: Center(
-        child: Container(
-          width: 64,
-          height: 64,
-          decoration: const BoxDecoration(color: kTeal, shape: BoxShape.circle),
-          child: const Icon(Icons.check_rounded, color: kNavy, size: 38),
-        ),
-      ),
-    );
-  }
-}
 
 class _PaymentToTile extends StatelessWidget {
   const _PaymentToTile({
@@ -183,8 +163,8 @@ class _PaymentToTile extends StatelessWidget {
           Container(
             width: 38,
             height: 38,
-            decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
-            child: const Icon(Icons.account_balance_rounded, color: kTealText, size: 19),
+            decoration: BoxDecoration(color: kTealTint, shape: BoxShape.circle),
+            child: Icon(Icons.account_balance_rounded, color: kTealText, size: 19),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -193,15 +173,15 @@ class _PaymentToTile extends StatelessWidget {
               children: [
                 Text(
                   accountName.isEmpty ? 'Bank Account' : accountName,
-                  style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   bankName,
-                  style: const TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 1),
-                Text(accountNumber, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+                Text(accountNumber, style: TextStyle(color: kProviderMuted, fontSize: 12.5)),
               ],
             ),
           ),

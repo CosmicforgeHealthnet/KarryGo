@@ -67,7 +67,7 @@ class ProviderWithdrawalConfirmScreen extends StatelessWidget {
                         child: GestureDetector(
                           onTap: () => _changeAccount(context),
                           behavior: HitTestBehavior.opaque,
-                          child: const Text(
+                          child: Text(
                             'Change default account',
                             style: TextStyle(color: kTealText, fontSize: 14, fontWeight: FontWeight.w700),
                           ),
@@ -100,9 +100,10 @@ class _NoAccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KCard(
+    return SizedBox(
+      width: double.infinity,
       child: loading
-          ? const Padding(
+          ? Padding(
               padding: EdgeInsets.all(12),
               child: Center(child: Text('Loading your accounts…', style: TextStyle(color: kProviderMuted))),
             )
@@ -126,17 +127,17 @@ class _TermsText extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Text.rich(
         TextSpan(
-          style: const TextStyle(color: kProviderText, fontSize: 13, height: 1.4),
+          style: TextStyle(color: kProviderText, fontSize: 13, height: 1.4),
           children: [
             const TextSpan(text: 'By completing payment, you agree to the '),
             TextSpan(
               text: 'terms and conditions',
-              style: const TextStyle(color: kTealText, fontWeight: FontWeight.w600),
+              style: TextStyle(color: kTealText, fontWeight: FontWeight.w600),
             ),
             const TextSpan(text: ' and acknowledge the '),
             TextSpan(
               text: 'privacy policy',
-              style: const TextStyle(color: kTealText, fontWeight: FontWeight.w600),
+              style: TextStyle(color: kTealText, fontWeight: FontWeight.w600),
             ),
           ],
         ),

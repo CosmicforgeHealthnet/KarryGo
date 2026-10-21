@@ -29,7 +29,7 @@ class ProviderRequestRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: kProviderMuted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -37,7 +37,7 @@ class ProviderRequestRow extends StatelessWidget {
               ),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   color: kProviderText,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -67,7 +67,7 @@ class ProviderChipBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           color: kProviderDarkGreen,
           fontSize: 11,
           fontWeight: FontWeight.w700,

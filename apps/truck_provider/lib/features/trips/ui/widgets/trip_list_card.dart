@@ -28,7 +28,7 @@ class TripListCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     formatDateTime(booking.createdAt),
-                    style: const TextStyle(fontSize: 12.5, color: kProviderMuted, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 12.5, color: kProviderMuted, fontWeight: FontWeight.w500),
                   ),
                 ),
                 TripStatusBadge(status: booking.status),
@@ -53,7 +53,7 @@ class TripListCard extends StatelessWidget {
                           booking.receiverLine,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kProviderText),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kProviderText),
                         ),
                       const SizedBox(height: 2),
                       BookingMetricsRow(
@@ -66,10 +66,10 @@ class TripListCard extends StatelessWidget {
                 ),
                 Text(
                   formatNairaShort(booking.fareNaira),
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kProviderText),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kProviderText),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded, color: kProviderMuted),
+                Icon(Icons.chevron_right_rounded, color: kProviderMuted),
               ],
             ),
           ],

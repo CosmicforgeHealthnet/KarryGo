@@ -61,7 +61,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                         : null,
                   ),
                   child: _photo == null
-                      ? const Icon(Icons.person_rounded, size: 64, color: kProviderBorder)
+                      ? Icon(Icons.person_rounded, size: 64, color: kProviderBorder)
                       : null,
                 ),
                 if (_photo != null)
@@ -130,7 +130,7 @@ class _PhotoButton extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: kProviderText,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,

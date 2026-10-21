@@ -76,18 +76,18 @@ class _SosSheetState extends State<_SosSheet> {
               child: Container(
                 width: 64,
                 height: 64,
-                decoration: const BoxDecoration(color: kProviderRejectBg, shape: BoxShape.circle),
-                child: const Icon(Icons.sos_rounded, color: kProviderRejectText, size: 32),
+                decoration: BoxDecoration(color: kProviderRejectBg, shape: BoxShape.circle),
+                child: Icon(Icons.sos_rounded, color: kProviderRejectText, size: 32),
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Are you in danger?',
               textAlign: TextAlign.center,
               style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Call emergency services first. You can also alert Karryam support with your location.',
               textAlign: TextAlign.center,
               style: TextStyle(color: kProviderMuted, fontSize: 13.5, height: 1.45),

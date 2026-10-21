@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
+
 import '../../disputes/models/dispute_models.dart';
 import '../../disputes/state/provider_dispute_controller.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
@@ -54,27 +56,22 @@ class _ProviderSupportScreenState extends State<ProviderSupportScreen> {
                 child: ListView(
                   children: [
                     Center(
-                      child: Container(
-                        width: 96,
-                        height: 96,
-                        decoration: const BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
-                        child: const Icon(Icons.support_agent_rounded, color: kProviderGreen, size: 48),
-                      ),
+                      child: const KAnimArt(KArt.chat, size: 140),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Contact Support!',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Our dedicated team is here to assist you with any questions or issues related to your experience.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
+                    Text(
                       'Common questions',
                       style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800),
                     ),
@@ -82,12 +79,12 @@ class _ProviderSupportScreenState extends State<ProviderSupportScreen> {
                     if (_faqsFailed)
                       TextButton(onPressed: _loadFaqs, child: const Text('Could not load questions. Try again'))
                     else if (faqs == null)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.all(16),
                         child: Center(child: CircularProgressIndicator(color: kProviderGreen)),
                       )
                     else if (faqs.isEmpty)
-                      const Text('No articles yet.', style: TextStyle(color: kProviderMuted))
+                      Text('No articles yet.', style: TextStyle(color: kProviderMuted))
                     else
                       for (final faq in faqs)
                         Container(
@@ -101,12 +98,12 @@ class _ProviderSupportScreenState extends State<ProviderSupportScreen> {
                             iconColor: kProviderGreen,
                             title: Text(
                               faq.title,
-                              style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w700, fontSize: 14),
+                              style: TextStyle(color: kProviderText, fontWeight: FontWeight.w700, fontSize: 14),
                             ),
                             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                             expandedCrossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(faq.body, style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.4)),
+                              Text(faq.body, style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.4)),
                             ],
                           ),
                         ),
@@ -122,9 +119,9 @@ class _ProviderSupportScreenState extends State<ProviderSupportScreen> {
                       builder: (_) => ProviderLiveChatScreen(controller: widget.disputeController),
                     ),
                   ),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 20),
-                  label: const Text('Start Chat',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                  icon: Icon(Icons.chat_bubble_outline_rounded, color: kOnPrimary, size: 20),
+                  label: Text('Start Chat',
+                      style: TextStyle(color: kOnPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
                   style: FilledButton.styleFrom(
                     backgroundColor: kProviderGreen,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
@@ -252,7 +249,7 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
 
   Widget _body(ProviderDisputeController c) {
     if (c.openingSupportChat || (c.loadingMessages && c.messages.isEmpty && _complaintId != null)) {
-      return const Center(child: CircularProgressIndicator(color: kProviderGreen));
+      return Center(child: CircularProgressIndicator(color: kProviderGreen));
     }
     if (c.supportChatError != null && _complaintId == null) {
       return Center(
@@ -261,19 +258,19 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off_rounded, color: kProviderMuted, size: 40),
+              const KAnimArt(KArt.cloud, size: 130),
               const SizedBox(height: 12),
               Text(
                 c.supportChatError!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: kProviderMuted, fontSize: 13),
+                style: TextStyle(color: kProviderMuted, fontSize: 13),
               ),
               const SizedBox(height: 16),
               OutlinedButton(
                 onPressed: _openChat,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kProviderGreen,
-                  side: const BorderSide(color: kProviderGreen),
+                  side: BorderSide(color: kProviderGreen),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 ),
                 child: const Text('Retry'),
@@ -284,7 +281,7 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
       );
     }
     if (c.messages.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
@@ -306,7 +303,7 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
   Widget _bubble(DisputeMessage m) {
     final isAgent = !m.isMine;
     final bubbleColor = isAgent ? kProviderGreen : kProviderGreenTint;
-    final textColor = isAgent ? Colors.white : kProviderText;
+    final textColor = isAgent ? kOnPrimary : kProviderText;
     final avatar = CircleAvatar(
       radius: 16,
       backgroundColor: kProviderGreenTint,
@@ -361,23 +358,23 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
               decoration: BoxDecoration(color: kProviderSurface, borderRadius: BorderRadius.circular(28)),
               child: Row(
                 children: [
-                  const Icon(Icons.emoji_emotions_outlined, color: kProviderMuted, size: 22),
+                  Icon(Icons.emoji_emotions_outlined, color: kProviderMuted, size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _inputCtrl,
                       enabled: enabled,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Write a message...',
                         hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
                         border: InputBorder.none,
                       ),
                     ),
                   ),
-                  const Icon(Icons.attach_file_rounded, color: kProviderGreen, size: 20),
+                  Icon(Icons.attach_file_rounded, color: kProviderGreen, size: 20),
                   const SizedBox(width: 12),
-                  const Icon(Icons.mic_none_rounded, color: kProviderGreen, size: 20),
+                  Icon(Icons.mic_none_rounded, color: kProviderGreen, size: 20),
                 ],
               ),
             ),
@@ -392,7 +389,7 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
                 color: enabled ? kProviderGreen : kProviderMuted,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 22),
+              child: Icon(Icons.send_rounded, color: kOnPrimary, size: 22),
             ),
           ),
         ],

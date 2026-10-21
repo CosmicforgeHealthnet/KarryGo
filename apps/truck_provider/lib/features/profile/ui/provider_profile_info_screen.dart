@@ -158,12 +158,12 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                           decoration: const BoxDecoration(color: Color(0xFFE7EEF7), shape: BoxShape.circle),
                           clipBehavior: Clip.antiAlias,
                           child: _uploadingPhoto
-                              ? const Center(child: CircularProgressIndicator(color: kProviderGreen))
+                              ? Center(child: CircularProgressIndicator(color: kProviderGreen))
                               : (photoUrl != null && photoUrl.isNotEmpty)
                                   ? Image.network(photoUrl, fit: BoxFit.cover,
                                       errorBuilder: (_, _, _) =>
-                                          const Icon(Icons.person_rounded, color: kProviderGreen, size: 44))
-                                  : const Icon(Icons.person_rounded, color: kProviderGreen, size: 44),
+                                          Icon(Icons.person_rounded, color: kProviderGreen, size: 44))
+                                  : Icon(Icons.person_rounded, color: kProviderGreen, size: 44),
                         ),
                         const SizedBox(height: 14),
                         Row(
@@ -176,8 +176,8 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                               ),
-                              child: const Text('Change',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                              child: Text('Change',
+                                  style: TextStyle(color: kOnPrimary, fontWeight: FontWeight.w700, fontSize: 13)),
                             ),
                             const SizedBox(width: 12),
                             FilledButton(
@@ -191,7 +191,7 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                               ),
-                              child: const Text('Delete',
+                              child: Text('Delete',
                                   style: TextStyle(color: kTealText, fontWeight: FontWeight.w700, fontSize: 13)),
                             ),
                           ],
@@ -216,7 +216,7 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                       const ProviderFieldLabel('Phone Number'),
                       GestureDetector(
                         onTap: _changePhone,
-                        child: const Text('Change',
+                        child: Text('Change',
                             style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w700)),
                       ),
                     ],
@@ -228,14 +228,14 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                       children: [
                         const Text('🇳🇬', style: TextStyle(fontSize: 18)),
                         const SizedBox(width: 4),
-                        const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: kProviderMuted),
+                        Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: kProviderMuted),
                         const SizedBox(width: 10),
-                        const Text('(+234)', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+                        Text('(+234)', style: TextStyle(color: kProviderMuted, fontSize: 14)),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             phoneLocal.isEmpty ? '—' : phoneLocal,
-                            style: const TextStyle(color: kProviderMuted, fontSize: 14),
+                            style: TextStyle(color: kProviderMuted, fontSize: 14),
                           ),
                         ),
                       ],
@@ -255,8 +255,8 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _state,
                     isExpanded: true,
-                    hint: const Text('Select State', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+                    hint: Text('Select State', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
                     decoration: providerGrayField(''),
                     items: _states.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                     onChanged: (v) => setState(() => _state = v),
@@ -273,8 +273,8 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _language,
                     isExpanded: true,
-                    hint: const Text('Select Language', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+                    hint: Text('Select Language', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
                     decoration: providerGrayField(''),
                     items: _languages.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
                     onChanged: (v) => setState(() => _language = v),

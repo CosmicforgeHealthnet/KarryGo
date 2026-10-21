@@ -28,7 +28,7 @@ class DisputeAppBar extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
+              style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
             ),
           ),
           ?trailing,
@@ -55,7 +55,7 @@ class DisputeFeedbackRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Row(
         children: [
-          const KIconTile(Icons.report_gmailerrorred_rounded, color: kWarning, background: kWarningTint),
+          KIconTile(Icons.report_gmailerrorred_rounded, color: kWarning, background: kWarningTint),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -65,12 +65,12 @@ class DisputeFeedbackRow extends StatelessWidget {
                   complaint.subject.isEmpty ? 'Dispute' : complaint.subject,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   formatTransactionDate(complaint.createdAt),
-                  style: const TextStyle(color: kProviderMuted, fontSize: 12),
+                  style: TextStyle(color: kProviderMuted, fontSize: 12),
                 ),
               ],
             ),
@@ -106,7 +106,7 @@ class DisputeTransactionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF4FCFB) : kCard,
+          color: selected ? kSelectedWash : kCard,
           borderRadius: kCardRadius,
           border: Border.all(
             color: selected ? kTeal : kProviderBorder,
@@ -120,7 +120,7 @@ class DisputeTransactionCard extends StatelessWidget {
               txn.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w700),
+              style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w700),
             ),
             if (txn.subtitle.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -128,13 +128,13 @@ class DisputeTransactionCard extends StatelessWidget {
                 txn.subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
+                style: TextStyle(color: kProviderMuted, fontSize: 12.5),
               ),
             ],
             const SizedBox(height: 4),
             Text(
               formatTransactionDate(txn.occurredAt),
-              style: const TextStyle(color: kProviderMuted, fontSize: 12),
+              style: TextStyle(color: kProviderMuted, fontSize: 12),
             ),
             const SizedBox(height: 8),
             Text(

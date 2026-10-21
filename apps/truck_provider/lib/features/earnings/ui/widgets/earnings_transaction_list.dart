@@ -89,7 +89,7 @@ class EarningsTransactionCard extends StatelessWidget {
                     txn.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   if (txn.subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -97,13 +97,13 @@ class EarningsTransactionCard extends StatelessWidget {
                       txn.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
+                      style: TextStyle(color: kProviderMuted, fontSize: 12.5),
                     ),
                   ],
                   const SizedBox(height: 2),
                   Text(
                     formatTransactionDate(txn.occurredAt),
-                    style: const TextStyle(color: kProviderMuted, fontSize: 11.5),
+                    style: TextStyle(color: kProviderMuted, fontSize: 11.5),
                   ),
                 ],
               ),
@@ -125,7 +125,7 @@ class EarningsTransactionCard extends StatelessWidget {
                   InkWell(
                     onTap: onGoToTrips,
                     borderRadius: BorderRadius.circular(6),
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.symmetric(vertical: 2),
                       child: Text(
                         'Go to Trips',

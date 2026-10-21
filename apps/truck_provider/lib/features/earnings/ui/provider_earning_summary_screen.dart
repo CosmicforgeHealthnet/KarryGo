@@ -49,7 +49,7 @@ class ProviderEarningSummaryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const KTopBar(title: 'Earning Summary'),
+      appBar: KTopBar(title: 'Earning Summary'),
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
@@ -111,7 +111,7 @@ class ProviderEarningSummaryScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

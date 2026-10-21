@@ -133,8 +133,8 @@ class _ProviderTruckEditScreenState extends State<ProviderTruckEditScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _truckType,
                     isExpanded: true,
-                    hint: const Text('Select Truck Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+                    hint: Text('Select Truck Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
                     decoration: providerWhiteField(''),
                     items: providerTruckTypeOptions
                         .map((o) => DropdownMenuItem(value: o.slug, child: Text(o.label)))
@@ -147,8 +147,8 @@ class _ProviderTruckEditScreenState extends State<ProviderTruckEditScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _licenseType,
                     isExpanded: true,
-                    hint: const Text('Select License Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
+                    hint: Text('Select License Type', style: TextStyle(color: kProviderMuted, fontSize: 14)),
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: kProviderMuted),
                     decoration: providerWhiteField(''),
                     items: _licenseTypes.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
                     onChanged: (v) => setState(() => _licenseType = v),
@@ -192,7 +192,7 @@ class _ProviderTruckEditScreenState extends State<ProviderTruckEditScreen> {
                   TextField(controller: _experienceCtrl, keyboardType: TextInputType.number, decoration: providerWhiteField('e.g. 5')),
                   const SizedBox(height: 20),
 
-                  const Text('Select types of goods you can carry',
+                  Text('Select types of goods you can carry',
                       style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 12),
                   for (final g in _goodsOptions)
@@ -203,7 +203,7 @@ class _ProviderTruckEditScreenState extends State<ProviderTruckEditScreen> {
                     ),
                   const SizedBox(height: 12),
 
-                  const Text('Do you have active vehicle insurance?',
+                  Text('Do you have active vehicle insurance?',
                       style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 12),
                   Row(
@@ -254,10 +254,10 @@ class _GoodsRow extends StatelessWidget {
                 border: Border.all(color: selected ? kTealText : kProviderBorder, width: 2),
                 color: selected ? kTealText : Colors.transparent,
               ),
-              child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
+              child: selected ? Icon(Icons.check_rounded, size: 14, color: kCard) : null,
             ),
             const SizedBox(width: 12),
-            Text(label, style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(label, style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -290,13 +290,13 @@ class _YesNo extends StatelessWidget {
                     child: Container(
                       width: 12,
                       height: 12,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: kProviderGreen),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: kProviderGreen),
                     ),
                   )
                 : null,
           ),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(label, style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600)),
         ],
       ),
     );

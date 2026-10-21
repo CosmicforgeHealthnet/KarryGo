@@ -61,14 +61,14 @@ class _SafetyMenuItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Material(
-        color: Colors.white,
+        color: kCard,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Ink(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: kCard,
               borderRadius: BorderRadius.circular(12),
               boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 4))],
             ),
@@ -78,10 +78,10 @@ class _SafetyMenuItem extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 22),
+                Icon(Icons.chevron_right_rounded, color: kProviderMuted, size: 22),
               ],
             ),
           ),
