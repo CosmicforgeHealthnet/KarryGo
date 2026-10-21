@@ -264,6 +264,10 @@ jobs:
         run: flutter pub get
       - working-directory: ${{ matrix.app }}
         run: flutter test
+      - name: Analyze isolated Dispatch Widgetbook previews
+        if: matrix.app == 'apps/dispatch_provider'
+        working-directory: ${{ matrix.app }}
+        run: flutter analyze lib/widgetbook.dart lib/design_previews lib/design_system lib/widgetbook_catalog
 
   repository-security-scans:
     runs-on: ubuntu-latest
