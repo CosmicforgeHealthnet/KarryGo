@@ -1,318 +1,293 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/format/money_format.dart';
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../auth/models/provider_auth_models.dart';
 import '../../../auth/state/provider_auth_controller.dart';
+import '../../../earnings/state/provider_earnings_controller.dart';
 import '../../state/provider_home_controller.dart';
 import '../screens/provider_request_detail_screen.dart';
 import '../widgets/provider_app_colors.dart';
 import '../widgets/provider_home_map.dart';
 import '../widgets/provider_request_card.dart';
 
-/// Map-based home tab (Figma 2034 / 2035).
-class ProviderDashboardScreen extends StatelessWidget {
+/// Home tab: the live map with a pull-up sheet holding the online switch,
+/// incoming requests and today's numbers.
+class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({
     super.key,
     required this.authController,
     required this.homeController,
     required this.state,
+    this.earningsController,
     this.onNotificationsTap,
+    this.onViewRequests,
+    this.onViewEarnings,
   });
 
   final ProviderAuthController authController;
   final ProviderHomeController homeController;
   final ProviderHomeState state;
+  final ProviderEarningsController? earningsController;
   final VoidCallback? onNotificationsTap;
+  final VoidCallback? onViewRequests;
+  final VoidCallback? onViewEarnings;
+
+  @override
+  State<ProviderDashboardScreen> createState() =>
+      _ProviderDashboardScreenState();
+}
+
+class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final earnings = widget.earningsController;
+    if (earnings != null && !earnings.hasLoaded && !earnings.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => earnings.load());
+    }
+  }
+
+  void _openRequest(ProviderBooking booking) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProviderRequestDetailScreen(
+          booking: booking,
+          homeController: widget.homeController,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final topPadding = MediaQuery.of(context).padding.top;
+    final provider = widget.authController.state.session?.provider;
 
     return Stack(
       children: [
-        // ─── Full-screen live map ─────────────────────────────────────────
         const Positioned.fill(child: ProviderHomeMap()),
 
-        // ─── Top overlay: Go Offline/Online pill + notification bell ──────
+        // Top overlay: who you are, whether you're live, and alerts.
         Positioned(
           top: topPadding + 12,
           left: 16,
           right: 16,
           child: Row(
             children: [
-              _OnlineTogglePill(
-                isOnline: state.isOnline,
-                isLoading: state.isLoading,
-                onTap: homeController.toggleOnline,
+              DecoratedBox(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x220B1F44),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: KAvatar(
+                  name: provider?.displayName ?? '',
+                  photoUrl: provider?.profilePhotoUrl,
+                  size: 44,
+                ),
               ),
               const Spacer(),
-              _MessageButton(onTap: onNotificationsTap),
-              const SizedBox(width: 10),
-              _BellButton(onTap: onNotificationsTap),
+              _LivePill(isOnline: state.isOnline),
+              const Spacer(),
+              DecoratedBox(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x220B1F44),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: KCircleButton(
+                  icon: Icons.notifications_none_rounded,
+                  tooltip: 'Notifications',
+                  onTap: widget.onNotificationsTap,
+                ),
+              ),
             ],
           ),
         ),
 
-        // ─── Offline modal (Figma 2035) — floats over fully-visible map ───
-        if (!state.isOnline)
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 36,
-            child: _OfflineModal(
-              isLoading: state.isLoading,
-              onGoOnline: homeController.goOnline,
-            ),
-          ),
-
-        // ─── Incoming request bottom sheet (Figma 2034) ───────────────────
-        if (state.isOnline && state.pendingRequests.isNotEmpty)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _IncomingRequestsSheet(
-              requests: state.pendingRequests,
-              isLoading: state.isLoading,
-              onReject: (id) => homeController.rejectBooking(id),
-              onAccept: (id) => homeController.acceptBooking(id),
-              onTapCard: (booking) => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ProviderRequestDetailScreen(
-                    booking: booking,
-                    homeController: homeController,
+        DraggableScrollableSheet(
+          initialChildSize: state.isOnline && state.pendingRequests.isNotEmpty
+              ? 0.72
+              : 0.52,
+          minChildSize: 0.34,
+          maxChildSize: 0.94,
+          snap: true,
+          builder: (context, scroll) {
+            return DecoratedBox(
+              decoration: const BoxDecoration(
+                color: kCanvas,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x1F0B1F44),
+                    blurRadius: 24,
+                    offset: Offset(0, -6),
                   ),
-                ),
+                ],
               ),
-            ),
-          ),
-
-        if (state.error != null)
-          Positioned(
-            top: topPadding + 64,
-            left: 16,
-            right: 16,
-            child: _ErrorPill(message: state.error!),
-          ),
+              child: ListView(
+                controller: scroll,
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: kProviderGreenSoft,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  KHeading(
+                    eyebrow: 'Your road. Your pace.',
+                    title: state.isOnline
+                        ? "You're online."
+                        : "Let's get moving.",
+                    subtitle: _subtitle(state),
+                    trailing: state.isOnline
+                        ? const KStatusChip('Available')
+                        : const KStatusChip('Offline', tone: KTone.neutral),
+                  ),
+                  const SizedBox(height: 18),
+                  if (state.isOnline)
+                    KSecondaryButton(
+                      label: 'Go offline',
+                      icon: Icons.power_settings_new_rounded,
+                      loading: state.isLoading && state.pendingRequests.isEmpty,
+                      onPressed: widget.homeController.goOffline,
+                    )
+                  else
+                    KPrimaryButton(
+                      label: 'Go online',
+                      icon: Icons.bolt_rounded,
+                      loading: state.isLoading,
+                      onPressed: widget.homeController.goOnline,
+                    ),
+                  if (state.error != null) ...[
+                    const SizedBox(height: 12),
+                    KNotice(state.error!, tone: KTone.danger),
+                  ],
+                  if (state.isOnline && state.pendingRequests.isNotEmpty) ...[
+                    const SizedBox(height: 26),
+                    KSectionHeader(
+                      'Incoming requests',
+                      action: state.pendingRequests.length > 1
+                          ? 'View all'
+                          : null,
+                      onAction: widget.onViewRequests,
+                    ),
+                    const SizedBox(height: 12),
+                    for (final booking in state.pendingRequests.take(2)) ...[
+                      ProviderRequestCard(
+                        booking: booking,
+                        isLoading: state.isLoading,
+                        onOpen: () => _openRequest(booking),
+                        onReject: () =>
+                            widget.homeController.rejectBooking(booking.id),
+                        onAccept: () =>
+                            widget.homeController.acceptBooking(booking.id),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                  const SizedBox(height: 22),
+                  KSectionHeader(
+                    'Today, at a glance',
+                    action: 'Earnings',
+                    onAction: widget.onViewEarnings,
+                  ),
+                  const SizedBox(height: 12),
+                  _TodayTiles(
+                    earningsController: widget.earningsController,
+                    provider: provider,
+                  ),
+                  const SizedBox(height: 12),
+                  KGroup(
+                    children: [
+                      KListRow(
+                        icon: Icons.north_east_rounded,
+                        title: 'Your next opportunity',
+                        subtitle: state.isOnline
+                            ? 'See every request waiting for you'
+                            : 'Go online to start receiving loads',
+                        onTap: widget.onViewRequests,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ],
     );
   }
+
+  String _subtitle(ProviderHomeState state) {
+    if (!state.isOnline) {
+      return 'Go online to start receiving haulage requests near you.';
+    }
+    final n = state.pendingRequests.length;
+    if (n == 0) return 'Ready for a load that fits your truck.';
+    return n == 1
+        ? 'A request is waiting for you.'
+        : '$n requests are waiting for you.';
+  }
 }
 
-// ─── Online / Offline pill (Figma 2034 top-left) ──────────────────────────────
-// White pill with dark label text and a custom iOS-style toggle switch.
-
-class _OnlineTogglePill extends StatelessWidget {
-  const _OnlineTogglePill({
-    required this.isOnline,
-    required this.isLoading,
-    required this.onTap,
-  });
-
+/// Teal "● Online" / grey "Offline" pill floating over the map.
+class _LivePill extends StatelessWidget {
+  const _LivePill({required this.isOnline});
   final bool isOnline;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: isLoading ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-        decoration: BoxDecoration(
-          // Green tint when online ("Go Offline"), grey when offline ("Go Online").
-          color: isOnline ? kProviderSuccessTint : const Color(0xFFE6E8E6),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: const [
-            BoxShadow(color: Color(0x28000000), blurRadius: 10, offset: Offset(0, 3)),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLoading)
-              const SizedBox.square(
-                dimension: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: kProviderSuccess),
-              )
-            else
-              Text(
-                isOnline ? 'Go Offline' : 'Go Online',
-                style: TextStyle(
-                  color: isOnline ? kProviderSuccess : kProviderMuted,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            const SizedBox(width: 8),
-            _IosSwitch(isOn: isOnline),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Custom iOS-style toggle that animates between green (on) and grey (off).
-class _IosSwitch extends StatelessWidget {
-  const _IosSwitch({required this.isOn});
-  final bool isOn;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      width: 44,
-      height: 26,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: isOn ? kProviderGreen : const Color(0xFFD0D0D0),
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 250),
-        alignment: isOn ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 20,
-          height: 20,
-          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Message / shield button (Figma 2034 top-right, left of bell) ─────────────
-
-class _MessageButton extends StatelessWidget {
-  const _MessageButton({this.onTap});
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: const BoxDecoration(
-          color: Color(0xFFEDEFED),
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3))],
-        ),
-        child: const Icon(Icons.mail_outline_rounded, color: kProviderText, size: 20),
-      ),
-    );
-  }
-}
-
-// ─── Notification bell button (Figma 2034 top-right) ──────────────────────────
-
-class _BellButton extends StatelessWidget {
-  const _BellButton({this.onTap});
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Color(0x28000000), blurRadius: 10, offset: Offset(0, 3))],
-        ),
-        child: const Icon(Icons.notifications_none_rounded, color: kProviderText, size: 20),
-      ),
-    );
-  }
-}
-
-// ─── Offline modal overlay (Figma 2035) ───────────────────────────────────────
-
-class _OfflineModal extends StatelessWidget {
-  const _OfflineModal({required this.isLoading, required this.onGoOnline});
-
-  final bool isLoading;
-  final VoidCallback onGoOnline;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Color(0x28000000), blurRadius: 30, offset: Offset(0, 8))],
+        color: kCard,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x220B1F44),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Illustration placeholder — matches 3D laptop/people art style in mockup
-          Container(
-            width: 130,
-            height: 110,
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: 8,
+            height: 8,
             decoration: BoxDecoration(
-              color: kProviderGreenTint,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned(
-                  bottom: 18,
-                  child: Container(
-                    width: 80,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: kProviderGreen.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const Icon(Icons.wifi_off_rounded, size: 54, color: kProviderGreen),
-              ],
+              color: isOnline ? kTeal : kProviderGreenSoft,
+              shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'You are Offline!',
-            style: TextStyle(
+          const SizedBox(width: 8),
+          Text(
+            isOnline ? 'Online' : 'Offline',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
               color: kProviderText,
-              fontWeight: FontWeight.w800,
-              fontSize: 22,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Your account activity is currently set on offline, switch to online mode to start accepting trip requests.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: isLoading ? null : onGoOnline,
-              style: FilledButton.styleFrom(
-                backgroundColor: kProviderGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              ),
-              child: isLoading
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text(
-                      'Go Online',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
             ),
           ),
         ],
@@ -321,117 +296,63 @@ class _OfflineModal extends StatelessWidget {
   }
 }
 
-// ─── Incoming Requests bottom sheet (Figma 2034 bottom) ───────────────────────
-
-class _IncomingRequestsSheet extends StatelessWidget {
-  const _IncomingRequestsSheet({
-    required this.requests,
-    required this.isLoading,
-    required this.onReject,
-    required this.onAccept,
-    required this.onTapCard,
-  });
-
-  final List<ProviderBooking> requests;
-  final bool isLoading;
-  final ValueChanged<String> onReject;
-  final ValueChanged<String> onAccept;
-  final ValueChanged<ProviderBooking> onTapCard;
+/// Earned today (from the earnings report) and the driver's rating.
+class _TodayTiles extends StatelessWidget {
+  const _TodayTiles({required this.earningsController, required this.provider});
+  final ProviderEarningsController? earningsController;
+  final TruckProvider? provider;
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final multiple = requests.length > 1;
-    // Show a peek of the next card when there is more than one request.
-    final cardWidth = multiple ? screenWidth - 64 : screenWidth - 40;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [BoxShadow(color: Color(0x18000000), blurRadius: 24, offset: Offset(0, -6))],
-      ),
-      padding: EdgeInsets.fromLTRB(0, 20, 0, bottomPadding + 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Incoming Requests...',
-              style: TextStyle(
-                color: kProviderText,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
+    final controller = earningsController;
+    Widget build(String earned, String caption) {
+      final rating = provider?.rating ?? 0;
+      final trips = provider?.totalTrips ?? 0;
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: KStatTile(
+                icon: Icons.trending_up_rounded,
+                label: 'Earned today',
+                value: earned,
+                caption: caption,
               ),
             ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Accept a request to start a trip.',
-              style: TextStyle(color: kProviderMuted, fontSize: 13),
+            const SizedBox(width: 12),
+            Expanded(
+              child: KStatTile(
+                icon: Icons.star_rounded,
+                label: 'Your rating',
+                value: rating > 0 ? rating.toStringAsFixed(1) : 'New',
+                caption: '$trips trip${trips == 1 ? '' : 's'} in total',
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          // Horizontal carousel — next card peeks in on the right edge.
-          SizedBox(
-            height: _cardHeight,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const PageScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: requests.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final booking = requests[index];
-                return SizedBox(
-                  width: cardWidth,
-                  child: GestureDetector(
-                    onTap: () => onTapCard(booking),
-                    behavior: HitTestBehavior.opaque,
-                    child: ProviderRequestCard(
-                      booking: booking,
-                      isLoading: isLoading,
-                      onReject: () => onReject(booking.id),
-                      onAccept: () => onAccept(booking.id),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
+    }
 
-  // Approximate fixed height so the horizontal ListView can lay out its cards.
-  static const double _cardHeight = 270;
-}
-
-// ─── Error pill ───────────────────────────────────────────────────────────────
-
-class _ErrorPill extends StatelessWidget {
-  const _ErrorPill({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF0F0),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(color: Colors.red, fontSize: 13),
-        textAlign: TextAlign.center,
-      ),
+    if (controller == null) return build('—', 'Open Earnings for details');
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        if (!controller.hasLoaded) {
+          return build(
+            controller.isLoading ? '…' : '—',
+            controller.error ?? 'Loading today',
+          );
+        }
+        final e = controller.earnings;
+        final n = e.tripsCompletedToday;
+        return build(
+          formatNairaShort(e.todayEarningsKobo / 100),
+          n == 0
+              ? 'No trips completed yet'
+              : 'From $n completed trip${n == 1 ? '' : 's'}',
+        );
+      },
     );
   }
 }

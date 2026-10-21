@@ -5,6 +5,8 @@ import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.da
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../core/theme/karryam_theme.dart';
+
 import '../core/config/provider_app_config.dart';
 import '../features/auth/data/provider_auth_api.dart';
 import '../features/auth/data/provider_session_store.dart';
@@ -243,13 +245,9 @@ class _TruckProviderAppState extends State<TruckProviderApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Truck Provider',
+      title: 'Karryam Partner',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF05124D),
-        useMaterial3: true,
-        fontFamily: 'Poppins',
-      ),
+      theme: karryamTruckTheme(),
       home: AnimatedBuilder(
         animation: _authController,
         builder: (context, _) {

@@ -41,7 +41,6 @@ class _ProviderDisputeChatScreenState extends State<ProviderDisputeChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {

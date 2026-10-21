@@ -172,7 +172,7 @@ class SafetyHelperText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(color: kProviderGreen, fontSize: 13, height: 1.5),
+      style: const TextStyle(color: kTealText, fontSize: 13, height: 1.5),
     );
   }
 }

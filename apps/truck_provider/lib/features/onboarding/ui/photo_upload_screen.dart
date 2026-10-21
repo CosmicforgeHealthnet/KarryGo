@@ -31,7 +31,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
   Widget build(BuildContext context) {
     final state = widget.controller.state;
     return OnboardingScaffold(
-      title: 'Upload a Photo of yourself',
+      title: 'A face we can trust.',
       subtitle: 'A clear, recent photo builds trust with customers and verifies your identity.',
       step: 6,
       content: Column(
@@ -50,7 +50,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                     shape: BoxShape.circle,
                     color: kProviderSurface,
                     border: Border.all(
-                      color: _photo != null ? kProviderGreen : kProviderBorder,
+                      color: _photo != null ? kTeal : kProviderBorder,
                       width: _photo != null ? 3 : 1.5,
                     ),
                     image: _photo != null
@@ -68,11 +68,8 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                   Container(
                     width: 34,
                     height: 34,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: kProviderGreen,
-                    ),
-                    child: const Icon(Icons.check, color: Colors.white, size: 18),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: kTeal),
+                    child: const Icon(Icons.check_rounded, color: kNavy, size: 18),
                   ),
               ],
             ),
@@ -123,13 +120,13 @@ class _PhotoButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: kCard,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: kProviderBorder),
         ),
         child: Column(
           children: [
-            Icon(icon, color: kProviderGreen, size: 28),
+            Icon(icon, color: kTealText, size: 28),
             const SizedBox(height: 6),
             Text(
               label,

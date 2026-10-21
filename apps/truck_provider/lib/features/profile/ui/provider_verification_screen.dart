@@ -126,13 +126,12 @@ class _ProviderVerificationScreenState extends State<ProviderVerificationScreen>
     final provider = widget.profileController.profile;
     final status = provider?.verificationLabel ?? 'Unverified';
     final statusColor = provider?.isVerified == true
-        ? kProviderGreen
+        ? kTealText
         : (provider?.isProcessing == true ? kProviderAmber : kProviderRejectText);
     final year = DateTime.now().year;
     final years = [for (var y = year; y <= year + 15; y++) y.toString()];
 
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -280,7 +279,7 @@ class _UploadField extends StatelessWidget {
       children: [
         Text(title, style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
-        Text(helper, style: const TextStyle(color: kProviderGreen, fontSize: 12, height: 1.5)),
+        Text(helper, style: const TextStyle(color: kTealText, fontSize: 12, height: 1.5)),
         const SizedBox(height: 10),
         if (slot.uploading)
           _uploadingRow()
@@ -372,7 +371,7 @@ class _UploadField extends StatelessWidget {
                 children: [
                   Icon(Icons.check_circle_rounded, color: kProviderGreen, size: 16),
                   SizedBox(width: 4),
-                  Text('Uploaded', style: TextStyle(color: kProviderGreen, fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text('Uploaded', style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w700)),
                 ],
               ),
               if (slot.fileName.isNotEmpty) ...[

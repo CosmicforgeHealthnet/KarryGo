@@ -55,7 +55,7 @@ class _ProviderHomeMapState extends State<ProviderHomeMap> {
             _lagosCenter.latitude + dLat,
             _lagosCenter.longitude + dLng,
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
           anchor: const Offset(0.5, 0.5),
           flat: true,
         ),

@@ -49,7 +49,6 @@ class _ProviderFaceVerificationScreenState extends State<ProviderFaceVerificatio
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -139,7 +138,7 @@ class _ProviderFaceVerificationScreenState extends State<ProviderFaceVerificatio
         const Text(
           'You will receive a follow up mail on verification status.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: kProviderGreen, fontSize: 13, height: 1.5),
+          style: TextStyle(color: kTealText, fontSize: 13, height: 1.5),
         ),
         const Spacer(),
         ProviderPrimaryButton(label: 'Okay', onPressed: () => Navigator.of(context).pop()),

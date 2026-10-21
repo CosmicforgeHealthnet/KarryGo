@@ -27,7 +27,6 @@ class ProviderSelectDisputeTypeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {

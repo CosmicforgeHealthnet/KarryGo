@@ -84,11 +84,11 @@ class TruckStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dotColor = onDark ? Colors.white : (active ? kProviderGreen : kProviderMuted);
+    final dotColor = onDark ? Colors.white : (active ? kTealText : kProviderMuted);
     final bg = onDark
         ? Colors.white.withValues(alpha: 0.18)
         : (active ? kProviderGreenTint : kProviderSurface);
-    final textColor = onDark ? Colors.white : (active ? kProviderGreen : kProviderMuted);
+    final textColor = onDark ? Colors.white : (active ? kTealText : kProviderMuted);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

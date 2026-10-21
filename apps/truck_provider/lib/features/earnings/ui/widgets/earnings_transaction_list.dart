@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/format/money_format.dart';
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../home/ui/widgets/provider_app_colors.dart';
 import '../../models/earnings_models.dart';
 
@@ -22,41 +23,35 @@ class EarningsTransactionList extends StatelessWidget {
   Widget build(BuildContext context) {
     final groups = EarningsTransactionGroup.group(transactions);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final group in groups) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-            child: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final group in groups) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 10),
+              child: KEyebrow(group.label),
+            ),
+            KGroup(
               children: [
-                Text(
-                  group.label,
-                  style: const TextStyle(
-                    color: kProviderText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                for (final txn in group.items)
+                  EarningsTransactionCard(
+                    txn: txn,
+                    onGoToTrips: onGoToTrips,
+                    onTap: onTransactionTap == null ? null : () => onTransactionTap!(txn),
                   ),
-                ),
-                const SizedBox(width: 3),
-                const Icon(Icons.arrow_drop_down, size: 24, color: kProviderText),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          for (final txn in group.items)
-            EarningsTransactionCard(
-              txn: txn,
-              onGoToTrips: onGoToTrips,
-              onTap: onTransactionTap == null ? null : () => onTransactionTap!(txn),
-            ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 14),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
 
+/// One money movement: direction tile, title, when, and the signed amount.
 class EarningsTransactionCard extends StatelessWidget {
   const EarningsTransactionCard({
     super.key,
@@ -70,77 +65,79 @@ class EarningsTransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amountColor = txn.isCredit ? kProviderGreen : kProviderRejectText;
-    final sign = txn.isCredit ? '+' : '-';
-    final amountText = '$sign₦${formatNaira(txn.amountNaira.abs())}';
+    final credit = txn.isCredit;
+    final amountText = '${credit ? '+' : '-'}₦${formatNaira(txn.amountNaira.abs())}';
 
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  txn.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: kProviderText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (txn.subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KIconTile(
+              credit ? Icons.south_west_rounded : Icons.north_east_rounded,
+              color: credit ? kTealText : kProviderRejectText,
+              background: credit ? kTealTint : kProviderRejectBg,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    txn.subtitle,
+                    txn.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
+                    style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600),
                   ),
-                ],
-                const SizedBox(height: 4),
-                Text(
-                  formatTransactionDate(txn.occurredAt),
-                  style: const TextStyle(color: kProviderMuted, fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  amountText,
-                  style: TextStyle(color: amountColor, fontSize: 14, fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ),
-          if (txn.isTrip)
-            GestureDetector(
-              onTap: onGoToTrips,
-              behavior: HitTestBehavior.opaque,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.arrow_forward_rounded, color: kProviderGreen, size: 20),
-                  SizedBox(height: 18),
+                  if (txn.subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      txn.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
+                    ),
+                  ],
+                  const SizedBox(height: 2),
                   Text(
-                    'Go to Trips',
-                    style: TextStyle(color: kProviderGreen, fontSize: 12, fontWeight: FontWeight.w600),
+                    formatTransactionDate(txn.occurredAt),
+                    style: const TextStyle(color: kProviderMuted, fontSize: 11.5),
                   ),
                 ],
               ),
             ),
-        ],
-      ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  amountText,
+                  style: TextStyle(
+                    color: credit ? kTealText : kProviderRejectText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (txn.isTrip) ...[
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: onGoToTrips,
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        'Go to Trips',
+                        style: TextStyle(color: kProviderMuted, fontSize: 11.5, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

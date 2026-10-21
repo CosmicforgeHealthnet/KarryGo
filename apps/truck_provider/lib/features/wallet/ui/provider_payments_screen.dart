@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../../profile/ui/widgets/provider_profile_widgets.dart';
 import '../models/wallet_models.dart';
@@ -59,7 +60,6 @@ class _ProviderPaymentsScreenState extends State<ProviderPaymentsScreen> {
   Widget build(BuildContext context) {
     final c = widget.controller;
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: c,
@@ -74,7 +74,6 @@ class _ProviderPaymentsScreenState extends State<ProviderPaymentsScreen> {
                 const SizedBox(height: 18),
                 Expanded(
                   child: RefreshIndicator(
-                    color: kProviderGreen,
                     onRefresh: c.loadAccounts,
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -82,33 +81,17 @@ class _ProviderPaymentsScreenState extends State<ProviderPaymentsScreen> {
                       children: [
                         Row(
                           children: [
-                            const Expanded(
-                              child: Text(
-                                'Linked Accounts',
-                                style: TextStyle(
-                                  color: kProviderText,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            FilledButton(
+                            const Expanded(child: KSectionHeader('Linked Accounts')),
+                            FilledButton.icon(
                               onPressed: _addAccount,
                               style: FilledButton.styleFrom(
-                                backgroundColor: kProviderGreen,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                minimumSize: const Size(0, 40),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w700),
                               ),
-                              child: const Text(
-                                'Add Bank Account',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('Add Bank Account'),
                             ),
                           ],
                         ),
@@ -120,7 +103,7 @@ class _ProviderPaymentsScreenState extends State<ProviderPaymentsScreen> {
                         if (c.loading && accounts.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: 48),
-                            child: Center(child: CircularProgressIndicator(color: kProviderGreen)),
+                            child: Center(child: CircularProgressIndicator()),
                           )
                         else if (c.loadError != null && accounts.isEmpty)
                           _LoadErrorState(message: c.loadError!, onRetry: c.loadAccounts)
@@ -137,11 +120,12 @@ class _ProviderPaymentsScreenState extends State<ProviderPaymentsScreen> {
                           const SizedBox(height: 16),
                           const Text(
                             'Set Default withdrawal Account',
-                            style: TextStyle(
-                              color: kProviderText,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Withdrawals go to this account unless you choose another.',
+                            style: TextStyle(color: kProviderMuted, fontSize: 12.5),
                           ),
                           const SizedBox(height: 14),
                           for (final account in accounts) ...[
@@ -173,22 +157,24 @@ class _AccountDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(
-          account.accountName,
-          style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          account.bankName,
-          style: const TextStyle(color: kProviderText, fontSize: 13.5, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          account.accountNumber,
-          style: const TextStyle(color: kProviderMuted, fontSize: 13),
+        const KIconTile(Icons.account_balance_rounded),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                account.accountName,
+                style: const TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(account.bankName, style: const TextStyle(color: kProviderText, fontSize: 13)),
+              const SizedBox(height: 1),
+              Text(account.accountNumber, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+            ],
+          ),
         ),
       ],
     );
@@ -203,19 +189,15 @@ class _LinkedAccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 3))],
-      ),
+    return KCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 6, 14),
       child: Row(
         children: [
           Expanded(child: _AccountDetails(account: account)),
+          if (account.isDefault) const KStatusChip('Default'),
           IconButton(
             onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline_rounded, color: kProviderRejectText, size: 24),
+            icon: const Icon(Icons.delete_outline_rounded, color: kProviderRejectText, size: 22),
             tooltip: 'Remove account',
           ),
         ],
@@ -232,49 +214,15 @@ class _DefaultAccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return KCard(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: kProviderBorder),
-        ),
-        child: Row(
-          children: [
-            Expanded(child: _AccountDetails(account: account)),
-            _RadioDot(selected: account.isDefault),
-          ],
-        ),
+      borderColor: account.isDefault ? kTeal : kProviderBorder,
+      child: Row(
+        children: [
+          Expanded(child: _AccountDetails(account: account)),
+          WalletRadioDot(selected: account.isDefault),
+        ],
       ),
-    );
-  }
-}
-
-class _RadioDot extends StatelessWidget {
-  const _RadioDot({required this.selected});
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: kProviderGreen, width: 2),
-      ),
-      child: selected
-          ? Center(
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(color: kProviderGreen, shape: BoxShape.circle),
-              ),
-            )
-          : null,
     );
   }
 }
@@ -286,24 +234,10 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 48),
-      child: Column(
-        children: [
-          Icon(Icons.account_balance_rounded, color: kProviderGreenSoft, size: 56),
-          SizedBox(height: 14),
-          Text(
-            'No bank accounts yet',
-            style: TextStyle(color: kProviderText, fontSize: 16, fontWeight: FontWeight.w800),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Add a bank account to receive your withdrawals.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: kProviderMuted, fontSize: 13.5),
-          ),
-        ],
-      ),
+    return const KEmptyState(
+      icon: Icons.account_balance_rounded,
+      title: 'No bank accounts yet',
+      message: 'Add a bank account to receive your withdrawals.',
     );
   }
 }
@@ -315,27 +249,12 @@ class _LoadErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 48),
-      child: Column(
-        children: [
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: kProviderMuted, fontSize: 13.5),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: onRetry,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: kProviderGreen,
-              side: const BorderSide(color: kProviderGreen),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-            ),
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
+    return KEmptyState(
+      icon: Icons.cloud_off_rounded,
+      title: "Couldn't load your accounts",
+      message: message,
+      actionLabel: 'Retry',
+      onAction: onRetry,
     );
   }
 }
@@ -345,18 +264,5 @@ class _ErrorBox extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: kProviderRejectBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(color: kProviderRejectText, fontSize: 13),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => KNotice(message, tone: KTone.danger);
 }

@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../../core/format/money_format.dart';
 import '../../../earnings/models/earnings_models.dart';
 import '../../../earnings/ui/widgets/earnings_transaction_list.dart';
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../home/ui/widgets/provider_app_colors.dart';
 import '../../models/dispute_models.dart';
 
-/// Circular back button + bold title used across the dispute screens.
+/// Back circle + title used across the dispute screens.
 class DisputeAppBar extends StatelessWidget {
   const DisputeAppBar({super.key, required this.title, this.trailing});
   final String title;
@@ -15,27 +16,19 @@ class DisputeAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Row(
         children: [
-          GestureDetector(
+          KCircleButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Back',
             onTap: () => Navigator.of(context).maybePop(),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3))],
-              ),
-              child: const Icon(Icons.arrow_back, color: kProviderText, size: 20),
-            ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(color: kProviderText, fontSize: 21, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
             ),
           ),
           ?trailing,
@@ -45,33 +38,25 @@ class DisputeAppBar extends StatelessWidget {
   }
 }
 
-/// A row in the "Feedbacks" list (Figma 2266): subject + date + status.
+/// A row in the disputes list: subject, date and a status chip.
 class DisputeFeedbackRow extends StatelessWidget {
   const DisputeFeedbackRow({super.key, required this.complaint});
   final Complaint complaint;
 
-  Color get _statusColor {
-    switch (complaint.statusLabel) {
-      case 'Completed':
-        return kProviderGreen;
-      case 'Processing':
-        return const Color(0xFFE8A21B);
-      default:
-        return const Color(0xFFE8A21B);
-    }
-  }
+  KTone get _tone => switch (complaint.statusLabel) {
+        'Completed' => KTone.success,
+        'Processing' => KTone.info,
+        _ => KTone.warning,
+      };
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: kProviderSurface,
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return KCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const KIconTile(Icons.report_gmailerrorred_rounded, color: kWarning, background: kWarningTint),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,21 +65,18 @@ class DisputeFeedbackRow extends StatelessWidget {
                   complaint.subject.isEmpty ? 'Dispute' : complaint.subject,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 3),
                 Text(
-                  complaint.statusLabel,
-                  style: TextStyle(color: _statusColor, fontSize: 13, fontWeight: FontWeight.w700),
+                  formatTransactionDate(complaint.createdAt),
+                  style: const TextStyle(color: kProviderMuted, fontSize: 12),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Text(
-            formatTransactionDate(complaint.createdAt),
-            style: const TextStyle(color: kProviderMuted, fontSize: 12),
-          ),
+          const SizedBox(width: 8),
+          KStatusChip(complaint.statusLabel, tone: _tone),
         ],
       ),
     );
@@ -116,7 +98,7 @@ class DisputeTransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amountColor = txn.isCredit ? kProviderGreen : kProviderRejectText;
+    final amountColor = txn.isCredit ? kTealText : kProviderRejectText;
     final sign = txn.isCredit ? '+' : '-';
     return GestureDetector(
       onTap: onTap,
@@ -124,11 +106,11 @@ class DisputeTransactionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          color: selected ? const Color(0xFFF4FCFB) : kCard,
+          borderRadius: kCardRadius,
           border: Border.all(
-            color: selected ? kProviderGreen : kProviderBorder,
-            width: selected ? 1.4 : 1,
+            color: selected ? kTeal : kProviderBorder,
+            width: selected ? 1.8 : 1,
           ),
         ),
         child: Column(
@@ -166,7 +148,7 @@ class DisputeTransactionCard extends StatelessWidget {
   }
 }
 
-/// Shared green pill button for the dispute flow.
+/// Primary action for the dispute flow.
 class DisputePrimaryButton extends StatelessWidget {
   const DisputePrimaryButton({
     super.key,
@@ -180,28 +162,6 @@ class DisputePrimaryButton extends StatelessWidget {
   final bool loading;
 
   @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: FilledButton(
-        onPressed: enabled ? onPressed : null,
-        style: FilledButton.styleFrom(
-          backgroundColor: kProviderGreen,
-          disabledBackgroundColor: kProviderGreenSoft,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
-        child: loading
-            ? const SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      KPrimaryButton(label: label, onPressed: onPressed, loading: loading);
 }

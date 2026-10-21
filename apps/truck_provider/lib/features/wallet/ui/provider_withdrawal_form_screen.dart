@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/format/money_format.dart';
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_withdrawal_controller.dart';
 import 'provider_withdrawal_confirm_screen.dart';
@@ -36,7 +37,6 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
   Widget build(BuildContext context) {
     final c = widget.controller;
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: c,
         builder: (context, _) {
@@ -44,22 +44,18 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
             bottom: false,
             child: Column(
               children: [
-                // Light-green wash behind the header + balance card.
-                Container(
-                  color: kProviderGreenPale,
-                  child: Column(
-                    children: [
-                      const WalletFlowAppBar(title: 'Withdrawal Form'),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _AvailableBalanceCard(naira: c.balance.availableNaira, loading: c.loading),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+                const WalletFlowAppBar(title: 'Withdrawal Form', subtitle: 'Move earnings to your bank'),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _AvailableBalanceCard(naira: c.balance.availableNaira, loading: c.loading),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 22),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Align(alignment: Alignment.centerLeft, child: KEyebrow('How much?')),
+                ),
+                const SizedBox(height: 10),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _AmountField(
@@ -101,36 +97,16 @@ class _AvailableBalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        gradient: kProviderBalanceGradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: kProviderGreen.withValues(alpha: 0.30),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return KMoneyCard(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Available Balance',
-            style: TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          const Text('Available Balance', style: TextStyle(fontSize: 13, color: Color(0xCCFFFFFF))),
+          const SizedBox(height: 6),
           Text(
             loading ? '₦ ...' : '₦ ${formatNaira(naira)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-            ),
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.6),
           ),
         ],
       ),
@@ -146,32 +122,34 @@ class _AmountField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final display = amountDigits.isEmpty ? '0' : groupThousands(amountDigits);
-    return Container(
-      height: 60,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F2F4),
-        borderRadius: BorderRadius.circular(14),
-        border: exceeds ? Border.all(color: kProviderRejectText, width: 1.2) : null,
+        color: kCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: exceeds ? kProviderRejectText : kTeal, width: 1.6),
       ),
       child: Row(
         children: [
-          Text(
-            '₦',
-            style: TextStyle(color: kProviderMuted.withValues(alpha: 0.7), fontSize: 20, fontWeight: FontWeight.w700),
-          ),
+          const Text('₦', style: TextStyle(color: kProviderMuted, fontSize: 22, fontWeight: FontWeight.w600)),
           Expanded(
-            child: Text(
-              display,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: amountDigits.isEmpty ? kProviderMuted : kProviderGreen,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                display,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: amountDigits.isEmpty ? kProviderGreenSoft : kProviderText,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.8,
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 22),
         ],
       ),
     );

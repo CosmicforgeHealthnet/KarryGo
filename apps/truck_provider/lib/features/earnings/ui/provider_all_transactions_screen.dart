@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../home/ui/widgets/provider_app_colors.dart';
+import '../../../core/widgets/karryam_ui.dart';
 import '../models/earnings_models.dart';
 import '../state/provider_earnings_controller.dart';
 import 'widgets/earnings_transaction_list.dart';
@@ -30,12 +30,7 @@ class _ProviderAllTransactionsScreenState extends State<ProviderAllTransactionsS
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kProviderPageBg,
-      appBar: AppBar(
-        backgroundColor: kProviderPageBg,
-        surfaceTintColor: Colors.transparent,
-        title: const Text('All transactions', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
+      appBar: const KTopBar(title: 'All transactions'),
       body: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {
@@ -46,7 +41,6 @@ class _ProviderAllTransactionsScreenState extends State<ProviderAllTransactionsS
             _Filter.paidOut => all.where((t) => !t.isCredit).toList(),
           };
           return RefreshIndicator(
-            color: kProviderGreen,
             onRefresh: widget.controller.load,
             child: ListView(
               padding: const EdgeInsets.only(bottom: 32),
@@ -64,18 +58,16 @@ class _ProviderAllTransactionsScreenState extends State<ProviderAllTransactionsS
                         ChoiceChip(
                           label: Text(label),
                           selected: _filter == f,
-                          selectedColor: kProviderGreen.withValues(alpha: 0.18),
+                          showCheckmark: false,
                           onSelected: (_) => setState(() => _filter = f),
                         ),
                     ],
                   ),
                 ),
                 if (shown.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Center(
-                      child: Text('No transactions here yet.', style: TextStyle(color: kProviderMuted)),
-                    ),
+                  const KEmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'No transactions here yet.',
                   )
                 else
                   EarningsTransactionList(

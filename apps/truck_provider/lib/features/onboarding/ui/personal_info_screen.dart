@@ -133,7 +133,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     if (_contactError == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Text(_contactError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+      child: Text(_contactError!, style: const TextStyle(color: kProviderRejectText, fontSize: 12)),
     );
   }
 
@@ -225,8 +225,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      title: 'Tell us about you',
-      subtitle: "Let's set up your account with some basic information.",
+      title: 'A little about you.',
+      subtitle: 'The person behind every successful delivery.',
       step: 3,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

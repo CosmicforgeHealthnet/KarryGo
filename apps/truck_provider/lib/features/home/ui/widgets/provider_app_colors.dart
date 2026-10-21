@@ -1,35 +1,56 @@
 import 'package:flutter/material.dart';
 
-// NOTE: these constants keep their historical "Green" names for backward
-// compatibility with ~750 call sites, but the values are the navy brand
-// palette (#05124D) — not green. See kProviderSuccess* for genuine
-// success/online-status green.
-const kProviderGreen = Color(0xFF05124D);
-const kProviderGreenTint = Color(0xFFE6E8EE);
-const kProviderGreenPale = Color(0xFFDADCE4);
-const kProviderGreenSoft = Color(0xFFC1C5D4);
-const kProviderDarkGreen = Color(0xFF020B2E);
-const kProviderText = Color(0xFF000000);
-const kProviderMuted = Color(0xFF5B5959);
-const kProviderBorder = Color(0xFFE3E4E8);
-const kProviderSurface = Color(0xFFF7F7F7);
+// Karryam truck-partner palette (light / "Daylight"), shared with the taxi
+// driver app so both partner apps read as one product.
+//
+// The historical names (kProviderGreen etc.) are kept so the ~750 existing
+// call sites pick up the new palette without churn: "Green" is the brand
+// primary (Karryam navy), not a green.
 
-// Reject / decline button colors (light pink bg, red text)
-const kProviderRejectBg = Color(0xFFF7E4E4);
-const kProviderRejectText = Color(0xFFA81717);
+// ─── Brand ────────────────────────────────────────────────────────────────────
+const kNavy = Color(0xFF0B1F44);
+const kNavyDeep = Color(0xFF071530);
+const kTeal = Color(0xFF00C2A8);
+// Teal is too light for text on white; this is the accessible teal for text.
+const kTealText = Color(0xFF006B5C);
+const kTealTint = Color(0xFFE3F7F4);
 
-// Genuine success / online-status / completed-trip green (kept distinct from
-// the brand navy above so status pills stay legible at a glance).
-const kProviderSuccess = Color(0xFF1F9D55);
-const kProviderSuccessTint = Color(0xFFE7F5EC);
+// ─── Surfaces ─────────────────────────────────────────────────────────────────
+const kCanvas = Color(0xFFF5F6F8);
+const kCard = Color(0xFFFFFFFF);
 
-// Balance card gradient — Radial Blue (light navy top-left) to deep navy
-// (bottom-right).
+// ─── Legacy names, mapped onto the palette ────────────────────────────────────
+const kProviderGreen = kNavy;
+const kProviderGreenTint = Color(0xFFE8EBF1);
+const kProviderGreenPale = Color(0xFFDDE2EA);
+const kProviderGreenSoft = Color(0xFFB9C2D2);
+const kProviderDarkGreen = kNavyDeep;
+const kProviderText = Color(0xFF0B1F44);
+const kProviderMuted = Color(0xFF5E6A7D);
+const kProviderBorder = Color(0xFFE4E7EC);
+const kProviderSurface = kCanvas;
+
+// Reject / decline (soft red background, red text).
+const kProviderRejectBg = Color(0xFFFBEAEC);
+const kProviderRejectText = Color(0xFFAD263A);
+
+// Genuine success / online / completed: Karryam teal (text-safe shade).
+const kProviderSuccess = kTealText;
+const kProviderSuccessTint = kTealTint;
+
+// Money cards: deep navy with a soft lift towards the top-left.
 const kProviderBalanceGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [Color(0xFF2761A7), Color(0xFF05124D)],
+  colors: [Color(0xFF173468), kNavy],
 );
 
-// Page background behind the white cards so they read as elevated cards.
-const kProviderPageBg = Color(0xFFF7F7F7);
+// Page background behind white cards.
+const kProviderPageBg = kCanvas;
+
+// Waiting / in-review states.
+const kWarning = Color(0xFF805500);
+const kWarningTint = Color(0xFFFFF4DC);
+
+/// Star ratings.
+const kAmber = Color(0xFFF2A900);

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../home/ui/widgets/provider_app_colors.dart';
+import '../../../core/widgets/karryam_ui.dart';
 import '../state/provider_withdrawal_controller.dart';
 import 'provider_add_bank_account_screen.dart';
 import 'widgets/wallet_keypad.dart';
@@ -21,7 +21,6 @@ class ProviderBankAccountsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
@@ -53,16 +52,10 @@ class ProviderBankAccountsScreen extends StatelessWidget {
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: OutlinedButton.icon(
+                  child: KSecondaryButton(
+                    label: 'Add new account',
+                    icon: Icons.add_rounded,
                     onPressed: () => _add(context),
-                    icon: const Icon(Icons.add, color: kProviderGreen),
-                    label: const Text('Add new account'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: kProviderGreen,
-                      minimumSize: const Size.fromHeight(52),
-                      side: const BorderSide(color: kProviderGreen),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
                   ),
                 ),
                 Padding(
@@ -92,16 +85,13 @@ class _EmptyAccounts extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (loading)
-            const CircularProgressIndicator(color: kProviderGreen)
-          else ...[
-            const Icon(Icons.account_balance_outlined, color: kProviderMuted, size: 44),
-            const SizedBox(height: 12),
-            const Text(
-              'No payout accounts yet.\nAdd one to withdraw your earnings.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: kProviderMuted, fontSize: 13.5, height: 1.4),
+            const CircularProgressIndicator()
+          else
+            const KEmptyState(
+              icon: Icons.account_balance_outlined,
+              title: 'No payout accounts yet.',
+              message: 'Add one to withdraw your earnings.',
             ),
-          ],
         ],
       ),
     );

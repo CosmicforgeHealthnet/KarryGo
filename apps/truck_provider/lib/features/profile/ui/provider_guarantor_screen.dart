@@ -71,7 +71,6 @@ class _ProviderGuarantorScreenState extends State<ProviderGuarantorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _controller,

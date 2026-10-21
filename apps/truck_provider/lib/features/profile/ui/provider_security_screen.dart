@@ -53,7 +53,6 @@ class _ProviderSecurityScreenState extends State<ProviderSecurityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: widget.controller,

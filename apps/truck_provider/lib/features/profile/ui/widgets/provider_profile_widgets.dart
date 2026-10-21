@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../home/ui/widgets/provider_app_colors.dart';
 
-// Status colours used across the profile (verification badges, etc.)
-const kProviderAmber = Color(0xFFEAA300);
+// Status colour used across the profile (verification badges, ratings).
+const kProviderAmber = kAmber;
 
-// ─── Sub-screen header (circular back button + title + subtitle) ───────────────
+// ─── Sub-screen header (back circle + title + subtitle) ──────────────────────
 
 class ProviderProfileHeader extends StatelessWidget {
   const ProviderProfileHeader({
@@ -22,20 +23,11 @@ class ProviderProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        GestureDetector(
+        KCircleButton(
+          icon: Icons.arrow_back_rounded,
+          tooltip: 'Back',
           onTap: onBack ?? () => Navigator.of(context).maybePop(),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 4))],
-            ),
-            child: const Icon(Icons.arrow_back_rounded, color: kProviderText, size: 20),
-          ),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -44,14 +36,11 @@ class ProviderProfileHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
+                style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: const TextStyle(color: kProviderMuted, fontSize: 12),
-                ),
+                Text(subtitle!, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
               ],
             ],
           ),
@@ -68,61 +57,35 @@ class ProviderFieldLabel extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => KFieldLabel(text);
 }
 
-// Gray-filled input (Profile Info style — Figma 2111/2112).
-InputDecoration providerGrayField(String hint) => InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: kProviderMuted, fontSize: 14),
-      filled: true,
-      fillColor: kProviderSurface,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderGreen, width: 1.5),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+OutlineInputBorder _outline(Color color, [double width = 1]) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: color, width: width),
     );
 
-// White card input with a soft shadow (Verification / Truck edit style — 2133/2164).
+/// Standard text field decoration. Kept under its old name so every form
+/// shares one field style.
+InputDecoration providerGrayField(String hint) => providerWhiteField(hint);
+
+/// White field with a hairline border and a teal focus ring.
 InputDecoration providerWhiteField(String hint, {Widget? suffixIcon}) => InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: kProviderMuted, fontSize: 14),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: kCard,
       suffixIcon: suffixIcon,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderBorder),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderGreen, width: 1.5),
-      ),
+      border: _outline(kProviderBorder),
+      enabledBorder: _outline(kProviderBorder),
+      disabledBorder: _outline(kProviderBorder),
+      focusedBorder: _outline(kTeal, 1.6),
+      errorBorder: _outline(kProviderRejectText),
+      focusedErrorBorder: _outline(kProviderRejectText, 1.6),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
 
-// ─── Primary pill button (green; disabled = pale green) ────────────────────────
+// ─── Primary button ───────────────────────────────────────────────────────────
 
 class ProviderPrimaryButton extends StatelessWidget {
   const ProviderPrimaryButton({
@@ -137,33 +100,11 @@ class ProviderPrimaryButton extends StatelessWidget {
   final bool isLoading;
 
   @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null && !isLoading;
-    return SizedBox(
-      height: 54,
-      width: double.infinity,
-      child: FilledButton(
-        onPressed: enabled ? onPressed : null,
-        style: FilledButton.styleFrom(
-          backgroundColor: kProviderGreen,
-          disabledBackgroundColor: kProviderGreenSoft,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
-        child: isLoading
-            ? const SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
-              )
-            : Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      KPrimaryButton(label: label, onPressed: onPressed, loading: isLoading);
 }
 
-// ─── Inline error banner ───────────────────────────────────────────────────────
+// ─── Inline error ─────────────────────────────────────────────────────────────
 
 class ProviderErrorText extends StatelessWidget {
   const ProviderErrorText(this.message, {super.key});
@@ -174,17 +115,12 @@ class ProviderErrorText extends StatelessWidget {
     if (message == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        message!,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: kProviderRejectText, fontSize: 13),
-      ),
+      child: KNotice(message!, tone: KTone.danger),
     );
   }
 }
 
-// ─── Confirmation dialog (illustration + title + message + actions) ────────────
-// Figma 2114 (Change Phone Number?), 2115 (success), 2163 (Edit Vehicle Details?).
+// ─── Confirmation dialog ──────────────────────────────────────────────────────
 
 Future<bool?> showProviderConfirmDialog(
   BuildContext context, {
@@ -193,71 +129,45 @@ Future<bool?> showProviderConfirmDialog(
   required String message,
   required String confirmLabel,
   String? cancelLabel,
-  Color confirmColor = kProviderGreen,
+  Color confirmColor = kNavy,
 }) {
+  final destructive = confirmColor == kProviderRejectText;
   return showDialog<bool>(
     context: context,
-    barrierColor: const Color(0x66000000),
     builder: (ctx) => Dialog(
-      backgroundColor: Colors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 96,
-              height: 96,
-              decoration: const BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
-              child: Icon(icon, color: kProviderGreen, size: 44),
+            KIconTile(
+              icon,
+              size: 64,
+              color: destructive ? kProviderRejectText : kTealText,
+              background: destructive ? kProviderRejectBg : kTealTint,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: kProviderText, fontSize: 19, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
+              style: const TextStyle(color: kProviderMuted, fontSize: 13.5, height: 1.5),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 54,
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: confirmColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                ),
-                child: Text(
-                  confirmLabel,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-              ),
+            const SizedBox(height: 22),
+            KPrimaryButton(
+              label: confirmLabel,
+              color: confirmColor,
+              onPressed: () => Navigator.of(ctx).pop(true),
             ),
             if (cancelLabel != null) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 54,
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: kProviderGreenSoft,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  child: Text(
-                    cancelLabel,
-                    style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w700, fontSize: 16),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 10),
+              KSecondaryButton(label: cancelLabel, onPressed: () => Navigator.of(ctx).pop(false)),
             ],
           ],
         ),

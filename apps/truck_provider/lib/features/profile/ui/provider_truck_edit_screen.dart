@@ -115,7 +115,6 @@ class _ProviderTruckEditScreenState extends State<ProviderTruckEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -252,8 +251,8 @@ class _GoodsRow extends StatelessWidget {
               height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: selected ? kProviderGreen : kProviderBorder, width: 2),
-                color: selected ? kProviderGreen : Colors.transparent,
+                border: Border.all(color: selected ? kTealText : kProviderBorder, width: 2),
+                color: selected ? kTealText : Colors.transparent,
               ),
               child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
             ),
@@ -284,7 +283,7 @@ class _YesNo extends StatelessWidget {
             height: 22,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: selected ? kProviderGreen : kProviderBorder, width: 2),
+              border: Border.all(color: selected ? kTealText : kProviderBorder, width: 2),
             ),
             child: selected
                 ? Center(

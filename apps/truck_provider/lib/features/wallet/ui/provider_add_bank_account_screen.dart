@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../models/wallet_models.dart';
 import '../state/provider_withdrawal_controller.dart';
@@ -78,7 +79,6 @@ class _ProviderAddBankAccountScreenState extends State<ProviderAddBankAccountScr
   Widget build(BuildContext context) {
     final c = widget.controller;
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: c,
         builder: (context, _) {
@@ -152,7 +152,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
+      style: const TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
     );
   }
 }
@@ -170,8 +170,9 @@ class _BankSelector extends StatelessWidget {
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F2F4),
+          color: kCard,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kProviderBorder),
         ),
         child: Row(
           children: [
@@ -210,11 +211,6 @@ class _AccountNumberField extends StatelessWidget {
       decoration: InputDecoration(
         counterText: '',
         hintText: 'Enter Acct No',
-        hintStyle: const TextStyle(color: kProviderMuted),
-        filled: true,
-        fillColor: const Color(0xFFF1F2F4),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       ),
     );
   }
@@ -233,8 +229,9 @@ class _AccountNameField extends StatelessWidget {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F2F4),
+        color: name == null ? kCanvas : kTealTint,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: name == null ? kProviderBorder : kTeal),
       ),
       child: Row(
         children: [
@@ -254,7 +251,7 @@ class _AccountNameField extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2, color: kProviderGreen),
             )
           else if (name != null)
-            const Icon(Icons.check_circle, color: kProviderGreen, size: 20),
+            const Icon(Icons.check_circle, color: kTealText, size: 20),
         ],
       ),
     );
@@ -267,17 +264,7 @@ class _ErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: kProviderRejectBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(color: kProviderRejectText, fontSize: 13),
-      ),
-    );
+    return KNotice(message, tone: KTone.danger);
   }
 }
 
@@ -299,7 +286,7 @@ class _BankPickerSheet extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Select bank',
-                  style: TextStyle(color: kProviderText, fontSize: 17, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: kProviderText, fontSize: 17, fontWeight: FontWeight.w700),
                 ),
               ),
             ),

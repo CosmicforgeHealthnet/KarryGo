@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../auth/models/provider_auth_models.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_trips_controller.dart';
@@ -48,7 +49,6 @@ class _ProviderTripsScreenState extends State<ProviderTripsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kProviderSurface,
       body: SafeArea(
         bottom: false,
         child: AnimatedBuilder(
@@ -58,50 +58,45 @@ class _ProviderTripsScreenState extends State<ProviderTripsScreen>
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ─── Header ─────────────────────────────────────────
                 const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'My Trips',
-                        style: TextStyle(
-                          color: kProviderText,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Manage all your past, present and future rides in one place',
-                        style: TextStyle(color: kProviderMuted, fontSize: 13, height: 1.4),
-                      ),
-                    ],
+                  padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
+                  child: KHeading(
+                    eyebrow: 'Your journeys',
+                    title: 'My Trips',
+                    subtitle: 'Every load you have carried, in one place.',
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // ─── Tabs ───────────────────────────────────────────
-                TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  labelColor: kProviderGreen,
-                  unselectedLabelColor: kProviderText,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                  indicatorColor: kProviderGreen,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  dividerColor: kProviderBorder,
-                  tabs: const [
-                    Tab(text: 'Completed'),
-                    Tab(text: 'Ongoing'),
-                    Tab(text: 'Cancelled'),
-                  ],
+                const SizedBox(height: 18),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    height: 44,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE9ECF1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: kCard,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: const [BoxShadow(color: Color(0x140B1F44), blurRadius: 6, offset: Offset(0, 2))],
+                      ),
+                      labelColor: kProviderText,
+                      unselectedLabelColor: kProviderMuted,
+                      labelStyle: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, fontSize: 13),
+                      unselectedLabelStyle: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w500, fontSize: 13),
+                      splashBorderRadius: BorderRadius.circular(11),
+                      tabs: [
+                        Tab(text: 'Completed${_count(c.completed.length)}'),
+                        Tab(text: 'Ongoing${_count(c.ongoing.length)}'),
+                        Tab(text: 'Cancelled${_count(c.cancelled.length)}'),
+                      ],
+                    ),
+                  ),
                 ),
-
-                // ─── Tab content ────────────────────────────────────
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -140,6 +135,9 @@ class _ProviderTripsScreenState extends State<ProviderTripsScreen>
       ),
     );
   }
+
+  /// Tab labels stay bare when empty so the count never reads "(0)".
+  String _count(int n) => n == 0 ? '' : ' · $n';
 }
 
 class _TripList extends StatelessWidget {
@@ -162,62 +160,39 @@ class _TripList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading && bookings.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: kProviderGreen),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
     if (error != null && bookings.isEmpty) {
-      return _Centered(
-        icon: Icons.error_outline_rounded,
-        label: 'Could not load trips.',
-        action: TextButton(onPressed: onRefresh, child: const Text('Retry')),
+      return Center(
+        child: KEmptyState(
+          icon: Icons.cloud_off_rounded,
+          title: 'Could not load trips.',
+          message: error,
+          actionLabel: 'Retry',
+          onAction: onRefresh,
+        ),
       );
     }
     if (bookings.isEmpty) {
       return RefreshIndicator(
-        color: kProviderGreen,
         onRefresh: onRefresh,
         child: ListView(
           children: [
-            const SizedBox(height: 120),
-            _Centered(icon: Icons.local_shipping_outlined, label: emptyLabel),
+            const SizedBox(height: 40),
+            KEmptyState(icon: Icons.local_shipping_outlined, title: emptyLabel),
           ],
         ),
       );
     }
     return RefreshIndicator(
-      color: kProviderGreen,
       onRefresh: onRefresh,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
         itemCount: bookings.length,
         itemBuilder: (context, i) => TripListCard(
           booking: bookings[i],
           onTap: () => onTap(bookings[i]),
         ),
-      ),
-    );
-  }
-}
-
-class _Centered extends StatelessWidget {
-  const _Centered({required this.icon, required this.label, this.action});
-
-  final IconData icon;
-  final String label;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: kProviderMuted),
-          const SizedBox(height: 12),
-          Text(label, style: const TextStyle(color: kProviderMuted, fontSize: 14)),
-          if (action != null) ...[const SizedBox(height: 8), action!],
-        ],
       ),
     );
   }

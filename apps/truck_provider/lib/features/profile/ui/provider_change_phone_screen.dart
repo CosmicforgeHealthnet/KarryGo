@@ -87,7 +87,6 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -136,7 +135,7 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(color: kProviderGreen, fontSize: 15, fontWeight: FontWeight.w600),
+                style: const TextStyle(color: kTealText, fontSize: 15, fontWeight: FontWeight.w600),
                 decoration: providerWhiteField('8067735987'),
               ),
             ),
@@ -174,7 +173,7 @@ class _ProviderChangePhoneScreenState extends State<ProviderChangePhoneScreen> {
               const TextSpan(text: 'We sent you a  6-digit code via your number\n'),
               TextSpan(
                 text: phone,
-                style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w700),
+                style: const TextStyle(color: kTealText, fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -297,11 +296,11 @@ class _ProviderOtpBoxesState extends State<ProviderOtpBoxes> {
               decoration: InputDecoration(
                 counterText: '',
                 filled: true,
-                fillColor: filled ? kProviderGreenTint : Colors.white,
+                fillColor: filled ? kTealTint : Colors.white,
                 contentPadding: EdgeInsets.zero,
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide(color: filled ? kProviderGreen : kProviderBorder, width: 1.5),
+                  borderSide: BorderSide(color: filled ? kTeal : kProviderBorder, width: 1.5),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),

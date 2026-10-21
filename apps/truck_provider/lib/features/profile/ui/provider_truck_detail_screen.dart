@@ -45,7 +45,6 @@ class ProviderTruckDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kProviderPageBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -234,7 +233,7 @@ class ProviderTruckDetailScreen extends StatelessWidget {
                 color: kProviderGreenTint,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(g, style: const TextStyle(color: kProviderGreen, fontSize: 13, fontWeight: FontWeight.w600)),
+              child: Text(g, style: const TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -251,12 +250,12 @@ class ProviderTruckDetailScreen extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: has ? kProviderGreenTint : kProviderRejectBg,
+              color: has ? kTealTint : kProviderRejectBg,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               has ? Icons.verified_user_outlined : Icons.gpp_maybe_outlined,
-              color: has ? kProviderGreen : kProviderRejectText,
+              color: has ? kTealText : kProviderRejectText,
               size: 22,
             ),
           ),
@@ -270,13 +269,13 @@ class ProviderTruckDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: has ? kProviderGreenTint : kProviderRejectBg,
+              color: has ? kTealTint : kProviderRejectBg,
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               has ? 'Yes' : 'No',
               style: TextStyle(
-                color: has ? kProviderGreen : kProviderRejectText,
+                color: has ? kTealText : kProviderRejectText,
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
               ),

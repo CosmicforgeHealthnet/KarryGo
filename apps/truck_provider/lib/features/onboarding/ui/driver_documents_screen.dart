@@ -114,8 +114,8 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      title: 'Driver Information!',
-      subtitle: 'You need to provide your driving documents and contact persons.',
+      title: 'Ready for the road.',
+      subtitle: 'Add clear copies of your driver documents and your contact persons.',
       step: 4,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

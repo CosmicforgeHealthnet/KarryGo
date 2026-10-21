@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/format/money_format.dart';
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../home/ui/widgets/provider_app_colors.dart';
 
-/// Circular back button + bold title (with optional subtitle) used across the
-/// withdrawal / payments flow screens.
+/// Back circle with a title (and optional subtitle) for the payments and
+/// withdrawal screens.
 class WalletFlowAppBar extends StatelessWidget {
   const WalletFlowAppBar({super.key, required this.title, this.subtitle, this.trailing});
 
@@ -15,21 +16,13 @@ class WalletFlowAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Row(
         children: [
-          GestureDetector(
+          KCircleButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Back',
             onTap: () => Navigator.of(context).maybePop(),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3))],
-              ),
-              child: const Icon(Icons.arrow_back, color: kProviderText, size: 20),
-            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -38,13 +31,10 @@ class WalletFlowAppBar extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(color: kProviderText, fontSize: 21, fontWeight: FontWeight.w800),
+                  style: const TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: const TextStyle(color: kProviderMuted, fontSize: 12.5),
-                  ),
+                  Text(subtitle!, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
               ],
             ),
           ),
@@ -55,35 +45,26 @@ class WalletFlowAppBar extends StatelessWidget {
   }
 }
 
-/// The solid-green "Amount to pay / Total / ₦X" card (Figma 2282 / 2283).
+/// Navy card showing the amount being withdrawn.
 class WalletAmountToPayCard extends StatelessWidget {
   const WalletAmountToPayCard({super.key, required this.naira});
   final double naira;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-      decoration: BoxDecoration(
-        color: kProviderGreen,
-        borderRadius: BorderRadius.circular(14),
-      ),
+    return KMoneyCard(
       child: Column(
         children: [
-          const Text(
-            'Amount to pay',
-            style: TextStyle(color: Colors.white, fontSize: 13),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Total',
-            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
-          ),
+          const KEyebrow('Amount to pay', color: Color(0xB3FFFFFF)),
+          const SizedBox(height: 4),
+          const Text('Total', style: TextStyle(fontSize: 13, color: Color(0xCCFFFFFF))),
           const SizedBox(height: 6),
-          Text(
-            '₦ ${formatNaira(naira)}',
-            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '₦ ${formatNaira(naira)}',
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700, letterSpacing: -0.8),
+            ),
           ),
         ],
       ),
@@ -91,7 +72,7 @@ class WalletAmountToPayCard extends StatelessWidget {
   }
 }
 
-/// A selectable saved-bank-account row with a leading radio indicator.
+/// A selectable saved bank account with a bank tile and radio indicator.
 class WalletBankAccountTile extends StatelessWidget {
   const WalletBankAccountTile({
     super.key,
@@ -110,72 +91,53 @@ class WalletBankAccountTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return KCard(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? kProviderGreen : kProviderBorder,
-            width: selected ? 1.4 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    accountName,
-                    style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    bankName,
-                    style: const TextStyle(color: kProviderText, fontSize: 13.5, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    accountNumber,
-                    style: const TextStyle(color: kProviderMuted, fontSize: 13),
-                  ),
-                ],
-              ),
+      borderColor: selected ? kTeal : kProviderBorder,
+      color: selected ? const Color(0xFFF4FCFB) : kCard,
+      child: Row(
+        children: [
+          const KIconTile(Icons.account_balance_rounded),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  accountName,
+                  style: const TextStyle(color: kProviderText, fontSize: 14.5, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(bankName, style: const TextStyle(color: kProviderText, fontSize: 13)),
+                const SizedBox(height: 1),
+                Text(accountNumber, style: const TextStyle(color: kProviderMuted, fontSize: 12.5)),
+              ],
             ),
-            _RadioDot(selected: selected),
-          ],
-        ),
+          ),
+          WalletRadioDot(selected: selected),
+        ],
       ),
     );
   }
 }
 
-class _RadioDot extends StatelessWidget {
-  const _RadioDot({required this.selected});
+/// Teal radio indicator.
+class WalletRadioDot extends StatelessWidget {
+  const WalletRadioDot({super.key, required this.selected});
   final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
       width: 22,
       height: 22,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: selected ? kProviderGreen : kProviderBorder, width: 2),
+        color: selected ? kTealText : Colors.transparent,
+        border: Border.all(color: selected ? kTealText : kProviderGreenSoft, width: 2),
       ),
-      child: selected
-          ? Center(
-              child: Container(
-                width: 11,
-                height: 11,
-                decoration: const BoxDecoration(color: kProviderGreen, shape: BoxShape.circle),
-              ),
-            )
-          : null,
+      child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
     );
   }
 }

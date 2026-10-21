@@ -42,7 +42,6 @@ class _ProviderSupportScreenState extends State<ProviderSupportScreen> {
   Widget build(BuildContext context) {
     final faqs = _faqs;
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -229,7 +228,6 @@ class _ProviderLiveChatScreenState extends State<ProviderLiveChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: widget.controller,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/format/money_format.dart';
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_withdrawal_controller.dart';
 import 'provider_withdrawal_receipt_screen.dart';
@@ -53,36 +54,50 @@ class _ProviderWithdrawalProcessingScreenState extends State<ProviderWithdrawalP
           );
         }
         return Scaffold(
-          backgroundColor: kProviderGreen,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Amount to pay', style: TextStyle(color: Colors.white, fontSize: 14)),
-                const SizedBox(height: 8),
-                const Text(
-                  'Total',
-                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '₦ ${formatNaira(naira)}',
-                  style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 40),
-                const SizedBox.square(
-                  dimension: 26,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-          bottomNavigationBar: const Padding(
-            padding: EdgeInsets.only(bottom: 40),
-            child: Text(
-              'Payment Processing...',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+          backgroundColor: kNavy,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  const Spacer(),
+                  const SizedBox.square(
+                    dimension: 64,
+                    child: CircularProgressIndicator(strokeWidth: 3, color: kTeal, backgroundColor: Color(0x22FFFFFF)),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Payment Processing...',
+                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Sending your money to the bank. Please keep the app open.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xB3FFFFFF), fontSize: 13.5, height: 1.45),
+                  ),
+                  const SizedBox(height: 32),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: const Color(0x14FFFFFF),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('Amount to pay · Total', style: TextStyle(color: Color(0xB3FFFFFF), fontSize: 12.5)),
+                        const SizedBox(height: 6),
+                        Text(
+                          '₦ ${formatNaira(naira)}',
+                          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(flex: 2),
+                ],
+              ),
             ),
           ),
         );
@@ -99,41 +114,22 @@ class _ErrorScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline_rounded, color: kProviderRejectText, size: 56),
-              const SizedBox(height: 16),
-              const Text(
-                'Withdrawal failed',
-                style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w800),
+              const Spacer(),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(color: kProviderRejectBg, shape: BoxShape.circle),
+                child: const Icon(Icons.error_outline_rounded, color: kProviderRejectText, size: 40),
               ),
-              const SizedBox(height: 10),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: kProviderMuted, fontSize: 14, height: 1.4),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton(
-                  onPressed: onBack,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: kProviderGreen,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  child: const Text(
-                    'Go back',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 20),
+              KHeading(center: true, title: 'Withdrawal failed', subtitle: message),
+              const Spacer(flex: 2),
+              KPrimaryButton(label: 'Go back', onPressed: onBack),
             ],
           ),
         ),

@@ -505,6 +505,45 @@ class ProviderBooking {
 
   double get fareEstimateNaira => (fareEstimateKobo ?? 0) / 100;
 
+  /// The settled fare when known, otherwise the estimate.
+  double get fareNaira => (fareFinalKobo ?? fareEstimateKobo ?? 0) / 100;
+
+  /// Rough driving time at a 30 km/h city average; null without a distance.
+  int? get estimatedMinutes {
+    final km = distanceKm;
+    return km == null ? null : (km / 30 * 60).round();
+  }
+
+  /// What is being moved: the package description, else the cargo type.
+  String get cargoTitle {
+    for (final v in [packageContent, cargoDescription]) {
+      if (v.trim().isNotEmpty) return v.trim();
+    }
+    final t = cargoType.replaceAll('_', ' ').trim();
+    return t.isEmpty ? 'Cargo' : t[0].toUpperCase() + t.substring(1);
+  }
+
+  /// "2,400 kg · Box Truck · Fragile" — the load at a glance.
+  String get cargoSummary {
+    final parts = <String>[
+      weightCategory.isNotEmpty ? weightCategory : '${_groupInt(cargoWeightKg)} kg',
+      if (preferredTruckType.isNotEmpty) truckTypeLabel(preferredTruckType),
+      if (helperCount > 0) '$helperCount helper${helperCount == 1 ? '' : 's'}',
+      if (isFragile) 'Fragile',
+    ];
+    return parts.join(' · ');
+  }
+
+  static String _groupInt(int v) {
+    final d = v.toString();
+    final b = StringBuffer();
+    for (var i = 0; i < d.length; i++) {
+      if (i > 0 && (d.length - i) % 3 == 0) b.write(',');
+      b.write(d[i]);
+    }
+    return b.toString();
+  }
+
   // Short display reference (first 8 chars of UUID)
   String get shortId =>
       id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();

@@ -26,3 +26,10 @@ String groupThousands(String digits) {
   }
   return buf.toString();
 }
+
+/// "₦32,500" for whole amounts and "₦32,500.50" otherwise — the headline
+/// format for fares and balances.
+String formatNairaShort(double naira) {
+  final full = formatNaira(naira);
+  return '₦${full.endsWith('.00') ? full.substring(0, full.length - 3) : full}';
+}

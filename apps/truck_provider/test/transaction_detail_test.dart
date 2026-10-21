@@ -60,16 +60,14 @@ Future<void> _pump(WidgetTester tester, ProviderTransactionDetailScreen s) async
 }
 
 void main() {
-  testWidgets('shows status, amount and commission breakdown', (tester) async {
+  testWidgets('shows status and the amount exactly as the server reports it', (tester) async {
     await _pump(tester, ProviderTransactionDetailScreen(txn: _txn(trip: false), controller: _controller()));
 
     expect(find.text('Transaction Details'), findsWidgets);
     expect(find.text('Successful'), findsOneWidget);
     expect(find.text('+₦24,000.00'), findsWidgets);
-    expect(find.text('Commission'), findsOneWidget);
-    expect(find.text('-10%'), findsOneWidget);
-    // Net = 24,000 - 10% = 21,600.
-    expect(find.text('₦21,600.00'), findsOneWidget);
+    // No invented deductions: the server sends no commission breakdown.
+    expect(find.text('Commission'), findsNothing);
     expect(find.text('Contact Support'), findsOneWidget);
   });
 
@@ -79,8 +77,8 @@ void main() {
 
     expect(paths.any((p) => p.contains('/provider/bookings/b1234567')), isTrue);
     expect(find.text('Anthonia Dipson'), findsWidgets);
-    expect(find.text('Pick-up'), findsOneWidget);
-    expect(find.text('Drop off'), findsOneWidget);
+    expect(find.text('PICKUP'), findsOneWidget);
+    expect(find.text('DELIVERY'), findsOneWidget);
     expect(find.text('Trip Fee:'), findsOneWidget);
   });
 

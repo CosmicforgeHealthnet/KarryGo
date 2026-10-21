@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_auth_controller.dart';
 
@@ -13,7 +14,7 @@ class ProviderAuthEntryScreen extends StatefulWidget {
 }
 
 class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
-  final _phoneCtrl = TextEditingController(text: '08011111001');
+  final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   bool _useEmail = false;
 
@@ -49,337 +50,95 @@ class _ProviderAuthEntryScreenState extends State<ProviderAuthEntryScreen> {
   Widget build(BuildContext context) {
     final state = widget.controller.state;
     return Scaffold(
-      backgroundColor: kProviderSurface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 48),
-
-              // ── Illustration ────────────────────────────────────────────
-              _Illustration(),
-              const SizedBox(height: 32),
-
-              // ── Headline ─────────────────────────────────────────────────
-              const Text(
-                'Welcome to KarryGo!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: kProviderText,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                "Let's get you moving.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: kProviderGreen,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _useEmail
-                    ? 'Enter your email to continue.'
-                    : 'Enter your phone number to continue.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: kProviderMuted, fontSize: 13),
-              ),
-              const SizedBox(height: 32),
-
-              // ── Contact label ────────────────────────────────────────────
-              Text(
-                _useEmail ? 'Enter your Email Address' : 'Enter your Phone Number',
-                style: const TextStyle(
-                  color: kProviderText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // ── Contact input (email or phone) ───────────────────────────
-              if (_useEmail)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: kProviderBorder),
-                  ),
-                  child: TextField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    onChanged: (_) => setState(() {}),
-                    onSubmitted: (_) => _submit(),
-                    decoration: const InputDecoration(
-                      hintText: 'you@example.com',
-                      hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: kProviderBorder),
-                  ),
-                  child: Row(
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('🇳🇬  +234', style: TextStyle(fontSize: 15, color: kProviderText)),
-                      ),
-                      Container(width: 1, height: 24, color: kProviderBorder),
-                      Expanded(
-                        child: TextField(
-                          controller: _phoneCtrl,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) => _submit(),
-                          decoration: const InputDecoration(
-                            hintText: '801 234 5678',
-                            hintStyle: TextStyle(color: kProviderMuted, fontSize: 14),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 6),
-              const Text(
-                "We'll send you a verification code.",
-                style: TextStyle(color: kProviderGreen, fontSize: 12),
-              ),
-              const SizedBox(height: 4),
-              GestureDetector(
-                onTap: _toggleMode,
-                child: Text(
-                  _useEmail ? 'Use phone number instead' : 'Use email address instead',
-                  style: const TextStyle(
-                    color: kProviderGreen,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-
-              if (state.error != null) ...[
-                const SizedBox(height: 8),
-                Text(state.error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-              ],
-              const SizedBox(height: 24),
-
-              // ── Continue button ──────────────────────────────────────────
-              _PillButton(
-                label: 'Continue',
-                isLoading: state.isLoading,
-                enabled: _valid && !state.isLoading,
-                onTap: _submit,
-              ),
-              const SizedBox(height: 20),
-
-              // ── Or divider ───────────────────────────────────────────────
-              const _OrDivider(),
-              const SizedBox(height: 20),
-
-              // ── Google button ────────────────────────────────────────────
-              _SocialButton(
-                label: 'Continue with Google',
-                icon: _googleIcon(),
-                backgroundColor: Colors.white,
-                textColor: kProviderText,
-                borderColor: kProviderBorder,
-                onTap: () => _showComingSoon(context),
-              ),
-              const SizedBox(height: 12),
-
-              // ── Apple button ─────────────────────────────────────────────
-              _SocialButton(
-                label: 'Continue with Apple',
-                icon: const Icon(Icons.apple, color: Colors.white, size: 20),
-                backgroundColor: kProviderText,
-                textColor: Colors.white,
-                onTap: () => _showComingSoon(context),
-              ),
-              const SizedBox(height: 24),
-
-              // // ── Log In link ──────────────────────────────────────────────
-              // GestureDetector(
-              //   onTap: () => _showComingSoon(context),
-              //   child: RichText(
-              //     textAlign: TextAlign.center,
-              //     text: const TextSpan(
-              //       style: TextStyle(color: kProviderMuted, fontSize: 13),
-              //       children: [
-              //         TextSpan(text: 'Already have an account? '),
-              //         TextSpan(
-              //           text: 'Log In',
-              //           style: TextStyle(
-              //             color: kProviderGreen,
-              //             fontWeight: FontWeight.w700,
-              //           ),
-              //         ),
-              //       ],
-              //     ),
-              //   ),
-              // ),
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming soon'), duration: Duration(seconds: 2)),
-    );
-  }
-
-  Widget _googleIcon() {
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: kProviderSurface,
-      ),
-      child: const Center(
-        child: Text('G', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF4285F4))),
-      ),
-    );
-  }
-}
-
-// ─── Illustration ─────────────────────────────────────────────────────────────
-
-class _Illustration extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/figma/auth_car_header.png',
-      height: 92,
-      fit: BoxFit.contain,
-      alignment: Alignment.centerLeft,
-    );
-  }
-}
-
-// ─── Shared widgets ───────────────────────────────────────────────────────────
-
-class _PillButton extends StatelessWidget {
-  const _PillButton({
-    required this.label,
-    required this.onTap,
-    this.isLoading = false,
-    this.enabled = true,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool isLoading;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: FilledButton(
-        onPressed: enabled ? onTap : null,
-        style: FilledButton.styleFrom(
-          backgroundColor: kProviderGreen,
-          disabledBackgroundColor: kProviderGreen.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
-        child: isLoading
-            ? const SizedBox.square(
-                dimension: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
-      ),
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(child: Divider(color: kProviderBorder, thickness: 1)),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text('Or', style: TextStyle(color: kProviderMuted, fontSize: 13)),
-        ),
-        const Expanded(child: Divider(color: kProviderBorder, thickness: 1)),
-      ],
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  const _SocialButton({
-    required this.label,
-    required this.icon,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.onTap,
-    this.borderColor,
-  });
-
-  final String label;
-  final Widget icon;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color? borderColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(999),
-          border: borderColor != null ? Border.all(color: borderColor!) : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            icon,
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
+            const KBrandHero(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  KEyebrow('Karryam truck partner', color: Color(0xFF99E7DC)),
+                  SizedBox(height: 8),
+                  Text(
+                    'Your road\nstarts here.',
+                    style: TextStyle(fontSize: 30, height: 1.12, fontWeight: FontWeight.w700, letterSpacing: -0.8),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _useEmail
+                        ? 'Sign in or join Karryam with your email address.'
+                        : 'Sign in or join Karryam with your phone number.',
+                    style: const TextStyle(color: kProviderMuted, fontSize: 14, height: 1.45),
+                  ),
+                  const SizedBox(height: 20),
+                  KFieldLabel(_useEmail ? 'Email address' : 'Phone number'),
+                  if (_useEmail)
+                    TextField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _submit(),
+                      decoration: const InputDecoration(
+                        hintText: 'you@example.com',
+                        prefixIcon: Icon(Icons.mail_outline_rounded, color: kProviderMuted),
+                      ),
+                    )
+                  else
+                    TextField(
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _submit(),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: 0.4),
+                      decoration: const InputDecoration(
+                        hintText: '0801 234 5678',
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.only(left: 16, right: 10),
+                          child: Text('🇳🇬  +234', style: TextStyle(fontSize: 15, color: kProviderText)),
+                        ),
+                        prefixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "We'll send you a verification code.",
+                    style: TextStyle(color: kProviderMuted, fontSize: 12.5),
+                  ),
+                  if (state.error != null) ...[
+                    const SizedBox(height: 14),
+                    KNotice(state.error!, tone: KTone.danger),
+                  ],
+                  const SizedBox(height: 22),
+                  KPrimaryButton(
+                    label: 'Send verification code',
+                    arrow: true,
+                    loading: state.isLoading,
+                    onPressed: _valid ? _submit : null,
+                  ),
+                  const SizedBox(height: 12),
+                  KSecondaryButton(
+                    label: _useEmail ? 'Use phone number instead' : 'Use email address instead',
+                    icon: _useEmail ? Icons.phone_iphone_rounded : Icons.mail_outline_rounded,
+                    onPressed: _toggleMode,
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'By continuing you agree to the Karryam partner terms and privacy policy.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: kProviderMuted, fontSize: 12, height: 1.4),
+                  ),
+                ],
               ),
             ),
           ],

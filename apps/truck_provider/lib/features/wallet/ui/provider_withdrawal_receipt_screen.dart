@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/format/money_format.dart';
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_withdrawal_controller.dart';
 
@@ -19,13 +20,7 @@ class ProviderWithdrawalReceiptScreen extends StatelessWidget {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF2761A7), Color(0xFF05124D)],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: kProviderBalanceGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -33,7 +28,7 @@ class ProviderWithdrawalReceiptScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(vertical: 18),
                 child: Text(
                   'Withdrawal Receipt',
-                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
                 ),
               ),
               Expanded(
@@ -118,7 +113,7 @@ class _ReceiptCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '₦ ${formatNaira(naira)}',
-              style: const TextStyle(color: kProviderGreen, fontSize: 24, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: kTealText, fontSize: 24, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 20),
             const _DashedDivider(),
@@ -133,30 +128,9 @@ class _ReceiptCard extends StatelessWidget {
             const SizedBox(height: 12),
             _PaymentToTile(accountName: accountName, bankName: bankName, accountNumber: accountNumber),
             const SizedBox(height: 28),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton(
-                onPressed: onDone,
-                style: FilledButton.styleFrom(
-                  backgroundColor: kProviderGreen,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                ),
-                child: const Text(
-                  'Done',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: onDownload,
-              behavior: HitTestBehavior.opaque,
-              child: const Text(
-                'Copy Receipt',
-                style: TextStyle(color: kProviderText, fontSize: 14, fontWeight: FontWeight.w700),
-              ),
-            ),
+            KPrimaryButton(label: 'Done', onPressed: onDone),
+            const SizedBox(height: 10),
+            KSecondaryButton(label: 'Copy Receipt', icon: Icons.copy_rounded, onPressed: onDownload),
           ],
         ),
       ),
@@ -172,12 +146,15 @@ class _SuccessSeal extends StatelessWidget {
     return Container(
       width: 96,
       height: 96,
-      decoration: BoxDecoration(
-        color: kProviderGreenTint,
-        shape: BoxShape.circle,
-        border: Border.all(color: kProviderGreen, width: 3),
+      decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
+      child: Center(
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(color: kTeal, shape: BoxShape.circle),
+          child: const Icon(Icons.check_rounded, color: kNavy, size: 38),
+        ),
       ),
-      child: const Icon(Icons.check, color: kProviderGreen, size: 46),
     );
   }
 }
@@ -206,8 +183,8 @@ class _PaymentToTile extends StatelessWidget {
           Container(
             width: 38,
             height: 38,
-            decoration: const BoxDecoration(color: kProviderGreenTint, shape: BoxShape.circle),
-            child: const Icon(Icons.south_west_rounded, color: kProviderGreen, size: 20),
+            decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
+            child: const Icon(Icons.account_balance_rounded, color: kTealText, size: 19),
           ),
           const SizedBox(width: 12),
           Expanded(

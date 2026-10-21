@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../../auth/state/provider_auth_controller.dart';
 
@@ -10,122 +11,74 @@ class VerificationPendingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kProviderSurface,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-
-              // ── Celebration illustration ──────────────────────────────
-              Center(
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    color: kProviderGreenTint,
-                    shape: BoxShape.circle,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: const BoxDecoration(color: kTealTint, shape: BoxShape.circle),
+                      child: const Icon(Icons.hourglass_top_rounded, size: 44, color: kTealText),
+                    ),
                   ),
-                  child: const Stack(
-                    alignment: Alignment.center,
+                  const SizedBox(height: 20),
+                  const Center(child: KStatusChip('Verification in review', tone: KTone.warning)),
+                  const SizedBox(height: 14),
+                  const KHeading(
+                    center: true,
+                    title: "You're nearly there.",
+                    subtitle:
+                        "Your details are submitted. Our team reviews them within 1–2 business days, and we'll notify you once your account is ready.",
+                  ),
+                  const SizedBox(height: 28),
+                  const KGroup(
                     children: [
-                      Icon(Icons.verified_rounded, size: 80, color: kProviderGreen),
+                      _Item(icon: Icons.person_outline_rounded, title: 'Personal details', detail: 'Received'),
+                      _Item(icon: Icons.badge_outlined, title: 'Driver documents', detail: 'Received'),
+                      _Item(icon: Icons.local_shipping_outlined, title: 'Truck information', detail: 'Received'),
+                      _Item(icon: Icons.notifications_none_rounded, title: 'Approval', detail: "We'll notify you", done: false),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // ── Title ─────────────────────────────────────────────────
-              const Text(
-                'Profile submitted,\nVerification Pending!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: kProviderText,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  height: 1.3,
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Your profile is under review by our team. We\'ll notify you once verification is complete — this usually takes 1–2 business days.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: kProviderMuted, fontSize: 14, height: 1.6),
-              ),
-
-              const Spacer(),
-
-              // ── Bullet points ─────────────────────────────────────────
-              _BulletPoint(
-                icon: Icons.schedule_rounded,
-                text: 'Verification takes 1–2 business days.',
-              ),
-              const SizedBox(height: 10),
-              _BulletPoint(
-                icon: Icons.notifications_rounded,
-                text: 'You\'ll receive a notification once approved.',
-              ),
-              const SizedBox(height: 10),
-              _BulletPoint(
-                icon: Icons.help_outline_rounded,
-                text: 'Contact support if you have any questions.',
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── CTA button ────────────────────────────────────────────
-              SizedBox(
-                height: 52,
-                child: FilledButton(
-                  onPressed: controller.goToDashboard,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: kProviderGreen,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  const SizedBox(height: 16),
+                  const KNotice(
+                    'Questions? Reach support from Profile → Support once you are in.',
+                    tone: KTone.info,
                   ),
-                  child: const Text(
-                    'Go to dashboard',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: KPrimaryButton(label: 'Go to dashboard', arrow: true, onPressed: controller.goToDashboard),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _BulletPoint extends StatelessWidget {
-  const _BulletPoint({required this.icon, required this.text});
+class _Item extends StatelessWidget {
+  const _Item({required this.icon, required this.title, required this.detail, this.done = true});
   final IconData icon;
-  final String text;
+  final String title;
+  final String detail;
+  final bool done;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: const BoxDecoration(
-            color: kProviderGreenTint,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: kProviderGreen, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(color: kProviderText, fontSize: 13, height: 1.4),
-          ),
-        ),
-      ],
+    return KListRow(
+      icon: icon,
+      title: title,
+      subtitle: detail,
+      trailing: done
+          ? const Icon(Icons.check_circle_rounded, color: kTealText, size: 20)
+          : const Icon(Icons.schedule_rounded, color: kWarning, size: 20),
     );
   }
 }

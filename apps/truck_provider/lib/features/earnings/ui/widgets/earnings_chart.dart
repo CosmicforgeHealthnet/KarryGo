@@ -97,8 +97,8 @@ class _ChartPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          kProviderGreen.withValues(alpha: 0.45),
-          kProviderGreen.withValues(alpha: 0.02),
+          kTeal.withValues(alpha: 0.45),
+          kTeal.withValues(alpha: 0.02),
         ],
       ).createShader(Rect.fromLTRB(0, chartTop, size.width, chartBottom));
     canvas.drawPath(fillPath, fillPaint);
@@ -107,7 +107,7 @@ class _ChartPainter extends CustomPainter {
     canvas.drawPath(
       linePath,
       Paint()
-        ..color = kProviderGreen
+        ..color = kTeal
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round
@@ -181,7 +181,7 @@ class _ChartPainter extends CustomPainter {
       point,
       6,
       Paint()
-        ..color = kProviderGreen
+        ..color = kTeal
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -206,14 +206,14 @@ class _ChartPainter extends CustomPainter {
       Rect.fromLTWH(left, top, bubbleW, bubbleH),
       const Radius.circular(8),
     );
-    canvas.drawRRect(rect, Paint()..color = kProviderGreen);
+    canvas.drawRRect(rect, Paint()..color = kNavy);
     // Little pointer triangle.
     final tri = Path()
       ..moveTo(point.dx - 5, top + bubbleH)
       ..lineTo(point.dx + 5, top + bubbleH)
       ..lineTo(point.dx, top + bubbleH + 6)
       ..close();
-    canvas.drawPath(tri, Paint()..color = kProviderGreen);
+    canvas.drawPath(tri, Paint()..color = kNavy);
     tp.paint(canvas, Offset(left + padH, top + padV));
   }
 

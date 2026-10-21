@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../disputes/state/provider_dispute_controller.dart';
 import 'provider_app_colors.dart';
 
@@ -14,8 +15,6 @@ Future<void> showProviderSosSheet(
 }) {
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (_) => _SosSheet(support: support, bookingId: bookingId),
   );
 }
@@ -30,7 +29,6 @@ class _SosSheet extends StatefulWidget {
 }
 
 class _SosSheetState extends State<_SosSheet> {
-  static const _danger = Color(0xFFD32F2F);
   bool _sending = false;
   bool _sent = false;
   String? _error;
@@ -69,54 +67,60 @@ class _SosSheetState extends State<_SosSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.sos_rounded, color: _danger, size: 44),
-            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(color: kProviderRejectBg, shape: BoxShape.circle),
+                child: const Icon(Icons.sos_rounded, color: kProviderRejectText, size: 32),
+              ),
+            ),
+            const SizedBox(height: 14),
             const Text(
               'Are you in danger?',
               textAlign: TextAlign.center,
-              style: TextStyle(color: kProviderText, fontSize: 18, fontWeight: FontWeight.w800),
+              style: TextStyle(color: kProviderText, fontSize: 20, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 18),
-            SizedBox(
-              height: 52,
-              child: FilledButton(
-                onPressed: () => launchUrl(Uri(scheme: 'tel', path: '112')),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _danger,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                ),
-                child: const Text('Call emergency services (112)', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
+            const SizedBox(height: 6),
+            const Text(
+              'Call emergency services first. You can also alert Karryam support with your location.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: kProviderMuted, fontSize: 13.5, height: 1.45),
+            ),
+            const SizedBox(height: 20),
+            KPrimaryButton(
+              label: 'Call emergency services (112)',
+              icon: Icons.call_rounded,
+              color: kProviderRejectText,
+              onPressed: () => launchUrl(Uri(scheme: 'tel', path: '112')),
             ),
             const SizedBox(height: 10),
             if (_sent)
-              const Text(
+              const KNotice(
                 'Karryam support has your alert and location. Stay on the line with 112 if you can.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: kProviderText, fontSize: 13),
+                tone: KTone.success,
               )
             else
-              OutlinedButton(
-                onPressed: _sending ? null : _alert,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                ),
-                child: Text(_sending ? 'Sending alert…' : 'Alert Karryam support',
-                    style: const TextStyle(color: kProviderText)),
+              KSecondaryButton(
+                label: _sending ? 'Sending alert…' : 'Alert Karryam support',
+                icon: Icons.support_agent_rounded,
+                loading: _sending,
+                onPressed: _alert,
               ),
             if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: _danger, fontSize: 12)),
+              const SizedBox(height: 10),
+              KNotice(_error!, tone: KTone.danger),
             ],
+            const SizedBox(height: 4),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close', style: TextStyle(color: kProviderMuted)),
+              style: TextButton.styleFrom(foregroundColor: kProviderMuted),
+              child: const Text('Close'),
             ),
           ],
         ),

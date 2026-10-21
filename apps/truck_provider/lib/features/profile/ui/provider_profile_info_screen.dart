@@ -134,7 +134,6 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
     final photoUrl = widget.profileController.profile?.profilePhotoUrl;
 
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -193,7 +192,7 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                               ),
                               child: const Text('Delete',
-                                  style: TextStyle(color: kProviderGreen, fontWeight: FontWeight.w700, fontSize: 13)),
+                                  style: TextStyle(color: kTealText, fontWeight: FontWeight.w700, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -218,7 +217,7 @@ class _ProviderProfileInfoScreenState extends State<ProviderProfileInfoScreen> {
                       GestureDetector(
                         onTap: _changePhone,
                         child: const Text('Change',
-                            style: TextStyle(color: kProviderGreen, fontSize: 13, fontWeight: FontWeight.w700)),
+                            style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w700)),
                       ),
                     ],
                   ),

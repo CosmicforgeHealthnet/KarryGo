@@ -58,7 +58,6 @@ class _ProviderLogDisputesScreenState extends State<ProviderLogDisputesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: widget.disputeController,
         builder: (context, _) {
@@ -140,7 +139,7 @@ class _FeedbackSection extends StatelessWidget {
               ),
               const Text(
                 'More',
-                style: TextStyle(color: kProviderGreen, fontSize: 13, fontWeight: FontWeight.w600),
+                style: TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ],
           ),

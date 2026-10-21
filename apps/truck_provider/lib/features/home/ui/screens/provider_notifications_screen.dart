@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/format/date_format.dart';
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../notifications/models/provider_notification.dart';
 import '../../../notifications/state/provider_notification_controller.dart';
 import '../widgets/provider_app_colors.dart';
 
-/// Notifications screen (Figma 2119), backed by the real notification feed.
+/// The driver's notification feed, grouped by day.
 class ProviderNotificationsScreen extends StatefulWidget {
   const ProviderNotificationsScreen({super.key, required this.controller});
 
@@ -24,37 +26,7 @@ class _ProviderNotificationsScreenState extends State<ProviderNotificationsScree
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 12),
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(color: Color(0xFFF7F8F7), shape: BoxShape.circle),
-              child: const Icon(Icons.arrow_back_rounded, color: kProviderText, size: 20),
-            ),
-          ),
-        ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Notifications',
-              style: TextStyle(color: kProviderText, fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-            Text(
-              'Manage your Notifications and Activities here.',
-              style: TextStyle(color: kProviderMuted, fontSize: 11),
-            ),
-          ],
-        ),
-        titleSpacing: 0,
-      ),
+      appBar: const KTopBar(title: 'Notifications'),
       body: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {
@@ -62,52 +34,51 @@ class _ProviderNotificationsScreenState extends State<ProviderNotificationsScree
           final items = controller.notifications;
 
           if (controller.isLoading && items.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(color: kProviderGreen),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
           if (controller.error != null && items.isEmpty) {
-            return _FeedMessage(
-              icon: Icons.cloud_off_rounded,
-              message: controller.error!,
-              actionLabel: 'Try again',
-              onAction: controller.refresh,
-            );
-          }
-          if (items.isEmpty) {
-            return _FeedMessage(
-              icon: Icons.notifications_none_rounded,
-              message: 'No notifications yet.\nBooking updates will show up here.',
-              actionLabel: 'Refresh',
-              onAction: controller.refresh,
+            return Center(
+              child: KEmptyState(
+                icon: Icons.cloud_off_rounded,
+                title: "Couldn't load updates",
+                message: controller.error!,
+                actionLabel: 'Try again',
+                onAction: controller.refresh,
+              ),
             );
           }
 
-          final groups = _groupByDay(items);
+          final groups = <String, List<ProviderNotification>>{};
+          for (final item in items) {
+            groups.putIfAbsent(formatRelativeDay(item.createdAt), () => []).add(item);
+          }
+
           return RefreshIndicator(
-            color: kProviderGreen,
             onRefresh: controller.refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
               children: [
-                for (final entry in groups.entries) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-                    child: Text(
-                      entry.key,
-                      style: const TextStyle(
-                        color: kProviderMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                const KHeading(
+                  title: 'Your updates.',
+                  subtitle: 'Requests, trips, payouts and account news.',
+                ),
+                if (items.isEmpty)
+                  const KEmptyState(
+                    icon: Icons.notifications_none_rounded,
+                    title: 'Nothing new yet',
+                    message: 'Booking and payout updates will show up here.',
                   ),
-                  for (final item in entry.value)
-                    _NotificationRow(
-                      item: item,
-                      isUnread: controller.isUnread(item),
-                    ),
+                for (final entry in groups.entries) ...[
+                  const SizedBox(height: 22),
+                  KEyebrow(entry.key),
+                  const SizedBox(height: 10),
+                  KGroup(
+                    children: [
+                      for (final item in entry.value)
+                        _NotificationRow(item: item, isUnread: controller.isUnread(item)),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -115,27 +86,6 @@ class _ProviderNotificationsScreenState extends State<ProviderNotificationsScree
         },
       ),
     );
-  }
-
-  /// Groups notifications (already newest-first) into day buckets, preserving order.
-  Map<String, List<ProviderNotification>> _groupByDay(List<ProviderNotification> items) {
-    final groups = <String, List<ProviderNotification>>{};
-    for (final item in items) {
-      groups.putIfAbsent(_dayLabel(item.createdAt), () => []).add(item);
-    }
-    return groups;
-  }
-
-  String _dayLabel(DateTime time) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(time.year, time.month, time.day);
-    final diff = today.difference(day).inDays;
-    if (diff <= 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
-    if (diff < 7) return '$diff days ago';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${day.day} ${months[day.month - 1]}${day.year == now.year ? '' : ' ${day.year}'}';
   }
 }
 
@@ -145,88 +95,62 @@ class _NotificationRow extends StatelessWidget {
   final ProviderNotification item;
   final bool isUnread;
 
+  IconData get _icon {
+    final t = '${item.eventType} ${item.title}'.toLowerCase();
+    if (t.contains('withdraw') || t.contains('payout') || t.contains('transfer')) return Icons.north_east_rounded;
+    if (t.contains('cancel') || t.contains('unmatched')) return Icons.close_rounded;
+    if (t.contains('deliver') || t.contains('complete')) return Icons.check_rounded;
+    if (t.contains('verif') || t.contains('approv')) return Icons.verified_outlined;
+    if (t.contains('match') || t.contains('request')) return Icons.inbox_rounded;
+    if (t.contains('pickup') || t.contains('picked')) return Icons.inventory_2_outlined;
+    return Icons.notifications_none_rounded;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final message = item.body.isNotEmpty ? item.body : item.title;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
-      ),
+    final hasTitle = item.title.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: isUnread ? kProviderGreen : kProviderGreenPale,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: isUnread ? kProviderText : kProviderMuted,
-                fontSize: 13,
-                fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
-                height: 1.4,
-              ),
-            ),
+          KIconTile(
+            _icon,
+            color: isUnread ? kTealText : kProviderMuted,
+            background: isUnread ? kTealTint : const Color(0xFFEEF0F3),
           ),
           const SizedBox(width: 12),
-          Text(
-            _formatTime(item.createdAt),
-            style: const TextStyle(color: kProviderMuted, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    final hour12 = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.hour < 12 ? 'AM' : 'PM';
-    return '$hour12:$minute $period';
-  }
-}
-
-class _FeedMessage extends StatelessWidget {
-  const _FeedMessage({
-    required this.icon,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-  });
-
-  final IconData icon;
-  final String message;
-  final String actionLabel;
-  final Future<void> Function() onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: kProviderMuted),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: onAction,
-            child: Text(
-              actionLabel,
-              style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w700),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasTitle ? item.title : item.body,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isUnread ? FontWeight.w700 : FontWeight.w600,
+                    color: kProviderText,
+                  ),
+                ),
+                if (hasTitle && item.body.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    item.body,
+                    style: const TextStyle(fontSize: 12.5, height: 1.4, color: kProviderMuted),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Text(formatClock(item.createdAt), style: const TextStyle(fontSize: 11.5, color: kProviderMuted)),
+              ],
             ),
           ),
+          if (isUnread)
+            Container(
+              margin: const EdgeInsets.only(left: 8, top: 4),
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(color: kTeal, shape: BoxShape.circle),
+            ),
         ],
       ),
     );

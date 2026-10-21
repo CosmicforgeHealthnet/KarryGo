@@ -53,7 +53,6 @@ class _ProviderTruckInfoScreenState extends State<ProviderTruckInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kProviderPageBg,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: widget.profileController,

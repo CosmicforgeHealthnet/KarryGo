@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../auth/models/provider_auth_models.dart';
 import '../../auth/state/provider_auth_controller.dart';
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import 'onboarding_shared_widgets.dart';
 
@@ -101,12 +102,14 @@ class _TruckInfoScreenState extends State<TruckInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      title: 'Truck Information',
+      title: 'Meet your truck.',
       subtitle: 'Tell us about the truck you will haul with. You can add more trucks later.',
       step: 5,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Center(child: KTruckIllustration(width: 220)),
+          const SizedBox(height: 24),
           const OnboardingSectionLabel('Truck Type'),
           DropdownButtonFormField<String>(
             initialValue: _truckType,
@@ -246,8 +249,8 @@ class _GoodsRow extends StatelessWidget {
               height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: selected ? kProviderGreen : kProviderBorder, width: 2),
-                color: selected ? kProviderGreen : Colors.transparent,
+                border: Border.all(color: selected ? kTealText : kProviderBorder, width: 2),
+                color: selected ? kTealText : Colors.transparent,
               ),
               child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
             ),
@@ -278,14 +281,14 @@ class _YesNo extends StatelessWidget {
             height: 22,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: selected ? kProviderGreen : kProviderBorder, width: 2),
+              border: Border.all(color: selected ? kTealText : kProviderBorder, width: 2),
             ),
             child: selected
                 ? Center(
                     child: Container(
                       width: 12,
                       height: 12,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: kProviderGreen),
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: kTealText),
                     ),
                   )
                 : null,

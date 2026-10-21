@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/karryam_ui.dart';
 import '../../../home/ui/widgets/provider_app_colors.dart';
 
 /// Custom numeric keypad used by the withdrawal amount form (Figma 2281) and the
@@ -9,7 +10,7 @@ class WalletKeypad extends StatelessWidget {
     super.key,
     required this.onDigit,
     required this.onDelete,
-    this.deleteTint = const Color(0xFFEDEFF3),
+    this.deleteTint = const Color(0xFFE9ECF1),
   });
 
   final ValueChanged<String> onDigit;
@@ -18,7 +19,7 @@ class WalletKeypad extends StatelessWidget {
   /// Background tint of the delete key (green-tinted on the PIN screen).
   final Color deleteTint;
 
-  static const _digitColor = Color(0xFF374357);
+  static const _digitColor = kProviderText;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +30,7 @@ class WalletKeypad extends StatelessWidget {
             style: const TextStyle(
               color: _digitColor,
               fontSize: 26,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         );
@@ -90,7 +91,7 @@ class _KeypadButton extends StatelessWidget {
   }
 }
 
-/// Shared "Withdraw Now" / primary pill button used across the withdrawal flow.
+/// Primary action used across the withdrawal flow.
 class WalletPrimaryButton extends StatelessWidget {
   const WalletPrimaryButton({
     super.key,
@@ -104,32 +105,6 @@ class WalletPrimaryButton extends StatelessWidget {
   final bool loading;
 
   @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: FilledButton(
-        onPressed: enabled ? onPressed : null,
-        style: FilledButton.styleFrom(
-          backgroundColor: kProviderGreen,
-          disabledBackgroundColor: kProviderGreenSoft,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        ),
-        child: loading
-            ? const SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      KPrimaryButton(label: label, onPressed: onPressed, loading: loading);
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_withdrawal_controller.dart';
 import 'provider_bank_accounts_screen.dart';
@@ -28,7 +29,6 @@ class ProviderWithdrawalConfirmScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
@@ -44,10 +44,10 @@ class ProviderWithdrawalConfirmScreen extends StatelessWidget {
                     children: [
                       WalletAmountToPayCard(naira: controller.amountKobo / 100),
                       const SizedBox(height: 16),
-                      const Text(
+                      const KNotice(
                         'Your withdrawal will be processed into your default account',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: kProviderGreen, fontSize: 13, fontWeight: FontWeight.w500),
+                        tone: KTone.success,
+                        icon: Icons.account_balance_rounded,
                       ),
                       const SizedBox(height: 16),
                       if (account != null)
@@ -69,7 +69,7 @@ class ProviderWithdrawalConfirmScreen extends StatelessWidget {
                           behavior: HitTestBehavior.opaque,
                           child: const Text(
                             'Change default account',
-                            style: TextStyle(color: kProviderGreen, fontSize: 14, fontWeight: FontWeight.w700),
+                            style: TextStyle(color: kTealText, fontSize: 14, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ),
@@ -100,35 +100,19 @@ class _NoAccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: kProviderSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kProviderBorder),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.account_balance_outlined, color: kProviderMuted, size: 32),
-          const SizedBox(height: 10),
-          Text(
-            loading ? 'Loading your accounts…' : 'No payout account yet.',
-            style: const TextStyle(color: kProviderMuted, fontSize: 13.5),
-          ),
-          if (!loading) ...[
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: onAdd,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: kProviderGreen,
-                side: const BorderSide(color: kProviderGreen),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              ),
-              child: const Text('Add bank account'),
+    return KCard(
+      child: loading
+          ? const Padding(
+              padding: EdgeInsets.all(12),
+              child: Center(child: Text('Loading your accounts…', style: TextStyle(color: kProviderMuted))),
+            )
+          : KEmptyState(
+              icon: Icons.account_balance_outlined,
+              title: 'No payout account yet.',
+              message: 'Add the bank account your earnings should go to.',
+              actionLabel: 'Add bank account',
+              onAction: onAdd,
             ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -147,12 +131,12 @@ class _TermsText extends StatelessWidget {
             const TextSpan(text: 'By completing payment, you agree to the '),
             TextSpan(
               text: 'terms and conditions',
-              style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: kTealText, fontWeight: FontWeight.w600),
             ),
             const TextSpan(text: ' and acknowledge the '),
             TextSpan(
               text: 'privacy policy',
-              style: const TextStyle(color: kProviderGreen, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: kTealText, fontWeight: FontWeight.w600),
             ),
           ],
         ),

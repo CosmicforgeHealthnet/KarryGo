@@ -73,6 +73,8 @@ void main() {
   }
 
   Future<void> pump(WidgetTester tester, ProviderEarningsController controller) async {
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(MaterialApp(
       home: ProviderEarningsScreen(controller: controller),
     ));
@@ -94,9 +96,9 @@ void main() {
     expect(find.text("Today's Earnings"), findsOneWidget);
 
     // Stats
-    expect(find.text('Trips Completed Today'), findsOneWidget);
+    expect(find.text('TRIPS COMPLETED TODAY'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
-    expect(find.text('Hours Online'), findsOneWidget);
+    expect(find.text('HOURS ONLINE'), findsOneWidget);
 
     // Transaction
     expect(find.text('Anthonia Dipson'), findsOneWidget);

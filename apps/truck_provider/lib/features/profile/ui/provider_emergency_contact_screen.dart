@@ -80,7 +80,6 @@ class _ProviderEmergencyContactScreenState extends State<ProviderEmergencyContac
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _controller,

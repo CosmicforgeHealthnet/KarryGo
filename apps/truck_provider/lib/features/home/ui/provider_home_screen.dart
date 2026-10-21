@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../auth/state/provider_auth_controller.dart';
 import '../../earnings/state/provider_earnings_controller.dart';
@@ -139,7 +138,6 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
         final pendingCount = state.pendingRequests.length;
 
         return Scaffold(
-          backgroundColor: Colors.white,
           body: IndexedStack(
             index: _tabIndex,
             children: [
@@ -147,7 +145,10 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                 authController: widget.authController,
                 homeController: widget.homeController,
                 state: state,
+                earningsController: widget.earningsController,
                 onNotificationsTap: _openNotifications,
+                onViewRequests: () => _onTabTap(1),
+                onViewEarnings: () => _onTabTap(3),
               ),
               ProviderRequestsScreen(
                 homeController: widget.homeController,
@@ -193,37 +194,38 @@ class _ProviderBottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static final _items = <(_NavIcon, String)>[
-    (_NavIcon.svg('assets/figma/House_01.svg'), 'Home'),
-    (_NavIcon.svg('assets/figma/Group 1000004752.svg'), 'Requests'),
-    (_NavIcon.icon(Icons.calendar_month_rounded), 'Trips'),
+    (_NavIcon.icon(Icons.home_rounded), 'Home'),
+    (_NavIcon.icon(Icons.inbox_rounded), 'Requests'),
+    (_NavIcon.icon(Icons.local_shipping_rounded), 'Trips'),
     (_NavIcon.icon(Icons.account_balance_wallet_rounded), 'Earnings'),
-    (_NavIcon.svg('assets/figma/user.svg'), 'Profile'),
+    (_NavIcon.icon(Icons.person_rounded), 'Profile'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 20, offset: Offset(0, 6))],
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: kCard,
+        border: Border(top: BorderSide(color: kProviderBorder)),
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (var i = 0; i < _items.length; i++)
-              _NavItem(
-                icon: _items[i].$1,
-                label: _items[i].$2,
-                selected: selectedIndex == i,
-                badge: i == 1 && pendingCount > 0 ? pendingCount : null,
-                onTap: () => onTap(i),
-              ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+          child: Row(
+            children: [
+              for (var i = 0; i < _items.length; i++)
+                Expanded(
+                  child: _NavItem(
+                    icon: _items[i].$1,
+                    label: _items[i].$2,
+                    selected: selectedIndex == i,
+                    badge: i == 1 && pendingCount > 0 ? pendingCount : null,
+                    onTap: () => onTap(i),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -247,78 +249,82 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final color = selected ? kNavy : kProviderMuted;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: badge == null ? label : '$label, $badge new',
+      excludeSemantics: true,
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(horizontal: selected ? 18 : 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? kProviderGreen : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                icon.build(selected ? Colors.white : kProviderMuted),
-                if (selected) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            if (badge != null && !selected)
-              Positioned(
-                top: -6,
-                right: -6,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 52,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: selected ? kTealTint : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
                   alignment: Alignment.center,
-                  child: Text(
-                    badge! > 9 ? '9+' : '$badge',
-                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
-                  ),
+                  children: [
+                    icon.build(selected ? kTealText : kProviderMuted),
+                    if (badge != null)
+                      Positioned(
+                        top: -2,
+                        right: 8,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 16),
+                          height: 16,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: kProviderRejectText,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: kCard, width: 1.5),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            badge! > 9 ? '9+' : '$badge',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ─── Nav icon descriptor (asset SVG or Material icon) ─────────────────────────
+// ─── Nav icon ─────────────────────────────────────────────────────────────────
 
 class _NavIcon {
-  const _NavIcon._({this.assetPath, this.iconData});
-  factory _NavIcon.svg(String path) => _NavIcon._(assetPath: path);
-  factory _NavIcon.icon(IconData data) => _NavIcon._(iconData: data);
+  const _NavIcon._(this.iconData);
+  factory _NavIcon.icon(IconData data) => _NavIcon._(data);
 
-  final String? assetPath;
-  final IconData? iconData;
+  final IconData iconData;
 
-  Widget build(Color color) {
-    final path = assetPath;
-    if (path != null) {
-      return SvgPicture.asset(
-        path,
-        width: 22,
-        height: 22,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      );
-    }
-    return Icon(iconData, color: color, size: 22);
-  }
+  Widget build(Color color) => Icon(iconData, color: color, size: 22);
 }

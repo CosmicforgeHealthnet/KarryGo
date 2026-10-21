@@ -32,7 +32,6 @@ class ProviderDisputeDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final txn = controller.selectedTransaction;
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -45,7 +44,7 @@ class ProviderDisputeDetailsScreen extends StatelessWidget {
                   padding: EdgeInsets.only(right: 4),
                   child: Text(
                     'Live Chat',
-                    style: TextStyle(color: kProviderGreen, fontSize: 14, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: kTealText, fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -220,7 +219,7 @@ class _StatusStepper extends StatelessWidget {
                 Text(
                   steps[i],
                   style: TextStyle(
-                    color: i <= stage ? kProviderGreen : kProviderMuted,
+                    color: i <= stage ? kTealText : kProviderMuted,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                   ),
@@ -230,7 +229,7 @@ class _StatusStepper extends StatelessWidget {
                     child: Container(
                       height: 2,
                       margin: const EdgeInsets.symmetric(horizontal: 6),
-                      color: i < stage ? kProviderGreen : kProviderBorder,
+                      color: i < stage ? kTealText : kProviderBorder,
                     ),
                   ),
               ],
@@ -289,12 +288,12 @@ class _RecordRow extends StatelessWidget {
                 height: 14,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: done ? kProviderGreen : Colors.white,
-                  border: Border.all(color: done ? kProviderGreen : kProviderBorder, width: 2),
+                  color: done ? kTealText : Colors.white,
+                  border: Border.all(color: done ? kTealText : kProviderBorder, width: 2),
                 ),
               ),
               if (!isLast)
-                Expanded(child: Container(width: 2, color: done ? kProviderGreen : kProviderBorder)),
+                Expanded(child: Container(width: 2, color: done ? kTealText : kProviderBorder)),
             ],
           ),
           const SizedBox(width: 14),

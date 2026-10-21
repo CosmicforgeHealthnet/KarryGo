@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 
 // ─── Progress bar ─────────────────────────────────────────────────────────────
@@ -11,23 +12,7 @@ class OnboardingProgressBar extends StatelessWidget {
   final int total;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(total, (i) {
-        final filled = i < step;
-        return Expanded(
-          child: Container(
-            height: 4,
-            margin: EdgeInsets.only(right: i < total - 1 ? 4 : 0),
-            decoration: BoxDecoration(
-              color: filled ? kProviderGreen : kProviderBorder,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        );
-      }),
-    );
-  }
+  Widget build(BuildContext context) => KProgressSteps(total: total, current: step);
 }
 
 // ─── Upload area ──────────────────────────────────────────────────────────────
@@ -49,69 +34,40 @@ class UploadArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uploaded = fileName != null;
-    return GestureDetector(
+    return KCard(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: uploaded ? kProviderGreenTint : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: uploaded ? kProviderGreen : kProviderBorder,
-            width: uploaded ? 1.5 : 1,
-            style: uploaded ? BorderStyle.solid : BorderStyle.solid,
+      borderColor: uploaded ? kTeal : kProviderBorder,
+      color: uploaded ? const Color(0xFFF4FCFB) : kCard,
+      child: Row(
+        children: [
+          KIconTile(
+            uploaded ? Icons.check_rounded : Icons.add_photo_alternate_outlined,
+            color: uploaded ? kNavy : kTealText,
+            background: uploaded ? kTeal : kTealTint,
+            size: 44,
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: uploaded ? kProviderGreen : kProviderSurface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                uploaded ? Icons.check_rounded : Icons.upload_file_rounded,
-                color: uploaded ? Colors.white : kProviderMuted,
-                size: 22,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: kProviderText, fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(
+                  uploaded ? fileName! : subtitle,
+                  style: TextStyle(color: uploaded ? kTealText : kProviderMuted, fontSize: 12.5),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: kProviderText,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    uploaded ? fileName! : subtitle,
-                    style: TextStyle(
-                      color: uploaded ? kProviderGreen : kProviderMuted,
-                      fontSize: 12,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: kProviderMuted,
-              size: 14,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            uploaded ? 'Change' : 'Upload',
+            style: const TextStyle(color: kTealText, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
@@ -126,14 +82,10 @@ class OnboardingSectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
-          color: kProviderText,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
+        style: const TextStyle(color: kProviderText, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -158,9 +110,9 @@ InputDecoration onboardingFieldDecoration(String hint, {Widget? prefix}) =>
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: kProviderGreen, width: 2),
+        borderSide: const BorderSide(color: kTeal, width: 1.6),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
 
 // ─── Scaffold ─────────────────────────────────────────────────────────────────
@@ -194,25 +146,15 @@ class OnboardingScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kProviderSurface,
-      appBar: AppBar(
-        backgroundColor: kProviderSurface,
-        elevation: 0,
-        leading: showBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: kProviderText, size: 20),
-                onPressed: onBack ?? () => Navigator.maybePop(context),
-              )
-            : const SizedBox.shrink(),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: KTopBar(title: 'Karryam partner', showBack: showBack, onBack: onBack),
       body: SafeArea(
+        top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (step != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
                 child: OnboardingProgressBar(step: step!),
               ),
             Expanded(
@@ -221,22 +163,7 @@ class OnboardingScaffold extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: kProviderText,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        height: 1.2,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        subtitle!,
-                        style: const TextStyle(color: kProviderMuted, fontSize: 13, height: 1.5),
-                      ),
-                    ],
+                    KHeading(title: title, subtitle: subtitle),
                     const SizedBox(height: 24),
                     content,
                   ],
@@ -244,33 +171,19 @@ class OnboardingScaffold extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (error != null) ...[
-                    Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12), textAlign: TextAlign.center),
-                    const SizedBox(height: 8),
+                    KNotice(error!, tone: KTone.danger),
+                    const SizedBox(height: 12),
                   ],
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: onContinue,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: kProviderGreen,
-                        disabledBackgroundColor: kProviderGreen.withValues(alpha: 0.4),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                      ),
-                      child: isLoading
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(
-                              continueLabel,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                            ),
-                    ),
+                  KPrimaryButton(
+                    label: continueLabel,
+                    arrow: true,
+                    loading: isLoading,
+                    onPressed: onContinue,
                   ),
                 ],
               ),

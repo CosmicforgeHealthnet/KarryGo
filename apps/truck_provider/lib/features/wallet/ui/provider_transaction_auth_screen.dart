@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/karryam_ui.dart';
 import '../../home/ui/widgets/provider_app_colors.dart';
 import '../state/provider_withdrawal_controller.dart';
 import 'provider_withdrawal_processing_screen.dart';
@@ -131,14 +132,15 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: widget.controller,
           builder: (context, _) => Column(
             children: [
               const WalletFlowAppBar(title: 'Transaction Authorization'),
-              const SizedBox(height: 20),
+              const SizedBox(height: 28),
+              const KIconTile(Icons.lock_outline_rounded, size: 56),
+              const SizedBox(height: 16),
               Expanded(child: _buildPin()),
               Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + MediaQuery.of(context).padding.bottom),
@@ -162,7 +164,7 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
           child: Text(
             _prompt,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: kProviderText, fontSize: 14),
+            style: const TextStyle(color: kProviderText, fontSize: 15, fontWeight: FontWeight.w500, height: 1.4),
           ),
         ),
         const SizedBox(height: 22),
@@ -183,12 +185,12 @@ class _ProviderTransactionAuthScreenState extends State<ProviderTransactionAuthS
             child: Text(
               _localError!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
+              style: const TextStyle(color: kProviderRejectText, fontSize: 13),
             ),
           ),
         ],
         const Spacer(),
-        WalletKeypad(onDigit: _appendPin, onDelete: _deletePin, deleteTint: kProviderGreenTint),
+        WalletKeypad(onDigit: _appendPin, onDelete: _deletePin, deleteTint: kTealTint),
         const SizedBox(height: 8),
       ],
     );
@@ -201,19 +203,16 @@ class _PinDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
       width: 52,
-      height: 52,
+      height: 56,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: kProviderGreen, width: 1.6),
-        color: filled ? kProviderGreenTint : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: filled ? kTeal : kProviderBorder, width: filled ? 1.8 : 1.2),
+        color: kCard,
       ),
-      child: filled
-          ? const Center(
-              child: Icon(Icons.circle, size: 12, color: kProviderGreen),
-            )
-          : null,
+      child: filled ? const Center(child: Icon(Icons.circle, size: 12, color: kNavy)) : null,
     );
   }
 }
