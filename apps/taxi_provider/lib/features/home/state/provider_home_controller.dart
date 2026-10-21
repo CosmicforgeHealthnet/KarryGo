@@ -7,6 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../auth/data/provider_auth_api.dart';
 import '../../auth/state/provider_auth_controller.dart';
+import '../../../core/alerts/request_alert.dart';
+import '../../../core/location/online_location_tracker.dart';
 import '../data/provider_api.dart';
 import '../models/provider_booking.dart';
 
@@ -86,6 +88,10 @@ class ProviderHomeController extends ChangeNotifier {
 
   Timer? _pollTimer;
   Timer? _heartbeatTimer;
+  final _requestAlert = RequestAlert();
+  final _alertedRequestIds = <String>{};
+  final _location = OnlineLocationTracker(appName: 'Karryam Driver');
+  DateTime? _lastHeartbeatAt;
 
   ProviderHomeState _state = const ProviderHomeState();
   ProviderHomeState get state => _state;
@@ -100,8 +106,24 @@ class ProviderHomeController extends ChangeNotifier {
   void _bump() => _generation++;
 
   void _emit(ProviderHomeState next) {
+    _syncRequestAlert(next);
     _state = next;
     notifyListeners();
+  }
+
+  /// Rings for a request the driver hasn't been alerted about yet, and stops
+  /// once nothing is waiting (accepted, declined, expired) or they go offline.
+  void _syncRequestAlert(ProviderHomeState next) {
+    final waiting = {for (final b in next.offers) b.id};
+    if (waiting.isEmpty || !next.online) {
+      _requestAlert.stop();
+      return;
+    }
+    final fresh = waiting.difference(_alertedRequestIds);
+    if (fresh.isNotEmpty) {
+      _alertedRequestIds.addAll(fresh);
+      _requestAlert.start();
+    }
   }
 
   String? _token() => _auth.state.accessToken;
@@ -113,6 +135,16 @@ class ProviderHomeController extends ChangeNotifier {
   /// until a real fix arrives.
   Future<({double lat, double lng, double heading, double speed, double accuracy})>
   _position() async {
+    final streamed = _location.recentPosition;
+    if (streamed != null) {
+      return (
+        lat: streamed.latitude,
+        lng: streamed.longitude,
+        heading: streamed.heading,
+        speed: streamed.speed,
+        accuracy: streamed.accuracy,
+      );
+    }
     try {
       var permission = await Permission.locationWhenInUse.status;
       if (!permission.isGranted && !permission.isLimited) {
@@ -222,16 +254,27 @@ class ProviderHomeController extends ChangeNotifier {
       (_) => _sendHeartbeat(),
     );
     _sendHeartbeat();
+    // Keeps the app running with the screen off; a fix also covers a beat
+    // the timer missed while the OS held it back.
+    _location.start(onFix: () {
+      final last = _lastHeartbeatAt;
+      if (last == null || DateTime.now().difference(last) > const Duration(seconds: 20)) {
+        _sendHeartbeat();
+      }
+    });
   }
 
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _lastHeartbeatAt = null;
+    _location.stop();
   }
 
   Future<void> _sendHeartbeat() async {
     final token = _token();
     if (token == null) return;
+    _lastHeartbeatAt = DateTime.now();
     try {
       final pos = await _position();
       await _api.heartbeat(
@@ -510,6 +553,7 @@ class ProviderHomeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _requestAlert.stop();
     _stopPolling();
     _stopHeartbeat();
     super.dispose();

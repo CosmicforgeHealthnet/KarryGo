@@ -1,7 +1,4 @@
-import 'package:flutter/material.dart';
-
 import 'app/taxi_provider_app.dart';
+import 'core/diagnostics/crash_reporting.dart';
 
-void main() {
-  runApp(const TaxiProviderApp());
-}
+void main() => runWithCrashReporting(const TaxiProviderApp());

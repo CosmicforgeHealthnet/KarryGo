@@ -9,6 +9,7 @@ import '../core/provider_appearance.dart';
 import '../core/theme/karryam_theme.dart';
 import '../core/widgets/karryam_ui.dart';
 import '../features/home/ui/widgets/provider_app_colors.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
 
 import '../core/config/provider_app_config.dart';
@@ -70,6 +71,11 @@ class _TruckProviderAppState extends State<TruckProviderApp>
   bool _pushRegistered = false;
   StreamSubscription<String>? _fcmTokenRefreshSub;
   StreamSubscription<dynamic>? _fcmForegroundSub;
+  StreamSubscription<dynamic>? _fcmOpenedSub;
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Tab the home shell should show next; set when a tapped push asks for one.
+  final _homeTabRequest = ValueNotifier<int?>(null);
 
   @override
   void initState() {
@@ -172,6 +178,9 @@ class _TruckProviderAppState extends State<TruckProviderApp>
       );
     });
 
+    // A tapped tray notification opens the screen it is about.
+    _fcmOpenedSub = FirebasePush.openedMessages().listen(_openFromPush);
+
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _authController.initialize();
@@ -229,6 +238,8 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     WidgetsBinding.instance.removeObserver(this);
     _fcmTokenRefreshSub?.cancel();
     _fcmForegroundSub?.cancel();
+    _fcmOpenedSub?.cancel();
+    _homeTabRequest.dispose();
     _authController.removeListener(_onAuthChangedForPush);
     _authController.dispose();
     _homeController.dispose();
@@ -247,6 +258,21 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     _supportApi.close();
     _mediaUploadService.close();
     super.dispose();
+  }
+
+  /// Refreshes, closes anything open on top of the home shell, and shows the
+  /// tab the notification is about. An active trip takes over Home by itself.
+  void _openFromPush(RemoteMessage message) {
+    _homeController.pokeRefresh();
+    final type = ((message.data['event_type'] as String?) ?? '').toLowerCase();
+    _notificationController.onRealtimeEvent(type);
+    if (_authController.state.status != ProviderAuthStatus.authenticated) return;
+    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    _homeTabRequest.value = switch (type) {
+      _ when type.contains('matched') || type.contains('request') => 1,
+      _ when type.contains('withdraw') || type.contains('payout') || type.contains('payment') => 3,
+      _ => 0,
+    };
   }
 
   void _onAppearanceChanged() => _repaintAll();
@@ -282,6 +308,7 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     return MaterialApp(
       title: 'Karryam Trucks',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: karryamTruckTheme(brightness),
       builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
         value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
@@ -340,6 +367,7 @@ class _TruckProviderAppState extends State<TruckProviderApp>
               disputeController: _disputeController,
               tripsController: _tripsController,
               notificationController: _notificationController,
+              tabRequests: _homeTabRequest,
             ),
           };
         },

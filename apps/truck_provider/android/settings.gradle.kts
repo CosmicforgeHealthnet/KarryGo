@@ -23,6 +23,8 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
     // Reads android/app/google-services.json so Firebase (FCM push) can initialize.
     id("com.google.gms.google-services") version "4.4.3" apply false
+    // Uploads crash symbols and wires Firebase Crashlytics.
+    id("com.google.firebase.crashlytics") version "3.0.4" apply false
 }
 
 include(":app")

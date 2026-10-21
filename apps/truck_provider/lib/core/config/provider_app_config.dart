@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class ProviderAppConfig {
   const ProviderAppConfig({
     required this.haulingApiBaseUrl,
@@ -6,18 +8,26 @@ class ProviderAppConfig {
     required this.supportApiBaseUrl,
   });
 
-  // Defaults point at this dev machine's LAN IP so a physical phone on the same
-  // Wi-Fi reaches the backend directly, with no `adb reverse` tunnels. Override
-  // any of these with --dart-define when the host differs (a different dev
-  // machine, a new DHCP lease, or the 127.0.0.1 + adb reverse setup).
-  static const defaultHaulingApiBaseUrl = 'http://192.168.1.112:8104/api/v1/hauling';
-  // Realtime websocket endpoint on notification-service (ws:// upgrade, token-gated).
-  static const defaultNotificationWsUrl = 'ws://192.168.1.112:8106/api/v1/notifications/ws';
+  // Release builds talk to the live gateway; debug builds default to this dev
+  // machine's LAN IP so a physical phone on the same Wi-Fi reaches local
+  // services directly. Any of these can be overridden with --dart-define (a
+  // different dev machine, a new DHCP lease, or 127.0.0.1 + adb reverse).
+  static const _gateway = 'https://api-gateway.staging.karryam.com';
+  static const _lan = 'http://192.168.1.112';
+
+  static const defaultHaulingApiBaseUrl =
+      kReleaseMode ? '$_gateway/api/v1/hauling' : '$_lan:8104/api/v1/hauling';
+  // Realtime websocket endpoint on notification-service (ws upgrade, token-gated).
+  static const defaultNotificationWsUrl = kReleaseMode
+      ? 'wss://api-gateway.staging.karryam.com/api/v1/notifications/ws'
+      : 'ws://192.168.1.112:8106/api/v1/notifications/ws';
   // payment-wallet-service provider surface (balance, bank accounts, withdrawals).
   // The provider's hauling bearer token is accepted here (service="hauling").
-  static const defaultPaymentWalletApiBaseUrl = 'http://192.168.1.112:8105/api/v1/payment-wallet';
+  static const defaultPaymentWalletApiBaseUrl =
+      kReleaseMode ? '$_gateway/api/v1/payment-wallet' : '$_lan:8105/api/v1/payment-wallet';
   // support-dispute-service provider surface (complaints/disputes + chat).
-  static const defaultSupportApiBaseUrl = 'http://192.168.1.112:8107/api/v1/support-disputes';
+  static const defaultSupportApiBaseUrl =
+      kReleaseMode ? '$_gateway/api/v1/support-disputes' : '$_lan:8107/api/v1/support-disputes';
 
   factory ProviderAppConfig.fromEnvironment() => const ProviderAppConfig(
         haulingApiBaseUrl: String.fromEnvironment(

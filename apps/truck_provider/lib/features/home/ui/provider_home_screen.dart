@@ -34,6 +34,7 @@ class ProviderHomeScreen extends StatefulWidget {
     required this.disputeController,
     required this.tripsController,
     required this.notificationController,
+    this.tabRequests,
   });
 
   final ProviderAuthController authController;
@@ -45,12 +46,35 @@ class ProviderHomeScreen extends StatefulWidget {
   final ProviderTripsController tripsController;
   final ProviderNotificationController notificationController;
 
+  /// Tabs requested from outside the shell (a tapped push notification).
+  final ValueNotifier<int?>? tabRequests;
+
   @override
   State<ProviderHomeScreen> createState() => _ProviderHomeScreenState();
 }
 
 class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
   int _tabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tabRequests?.addListener(_onTabRequested);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onTabRequested());
+  }
+
+  @override
+  void dispose() {
+    widget.tabRequests?.removeListener(_onTabRequested);
+    super.dispose();
+  }
+
+  void _onTabRequested() {
+    final index = widget.tabRequests?.value;
+    if (index == null || !mounted) return;
+    widget.tabRequests!.value = null;
+    _onTabTap(index);
+  }
 
   void _onTabTap(int index) {
     // Refresh the relevant tab's data when it's opened.

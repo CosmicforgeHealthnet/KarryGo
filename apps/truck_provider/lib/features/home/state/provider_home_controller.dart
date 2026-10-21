@@ -9,6 +9,8 @@ import '../../auth/models/provider_auth_models.dart';
 import '../../auth/state/provider_auth_controller.dart';
 import '../../media/data/media_upload_service.dart';
 import '../../notifications/data/provider_realtime_listener.dart';
+import '../../../core/alerts/request_alert.dart';
+import '../../../core/location/online_location_tracker.dart';
 import '../data/provider_api.dart';
 
 /// Lagos city-center fallback used when the device location is unavailable
@@ -137,6 +139,10 @@ class ProviderHomeController extends ChangeNotifier {
   ProviderRealtimeListener? _realtime;
 
   Timer? _heartbeatTimer;
+  final _requestAlert = RequestAlert();
+  final _alertedRequestIds = <String>{};
+  final _location = OnlineLocationTracker(appName: 'Karryam Trucks');
+  DateTime? _lastHeartbeatAt;
   Timer? _pollTimer;
 
   /// Guards the booking poll: only one request in flight at a time, and any
@@ -153,8 +159,24 @@ class ProviderHomeController extends ChangeNotifier {
   ProviderHomeState get state => _state;
 
   void _emit(ProviderHomeState next) {
+    _syncRequestAlert(next);
     _state = next;
     notifyListeners();
+  }
+
+  /// Rings for a request the driver hasn't been alerted about yet, and stops
+  /// once nothing is waiting (accepted, declined, expired) or they go offline.
+  void _syncRequestAlert(ProviderHomeState next) {
+    final waiting = {for (final b in next.pendingRequests) b.id};
+    if (waiting.isEmpty || !next.isOnline) {
+      _requestAlert.stop();
+      return;
+    }
+    final fresh = waiting.difference(_alertedRequestIds);
+    if (fresh.isNotEmpty) {
+      _alertedRequestIds.addAll(fresh);
+      _requestAlert.start();
+    }
   }
 
   String? get _token => _auth.state.session?.accessToken;
@@ -187,6 +209,8 @@ class ProviderHomeController extends ChangeNotifier {
   /// the Lagos fallback (never throws) so going online is never blocked by a
   /// permission prompt or a disabled location service.
   Future<(double, double)> _currentPosition() async {
+    final streamed = _location.recentFix;
+    if (streamed != null) return streamed;
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         return (_fallbackLat, _fallbackLng);
@@ -318,11 +342,20 @@ class ProviderHomeController extends ChangeNotifier {
       const Duration(seconds: 30),
       (_) => _sendHeartbeat(),
     );
+    // Keeps the app running with the screen off; a fix also covers a beat
+    // the timer missed while the OS held it back.
+    _location.start(onFix: () {
+      final last = _lastHeartbeatAt;
+      if (last == null || DateTime.now().difference(last) > const Duration(seconds: 25)) {
+        _sendHeartbeat();
+      }
+    });
   }
 
   Future<void> _sendHeartbeat() async {
     final token = _token;
     if (token == null) return;
+    _lastHeartbeatAt = DateTime.now();
     // `_currentPosition()` never throws (falls back to Lagos), so record the
     // fix for the live trip-progress bar even if the heartbeat POST fails.
     final pos = await _currentPosition();
@@ -374,6 +407,8 @@ class ProviderHomeController extends ChangeNotifier {
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _lastHeartbeatAt = null;
+    _location.stop();
   }
 
   // ─── Realtime (websocket fast path) ─────────────────────────────────────────
@@ -791,6 +826,7 @@ class ProviderHomeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _requestAlert.stop();
     _stopHeartbeat();
     _stopPolling();
     _stopRealtime();

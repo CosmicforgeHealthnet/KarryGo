@@ -50,6 +50,9 @@ dependencies:
   permission_handler: ^11.3.1
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.1
+  flutter_ringtone_player: ^4.0.0+4
+  vibration: ^3.2.1
+  firebase_crashlytics: ^5.4.0
 
 dev_dependencies:
   flutter_test:

@@ -55,4 +55,18 @@ class FirebasePush {
     if (!await ensureInitialized()) return;
     yield* FirebaseMessaging.onMessage;
   }
+
+  /// Tray notifications the driver tapped: one that cold-started the app,
+  /// then any that brought it back from the background. Empty when
+  /// unavailable.
+  static Stream<RemoteMessage> openedMessages() async* {
+    if (!await ensureInitialized()) return;
+    try {
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) yield initial;
+    } catch (error) {
+      if (kDebugMode) debugPrint('fcm initial message unavailable: $error');
+    }
+    yield* FirebaseMessaging.onMessageOpenedApp;
+  }
 }
