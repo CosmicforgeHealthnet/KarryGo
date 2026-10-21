@@ -43,7 +43,10 @@ CI and service image builders pin Go 1.26.10 after acceptance found GO-2026-6809
 mandatory vulnerability scanning remains enabled. All six acceptance workflows
 and Deployment safety acceptance run against the integration head. Exact SHA,
 run IDs and final results are recorded in PR #15 and the final evidence report;
-older-head results do not certify this revision.
+older-head results do not certify this revision. The PR frontend scope guard
+accepts only newly added, exact review-branch Vercel preview holds; application
+code, pre-existing configuration replacements and other branch settings still
+fail. Negative tests cover that narrow exception.
 
 Code merge is ready only once that head has six successful mandatory workflows,
 no unresolved integration conflicts and preserved staging ancestry. Runtime

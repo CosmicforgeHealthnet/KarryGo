@@ -46,13 +46,9 @@ jobs:
           COMPARISON_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
         shell: bash
         run: |
-          [[ "$COMPARISON_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          git diff --name-only "$COMPARISON_BASE_SHA" HEAD -- \
-            'apps/**' 'web/**' 'frontend/**' 'mobile/**' \
-            ':!apps/dispatch_provider/test/**' > "$RUNNER_TEMP/frontend-changes.txt"
-          # Sections 6-10 explicitly includes repairing Dispatch contract tests.
-          # Runtime app, web, assets and all other frontend changes still fail.
-          test ! -s "$RUNNER_TEMP/frontend-changes.txt"
+          # Keep the frontend scope guard; accept only exact newly added
+          # review-branch preview holds, never application/deployment settings.
+          python scripts/release/frontend_scope.py "$COMPARISON_BASE_SHA"
       - name: Formatting and whitespace
         env:
           COMPARISON_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}

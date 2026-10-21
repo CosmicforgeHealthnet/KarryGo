@@ -16,6 +16,7 @@ import zipfile
 import yaml
 import gate
 import execute
+import frontend_scope
 
 SHA = "a" * 40
 SERVICE = "customer-service"
@@ -228,6 +229,20 @@ class Gates(unittest.TestCase):
             module.check(env)
             env.write_text("TAXI_ADMIN_READ_ENABLED=true\n")
             with self.assertRaises(ValueError): module.check(env)
+
+    def test_frontend_scope_exception_cannot_allow_runtime_or_other_branch_changes(self):
+        content = json.dumps(frontend_scope.PREVIEW)
+        frontend_scope.validate_preview("apps/admin/vercel.json", None, content)
+        for path, previous, value in [
+            ("apps/admin/page.tsx", None, content),
+            ("apps/admin/vercel.json", b"{}", content),
+            ("apps/admin/vercel.json", None, '{}'),
+            ("apps/admin/vercel.json", None, json.dumps({**frontend_scope.PREVIEW, "rewrites": []})),
+            ("apps/admin/vercel.json", None, json.dumps({"git": {"deploymentEnabled": {"staging": False}}})),
+        ]:
+            with self.subTest(path=path, previous=previous, value=value):
+                with self.assertRaises(ValueError):
+                    frontend_scope.validate_preview(path, previous, value)
 
     def test_review_branch_vercel_previews_are_disabled_only_for_this_branch(self):
         for directory in [".", "apps/admin", "web", "web/fleet", "web/karryam-landing", "web/partner-web"]:
