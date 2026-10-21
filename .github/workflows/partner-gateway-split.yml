@@ -8,7 +8,7 @@ on:
         type: string
   pull_request:
   push:
-    branches: [staging]
+    branches: [staging, codex/staging-secure-admin-integration-20261020]
 permissions:
   contents: read
 jobs:

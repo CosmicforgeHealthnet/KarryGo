@@ -9,7 +9,7 @@ name: Customer V4 backend certification
 on:
   pull_request:
   push:
-    branches: [staging, main]
+    branches: [staging, main, codex/staging-secure-admin-integration-20261020]
   workflow_dispatch:
 
 permissions:
