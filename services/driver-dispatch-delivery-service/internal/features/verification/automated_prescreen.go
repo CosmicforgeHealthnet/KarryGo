@@ -55,7 +55,7 @@ func inspectSelfieImage(body io.Reader) (PrescreenResult, error) {
 				0.7152*float64(g)/257.0 +
 				0.0722*float64(b)/257.0
 			sum += lum
-			squared += lum*lum
+			squared += lum * lum
 			count++
 		}
 	}
