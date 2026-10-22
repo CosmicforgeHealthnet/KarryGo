@@ -1,3 +1,148 @@
+# Secure Admin staging integration — current backend status
+
+## 22 October 2026 — direct staging continuation after merged PR #15
+
+**Code integration is verified; Sections 6–10 remain PARTIAL.** This is not a
+BACKEND_FUNCTIONALLY_COMPLETE declaration. This dated report supersedes the
+historical unmerged-PR and deployment-readiness statements retained below.
+Work began from verified staging `f16fa7eda2558178cdab5f9cfc55659123f132aa`.
+All new work is committed directly to staging using ordinary fast-forward-safe
+Git operations. The baseline remains an ancestor. No historical Dispatch branch,
+new branch, worktree, PR, reset or force-push is involved. The two pre-existing
+untracked cleanup scripts are left untouched.
+
+### Implemented and tested in this continuation
+
+| Scope | Status | Completed engineering | Remaining engineering prerequisite |
+|---|---|---|---|
+| Section 6 Analytics | PARTIAL | Ten fixed scoped native routes, typed SDK and private Bridge paths; existing mission counts/rate preserved; readiness reused; source-backed outcome, recovery-event, mismatch, decline, individual-demand and quality component reducers; signed-source audit, membership recheck, frozen disclosure and suppression tests | Independent complete owner membership/coverage exports and remaining producer bindings; individual supply roster; complete scoped history for the existing forecast model; resolution-duration and quality-score semantics. Bounded components are partial and fully suppressed, not completed business reports |
+| Section 7 Customer | PARTIAL | Versioned source-owned REQUESTED → ACKNOWLEDGED → CLOSED review work items, immutable transition ledger, idempotency, concurrent request fences, typed Bridge original-action GET reconciliation and native case evidence authorization | Canonical restriction/unrestriction and privacy/support disposition state machines, scoped delegated actions, independent authoritative result contracts. Closing a review explicitly changes no account standing or consent |
+| Section 8 Taxi | PARTIAL | Existing operational read models preserved; native recovery case/subject evidence authority, actual vehicle membership, active/terminal-state checks, signed scopes and audit | Independently versioned incident/remediation contract and HQ action approval/readback bindings; canonical document-expiry interpretation and verification decisions. Existing operational recovery methods do not by themselves supply a safe delegated command contract |
+| Section 9 Dispatch | PARTIAL | Incident recovery and return execution observations; UNKNOWN retained; native return child mission/booking/execution/group relationships checked; native incident/recovery/return evidence authority | Case-bound expected-version intervention contract, explicit HQ actor authority/approval and independent original-action readback for recovery/retry/reassignment/replanning |
+| Section 10 Hauling/Fleet | PARTIAL | Native product-admission window observations, active organization membership and stale-callback checks; current booking cargo inputs with native units/null unstated weight; native recovery evidence authority; existing Fleet tenant and receipt boundaries preserved | Inspection/conclusion authority and modern object mapping; full versioned remediation/intervention contracts; standalone Fleet investigation-case ownership. Recorded admission/history does not authorize a new assignment |
+| Shared Media | PARTIAL integration coverage; supported software path implemented | Four source owners / six finite case kinds; modern object ownership/subject/case binding; fixed private Bridge grant/content/own-grant revoke facade; current safety/quarantine/revocation/version/expiry and immutable disclosure audit | Authoritative legacy-asset/inspection-reference mapping and standalone Fleet case authority are absent. No implicit aliases are accepted |
+
+Source constraints are concrete, rather than a request to weaken authorization:
+
+- Analytics' legacy supply observers retain aggregate buckets, not independently
+  authorized individual membership. Counts and incidental provider identifiers
+  cannot become cohort membership. Native demand forecast already exists in
+  `networkanalytics/usecases/service.go`; missing complete scoped historical input
+  cannot be repaired by reusing global aggregates or inventing rounding.
+- Customer review intake and queue transitions own review work, not customer
+  standing, consent, privacy fulfillment or another domain's records.
+- Taxi provider license expiry is stored as free text; this does not establish
+  canonical expiry timezone, document decisions or a vehicle verification ledger.
+  Taxi goods recovery selects through native capability/custody checks, but its
+  existing operational actor/operation parameters do not establish delegated HQ
+  expected-case-version authorization and immutable original-action readback.
+- Dispatch `deliveryrecovery.RecordEmergencyRecovery` exists with Trip version,
+  but does not provide the requested case-bound delegated HQ command and readback
+  contract. Current execution observations cannot substitute for that contract.
+  No customer identity is impersonated to call customer-owned recovery choices.
+- Hauling `recovery.SelectReplacement` exists, but its booking/actor interface is
+  not a versioned HQ intervention contract. `inspection_ref` and certification
+  references are opaque references, not modern Media IDs or inspection findings.
+  Native `requirementFor` uses current booking inputs; no full frozen requirement
+  snapshot is fabricated. Global restriction effects are not tenant commands.
+
+These remaining contracts and producer coverage are **engineering gaps**, not
+merely production policy approvals. No unsupported command returns fabricated
+success. The above implemented subsets do not close every requested work package.
+
+### API and migration inventory
+
+Relative to baseline `f16fa7ed`, the private Bridge contract adds **24 fixed
+paths/operations**: nine scoped Analytics paths, Customer work-item command and
+readback, ten list/detail paths for five additional resource kinds, and three
+Media grant/content/revoke paths. The current OpenAPI has **98 paths / 98
+operations / 98 capability entries**, including blocked catalog entries;
+**31 resource kinds / 62 resource paths**, **33 standalone schemas** and
+**39 checksum-pinned generated artifacts**. These are contract counts, not a
+claim that all catalog entries are enabled or functionally complete.
+
+Owner contracts add nine scoped Analytics report routes, two Customer transition
+route templates, and three fixed case-authority route templates per enrolled
+source owner (Customer, Taxi, Dispatch, Hauling). The generic owner resource
+transport gains explicit dictionaries rather than arbitrary proxy routes.
+Source OpenAPI metadata describes new Dispatch/Hauling read contracts. Five owner
+OpenAPI contracts, scoped Analytics and private Media contracts are validated.
+No public Swagger or Gateway exposure is added.
+
+New migrations are Customer `017_admin_review_work_items.sql` and Bridge
+`005_customer_work_item_operations.sql`, with corresponding least-privilege runtime
+grants. They run only in disposable tests in this work. Dispatch migrations
+000070–000072 and their consumers, uncertainty, authorization and replay fences
+are unchanged. No live migration, stop/start sequence or rollback was executed.
+
+### Verification evidence
+
+Code checkpoint `b8d50d6c801ec5bf26a8e56cabaf4784a4517caa` includes the cargo
+addition and native recovery state/subject correction. Local fresh suites ran on
+isolated task-owned PostgreSQL 18 / Redis on loopback, using actual owner migrations:
+
+- **470** Bridge/privacy/security cases, zero failed or skipped tests.
+- **146** source authority scenarios; all five owner migration suites executed,
+  zero failed or skipped tests.
+- **201** Media cases, zero failed or skipped tests, including an actual Customer
+  executable → native work-item transitions → modern Media upload/scan/storage
+  and private SDK evidence access. This is separate from Bridge mTLS/SDK tests;
+  no live HQ enrollment or deployed certification is implied.
+- Rebuilt the actual Taxi test executable. Native signed HTTP, real Bridge mTLS,
+  cross-tenant denial, durable replay, audit persistence failure, concurrent and
+  stale versions, original-action unknown-outcome recovery, case closure/revocation,
+  foreign subject and actual legacy-asset rejection are exercised.
+- Source wire validators, OpenAPI/schema generation, checksum manifests,
+  backward compatibility, source contract checks, `go vet` on affected packages
+  and `git diff --check` passed. Local Windows suites omit `-race` because no
+  native C compiler is installed; canonical GitHub Linux workflows retain it.
+- Actual Customer V4 route capture after dormant-route registration found zero
+  undocumented/phantom routes or exposure/security mismatches. Initial failures
+  (canonical LF checksum, disabled-route registration) were corrected without
+  relaxing acceptance assertions.
+
+Ignored local evidence is under `.codex-cache/sections6-10-checkpoint6-*.jsonl`,
+`sections6-10-wire`, `sections6-10-owner-wire` and `sections6-10-routeaudit`.
+CI retains its normal workflow artifacts; local caches are not repository artifacts.
+
+All seven mandatory workflows passed on code checkpoint
+`05723a6790082a636e04ec00e23833de6e94835b`:
+
+| Workflow | Successful GitHub run |
+|---|---|
+| admin-bridge.yml | [39806447083](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806447083) |
+| admin-owner-closure.yml | [39806447025](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806447025) |
+| section31-mandatory.yml | [39806447071](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806447071) |
+| customer-v4-certification.yml | [39806447056](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806447056) |
+| vendor-section46-48.yml | [39806447018](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806447018) |
+| partner-gateway-split.yml | [39806446916](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806446916) |
+| deployment-safety.yml | [39806446997](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39806446997) |
+
+Those results certify that exact earlier checkpoint. Final-head acceptance and
+its exact remote SHA must be verified separately; the completion report records
+those results, not an inference from this table or a passing PR.
+
+### Preserved security and separate release gates
+
+Every new privileged switch defaults false. Missing owner mappings, approved
+policy, source enrollment or disclosure settings deny. Dedicated workload keys,
+HQ mTLS/HMAC v2, delegated staff permissions, five-scope intersection, signed
+policy revisions/revocation, durable nonce/idempotency, original-action identity,
+audit-before-disclosure and Gateway isolation remain enforced. No production
+access grants, signing keys, suppression threshold or Media lifetime is installed.
+
+Both backend deployment workflows remain manual-only `workflow_dispatch`, with
+no push/PR/reuse/CI-completion trigger. Ordinary staging pushes therefore do not
+invoke them. No extra merge approvers or hosting configuration are introduced.
+Staging is development/integration; production and main are not modified by this
+work. No VPS access, service restart, deployment, Admin activation or Partner/
+Gateway cutover is performed. Initial governance policies, real HQ enrollment,
+networking and hosting rollout remain separate external release gates.
+
+---
+
+## Historical PR #15 integration report (superseded for current implementation status)
+
 # Secure Admin staging integration — full implementation report
 
 ## Code integration revision — 21 October 2026

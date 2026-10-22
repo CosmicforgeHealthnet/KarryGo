@@ -1,5 +1,16 @@
 # Karryam Admin Sections 6–10 — incremental implementation report
 
+## Current completion assessment — 22 October 2026
+
+Sections 6, 7, 8, 9 and 10 remain **PARTIAL**. Supported new software and exact
+remaining owner-contract/producer-coverage prerequisites are recorded in
+[the current staging report](staging-integration-report.md). Missing complete
+Analytics coverage, account/privacy decision semantics, delegated intervention
+contracts and inspection/legacy Media mappings are engineering gaps, separately
+from policy approval and deployment gates. No unsupported action or unavailable
+report is counted as complete. All new privileged defaults remain disabled.
+
+
 
 ## 22 October 2026 — direct staging engineering continuation
 
