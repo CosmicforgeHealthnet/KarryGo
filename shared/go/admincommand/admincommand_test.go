@@ -270,10 +270,10 @@ func TestPostgresOwnerCommandApprovalVersionFenceIdempotencyAndImmutableLedger(t
 	if v, s, _ := (standing{}).Current(ctx, mustTx(t, f.pool), "customers", f.subject); v != 2 || s != "ACTIVE" {
 		t.Fatal("refused command leaked a domain effect", v, s)
 	}
-	if _, err := f.pool.Exec(ctx, `UPDATE admin_owner_command_ledger SET action='X'`); err == nil || !strings.Contains(err.Error(), "append-only") {
+	if _, err := f.pool.Exec(ctx, `UPDATE admin_owner_command_decisions SET action='X'`); err == nil || !strings.Contains(err.Error(), "append-only") {
 		t.Fatal("ledger mutable")
 	}
-	if _, err := f.pool.Exec(ctx, `DELETE FROM admin_owner_command_ledger`); err == nil || !strings.Contains(err.Error(), "append-only") {
+	if _, err := f.pool.Exec(ctx, `DELETE FROM admin_owner_command_decisions`); err == nil || !strings.Contains(err.Error(), "append-only") {
 		t.Fatal("ledger deletable", err)
 	}
 	back, err := f.svc.Readback(ctx, f.actor, "case-1", f.scope, "customers", f.subject, lift.IdempotencyKey)

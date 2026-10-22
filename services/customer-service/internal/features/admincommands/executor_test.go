@@ -615,7 +615,7 @@ func TestPostgresCrossTenantSubjectIsDeniedWithoutEffect(t *testing.T) {
 		t.Fatal("denied command leaked an effect", v, s)
 	}
 	var ledger int
-	h.db.QueryRow(context.Background(), `SELECT count(*) FROM admin_owner_command_ledger`).Scan(&ledger)
+	h.db.QueryRow(context.Background(), `SELECT count(*) FROM admin_owner_command_decisions`).Scan(&ledger)
 	if ledger != 0 {
 		t.Fatal("denied command reached the ledger")
 	}

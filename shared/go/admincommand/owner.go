@@ -144,7 +144,7 @@ func (s *Service) Execute(ctx context.Context, actor adminpolicy.Actor, purpose 
 	}
 	var raw []byte
 	var storedDigest string
-	err = tx.QueryRow(ctx, `SELECT operation_digest,receipt FROM admin_owner_command_ledger WHERE idempotency_key=$1`, c.IdempotencyKey).Scan(&storedDigest, &raw)
+	err = tx.QueryRow(ctx, `SELECT operation_digest,receipt FROM admin_owner_command_decisions WHERE idempotency_key=$1`, c.IdempotencyKey).Scan(&storedDigest, &raw)
 	if err == nil {
 		// Current authority is still required to learn an existing outcome.
 		if err := s.authorize(ctx, tx, actor, purpose, c.SubjectKind, c.SubjectID, s.Spec.Capability, scope, now); err != nil {
@@ -186,7 +186,7 @@ func (s *Service) Execute(ctx context.Context, actor adminpolicy.Actor, purpose 
 	if action.VersionOf == VersionCase {
 		versionKey = c.CaseRef
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO admin_owner_command_ledger(`+ledgerColumns+`) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
+	_, err = tx.Exec(ctx, `INSERT INTO admin_owner_command_decisions(`+ledgerColumns+`) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
 		c.IdempotencyKey, c.OperationID, decision, s.Spec.Owner, s.Spec.Contract, c.SubjectKind, c.SubjectID, c.CaseRef, c.Action, action.VersionOf, versionKey, receipt.RecordedVersion, operation, intent, approvalArg, approverArg, actor.Staff, purpose, scope.Product, scope.Market, scope.Zone, scope.Organization, scope.Tenant, s.Policy.ID(), s.Policy.Version(), s.Policy.Checksum(), raw)
 	if err != nil {
 		var pg *pgconn.PgError
@@ -229,7 +229,7 @@ func (s *Service) Readback(ctx context.Context, actor adminpolicy.Actor, purpose
 		return empty, err
 	}
 	var raw []byte
-	err = tx.QueryRow(ctx, `SELECT receipt FROM admin_owner_command_ledger WHERE idempotency_key=$1 AND owner=$2 AND subject_kind=$3 AND subject_id=$4 AND product=$5 AND market=$6 AND zone=$7 AND organization_ref=$8 AND tenant_ref=$9`, key, s.Spec.Owner, kind, id, scope.Product, scope.Market, scope.Zone, scope.Organization, scope.Tenant).Scan(&raw)
+	err = tx.QueryRow(ctx, `SELECT receipt FROM admin_owner_command_decisions WHERE idempotency_key=$1 AND owner=$2 AND subject_kind=$3 AND subject_id=$4 AND product=$5 AND market=$6 AND zone=$7 AND organization_ref=$8 AND tenant_ref=$9`, key, s.Spec.Owner, kind, id, scope.Product, scope.Market, scope.Zone, scope.Organization, scope.Tenant).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return empty, ErrNotFound
 	}
@@ -272,7 +272,7 @@ func (s *Service) History(ctx context.Context, actor adminpolicy.Actor, purpose 
 	if err != nil {
 		return empty, err
 	}
-	rows, err := tx.Query(ctx, `SELECT receipt FROM admin_owner_command_ledger WHERE owner=$1 AND subject_kind=$2 AND subject_id=$3 AND product=$4 AND market=$5 AND zone=$6 AND organization_ref=$7 AND tenant_ref=$8 ORDER BY created_at DESC, decision_id DESC LIMIT 51`, s.Spec.Owner, kind, id, scope.Product, scope.Market, scope.Zone, scope.Organization, scope.Tenant)
+	rows, err := tx.Query(ctx, `SELECT receipt FROM admin_owner_command_decisions WHERE owner=$1 AND subject_kind=$2 AND subject_id=$3 AND product=$4 AND market=$5 AND zone=$6 AND organization_ref=$7 AND tenant_ref=$8 ORDER BY created_at DESC, decision_id DESC LIMIT 51`, s.Spec.Owner, kind, id, scope.Product, scope.Market, scope.Zone, scope.Organization, scope.Tenant)
 	if err != nil {
 		return empty, err
 	}

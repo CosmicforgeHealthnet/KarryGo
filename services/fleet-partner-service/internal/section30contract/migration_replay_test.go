@@ -262,7 +262,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"fleet_partner_admin_investigations", "fleet_partner_admin_investigation_history", "admin_owner_command_ledger", "fleet_partner_provider_offer_decision_receipts", "admin_owner_context_heads", "admin_owner_context_history", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
+	for _, table := range []string{"fleet_partner_admin_investigations", "fleet_partner_admin_investigation_history", "admin_owner_command_decisions", "fleet_partner_provider_offer_decision_receipts", "admin_owner_context_heads", "admin_owner_context_history", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
 		if !tableExists(t, pool, table) {
 			t.Fatalf("missing source object %s", table)
 		}
@@ -278,7 +278,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if tableExists(t, pool, "fleet_partner_admin_investigations") || tableExists(t, pool, "fleet_partner_admin_investigation_history") {
 		t.Fatal("latest tables survived their own empty rollback")
 	}
-	for _, table := range []string{"admin_owner_command_ledger", "fleet_partner_provider_offer_decision_receipts", "admin_owner_context_history", "admin_owner_read_audit", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
+	for _, table := range []string{"admin_owner_command_decisions", "fleet_partner_provider_offer_decision_receipts", "admin_owner_context_history", "admin_owner_read_audit", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
 		if !tableExists(t, pool, table) {
 			t.Fatalf("rollback removed earlier source object %s", table)
 		}

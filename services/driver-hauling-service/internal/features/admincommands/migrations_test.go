@@ -56,7 +56,7 @@ func TestPostgresAdminMigrationsRollBackOnlyWhenEmptyAndReapply(t *testing.T) {
 			t.Fatal(name, err)
 		}
 	}
-	for _, table := range []string{"admin_owner_command_ledger", "hauling_admin_inspections", "hauling_admin_inspection_evidence", "hauling_admin_legacy_inspection_mappings", "hauling_cargo_suitability_decisions", "hauling_admin_intervention_heads"} {
+	for _, table := range []string{"admin_owner_command_decisions", "hauling_admin_inspections", "hauling_admin_inspection_evidence", "hauling_admin_legacy_inspection_mappings", "hauling_cargo_suitability_decisions", "hauling_admin_intervention_heads"} {
 		if exists(table) {
 			t.Fatal("rollback left", table)
 		}
@@ -66,11 +66,11 @@ func TestPostgresAdminMigrationsRollBackOnlyWhenEmptyAndReapply(t *testing.T) {
 			t.Fatal("reapply", name, err)
 		}
 	}
-	if !exists("admin_owner_command_ledger") || !exists("hauling_admin_inspections") {
+	if !exists("admin_owner_command_decisions") || !exists("hauling_admin_inspections") {
 		t.Fatal("reapply incomplete")
 	}
 	// A populated ledger refuses rollback.
-	if _, err := db.Exec(ctx, `INSERT INTO admin_owner_command_ledger(idempotency_key,operation_id,decision_id,owner,contract,subject_kind,subject_id,action,version_scope,version_key,recorded_version,operation_digest,intent_digest,staff_ref,purpose_code,product,market,zone,organization_ref,tenant_ref,policy_id,policy_version,policy_checksum,receipt)
+	if _, err := db.Exec(ctx, `INSERT INTO admin_owner_command_decisions(idempotency_key,operation_id,decision_id,owner,contract,subject_kind,subject_id,action,version_scope,version_key,recorded_version,operation_digest,intent_digest,staff_ref,purpose_code,product,market,zone,organization_ref,tenant_ref,policy_id,policy_version,policy_checksum,receipt)
  VALUES('k',gen_random_uuid(),gen_random_uuid(),'driver-hauling-service','c','trucks','t','RESTRICT_TRUCK','SUBJECT','',1,$1,$1,'s','p','karryam','m','z','o','t','pol',1,$1,'{}')`, strings.Repeat("a", 64)); err != nil {
 		t.Fatal(err)
 	}

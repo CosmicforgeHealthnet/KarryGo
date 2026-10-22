@@ -1,7 +1,7 @@
--- Source-owned administrative command decision ledger. Install only through
+-- Source-owned administrative command decision record. Install only through
 -- the consuming owner's normal migration runner; each owner keeps its own
 -- immutable copy in its own database. The Admin Bridge never connects here.
-CREATE TABLE IF NOT EXISTS admin_owner_command_ledger (
+CREATE TABLE IF NOT EXISTS admin_owner_command_decisions (
  idempotency_key text PRIMARY KEY,
  operation_id uuid NOT NULL UNIQUE,
  decision_id uuid NOT NULL UNIQUE,
@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS admin_owner_command_ledger (
  CHECK (approver_ref IS NULL OR approver_ref <> staff_ref),
  UNIQUE (owner, subject_kind, subject_id, version_scope, version_key, recorded_version)
 );
-CREATE INDEX IF NOT EXISTS admin_owner_command_ledger_subject ON admin_owner_command_ledger(owner, subject_kind, subject_id, created_at DESC);
-CREATE OR REPLACE FUNCTION reject_admin_owner_command_ledger_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN RAISE EXCEPTION 'Owner administrative command ledger is append-only'; END $$;
-DROP TRIGGER IF EXISTS admin_owner_command_ledger_immutable ON admin_owner_command_ledger;
-CREATE TRIGGER admin_owner_command_ledger_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON admin_owner_command_ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_admin_owner_command_ledger_mutation();
+CREATE INDEX IF NOT EXISTS admin_owner_command_decisions_subject ON admin_owner_command_decisions(owner, subject_kind, subject_id, created_at DESC);
+CREATE OR REPLACE FUNCTION reject_admin_owner_command_decision_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'Owner administrative command decisions are append-only'; END $$;
+DROP TRIGGER IF EXISTS admin_owner_command_decisions_immutable ON admin_owner_command_decisions;
+CREATE TRIGGER admin_owner_command_decisions_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON admin_owner_command_decisions FOR EACH STATEMENT EXECUTE FUNCTION reject_admin_owner_command_decision_mutation();

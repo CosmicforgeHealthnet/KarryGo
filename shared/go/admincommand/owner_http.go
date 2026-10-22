@@ -252,7 +252,7 @@ func Runtime(owner *adminowner.Handler, spec Spec, executor Executor, prefix str
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	var ready bool
-	if err := owner.DB.QueryRow(ctx, `SELECT to_regclass('admin_owner_command_ledger') IS NOT NULL`).Scan(&ready); err != nil || !ready {
+	if err := owner.DB.QueryRow(ctx, `SELECT to_regclass('admin_owner_command_decisions') IS NOT NULL`).Scan(&ready); err != nil || !ready {
 		return nil, ErrConfiguration
 	}
 	h.Service.DB, h.Service.Contexts, h.Service.Policy = owner.DB, owner.Contexts, owner.Policy

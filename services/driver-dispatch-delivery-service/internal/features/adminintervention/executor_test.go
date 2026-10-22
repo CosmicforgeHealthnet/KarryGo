@@ -211,7 +211,7 @@ func TestPostgresReassignmentRetryEscalationThroughRealRecoveryEngine(t *testing
 	}
 	var effectRef, decision string
 	e.scalar(`SELECT effect_ref FROM dispatch_admin_intervention_records WHERE subject_id=$1`, &effectRef, trip)
-	e.scalar(`SELECT decision_id::text FROM admin_owner_command_ledger WHERE idempotency_key=$1`, &decision, c.IdempotencyKey)
+	e.scalar(`SELECT decision_id::text FROM admin_owner_command_decisions WHERE idempotency_key=$1`, &decision, c.IdempotencyKey)
 	if effectRef != incident || decision != receipt.DecisionID || e.count(`SELECT count(*) FROM dispatch_admin_intervention_records WHERE decision_id=$1`, decision) != 1 {
 		t.Fatal("intervention record not bound to ledger decision")
 	}
@@ -303,7 +303,7 @@ func TestPostgresReassignmentRefusedForCustodyAndUncertainOutcome(t *testing.T) 
 			t.Fatalf("%s: reassignment not refused: %v", name, err)
 		}
 		if e.count(`SELECT count(*) FROM dispatch_delivery_incidents WHERE trip_id=$1`, trip)+e.count(`SELECT count(*) FROM dispatch_admin_intervention_heads WHERE subject_id=$1`, trip)+
-			e.count(`SELECT count(*) FROM admin_owner_command_ledger WHERE subject_id=$1`, trip) != 0 {
+			e.count(`SELECT count(*) FROM admin_owner_command_decisions WHERE subject_id=$1`, trip) != 0 {
 			t.Fatalf("%s: refusal had side effects", name)
 		}
 		var state string

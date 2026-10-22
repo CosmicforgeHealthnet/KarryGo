@@ -2,7 +2,7 @@
 --
 -- Every row here is written only by the Taxi owner command executor
 -- (internal/features/admininterventions) inside the same transaction as the
--- admin_owner_command_ledger row. Nothing in this file rewrites native taxi
+-- admin_owner_command_decisions row. Nothing in this file rewrites native taxi
 -- records: trip status, completion, location, fares and the free-text
 -- taxi_providers.license_expiry_date are never touched. The overlay is read by
 -- the go-online gate, the heartbeat path and every assignment path (passenger
