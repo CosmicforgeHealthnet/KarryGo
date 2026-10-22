@@ -6,6 +6,7 @@ idempotently (re)writes their capability matrix entries.
 """
 KINDS = {
     ("taxi", "incidents"): ("driver-taxi-service", "taxi.incidents.read", "R2", ["TestTaxiIncidentReadsAndCaseEvidenceAuthority"]),
+    ("fleet", "investigations"): ("fleet-partner-service", "fleet.investigations.read", "R2", ['TestPostgresFleetInvestigationLifecycleApprovalAndRealEffects', 'TestPostgresFleetInvestigationCaseAuthorityProof']),
     ("hauling", "inspections"): ("driver-hauling-service", "hauling.inspections.read", "R2", ["TestPostgresInspectionLifecycleFailRestrictsTruckAndServesCaseAuthority", "TestPostgresInspectionCrossTenantAndRevokedOwnership"]),
 }
 SOURCE_PATH = {"taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources"}

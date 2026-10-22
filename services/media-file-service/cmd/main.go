@@ -86,6 +86,15 @@ func main() {
 	if err != nil {
 		logging.Fatal("media", "private case configuration refused")
 	}
+	// Owner-attested legacy adoption; MEDIA_LEGACY_ADOPTION_ENABLED defaults false.
+	adoptionOthers := [][]byte{cfg.DownloadSecret}
+	for _, key := range caseLegacyCredentials {
+		adoptionOthers = append(adoptionOthers, key)
+	}
+	adoptionHandler, err := mediahttp.LegacyAdoptionRuntime(mediaService, db, storageClient, cfg.FirebaseBucket, cfg.MaxUploadBytes, adoptionOthers)
+	if err != nil {
+		logging.Fatal("media", "legacy adoption configuration refused")
+	}
 
 	var workers []func(context.Context) error
 	if mediaService != nil && cfg.MediaWorkersEnabled && !cfg.MediaKillSwitch {
@@ -149,8 +158,11 @@ func main() {
 			mediahttp.RegisterVendorUploadRoute(group, mediaService, cfg.PrivateMaxUploadBytes)
 			logging.Success("media", "private media contract mounted")
 		},
-		RegisterRoot: func(root *gin.Engine) { caseHandler.Register(root) },
-		Workers:      workers,
+		RegisterRoot: func(root *gin.Engine) {
+			caseHandler.Register(root)
+			adoptionHandler.Register(root)
+		},
+		Workers: workers,
 	})
 }
 

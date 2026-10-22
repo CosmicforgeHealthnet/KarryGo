@@ -102,8 +102,13 @@ const (
 	PurposeLoadingEvidence    = "LOADING_EVIDENCE"
 )
 
-// ValidPurpose reports whether a purpose is one the private contract serves.
+// ValidPurpose reports whether a purpose is one the private contract serves:
+// Media's own vocabulary or a purpose a compiled source case declares.
 func ValidPurpose(purpose string) bool {
+	return basePurpose(purpose) || CaseOnlyPurpose(purpose)
+}
+
+func basePurpose(purpose string) bool {
 	switch purpose {
 	case PurposeCompanyDocument, PurposeBranchDocument, PurposeProviderDocument,
 		PurposeVehicleDocument, PurposeInsuranceDocument, PurposeComplianceDocument,
@@ -124,6 +129,11 @@ func ValidPurpose(purpose string) bool {
 // These may only ever be PRIVATE. The same list is written as a database
 // CHECK in 000005, so the rule does not depend on this function being called.
 func SensitiveEvidencePurpose(purpose string) bool {
+	// A purpose that exists only because a source case declared it is case
+	// evidence by construction: private and bound, like the listed ones.
+	if CaseOnlyPurpose(purpose) {
+		return true
+	}
 	switch purpose {
 	case PurposeVehicleInspection, PurposeCapabilityEvidence, PurposeCargoCondition,
 		PurposeDamageEvidence, PurposeRecoveryTransfer, PurposeSafetyIncident:
@@ -149,8 +159,14 @@ const (
 	BindingVerificationCase = "VERIFICATION_CASE"
 )
 
-// ValidBindingType reports whether a binding type is one this contract knows.
+// ValidBindingType reports whether a binding type is one this contract knows:
+// Media's own list or the binding type of a compiled source case
+// (shared/go/admincase.Specs). Request input never extends the list.
 func ValidBindingType(value string) bool {
+	return baseBindingType(value) || CaseOnlyBindingType(value)
+}
+
+func baseBindingType(value string) bool {
 	switch value {
 	case BindingBooking, BindingMission, BindingOrder, BindingAsset, BindingParcel,
 		BindingComplaint, BindingRecoveryCase, BindingVerificationCase:
@@ -239,6 +255,9 @@ func ValidRetentionClass(value string) bool {
 // to STANDARD, because a caller that forgot to say "this is a safety incident"
 // should not have that incident expire on the ordinary schedule.
 func DefaultRetentionFor(purpose string) string {
+	if CaseOnlyPurpose(purpose) {
+		return RetentionCompliance
+	}
 	switch purpose {
 	case PurposeSafetyIncident, PurposeDamageEvidence:
 		return RetentionSafety

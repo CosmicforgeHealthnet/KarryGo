@@ -103,13 +103,13 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	// The disposable database is verified and exclusively locked above. Keep
 	// statement-level evidence guards enabled during every test; disable only
-	// the two new ledger guards inside this atomic cleanup transaction.
+	// the ledger and legacy-adoption guards inside this atomic cleanup transaction.
 	clean, err := pool.Begin(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer clean.Rollback(context.Background())
-	for _, pair := range [][2]string{{"media_admin_case_grants", "media_admin_case_grant_immutable"}, {"media_admin_case_revocations", "media_admin_case_revocation_immutable"}} {
+	for _, pair := range [][2]string{{"media_admin_case_grants", "media_admin_case_grant_immutable"}, {"media_admin_case_revocations", "media_admin_case_revocation_immutable"}, {"media_legacy_adoptions", "media_legacy_adoption_immutable"}} {
 		if _, err := clean.Exec(context.Background(), "ALTER TABLE "+pgx.Identifier{pair[0]}.Sanitize()+" DISABLE TRIGGER "+pgx.Identifier{pair[1]}.Sanitize()); err != nil {
 			t.Fatal(err)
 		}
@@ -117,7 +117,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	if _, err := clean.Exec(context.Background(), "TRUNCATE "+strings.Join(tables, ", ")+" CASCADE"); err != nil {
 		t.Fatal(err)
 	}
-	for _, pair := range [][2]string{{"media_admin_case_grants", "media_admin_case_grant_immutable"}, {"media_admin_case_revocations", "media_admin_case_revocation_immutable"}} {
+	for _, pair := range [][2]string{{"media_admin_case_grants", "media_admin_case_grant_immutable"}, {"media_admin_case_revocations", "media_admin_case_revocation_immutable"}, {"media_legacy_adoptions", "media_legacy_adoption_immutable"}} {
 		if _, err := clean.Exec(context.Background(), "ALTER TABLE "+pgx.Identifier{pair[0]}.Sanitize()+" ENABLE TRIGGER "+pgx.Identifier{pair[1]}.Sanitize()); err != nil {
 			t.Fatal(err)
 		}
@@ -163,7 +163,7 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(migrations) == 0 || migrations[len(migrations)-1].Version != "000007_admin_case_grants" {
+	if len(migrations) == 0 || migrations[len(migrations)-1].Version != "000008_case_vocabulary_and_legacy_adoption" {
 		t.Fatal("Review and update the tip-specific rollback assertions for the new migration")
 	}
 
@@ -192,8 +192,9 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if !exists {
 		t.Fatal("latest rollback removed the media_objects baseline table")
 	}
-	// The current tip removes only empty case ledgers; native privacy, binding
-	// and export constraints must remain intact.
+	// The current tip removes only the empty legacy-adoption mapping and
+	// restores the original closed binding list; native privacy, binding,
+	// export constraints and the case grant ledger must remain intact.
 	var bindingExists bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM information_schema.columns
@@ -212,8 +213,12 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 		t.Fatalf("tip rollback changed native vendor privacy constraints: %d", vendorConstraints)
 	}
 	var caseExists bool
-	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.media_admin_case_grants') IS NOT NULL OR to_regclass('public.media_admin_case_revocations') IS NOT NULL OR to_regclass('public.media_admin_case_policy_heads') IS NOT NULL`).Scan(&caseExists); err != nil || caseExists {
-		t.Fatal("empty case ledger rollback failed", err)
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.media_admin_case_grants') IS NOT NULL AND to_regclass('public.media_admin_case_revocations') IS NOT NULL AND to_regclass('public.media_admin_case_policy_heads') IS NOT NULL AND to_regclass('public.media_legacy_adoptions') IS NULL`).Scan(&caseExists); err != nil || !caseExists {
+		t.Fatal("tip rollback removed the case ledger or kept the adoption mapping", err)
+	}
+	var closedList bool
+	if err := pool.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) LIKE '%VERIFICATION_CASE%' FROM pg_constraint WHERE conname='media_objects_binding_type_check'`).Scan(&closedList); err != nil || !closedList {
+		t.Fatal("tip rollback did not restore the original closed binding list", err)
 	}
 	// 000004's data-export visibility is NOT the tip's, so it must survive.
 	var visibilityExists bool
@@ -263,8 +268,8 @@ func TestMigrationsReplayAndRollback(t *testing.T) {
 	if vendorConstraints != 2 {
 		t.Fatalf("reapply restored %d vendor privacy constraints, want 2", vendorConstraints)
 	}
-	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.media_admin_case_grants') IS NOT NULL AND to_regclass('public.media_admin_case_revocations') IS NOT NULL AND to_regclass('public.media_admin_case_policy_heads') IS NOT NULL`).Scan(&caseExists); err != nil || !caseExists {
-		t.Fatal("case ledger reapply failed", err)
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('public.media_admin_case_grants') IS NOT NULL AND to_regclass('public.media_admin_case_revocations') IS NOT NULL AND to_regclass('public.media_admin_case_policy_heads') IS NOT NULL AND to_regclass('public.media_legacy_adoptions') IS NOT NULL`).Scan(&caseExists); err != nil || !caseExists {
+		t.Fatal("case ledger / adoption reapply failed", err)
 	}
 	// The private-only rule is part of the schema, not just the use case, so it
 	// must come back with the reapply.

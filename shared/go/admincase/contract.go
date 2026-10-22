@@ -33,6 +33,9 @@ func Specs() []Spec {
 		// Hauling-owned inspection cases. Evidence is reachable only through an
 		// inspection the owner recorded and still binds to the truck's tenant.
 		{"driver-hauling-service", "hauling", "inspections", "hauling.case.evidence.read", "hauling.admin-case-evidence.v1", "INSPECTION_CASE", map[string][]string{"CASE": {"$CASE"}, "TRUCK": {"truck"}}, []string{"RECORDED", "CONCLUDED"}, []string{"INSPECTION_EVIDENCE", "CARGO_CONDITION", "DAMAGE_EVIDENCE"}},
+		// Fleet standalone investigations. Domain is the native Fleet route
+		// segment so Path() matches the owner's private admin group.
+		{"fleet-partner-service", "fleet-partner", "investigations", "fleet.case.evidence.read", "fleet.admin-case-evidence.v1", "INVESTIGATION_CASE", map[string][]string{"CASE": {"$CASE"}, "SHIPMENT": {"shipment"}, "ASSIGNMENT": {"private_assignment"}, "EXECUTION_LINK": {"execution_link"}}, []string{"OPEN", "FINDING_RECORDED"}, []string{"CARGO_CONDITION", "DAMAGE_EVIDENCE", "SAFETY_INCIDENT", "INCIDENT_ATTACHMENT"}},
 	}
 }
 func Find(owner, kind string) (Spec, bool) {

@@ -8,18 +8,44 @@ import (
 	"time"
 )
 
+// CaseSource is a live source-owner case proof client. Production sources are
+// *admincase.Client over the fixed signed proof route.
+type CaseSource interface {
+	Authorize(ctx context.Context, q adminread.Query, kind, ref, subject, subjectRef string) (admincase.Proof, error)
+}
+
 // OwnerCaseAuthority combines current native case/subject proof with an actual
-// modern Media ownership and case binding. Legacy assets are never queried.
+// modern Media ownership and case binding. Legacy assets are never queried;
+// an adopted legacy asset is reachable only through its mapped modern object.
+//
+// Case kinds come from the compiled registry (shared/go/admincase.Specs).
+// Specs is only overridden by tests that construct an additional kind.
 type OwnerCaseAuthority struct {
 	Media   *Service
 	Policy  *adminpolicy.Engine
-	Sources map[string]*admincase.Client
+	Sources map[string]CaseSource
+	Specs   []admincase.Spec
+}
+
+func (a *OwnerCaseAuthority) find(owner, kind string) (admincase.Spec, bool) {
+	if a.Specs == nil {
+		return admincase.Find(owner, kind)
+	}
+	for _, s := range a.Specs {
+		if s.Owner == owner && s.Kind == kind {
+			return s, true
+		}
+	}
+	return admincase.Spec{}, false
 }
 
 func (a *OwnerCaseAuthority) AuthorizeCase(ctx context.Context, actor CaseActor, q CaseRequest) (CaseProof, error) {
 	var empty CaseProof
-	spec, ok := admincase.Find(q.CaseOwner, q.CaseKind)
-	if a == nil || a.Media == nil || a.Media.opts.Pool == nil || a.Policy == nil || !ok || q.SourceCapability != spec.Permission || !q.Valid() {
+	if a == nil {
+		return empty, adminpolicy.ErrDenied
+	}
+	spec, ok := a.find(q.CaseOwner, q.CaseKind)
+	if a.Media == nil || a.Media.opts.Pool == nil || a.Policy == nil || !ok || q.SourceCapability != spec.Permission || !q.Valid() {
 		return empty, adminpolicy.ErrDenied
 	}
 	now := a.Media.opts.Now().UTC()
@@ -51,6 +77,11 @@ func (a *OwnerCaseAuthority) AuthorizeCase(ctx context.Context, actor CaseActor,
 	proof, err := client.Authorize(ctx, query, q.CaseKind, q.CaseReference, q.SubjectType, q.SubjectReference)
 	if err != nil {
 		return empty, err
+	}
+	// Re-check the proof independently of the source client implementation.
+	expected := adminpolicy.Scope{Product: "karryam", Market: q.Scope.Market, Zone: q.Scope.Zone, Organization: q.Scope.Organization, Tenant: q.Scope.Tenant}
+	if proof.ContractVersion != admincase.Contract || proof.Owner != q.CaseOwner || proof.CaseKind != q.CaseKind || proof.CaseReference != q.CaseReference || proof.SubjectType != q.SubjectType || proof.SubjectReference != q.SubjectReference || proof.SourceContract != spec.SourceContract || proof.Scope != expected || proof.PolicyID != query.PolicyID || proof.PolicyVersion != query.PolicyVersion || proof.PolicyChecksum != query.PolicyChecksum || !proof.ExpiresAt.After(now) {
+		return empty, adminpolicy.ErrDenied
 	}
 	// Only the modern table can establish the object identity. Its authenticated
 	// owner and typed case binding form the authoritative modern association.

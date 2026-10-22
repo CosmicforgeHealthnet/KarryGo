@@ -21,6 +21,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
+	"cosmicforge/logistics/shared/go/admincommand"
 	"cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/redisx"
@@ -30,6 +31,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/admininvestigations"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
@@ -409,6 +411,11 @@ func main() {
 	if err != nil {
 		logging.Fatal("configuration", "Fleet owner admin configuration invalid")
 	}
+	// Investigation command boundary; FLEET_PARTNER_ADMIN_COMMAND_* default off.
+	fleetCommands, err := admincommand.Runtime(ownerAdmin, admininvestigations.Spec(), admininvestigations.Executor{}, "FLEET_PARTNER")
+	if err != nil {
+		logging.Fatal("configuration", "Fleet owner admin command configuration invalid")
+	}
 	router := app.BuildRouter(app.Options{
 		Config:        cfg,
 		Metrics:       metrics,
@@ -431,6 +438,7 @@ func main() {
 		CustomerRoutes:        components.CustomerRoutes(),
 		InternalRoutes: func(group *gin.RouterGroup) {
 			ownerAdmin.RegisterOn(group)
+			fleetCommands.RegisterOn(group)
 			if routes := buildMarketplaceInternalRoutes(cfg, pool, metrics); routes != nil {
 				routes(group)
 			}

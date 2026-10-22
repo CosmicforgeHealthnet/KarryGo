@@ -26,6 +26,7 @@ import (
 	bookingclients "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/booking/clients"
 	dispatchcommercemission "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercemission"
 	dispatchcommercequote "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/commercequote"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/legacymediaadoption"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/movement"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
@@ -327,6 +328,13 @@ func main() {
 	// called complete (killed, crashed, lost network). Without this the
 	// customer's escrowed fare stays held and the rider is never paid.
 	go tripService.RunAutoCompleteWorker(ctx)
+
+	// Owner-attested legacy media adoption (DISPATCH_LEGACY_MEDIA_ADOPTION_ENABLED, default false).
+	if adoption, adoptionErr := legacymediaadoption.FromEnvironment(db); adoptionErr != nil {
+		log.Fatalf("legacy media adoption configuration refused: %v", adoptionErr)
+	} else if adoption != nil {
+		go adoption.Run(ctx)
+	}
 
 	// Customer movement events. The sweeper reads committed delivery state and
 	// queues what changed; the publisher delivers it to the customer context

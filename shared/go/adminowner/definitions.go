@@ -57,6 +57,7 @@ func Profiles() []Profile {
 			"shipments":           makeDef("fleet", "shipments", "fleet.shipments.read", []string{"planning", "custody", "return"}, nil, []string{"order", "branch"}),
 			"private-assignments": makeDef("fleet", "private-assignments", "fleet.private_assignments.read", []string{"execution_service", "work_origin"}, nil, []string{"provider", "vehicle", "shipment", "order"}),
 			"execution-links":     makeDef("fleet", "execution-links", "fleet.execution_links.read", []string{"execution_service"}, nil, []string{"provider", "vehicle", "shipment", "assignment", "response", "canonical_mission"}),
+			"investigations":      {Kind: "investigations", Capability: "fleet.investigations.read", SourceContract: "fleet.admin-investigation.v1", Dimensions: []string{"subject_kind", "category", "severity", "occurred_on", "finding", "closure"}, References: []string{"organization", "shipment", "private_assignment", "execution_link"}},
 		}},
 	}
 	for i := range profiles {

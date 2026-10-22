@@ -38,13 +38,21 @@ type ActionSpec struct {
 // same independently signed owner context as reads; the owner's own binding
 // contract for that kind must match before the command contract applies.
 type Spec struct {
-	Owner, Domain, Contract    string
-	Capability, ReadCapability string
-	ApproveCapability          string
-	Actions                    map[string]ActionSpec
+	// Domain is the Bridge route domain; Segment, when set, is the owner's
+	// own private route segment (Fleet serves /internal/fleet-partner/v1).
+	Owner, Domain, Segment, Contract string
+	Capability, ReadCapability       string
+	ApproveCapability                string
+	Actions                          map[string]ActionSpec
 }
 
-func (s Spec) Path() string { return "/internal/" + s.Domain + "/v1/admin/commands" }
+func (s Spec) Path() string {
+	segment := s.Domain
+	if s.Segment != "" {
+		segment = s.Segment
+	}
+	return "/internal/" + segment + "/v1/admin/commands"
+}
 
 // SubjectContract is the owner's existing resource contract for a kind.
 func (s Spec) SubjectContract(kind string) (string, bool) {
@@ -147,7 +155,8 @@ func Specs() []Spec {
 			},
 		},
 		{
-			Owner: "fleet-partner-service", Domain: "fleet", Contract: "fleet.admin-command.v1",
+			// Fleet's native private route segment is /internal/fleet-partner/v1.
+			Owner: "fleet-partner-service", Domain: "fleet", Segment: "fleet-partner", Contract: "fleet.admin-command.v1",
 			Capability: "fleet.admin.command.execute", ReadCapability: "fleet.admin.command.read", ApproveCapability: "fleet.admin.command.approve",
 			Actions: map[string]ActionSpec{
 				"OPEN_INVESTIGATION":  {SubjectKinds: kinds("shipments", "private-assignments", "execution-links"), RequiresCase: true, Params: map[string]ParamSpec{"category": enum(true, "CARGO_DAMAGE", "CARGO_LOSS", "SAFETY", "CONDUCT", "SERVICE_FAILURE"), "severity": severity, "occurred_on": dateReq}, VersionOf: VersionCase},

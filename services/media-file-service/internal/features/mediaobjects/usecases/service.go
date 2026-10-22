@@ -498,6 +498,17 @@ func (s *Service) validateAuthorizeInput(input *AuthorizeUploadInput) error {
 		return invalid("VISIBILITY_MUST_BE_PRIVATE",
 			"That upload purpose may only be stored privately.")
 	}
+	// A binding type that exists only for an administrative source case is
+	// case evidence and may never be publicly reachable.
+	if input.Visibility != models.VisibilityPrivate {
+		caseBound := models.CaseOnlyBindingType(input.BindingType)
+		for _, binding := range input.SecondaryBindings {
+			caseBound = caseBound || models.CaseOnlyBindingType(binding.Type)
+		}
+		if caseBound {
+			return invalid("VISIBILITY_MUST_BE_PRIVATE", "Case evidence may only be stored privately.")
+		}
+	}
 	// The export format is settled before any byte is accepted: the declared
 	// type must be one of exactly two, and the file name must carry the one
 	// extension that pairs with it. Deciding this at authorization time means

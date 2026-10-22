@@ -30,15 +30,23 @@ func ownerCaseAuthority(service *usecases.Service, policy *adminpolicy.Engine, c
 			SecretFile string `json:"secret_file"`
 		} `json:"sources"`
 	}
-	if admincase.Strict(raw, &config) != nil || len(config.Sources) == 0 || len(config.Sources) > 4 {
+	// The recognized owners are exactly those with a compiled case kind.
+	owners := map[string]bool{}
+	for _, spec := range admincase.Specs() {
+		owners[spec.Owner] = true
+	}
+	if admincase.Strict(raw, &config) != nil || len(config.Sources) == 0 || len(config.Sources) > len(owners) {
 		return nil, errors.New("invalid case source enrollment")
 	}
-	a := &usecases.OwnerCaseAuthority{Media: service, Policy: policy, Sources: map[string]*admincase.Client{}}
+	a := &usecases.OwnerCaseAuthority{Media: service, Policy: policy, Sources: map[string]usecases.CaseSource{}}
 	keys := [][]byte{caseKey, downloadKey}
 	for _, key := range legacy {
 		keys = append(keys, key)
 	}
 	for _, entry := range config.Sources {
+		if !owners[entry.Owner] {
+			return nil, errors.New("unrecognized case source owner")
+		}
 		if a.Sources[entry.Owner] != nil {
 			return nil, errors.New("duplicate source owner")
 		}

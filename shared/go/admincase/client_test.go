@@ -80,7 +80,7 @@ func TestSourceCaseClientPinsOwnerMembershipScopePolicyAndAudience(t *testing.T)
 			}
 		})
 	}
-	for _, owner := range []string{"fleet-partner-service", "https://test.invalid", "unknown"} {
+	for _, owner := range []string{"admin-backoffice-service", "media-file-service", "https://test.invalid", "unknown"} {
 		if _, err := NewClient(owner, "http://127.0.0.1", key); err == nil {
 			t.Fatal("invented source case owner", owner)
 		}
@@ -101,8 +101,21 @@ func TestCaseRegistryHasOnlyNativeCasesAndExactSubjectRoles(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) != 8 {
-		t.Fatal("unexpected native case count", len(seen))
+	// Every enrolled case belongs to one of the five source owners; the
+	// original native cases and Fleet's standalone investigations stay present.
+	owners := map[string]bool{"customer-service": true, "driver-taxi-service": true, "driver-dispatch-delivery-service": true, "driver-hauling-service": true, "fleet-partner-service": true}
+	for identity := range seen {
+		if !owners[identity[:strings.Index(identity, ":")]] {
+			t.Fatal("case enrolled for a non-source owner", identity)
+		}
+	}
+	for _, identity := range []string{"customer-service:review-work-items", "driver-taxi-service:recoveries", "driver-dispatch-delivery-service:incidents", "driver-dispatch-delivery-service:delivery-recoveries", "driver-dispatch-delivery-service:returns", "driver-hauling-service:recoveries", "fleet-partner-service:investigations"} {
+		if !seen[identity] {
+			t.Fatal("native case missing", identity)
+		}
+	}
+	if fleet, _ := Find("fleet-partner-service", "investigations"); fleet.Path() != "/internal/fleet-partner/v1/admin/case-authority" || Contains(fleet.States, "CLOSED") {
+		t.Fatal("fleet investigation case contract drifted")
 	}
 	taxi, _ := Find("driver-taxi-service", "recoveries")
 	hauling, _ := Find("driver-hauling-service", "recoveries")

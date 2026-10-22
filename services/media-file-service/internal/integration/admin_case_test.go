@@ -261,6 +261,16 @@ func TestPostgresMediaCaseAuditAtomicityImmutabilityAndRevocationAfterKill(t *te
 			t.Fatal("grant evidence mutable")
 		}
 	}
+	// 000008 (case vocabulary / empty legacy adoption) may roll back; the case
+	// ledger migration beneath it must refuse while grant evidence exists.
+	if err := database.RollbackLastMigration(ctx, f.media.pool, migrationsDir); err != nil {
+		t.Fatal("empty legacy adoption tip could not roll back", err)
+	}
+	t.Cleanup(func() {
+		if err := database.ApplyMigrations(context.Background(), f.media.pool, migrationsDir); err != nil {
+			t.Errorf("reapply migrations: %v", err)
+		}
+	})
 	if err := database.RollbackLastMigration(ctx, f.media.pool, migrationsDir); err == nil {
 		t.Fatal("populated case evidence destroyed by rollback")
 	}

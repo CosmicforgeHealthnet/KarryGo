@@ -20,6 +20,7 @@ ROUTES = [
     ("approval.decide", "/{d}/command-approvals/{approval_id}/decisions", "POST", "approve", "AVAILABLE", "R3"),
 ]
 SOURCE = {"submit": "POST /internal/{d}/v1/admin/commands", "readback": "GET /internal/{d}/v1/admin/commands/{kind}/{id}/{key}", "history": "GET /internal/{d}/v1/admin/commands/{kind}/{id}", "approval.propose": "Bridge-local two-person approval", "approval.read": "Bridge-local two-person approval", "approval.decide": "Bridge-local two-person approval"}
+SEGMENT = {"fleet": "fleet-partner"}
 FLAG = {"customer": "ADMIN_CUSTOMER_WRITES_ENABLED", "taxi": "ADMIN_TAXI_WRITES_ENABLED", "dispatch": "ADMIN_DISPATCH_RECOVERY_ENABLED", "hauling": "ADMIN_HAULING_RECOVERY_ENABLED", "fleet": "ADMIN_FLEET_WRITES_ENABLED"}
 TESTS = ["TestPostgresOwnerCommandTwoPersonApprovalIsBoundSingleUseAndRequesterOnly", "TestPostgresOwnerCommandUncertainOutcomeReconcilesWithoutResubmit", "TestPostgresOwnerCommandRefusalAndSupersessionReleaseOnlyProvenSlots", "TestPostgresOwnerCommandBridgeMTLSRoundTrip"]
 
@@ -36,7 +37,7 @@ def matrix_entries():
             flag = f"ADMIN_{prefix}_COMMAND_WRITES_ENABLED; {FLAG[d]}; ADMIN_REMOTE_WRITES_ENABLED" if method == "POST" else f"ADMIN_{prefix}_COMMAND_READBACK_ENABLED"
             rows.append({
                 "id": capability_id(d, suffix), "version": "1.0", "owner": owner,
-                "source_endpoint": SOURCE[suffix].replace("{d}", d), "bridge_endpoint": path.replace("{d}", d), "method": method,
+                "source_endpoint": SOURCE[suffix].replace("{d}", SEGMENT.get(d, d)), "bridge_endpoint": path.replace("{d}", d), "method": method,
                 "state": state, "permission": permission,
                 "scope": "product,market,zone,organization,tenant,staff,purpose; subject bound by current signed owner context",
                 "risk": risk, "privacy": "MINIMIZED_DECISION_RECORD",

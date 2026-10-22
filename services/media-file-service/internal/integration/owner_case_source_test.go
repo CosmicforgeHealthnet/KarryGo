@@ -99,7 +99,7 @@ func TestPostgresMediaNativeCustomerCaseMembershipAndModernEvidence(t *testing.T
 		t.Fatal(err)
 	}
 	defer source.Close()
-	authority := &usecases.OwnerCaseAuthority{Media: f.service, Policy: policy.Engine, Sources: map[string]*admincase.Client{spec.Owner: source}}
+	authority := &usecases.OwnerCaseAuthority{Media: f.service, Policy: policy.Engine, Sources: map[string]usecases.CaseSource{spec.Owner: source}}
 	// A genuine modern object is issued by its owning workload and bound to the
 	// actual review case. A supplied legacy UUID cannot establish this relation.
 	payload := pdfFile(0)
