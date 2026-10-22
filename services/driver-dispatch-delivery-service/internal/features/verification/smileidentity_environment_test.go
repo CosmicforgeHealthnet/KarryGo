@@ -8,9 +8,9 @@ import (
 
 func TestSmileIdentityFakeModeRestrictedToDevelopmentAndTest(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		appEnv      string
-		permitFake  bool
+		name       string
+		appEnv     string
+		permitFake bool
 	}{
 		{"development", "development", true},
 		{"unit test", "test", true},
