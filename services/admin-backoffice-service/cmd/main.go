@@ -7,6 +7,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerworkitemops"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/ownercommandops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
 	"cosmicforge/logistics/shared/go/adminpolicy"
@@ -161,6 +162,29 @@ func run() error {
 			}
 		}
 
+	}
+	if owners, e := cfg.OwnerCommandClients(); e != nil {
+		return e
+	} else if len(owners) > 0 {
+		var ready bool
+		if e := pool.QueryRow(ctx, `SELECT to_regclass('admin_owner_command_operations') IS NOT NULL AND to_regclass('admin_owner_command_operation_audit') IS NOT NULL AND to_regclass('admin_command_approvals') IS NOT NULL AND to_regclass('admin_command_approval_audit') IS NOT NULL`).Scan(&ready); e != nil || !ready {
+			return errors.New("owner command orchestration schema unavailable")
+		}
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid owner command policy")
+		}
+		if approved != nil {
+			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+				return errors.New("owner command policy revision refused")
+			}
+		}
+		for _, owner := range owners {
+			defer owner.Client.Close()
+			if e := app.ConfigureOwnerCommands(&ownercommandops.Service{DB: pool, Owner: owner.Client, Policy: approved, WriteEnabled: owner.WriteEnabled, ReadEnabled: owner.ReadEnabled}); e != nil {
+				return e
+			}
+		}
 	}
 	if client, e := cfg.ScopedAnalyticsClient(); e != nil {
 		return e

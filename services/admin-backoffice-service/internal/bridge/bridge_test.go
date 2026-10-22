@@ -286,8 +286,10 @@ func TestDisabledRoutes(t *testing.T) {
 		}
 		f := newFixture(t)
 		path := c.BridgeEndpoint
-		for _, param := range []string{"{type}", "{id}", "{report}"} {
-			path = strings.ReplaceAll(path, param, "test")
+		for strings.Contains(path, "{") {
+			start := strings.Index(path, "{")
+			end := strings.Index(path[start:], "}")
+			path = path[:start] + "test" + path[start+end+1:]
 		}
 		w := invoke(f.b, f.request(t, c.Method, path+scopeQuery, nil))
 		if w.Code != 503 || f.repo.records != 0 {

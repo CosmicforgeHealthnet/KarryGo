@@ -1,5 +1,6 @@
 """Validate or regenerate the pinned OpenAPI/JSON Schema bundle. No network needed."""
 import work_item_contracts
+import owner_command_contracts
 import media_bridge_contracts
 import report_contracts
 import argparse
@@ -87,12 +88,13 @@ def build():
     schemas["ScopedMissionSuccessRelease"] = release
     schemas.update(report_contracts.schemas(release))
     schemas.update(media_bridge_contracts.schemas(obj,string,opaque))
+    schemas.update(owner_command_contracts.schemas(obj, string, opaque, review_receipt["properties"]["scope"]))
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text(encoding="utf-8"))
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"].startswith("analytics.scoped."):
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"].startswith("analytics.scoped.") or owner_command_contracts.is_command(c["id"]):
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
@@ -106,7 +108,7 @@ def build():
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "MediaCaseGrant" if c["id"].startswith("media.case.") else "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = owner_command_contracts.result_schema(c["id"]) if owner_command_contracts.is_command(c["id"]) else "MediaCaseGrant" if c["id"].startswith("media.case.") else "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             if c["id"]=="media.case.grant.revoke":result="MediaCaseRevocation"
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
@@ -117,6 +119,8 @@ def build():
             op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":
             op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("CustomerWorkItemCommand" if c["id"]=="customer.review.work_item.submit" else "CustomerReviewRequest" if c["id"] == "customer.review.submit" else "Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
+        if owner_command_contracts.is_command(c["id"]) and c["method"] == "POST":
+            op["requestBody"]["content"]["application/json"]["schema"]={"$ref":"#/components/schemas/"+owner_command_contracts.request_schema(c["id"])}
         if c["id"].startswith("media.case."):
             op["requestBody"]["content"]["application/json"]["schema"]={"$ref":"#/components/schemas/"+media_bridge_contracts.request_schema(c["id"])}
             if c["id"]=="media.case.content.read":

@@ -23,6 +23,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerworkitemops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/ownercommandops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
 	"cosmicforge/logistics/shared/go/adminmedia"
@@ -60,6 +61,7 @@ type Bridge struct {
 	features                 config.DomainFlags
 	customerReview           *customerreviewops.Service
 	customerWorkItems        *customerworkitemops.Service
+	ownerCommands            map[string]*ownercommandops.Service
 	mediaCases               *adminmedia.Client
 	mediaPolicy              *adminpolicy.Engine
 	mediaReads, mediaRevokes bool
@@ -285,7 +287,19 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	analyticsRate := capability.ID == analyticsadmin.MissionRatePermission
 	analyticsReport, scopedReport := scopedReportCapability(capability.ID)
 	analyticsRead := scopedReport || analyticsRate
+	commandService, commandRoute, ownerCommand := b.ownerCommandRoute(capability.ID)
 	readPolicy := b.accessPolicy
+	if ownerCommand {
+		if commandService == nil {
+			fail(503, "capability_blocked")
+			return
+		}
+		readPolicy = commandService.Policy
+		if readPolicy == nil {
+			fail(503, "blocked_policy")
+			return
+		}
+	}
 	if analyticsRead {
 		if b.scopedAnalytics == nil || !b.features.AnalyticsReads {
 			fail(503, "capability_blocked")
@@ -326,7 +340,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var taxiQuery adminread.Query
 	var analyticsFilters analyticsadmin.Filters
 	query, err := strictQuery(r)
-	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead {
+	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead || ownerCommand {
 		role := actor.Roles[0]
 		approvedRoles := b.taxiRoles
 		if analyticsRead {
@@ -347,6 +361,15 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				expected = customerreview.WorkItemContract
 			}
 			if e != nil || rule.Owner != customerreview.Owner || rule.SourceContract != expected {
+				fail(503, "blocked_policy")
+				return
+			}
+			approvedRoles = rule.Roles
+		}
+		if ownerCommand {
+			spec := commandService.Owner.Spec()
+			rule, e := readPolicy.Rule(capability.Permission, b.now())
+			if e != nil || rule.Owner != spec.Owner || rule.SourceContract != spec.Contract {
 				fail(503, "blocked_policy")
 				return
 			}
@@ -396,7 +419,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(403, "forbidden")
 		return
 	}
-	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead {
+	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead || ownerCommand {
 		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
 		requested := adminpolicy.Scope{Product: config.Product, Market: taxiQuery.Scope.Market, Zone: taxiQuery.Scope.Zone, Organization: taxiQuery.Scope.Organization, Tenant: taxiQuery.Scope.Tenant}
 		if e := readPolicy.AuthorizeDelegation(delegated, capability.Permission, taxiQuery.Purpose, requested, b.now()); e != nil {
@@ -429,6 +452,11 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(400, "invalid_request")
 		return
 	}
+	if ownerCommand {
+		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
+		b.serveOwnerCommand(w, r, body, commandService, commandRoute, path, delegated, taxiQuery, a, correlation)
+		return
+	}
 
 	var result any
 	switch capability.ID {
@@ -438,6 +466,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.customerReviewAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		b.customerWorkItemAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		b.mediaCaseAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
+		b.ownerCommandAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		for _, report := range analyticsadmin.Reports() {
 			availability[report.Permission] = b.scopedReportAvailable(report, actor.Roles, actor.Zones, actor.Tenants)
 		}

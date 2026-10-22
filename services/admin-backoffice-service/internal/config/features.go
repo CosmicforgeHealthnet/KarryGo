@@ -14,6 +14,7 @@ type DomainFlags struct {
 	TaxiWrites             bool
 	DispatchRecovery       bool
 	HaulingRecovery        bool
+	FleetWrites            bool
 	RemoteWrites           bool
 }
 
@@ -25,6 +26,7 @@ func loadDomainFlags() DomainFlags {
 		TaxiWrites:             os.Getenv("ADMIN_TAXI_WRITES_ENABLED") == "true",
 		DispatchRecovery:       os.Getenv("ADMIN_DISPATCH_RECOVERY_ENABLED") == "true",
 		HaulingRecovery:        os.Getenv("ADMIN_HAULING_RECOVERY_ENABLED") == "true",
+		FleetWrites:            os.Getenv("ADMIN_FLEET_WRITES_ENABLED") == "true",
 		RemoteWrites:           os.Getenv("ADMIN_REMOTE_WRITES_ENABLED") == "true",
 	}
 }
@@ -41,6 +43,8 @@ func (f DomainFlags) WriteFamilyRequested(action string) bool {
 		return f.DispatchRecovery
 	case strings.HasPrefix(action, "hauling."):
 		return f.HaulingRecovery
+	case strings.HasPrefix(action, "fleet."):
+		return f.FleetWrites
 	}
 	return false
 }

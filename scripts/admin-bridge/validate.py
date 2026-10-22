@@ -56,7 +56,7 @@ def main():
             domain = row["id"].split(".", 1)[0]
             assert row["owner"] == canonical_resource_owners[domain], f"Noncanonical owner in capability contract: {row['id']}"
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | {"customer.review.work_item.readback", "media.case.grant.issue", "media.case.content.read"} | resource_ids | {report_contracts.permission(name) for name in report_contracts.REPORTS}
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | {"customer.review.work_item.readback", "media.case.grant.issue", "media.case.content.read"} | resource_ids | {row["id"] for row in __import__("owner_command_contracts").matrix_entries() if row["state"] == "READ_ONLY"} | {report_contracts.permission(name) for name in report_contracts.REPORTS}
     if args.wire_dir:
         media_grant=args.wire_dir/"media-case-grant.json"
         if media_grant.exists():
