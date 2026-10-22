@@ -206,7 +206,9 @@ func TestMatch_RejectedProviderNotReDispatchedSameBooking(t *testing.T) {
 
 	// Simulate "near" rejecting the booking as soon as it is matched, then let
 	// "near2" accept once matched.
+	responderDone := make(chan struct{})
 	go func() {
+		defer close(responderDone)
 		for i := 0; i < 100; i++ {
 			time.Sleep(50 * time.Millisecond)
 			b, _ := repo.GetByID(context.Background(), "b1")
@@ -224,7 +226,16 @@ func TestMatch_RejectedProviderNotReDispatchedSameBooking(t *testing.T) {
 		}
 	}()
 
-	svc.matchBooking(context.Background(), "b1", pickupLat, pickupLng)
+	// Start matching the way production does, so the reject below cancels this
+	// matcher before starting its replacement. Calling matchBooking directly
+	// would leave an unregistered matcher running beside the replacement.
+	svc.startMatchGoroutine("b1", pickupLat, pickupLng)
+	select {
+	case <-responderDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("responder did not finish")
+	}
+	waitForMatchersIdle(t, svc, "b1")
 
 	if got := repo.statusOf("b1"); got != bookingmodels.StatusAccepted {
 		t.Fatalf("expected booking accepted by near2, got %s", got)
@@ -728,4 +739,18 @@ type allTrucks struct {
 
 func (a allTrucks) GetTruck(context.Context, string) (TruckInfo, error) {
 	return TruckInfo{TruckType: a.truckType, CapacityKg: a.capacity, Status: "active"}, nil
+}
+
+// waitForMatchersIdle waits until no matcher is registered for the booking, so
+// a test never returns while a matcher goroutine still touches its fakes.
+func waitForMatchersIdle(t *testing.T, svc *BookingService, bookingID string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, live := svc.activeMatches.Load(bookingID); !live {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("matcher for %s still running", bookingID)
 }

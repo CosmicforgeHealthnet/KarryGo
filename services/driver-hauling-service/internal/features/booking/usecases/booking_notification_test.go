@@ -2,6 +2,7 @@ package bookingusecases
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,13 +16,24 @@ import (
 )
 
 // recordingNotifier captures every notification request it is asked to send.
+// Matchers send from their own goroutines, so access is locked.
 type recordingNotifier struct {
+	mu       sync.Mutex
 	requests []notifications.Request
 }
 
 func (r *recordingNotifier) Send(_ context.Context, request notifications.Request) (notifications.SendResponse, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.requests = append(r.requests, request)
 	return notifications.SendResponse{MessageID: "test", Status: "queued"}, nil
+}
+
+// sent returns a copy of the requests captured so far.
+func (r *recordingNotifier) sent() []notifications.Request {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]notifications.Request(nil), r.requests...)
 }
 
 var testHandoverSecret = []byte("test-handover-secret")
@@ -160,7 +172,7 @@ func TestCancelByProviderNotifiesCustomer(t *testing.T) {
 
 func assertNotified(t *testing.T, rec *recordingNotifier, eventType, recipientType, recipientID string) {
 	t.Helper()
-	for _, req := range rec.requests {
+	for _, req := range rec.sent() {
 		if req.EventType == eventType {
 			if req.Recipient.Type != recipientType || req.Recipient.ID != recipientID {
 				t.Fatalf("event %s sent to %s/%s, want %s/%s", eventType, req.Recipient.Type, req.Recipient.ID, recipientType, recipientID)
@@ -171,7 +183,7 @@ func assertNotified(t *testing.T, rec *recordingNotifier, eventType, recipientTy
 			return
 		}
 	}
-	t.Fatalf("expected notification for event %s, got %d requests", eventType, len(rec.requests))
+	t.Fatalf("expected notification for event %s, got %d requests", eventType, len(rec.sent()))
 }
 
 // ─── fakes ──────────────────────────────────────────────────────────────────
