@@ -1,0 +1,823 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Customer owner-executed administrative commands",
+    "version": "1.0.0",
+    "description": "Source-owned administrative command contract (shared/go/admincommand) for account standing, remediation, privacy request disposition and case-bound support decisions. Default off: CUSTOMER_ADMIN_COMMAND_WRITES_ENABLED and CUSTOMER_ADMIN_COMMAND_READBACK_ENABLED with distinct write and readback secrets. Not routed by the public API Gateway."
+  },
+  "security": [
+    {
+      "ServiceHMAC": []
+    }
+  ],
+  "paths": {
+    "/internal/customer/v1/admin/commands": {
+      "post": {
+        "operationId": "customer.admin.command.execute",
+        "description": "Executes one owner-defined action against its subject under the scoped, signed-policy query. The body is a strict admincommand.Command with an idempotency key, intent and operation digests, expected subject or case version and, where the action requires it, a single-use two-person approval bound to the intent digest. The owner applies the action and records an append-only decision in the same transaction; a duplicate idempotency key returns the original receipt, a stale expected version is 409.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Immutable proof that Customer recorded an owner review work item. No account, verification, restriction, privacy fulfillment, Trip or Wallet outcome is asserted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "customer.admin-review-request.v1"
+                    },
+                    "status": {
+                      "const": "REVIEW_REQUEST_RECORDED"
+                    },
+                    "review_request_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "customer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "idempotency_key": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$"
+                    },
+                    "intent_digest": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "recorded_review_revision": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "recorded_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "status",
+                    "review_request_id",
+                    "request_id",
+                    "customer_id",
+                    "idempotency_key",
+                    "intent_digest",
+                    "recorded_review_revision",
+                    "scope",
+                    "recorded_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "401": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "403": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "404": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "409": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "413": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "415": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "503": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          }
+        }
+      }
+    },
+    "/internal/customer/v1/admin/commands/{kind}/{id}": {
+      "get": {
+        "operationId": "customer.admin.command.history",
+        "description": "Immutable decision history for one subject, newest first, under the same scope and policy checks.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "description": "Subject kind declared by the customer command spec.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subject identifier.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable proof that Customer recorded an owner review work item. No account, verification, restriction, privacy fulfillment, Trip or Wallet outcome is asserted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "customer.admin-review-request.v1"
+                    },
+                    "status": {
+                      "const": "REVIEW_REQUEST_RECORDED"
+                    },
+                    "review_request_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "customer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "idempotency_key": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$"
+                    },
+                    "intent_digest": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "recorded_review_revision": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "recorded_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "status",
+                    "review_request_id",
+                    "request_id",
+                    "customer_id",
+                    "idempotency_key",
+                    "intent_digest",
+                    "recorded_review_revision",
+                    "scope",
+                    "recorded_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "401": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "403": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "404": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "409": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "413": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "415": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "503": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          }
+        }
+      }
+    },
+    "/internal/customer/v1/admin/commands/{kind}/{id}/{key}": {
+      "get": {
+        "operationId": "customer.admin.command.readback",
+        "description": "Reads back the receipt for one idempotency key, used by the Bridge to resolve UNKNOWN_OUTCOME. Uses the readback key, never the write key.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "description": "Subject kind declared by the customer command spec.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subject identifier.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "Command idempotency key.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable proof that Customer recorded an owner review work item. No account, verification, restriction, privacy fulfillment, Trip or Wallet outcome is asserted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "customer.admin-review-request.v1"
+                    },
+                    "status": {
+                      "const": "REVIEW_REQUEST_RECORDED"
+                    },
+                    "review_request_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "request_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "customer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    "idempotency_key": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$"
+                    },
+                    "intent_digest": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "recorded_review_revision": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "recorded_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "status",
+                    "review_request_id",
+                    "request_id",
+                    "customer_id",
+                    "idempotency_key",
+                    "intent_digest",
+                    "recorded_review_revision",
+                    "scope",
+                    "recorded_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "401": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "403": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "404": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "409": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "413": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "415": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          },
+          "503": {
+            "description": "Sanitized denial or unavailable outcome. A 404 on readback is not terminal absence proof; never automatically repost."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ServiceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "Dedicated admin-backoffice-service HMAC v2 identity. Full service version/name/timestamp/nonce/signature headers, body and exact query; durable cross-replica nonce claims. Write and readback keys are distinct from each other and the resource-read key."
+      }
+    }
+  }
+}
