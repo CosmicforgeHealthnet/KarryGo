@@ -51,6 +51,8 @@ func CaseBoundary(t *testing.T, db *pgxpool.Pool, source adminowner.Source, owne
 		scope.Tenant = "tenant-1"
 	}
 	policy := policyfixture.New(t, scope, owner, spec.Permission, spec.SourceContract)
+	policy.Document.ID = "test-only-case-policy-" + ref
+	policy.Sign(t)
 	issuer := contextfixture.New(t, owner)
 	store := &admincontext.Store{DB: db, Reader: reader, Authority: issuer.Authority}
 	key := bytes.Repeat([]byte("c"), 32)
@@ -97,6 +99,13 @@ func CaseBoundary(t *testing.T, db *pgxpool.Pool, source adminowner.Source, owne
 				t.Fatal("Bridge read audience used Media source key")
 			}
 			continue
+		}
+		want := 200
+		if !active {
+			want = 404
+		}
+		if first.StatusCode != want {
+			t.Fatal("native case status denial masked by unrelated failure", first.StatusCode, want)
 		}
 		replay, err := http.DefaultClient.Do(request)
 		if err != nil {

@@ -25,6 +25,15 @@ func TestOwnerResourcesDefaultDisabledWithoutCredentialAccess(t *testing.T) {
 			}
 			engine := gin.New()
 			h.Register(engine)
+			if h.Cases != nil {
+				for _, entry := range []struct{ method, path string }{{"GET", h.Cases.Path + "/proofs/recoveries/record-1/CASE/record-1"}, {"GET", h.Cases.Path + "/authorization-contexts/bindings/media-case:recoveries/record-1?purpose=case-1"}, {"POST", h.Cases.Path + "/authorization-contexts"}} {
+					out := httptest.NewRecorder()
+					engine.ServeHTTP(out, httptest.NewRequest(entry.method, entry.path, nil))
+					if out.Code != 503 {
+						t.Fatal("disabled case endpoint did not fail closed", out.Code)
+					}
+				}
+			}
 			for kind := range profile.Definitions {
 				for _, path := range []string{profile.Path + "/resources/" + kind, profile.Path + "/authorization-contexts/bindings/" + kind + "/record-1?purpose=case-1"} {
 					res := httptest.NewRecorder()

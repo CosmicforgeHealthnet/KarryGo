@@ -205,6 +205,11 @@ func (h *CaseAuthorityHandler) Serve(c *gin.Context) {
 func caseFromEnvironment(ctx context.Context, db *pgxpool.Pool, source Source, owner, prefix, path string) (*CaseAuthorityHandler, error) {
 	read, publish := os.Getenv(prefix+"_ADMIN_CASE_SOURCE_READ_ENABLED") == "true", os.Getenv(prefix+"_ADMIN_CASE_CONTEXT_PUBLISH_ENABLED") == "true"
 	if !read && !publish {
+		for _, spec := range admincase.Specs() {
+			if spec.Owner == owner {
+				return &CaseAuthorityHandler{Owner: owner, Path: path + "/case-authority", Publisher: &Handler{Owner: owner, Path: path + "/case-authority"}}, nil
+			}
+		}
 		return nil, nil
 	}
 	definitions := map[string]Definition{}
@@ -248,6 +253,22 @@ func caseFromEnvironment(ctx context.Context, db *pgxpool.Pool, source Source, o
 			return nil, err
 		}
 		if bytes.Equal(h.Publisher.PublishSecret, h.Secret) {
+			return nil, ErrConfiguration
+		}
+	}
+	for _, channel := range []string{"WRITE", "READBACK"} {
+		flag := prefix + "_ADMIN_REVIEW_" + channel + "S_ENABLED"
+		if channel == "READBACK" {
+			flag = prefix + "_ADMIN_REVIEW_READBACK_ENABLED"
+		}
+		if os.Getenv(flag) != "true" {
+			continue
+		}
+		other, e := secretFile(os.Getenv(prefix + "_ADMIN_REVIEW_" + channel + "_SECRET_FILE"))
+		if e != nil {
+			return nil, e
+		}
+		if len(h.Secret) > 0 && bytes.Equal(other, h.Secret) || len(h.Publisher.PublishSecret) > 0 && bytes.Equal(other, h.Publisher.PublishSecret) {
 			return nil, ErrConfiguration
 		}
 	}
