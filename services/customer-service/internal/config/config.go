@@ -132,7 +132,10 @@ func Load() Config {
 		MediaUploadSessionEnabled: getEnvBool("CUSTOMER_MEDIA_UPLOAD_SESSION_ENABLED", false),
 		SupportBaseURL:            getEnv("CUSTOMER_SUPPORT_BASE_URL", ""),
 
-		ServiceSecrets: getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret"),
+		// Development defaults only. The three booking authorities sign as
+		// their canonical service names (movement events and the
+		// account_standing context read).
+		ServiceSecrets: getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret,driver-taxi-service=development-taxi-customer-service-secret,driver-dispatch-delivery-service=development-dispatch-customer-service-secret,driver-hauling-service=development-hauling-customer-service-secret"),
 
 		ReferralFeedEnabled:           getEnvBool("CUSTOMER_REFERRAL_FEED_ENABLED", false),
 		ReferralServiceURL:            getEnv("CUSTOMER_REFERRAL_SERVICE_URL", ""),
@@ -147,7 +150,9 @@ func Load() Config {
 		MovementEventCallers:          getEnv("CUSTOMER_MOVEMENT_EVENT_CALLERS", "driver-taxi-service=TAXI;driver-dispatch-delivery-service=DISPATCH;driver-hauling-service=HAULING;vendor-service=VENDOR_COMMERCE"),
 		MovementGroupingCallers:       getEnv("CUSTOMER_MOVEMENT_GROUPING_CALLERS", "vendor-service"),
 
-		ContextCallerScopes: getEnv("CUSTOMER_CONTEXT_CALLER_SCOPES", "driver-taxi-service=mobility_preferences|saved_location|guest_traveller;vendor-service=saved_location"),
+		// account_standing lets each booking authority enforce administrative
+		// booking holds on new customer bookings.
+		ContextCallerScopes: getEnv("CUSTOMER_CONTEXT_CALLER_SCOPES", "driver-taxi-service=mobility_preferences|saved_location|guest_traveller|account_standing;driver-dispatch-delivery-service=account_standing;driver-hauling-service=account_standing;vendor-service=saved_location"),
 	}
 }
 

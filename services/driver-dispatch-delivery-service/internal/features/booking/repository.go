@@ -101,6 +101,14 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 // the same fingerprint reads the original booking; a changed payload fails
 // closed. The booking row itself is the durable operation record, so a timeout
 // after INSERT can safely resume the idempotent Wallet/broadcast steps.
+// CreatedWithIdempotencyKey reports whether the customer already created a
+// booking with this Idempotency-Key.
+func (r *PostgresRepository) CreatedWithIdempotencyKey(ctx context.Context, customerID, key string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM dispatch_bookings WHERE customer_id=$1 AND create_idempotency_key=$2)`, customerID, key).Scan(&exists)
+	return exists, err
+}
+
 func (r *PostgresRepository) InsertIdempotent(ctx context.Context, booking Booking, key, fingerprint, quoteID string, quoteVersion int64, quoteFingerprint string) (Booking, bool, error) {
 	row := r.db.QueryRow(ctx, `
 		INSERT INTO dispatch_bookings (

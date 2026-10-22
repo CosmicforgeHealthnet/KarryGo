@@ -23,6 +23,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 	"cosmicforge/logistics/services/taxi-service/internal/vehicleclass"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/phonenumber"
 )
@@ -170,6 +171,8 @@ type BookingService struct {
 	customerContext CustomerContextSource
 
 	adminGate AdminInterventionGate
+
+	customerStanding *customerstanding.Gate
 }
 
 // AdminInterventionGate is the Taxi-owned administrative overlay
@@ -285,6 +288,10 @@ type Options struct {
 	// AdminGate excludes administratively restricted providers/vehicles from
 	// new offers. nil keeps matching unchanged.
 	AdminGate AdminInterventionGate
+	// CustomerStanding enforces customer-service's administrative account
+	// standing on every NEW customer booking (TAXI_CUSTOMER_STANDING_ENFORCED).
+	// nil enforces nothing and keeps booking creation unchanged.
+	CustomerStanding *customerstanding.Gate
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -308,6 +315,8 @@ func NewBookingService(opts Options) *BookingService {
 		products:        opts.ProductPolicy,
 		customerContext: opts.CustomerContext,
 		adminGate:       opts.AdminGate,
+
+		customerStanding: opts.CustomerStanding,
 	}
 }
 
@@ -525,6 +534,14 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 		return bookingmodels.Booking{}, apperrors.Validation("Check your details.", []apperrors.FieldViolation{
 			{Field: "scheduled_at", Message: "Scheduled pickup must be in the future."},
 		})
+	}
+
+	// Administrative standing is checked live with customer-service before
+	// any read-for-write, quote or insert: a customer on a booking hold (or
+	// whose standing cannot be confirmed) creates nothing. Existing rides are
+	// never re-checked -- the hold only stops NEW bookings.
+	if _, err := s.customerStanding.Allow(ctx, customerID); err != nil {
+		return bookingmodels.Booking{}, err
 	}
 
 	// Addendum §5.2: one active ride per customer. No sponsored/booked_for

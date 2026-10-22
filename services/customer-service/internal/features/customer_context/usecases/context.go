@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	mobilitymodels "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/models"
 	savedlocationmodels "cosmicforge/logistics/services/customer-service/internal/features/saved_locations/models"
@@ -26,9 +27,15 @@ const (
 	// ScopeGuestTraveller lets a booking authority freeze who is actually
 	// travelling when a customer books for someone else (Customer V4 §5.1).
 	ScopeGuestTraveller = "guest_traveller"
+	// ScopeAccountStanding lets a booking authority ask ONLY whether the
+	// customer may create a new booking, without reading any other context.
+	// It is answered only from the source-owned standing; with no standing
+	// reader configured it is refused as unavailable, never answered
+	// "eligible".
+	ScopeAccountStanding = "account_standing"
 )
 
-var knownScopes = map[string]bool{ScopeMobilityPreferences: true, ScopeAssistanceNotes: true, ScopeSavedLocation: true, ScopeGuestTraveller: true}
+var knownScopes = map[string]bool{ScopeMobilityPreferences: true, ScopeAssistanceNotes: true, ScopeSavedLocation: true, ScopeGuestTraveller: true, ScopeAccountStanding: true}
 
 // CallerScopes maps an HMAC-authenticated service name to its granted scopes.
 type CallerScopes map[string]map[string]bool
@@ -90,10 +97,19 @@ type Service struct {
 	preferences PreferenceReader
 	locations   LocationReader
 	guests      GuestReader
+	now         func() time.Time
 }
 
 func NewService(scopes CallerScopes, preferences PreferenceReader, locations LocationReader) *Service {
-	return &Service{scopes: scopes, preferences: preferences, locations: locations}
+	return &Service{scopes: scopes, preferences: preferences, locations: locations, now: time.Now}
+}
+
+// WithClock overrides the clock used for account_standing.as_of (tests).
+func (s *Service) WithClock(now func() time.Time) *Service {
+	if now != nil {
+		s.now = now
+	}
+	return s
 }
 
 // WithGuests enables the guest_traveller scope. Without a reader the scope
@@ -111,11 +127,14 @@ func (s *Service) WithStanding(standing StandingReader) *Service {
 }
 
 // AccountStandingContext is the additive, minimal booking-eligibility fact.
-// It never carries the administrative reason or decision history.
+// It never carries the administrative reason or decision history. AsOf is
+// when Customer Service read the standing from its own database (UTC,
+// RFC3339Nano) so a consumer can refuse a stale answer.
 type AccountStandingContext struct {
 	BookingEligible bool   `json:"booking_eligible"`
 	Restriction     string `json:"restriction"`
 	StandingVersion int64  `json:"standing_version"`
+	AsOf            string `json:"as_of"`
 }
 
 type Request struct {
@@ -250,12 +269,19 @@ func (s *Service) Resolve(ctx context.Context, request Request) (CustomerContext
 			MobilityRequirements: guest.MobilityRequirementsJSON, Version: guest.Version}
 		versionParts = append(versionParts, fmt.Sprintf("guest:%s:%d", guest.ID, guest.Version))
 	}
+	if requested[ScopeAccountStanding] && s.standing == nil {
+		return CustomerContext{}, apperrors.Unavailable("Customer standing is unavailable.", nil)
+	}
 	if s.standing != nil {
+		// as_of is taken before the read so it never claims a fresher
+		// answer than the database actually gave.
+		asOf := s.now().UTC()
 		restriction, version, err := s.standing.AccountStanding(ctx, customerID)
 		if err != nil {
 			return CustomerContext{}, apperrors.Unavailable("Customer standing is unavailable.", err)
 		}
-		out.AccountStanding = &AccountStandingContext{BookingEligible: restriction == "NONE", Restriction: restriction, StandingVersion: version}
+		out.AccountStanding = &AccountStandingContext{BookingEligible: restriction == "NONE", Restriction: restriction,
+			StandingVersion: version, AsOf: asOf.Format(time.RFC3339Nano)}
 		versionParts = append(versionParts, fmt.Sprintf("standing:%d", version))
 	}
 	sum := sha256.Sum256([]byte(strings.Join(versionParts, "|")))

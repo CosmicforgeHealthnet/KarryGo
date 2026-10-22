@@ -17,6 +17,7 @@ import (
 	availabilityrepositories "cosmicforge/logistics/services/hauling-service/internal/features/provider_availability/repositories"
 	"cosmicforge/logistics/services/hauling-service/internal/truckcatalog"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/journeyshare"
@@ -149,6 +150,11 @@ type BookingService struct {
 	// completedWorkEnabled gates writing the canonical Fleet completed-work
 	// record. Off by default (HAULING_FLEET_COMPLETED_WORK_ENABLED).
 	completedWorkEnabled bool
+
+	// customerStanding enforces customer-service's administrative account
+	// standing on NEW customer bookings (HAULING_CUSTOMER_STANDING_ENFORCED).
+	// nil enforces nothing.
+	customerStanding *customerstanding.Gate
 }
 
 // matchHandle wraps a context.CancelFunc so it can be stored in sync.Map and
@@ -194,6 +200,9 @@ type Options struct {
 	ManagedSettlement    ManagedSettlementConfig
 	ManagedHandoff       ManagedSettlementHandoff
 	CompletedWorkEnabled bool
+	// CustomerStanding gates every new customer booking on customer-service's
+	// live administrative standing, failing closed. nil enforces nothing.
+	CustomerStanding *customerstanding.Gate
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -236,6 +245,7 @@ func NewBookingService(opts Options) *BookingService {
 		managedSettlement:    opts.ManagedSettlement,
 		managedHandoff:       opts.ManagedHandoff,
 		completedWorkEnabled: opts.CompletedWorkEnabled,
+		customerStanding:     opts.CustomerStanding,
 	}
 }
 
@@ -331,6 +341,13 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 	if len(fields) > 0 {
 		return bookingmodels.PublicBooking{}, apperrors.Validation("Please check your booking details.", fields)
+	}
+
+	// Administrative standing gates every NEW customer booking before any
+	// insert, event, route fetch or matching. CustomerID is the verified
+	// bearer subject. Existing bookings are never re-checked.
+	if _, err := s.customerStanding.Allow(ctx, input.CustomerID); err != nil {
+		return bookingmodels.PublicBooking{}, err
 	}
 
 	// Gate on the live provider list (which prunes stale entries), not a raw

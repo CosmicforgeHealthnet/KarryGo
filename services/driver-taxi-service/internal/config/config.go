@@ -152,6 +152,10 @@ type Config struct {
 	CustomerContextEnabled        bool
 	CustomerServiceURL            string
 	CustomerServiceSecret         []byte
+	// CustomerStandingEnforced refuses NEW customer bookings while
+	// customer-service reports an administrative hold, and fails closed when
+	// the standing cannot be confirmed. Off by default.
+	CustomerStandingEnforced bool
 	// Section 13. Analytics is advisory: off by default, and a Taxi journey
 	// never waits on it.
 	AnalyticsEventsEnabled bool
@@ -336,6 +340,7 @@ func Load() Config {
 		CustomerContextEnabled:        getEnvBool("TAXI_CUSTOMER_CONTEXT_ENABLED", false),
 		CustomerServiceURL:            os.Getenv("TAXI_CUSTOMER_SERVICE_URL"),
 		CustomerServiceSecret:         []byte(os.Getenv("TAXI_CUSTOMER_SERVICE_SECRET")),
+		CustomerStandingEnforced:      getEnvBool("TAXI_CUSTOMER_STANDING_ENFORCED", false),
 		AnalyticsEventsEnabled:        getEnvBool("TAXI_ANALYTICS_EVENTS_ENABLED", false),
 		AnalyticsURL:                  os.Getenv("TAXI_ANALYTICS_URL"),
 		AnalyticsSecret:               []byte(os.Getenv("TAXI_ANALYTICS_SECRET")),
@@ -458,9 +463,9 @@ func (c Config) Validate() error {
 	if c.CustomerLiveLocationEnabled && len(serviceSecretsFor(c.ServiceSecrets)["customer-service"]) == 0 {
 		problems = append(problems, "TAXI_CUSTOMER_LIVE_LOCATION_ENABLED requires customer-service in TAXI_SERVICE_SECRETS")
 	}
-	if c.CustomerMovementEventsEnabled || c.CustomerContextEnabled {
+	if c.CustomerMovementEventsEnabled || c.CustomerContextEnabled || c.CustomerStandingEnforced {
 		if strings.TrimSpace(c.CustomerServiceURL) == "" || len(c.CustomerServiceSecret) == 0 {
-			problems = append(problems, "TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED and TAXI_CUSTOMER_CONTEXT_ENABLED require TAXI_CUSTOMER_SERVICE_URL and TAXI_CUSTOMER_SERVICE_SECRET")
+			problems = append(problems, "TAXI_CUSTOMER_MOVEMENT_EVENTS_ENABLED, TAXI_CUSTOMER_CONTEXT_ENABLED and TAXI_CUSTOMER_STANDING_ENFORCED require TAXI_CUSTOMER_SERVICE_URL and TAXI_CUSTOMER_SERVICE_SECRET")
 		} else if path := urlPath(c.CustomerServiceURL); path != "" {
 			problems = append(problems, "TAXI_CUSTOMER_SERVICE_URL must be a bare origin, got path "+path)
 		}

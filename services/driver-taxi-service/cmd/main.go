@@ -77,6 +77,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/features/supportcontext"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/logging"
@@ -380,6 +381,19 @@ func main() {
 	if cfg.CustomerContextEnabled {
 		customerContext = &bookingclients.CustomerContextClient{BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret}
 	}
+	// Administrative account standing (customer-service owned). Off by
+	// default; when on, every new customer booking asks customer-service live
+	// and an unconfirmable standing refuses the booking (fail closed).
+	var customerStandingGate *customerstanding.Gate
+	if cfg.CustomerStandingEnforced {
+		standingClient, standingErr := customerstanding.NewClient(customerstanding.Config{
+			BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+		})
+		if standingErr != nil {
+			logging.Fatal("configuration", "TAXI_CUSTOMER_STANDING_ENFORCED: %v", standingErr)
+		}
+		customerStandingGate = customerstanding.NewGate(standingClient)
+	}
 
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings: bookingRepo, Markets: marketRepo, Pricing: pricingProvider, OperationalState: operationalStateRepo,
@@ -435,6 +449,8 @@ func main() {
 
 		ProductPolicy:   productPolicy,
 		CustomerContext: customerContext,
+
+		CustomerStanding: customerStandingGate,
 	})
 
 	// Internal ops caller verification (phase B10) is nil when no

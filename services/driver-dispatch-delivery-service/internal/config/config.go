@@ -3,6 +3,7 @@ package config
 import (
 	"cosmicforge/logistics/shared/go/redisx"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -31,6 +32,11 @@ type Config struct {
 	CustomerMovementEventsEnabled bool
 	CustomerServiceURL            string
 	CustomerServiceSecret         []byte
+	// CustomerStandingEnforced refuses NEW customer bookings while
+	// customer-service reports an administrative hold, and fails closed when
+	// the standing cannot be confirmed. Off by default; requires
+	// CustomerServiceURL (bare origin) and CustomerServiceSecret.
+	CustomerStandingEnforced bool
 	// HandoverSecret signs/verifies pickup & delivery handover codes (QR/OTP).
 	// Service-local — no other service needs to match this value.
 	HandoverSecret       []byte
@@ -320,6 +326,7 @@ func Load() (Config, error) {
 		CustomerMovementEventsEnabled: getEnvBool("DISPATCH_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
 		CustomerServiceURL:            os.Getenv("DISPATCH_CUSTOMER_SERVICE_URL"),
 		CustomerServiceSecret:         []byte(os.Getenv("DISPATCH_CUSTOMER_SERVICE_SECRET")),
+		CustomerStandingEnforced:      getEnvBool("DISPATCH_CUSTOMER_STANDING_ENFORCED", false),
 		HandoverSecret:                []byte(getEnv("HANDOVER_CODE_SECRET", "development-handover-code-secret")),
 		AvailabilityRadiusKM:          getEnvFloat("DISPATCH_AVAILABILITY_RADIUS_KM", 10),
 		RoutesAPIKey:                  os.Getenv("DISPATCH_ROUTES_API_KEY"),
@@ -535,6 +542,14 @@ func Load() (Config, error) {
 	}
 	if cfg.RouteAlertsEnabled && strings.TrimSpace(cfg.RouteServiceURL) == "" {
 		return Config{}, fmt.Errorf("DISPATCH_ROUTE_SERVICE_URL is required when DISPATCH_ROUTE_ALERTS_ENABLED is true")
+	}
+	if cfg.CustomerStandingEnforced {
+		if strings.TrimSpace(cfg.CustomerServiceURL) == "" || len(cfg.CustomerServiceSecret) == 0 {
+			return Config{}, fmt.Errorf("DISPATCH_CUSTOMER_SERVICE_URL and DISPATCH_CUSTOMER_SERVICE_SECRET are required when DISPATCH_CUSTOMER_STANDING_ENFORCED is true")
+		}
+		if parsed, err := url.Parse(strings.TrimSpace(cfg.CustomerServiceURL)); err != nil || parsed.Scheme == "" || parsed.Host == "" || strings.Trim(parsed.Path, "/") != "" {
+			return Config{}, fmt.Errorf("DISPATCH_CUSTOMER_SERVICE_URL must be a bare origin when DISPATCH_CUSTOMER_STANDING_ENFORCED is true")
+		}
 	}
 	return cfg, nil
 }

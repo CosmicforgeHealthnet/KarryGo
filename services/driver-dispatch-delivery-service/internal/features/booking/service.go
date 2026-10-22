@@ -20,6 +20,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/rollout"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/serviceability"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/geo"
 	"cosmicforge/logistics/shared/go/handover"
 	"cosmicforge/logistics/shared/go/journeyshare"
@@ -87,6 +88,13 @@ type idempotentBookingCreator interface {
 	InsertIdempotent(context.Context, Booking, string, string, string, int64, string) (Booking, bool, error)
 }
 
+// idempotentBookingFinder reports whether the customer already created a
+// booking under an Idempotency-Key. A retry of that request replays the
+// existing booking, so it is not a new booking and is not standing-gated.
+type idempotentBookingFinder interface {
+	CreatedWithIdempotencyKey(ctx context.Context, customerID, key string) (bool, error)
+}
+
 type bookingOperationsReader interface {
 	GetBookingOperations(context.Context, string) (*BookingOperationsProjection, error)
 }
@@ -112,6 +120,18 @@ type Service struct {
 	// tripLocation is the trip-bound point projection (the same reader the
 	// Share Journey adapter uses). Customer tracking reads only through it.
 	tripLocation TripLocationReader
+	// standing enforces customer-service's administrative account standing
+	// on NEW customer bookings. nil enforces nothing.
+	standing *customerstanding.Gate
+}
+
+// WithCustomerStanding enables DISPATCH_CUSTOMER_STANDING_ENFORCED: every new
+// customer booking asks customer-service live before any side effect, and an
+// unconfirmable standing refuses the booking (fail closed). Existing bookings
+// are never re-checked.
+func (s *Service) WithCustomerStanding(gate *customerstanding.Gate) *Service {
+	s.standing = gate
+	return s
 }
 
 // TripLocationReader returns the customer-safe projection of one trip,
@@ -252,6 +272,27 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 	}
 	in.ReceiverPhone = normalizedReceiverPhone
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	// Administrative standing gates every NEW customer booking before any
+	// side effect: observation, quote consumption, insert, wallet hold or
+	// broadcast. The customer id is the verified bearer subject. A retry of a
+	// create that already produced a booking (same customer and key) replays
+	// that existing booking below, so it is not gated: a hold applied after
+	// the booking was created must not hide it from the retrying client.
+	gated := true
+	if idempotencyKey != "" {
+		if finder, ok := s.repository.(idempotentBookingFinder); ok {
+			exists, findErr := finder.CreatedWithIdempotencyKey(ctx, customerID, idempotencyKey)
+			if findErr != nil {
+				return BookingView{}, findErr
+			}
+			gated = !exists
+		}
+	}
+	if gated {
+		if _, err := s.standing.Allow(ctx, customerID); err != nil {
+			return BookingView{}, err
+		}
+	}
 	if s.observer != nil && !s.protectedCreate {
 		observationKey := idempotencyKey
 		if observationKey == "" {

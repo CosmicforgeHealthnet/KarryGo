@@ -35,6 +35,7 @@ import (
 	tripsettlement "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/tripsettlement"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
@@ -291,6 +292,18 @@ func main() {
 		// straight-line geometry.
 	).WithNotifier(bookingNotifier).WithRoutes(routing.New(cfg.RoutesAPIKey))
 	bookingService.WithCommerceSettlement(bookingfeature.NewWalletCommerceSettlementClient(walletClient))
+	// Administrative account standing (customer-service owned). Off by
+	// default; when on, every new customer booking asks customer-service live
+	// and an unconfirmable standing refuses the booking (fail closed).
+	if cfg.CustomerStandingEnforced {
+		standingClient, standingErr := customerstanding.NewClient(customerstanding.Config{
+			BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+		})
+		if standingErr != nil {
+			log.Fatalf("DISPATCH_CUSTOMER_STANDING_ENFORCED: %v", standingErr)
+		}
+		bookingService.WithCustomerStanding(customerstanding.NewGate(standingClient))
+	}
 	tripService.WithSettlementReconciler(bookingService, tripfeature.SettlementRetryPolicy{
 		Lease: cfg.ExternalOperationLease, MaxAttempts: cfg.ExternalOperationRetryLimit,
 		BaseBackoff: cfg.ExternalOperationBackoffBase, MaxBackoff: cfg.ExternalOperationBackoffMax,
