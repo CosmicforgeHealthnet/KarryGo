@@ -18,6 +18,7 @@ import (
 
 	"cosmicforge/logistics/services/customer-service/internal/config"
 	"cosmicforge/logistics/services/customer-service/internal/database"
+	"cosmicforge/logistics/services/customer-service/internal/features/admincommands"
 	"cosmicforge/logistics/services/customer-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/customer-service/internal/features/adminreview"
 	authclients "cosmicforge/logistics/services/customer-service/internal/features/auth/clients"
@@ -148,7 +149,10 @@ func main() {
 		GroupingCallers: strings.Split(cfg.MovementGroupingCallers, ","),
 	})
 	serviceVerifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
-	customerContextService := contextusecases.NewService(callerScopes, mobilityRepo, savedLocationService).WithGuests(mobilityRepo)
+	// Source-owned administrative account standing: login blocks are enforced
+	// by auth, booking holds are published on the internal customer context.
+	accountStanding := admincommands.StandingReader{DB: db}
+	customerContextService := contextusecases.NewService(callerScopes, mobilityRepo, savedLocationService).WithGuests(mobilityRepo).WithStanding(accountStanding)
 	mobilityService := mobilityusecases.NewService(mobilityRepo, mobilityusecases.Flags{
 		MobilityPreferences: cfg.MobilityPreferencesEnabled,
 		GuestTravellers:     cfg.GuestTravellersEnabled,
@@ -200,6 +204,7 @@ func main() {
 		OTPMaxAttempts:     cfg.OTPMaxAttempts,
 		OTPDebug:           cfg.OTPDebug,
 		TestLogin:          testLogin,
+		Standing:           accountStanding,
 	})
 
 	shareRepo := &sharerepositories.Postgres{DB: db}
@@ -213,6 +218,10 @@ func main() {
 	reviewAdmin, err := adminreview.Runtime(ownerAdmin)
 	if err != nil {
 		logging.Fatal("configuration", "Customer review capability configuration invalid")
+	}
+	commandAdmin, err := admincommands.Runtime(ownerAdmin)
+	if err != nil {
+		logging.Fatal("configuration", "Customer admin command capability configuration invalid")
 	}
 	serviceapp.Run(serviceapp.Options{
 		Workers: append(workers,
@@ -259,6 +268,7 @@ func main() {
 		RegisterRoot: func(engine *gin.Engine) {
 			ownerAdmin.Register(engine)
 			reviewAdmin.Register(engine)
+			commandAdmin.Register(engine)
 			engine.GET("/internal/customer/v1/journey-share-metrics", append(journeyshare.RedisBoundary(serviceVerifier, redisClient, "admin-backoffice-service"), journeyshare.Metrics)...)
 			// Customer V4 §27.2 private scrape: movement ingestion, projection
 			// age and Share counters. Same caller boundary as the Share metrics.

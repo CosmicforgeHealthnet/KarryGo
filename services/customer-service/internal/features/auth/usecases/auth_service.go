@@ -21,7 +21,15 @@ const (
 	CustomerService = "customer"
 )
 
+// AccountStanding is the port through which authentication consults the
+// customer's source-owned administrative standing. A login-blocked customer
+// cannot complete OTP login or rotate a refresh session.
+type AccountStanding interface {
+	LoginBlocked(ctx context.Context, customerID string) (bool, error)
+}
+
 type AuthService struct {
+	standing   AccountStanding
 	customers  profilerepositories.CustomerRepository
 	sessions   authrepositories.RefreshSessionRepository
 	challenges authrepositories.OTPChallengeRepository
@@ -59,10 +67,14 @@ type Options struct {
 	OTPDebug           bool
 	// TestLogin gives listed test numbers a fixed code (staging only).
 	TestLogin *sharedauth.TestLogin
+	// Standing, when set, refuses login and refresh for login-blocked
+	// customers. The database guard on customer_sessions backs it up.
+	Standing AccountStanding
 }
 
 func NewAuthService(opts Options) *AuthService {
 	return &AuthService{
+		standing:           opts.Standing,
 		customers:          opts.Customers,
 		sessions:           opts.Sessions,
 		challenges:         opts.Challenges,
@@ -211,8 +223,27 @@ func (s *AuthService) VerifyAuth(ctx context.Context, input VerifyAuthInput) (To
 	if err != nil {
 		return TokenResult{}, err
 	}
+	if err := s.ensureLoginAllowed(ctx, customer.ID); err != nil {
+		return TokenResult{}, err
+	}
 
 	return s.createSessionTokens(ctx, customer, input.DeviceID, input.UserAgent, input.IPAddress)
+}
+
+// ensureLoginAllowed refuses a customer whose administrative standing blocks
+// login. Any failure to read the standing fails closed.
+func (s *AuthService) ensureLoginAllowed(ctx context.Context, customerID string) error {
+	if s.standing == nil {
+		return nil
+	}
+	blocked, err := s.standing.LoginBlocked(ctx, customerID)
+	if err != nil {
+		return apperrors.Unavailable("Sign-in is temporarily unavailable.", err)
+	}
+	if blocked {
+		return authrepositories.AccountRestrictedError()
+	}
+	return nil
 }
 
 type RefreshInput struct {
@@ -243,6 +274,10 @@ func (s *AuthService) Refresh(ctx context.Context, input RefreshInput) (TokenRes
 
 	customer, err := s.customers.GetByID(ctx, existing.CustomerID)
 	if err != nil {
+		return TokenResult{}, err
+	}
+	if err := s.ensureLoginAllowed(ctx, customer.ID); err != nil {
+		_ = s.sessions.Revoke(ctx, existing.ID)
 		return TokenResult{}, err
 	}
 	if err := s.sessions.Revoke(ctx, existing.ID); err != nil {

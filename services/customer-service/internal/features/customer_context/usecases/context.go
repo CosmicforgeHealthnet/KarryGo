@@ -77,7 +77,15 @@ type GuestReader interface {
 	GetGuest(ctx context.Context, customerID, id string) (mobilitymodels.GuestTraveller, error)
 }
 
+// StandingReader reads the customer's source-owned administrative account
+// standing. Restriction is NONE, LOGIN_BLOCKED or BOOKING_HOLD; version 0
+// means no administrative decision has been recorded.
+type StandingReader interface {
+	AccountStanding(ctx context.Context, customerID string) (restriction string, version int64, err error)
+}
+
 type Service struct {
+	standing    StandingReader
 	scopes      CallerScopes
 	preferences PreferenceReader
 	locations   LocationReader
@@ -93,6 +101,21 @@ func NewService(scopes CallerScopes, preferences PreferenceReader, locations Loc
 func (s *Service) WithGuests(guests GuestReader) *Service {
 	s.guests = guests
 	return s
+}
+
+// WithStanding makes every context response carry the authoritative account
+// standing so booking authorities can enforce administrative booking holds.
+func (s *Service) WithStanding(standing StandingReader) *Service {
+	s.standing = standing
+	return s
+}
+
+// AccountStandingContext is the additive, minimal booking-eligibility fact.
+// It never carries the administrative reason or decision history.
+type AccountStandingContext struct {
+	BookingEligible bool   `json:"booking_eligible"`
+	Restriction     string `json:"restriction"`
+	StandingVersion int64  `json:"standing_version"`
 }
 
 type Request struct {
@@ -137,12 +160,13 @@ type GuestTravellerContext struct {
 }
 
 type CustomerContext struct {
-	CustomerID          string                 `json:"customer_id"`
-	Scopes              []string               `json:"scopes"`
-	MobilityPreferences *MobilityContext       `json:"mobility_preferences,omitempty"`
-	SavedLocation       *LocationContext       `json:"saved_location,omitempty"`
-	GuestTraveller      *GuestTravellerContext `json:"guest_traveller,omitempty"`
-	ContextVersion      string                 `json:"context_version"`
+	CustomerID          string                  `json:"customer_id"`
+	Scopes              []string                `json:"scopes"`
+	MobilityPreferences *MobilityContext        `json:"mobility_preferences,omitempty"`
+	SavedLocation       *LocationContext        `json:"saved_location,omitempty"`
+	GuestTraveller      *GuestTravellerContext  `json:"guest_traveller,omitempty"`
+	AccountStanding     *AccountStandingContext `json:"account_standing,omitempty"`
+	ContextVersion      string                  `json:"context_version"`
 }
 
 // Resolve returns only the intersection of requested and granted scopes. A
@@ -225,6 +249,14 @@ func (s *Service) Resolve(ctx context.Context, request Request) (CustomerContext
 		out.GuestTraveller = &GuestTravellerContext{ID: guest.ID, Name: guest.Name, Phone: guest.Phone,
 			MobilityRequirements: guest.MobilityRequirementsJSON, Version: guest.Version}
 		versionParts = append(versionParts, fmt.Sprintf("guest:%s:%d", guest.ID, guest.Version))
+	}
+	if s.standing != nil {
+		restriction, version, err := s.standing.AccountStanding(ctx, customerID)
+		if err != nil {
+			return CustomerContext{}, apperrors.Unavailable("Customer standing is unavailable.", err)
+		}
+		out.AccountStanding = &AccountStandingContext{BookingEligible: restriction == "NONE", Restriction: restriction, StandingVersion: version}
+		versionParts = append(versionParts, fmt.Sprintf("standing:%d", version))
 	}
 	sum := sha256.Sum256([]byte(strings.Join(versionParts, "|")))
 	out.ContextVersion = hex.EncodeToString(sum[:])[:32]

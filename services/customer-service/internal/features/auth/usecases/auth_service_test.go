@@ -441,3 +441,45 @@ func TestVerifyChallengeRejectsExpiredOTP(t *testing.T) {
 		t.Fatalf("expected unauthorized error, got %v", err)
 	}
 }
+
+type fakeStanding struct{ blocked bool }
+
+func (f *fakeStanding) LoginBlocked(context.Context, string) (bool, error) { return f.blocked, nil }
+
+func TestLoginBlockedStandingRefusesVerifyAndRefresh(t *testing.T) {
+	ctx := context.Background()
+	sessions := newFakeSessionRepository()
+	service := newTestService(newFakeCustomerRepository(), sessions, newFakeChallengeStore())
+	standing := &fakeStanding{}
+	service.standing = standing
+	login := func() (TokenResult, error) {
+		start, err := service.StartAuth(ctx, StartAuthInput{Phone: "08012345678"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return service.VerifyAuth(ctx, VerifyAuthInput{Phone: "08012345678", OTP: start.DebugOTP, ChallengeID: start.ChallengeID})
+	}
+	verified, err := login()
+	if err != nil {
+		t.Fatal(err)
+	}
+	standing.blocked = true
+	if _, err := service.Refresh(ctx, RefreshInput{RefreshToken: verified.RefreshToken}); !accountRestricted(err) {
+		t.Fatalf("blocked refresh: %v", err)
+	}
+	if len(sessions.revoked) != 1 {
+		t.Fatal("blocked refresh did not end the presented session")
+	}
+	before := len(sessions.sessions)
+	if _, err := login(); !accountRestricted(err) {
+		t.Fatalf("blocked login: %v", err)
+	}
+	if len(sessions.sessions) != before {
+		t.Fatal("blocked login created a session")
+	}
+}
+
+func accountRestricted(err error) bool {
+	e := apperrors.From(err)
+	return e != nil && e.Code == "account_restricted"
+}
