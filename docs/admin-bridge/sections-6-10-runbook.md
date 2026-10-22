@@ -457,3 +457,12 @@ The fixed native origin and dedicated case key use `ADMIN_MEDIA_CASE_ORIGIN` and
 Read policy additionally needs the source case permission and approved Media
 disclosure settings. Revocation is separately permissioned and does not require
 read policy. Never place a grant token in a query, audit, log or raw storage URL.
+
+Hauling `product-eligibility` list/detail uses the existing private owner-resource
+transport and disabled read flags, plus its new permission/source contract and a
+current signed source allocation. Use the identity containing the actual current
+organization UUID; a supplied alternate tenant cannot select a different owner.
+Recorded admission and its native temporal-window result are observations only.
+Fresh matching must still run every existing fit, capacity, restriction, inspection,
+availability, organization and assignment-concurrency check. Callback revision is
+not a full aggregate version. No new migration, policy or enablement is installed.

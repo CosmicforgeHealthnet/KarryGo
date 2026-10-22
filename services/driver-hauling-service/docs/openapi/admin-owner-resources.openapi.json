@@ -2689,5 +2689,18 @@
         "description": "HMAC v2; caller media-file-service-case-authorizer. Durable owner/case-proof nonce namespace, separate from admin-backoffice-service reads and owner publication. No alternate caller accepted."
       }
     }
+  },
+  "x-source-owned-resource-contracts": {
+    "product-eligibility": {
+      "source_contract": "hauling.admin-product-eligibility.v1",
+      "permission": "hauling.product_eligibility.read",
+      "identity": "eligibility UUID:current native organization UUID",
+      "canonical_scope": "Matching ACTIVE hauling_organization_provider_links and hauling_organization_truck_links; actual truck/provider ownership; market/zone require independent owner allocation",
+      "record_window_usable": "Owning truckcapability.ProductEligibility.UsableAt at read time; does not include all assignment, fit, restriction or custody checks",
+      "source_version": null,
+      "authority_source_revision": "Monotonic certification callback counter, not an aggregate mutation version",
+      "evidence": "Only inspection/certification reference presence flags; no private reference, object mapping or inspection conclusion",
+      "mutation_authority": false
+    }
   }
 }

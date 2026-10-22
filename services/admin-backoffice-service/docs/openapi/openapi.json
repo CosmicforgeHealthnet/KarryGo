@@ -23393,6 +23393,581 @@
           }
         }
       }
+    },
+    "/internal/karryam-admin/v1/hauling/resources/product-eligibility": {
+      "get": {
+        "operationId": "hauling.resources.product-eligibility.list",
+        "summary": "hauling.resources.product-eligibility.list",
+        "description": "BLOCKED_POLICY until explicit hauling.admin-product-eligibility.v1 policy and current organization-bound source allocation; no assignment authorization",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "driver-hauling-service",
+        "x-required-permission": "hauling.product_eligibility.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                        },
+                        {
+                          "properties": {
+                            "items": {
+                              "items": {
+                                "not": {
+                                  "required": [
+                                    "custody"
+                                  ]
+                                },
+                                "properties": {
+                                  "timeline": {
+                                    "maxItems": 0
+                                  },
+                                  "timeline_truncated": {
+                                    "const": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/hauling/resources/product-eligibility/{id}": {
+      "get": {
+        "operationId": "hauling.resources.product-eligibility.detail",
+        "summary": "hauling.resources.product-eligibility.detail",
+        "description": "BLOCKED_POLICY until explicit hauling.admin-product-eligibility.v1 policy and current organization-bound source allocation; no assignment authorization",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "driver-hauling-service",
+        "x-required-permission": "hauling.product_eligibility.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/OwnerResourcesSnapshot"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "security": [

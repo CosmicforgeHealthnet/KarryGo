@@ -149,3 +149,10 @@ inspection-conclusion model is invented. The fixed HQ issue/content/revoke facad
 is compiled and covered by real mTLS/PostgreSQL/typed-client/audit-failure tests.
 Initial permission/scope/purpose/lifetime approval and live enrollment remain
 BLOCKED_POLICY; no privileged feature is activated by this change.
+
+Hauling product-admission investigation now has a separate canonical-link-backed
+resource, typed Bridge list/detail, actual native window semantics and real
+PostgreSQL callback-concurrency/isolation tests. Native expired/suspended/future
+admissions cannot become a positive window observation. Actual inspection and
+certification references remain private presence flags; no inspection conclusion,
+remediation decision or permission for a new assignment is manufactured.

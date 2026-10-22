@@ -2225,5 +2225,55 @@
     ],
     "blocker": "BLOCKED_POLICY until initial owner evidence permissions/scopes/purposes and Media lifetime approval; flags default false",
     "fallback": "No private bytes/URLs/grants; own-grant revocation remains separate from read activation"
+  },
+  {
+    "id": "hauling.resources.product-eligibility.list",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/product-eligibility",
+    "bridge_endpoint": "/hauling/resources/product-eligibility",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.product_eligibility.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R3",
+    "privacy": "RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "Actual eligibility row, current native provider/truck links and source membership revisions; immutable read audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestHaulingProductEligibilityRequiresCanonicalLinksAndNativeWindowSemantics",
+      "TestOwnerResourcesDelegation",
+      "TestOwnerResourcesWireContract"
+    ],
+    "blocker": "BLOCKED_POLICY until explicit hauling.admin-product-eligibility.v1 policy and current organization-bound source allocation; no assignment authorization",
+    "fallback": "Deny missing or mismatched source memberships; recorded admission/window is not approval of a new assignment"
+  },
+  {
+    "id": "hauling.resources.product-eligibility.detail",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/product-eligibility/{id}",
+    "bridge_endpoint": "/hauling/resources/product-eligibility/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.product_eligibility.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R3",
+    "privacy": "RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "Actual eligibility row, current native provider/truck links and source membership revisions; immutable read audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestHaulingProductEligibilityRequiresCanonicalLinksAndNativeWindowSemantics",
+      "TestOwnerResourcesDelegation",
+      "TestOwnerResourcesWireContract"
+    ],
+    "blocker": "BLOCKED_POLICY until explicit hauling.admin-product-eligibility.v1 policy and current organization-bound source allocation; no assignment authorization",
+    "fallback": "Deny missing or mismatched source memberships; recorded admission/window is not approval of a new assignment"
   }
 ]

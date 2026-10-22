@@ -667,3 +667,17 @@ POSTs, verified-assertion-derived actors and immutable audit before native acces
 and before HQ disclosure. Public Gateway denial covers every new path. Source,
 Bridge and Media activation remain disabled/BLOCKED_POLICY. Fleet standalone case
 authority and inspection conclusions are not counted as complete.
+
+## Hauling product-admission investigation
+
+The additional `product-eligibility` resource exposes recorded native admission
+and the owning `truckcapability.ProductEligibility.UsableAt` result at read time,
+including expired rows still marked ELIGIBLE before the native sweeper runs.
+The resource identity is `eligibility UUID:organization UUID`; matching active
+provider/truck organization links and actual truck/provider ownership are required.
+The new permission `hauling.product_eligibility.read` and source contract
+`hauling.admin-product-eligibility.v1` are separate from historical fit decisions.
+Membership replacement/revocation invalidates prior allocations. Callback revision
+is a labeled counter; the full mutation version remains unknown. Inspection and
+certification reference presence flags expose no private references or conclusions.
+This read grants no assignment, remediation, restriction or cargo-fit authority.

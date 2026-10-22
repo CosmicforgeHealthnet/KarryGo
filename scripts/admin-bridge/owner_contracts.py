@@ -45,7 +45,10 @@ def document(owner, domain):
         case_publish["requestBody"] = {"required": True, "content": {"application/json": {"schema": envelope}}}
         paths[case_base + "/authorization-contexts"] = {"post": case_publish}
         schemes["MediaSourceHMAC"] = {"type":"apiKey", "in":"header", "name":"X-Service-Signature", "description":"HMAC v2; caller media-file-service-case-authorizer. Durable owner/case-proof nonce namespace, separate from admin-backoffice-service reads and owner publication. No alternate caller accepted."}
-    return {"openapi": "3.1.0", "info": {"title": owner + " private Admin resource authority", "version": "1.0.0"}, "security": [{"ServiceHMAC": []}], "paths": paths, "components": {"securitySchemes": schemes}}
+    doc = {"openapi": "3.1.0", "info": {"title": owner + " private Admin resource authority", "version": "1.0.0"}, "security": [{"ServiceHMAC": []}], "paths": paths, "components": {"securitySchemes": schemes}}
+    if owner == "driver-hauling-service":
+        doc["x-source-owned-resource-contracts"]={"product-eligibility":{"source_contract":"hauling.admin-product-eligibility.v1","permission":"hauling.product_eligibility.read","identity":"eligibility UUID:current native organization UUID","canonical_scope":"Matching ACTIVE hauling_organization_provider_links and hauling_organization_truck_links; actual truck/provider ownership; market/zone require independent owner allocation","record_window_usable":"Owning truckcapability.ProductEligibility.UsableAt at read time; does not include all assignment, fit, restriction or custody checks","source_version":None,"authority_source_revision":"Monotonic certification callback counter, not an aggregate mutation version","evidence":"Only inspection/certification reference presence flags; no private reference, object mapping or inspection conclusion","mutation_authority":False}}
+    return doc
 
 def main():
     parser = argparse.ArgumentParser()

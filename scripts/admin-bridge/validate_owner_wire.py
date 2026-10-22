@@ -68,3 +68,18 @@ assert item["counters"] == [{"name": "captured_capability_revision", "value": 7}
 assert {r["kind"] for r in item["references"]} == {"booking", "provider", "truck"}
 assert item["timeline"] == [] and "PRIVATE_" not in json.dumps(fit) and "987654" not in json.dumps(fit)
 print("Actual historical Hauling fit-decision HTTP output excludes private evidence and does not assert current eligibility")
+
+eligibility=json.loads((Path(sys.argv[1])/"hauling-product-eligibility.json").read_text(encoding="utf-8"))
+jsonschema.Draft202012Validator(schema,format_checker=jsonschema.FormatChecker()).validate(eligibility)
+assert eligibility["owner"]=="driver-hauling-service" and eligibility["kind"]=="product-eligibility"
+assert len(eligibility["items"])==1
+item=eligibility["items"][0]
+assert item["source_version"] is None and item["status"]=="ELIGIBLE"
+assert item["counters"]==[{"name":"authority_source_revision","value":7}]
+dimensions={d["name"]:d for d in item["dimensions"]}
+assert dimensions["record_window_usable"]["flag"] is True
+assert dimensions["effective_window"]["value"]=="WITHIN_RECORDED_WINDOW"
+assert dimensions["inspection_reference_recorded"]["flag"] is True
+assert dimensions["certification_reference_recorded"]["flag"] is True
+assert "PRIVATE_" not in json.dumps(eligibility) and "private.invalid" not in json.dumps(eligibility)
+print("Actual Hauling product-admission HTTP output uses canonical links/native windows and withholds private evidence references")
