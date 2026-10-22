@@ -163,3 +163,9 @@ child references require the native return mission/booking/execution-link graph
 and matching customer/organization. Real owner migrations, signed HTTP, foreign
 child/tenant/parent denials and immutable source allocation checks cover the views.
 No native recovery transition or uncertainty fence is replaced by an Admin action.
+
+Hauling current booking cargo inputs now have an independently permissioned,
+source-owned read contract, native unit conversion and PostgreSQL/native HTTP
+tests. Unstated weight stays null. This closes the supported booking-input view,
+while unavailable frozen requirement/inspection data and owner intervention
+contracts remain explicit prerequisites rather than fabricated successful actions.

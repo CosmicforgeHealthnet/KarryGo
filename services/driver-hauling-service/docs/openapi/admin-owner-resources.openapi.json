@@ -2701,6 +2701,15 @@
       "authority_source_revision": "Monotonic certification callback counter, not an aggregate mutation version",
       "evidence": "Only inspection/certification reference presence flags; no private reference, object mapping or inspection conclusion",
       "mutation_authority": false
+    },
+    "booking-cargo-inputs": {
+      "source_contract": "hauling.admin-booking-cargo-inputs.v1",
+      "permission": "hauling.cargo_inputs.read",
+      "canonical_scope": "Actual booking planning organization/winner consistency; settlement organization is not authorization",
+      "source_version": null,
+      "data": "Current recorded booking weight, preferred truck type and fragile-handling input used by native recovery; zero unstated weight is null; normalization reuses cargofit.FromKilograms",
+      "limits": "No frozen full requirement snapshot, invented dimensions, temperature, equipment, cargo classes, inspection conclusion or current fit decision",
+      "mutation_authority": false
     }
   }
 }

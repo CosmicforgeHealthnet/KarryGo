@@ -698,3 +698,14 @@ children remain readable; partial/foreign children and changed parent authority
 deny. Existing draft allocations cannot silently follow new child identities.
 Migrations 070–072 and all native reconciliation consumers/fences are unchanged.
 No recovery/retry/reassignment command or automatic uncertain POST replay is added.
+
+## Hauling current booking cargo inputs
+
+`booking-cargo-inputs` adds a separate permission/source contract for the current
+recorded booking weight, preferred truck type and fragile-handling input used by
+native recovery. Unstated zero weight is returned as null; positive normalization
+reuses `cargofit.FromKilograms`. Planning/winner organization consistency is enforced;
+settlement identity, addresses, receiver details and cargo description supply no
+authority or disclosure. The owner stores no frozen full recovery requirement
+snapshot here. No historical dimensions, temperatures, equipment, inspection or
+fresh fit result is invented. The mutation version remains unknown.

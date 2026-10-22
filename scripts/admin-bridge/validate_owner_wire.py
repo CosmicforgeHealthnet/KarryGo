@@ -93,3 +93,13 @@ for kind,dimension,counters in (("incident-recovery-status","recovery_result",{"
     assert {d["name"]:d["value"] for d in item["dimensions"]}[dimension]=="UNKNOWN"
     assert {c["name"]:c["value"] for c in item["counters"]}==counters
 print("Actual Dispatch execution views preserve UNKNOWN and native counters without exposing replay/custody/financial credentials")
+
+cargo=json.loads((Path(sys.argv[1])/"hauling-booking-cargo-inputs.json").read_text(encoding="utf-8"))
+jsonschema.Draft202012Validator(schema,format_checker=jsonschema.FormatChecker()).validate(cargo)
+assert cargo["owner"]=="driver-hauling-service" and cargo["kind"]=="booking-cargo-inputs" and len(cargo["items"])==1
+item=cargo["items"][0]
+assert item["source_version"] is None and item["references"]==[]
+assert {d["name"] for d in item["dimensions"]}=={"preferred_truck_type","fragile_handling_required"}
+assert {c["name"]:c["value"] for c in item["counters"]}=={"recorded_weight_kg":125,"normalized_weight_grams":125000}
+assert "PRIVATE_" not in json.dumps(cargo)
+print("Actual Hauling booking cargo inputs preserve native units and exclude private/invented cargo facts")

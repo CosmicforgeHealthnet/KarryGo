@@ -2375,5 +2375,55 @@
     ],
     "blocker": "BLOCKED_POLICY until explicit source contract and current source authorization; observation grants no replay/intervention authority",
     "fallback": "Preserve UNKNOWN outcome and all uncertainty fences; deny invalid parent links; no credentials or forced completion"
+  },
+  {
+    "id": "hauling.resources.booking-cargo-inputs.list",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/booking-cargo-inputs",
+    "bridge_endpoint": "/hauling/resources/booking-cargo-inputs",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.cargo_inputs.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R3",
+    "privacy": "RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "Actual eligibility row, current native provider/truck links and source membership revisions; immutable read audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestHaulingCargoInputsUseActualBookingWithoutInventingMeasurements",
+      "TestOwnerResourcesDelegation",
+      "TestOwnerResourcesWireContract"
+    ],
+    "blocker": "BLOCKED_POLICY until explicit hauling.admin-booking-cargo-inputs.v1 policy and current booking allocation; current input observation only",
+    "fallback": "Unstated weight remains null; no historical requirement snapshot, current fit decision, inspection conclusion or assignment authority"
+  },
+  {
+    "id": "hauling.resources.booking-cargo-inputs.detail",
+    "version": "1.0",
+    "owner": "driver-hauling-service",
+    "source_endpoint": "/internal/hauling/v1/admin/resources/booking-cargo-inputs/{id}",
+    "bridge_endpoint": "/hauling/resources/booking-cargo-inputs/{id}",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "hauling.cargo_inputs.read",
+    "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
+    "risk": "R3",
+    "privacy": "RESTRICTED_OPERATOR_CANDIDATE_METADATA",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
+    "evidence": "Actual eligibility row, current native provider/truck links and source membership revisions; immutable read audit",
+    "feature_flag": "ADMIN_HAULING_RESOURCE_READ_ENABLED; HAULING_ADMIN_RESOURCE_READ_ENABLED",
+    "tests": [
+      "TestHaulingCargoInputsUseActualBookingWithoutInventingMeasurements",
+      "TestOwnerResourcesDelegation",
+      "TestOwnerResourcesWireContract"
+    ],
+    "blocker": "BLOCKED_POLICY until explicit hauling.admin-booking-cargo-inputs.v1 policy and current booking allocation; current input observation only",
+    "fallback": "Unstated weight remains null; no historical requirement snapshot, current fit decision, inspection conclusion or assignment authority"
   }
 ]

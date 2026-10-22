@@ -11,6 +11,7 @@ passed = {(e["Package"], e["Test"]) for e in events if e["Action"] == "pass" and
 prefix = "cosmicforge/logistics/"
 required = {
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingProductEligibilityRequiresCanonicalLinksAndNativeWindowSemantics"),
+    (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingCargoInputsUseActualBookingWithoutInventingMeasurements"),
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingFitDecisionReadsBindHistoricalCandidateParents"),
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingRestrictionReadsRequireActualSubjectsAndCurrentCanonicalLinks"),
     (prefix + "services/dispatch-delivery-service/internal/features/adminresources", "TestDispatchHandoverStateReadsBindFrozenNativeParentsAndExcludeCredentials"),

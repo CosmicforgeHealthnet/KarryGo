@@ -33,6 +33,9 @@ func productEligibilitySource() adminowner.SQLSpec {
 
 func (s *haulingReadSource) Read(ctx context.Context, tx pgx.Tx, kind, ref string, detail bool) (adminowner.Resource, error) {
 	resource, err := s.SQLSource.Read(ctx, tx, kind, ref, detail)
+	if err == nil && kind == "booking-cargo-inputs" {
+		return enrichBookingCargoInputs(resource)
+	}
 	if err != nil || kind != "product-eligibility" {
 		return resource, err
 	}

@@ -473,3 +473,9 @@ is never authorization to resend a POST, release custody or replace an assignmen
 Use existing original-action GET reconciliation and uncertainty procedures. Current
 return child ownership is validated against the native mission/booking/execution
 graph; partial links deny. No migration or consumer transition is introduced.
+
+Hauling booking cargo inputs are current native observations, not historical fit
+evidence or a full frozen requirement snapshot. Treat null weight as unstated;
+the view cannot authorize capacity, equipment, eligibility or a new assignment.
+Its new permission/source contract requires separate initial policy/allocation;
+existing read flags remain off. No source business field is modified by this view.

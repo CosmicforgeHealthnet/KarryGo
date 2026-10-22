@@ -41,14 +41,15 @@ func Profiles() []Profile {
 			"custody-missions":         makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
-			"product-eligibility": makeDef("hauling", "product-eligibility", "hauling.product_eligibility.read", []string{"product", "policy_revision", "effective_window", "effective_at_utc", "expires_at_utc", "record_window_usable", "inspection_reference_recorded", "certification_reference_recorded"}, []string{"authority_source_revision"}, []string{"provider", "truck"}),
-			"fit-decisions":       makeDef("hauling", "fit-decisions", "hauling.fit_decisions.read", []string{"shadow", "policy_revision"}, []string{"captured_capability_revision"}, []string{"booking", "provider", "truck", "mission"}),
-			"restrictions":        makeDef("hauling", "restrictions", "hauling.restrictions.read", []string{"subject_type", "reason"}, []string{"source_revision"}, []string{"subject"}),
-			"custody-missions":    makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
-			"providers":           makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
-			"trucks":              makeDef("hauling", "trucks", "hauling.trucks.read", append(append([]string{}, assetDimensions...), []string{"enclosed", "weather_protected", "upright_safe", "fragile_safe", "refrigerated", "tail_lift", "crane", "hydraulic", "loading_ramp", "trailer_capable", "insurance_valid"}...), []string{"capacity_kg", "max_payload_grams", "internal_length_mm", "internal_width_mm", "internal_height_mm", "usable_volume_ml", "opening_width_mm", "opening_height_mm", "axle_count", "capability_version", "capability_source_version"}, []string{"provider"}),
-			"recoveries":          makeDef("hauling", "recoveries", "hauling.recovery.read", []string{"trigger", "custody_transfer_required"}, nil, []string{"booking", "mission", "original_provider", "original_truck", "replacement_provider", "replacement_truck"}),
-			"missions":            makeDef("hauling", "missions", "hauling.missions.read", missionDimensions, []string{"cargo_weight_kg"}, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
+			"booking-cargo-inputs": makeDef("hauling", "booking-cargo-inputs", "hauling.cargo_inputs.read", []string{"preferred_truck_type", "fragile_handling_required"}, []string{"recorded_weight_kg", "normalized_weight_grams"}, nil),
+			"product-eligibility":  makeDef("hauling", "product-eligibility", "hauling.product_eligibility.read", []string{"product", "policy_revision", "effective_window", "effective_at_utc", "expires_at_utc", "record_window_usable", "inspection_reference_recorded", "certification_reference_recorded"}, []string{"authority_source_revision"}, []string{"provider", "truck"}),
+			"fit-decisions":        makeDef("hauling", "fit-decisions", "hauling.fit_decisions.read", []string{"shadow", "policy_revision"}, []string{"captured_capability_revision"}, []string{"booking", "provider", "truck", "mission"}),
+			"restrictions":         makeDef("hauling", "restrictions", "hauling.restrictions.read", []string{"subject_type", "reason"}, []string{"source_revision"}, []string{"subject"}),
+			"custody-missions":     makeDef("hauling", "custody-missions", "hauling.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
+			"providers":            makeDef("hauling", "providers", "hauling.providers.read", providerDimensions, nil, nil),
+			"trucks":               makeDef("hauling", "trucks", "hauling.trucks.read", append(append([]string{}, assetDimensions...), []string{"enclosed", "weather_protected", "upright_safe", "fragile_safe", "refrigerated", "tail_lift", "crane", "hydraulic", "loading_ramp", "trailer_capable", "insurance_valid"}...), []string{"capacity_kg", "max_payload_grams", "internal_length_mm", "internal_width_mm", "internal_height_mm", "usable_volume_ml", "opening_width_mm", "opening_height_mm", "axle_count", "capability_version", "capability_source_version"}, []string{"provider"}),
+			"recoveries":           makeDef("hauling", "recoveries", "hauling.recovery.read", []string{"trigger", "custody_transfer_required"}, nil, []string{"booking", "mission", "original_provider", "original_truck", "replacement_provider", "replacement_truck"}),
+			"missions":             makeDef("hauling", "missions", "hauling.missions.read", missionDimensions, []string{"cargo_weight_kg"}, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
 		}},
 		{Owner: "fleet-partner-service", Domain: "fleet", Prefix: "FLEET_PARTNER", Path: "/internal/fleet-partner/v1/admin", Definitions: map[string]Definition{
 			"shipments":           makeDef("fleet", "shipments", "fleet.shipments.read", []string{"planning", "custody", "return"}, nil, []string{"order", "branch"}),
@@ -76,6 +77,9 @@ func Profiles() []Profile {
 			profiles[i].Definitions["review-states"] = definition
 		}
 		if profiles[i].Domain == "hauling" {
+			cargo := profiles[i].Definitions["booking-cargo-inputs"]
+			cargo.SourceContract = "hauling.admin-booking-cargo-inputs.v1"
+			profiles[i].Definitions["booking-cargo-inputs"] = cargo
 			eligibility := profiles[i].Definitions["product-eligibility"]
 			eligibility.SourceContract = "hauling.admin-product-eligibility.v1"
 			profiles[i].Definitions["product-eligibility"] = eligibility
