@@ -24,6 +24,7 @@ required |= {"TestPostgresReadinessComponentsUseNativeOrdersAndWithholdPartialMe
 required |= {"TestPostgresScopedReportsNativeReductionSignedTransportAndRevocation", "TestScopedReportsDoNotManufactureSupplyMembershipOrForecastModel", "TestPostgresAllScopedReportsBridgeMTLS"}
 required |= {"TestPostgresCustomerWorkItemBridgeConcurrentSubmissionPostsOnce", "TestPostgresCustomerWorkItemBridgeUnknownOutcomeOnlyReadsOriginal", "TestPostgresCustomerWorkItemBridgeCrashFenceAndMismatchedProof", "TestPostgresCustomerWorkItemBridgeScopeAndAuditFailureFence", "TestPostgresCustomerWorkItemBridgeTypedOwnerBoundaryAndRecovery"}
 required |= {"TestPostgresMediaCaseBridgeMTLSDelegationAndDisclosureAudit", "TestMediaCaseBridgeDeniesUnapprovedScopeActorInjectionAndFailures", "TestMediaCaseConfigurationOffAndAudienceSeparation"}
+required |= {"TestPostgresOwnerCommandBridgeMTLSRoundTrip", "TestPostgresOwnerCommandTwoPersonApprovalIsBoundSingleUseAndRequesterOnly", "TestPostgresOwnerCommandUncertainOutcomeReconcilesWithoutResubmit", "TestPostgresOwnerCommandRefusalAndSupersessionReleaseOnlyProvenSlots", "TestPostgresOwnerCommandConcurrentIdentitySinglePostAndTamperedProof", "TestOwnerCommandRuntimeRoleGrantsAndEvidenceImmutability"}
 if args.suite == "gateway":
     required = {"TestPublicAdminIsolation", "TestForgedHQHeadersAreStrippedFromPublicRoutes", "TestPostgresRefreshRotationAndMigrationReplay"}
 assert not failures, f"Failed/skipped tests: {[(e.get('Package'), e.get('Test')) for e in failures]}"

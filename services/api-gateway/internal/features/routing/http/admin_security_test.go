@@ -75,6 +75,16 @@ func TestPublicOwnerAdministrativePathsNeverReachOwners(t *testing.T) {
 		"/internal/fleet-partner/v1/assignments/ref/provider-accept",
 		"/api/v1/analytics/network/mission-success",
 		"/api/v1/internal/callbacks/dispatch",
+		"/internal/karryam-admin/v1/taxi/commands",
+		"/internal/karryam-admin/v1/hauling/command-approvals/ref/decisions",
+		"/internal/karryam-admin/v1/customer/command-history/customers/ref",
+		"/internal/customer/v1/admin/commands",
+		"/api/v1/customer/internal/customer/v1/admin/commands/customers/ref/key",
+		"/api/v1/taxi/internal/taxi/v1/admin/commands",
+		"/api/v1/dispatch/internal/dispatch/v1/admin/commands",
+		"/api/v1/hauling/internal/hauling/v1/admin/commands",
+		"/internal/fleet/v1/admin/commands",
+		"/internal/fleet/v1/admin/case-authority/proofs/investigations/ref/CASE/ref",
 	}
 	for _, base := range paths {
 		for _, path := range []string{base, strings.ReplaceAll(base, "internal", "%2569nternal"), "/api/v1/taxi/../.." + base} {
