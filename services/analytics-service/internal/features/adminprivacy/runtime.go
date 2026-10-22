@@ -72,6 +72,30 @@ func Runtime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.Secrets) 
 	if err := db.QueryRow(ready, `SELECT to_regclass('analytics_admin_http_nonces') IS NOT NULL AND to_regclass('analytics_admin_disclosure_authorizations') IS NOT NULL AND to_regclass('admin_owner_context_heads') IS NOT NULL`).Scan(&ok); err != nil || !ok {
 		return nil, errors.New("scoped Analytics schema unavailable; apply normal migrations")
 	}
+	h.Reports = map[string]*Service{}
+	for _, report := range analyticsadmin.Reports() {
+		if report.Name == "mission-success" {
+			continue
+		}
+		field := os.Getenv("ANALYTICS_ADMIN_SCOPED_" + strings.ToUpper(strings.ReplaceAll(report.Name, "-", "_")) + "_UNIT_FIELD")
+		if field == "" {
+			continue
+		}
+		if _, err := LineageKind(report.Name, field); err != nil {
+			return nil, errors.New("invalid report unit selector")
+		}
+		var adapter Source = &ReportSource{Report: report.Name, Authorities: authorities, UnitField: field}
+		if report.Name == "readiness" {
+			adapter = &ReadinessSource{Authorities: authorities, UnitField: field}
+		}
+		if policy != nil {
+			rule, e := policy.Rule(report.Permission, time.Now())
+			if e != nil || rule.Owner != "analytics-service" || rule.SourceContract != report.Contract+":"+field {
+				return nil, errors.New("report source approval mismatch")
+			}
+		}
+		h.Reports[report.Name] = &Service{DB: db, Policy: policy, Source: adapter}
+	}
 	h.Enabled = true
 	h.Secret = secret
 	h.Service.Policy = policy

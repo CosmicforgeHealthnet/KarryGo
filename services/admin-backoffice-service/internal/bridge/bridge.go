@@ -272,7 +272,8 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resourceProfile, resourceDefinition, resourceRef, resourceRead := adminowner.MatchBridge(path)
 	reviewRequest := capability.ID == "customer.review.submit" || capability.ID == "customer.review.readback"
 	analyticsRate := capability.ID == analyticsadmin.MissionRatePermission
-	analyticsRead := capability.ID == analyticsadmin.MissionSuccessPermission || analyticsRate
+	analyticsReport, scopedReport := scopedReportCapability(capability.ID)
+	analyticsRead := scopedReport || analyticsRate
 	readPolicy := b.accessPolicy
 	if analyticsRead {
 		if b.scopedAnalytics == nil || !b.features.AnalyticsReads {
@@ -310,8 +311,8 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		role := actor.Roles[0]
 		approvedRoles := b.taxiRoles
 		if analyticsRead {
-			rule, e := readPolicy.Rule(analyticsadmin.MissionSuccessPermission, b.now())
-			if e != nil || rule.Owner != "analytics-service" || !analyticsadmin.ValidMissionSourceContract(rule.SourceContract) {
+			rule, e := readPolicy.Rule(analyticsReport.Permission, b.now())
+			if e != nil || rule.Owner != "analytics-service" || !analyticsReport.ValidSourceContract(rule.SourceContract) {
 				fail(503, "blocked_policy")
 				return
 			}
@@ -413,7 +414,9 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, policyErr := b.accessPolicy.Rule(adminread.TaxiPermission, b.now())
 		availability := b.resourceAvailability(actor.Roles, actor.Zones, actor.Tenants)
 		b.customerReviewAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
-		availability[analyticsadmin.MissionSuccessPermission] = b.scopedAnalyticsAvailable(actor.Roles, actor.Zones, actor.Tenants)
+		for _, report := range analyticsadmin.Reports() {
+			availability[report.Permission] = b.scopedReportAvailable(report, actor.Roles, actor.Zones, actor.Tenants)
+		}
 		availability[analyticsadmin.MissionRatePermission] = b.scopedRateAvailable(actor.Roles, actor.Zones, actor.Tenants, actor.Permissions)
 		availability[adminread.TaxiPermission] = b.taxi != nil && policyErr == nil && hasRole(actor.Roles, b.taxiRoles) && len(actor.Zones) > 0 && len(actor.Tenants) > 0
 		result = contract.DiscoverWithAvailability(actor.Permissions, availability)
@@ -476,8 +479,8 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			a.SourceVersion = *op.SourceVersion
 		}
 		result = op
-	case analyticsadmin.MissionSuccessPermission, analyticsadmin.MissionRatePermission:
-		out, e := b.scopedAnalytics.MissionSuccess(r.Context(), taxiQuery, analyticsFilters)
+	case "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "analytics.scoped.mission-outcomes.read", "analytics.scoped.recovery.read", "analytics.scoped.capability-mismatches.read", "analytics.scoped.declines.read", "analytics.scoped.demand.read", "analytics.scoped.demand-forecast.read", "analytics.scoped.supply.read", "analytics.scoped.provider-quality.read", "analytics.scoped.readiness-components.read":
+		out, e := b.scopedReportRead(r.Context(), analyticsReport.Name, taxiQuery, analyticsFilters)
 		if errors.Is(e, analyticsadmin.ErrDenied) {
 			fail(403, "forbidden")
 			return

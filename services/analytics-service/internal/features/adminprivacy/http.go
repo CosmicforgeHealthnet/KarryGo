@@ -23,12 +23,27 @@ type Handler struct {
 	Service *Service
 	Enabled bool
 	Secret  []byte
+	Reports map[string]*Service
 }
 
 func (h *Handler) Register(root *gin.Engine) {
-	root.GET(analyticsadmin.MissionSuccessPath, h.signedRead)
+	for _, report := range analyticsadmin.Reports() {
+		root.GET(report.Path(), h.signedRead)
+	}
 }
 func (h *Handler) signedRead(c *gin.Context) {
+	name := strings.TrimPrefix(c.Request.URL.Path, "/internal/analytics/v1/admin/scoped-network/")
+	report, known := analyticsadmin.ReportNamed(name)
+	if !known {
+		c.Status(404)
+		return
+	}
+	local := *h
+	if name != "mission-success" {
+		local.Service = h.Reports[name]
+	}
+	h = &local
+
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
 	fail := func(status int, code string) { c.JSON(status, gin.H{"error": gin.H{"code": code}}) }
@@ -39,7 +54,7 @@ func (h *Handler) signedRead(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
 	defer cancel()
 	r := c.Request
-	if r.Method != "GET" || r.URL.Path != analyticsadmin.MissionSuccessPath || r.URL.RawPath != "" || len(r.URL.RequestURI()) > 8192 || strings.ContainsAny(r.URL.Path, "%\\") || r.ContentLength != 0 || len(r.TransferEncoding) > 0 || r.Body != nil && r.Body != http.NoBody {
+	if r.Method != "GET" || r.URL.Path != report.Path() || r.URL.RawPath != "" || len(r.URL.RequestURI()) > 8192 || strings.ContainsAny(r.URL.Path, "%\\") || r.ContentLength != 0 || len(r.TransferEncoding) > 0 || r.Body != nil && r.Body != http.NoBody {
 		fail(400, "invalid_request")
 		return
 	}
@@ -61,7 +76,7 @@ func (h *Handler) signedRead(c *gin.Context) {
 		fail(401, "unauthorized")
 		return
 	}
-	sum := sha256.Sum256([]byte("analytics.scoped.mission-success:" + nonce))
+	sum := sha256.Sum256([]byte("analytics.scoped." + report.Name + ":" + nonce))
 	claim, err := h.Service.DB.Exec(ctx, `INSERT INTO analytics_admin_http_nonces(caller,nonce_hash,expires_at) VALUES($1,$2,now()+interval '11 minutes') ON CONFLICT DO NOTHING`, adminread.Caller, hex.EncodeToString(sum[:]))
 	if err != nil {
 		fail(503, "replay_protection_unavailable")
@@ -90,7 +105,7 @@ func (h *Handler) signedRead(c *gin.Context) {
 		fail(400, "invalid_query")
 		return
 	}
-	if _, err := analyticsadmin.Values(query, filters); err != nil {
+	if _, err := report.Values(query, filters); err != nil {
 		fail(400, "invalid_query")
 		return
 	}
@@ -113,13 +128,13 @@ func (h *Handler) signedRead(c *gin.Context) {
 		deny(503, "policy_revision_mismatch")
 		return
 	}
-	rule, e := policy.Rule(analyticsadmin.MissionSuccessPermission, time.Now())
-	if e != nil || rule.Owner != "analytics-service" || !analyticsadmin.ValidMissionSourceContract(rule.SourceContract) {
+	rule, e := policy.Rule(report.Permission, time.Now())
+	if e != nil || rule.Owner != "analytics-service" || !report.ValidSourceContract(rule.SourceContract) {
 		deny(503, "blocked_policy")
 		return
 	}
-	actor := adminpolicy.Actor{Product: "karryam", Staff: query.Staff, Roles: []string{query.Role}, Permissions: []string{analyticsadmin.MissionSuccessPermission}, Markets: []string{query.Scope.Market}, Zones: []string{query.Scope.Zone}, Organizations: []string{query.Scope.Organization}, Tenants: []string{query.Scope.Tenant}}
-	q := Query{Capability: analyticsadmin.MissionSuccessPermission, Metric: "mission-success", Purpose: query.Purpose, Scope: adminpolicy.Scope{Product: "karryam", Market: query.Scope.Market, Zone: query.Scope.Zone, Organization: query.Scope.Organization, Tenant: query.Scope.Tenant}, Start: query.Start, End: query.End, Filters: map[string]string{"authority": filters.Authority, "product_code": filters.ProductCode}}
+	actor := adminpolicy.Actor{Product: "karryam", Staff: query.Staff, Roles: []string{query.Role}, Permissions: []string{report.Permission}, Markets: []string{query.Scope.Market}, Zones: []string{query.Scope.Zone}, Organizations: []string{query.Scope.Organization}, Tenants: []string{query.Scope.Tenant}}
+	q := Query{Capability: report.Permission, Metric: report.Name, Purpose: query.Purpose, Scope: adminpolicy.Scope{Product: "karryam", Market: query.Scope.Market, Zone: query.Scope.Zone, Organization: query.Scope.Organization, Tenant: query.Scope.Tenant}, Start: query.Start, End: query.End, Filters: map[string]string{"authority": filters.Authority, "product_code": filters.ProductCode}}
 	out, err := h.Service.Disclose(ctx, actor, q)
 	if err != nil {
 		status, code := 503, "source_unavailable"

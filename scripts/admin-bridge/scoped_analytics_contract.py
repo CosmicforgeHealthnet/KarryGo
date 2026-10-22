@@ -1,4 +1,6 @@
 """Pin the counts-only, always-partial native scoped Analytics transport."""
+import report_contracts
+import copy
 import argparse
 import json
 from pathlib import Path
@@ -19,6 +21,13 @@ def document():
     release = build()["openapi.json"]["components"]["schemas"]["ScopedMissionSuccessRelease"]
     op = {"operationId": "analytics.scoped.mission-success.read", "description": "Default off. Dedicated credential, durable nonce, report-specific permission, five-scope governance, independent producer contexts, suppression/reconstruction journal and original-member reauthorization. This is an incomplete counts-only source: complete membership and rate semantics remain engineering work. Current source always returns PARTIAL_COVERAGE with every value withheld; it cannot publish metrics by turning a flag on.", "parameters": params, "responses": {"200": {"description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.", "content": {"application/json": {"schema": release}}}, **{str(code): {"description": "Sanitized denial/unavailable; no release values"} for code in (400, 401, 403, 409, 429, 503)}}}
     result = {"openapi": "3.1.0", "info": {"title": "Analytics private scoped mission-success counts", "version": "1.0.0"}, "security": [{"ScopedServiceHMAC": []}], "paths": {"/internal/analytics/v1/admin/scoped-network/mission-success": {"get": op}}, "components": {"securitySchemes": {"ScopedServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."}}}}
+
+    for name in report_contracts.REPORTS:
+        report_op=copy.deepcopy(op)
+        report_op["operationId"]=report_contracts.permission(name)
+        report_op["description"]="Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero."
+        report_op["responses"]["200"]["content"]["application/json"]["schema"]=build()["openapi.json"]["components"]["schemas"][report_contracts.schema_name(name)]
+        result["paths"]["/internal/analytics/v1/admin/scoped-network/"+name]={"get":report_op}
 
     result["components"]["securitySchemes"]["ProducerPublicationHMAC"] = {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Separate per-owner publisher workload secret, caller owner-authorization-context-publisher, exact body/path/query HMAC v2 and durable replay protection. Every document additionally requires an independent Ed25519 signature from the pinned source owner. No HQ authority."}
     for owner in ("driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service", "vendor-service"):

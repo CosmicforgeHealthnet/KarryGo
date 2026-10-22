@@ -1,5 +1,37 @@
 # Sections 6–10: source audit and implementation gates
 
+
+## 22 October 2026 — direct staging engineering continuation
+
+PR #15 is merged. Current work starts from staging `f16fa7ed`; historical
+unmerged-branch paragraphs below are superseded by this dated reconciliation.
+No historical Dispatch branch is merged or cherry-picked. Migrations 070–072
+and the later replay/authorization fences remain intact.
+
+Analytics now has all ten fixed native scoped GET routes, their fixed typed SDK
+methods and private mTLS Bridge paths. New per-report unit selectors are explicit:
+`ANALYTICS_ADMIN_SCOPED_<REPORT_WITH_UNDERSCORES>_UNIT_FIELD`; none has a default.
+Each report needs its own signed permission/source contract; configuring another
+report does not authorize this one. Readiness reuses its existing native reducer.
+Mission outcomes, recovery-event counts, mismatches, safety-separated declines,
+individual demand observations and provider-quality components use independently
+signed retained native facts. Every bounded subset remains PARTIAL_COVERAGE and
+fully suppressed; it does not prove producer completeness. Recovery counts are
+not mean resolution time; provider components are not a score. Supply fails
+closed without a native individual roster. Demand forecast fails closed without
+complete authorized history and an authoritative model contract. These two deny
+paths and the other component transports are not a claim of completed reporting
+semantics or complete source exports. No aggregate totals become privacy members.
+
+Real PostgreSQL/native ingest, independent owner context import, exact component
+counts, cross-tenant denial, audit-failure withholding, typed signed HTTP and
+revocation tests cover the new source adapters. Every additional Bridge path has
+real mTLS, five-scope, delegation, policy and kill-gate regression tests. Existing
+mission-success counts/rate and all existing tests remain unchanged in behavior.
+Source/Bridge schemas and capability entries are additive. All production flags
+remain off; no signing keys, grants, suppression values or Media lifetimes added.
+
+
 Audit base: `69b03e5cd9efabbee718995813c4b49daac00265` (PR #13), stacked on
 PR #12 `970c78b000ae50c5fb4191540eef6dd83ec2b921`. Neither dependency is merged;
 `origin/staging` is `1f4ff09380f6e9bf74a9f7cc6dbfaab9e85efe95`.

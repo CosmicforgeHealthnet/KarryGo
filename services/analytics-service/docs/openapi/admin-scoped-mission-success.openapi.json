@@ -430,6 +430,3756 @@
         }
       }
     },
+    "/internal/analytics/v1/admin/scoped-network/mission-outcomes": {
+      "get": {
+        "operationId": "analytics.scoped.mission-outcomes.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "mission-outcomes"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 8,
+                      "maxItems": 8,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "committed",
+                              "assigned",
+                              "completed",
+                              "failed",
+                              "cancelled",
+                              "recovery_resolved",
+                              "recovery_failed",
+                              "guarantee_breaches"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "committed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "assigned"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "completed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "failed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "cancelled"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "recovery_resolved"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "recovery_failed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "guarantee_breaches"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/recovery": {
+      "get": {
+        "operationId": "analytics.scoped.recovery.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "recovery"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "started",
+                              "replaced",
+                              "resolved",
+                              "failed"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "started"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "replaced"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "resolved"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "failed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/capability-mismatches": {
+      "get": {
+        "operationId": "analytics.scoped.capability-mismatches.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "capability-mismatches"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 1,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "mismatches"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "mismatches"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/declines": {
+      "get": {
+        "operationId": "analytics.scoped.declines.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "declines"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "declines",
+                              "safety_declines"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "declines"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "safety_declines"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/demand": {
+      "get": {
+        "operationId": "analytics.scoped.demand.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "demand"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "requests",
+                              "unmatched"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "requests"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "unmatched"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/demand-forecast": {
+      "get": {
+        "operationId": "analytics.scoped.demand-forecast.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "demand-forecast"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 1,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "forecast_requests"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "forecast_requests"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/supply": {
+      "get": {
+        "operationId": "analytics.scoped.supply.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "supply"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "available_providers",
+                              "busy_providers"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "available_providers"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "busy_providers"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/provider-quality": {
+      "get": {
+        "operationId": "analytics.scoped.provider-quality.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "provider-quality"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 8,
+                      "maxItems": 8,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "completed",
+                              "failed",
+                              "cancelled",
+                              "arrivals",
+                              "declines",
+                              "safety_declines",
+                              "recoveries_as_original",
+                              "recoveries_as_replacement"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "completed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "failed"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "cancelled"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "arrivals"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "declines"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "safety_declines"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "recoveries_as_original"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "recoveries_as_replacement"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
+    "/internal/analytics/v1/admin/scoped-network/readiness": {
+      "get": {
+        "operationId": "analytics.scoped.readiness-components.read",
+        "description": "Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero.",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "const": "karryam"
+                        },
+                        "market": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "zone": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "organization": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "tenant": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "metric": {
+                      "const": "readiness"
+                    },
+                    "source_version": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                      "maxLength": 128
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "STALE"
+                      ]
+                    },
+                    "coverage": {
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL_COVERAGE"
+                      ]
+                    },
+                    "cells": {
+                      "type": "array",
+                      "minItems": 6,
+                      "maxItems": 6,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "enum": [
+                              "ready_count",
+                              "on_time_count",
+                              "late_count",
+                              "lateness_seconds_total",
+                              "prep_seconds_total",
+                              "prep_count"
+                            ]
+                          },
+                          "value": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0
+                          },
+                          "suppression": {
+                            "enum": [
+                              "NONE",
+                              "UNKNOWN",
+                              "SMALL_CELL",
+                              "COMPLEMENTARY",
+                              "PARTIAL_COVERAGE",
+                              "STALE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value",
+                          "suppression"
+                        ],
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "suppression": {
+                                  "const": "NONE"
+                                }
+                              }
+                            },
+                            "then": {
+                              "properties": {
+                                "value": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "allOf": [
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "ready_count"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "on_time_count"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "late_count"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "lateness_seconds_total"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "prep_seconds_total"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        },
+                        {
+                          "contains": {
+                            "properties": {
+                              "key": {
+                                "const": "prep_count"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          },
+                          "minContains": 1,
+                          "maxContains": 1
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum",
+                    "scope",
+                    "metric",
+                    "source_version",
+                    "as_of",
+                    "freshness",
+                    "coverage",
+                    "cells"
+                  ],
+                  "allOf": [
+                    {
+                      "if": {
+                        "anyOf": [
+                          {
+                            "properties": {
+                              "coverage": {
+                                "const": "PARTIAL_COVERAGE"
+                              }
+                            }
+                          },
+                          {
+                            "properties": {
+                              "freshness": {
+                                "const": "STALE"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "cells": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "null"
+                                },
+                                "suppression": {
+                                  "not": {
+                                    "const": "NONE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "401": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "403": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "409": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "429": {
+            "description": "Sanitized denial/unavailable; no release values"
+          },
+          "503": {
+            "description": "Sanitized denial/unavailable; no release values"
+          }
+        }
+      }
+    },
     "/internal/analytics/v1/admin/source-contexts/driver-taxi-service": {
       "post": {
         "operationId": "analytics.lineage.publish.driver-taxi-service",

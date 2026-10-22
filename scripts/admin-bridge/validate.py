@@ -1,4 +1,5 @@
 """Independent OpenAPI, JSON Schema, wire sample and deployment source checks."""
+import report_contracts
 import argparse
 import copy
 import json
@@ -55,7 +56,15 @@ def main():
             domain = row["id"].split(".", 1)[0]
             assert row["owner"] == canonical_resource_owners[domain], f"Noncanonical owner in capability contract: {row['id']}"
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids | {report_contracts.permission(name) for name in report_contracts.REPORTS}
+    if args.wire_dir:
+        for name in report_contracts.REPORTS:
+            schema=validators[report_contracts.schema_name(name)]
+            for filename,envelope in [(f"scoped-analytics-{name}.json",True),(f"scoped-analytics-owner-{name}.json",False)]:
+                path=args.wire_dir/filename
+                if path.exists():
+                    value=load(path)
+                    schema.validate(value["result"] if envelope else value)
     command = load(OUT / "fixtures/command.json")
     validators["Command"].validate(command)
     for mutate in [lambda c: c.update(performed_by="forged-admin"), lambda c: c.update(product="healthnet"), lambda c: c["target"].update(expected_version=0), lambda c: c.pop("idempotency_key"), lambda c: c["scope"].update(organization="*")]:

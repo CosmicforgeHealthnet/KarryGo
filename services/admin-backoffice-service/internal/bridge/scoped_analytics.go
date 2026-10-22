@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"context"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
@@ -8,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -44,7 +46,13 @@ func scopedAnalyticsQuery(r *http.Request, staff, role string, policy *adminpoli
 	clone.URL.RawQuery = values.Encode()
 	query, parsed, err := taxiReadQuery(clone, staff, role, policy, now)
 	if err == nil {
-		_, err = analyticsadmin.Values(query, filters)
+		reportName := strings.TrimPrefix(r.URL.Path, Base+"/analytics/scoped/network/")
+		reportName = strings.TrimSuffix(reportName, "/rate")
+		report, ok := analyticsadmin.ReportNamed(reportName)
+		if !ok {
+			return empty, filters, nil, errors.New("unknown scoped report")
+		}
+		_, err = report.Values(query, filters)
 	}
 	return query, filters, parsed, err
 }
@@ -64,4 +72,46 @@ func (b *Bridge) scopedRateAvailable(roles, zones, tenants, permissions []string
 	}
 	rate, _ := b.scopedAnalyticsPolicy.Rule(analyticsadmin.MissionRatePermission, b.now())
 	return hasRole(roles, rate.Roles) && config.Contains(permissions, analyticsadmin.MissionSuccessPermission)
+}
+
+func scopedReportCapability(capability string) (analyticsadmin.Report, bool) {
+	if capability == analyticsadmin.MissionRatePermission {
+		r, _ := analyticsadmin.ReportNamed("mission-success")
+		return r, true
+	}
+	for _, report := range analyticsadmin.Reports() {
+		if capability == report.Permission {
+			return report, true
+		}
+	}
+	return analyticsadmin.Report{}, false
+}
+func (b *Bridge) scopedReportAvailable(report analyticsadmin.Report, roles, zones, tenants []string) bool {
+	rule, err := b.scopedAnalyticsPolicy.Rule(report.Permission, b.now())
+	return b.scopedAnalytics != nil && b.features.AnalyticsReads && err == nil && rule.Owner == "analytics-service" && report.ValidSourceContract(rule.SourceContract) && hasRole(roles, rule.Roles) && len(zones) > 0 && len(tenants) > 0
+}
+func (b *Bridge) scopedReportRead(ctx context.Context, name string, q adminread.Query, f analyticsadmin.Filters) (analyticsadmin.Release, error) {
+	switch name {
+	case "mission-success":
+		return b.scopedAnalytics.MissionSuccess(ctx, q, f)
+	case "mission-outcomes":
+		return b.scopedAnalytics.MissionOutcomes(ctx, q, f)
+	case "recovery":
+		return b.scopedAnalytics.Recovery(ctx, q, f)
+	case "capability-mismatches":
+		return b.scopedAnalytics.CapabilityMismatches(ctx, q, f)
+	case "declines":
+		return b.scopedAnalytics.Declines(ctx, q, f)
+	case "demand":
+		return b.scopedAnalytics.Demand(ctx, q, f)
+	case "demand-forecast":
+		return b.scopedAnalytics.DemandForecast(ctx, q, f)
+	case "supply":
+		return b.scopedAnalytics.Supply(ctx, q, f)
+	case "provider-quality":
+		return b.scopedAnalytics.ProviderQuality(ctx, q, f)
+	case "readiness":
+		return b.scopedAnalytics.Readiness(ctx, q, f)
+	}
+	return analyticsadmin.Release{}, analyticsadmin.ErrInvalid
 }

@@ -19118,6 +19118,2445 @@
           }
         }
       }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/mission-outcomes": {
+      "get": {
+        "operationId": "analytics.scoped.mission-outcomes.read",
+        "summary": "analytics.scoped.mission-outcomes.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.mission-outcomes.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedMissionOutcomesRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/recovery": {
+      "get": {
+        "operationId": "analytics.scoped.recovery.read",
+        "summary": "analytics.scoped.recovery.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.recovery.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedRecoveryRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/capability-mismatches": {
+      "get": {
+        "operationId": "analytics.scoped.capability-mismatches.read",
+        "summary": "analytics.scoped.capability-mismatches.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.capability-mismatches.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedCapabilityMismatchesRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/declines": {
+      "get": {
+        "operationId": "analytics.scoped.declines.read",
+        "summary": "analytics.scoped.declines.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.declines.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedDeclinesRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/demand": {
+      "get": {
+        "operationId": "analytics.scoped.demand.read",
+        "summary": "analytics.scoped.demand.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.demand.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedDemandRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/demand-forecast": {
+      "get": {
+        "operationId": "analytics.scoped.demand-forecast.read",
+        "summary": "analytics.scoped.demand-forecast.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.demand-forecast.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedDemandForecastRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/supply": {
+      "get": {
+        "operationId": "analytics.scoped.supply.read",
+        "summary": "analytics.scoped.supply.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.supply.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedSupplyRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/provider-quality": {
+      "get": {
+        "operationId": "analytics.scoped.provider-quality.read",
+        "summary": "analytics.scoped.provider-quality.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.provider-quality.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedProviderQualityRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/readiness": {
+      "get": {
+        "operationId": "analytics.scoped.readiness-components.read",
+        "summary": "analytics.scoped.readiness-components.read",
+        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.readiness-components.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedReadinessRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "security": [
@@ -21402,6 +23841,2235 @@
                   "properties": {
                     "key": {
                       "const": "guarantee_breaches"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedMissionOutcomesRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "mission-outcomes"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "committed",
+                    "assigned",
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "recovery_resolved",
+                    "recovery_failed",
+                    "guarantee_breaches"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "committed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "assigned"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "completed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "failed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "cancelled"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "recovery_resolved"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "recovery_failed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "guarantee_breaches"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedRecoveryRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "recovery"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "started",
+                    "replaced",
+                    "resolved",
+                    "failed"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "started"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "replaced"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "resolved"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "failed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedCapabilityMismatchesRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "capability-mismatches"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "mismatches"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "mismatches"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedDeclinesRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "declines"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "declines",
+                    "safety_declines"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "declines"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "safety_declines"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedDemandRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "demand"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "requests",
+                    "unmatched"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "requests"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "unmatched"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedDemandForecastRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "demand-forecast"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "forecast_requests"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "forecast_requests"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedSupplyRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "supply"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "available_providers",
+                    "busy_providers"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "available_providers"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "busy_providers"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedProviderQualityRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "provider-quality"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "arrivals",
+                    "declines",
+                    "safety_declines",
+                    "recoveries_as_original",
+                    "recoveries_as_replacement"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "completed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "failed"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "cancelled"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "arrivals"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "declines"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "safety_declines"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "recoveries_as_original"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "recoveries_as_replacement"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedReadinessRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "readiness"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 6,
+            "maxItems": 6,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "ready_count",
+                    "on_time_count",
+                    "late_count",
+                    "lateness_seconds_total",
+                    "prep_seconds_total",
+                    "prep_count"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "ready_count"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "on_time_count"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "late_count"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "lateness_seconds_total"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "prep_seconds_total"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "prep_count"
                     }
                   },
                   "required": [

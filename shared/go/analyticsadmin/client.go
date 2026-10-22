@@ -39,7 +39,11 @@ func NewClient(origin string, secret []byte) (*Client, error) {
 }
 func (c *Client) Close() { c.http.CloseIdleConnections() }
 func Values(q adminread.Query, f Filters) (url.Values, error) {
-	if _, err := adminread.Parse(q.Values(), time.Now()); err != nil || q.Cursor != "" || q.Limit != 1 || !networkanalytics.ValidAuthority(f.Authority) || !adminread.Opaque(f.ProductCode) {
+	r, _ := ReportNamed("mission-success")
+	return r.Values(q, f)
+}
+func (report Report) Values(q adminread.Query, f Filters) (url.Values, error) {
+	if _, err := adminread.Parse(q.Values(), time.Now()); err != nil || q.Cursor != "" || q.Limit != 1 || !(report.Name == "readiness" && f.Authority == networkanalytics.AuthorityVendor || report.Name != "readiness" && networkanalytics.ValidAuthority(f.Authority)) || !adminread.Opaque(f.ProductCode) {
 		return nil, ErrInvalid
 	}
 	values := q.Values()
@@ -48,13 +52,20 @@ func Values(q adminread.Query, f Filters) (url.Values, error) {
 	return values, nil
 }
 func (c *Client) MissionSuccess(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "mission-success")
+}
+func (c *Client) report(ctx context.Context, q adminread.Query, f Filters, name string) (Release, error) {
+	report, ok := ReportNamed(name)
+	if !ok {
+		return Release{}, ErrInvalid
+	}
 	var empty Release
-	values, err := Values(q, f)
+	values, err := report.Values(q, f)
 	if err != nil {
 		return empty, err
 	}
 	u := *c.origin
-	u.Path = MissionSuccessPath
+	u.Path = report.Path()
 	u.RawPath = ""
 	u.RawQuery = values.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -82,7 +93,7 @@ func (c *Client) MissionSuccess(ctx context.Context, q adminread.Query, f Filter
 	if err != nil || len(raw) > 65536 {
 		return empty, ErrInvalid
 	}
-	out, err := Decode(raw)
+	out, err := decodeReport(raw, report)
 	expected := adminpolicy.Scope{Product: "karryam", Market: q.Scope.Market, Zone: q.Scope.Zone, Organization: q.Scope.Organization, Tenant: q.Scope.Tenant}
 	if err != nil || out.Scope != expected || out.PolicyID != q.PolicyID || out.PolicyVersion != q.PolicyVersion || out.PolicyChecksum != q.PolicyChecksum {
 		return empty, ErrInvalid
@@ -90,6 +101,10 @@ func (c *Client) MissionSuccess(ctx context.Context, q adminread.Query, f Filter
 	return out, nil
 }
 func Decode(raw []byte) (Release, error) {
+	r, _ := ReportNamed("mission-success")
+	return decodeReport(raw, r)
+}
+func decodeReport(raw []byte, report Report) (Release, error) {
 	var out Release
 	if len(raw) == 0 || len(raw) > 65536 {
 		return out, ErrInvalid
@@ -123,10 +138,13 @@ func Decode(raw []byte) (Release, error) {
 	if err != nil || len(checksum) != 32 || out.Scope.Product != "karryam" || !adminread.Opaque(out.Scope.Market) || !adminread.Opaque(out.Scope.Zone) || !adminread.Opaque(out.Scope.Organization) || !adminread.Opaque(out.Scope.Tenant) {
 		return Release{}, ErrInvalid
 	}
-	if out.Metric != "mission-success" || !adminread.Opaque(out.SourceVersion) || !adminread.Opaque(out.PolicyID) || out.PolicyVersion < 1 || len(out.PolicyChecksum) != 64 || out.AsOf.IsZero() || out.AsOf.After(time.Now().Add(time.Minute)) || out.Freshness != "LIVE" && out.Freshness != "STALE" || out.Coverage != "COMPLETE" && out.Coverage != "PARTIAL_COVERAGE" || len(out.Cells) != 4 {
+	if out.Metric != report.Name || !adminread.Opaque(out.SourceVersion) || !adminread.Opaque(out.PolicyID) || out.PolicyVersion < 1 || len(out.PolicyChecksum) != 64 || out.AsOf.IsZero() || out.AsOf.After(time.Now().Add(time.Minute)) || out.Freshness != "LIVE" && out.Freshness != "STALE" || out.Coverage != "COMPLETE" && out.Coverage != "PARTIAL_COVERAGE" || len(out.Cells) != len(report.Keys) {
 		return Release{}, ErrInvalid
 	}
-	keys := map[string]bool{"completed": true, "failed": true, "cancelled": true, "guarantee_breaches": true}
+	keys := map[string]bool{}
+	for _, key := range report.Keys {
+		keys[key] = true
+	}
 	seen := map[string]bool{}
 	for _, cell := range out.Cells {
 		if !keys[cell.Key] || seen[cell.Key] || cell.Value != nil && *cell.Value < 0 {
@@ -198,4 +216,32 @@ func unique(d *json.Decoder, depth int) error {
 		return ErrInvalid
 	}
 	return nil
+}
+
+func (c *Client) MissionOutcomes(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "mission-outcomes")
+}
+func (c *Client) Recovery(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "recovery")
+}
+func (c *Client) CapabilityMismatches(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "capability-mismatches")
+}
+func (c *Client) Declines(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "declines")
+}
+func (c *Client) Demand(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "demand")
+}
+func (c *Client) DemandForecast(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "demand-forecast")
+}
+func (c *Client) Supply(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "supply")
+}
+func (c *Client) ProviderQuality(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "provider-quality")
+}
+func (c *Client) Readiness(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "readiness")
 }

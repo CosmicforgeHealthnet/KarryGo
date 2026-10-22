@@ -1,4 +1,5 @@
 """Validate or regenerate the pinned OpenAPI/JSON Schema bundle. No network needed."""
+import report_contracts
 import argparse
 import hashlib
 import json
@@ -81,16 +82,17 @@ def build():
     release = obj({"policy_id": opaque, "policy_version": {"type": "integer", "minimum": 1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$"), "scope": review_receipt["properties"]["scope"], "metric": {"const": "mission-success"}, "source_version": opaque, "as_of": string(format="date-time"), "freshness": {"enum": ["LIVE", "STALE"]}, "coverage": {"enum": ["COMPLETE", "PARTIAL_COVERAGE"]}, "cells": released_cells})
     release["allOf"] = [{"if": {"anyOf": [{"properties": {"coverage": {"const": "PARTIAL_COVERAGE"}}}, {"properties": {"freshness": {"const": "STALE"}}}]}, "then": {"properties": {"cells": {"items": {"properties": {"value": {"type": "null"}, "suppression": {"not": {"const": "NONE"}}}}}}}}]
     schemas["ScopedMissionSuccessRelease"] = release
+    schemas.update(report_contracts.schemas(release))
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"] in ("analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read"):
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"].startswith("analytics.scoped."):
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
-        if c["id"] in ("analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read"):
+        if c["id"].startswith("analytics.scoped."):
             params = [p for p in params if p["name"] not in ("limit", "cursor")]
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("authority", "product_code")]
         for segment in c["bridge_endpoint"].split("/"):
@@ -98,7 +100,7 @@ def build():
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}
