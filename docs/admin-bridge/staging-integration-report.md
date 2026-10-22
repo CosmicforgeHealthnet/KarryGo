@@ -1,5 +1,131 @@
 # Secure Admin staging integration — current backend status
 
+## 22 October 2026 (evening) — Sections 6–10 owner operations implemented
+
+Work continued directly on `staging` from `7cf8a0836aa38f03b38b2d99cea6b94ab599f022`.
+No branch, worktree-based merge, PR, reset or force push was used; every commit is a
+fast-forward. Code commits, in order:
+
+| Commit | Scope |
+|---|---|
+| `97fa4659` | Shared source-owned administrative command contract (`shared/go/admincommand`) |
+| `6f828146` | Bridge owner-command orchestration, two-person approvals, migration 006 |
+| `27134c10` | Mandatory Bridge test gate and public Gateway isolation for every new path |
+| `94de3694` | Section 7 Customer standing, remediation, privacy and support decisions |
+| `e5b3d426` | Sections 8–10 Taxi, Dispatch and Hauling owner-executed interventions |
+| `b7680ae0` | Fleet investigation cases, Media fifth case source, owner-attested legacy adoption |
+| `69b1a55b` | Owner command certification in `admin-owner-closure.yml` |
+| `290225c9` | Section 6 owner-attested coverage, supply roster, forecast history, new reports |
+| `ad491628` | Owner decision record renamed `admin_owner_command_decisions` (Fleet forbids ledger-named tables); every owner copy and template checksum refreshed |
+| `4e9aea76` | Customer V4 shared-go gate gets a database for the two analytics producer tests (a skip counts as a failure) |
+| `b8a4aa7f` | Customer OpenAPI for the owner command routes (V4 route audit: no undocumented customer routes) |
+
+### How every administrative operation now works
+
+`shared/go/admincommand` defines one closed action dictionary per owner (Customer,
+Taxi, Dispatch, Hauling, Fleet). Every action is a named domain transition implemented
+by the owner's own state machine inside its own transaction; a test asserts that no
+dictionary contains a generic `SET_`/`OVERRIDE`/`FORCE` action. The owner:
+
+- verifies HMAC v2 (dedicated write and readback keys, distinct from read, case and
+  publication keys), durable nonces and the pinned signed policy revision;
+- re-authorizes the delegated staff member and resolves the subject through its own
+  current signed owner context (the subject's existing resource contract must match);
+- serializes per subject, enforces `expected_version` (SUBJECT or CASE versioning) and
+  the legal transition, performs the real domain effect, and writes an immutable
+  `admin_owner_command_decisions` row in the same transaction;
+- for actions marked `RequiresApproval`, requires an approval bound to the exact intent
+  digest, approved by a different staff member, and usable once (UNIQUE);
+- serves original-identity readback and a bounded immutable decision history.
+
+The Bridge (`ownercommandops`, migration `006_owner_command_operations.sql`) adds six
+private routes per owner: command submit, readback by operation id, decision history,
+approval propose / read / decide. HQ never submits an approval object, only its id; the
+Bridge attaches the stored, bound, independently decided approval and consumes it in the
+transaction that claims the operation. Exactly one owner POST is sent and never retried.
+A definitive owner refusal settles `REJECTED`; any ambiguity stays `UNKNOWN_OUTCOME` and
+is released only when the owner's own version history proves supersession. A live
+versioned slot index prevents a new command from racing an unresolved one.
+
+### Section outcomes
+
+| Section | Implemented against real owner state | Remaining dependency |
+|---|---|---|
+| 6 Analytics | Owner-signed coverage/membership manifests (existing `admincontext` Ed25519 domain) verified against every retained native fact; reports release COMPLETE only when manifests tile the window. Individual supply roster recorded by Taxi, Dispatch and Hauling from their own availability records. Demand forecast fed only with complete same-slot history. New `recovery-resolution` (mean/median seconds from attested start/resolution events) and `provider-quality-score` (`analytics.provider-quality-score.v1`, roster members only) reports. Existing v1 report contracts unchanged. Analytics migration 011; producers Taxi 028, Dispatch 000075, Hauling 031, Vendor 000132 | Owner signing keys and Analytics key pins, owner contexts carrying `analytics.coverage.export`, Vendor per-fact allocations, approved roles and suppression values (governance). Dispatch emits no unmatched event, so its demand `unmatched` cell is UNKNOWN and Dispatch demand withholds. Taxi goods missions and Dispatch customer/commerce bookings have no enrolled admin resource kind and are excluded rather than guessed |
+| 7 Customer | Account standing: `LOGIN_BLOCKED` revokes all refresh sessions and refuses OTP verify, refresh and session insertion (database guard closes the race); `BOOKING_HOLD` published as `booking_eligible=false` on the internal customer context. Remediation (session reset, contact reverification requiring a fresh OTP login, profile correction via `profile_required`). Privacy request disposition RECEIVED → IN_PROGRESS → FULFILLED/REJECTED with real consent withdrawal. Case-bound support decisions. Migrations 018–019 | Taxi, Dispatch and Hauling booking paths do not yet read `booking_eligible`. Access tokens already issued remain valid until expiry. Erasure across other services requires each owner's own contract; customer-service records only are covered |
+| 8 Taxi | Versioned incident cases and remediation records; canonical document decisions (`expires_on` = end of day Africa/Lagos) and reverification requests; provider `SUSPEND_ONLINE`/`NO_NEW_ASSIGNMENTS` and vehicle `OUT_OF_SERVICE`. One SQL gate enforced in go-online, heartbeat convergence, passenger matching, goods offers, private and managed execution. Taxi incidents are a Media case kind. Migrations 026–027 | Document-to-subject mapping (licence → provider; registration/insurance/roadworthiness → vehicle) is a design choice pending business confirmation |
+| 9 Dispatch | Incident recovery retry/escalation on the engine's own scheduling and MANUAL_REVIEW states; pre-pickup reassignment through the existing incident replacement flow, refused under held custody, consumed pickup challenges or an open uncertain relay outcome; dead-letter return re-arm via idempotent readback; delivery replan parked for the customer's own `SelectRecovery` approval with financial gates preserved. Migrations 000073–000074; 000070–000072 untouched | None in software; production enablement is governance |
+| 10 Hauling/Fleet | Inspection cases with tenant ownership from the truck's canonical binding; FAIL applies an organization-scoped authority restriction; inspection-to-Media evidence associations; exact legacy `inspection_ref` mapping to concluded inspections; cargo suitability recomputed from current inputs (historical fit never authorizes); remediation; tenant-scoped restrictions; recovery replacement after current owner validation. Fleet-owned investigation cases with organization ownership from the subject record and case-authority proof. Migrations Hauling 029–030, Fleet 000082–000083 | Recovery replacement does not move the held Wallet payment (remote call outside the transaction); the existing settlement-time guard re-checks the binding |
+| Shared Media | Case vocabulary and enrollment driven by the shared case registry (Fleet is the fifth source; Taxi incidents, Hauling inspections, Fleet investigations accepted as private bound evidence). Owner-attested legacy adoption: Media verifies ownership, status, storage, purpose map, bytes and checksum, creates a private bound modern object through the normal upload path and records an immutable one-to-one mapping. Dispatch attests hub-hold checkpoint photos. Migration 000008 | Dispatch incidents/returns store no legacy media references, and trip proofs store URLs; those cannot be adopted without fabricating an association, so they are not |
+
+### API and contract changes
+
+- Bridge: 30 owner-command capabilities, 4 new owner resource capabilities (Taxi
+  incidents, Hauling inspections, Fleet investigations list/detail), 2 new scoped
+  Analytics reports; **136 capability entries**, 42 standalone schemas, regenerated
+  OpenAPI and checksums. Backward compatibility against the previous pinned contract
+  passes (`validate.py --base`).
+- Owner private routes: `/internal/{customer,taxi,dispatch,hauling,fleet-partner}/v1/admin/commands`
+  (POST, GET `/{kind}/{id}`, GET `/{kind}/{id}/{key}`); new case-authority kinds; Media
+  `POST /internal/media/v1/legacy-adoptions`; Analytics
+  `POST /internal/analytics/v1/admin/coverage-manifests/{owner}`.
+- None of these are routed by the public Gateway; the isolation test covers each,
+  including encoded and traversal variants.
+
+### Verification
+
+All suites were run locally against PostgreSQL 16 and Redis with `-race`:
+
+- Mandatory Bridge gate (`testgate.py`): 525 tests, zero failed or skipped.
+- Owner command and Section 6 producer gate (`command_testgate.py`): 133 tests, zero failed or skipped.
+- Full suites: customer-service (26 packages), analytics-service (112 tests), media-file-service
+  (78 integration tests), Hauling (whole module, `-p 1`), Taxi booking/goods/availability/admin
+  packages against a fully migrated database, Dispatch recovery/marketplace/trip/securehandover/
+  migration custody tests, Fleet admin/section30 migration replay, Vendor producer.
+- Contract generators and validators: `contracts.py`, `validate.py --base`, `scoped_analytics_contract.py`.
+- Each owner commit was built and tested from an isolated worktree containing exactly the staged files.
+
+Known pre-existing failure, unchanged by this work: Hauling
+`TestMatch_RejectedProviderNotReDispatchedSameBooking` reports a data race inside an existing
+test fake under `-race` (it fails identically on `7cf8a083`).
+
+All seven mandatory workflows passed on the final code commit `b8a4aa7f7f88c4acf31ca21bd11ec5309f48f1c7`:
+
+| Workflow | Successful GitHub run |
+|---|---|
+| admin-bridge.yml | [39832490484](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490484) |
+| admin-owner-closure.yml | [39832490397](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490397) |
+| section31-mandatory.yml | [39832490349](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490349) |
+| customer-v4-certification.yml | [39832490775](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490775) |
+| vendor-section46-48.yml | [39832490395](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490395) |
+| partner-gateway-split.yml | [39832490475](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490475) |
+| deployment-safety.yml | [39832490579](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39832490579) |
+
+Three CI findings were fixed on the way and are listed in the commit table: Section 31 rejected the
+ledger-named owner table (`ad491628`); Customer V4 counted the two new analytics producer tests as
+skipped (`4e9aea76`); and the V4 route audit found the Customer owner command routes undocumented
+(`b8a4aa7f`). The route audit, OpenAPI drift, register freshness and release manifest steps were
+also reproduced locally before the final push.
+
+### Preserved boundaries
+
+Every new privileged switch defaults to false; flags never grant permission. mTLS, HMAC v2,
+delegated operator identity, five-scope authorization, signed policy, source ownership,
+anti-replay, idempotency, immutable audit, version fencing and UNKNOWN_OUTCOME readback are
+preserved. No trip status, completion, location, fare, custody or wallet value can be set by
+an administrative command. No production grants, keys, suppression values or Media lifetimes
+were added. No deployment, VPS access, `main` change or Sections 11+ work.
+
+### Status
+
+Sections 6–10 have working owner-executed software for every requested function listed above.
+This is **not** a BACKEND_FUNCTIONALLY_COMPLETE declaration: the cross-service enforcement of
+the Customer booking hold in Taxi/Dispatch/Hauling and the Wallet move on Hauling recovery
+replacement remain engineering follow-ups, and production use is blocked on governance
+(signed policies, owner context approvals, keys, roles and suppression values).
+
+---
+
 ## 22 October 2026 — direct staging continuation after merged PR #15
 
 **Code integration is verified; Sections 6–10 remain PARTIAL.** This is not a

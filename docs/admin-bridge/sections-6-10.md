@@ -2,7 +2,7 @@
 
 ## Current completion assessment — 22 October 2026
 
-Sections 6, 7, 8, 9 and 10 remain **PARTIAL**. Supported new software and exact
+**Superseded the same evening:** owner-executed software for Sections 6–10 is now on staging; see the top section of [the staging report](staging-integration-report.md). Earlier assessment: Sections 6, 7, 8, 9 and 10 remained **PARTIAL**. Supported new software and exact
 remaining owner-contract/producer-coverage prerequisites are recorded in
 [the current staging report](staging-integration-report.md). Missing complete
 Analytics coverage, account/privacy decision semantics, delegated intervention
