@@ -34,7 +34,9 @@ type FaceMatcher interface {
 func NewSmileIdentityClientFromEnv(appEnv string) *SmileIdentityClient {
 	threshold := parseFloatEnv("SMILE_IDENTITY_MATCH_THRESHOLD", 70.00)
 	fakeMode := strings.ToLower(strings.TrimSpace(os.Getenv("SMILE_IDENTITY_FAKE_MODE")))
-	if appEnv == "production" {
+	// Synthetic verification decisions must never run in staging or production.
+	// An environment typo must fail closed rather than granting fake approval.
+	if appEnv != "development" && appEnv != "test" {
 		fakeMode = ""
 	}
 	return &SmileIdentityClient{
