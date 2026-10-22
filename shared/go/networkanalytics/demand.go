@@ -107,3 +107,18 @@ func BuildDemandBuckets(authority string, observations []DemandObservation, now 
 func DemandWindowStart(now time.Time) time.Time {
 	return DemandBucketStart(now).Add(-DemandBucketSize)
 }
+
+// SameSlotMean is the DemandForecastMethod model itself: the mean of the
+// observed history slots. It is trusted only with at least
+// DemandForecastMinimumSlots slots. A caller must pass only slots whose input
+// is genuinely known; an absent slot is never a zero.
+func SameSlotMean(history []int64) (expected float64, trusted bool) {
+	if len(history) == 0 {
+		return 0, false
+	}
+	var total int64
+	for _, count := range history {
+		total += count
+	}
+	return float64(total) / float64(len(history)), len(history) >= DemandForecastMinimumSlots
+}

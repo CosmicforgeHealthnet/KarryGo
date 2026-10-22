@@ -193,8 +193,14 @@ func TestHaulageBookingLifecycleReachesAnalytics(t *testing.T) {
 		if len(published[event]) != 1 {
 			t.Fatalf("%s published %d times (%v)", event, len(published[event]), published)
 		}
-		if strings.Contains(published[event][0], provider) || strings.Contains(published[event][0], "Marina") {
+		// Admin Section 6 (migration 031): the pseudonymous provider id that held
+		// the booking is part of the owner-owned attribution contract, as it is
+		// for Taxi and Dispatch facts; customer, address and coordinates never are.
+		if strings.Contains(published[event][0], "Marina") || strings.Contains(published[event][0], "customer") {
 			t.Fatalf("%s leaked identity: %s", event, published[event][0])
+		}
+		if held := event != "hauling.booking.committed.v1"; held != strings.Contains(published[event][0], provider) {
+			t.Fatalf("%s provider attribution wrong: %s", event, published[event][0])
 		}
 		if _, kind, ok := networkanalytics.Classify(event, ""); !ok || kind == "" {
 			t.Fatalf("%s is not classified", event)

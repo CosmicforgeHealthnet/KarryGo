@@ -61,6 +61,10 @@ const (
 	KindDemandObserved     Kind = "DEMAND_OBSERVED"
 	KindDemandBucket       Kind = "DEMAND_BUCKET"
 	KindBranchReadiness    Kind = "BRANCH_READINESS"
+	// KindSupplyRoster is ONE provider's owner-observed supply membership at a
+	// roster bucket. Unlike KindSupplySnapshot it is an individual fact, never
+	// a count, and it is the only supply fact that can establish membership.
+	KindSupplyRoster Kind = "SUPPLY_ROSTER_MEMBER"
 )
 
 // Snapshot kinds describe CURRENT state rather than something that happened,
@@ -170,13 +174,16 @@ func IsSafetyDecline(reason string) bool {
 func Classify(eventName, payloadAuthority string) (authority string, kind Kind, ok bool) {
 	name := strings.TrimSpace(eventName)
 	switch name {
-	case EventSupplySnapshot, EventDemandObserved, EventDemandBucket:
+	case EventSupplySnapshot, EventDemandObserved, EventDemandBucket, EventSupplyRoster:
 		authority = strings.ToUpper(strings.TrimSpace(payloadAuthority))
 		if !ValidAuthority(authority) {
 			return "", "", false
 		}
 		if name == EventSupplySnapshot {
 			return authority, KindSupplySnapshot, true
+		}
+		if name == EventSupplyRoster {
+			return authority, KindSupplyRoster, true
 		}
 		if name == EventDemandBucket {
 			return authority, KindDemandBucket, true
@@ -194,7 +201,7 @@ func KnownEventNames() []string {
 	for name := range eventKinds {
 		names = append(names, name)
 	}
-	return append(names, EventSupplySnapshot, EventDemandObserved, EventDemandBucket)
+	return append(names, EventSupplySnapshot, EventDemandObserved, EventDemandBucket, EventSupplyRoster)
 }
 
 // forbiddenTokens never survive ingestion. Analytics measures work, not

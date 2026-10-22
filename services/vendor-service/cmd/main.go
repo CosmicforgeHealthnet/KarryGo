@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/features/analyticsproducer"
 	"cosmicforge/logistics/services/vendor-service/internal/features/assets"
 	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
 	"cosmicforge/logistics/shared/go/journeyshare"
@@ -96,6 +97,13 @@ func main() {
 	logConnectivity(ctx, cfg.Redis.Addr, db, redisClient)
 	if err := requireWorkerDatabase(ctx, cfg.ProcessMode, db); err != nil {
 		logging.Fatal("database", "worker startup readiness failed: %v", err)
+	}
+	// Admin Section 6: owner-signed global readiness coverage manifests. Off
+	// unless VENDOR_ANALYTICS_PRODUCER_ENABLED is true.
+	if coverageProducer, err := analyticsproducer.Runtime(ctx, db); err != nil {
+		logging.Fatal("configuration", "Vendor analytics coverage producer configuration invalid")
+	} else if coverageProducer != nil {
+		go coverageProducer.Run(ctx, func(step string, err error) { logging.Error("vendor-analytics-coverage", "%s: %v", step, err) })
 	}
 
 	if cfg.Migration {

@@ -25,6 +25,7 @@ var lineageOwners = []string{"driver-taxi-service", "driver-dispatch-delivery-se
 // issues approvals, computes missing mappings or declares complete coverage.
 type LineagePublisher struct {
 	handlers map[string]*adminowner.Handler
+	coverage map[string]*CoverageHandler
 }
 
 func (p *LineagePublisher) Register(root *gin.Engine) {
@@ -35,13 +36,18 @@ func (p *LineagePublisher) Register(root *gin.Engine) {
 		}
 		root.POST(lineagePublishBase+owner, h.PublishContext)
 		root.GET(lineagePublishBase+owner+"/bindings/:kind/:id", h.PrepareContext)
+		coverage := p.coverage[owner]
+		if coverage == nil {
+			coverage = &CoverageHandler{Owner: owner}
+		}
+		root.POST(analyticsadmin.CoverageManifestPath+owner, coverage.Publish)
 	}
 }
 
 // Publication is independent of HQ report rollout: revocations must still be
 // ingestible when reads are killed. Its workload credentials cannot read reports.
 func PublisherRuntime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.Secrets, readSecret []byte) (*LineagePublisher, error) {
-	p := &LineagePublisher{handlers: map[string]*adminowner.Handler{}}
+	p := &LineagePublisher{handlers: map[string]*adminowner.Handler{}, coverage: map[string]*CoverageHandler{}}
 	if os.Getenv("ANALYTICS_ADMIN_CONTEXT_PUBLISH_ENABLED") != "true" {
 		return p, nil
 	}
@@ -81,6 +87,9 @@ func PublisherRuntime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.
 			}
 		}
 		used = append(used, secret)
+		// Coverage manifests reuse the same owner key pin and publisher
+		// workload credential; they need their own explicit switch.
+		p.coverage[owner] = &CoverageHandler{Owner: owner, DB: db, Secret: secret, Enabled: os.Getenv("ANALYTICS_ADMIN_COVERAGE_PUBLISH_ENABLED") == "true", Store: &ManifestStore{DB: db, Authority: authority}}
 		p.handlers[owner] = &adminowner.Handler{Owner: owner, DB: db, PublishEnabled: true, PublishSecret: secret, PreparationReader: LineageReader{Owner: owner}, Definitions: lineageDefinitions(), Contexts: &admincontext.Store{DB: db, Reader: LineageReader{Owner: owner}, Authority: authority}}
 	}
 	ready, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -88,6 +97,11 @@ func PublisherRuntime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.
 	var ok bool
 	if err := db.QueryRow(ready, `SELECT to_regclass('admin_owner_read_nonces') IS NOT NULL AND to_regclass('admin_owner_context_history') IS NOT NULL AND to_regclass('admin_owner_context_preparation_audit') IS NOT NULL`).Scan(&ok); err != nil || !ok {
 		return nil, errors.New("Analytics publication schema unavailable; apply normal migrations")
+	}
+	if os.Getenv("ANALYTICS_ADMIN_COVERAGE_PUBLISH_ENABLED") == "true" {
+		if err := db.QueryRow(ready, `SELECT to_regclass('analytics_admin_coverage_heads') IS NOT NULL AND to_regclass('analytics_admin_coverage_members') IS NOT NULL AND to_regclass('analytics_admin_coverage_nonces') IS NOT NULL`).Scan(&ok); err != nil || !ok {
+			return nil, errors.New("Analytics coverage schema unavailable; apply normal migrations")
+		}
 	}
 	return p, nil
 }

@@ -43,6 +43,11 @@ func (s *ReportSource) Snapshot(ctx context.Context, tx pgx.Tx, q Query) (Snapsh
 	if err != nil {
 		return empty, err
 	}
+	if complete, ok, err := tryComplete(ctx, tx, s.Authorities, s.Report, s.UnitField, q); err != nil {
+		return empty, err
+	} else if ok {
+		return complete, nil
+	}
 	owner := ""
 	switch q.Filters["authority"] {
 	case "TAXI":
@@ -183,6 +188,9 @@ func (s *ReportSource) AuthorizeRelease(ctx context.Context, tx pgx.Tx, q Query,
 	if s == nil || len(raw) == 0 || len(raw) > 65536 || q.Metric != s.Report || !validReportQuery(q) || len(q.Filters) != 2 {
 		return ErrUnmapped
 	}
+	if isCompleteWitness(raw) {
+		return authorizeComplete(ctx, tx, s.Authorities, s.UnitField, q, version, raw)
+	}
 	var witness reportAuthorization
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
@@ -234,7 +242,7 @@ func (s *ReportSource) AuthorizeRelease(ctx context.Context, tx pgx.Tx, q Query,
 
 func validReportQuery(q Query) bool {
 	r, ok := analyticsadmin.ReportNamed(q.Metric)
-	return ok && r.Permission == q.Capability && q.Metric != "mission-success" && q.Metric != "readiness" && q.Metric != "supply" && q.Metric != "demand-forecast"
+	return ok && r.Permission == q.Capability && q.Metric != "mission-success" && q.Metric != "readiness" && q.Metric != "supply" && q.Metric != "demand-forecast" && derivedReports[q.Metric] == ""
 }
 
 func reportComponents(report string, fact LineageFact, raw []byte) (map[string]int64, error) {
@@ -289,7 +297,20 @@ func reportComponents(report string, fact LineageFact, raw []byte) (map[string]i
 		} else {
 			return nil, ErrSource
 		}
-	case "demand":
+	case "demand", "demand-forecast":
+		// A committed mission is one individual request; an owner's explicit
+		// unmatched outcome is one unmatched request. Other failures are not
+		// demand facts and contribute nothing (never an invented zero/one).
+		switch kind {
+		case networkanalytics.KindMissionCommitted:
+			out["requests"] = 1
+			return out, nil
+		case networkanalytics.KindMissionFailed:
+			if unmatchedEvents[fact.EventName] {
+				out["unmatched"] = 1
+			}
+			return out, nil
+		}
 		if kind != networkanalytics.KindDemandObserved {
 			return nil, ErrUnmapped
 		}
@@ -320,4 +341,14 @@ func reportComponents(report string, fact LineageFact, raw []byte) (map[string]i
 		return nil, ErrUnmapped
 	}
 	return out, nil
+}
+
+// unmatchedEvents are the owner events that record a request nobody served.
+// An authority without such an event has an UNKNOWN unmatched count.
+var unmatchedEvents = map[string]bool{"taxi.booking.unmatched": true, "hauling.booking.unmatched.v1": true}
+
+// unmatchedKnown reports whether an authority publishes an explicit unmatched
+// outcome. Dispatch publishes delivery failure, which is not unmatched demand.
+func unmatchedKnown(authority string) bool {
+	return authority == networkanalytics.AuthorityTaxi || authority == networkanalytics.AuthorityHauling
 }

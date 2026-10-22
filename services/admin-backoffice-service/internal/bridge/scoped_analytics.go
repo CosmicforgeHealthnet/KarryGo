@@ -110,6 +110,10 @@ func (b *Bridge) scopedReportRead(ctx context.Context, name string, q adminread.
 		return b.scopedAnalytics.Supply(ctx, q, f)
 	case "provider-quality":
 		return b.scopedAnalytics.ProviderQuality(ctx, q, f)
+	case "recovery-resolution":
+		return b.scopedAnalytics.RecoveryResolution(ctx, q, f)
+	case "provider-quality-score":
+		return b.scopedAnalytics.ProviderQualityScore(ctx, q, f)
 	case "readiness":
 		return b.scopedAnalytics.Readiness(ctx, q, f)
 	}

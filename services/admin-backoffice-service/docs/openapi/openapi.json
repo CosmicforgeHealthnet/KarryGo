@@ -16856,7 +16856,7 @@
       "get": {
         "operationId": "analytics.scoped.mission-success.read",
         "summary": "analytics.scoped.mission-success.read",
-        "description": "BLOCKED_POLICY and incomplete report: source is always partial and withholds every count. Complete cohort exports, success-rate semantics and other report reducers remain work.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.mission-success.read",
@@ -19123,7 +19123,7 @@
       "get": {
         "operationId": "analytics.scoped.mission-outcomes.read",
         "summary": "analytics.scoped.mission-outcomes.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.mission-outcomes.read",
@@ -19394,7 +19394,7 @@
       "get": {
         "operationId": "analytics.scoped.recovery.read",
         "summary": "analytics.scoped.recovery.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.recovery.read",
@@ -19665,7 +19665,7 @@
       "get": {
         "operationId": "analytics.scoped.capability-mismatches.read",
         "summary": "analytics.scoped.capability-mismatches.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.capability-mismatches.read",
@@ -19936,7 +19936,7 @@
       "get": {
         "operationId": "analytics.scoped.declines.read",
         "summary": "analytics.scoped.declines.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.declines.read",
@@ -20207,7 +20207,7 @@
       "get": {
         "operationId": "analytics.scoped.demand.read",
         "summary": "analytics.scoped.demand.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.demand.read",
@@ -20478,7 +20478,7 @@
       "get": {
         "operationId": "analytics.scoped.demand-forecast.read",
         "summary": "analytics.scoped.demand-forecast.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.demand-forecast.read",
@@ -20749,7 +20749,7 @@
       "get": {
         "operationId": "analytics.scoped.supply.read",
         "summary": "analytics.scoped.supply.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.supply.read",
@@ -21020,7 +21020,7 @@
       "get": {
         "operationId": "analytics.scoped.provider-quality.read",
         "summary": "analytics.scoped.provider-quality.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.provider-quality.read",
@@ -21287,11 +21287,553 @@
         }
       }
     },
+    "/internal/karryam-admin/v1/analytics/scoped/network/recovery-resolution": {
+      "get": {
+        "operationId": "analytics.scoped.recovery-resolution.read",
+        "summary": "analytics.scoped.recovery-resolution.read",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply. Mean/median resolution seconds over owner-attested start and resolution events of resolved cases only; no partial form.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.recovery-resolution.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedRecoveryResolutionRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/karryam-admin/v1/analytics/scoped/network/provider-quality-score": {
+      "get": {
+        "operationId": "analytics.scoped.provider-quality-score.read",
+        "summary": "analytics.scoped.provider-quality-score.read",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply. analytics.provider-quality-score.v1 over verified supply-roster members with at least 5 held jobs, released only as suppressed cohort cells; no partial form.",
+        "x-capability-state": "READ_ONLY",
+        "x-owner": "analytics-service",
+        "x-required-permission": "analytics.scoped.provider-quality-score.read",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "authority",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "product_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authorized local metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "1.0"
+                    },
+                    "product": {
+                      "const": "karryam"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "freshness": {
+                      "enum": [
+                        "LIVE",
+                        "RECENT",
+                        "STALE",
+                        "PARTIAL",
+                        "UNKNOWN",
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/ScopedProviderQualityScoreRelease"
+                    },
+                    "error": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "pattern": "^[a-z_]+$"
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "product",
+                    "correlation_id",
+                    "as_of",
+                    "freshness",
+                    "result"
+                  ],
+                  "not": {
+                    "required": [
+                      "error"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/karryam-admin/v1/analytics/scoped/network/readiness": {
       "get": {
         "operationId": "analytics.scoped.readiness-components.read",
         "summary": "analytics.scoped.readiness-components.read",
-        "description": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+        "description": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
         "x-capability-state": "READ_ONLY",
         "x-owner": "analytics-service",
         "x-required-permission": "analytics.scoped.readiness-components.read",
@@ -40546,6 +41088,478 @@
                   "properties": {
                     "key": {
                       "const": "recoveries_as_replacement"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedRecoveryResolutionRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "recovery-resolution"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "resolved_with_duration",
+                    "resolution_seconds_mean",
+                    "resolution_seconds_median"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "resolved_with_duration"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "resolution_seconds_mean"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "resolution_seconds_median"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy_id",
+          "policy_version",
+          "policy_checksum",
+          "scope",
+          "metric",
+          "source_version",
+          "as_of",
+          "freshness",
+          "coverage",
+          "cells"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "coverage": {
+                      "const": "PARTIAL_COVERAGE"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "freshness": {
+                      "const": "STALE"
+                    }
+                  }
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "cells": {
+                  "items": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      },
+                      "suppression": {
+                        "not": {
+                          "const": "NONE"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ScopedProviderQualityScoreRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "policy_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "product": {
+                "const": "karryam"
+              },
+              "market": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "zone": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              },
+              "tenant": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+              }
+            },
+            "required": [
+              "product",
+              "market",
+              "zone",
+              "organization",
+              "tenant"
+            ]
+          },
+          "metric": {
+            "const": "provider-quality-score"
+          },
+          "source_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "enum": [
+                    "quality_scored_providers",
+                    "quality_score_v1_mean_bp",
+                    "quality_score_v1_median_bp"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "suppression": {
+                  "enum": [
+                    "NONE",
+                    "UNKNOWN",
+                    "SMALL_CELL",
+                    "COMPLEMENTARY",
+                    "PARTIAL_COVERAGE",
+                    "STALE"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "suppression"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "suppression": {
+                        "const": "NONE"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "value": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "quality_scored_providers"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "quality_score_v1_mean_bp"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "key": {
+                      "const": "quality_score_v1_median_bp"
                     }
                   },
                   "required": [

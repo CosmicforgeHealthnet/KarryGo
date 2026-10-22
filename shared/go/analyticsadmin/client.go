@@ -245,3 +245,9 @@ func (c *Client) ProviderQuality(ctx context.Context, q adminread.Query, f Filte
 func (c *Client) Readiness(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
 	return c.report(ctx, q, f, "readiness")
 }
+func (c *Client) RecoveryResolution(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "recovery-resolution")
+}
+func (c *Client) ProviderQualityScore(ctx context.Context, q adminread.Query, f Filters) (Release, error) {
+	return c.report(ctx, q, f, "provider-quality-score")
+}

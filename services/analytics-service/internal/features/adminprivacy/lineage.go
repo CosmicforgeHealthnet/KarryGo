@@ -42,12 +42,12 @@ var lineageReports = map[string]lineageReport{
 	"recovery":              {[]networkanalytics.Kind{networkanalytics.KindRecoveryStarted, networkanalytics.KindRecoveryReplaced, networkanalytics.KindRecoveryResolved, networkanalytics.KindRecoveryFailed}},
 	"capability-mismatches": {[]networkanalytics.Kind{networkanalytics.KindCapabilityMismatch}},
 	"declines":              {[]networkanalytics.Kind{networkanalytics.KindProviderDeclined}},
-	"demand":                {[]networkanalytics.Kind{networkanalytics.KindDemandObserved, networkanalytics.KindDemandBucket}},
+	"demand":                {[]networkanalytics.Kind{networkanalytics.KindDemandObserved, networkanalytics.KindDemandBucket, networkanalytics.KindMissionCommitted, networkanalytics.KindMissionFailed}},
 	"provider-quality":      {[]networkanalytics.Kind{networkanalytics.KindMissionCompleted, networkanalytics.KindMissionFailed, networkanalytics.KindMissionCancelled, networkanalytics.KindProviderArrived, networkanalytics.KindProviderDeclined, networkanalytics.KindRecoveryStarted, networkanalytics.KindRecoveryReplaced}},
 	"readiness":             {[]networkanalytics.Kind{networkanalytics.KindBranchReadiness}},
-	"supply":                {[]networkanalytics.Kind{networkanalytics.KindSupplySnapshot}},
+	"supply":                {[]networkanalytics.Kind{networkanalytics.KindSupplySnapshot, networkanalytics.KindSupplyRoster}},
 	"mission-outcomes":      {[]networkanalytics.Kind{networkanalytics.KindMissionCommitted, networkanalytics.KindMissionAssigned, networkanalytics.KindMissionCompleted, networkanalytics.KindMissionFailed, networkanalytics.KindMissionCancelled, networkanalytics.KindRecoveryResolved, networkanalytics.KindRecoveryFailed, networkanalytics.KindGuaranteeBreached}},
-	"demand-forecast":       {[]networkanalytics.Kind{networkanalytics.KindDemandObserved, networkanalytics.KindDemandBucket}},
+	"demand-forecast":       {[]networkanalytics.Kind{networkanalytics.KindDemandObserved, networkanalytics.KindDemandBucket, networkanalytics.KindMissionCommitted}},
 }
 
 func canonicalLineageOwner(owner string) (string, string) {
@@ -67,7 +67,20 @@ func canonicalLineageOwner(owner string) (string, string) {
 // Kind binds a report AND the proposed native unit field. Neither the report
 // name nor a source approval establishes that this is the approved privacy
 // unit: governance must approve the exact contract and complete cohort source.
+// derivedReports read the same native facts as their parent report; their
+// lineage kind, per-fact allocations and capability are the parent's.
+var derivedReports = map[string]string{"recovery-resolution": "recovery", "provider-quality-score": "provider-quality"}
+
+// lineageReportFor maps a scoped report to the native lineage report it reads.
+func lineageReportFor(report string) string {
+	if parent, ok := derivedReports[report]; ok {
+		return parent
+	}
+	return report
+}
+
 func LineageKind(report, field string) (string, error) {
+	report = lineageReportFor(report)
 	if _, ok := lineageReports[report]; !ok {
 		return "", ErrUnmapped
 	}
@@ -157,6 +170,11 @@ func (r LineageReader) ReadUnit(ctx context.Context, tx pgx.Tx, report, field, e
 			}
 			family = "SOURCE_ENTITY.vendor_order"
 		case "recovery_case", "delivery_recovery_action":
+			family = "SOURCE_ENTITY." + out.EntityType
+		case networkanalytics.SupplyRosterEntityType:
+			if actualKind != networkanalytics.KindSupplyRoster {
+				return LineageFact{}, ErrUnmapped
+			}
 			family = "SOURCE_ENTITY." + out.EntityType
 		default:
 			return LineageFact{}, ErrUnmapped

@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "policy_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "policy_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_checksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "product": {
+          "const": "karryam"
+        },
+        "market": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "zone": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "organization": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "tenant": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        }
+      },
+      "required": [
+        "product",
+        "market",
+        "zone",
+        "organization",
+        "tenant"
+      ]
+    },
+    "metric": {
+      "const": "provider-quality-score"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness": {
+      "enum": [
+        "LIVE",
+        "STALE"
+      ]
+    },
+    "coverage": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL_COVERAGE"
+      ]
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "enum": [
+              "quality_scored_providers",
+              "quality_score_v1_mean_bp",
+              "quality_score_v1_median_bp"
+            ]
+          },
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "suppression": {
+            "enum": [
+              "NONE",
+              "UNKNOWN",
+              "SMALL_CELL",
+              "COMPLEMENTARY",
+              "PARTIAL_COVERAGE",
+              "STALE"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "value",
+          "suppression"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "suppression": {
+                  "const": "NONE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "key": {
+                "const": "quality_scored_providers"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "key": {
+                "const": "quality_score_v1_mean_bp"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "key": {
+                "const": "quality_score_v1_median_bp"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    }
+  },
+  "required": [
+    "policy_id",
+    "policy_version",
+    "policy_checksum",
+    "scope",
+    "metric",
+    "source_version",
+    "as_of",
+    "freshness",
+    "coverage",
+    "cells"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "coverage": {
+                "const": "PARTIAL_COVERAGE"
+              }
+            }
+          },
+          {
+            "properties": {
+              "freshness": {
+                "const": "STALE"
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "cells": {
+            "items": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                },
+                "suppression": {
+                  "not": {
+                    "const": "NONE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

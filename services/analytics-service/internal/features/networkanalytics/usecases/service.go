@@ -245,7 +245,8 @@ func (s *Service) DemandForecast(ctx context.Context, authority, zone, product s
 	if err != nil {
 		return answer, err
 	}
-	var total, history, latestVersion int64
+	var history []int64
+	var latestVersion int64
 	for _, slot := range found {
 		if slot.ObservedAt.After(answer.DataAsOf) {
 			answer.DataAsOf = slot.ObservedAt
@@ -258,15 +259,13 @@ func (s *Service) DemandForecast(ctx context.Context, authority, zone, product s
 			answer.CurrentCount = &current
 			continue
 		}
-		total += slot.DemandCount
-		history++
+		history = append(history, slot.DemandCount)
 	}
-	answer.SampleSize = history
+	answer.SampleSize = int64(len(history))
 	answer.ModelVersion = fmt.Sprintf("%s@%d", networkanalytics.DemandForecastMethod, latestVersion)
-	if history > 0 {
-		answer.Expected = float64(total) / float64(history)
-	}
-	if history >= networkanalytics.DemandForecastMinimumSlots {
+	expected, trusted := networkanalytics.SameSlotMean(history)
+	answer.Expected = expected
+	if trusted {
 		answer.Available, answer.Status = true, networkanalytics.StatusOK
 		answer.Score = networkanalytics.NeutralScore
 	}

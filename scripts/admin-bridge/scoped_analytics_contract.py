@@ -1,4 +1,4 @@
-"""Pin the counts-only, always-partial native scoped Analytics transport."""
+"""Pin the native scoped Analytics transport and owner coverage-manifest publication."""
 import report_contracts
 import copy
 import argparse
@@ -8,6 +8,7 @@ from contracts import build, string
 from owner_contracts import document as owner_document
 from openapi_spec_validator import validate_spec
 
+MAX_MEMBERS = 5000
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / "services/analytics-service/docs/openapi/admin-scoped-mission-success.openapi.json"
 
@@ -19,13 +20,13 @@ def document():
     params += [parameter(key, string(format="date-time")) for key in ("start", "end")]
     params += [parameter("limit", {"const": 1})]
     release = build()["openapi.json"]["components"]["schemas"]["ScopedMissionSuccessRelease"]
-    op = {"operationId": "analytics.scoped.mission-success.read", "description": "Default off. Dedicated credential, durable nonce, report-specific permission, five-scope governance, independent producer contexts, suppression/reconstruction journal and original-member reauthorization. This is an incomplete counts-only source: complete membership and rate semantics remain engineering work. Current source always returns PARTIAL_COVERAGE with every value withheld; it cannot publish metrics by turning a flag on.", "parameters": params, "responses": {"200": {"description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.", "content": {"application/json": {"schema": release}}}, **{str(code): {"description": "Sanitized denial/unavailable; no release values"} for code in (400, 401, 403, 409, 429, 503)}}}
-    result = {"openapi": "3.1.0", "info": {"title": "Analytics private scoped mission-success counts", "version": "1.0.0"}, "security": [{"ScopedServiceHMAC": []}], "paths": {"/internal/analytics/v1/admin/scoped-network/mission-success": {"get": op}}, "components": {"securitySchemes": {"ScopedServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."}}}}
+    op = {"operationId": "analytics.scoped.mission-success.read", "description": "Default off. Dedicated credential, durable nonce, report-specific permission, five-scope governance, independent producer contexts, suppression/reconstruction journal and original-member reauthorization. Values are released as COMPLETE only when owner-signed coverage manifests tile the window and match every retained native fact; otherwise PARTIAL_COVERAGE with every value withheld. Flags alone cannot publish metrics: signed governance, owner contexts and manifests are required.", "parameters": params, "responses": {"200": {"description": "Scoped suppressed counts and explicit coverage. No raw cohort size, member identifiers or producer payload.", "content": {"application/json": {"schema": release}}}, **{str(code): {"description": "Sanitized denial/unavailable; no release values"} for code in (400, 401, 403, 409, 429, 503)}}}
+    result = {"openapi": "3.1.0", "info": {"title": "Analytics private scoped network reports", "version": "1.0.0"}, "security": [{"ScopedServiceHMAC": []}], "paths": {"/internal/analytics/v1/admin/scoped-network/mission-success": {"get": op}}, "components": {"securitySchemes": {"ScopedServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "Dedicated admin-backoffice-service HMAC v2 key, distinct from every legacy Analytics audience. Exact method/path/query/body, name/version/timestamp/nonce headers and durable cross-replica replay protection."}}}}
 
     for name in report_contracts.REPORTS:
         report_op=copy.deepcopy(op)
         report_op["operationId"]=report_contracts.permission(name)
-        report_op["description"]="Default-disabled scoped component report. Independently authorized native facts, durable replay/audit and frozen membership. Incomplete coverage is suppressed; unavailable roster/model input returns 503, never a fabricated forecast or zero."
+        report_op["description"]="Default-disabled scoped report. Independently authorized native facts, durable replay/audit and frozen membership with pinned manifest revisions. COMPLETE only under verified owner coverage (supply from the verified individual roster; forecast only with complete same-slot history); otherwise suppressed or 503, never a fabricated forecast, duration, score or zero."
         report_op["responses"]["200"]["content"]["application/json"]["schema"]=build()["openapi.json"]["components"]["schemas"][report_contracts.schema_name(name)]
         result["paths"]["/internal/analytics/v1/admin/scoped-network/"+name]={"get":report_op}
 
@@ -43,6 +44,12 @@ def document():
         prepare["description"] = "Default off. Return only a native PROCESSED event/unit fingerprint, source contract and known canonical product for independent owner review. Unknown geography/organization/tenant remain empty. No context grant, signature or completeness assertion. Immutable audit must commit before disclosure. Report/unit kind is fixed to the ten lineage reports and five explicitly supported native unit fields. HQ read credentials cannot prepare bindings."
         result["paths"]["/internal/analytics/v1/admin/source-contexts/" + owner + "/bindings/{kind}/{id}"] = {"get": prepare}
 
+    member = {"type": "object", "additionalProperties": False, "required": ["event_id", "event_name", "entity_type", "entity_id", "version", "occurred_at"], "properties": {"event_id": opaque, "event_name": opaque, "entity_type": opaque, "entity_id": opaque, "version": {"type": "integer", "minimum": 1}, "occurred_at": string(format="date-time")}}
+    envelope = {"type": "object", "additionalProperties": False, "required": ["document", "key_id", "signature"], "properties": {"document": {"type": "object"}, "key_id": opaque, "signature": string(pattern="^[A-Za-z0-9_-]+$")}}
+    manifest_body = {"type": "object", "additionalProperties": False, "required": ["envelope", "members"], "properties": {"envelope": envelope, "members": {"type": "array", "maxItems": MAX_MEMBERS, "items": member}}}
+    recorded = {"type": "object", "additionalProperties": False, "required": ["status"], "properties": {"status": {"const": "RECORDED"}}}
+    for owner in ("driver-taxi-service", "driver-dispatch-delivery-service", "driver-hauling-service", "vendor-service"):
+        result["paths"]["/internal/analytics/v1/admin/coverage-manifests/" + owner] = {"post": {"operationId": "analytics.coverage.publish." + owner, "security": [{"ProducerPublicationHMAC": []}], "description": "Default off (ANALYTICS_ADMIN_COVERAGE_PUBLISH_ENABLED). Owner-signed coverage/membership manifest: an admincontext approval with resource_kind analytics.coverage-manifest.v1:<family>, window reference and a binding fingerprint over the five-dimension scope, window, member count and every sorted member. Analytics recomputes the digest, verifies the pinned owner key and records a monotonic head with append-only history and members. Aggregate buckets can never be members. A report is COMPLETE only when manifests tile the window and match every retained native fact.", "requestBody": {"required": True, "content": {"application/json": {"schema": manifest_body}}}, "responses": {"200": {"description": "Recorded or idempotent replay.", "content": {"application/json": {"schema": recorded}}}, **{str(code): {"description": "Sanitized refusal; nothing recorded"} for code in (400, 401, 403, 409, 413, 503)}}}}
     return result
 
 def main():

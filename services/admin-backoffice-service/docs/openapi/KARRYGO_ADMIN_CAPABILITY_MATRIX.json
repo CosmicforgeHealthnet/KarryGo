@@ -1648,7 +1648,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "BLOCKED_POLICY and incomplete report: source is always partial and withholds every count. Complete cohort exports, success-rate semantics and other report reducers remain work.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -1857,7 +1857,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -1881,7 +1881,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -1905,7 +1905,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -1929,7 +1929,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -1953,7 +1953,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -1977,7 +1977,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -2001,7 +2001,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -2025,7 +2025,55 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
+    "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
+  },
+  {
+    "id": "analytics.scoped.recovery-resolution.read",
+    "version": "1.0",
+    "owner": "analytics-service",
+    "source_endpoint": "/internal/analytics/v1/admin/scoped-network/recovery-resolution",
+    "bridge_endpoint": "/analytics/scoped/network/recovery-resolution",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "analytics.scoped.recovery-resolution.read",
+    "scope": "product,market,zone,organization,tenant,staff,purpose,authority,product_code,time window",
+    "risk": "R1",
+    "privacy": "SUPPRESSED_COUNT_METADATA",
+    "source_version_required": true,
+    "idempotency_required": false,
+    "approval": "Signed report-specific governance and current producer-owned source contexts; no production approval supplied.",
+    "evidence": "Suppression/reconstruction ledger, original-membership witness, producer context history and source query audit.",
+    "feature_flag": "ADMIN_ANALYTICS_SCOPED_READ_ENABLED",
+    "tests": [
+      "TestPostgresAllScopedReportsBridgeMTLS",
+      "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
+    ],
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply. Mean/median resolution seconds over owner-attested start and resolution events of resolved cases only; no partial form.",
+    "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
+  },
+  {
+    "id": "analytics.scoped.provider-quality-score.read",
+    "version": "1.0",
+    "owner": "analytics-service",
+    "source_endpoint": "/internal/analytics/v1/admin/scoped-network/provider-quality-score",
+    "bridge_endpoint": "/analytics/scoped/network/provider-quality-score",
+    "method": "GET",
+    "state": "READ_ONLY",
+    "permission": "analytics.scoped.provider-quality-score.read",
+    "scope": "product,market,zone,organization,tenant,staff,purpose,authority,product_code,time window",
+    "risk": "R1",
+    "privacy": "SUPPRESSED_COUNT_METADATA",
+    "source_version_required": true,
+    "idempotency_required": false,
+    "approval": "Signed report-specific governance and current producer-owned source contexts; no production approval supplied.",
+    "evidence": "Suppression/reconstruction ledger, original-membership witness, producer context history and source query audit.",
+    "feature_flag": "ADMIN_ANALYTICS_SCOPED_READ_ENABLED",
+    "tests": [
+      "TestPostgresAllScopedReportsBridgeMTLS",
+      "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
+    ],
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply. analytics.provider-quality-score.v1 over verified supply-roster members with at least 5 held jobs, released only as suppressed cohort cells; no partial form.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {
@@ -2049,7 +2097,7 @@
       "TestPostgresMissionSourceCountsDistinctApprovedNativeUnitsAndWithholdsIncompleteCoverage",
       "TestScopedAnalyticsClientNeverUsesLegacyPathsOrRawCohorts"
     ],
-    "blocker": "Production BLOCKED_POLICY. Explicit per-report unit/source approval required; incomplete coverage always suppressed. Supply needs a distinct-provider roster; demand forecast needs authoritative complete demand history/model contract. Recovery exposes event counts, not a fabricated duration; provider quality exposes components, not a score.",
+    "blocker": "Production BLOCKED_POLICY. Released COMPLETE only when every required owner-signed coverage manifest (and, where required, the verified individual supply roster) tiles the window and matches every retained native fact; otherwise PARTIAL_COVERAGE with values withheld or denied. Suppression and frozen-membership rules apply.",
     "fallback": "Return unavailable or explicitly withheld values. Never proxy an unscoped legacy report or interpret null as zero."
   },
   {

@@ -532,7 +532,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			a.SourceVersion = *op.SourceVersion
 		}
 		result = op
-	case "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "analytics.scoped.mission-outcomes.read", "analytics.scoped.recovery.read", "analytics.scoped.capability-mismatches.read", "analytics.scoped.declines.read", "analytics.scoped.demand.read", "analytics.scoped.demand-forecast.read", "analytics.scoped.supply.read", "analytics.scoped.provider-quality.read", "analytics.scoped.readiness-components.read":
+	case "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "analytics.scoped.mission-outcomes.read", "analytics.scoped.recovery.read", "analytics.scoped.capability-mismatches.read", "analytics.scoped.declines.read", "analytics.scoped.demand.read", "analytics.scoped.demand-forecast.read", "analytics.scoped.supply.read", "analytics.scoped.provider-quality.read", "analytics.scoped.recovery-resolution.read", "analytics.scoped.provider-quality-score.read", "analytics.scoped.readiness-components.read":
 		out, e := b.scopedReportRead(r.Context(), analyticsReport.Name, taxiQuery, analyticsFilters)
 		if errors.Is(e, analyticsadmin.ErrDenied) {
 			fail(403, "forbidden")

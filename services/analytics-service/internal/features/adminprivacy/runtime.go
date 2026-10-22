@@ -69,7 +69,7 @@ func Runtime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.Secrets) 
 	ready, done := context.WithTimeout(ctx, 3*time.Second)
 	defer done()
 	var ok bool
-	if err := db.QueryRow(ready, `SELECT to_regclass('analytics_admin_http_nonces') IS NOT NULL AND to_regclass('analytics_admin_disclosure_authorizations') IS NOT NULL AND to_regclass('admin_owner_context_heads') IS NOT NULL`).Scan(&ok); err != nil || !ok {
+	if err := db.QueryRow(ready, `SELECT to_regclass('analytics_admin_http_nonces') IS NOT NULL AND to_regclass('analytics_admin_disclosure_authorizations') IS NOT NULL AND to_regclass('admin_owner_context_heads') IS NOT NULL AND to_regclass('analytics_admin_coverage_heads') IS NOT NULL`).Scan(&ok); err != nil || !ok {
 		return nil, errors.New("scoped Analytics schema unavailable; apply normal migrations")
 	}
 	h.Reports = map[string]*Service{}
@@ -85,8 +85,12 @@ func Runtime(ctx context.Context, db *pgxpool.Pool, legacy serviceauth.Secrets) 
 			return nil, errors.New("invalid report unit selector")
 		}
 		var adapter Source = &ReportSource{Report: report.Name, Authorities: authorities, UnitField: field}
-		if report.Name == "readiness" {
+		switch report.Name {
+		case "readiness":
 			adapter = &ReadinessSource{Authorities: authorities, UnitField: field}
+		case "supply", "demand-forecast", "recovery-resolution", "provider-quality-score":
+			// No partial form: complete owner-attested roster/history or deny.
+			adapter = &CoveredSource{Report: report.Name, Authorities: authorities, UnitField: field}
 		}
 		if policy != nil {
 			rule, e := policy.Rule(report.Permission, time.Now())

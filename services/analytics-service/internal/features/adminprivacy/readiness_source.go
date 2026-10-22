@@ -40,6 +40,11 @@ func (s *ReadinessSource) Snapshot(ctx context.Context, tx pgx.Tx, q Query) (Sna
 	if err != nil {
 		return empty, err
 	}
+	if complete, ok, err := tryComplete(ctx, tx, s.Authorities, "readiness", s.UnitField, q); err != nil {
+		return empty, err
+	} else if ok {
+		return complete, nil
+	}
 	owner := "vendor-service"
 	authority, ok := s.Authorities[owner]
 	if !ok || authority.Owner != owner {
@@ -176,6 +181,9 @@ type readinessAuthorization struct {
 func (s *ReadinessSource) AuthorizeRelease(ctx context.Context, tx pgx.Tx, q Query, version string, raw json.RawMessage) error {
 	if s == nil || (s.UnitField != "branch_id" && s.UnitField != "source_entity_id") || q.Filters["authority"] != networkanalytics.AuthorityVendor || len(raw) == 0 || len(raw) > 65536 || q.Metric != "readiness" || q.Capability != readinessComponentsPermission || len(q.Filters) != 2 {
 		return ErrUnmapped
+	}
+	if isCompleteWitness(raw) {
+		return authorizeComplete(ctx, tx, s.Authorities, s.UnitField, q, version, raw)
 	}
 	var witness readinessAuthorization
 	d := json.NewDecoder(bytes.NewReader(raw))

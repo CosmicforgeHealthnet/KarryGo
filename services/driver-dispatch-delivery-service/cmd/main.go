@@ -4,6 +4,7 @@ import (
 	"context"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/adminintervention"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/adminresources"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/analyticsproducer"
 	"errors"
 	"log"
 	"net/http"
@@ -359,6 +360,13 @@ func main() {
 		log.Fatal("Dispatch owner admin configuration invalid")
 	}
 	ownerAdmin.Register(engine)
+	// Admin Section 6: owner-signed coverage manifests + rider roster. Off
+	// unless DISPATCH_ANALYTICS_PRODUCER_ENABLED (and _ROSTER_ENABLED) is true.
+	if coverageProducer, err := analyticsproducer.Runtime(ctx, db); err != nil {
+		log.Fatal("Dispatch analytics coverage producer configuration invalid")
+	} else if coverageProducer != nil {
+		go coverageProducer.Run(ctx, func(step string, err error) { log.Printf("dispatch analytics coverage %s: %v", step, err) })
+	}
 	adminCommands, err := adminintervention.Runtime(ownerAdmin, adminintervention.EnginesFromConfig(cfg))
 	if err != nil {
 		log.Fatal("Dispatch admin command configuration invalid")

@@ -71,6 +71,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/pricing"
 	"cosmicforge/logistics/services/taxi-service/internal/routing"
 
+	"cosmicforge/logistics/services/taxi-service/internal/features/analyticsproducer"
 	taxisettlement "cosmicforge/logistics/services/taxi-service/internal/features/booking/settlement"
 	"cosmicforge/logistics/services/taxi-service/internal/features/networkobserver"
 	"cosmicforge/logistics/services/taxi-service/internal/features/supportcontext"
@@ -604,6 +605,13 @@ func main() {
 	ownerAdmin, err := adminresources.Runtime(ctx, db)
 	if err != nil {
 		logging.Fatal("configuration", "Taxi owner resource configuration invalid")
+	}
+	// Admin Section 6: owner-signed coverage manifests + supply roster. Off
+	// unless TAXI_ANALYTICS_PRODUCER_ENABLED (and _ROSTER_ENABLED) is true.
+	if coverageProducer, err := analyticsproducer.Runtime(ctx, db, availabilityStore); err != nil {
+		logging.Fatal("configuration", "Taxi analytics coverage producer configuration invalid")
+	} else if coverageProducer != nil {
+		go coverageProducer.Run(ctx, func(step string, err error) { logging.Error("taxi-analytics-coverage", "%s: %v", step, err) })
 	}
 	// Taxi owner command boundary (Admin Section 8). Both
 	// TAXI_ADMIN_COMMAND_WRITES_ENABLED and TAXI_ADMIN_COMMAND_READBACK_ENABLED

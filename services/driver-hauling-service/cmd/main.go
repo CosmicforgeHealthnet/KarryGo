@@ -58,6 +58,7 @@ import (
 	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
 	"cosmicforge/logistics/services/hauling-service/internal/features/admincommands"
 	"cosmicforge/logistics/services/hauling-service/internal/features/adminresources"
+	"cosmicforge/logistics/services/hauling-service/internal/features/analyticsproducer"
 	haulingsettlement "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement"
 	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
 	"cosmicforge/logistics/shared/go/admincommand"
@@ -384,6 +385,13 @@ func main() {
 		// per bucket.
 		go (&networkobserver.Observer{DB: db, Online: availabilityStore}).Run(ctx)
 		logging.Notice("hauling-analytics", "network analytics delivery enabled")
+	}
+	// Admin Section 6: owner-signed coverage manifests + supply roster. Off
+	// unless HAULING_ANALYTICS_PRODUCER_ENABLED (and _ROSTER_ENABLED) is true.
+	if coverageProducer, err := analyticsproducer.Runtime(ctx, db, availabilityStore); err != nil {
+		logging.Fatal("configuration", "Hauling analytics coverage producer configuration invalid")
+	} else if coverageProducer != nil {
+		go coverageProducer.Run(ctx, func(step string, err error) { logging.Error("hauling-analytics-coverage", "%s: %v", step, err) })
 	}
 	if cfg.OutboxWorkerEnabled && cfg.FleetIntegrationEnabled && !cfg.FleetIntegrationKillSwitch {
 		go (&fleetauthority.OutboxWorker{DB: db, URL: cfg.FleetEventURL, Secret: cfg.FleetEventSecret}).Run(ctx)

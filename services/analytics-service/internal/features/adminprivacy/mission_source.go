@@ -42,6 +42,11 @@ func (s *MissionSuccessSource) Snapshot(ctx context.Context, tx pgx.Tx, q Query)
 	if err != nil {
 		return empty, err
 	}
+	if complete, ok, err := tryComplete(ctx, tx, s.Authorities, "mission-success", s.UnitField, q); err != nil {
+		return empty, err
+	} else if ok {
+		return complete, nil
+	}
 	owner := ""
 	switch q.Filters["authority"] {
 	case "TAXI":
@@ -179,6 +184,9 @@ type missionAuthorization struct {
 func (s *MissionSuccessSource) AuthorizeRelease(ctx context.Context, tx pgx.Tx, q Query, version string, raw json.RawMessage) error {
 	if s == nil || len(raw) == 0 || len(raw) > 65536 || q.Metric != "mission-success" || q.Capability != analyticsadmin.MissionSuccessPermission || len(q.Filters) != 2 {
 		return ErrUnmapped
+	}
+	if isCompleteWitness(raw) {
+		return authorizeComplete(ctx, tx, s.Authorities, s.UnitField, q, version, raw)
 	}
 	var witness missionAuthorization
 	d := json.NewDecoder(bytes.NewReader(raw))
