@@ -27,6 +27,7 @@ func Profiles() []Profile {
 			"providers":         makeDef("taxi", "providers", "taxi.providers.read", providerDimensions, nil, nil),
 			"vehicles":          makeDef("taxi", "vehicles", "taxi.vehicles.read", assetDimensions, []string{"capacity_kg", "seat_capacity"}, []string{"provider"}),
 			"independent-rides": makeDef("taxi", "independent-rides", "taxi.independent_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),
+			"incidents":         makeDef("taxi", "incidents", "taxi.incidents.read", []string{"subject_type", "category", "severity"}, nil, []string{"provider", "vehicle", "booking"}),
 		}},
 		{Owner: "driver-dispatch-delivery-service", Domain: "dispatch", Prefix: "DISPATCH", Path: "/internal/dispatch/v1/admin", Definitions: map[string]Definition{
 			"incident-recovery-status": makeDef("dispatch", "incident-recovery-status", "dispatch.incident_recovery.read", []string{"recovery_result", "replacement_strategy", "next_attempt_at_utc", "deadline_utc"}, []string{"recovery_attempts", "captured_trip_revision"}, []string{"trip", "original_provider", "replacement_provider"}),
@@ -50,6 +51,7 @@ func Profiles() []Profile {
 			"trucks":               makeDef("hauling", "trucks", "hauling.trucks.read", append(append([]string{}, assetDimensions...), []string{"enclosed", "weather_protected", "upright_safe", "fragile_safe", "refrigerated", "tail_lift", "crane", "hydraulic", "loading_ramp", "trailer_capable", "insurance_valid"}...), []string{"capacity_kg", "max_payload_grams", "internal_length_mm", "internal_width_mm", "internal_height_mm", "usable_volume_ml", "opening_width_mm", "opening_height_mm", "axle_count", "capability_version", "capability_source_version"}, []string{"provider"}),
 			"recoveries":           makeDef("hauling", "recoveries", "hauling.recovery.read", []string{"trigger", "custody_transfer_required"}, nil, []string{"booking", "mission", "original_provider", "original_truck", "replacement_provider", "replacement_truck"}),
 			"missions":             makeDef("hauling", "missions", "hauling.missions.read", missionDimensions, []string{"cargo_weight_kg"}, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
+			"inspections":          {Kind: "inspections", Capability: "hauling.inspections.read", SourceContract: "hauling.admin-inspection.v1", Dimensions: []string{"inspection_kind", "conclusion", "performed_on", "valid_until"}, Counters: []string{"evidence_count"}, References: []string{"truck", "provider"}},
 		}},
 		{Owner: "fleet-partner-service", Domain: "fleet", Prefix: "FLEET_PARTNER", Path: "/internal/fleet-partner/v1/admin", Definitions: map[string]Definition{
 			"shipments":           makeDef("fleet", "shipments", "fleet.shipments.read", []string{"planning", "custody", "return"}, nil, []string{"order", "branch"}),

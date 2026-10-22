@@ -353,6 +353,13 @@ func (s *BookingService) findEligibleCandidates(ctx context.Context, booking boo
 		if booking.IsParcel() && !provider.AcceptsParcels {
 			continue
 		}
+		// Administrative interventions (Admin Section 8): fail closed -- an
+		// unreadable overlay never admits a possibly restricted provider.
+		if s.adminGate != nil {
+			if reason, err := s.adminGate.AssignmentBlock(ctx, candidate.ProviderID, candidate.VehicleID); err != nil || reason != "" {
+				continue
+			}
+		}
 		eligible = append(eligible, candidate)
 	}
 	return s.applyCapabilityGate(ctx, booking, eligible)

@@ -175,6 +175,7 @@ func (r *Repository) EligibleCandidates(ctx context.Context, ids []string, load 
 		  AND s.capability_status='APPROVED' AND s.goods_available AND p.accepts_parcels
 		  AND c.max_weight_grams >= $2 AND c.max_volume_ml >= $3 AND c.max_package_count >= $4
 		  AND c.longest_dimension_mm >= $5 AND c.handling_capabilities @> $6::text[]
+		  AND taxi_admin_assignment_block(p.id::text,v.id::text,now()) IS NULL
 		ORDER BY array_position($1::text[],p.id::text)`, ids, load.TotalWeightGrams, load.TotalVolumeMl, load.PackageCount, load.LongestDimensionMm, canonical(load.Capabilities))
 	if err != nil {
 		return nil, err
@@ -446,7 +447,7 @@ func (r *Repository) Offer(ctx context.Context, missionID, providerID, vehicleID
 	}
 	defer tx.Rollback(ctx)
 	var version int64
-	err = tx.QueryRow(ctx, `UPDATE provider_operational_state SET state='OFFERED',reason='taxi_goods_offered',booking_id=NULL,goods_mission_id=$2,effective_at=now(),version=version+1 WHERE provider_id=$1 AND state='AVAILABLE' RETURNING version`, providerID, missionID).Scan(&version)
+	err = tx.QueryRow(ctx, `UPDATE provider_operational_state SET state='OFFERED',reason='taxi_goods_offered',booking_id=NULL,goods_mission_id=$2,effective_at=now(),version=version+1 WHERE provider_id=$1 AND state='AVAILABLE' AND taxi_admin_assignment_block($1::text,$3::text,now()) IS NULL RETURNING version`, providerID, missionID, vehicleID).Scan(&version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrConflict
 	}
@@ -472,7 +473,7 @@ func (r *Repository) Offer(ctx context.Context, missionID, providerID, vehicleID
 
 func (r *Repository) CandidateVehicle(ctx context.Context, providerID string) (string, error) {
 	var id string
-	err := r.db.QueryRow(ctx, `SELECT v.id::text FROM vehicles v JOIN taxi_vehicle_cargo_profiles c ON c.vehicle_id=v.id AND c.verified WHERE v.provider_id=$1 AND v.status='active' ORDER BY v.created_at LIMIT 1`, providerID).Scan(&id)
+	err := r.db.QueryRow(ctx, `SELECT v.id::text FROM vehicles v JOIN taxi_vehicle_cargo_profiles c ON c.vehicle_id=v.id AND c.verified WHERE v.provider_id=$1 AND v.status='active' AND taxi_admin_assignment_block($1::text,v.id::text,now()) IS NULL ORDER BY v.created_at LIMIT 1`, providerID).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}

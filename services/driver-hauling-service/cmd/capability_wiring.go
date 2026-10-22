@@ -61,8 +61,11 @@ type capabilityWiring struct {
 	authority capabilityAuthority
 	policy    *truckcapability.PolicyIngest
 	recovery  *recovery.Handler
-	support   *supportcontext.Projector
-	config    config.Config
+	// recoveryService is the same recovery authority the handler wraps; the
+	// owner administrative command path binds named replacements through it.
+	recoveryService *recovery.Service
+	support         *supportcontext.Projector
+	config          config.Config
 }
 
 // buildCapabilityWiring constructs the capability feature.
@@ -81,6 +84,20 @@ func buildCapabilityWiring(
 		Repository:                    truckcapability.NewRepository(db),
 		CertificationRequiredProducts: cfg.CertificationRequiredProducts,
 	})
+	recoveryService := recovery.New(recovery.Options{
+		Repository: recovery.NewRepository(db),
+		Candidates: recoveryCandidates{store: availability},
+		// The SAME capability service the matcher uses. Recovery has no
+		// fit rules of its own, so a replacement is evaluated by exactly
+		// the call that chose the original provider.
+		Capability:  service,
+		Custody:     custodyops.NewRepository(db, "HAULING"),
+		Events:      recovery.NewOutboxSink(db, cfg.RecoveryEventTarget, cfg.RecoveryEventsEnabled, nil),
+		MaxRadiusKm: cfg.MatchMaxRadiusKm,
+		Enabled:     cfg.RecoveryEnabled,
+		Payments:    recoveryPayments(cfg),
+		Notifier:    notifier,
+	})
 	return capabilityWiring{
 		service: service,
 		handler: truckcapability.NewHandler(service),
@@ -90,21 +107,9 @@ func buildCapabilityWiring(
 			RadiusKm: cfg.MatchMaxRadiusKm,
 			Enabled:  cfg.SupplyPreviewEnabled,
 		}),
-		authority: capabilityAuthority{service: service},
-		recovery: recovery.NewHandler(recovery.New(recovery.Options{
-			Repository: recovery.NewRepository(db),
-			Candidates: recoveryCandidates{store: availability},
-			// The SAME capability service the matcher uses. Recovery has no
-			// fit rules of its own, so a replacement is evaluated by exactly
-			// the call that chose the original provider.
-			Capability:  service,
-			Custody:     custodyops.NewRepository(db, "HAULING"),
-			Events:      recovery.NewOutboxSink(db, cfg.RecoveryEventTarget, cfg.RecoveryEventsEnabled, nil),
-			MaxRadiusKm: cfg.MatchMaxRadiusKm,
-			Enabled:     cfg.RecoveryEnabled,
-			Payments:    recoveryPayments(cfg),
-			Notifier:    notifier,
-		})),
+		authority:       capabilityAuthority{service: service},
+		recovery:        recovery.NewHandler(recoveryService),
+		recoveryService: recoveryService,
 		policy: truckcapability.NewPolicyIngest(truckcapability.PolicyIngestOptions{
 			DB:                db,
 			CallerName:        cfg.AdminServiceCaller,

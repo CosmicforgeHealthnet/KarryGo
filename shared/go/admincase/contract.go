@@ -25,10 +25,14 @@ func Specs() []Spec {
 	return []Spec{
 		{"customer-service", "customer", "review-work-items", "customer.case.evidence.read", "customer.admin-case-evidence.v1", "VERIFICATION_CASE", map[string][]string{"CASE": {"$CASE"}, "CUSTOMER": {"customer"}}, []string{"REQUESTED", "ACKNOWLEDGED"}, []string{"COMPLIANCE_DOCUMENT", "PROOF_DOCUMENT", "DISPUTE_ATTACHMENT"}},
 		{"driver-taxi-service", "taxi", "recoveries", "taxi.case.evidence.read", "taxi.admin-case-evidence.v1", "RECOVERY_CASE", taxiSubjects, recoveryStates, purposes},
+		{"driver-taxi-service", "taxi", "incidents", "taxi.case.evidence.read", "taxi.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "PROVIDER": {"provider"}, "VEHICLE": {"vehicle"}, "BOOKING": {"booking"}}, []string{"OPEN", "REMEDIATION_IN_PROGRESS"}, purposes},
 		{"driver-dispatch-delivery-service", "dispatch", "incidents", "dispatch.case.evidence.read", "dispatch.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "TRIP": {"trip"}, "PROVIDER": {"original_provider", "replacement_provider"}}, []string{"REPORTED", "REASSIGNING", "TRANSFER_PENDING", "EMERGENCY_RECOVERY"}, purposes},
 		{"driver-dispatch-delivery-service", "dispatch", "delivery-recoveries", "dispatch.case.evidence.read", "dispatch.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "TRIP": {"trip"}}, []string{"REQUESTED", "SCHEDULED", "READY", "AWAITING_CUSTOMER_APPROVAL", "AWAITING_FINANCIAL_AUTHORIZATION", "RECONCILIATION_REQUIRED"}, purposes},
 		{"driver-dispatch-delivery-service", "dispatch", "returns", "dispatch.case.evidence.read", "dispatch.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "TRIP": {"trip"}}, []string{"REQUIRED", "ROUTED", "RETURNING", "HANDOVER_REQUIRED", "SUPPORT_REQUIRED"}, purposes},
 		{"driver-hauling-service", "hauling", "recoveries", "hauling.case.evidence.read", "hauling.admin-case-evidence.v1", "RECOVERY_CASE", recoverySubjects, recoveryStates, purposes},
+		// Hauling-owned inspection cases. Evidence is reachable only through an
+		// inspection the owner recorded and still binds to the truck's tenant.
+		{"driver-hauling-service", "hauling", "inspections", "hauling.case.evidence.read", "hauling.admin-case-evidence.v1", "INSPECTION_CASE", map[string][]string{"CASE": {"$CASE"}, "TRUCK": {"truck"}}, []string{"RECORDED", "CONCLUDED"}, []string{"INSPECTION_EVIDENCE", "CARGO_CONDITION", "DAMAGE_EVIDENCE"}},
 	}
 }
 func Find(owner, kind string) (Spec, bool) {

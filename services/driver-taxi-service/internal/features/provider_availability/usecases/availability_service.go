@@ -85,7 +85,26 @@ type MarketLookup interface {
 	ResolveZone(ctx context.Context, point geo.Point) (marketmodels.Zone, error)
 }
 
+// AdminInterventionGate is the Taxi-owned administrative overlay
+// (admininterventions.Gate): restrictions, reverification requests and
+// canonical document decisions recorded through the Admin command contract.
+// It returns a non-empty reason when the provider/vehicle may not be online.
+type AdminInterventionGate interface {
+	OnlineBlock(ctx context.Context, providerID, vehicleID string) (string, error)
+}
+
+// adminGateMessages are the driver-facing texts for administrative blocks.
+var adminGateMessages = map[string]string{
+	"provider_online_suspended":        "Your account has been restricted from going online. Contact support.",
+	"provider_reverification_required": "Your driver's licence must be re-verified before you can go online.",
+	"provider_document_invalid":        "Your driver's licence is not valid. Update it before going online.",
+	"vehicle_out_of_service":           "This vehicle is out of service. Select another vehicle.",
+	"vehicle_reverification_required":  "This vehicle's documents must be re-verified. Select another vehicle.",
+	"vehicle_document_invalid":         "This vehicle's documents are not valid. Select another vehicle.",
+}
+
 type AvailabilityService struct {
+	admin            AdminInterventionGate
 	store            availabilityrepositories.AvailabilityStore
 	operationalState availabilityrepositories.OperationalStateRepository
 	providers        ProviderLookup
@@ -131,6 +150,37 @@ type AvailabilityState struct {
 // resolveZoneOrError wraps MarketLookup.ResolveZone, translating a NotFound
 // into the same gateError shape every other online-gate failure uses, so the
 // app's error handling does not need a special case for this one dimension.
+// WithAdminGate enables the administrative intervention gate. nil (the
+// default) keeps the legacy gate unchanged.
+func (s *AvailabilityService) WithAdminGate(gate AdminInterventionGate) *AvailabilityService {
+	s.admin = gate
+	return s
+}
+
+// adminOnlineBlock fails closed: an unreadable administrative state refuses
+// going online rather than admitting a possibly restricted provider.
+func (s *AvailabilityService) adminOnlineBlock(ctx context.Context, providerID, vehicleID string) error {
+	if s.admin == nil {
+		return nil
+	}
+	reason, err := s.admin.OnlineBlock(ctx, providerID, vehicleID)
+	if err != nil {
+		return apperrors.Unavailable("Your eligibility could not be verified.", err)
+	}
+	if reason == "" {
+		return nil
+	}
+	return adminGateError(reason)
+}
+
+func adminGateError(reason string) error {
+	message := adminGateMessages[reason]
+	if message == "" {
+		message = "You cannot go online right now."
+	}
+	return gateError(message, reason)
+}
+
 func (s *AvailabilityService) resolveZoneOrError(ctx context.Context, lat, lng float64) (marketmodels.Zone, error) {
 	zone, err := s.markets.ResolveZone(ctx, geo.Point{Lat: lat, Lng: lng})
 	if err != nil {
@@ -198,6 +248,9 @@ func (s *AvailabilityService) SetAvailability(ctx context.Context, input SetAvai
 	// its class and seats, so a driver can never be online without one.
 	vehicle, err := s.resolveVehicle(ctx, input.ProviderID, input.VehicleID)
 	if err != nil {
+		return AvailabilityState{}, err
+	}
+	if err := s.adminOnlineBlock(ctx, input.ProviderID, vehicle.ID); err != nil {
 		return AvailabilityState{}, err
 	}
 
@@ -305,6 +358,9 @@ func (s *AvailabilityService) Heartbeat(ctx context.Context, input SetAvailabili
 	if strings.TrimSpace(input.VehicleID) != "" {
 		vehicleID = input.VehicleID
 	}
+	if err := s.heartbeatAdminGate(ctx, input.ProviderID, vehicleID); err != nil {
+		return AvailabilityState{}, err
+	}
 
 	marketID, vehicleClass := existing.MarketID, existing.VehicleClass
 	if zone, err := s.markets.ResolveZone(ctx, geo.Point{Lat: input.Lat, Lng: input.Lng}); err == nil {
@@ -333,6 +389,39 @@ func (s *AvailabilityService) Heartbeat(ctx context.Context, input SetAvailabili
 		UpdatedAt:        time.Now().Unix(),
 		HeartbeatSeconds: HeartbeatIntervalSeconds(onTrip),
 	}, nil
+}
+
+// heartbeatAdminGate converges a provider who became administratively
+// blocked while online: an idle (AVAILABLE/OFFLINE) provider is taken out of
+// the live pool and told so. A provider mid-offer or mid-trip is left alone
+// so an active ride stays trackable; matching excludes them regardless. A
+// read failure keeps the heartbeat (never kicks a driver on a DB blip).
+func (s *AvailabilityService) heartbeatAdminGate(ctx context.Context, providerID, vehicleID string) error {
+	if s.admin == nil {
+		return nil
+	}
+	reason, err := s.admin.OnlineBlock(ctx, providerID, vehicleID)
+	if err != nil || reason == "" {
+		return nil
+	}
+	current, err := s.operationalState.Get(ctx, providerID)
+	if err != nil {
+		return nil
+	}
+	switch current.Current {
+	case availabilitymodels.StateAvailable:
+		if _, err := s.operationalState.Transition(ctx, nil, providerID,
+			availabilitymodels.StateOffline, "admin_intervention:"+reason, nil, current.Version); err != nil {
+			return nil
+		}
+	case availabilitymodels.StateOffline:
+	default:
+		return nil
+	}
+	if err := s.store.SetOffline(ctx, providerID); err != nil {
+		return apperrors.Unavailable("Availability could not be updated.", err)
+	}
+	return adminGateError(reason)
 }
 
 func (s *AvailabilityService) GetAvailability(ctx context.Context, providerID string) (AvailabilityState, error) {

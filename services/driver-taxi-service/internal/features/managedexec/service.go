@@ -46,6 +46,12 @@ type OperationalStateReader interface {
 	Get(ctx context.Context, providerID string) (availabilitymodels.State, error)
 }
 
+// AdminInterventionGate reports why a provider may not receive new work
+// (restriction, out-of-service vehicle, reverification, invalid document).
+type AdminInterventionGate interface {
+	AssignmentBlock(ctx context.Context, providerID, vehicleID string) (string, error)
+}
+
 // VehicleReader answers Taxi's own vehicle-capability question. Satisfied
 // directly by the existing provider_profile vehicle repository -- no adapter.
 type VehicleReader interface {
@@ -63,6 +69,9 @@ type Options struct {
 	OperationalState OperationalStateReader
 	Vehicles         VehicleReader
 	Corporate        providercompat.CorporateContextReader
+	// AdminGate is the Taxi-owned administrative overlay (Admin Section 8).
+	// nil keeps eligibility unchanged.
+	AdminGate AdminInterventionGate
 	// ReservationTTL bounds how long a reservation holds a booking before it
 	// can be reclaimed. Zero uses the default.
 	ReservationTTL time.Duration
@@ -257,6 +266,18 @@ func (s *Service) Eligibility(ctx context.Context, sourceRequestID, providerID, 
 		answer.PlatformStatus = string(state.Current)
 		if !state.Current.Eligible() {
 			answer.ReasonCode = "PROVIDER_NOT_AVAILABLE"
+			return answer, nil
+		}
+	}
+
+	// 1b. Taxi administrative interventions. Fail closed on a read error.
+	if s.opts.AdminGate != nil {
+		reason, err := s.opts.AdminGate.AssignmentBlock(ctx, providerID, "")
+		if err != nil {
+			return EligibilityAnswer{}, apperrors.Unavailable("Driver readiness could not be verified.", err)
+		}
+		if reason != "" {
+			answer.ReasonCode = "ADMIN_RESTRICTED"
 			return answer, nil
 		}
 	}

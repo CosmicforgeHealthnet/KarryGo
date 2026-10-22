@@ -248,6 +248,12 @@ func (r *Repository) SelectRecovery(ctx context.Context, attempt Attempt, comman
 	if state != string(AttemptReceiverUnavailable) {
 		return RecoveryResult{}, apperrors.Conflict("A recovery action has already been selected.", nil)
 	}
+	// A source-owned replan request is satisfied only by this customer
+	// selection, which passed every schedule, route and financial gate above.
+	if _, err = tx.Exec(ctx, `UPDATE dispatch_delivery_recovery_actions SET state='COMPLETED',updated_at=$2
+		WHERE delivery_attempt_id=$1::uuid AND state='AWAITING_CUSTOMER_APPROVAL'`, attempt.ID, now); err != nil {
+		return RecoveryResult{}, err
+	}
 	recoveryState := "READY"
 	if command.Action == Reschedule || command.Action == RetrySameDay {
 		recoveryState = "SCHEDULED"
@@ -353,7 +359,19 @@ func (r *Repository) ReportIncident(ctx context.Context, command IncidentCommand
 	if trip.Status == "completed" || trip.Status == "cancelled" || trip.Status == "failed" {
 		return Incident{}, apperrors.Conflict("A terminal trip cannot enter replacement.", nil)
 	}
-	item = Incident{ID: uuid.NewString(), TripID: trip.TripID, ReasonCode: command.ReasonCode, State: "REASSIGNING",
+	item, err = insertIncidentTx(ctx, tx, trip, command, now, fp)
+	if err != nil {
+		return Incident{}, err
+	}
+	return item, tx.Commit(ctx)
+}
+
+// insertIncidentTx records the durable replacement intent on an already
+// locked, non-terminal Trip. It is the single incident write path shared by
+// provider reports and source-owned administrative reassignment requests.
+func insertIncidentTx(ctx context.Context, tx pgx.Tx, trip TripContext, command IncidentCommand, now time.Time, fp string) (Incident, error) {
+	var err error
+	item := Incident{ID: uuid.NewString(), TripID: trip.TripID, ReasonCode: command.ReasonCode, State: "REASSIGNING",
 		ReplacementStrategy: command.PreferredStrategy, SourceVersion: trip.SourceVersion + 1, CreatedAt: now}
 	_, err = tx.Exec(ctx, `INSERT INTO dispatch_delivery_incidents(id,trip_id,provider_id,reason_code,state,replacement_strategy,safe_note,source_version,idempotency_key,request_fingerprint)
 		VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10)`, item.ID, item.TripID, command.ProviderID, item.ReasonCode,
@@ -370,7 +388,7 @@ func (r *Repository) ReportIncident(ctx context.Context, command IncidentCommand
 	if err = emit(ctx, tx, "dispatch.provider_replacement.started.v1", "trip", trip.TripID, item.SourceVersion, item); err != nil {
 		return Incident{}, err
 	}
-	return item, tx.Commit(ctx)
+	return item, nil
 }
 
 func (r *Repository) HubCheckpointContext(ctx context.Context, command HubCheckpointCommand) (HubCheckpointContext, error) {

@@ -141,6 +141,9 @@ func Specs() []Spec {
 				"RESTRICT_PROVIDER":            {SubjectKinds: kinds("providers"), Params: map[string]ParamSpec{"reason": enum(true, "SAFETY_CONCERN", "DOCUMENT_LAPSE", "CONDUCT")}, RequiresApproval: true, VersionOf: VersionSubject},
 				"LIFT_PROVIDER_RESTRICTION":    {SubjectKinds: kinds("providers"), RequiresApproval: true, VersionOf: VersionSubject},
 				"REQUEST_RECOVERY_REPLACEMENT": {SubjectKinds: kinds("recoveries"), Params: map[string]ParamSpec{"replacement_provider_id": ParamSpec{Kind: ParamUUID, Required: true}, "replacement_truck_id": ParamSpec{Kind: ParamUUID, Required: true}}, RequiresApproval: true, VersionOf: VersionSubject},
+				// case_ref names the CONCLUDED modern inspection the recorded
+				// opaque legacy inspection_ref is mapped to (exact match only).
+				"LINK_LEGACY_INSPECTION_REFERENCE": {SubjectKinds: kinds("product-eligibility"), RequiresCase: true, Params: map[string]ParamSpec{"legacy_inspection_ref": refReq}, VersionOf: VersionSubject},
 			},
 		},
 		{

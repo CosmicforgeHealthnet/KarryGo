@@ -101,7 +101,7 @@ func TestCaseRegistryHasOnlyNativeCasesAndExactSubjectRoles(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) != 6 {
+	if len(seen) != 8 {
 		t.Fatal("unexpected native case count", len(seen))
 	}
 	taxi, _ := Find("driver-taxi-service", "recoveries")

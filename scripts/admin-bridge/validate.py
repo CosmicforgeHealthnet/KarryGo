@@ -50,6 +50,8 @@ def main():
         assert operation["x-capability-state"] == row["state"]
         assert ("200" in operation["responses"]) == (row["state"] in ("READ_ONLY", "AVAILABLE"))
     owner_kinds = {"customer": ["review-work-items", "customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["incident-recovery-status", "return-execution-status", "riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["booking-cargo-inputs", "product-eligibility", "providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions", "fit-decisions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
+    for domain, kinds in __import__("owner_resource_extensions").kinds_by_domain().items():
+        owner_kinds[domain] += kinds
     canonical_resource_owners = {"customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service", "hauling": "driver-hauling-service", "fleet": "fleet-partner-service"}
     for row in matrix:
         if ".resources." in row["id"]:

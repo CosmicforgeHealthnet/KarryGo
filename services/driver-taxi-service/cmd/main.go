@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/taxi-service/internal/features/admininterventions"
 	taxiadminread "cosmicforge/logistics/services/taxi-service/internal/features/adminread"
 	"cosmicforge/logistics/services/taxi-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/taxi-service/internal/features/customertracking"
+	"cosmicforge/logistics/shared/go/admincommand"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminpolicyenv"
 	"cosmicforge/logistics/shared/go/journeyshare"
@@ -277,8 +279,13 @@ func main() {
 	availabilityStore := availabilityrepositories.NewRedisAvailabilityStoreWithTTL(redisClient, onlineTTL)
 	operationalStateRepo := availabilityrepositories.NewPostgresOperationalStateRepository(db)
 	marketRepo := marketrepositories.NewPostgresMarketRepository(db)
+	// Taxi-owned administrative interventions (Admin Section 8). The gate
+	// only reads Taxi's own overlay tables; with no recorded intervention it
+	// admits exactly what the legacy gates admit.
+	adminInterventionGate := admininterventions.NewGate(db)
 	availabilityService := availabilityusecases.NewAvailabilityService(
-		availabilityStore, operationalStateRepo, providerRepo, vehicleRepo, marketRepo, onlineTTL)
+		availabilityStore, operationalStateRepo, providerRepo, vehicleRepo, marketRepo, onlineTTL).
+		WithAdminGate(adminInterventionGate)
 
 	// Verify-only signer for passenger bearer tokens. customer-service mints
 	// them; this service only checks them, so the secret must match
@@ -376,7 +383,7 @@ func main() {
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings: bookingRepo, Markets: marketRepo, Pricing: pricingProvider, OperationalState: operationalStateRepo,
 		Availability: availabilityStore, Providers: providerRepo, Vehicles: vehicleRepo, Routes: routingClient,
-		Lease: matcherLease,
+		Lease: matcherLease, AdminGate: adminInterventionGate,
 		Matching: bookingusecases.MatchingConfig{
 			MatchTimeout:     time.Duration(cfg.BookingMatchTimeout) * time.Second,
 			SearchWindow:     time.Duration(cfg.BookingSearchWindow) * time.Second,
@@ -470,6 +477,7 @@ func main() {
 		OperationalState: operationalStateRepo,
 		Vehicles:         vehicleRepo,
 		Corporate:        fleetProviderContext,
+		AdminGate:        adminInterventionGate,
 		ReservationTTL:   cfg.TaxiFleetReservationTTL,
 	})
 
@@ -597,9 +605,18 @@ func main() {
 	if err != nil {
 		logging.Fatal("configuration", "Taxi owner resource configuration invalid")
 	}
+	// Taxi owner command boundary (Admin Section 8). Both
+	// TAXI_ADMIN_COMMAND_WRITES_ENABLED and TAXI_ADMIN_COMMAND_READBACK_ENABLED
+	// default false; with both off no key, policy or schema is touched.
+	taxiCommandSpec, _ := admincommand.ForOwner(adminresources.Owner)
+	ownerCommands, err := admincommand.Runtime(ownerAdmin, taxiCommandSpec, &admininterventions.Executor{Availability: availabilityStore}, "TAXI")
+	if err != nil {
+		logging.Fatal("configuration", "Taxi owner command configuration invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		RegisterRoot: func(root *gin.Engine) {
 			ownerAdmin.Register(root)
+			ownerCommands.Register(root)
 			taxiadminread.Register(root, db, adminReadSecret, cfg.AdminReadEnabled, adminAccessPolicy)
 			customertracking.RegisterInternal(root, trackingReader, opsVerifier, redisClient, cfg.CustomerLiveLocationEnabled)
 			goods.RegisterCustomerShare(root, goodsService, opsVerifier)

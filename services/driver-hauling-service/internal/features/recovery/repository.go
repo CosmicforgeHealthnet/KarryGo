@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,10 +20,25 @@ var (
 )
 
 // Repository is the Postgres store.
-type Repository struct{ db *pgxpool.Pool }
+type Repository struct {
+	db *pgxpool.Pool
+	q  querier
+}
+
+// querier is satisfied by both the pool and a caller-owned transaction.
+type querier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 // NewRepository builds the store.
-func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
+func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db, q: db} }
+
+// WithTx returns a view of the store whose every read and guarded write runs
+// inside the caller's transaction (administrative replacement uses it so the
+// case advance, booking rebind and owner decision commit together).
+func (r *Repository) WithTx(tx pgx.Tx) *Repository { return &Repository{db: r.db, q: tx} }
 
 // DB exposes the pool so the service can run a replacement and its custody
 // transfer in ONE transaction. Without that, there is a window in which the
@@ -78,7 +94,7 @@ func (r *Repository) LoadBooking(ctx context.Context, bookingID string) (Booking
 	// commerce_missions.booking_id. An empty mission_ref therefore means
 	// "direct booking", which is exactly what the transfer path needs to know
 	// -- custody manifests only exist for commerce work.
-	err := r.db.QueryRow(ctx, `
+	err := r.q.QueryRow(ctx, `
 SELECT b.id::text, b.status, COALESCE(b.provider_id::text,''), COALESCE(b.truck_id::text,''),
        COALESCE(m.mission_ref,''), b.cargo_weight_kg, b.preferred_truck_type,
        COALESCE(b.is_fragile,false), b.pickup_lat, b.pickup_lng
@@ -125,7 +141,7 @@ func (r *Repository) Open(ctx context.Context, command StartCommand, booking Boo
 		"actor": command.Actor, "trigger": command.TriggerCode,
 	}})
 
-	row := r.db.QueryRow(ctx, `
+	row := r.q.QueryRow(ctx, `
 INSERT INTO hauling_recovery_cases
 	(booking_id, mission_ref, trigger_code, state, original_provider_id, original_truck_id,
 	 custody_transfer_required, operation_ref, correlation_id, detected_at, audit_json)
@@ -140,7 +156,7 @@ RETURNING `+caseColumns,
 	if err == nil {
 		// Point the booking at its open case in the same breath, so the
 		// lifecycle can refuse transitions without scanning the case table.
-		if _, err = r.db.Exec(ctx,
+		if _, err = r.q.Exec(ctx,
 			`UPDATE haulage_bookings SET active_recovery_id=$2, recovery_count=recovery_count+1 WHERE id=$1`,
 			booking.ID, opened.ID); err != nil {
 			return Case{}, false, err
@@ -158,7 +174,7 @@ RETURNING `+caseColumns,
 
 // ByOperationRef reads a case by its idempotency key.
 func (r *Repository) ByOperationRef(ctx context.Context, operationRef string) (Case, error) {
-	found, err := scanCase(r.db.QueryRow(ctx,
+	found, err := scanCase(r.q.QueryRow(ctx,
 		`SELECT `+caseColumns+` FROM hauling_recovery_cases WHERE operation_ref=$1`, operationRef))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Case{}, ErrNotFound
@@ -168,7 +184,7 @@ func (r *Repository) ByOperationRef(ctx context.Context, operationRef string) (C
 
 // OpenForBooking reads the booking's open case.
 func (r *Repository) OpenForBooking(ctx context.Context, bookingID string) (Case, error) {
-	found, err := scanCase(r.db.QueryRow(ctx,
+	found, err := scanCase(r.q.QueryRow(ctx,
 		`SELECT `+caseColumns+` FROM hauling_recovery_cases
 		  WHERE booking_id=$1 AND state NOT IN ('RESOLVED','FAILED')`, bookingID))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -211,7 +227,7 @@ func (r *Repository) Advance(ctx context.Context, input AdvanceInput, now time.T
 		startedAt = now.UTC()
 	}
 
-	row := r.db.QueryRow(ctx, `
+	row := r.q.QueryRow(ctx, `
 UPDATE hauling_recovery_cases SET
 	state=$2,
 	replacement_provider_id=CASE WHEN $3='' THEN replacement_provider_id ELSE $3::uuid END,
@@ -238,7 +254,7 @@ RETURNING `+caseColumns,
 		return Case{}, err
 	}
 	if advanced.State.Terminal() {
-		if _, err = r.db.Exec(ctx,
+		if _, err = r.q.Exec(ctx,
 			`UPDATE haulage_bookings SET active_recovery_id=NULL WHERE id=$1 AND active_recovery_id=$2`,
 			advanced.BookingID, advanced.ID); err != nil {
 			return Case{}, err
@@ -261,7 +277,7 @@ type AdvanceInput struct {
 }
 
 func (r *Repository) byID(ctx context.Context, caseID string) (Case, error) {
-	found, err := scanCase(r.db.QueryRow(ctx,
+	found, err := scanCase(r.q.QueryRow(ctx,
 		`SELECT `+caseColumns+` FROM hauling_recovery_cases WHERE id=$1`, caseID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Case{}, ErrNotFound
@@ -305,7 +321,7 @@ func (r *Repository) ListOpen(ctx context.Context, limit int) ([]Case, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := r.db.Query(ctx,
+	rows, err := r.q.Query(ctx,
 		`SELECT `+caseColumns+` FROM hauling_recovery_cases
 		  WHERE state NOT IN ('RESOLVED','FAILED') ORDER BY detected_at LIMIT $1`, limit)
 	if err != nil {
@@ -328,7 +344,7 @@ func (r *Repository) ListOpen(ctx context.Context, limit int) ([]Case, error) {
 // uses it to justify moving a held payment (Section 17).
 func (r *Repository) CaseForReplacement(ctx context.Context, bookingID, providerID string) (string, error) {
 	var id string
-	err := r.db.QueryRow(ctx, `
+	err := r.q.QueryRow(ctx, `
 		SELECT id::text FROM hauling_recovery_cases
 		 WHERE booking_id::text = $1 AND replacement_provider_id::text = $2
 		 ORDER BY detected_at DESC LIMIT 1`, bookingID, providerID).Scan(&id)

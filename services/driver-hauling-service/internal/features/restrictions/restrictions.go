@@ -85,17 +85,45 @@ func (s *Service) command(ctx context.Context, state string, c Command) (Operati
 	if err := validate(c); err != nil {
 		return OperationView{}, err
 	}
-	fp := fingerprint(state, c)
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return OperationView{}, err
 	}
 	defer tx.Rollback(ctx)
+	v, err := commandTx(ctx, tx, state, c)
+	if err != nil {
+		return OperationView{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return OperationView{}, err
+	}
+	return v, nil
+}
+
+// ApplyTx and ClearTx run the same guarded restriction transition inside a
+// caller-owned transaction, so an owner administrative decision and the
+// restriction row the matcher consults commit (or roll back) together.
+func ApplyTx(ctx context.Context, tx pgx.Tx, c Command) (OperationView, error) {
+	if err := validate(c); err != nil {
+		return OperationView{}, err
+	}
+	return commandTx(ctx, tx, StateApplied, c)
+}
+func ClearTx(ctx context.Context, tx pgx.Tx, c Command) (OperationView, error) {
+	if err := validate(c); err != nil {
+		return OperationView{}, err
+	}
+	return commandTx(ctx, tx, StateCleared, c)
+}
+
+func commandTx(ctx context.Context, tx pgx.Tx, state string, c Command) (OperationView, error) {
+	fp := fingerprint(state, c)
+	var err error
 	if prior, priorFP, e := readOperation(ctx, tx, c.OperationReference); e == nil {
 		if priorFP != fp {
 			return OperationView{}, ErrConflict
 		}
-		return prior, tx.Commit(ctx)
+		return prior, nil
 	} else if !errors.Is(e, ErrNotFound) {
 		return OperationView{}, e
 	}
@@ -128,9 +156,6 @@ func (s *Service) command(ctx context.Context, state string, c Command) (Operati
 	v := OperationView{c.OperationReference, cur.ID, state, outcome, c.SourceVersion, cur.Version}
 	_, err = tx.Exec(ctx, `INSERT INTO hauling_authority_restriction_operations(operation_reference,restriction_id,requested_state,request_fingerprint,outcome,source_version,restriction_version) VALUES($1,$2::uuid,$3,$4,$5,$6,$7)`, c.OperationReference, cur.ID, state, fp, outcome, c.SourceVersion, cur.Version)
 	if err != nil {
-		return OperationView{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
 		return OperationView{}, err
 	}
 	return v, nil

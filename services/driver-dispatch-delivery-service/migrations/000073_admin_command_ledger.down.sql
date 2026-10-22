@@ -1,0 +1,10 @@
+-- The command ledger is immutable decision evidence. Rolling back is allowed
+-- only while it is empty; a populated ledger needs an approved forward
+-- retention migration instead.
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM admin_owner_command_ledger) THEN
+  RAISE EXCEPTION 'Owner administrative command decisions require an approved forward retention migration';
+ END IF;
+END $$;
+DROP TABLE admin_owner_command_ledger;
+DROP FUNCTION reject_admin_owner_command_ledger_mutation();

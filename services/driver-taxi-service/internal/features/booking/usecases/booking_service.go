@@ -168,6 +168,16 @@ type BookingService struct {
 
 	products        ProductPolicySource
 	customerContext CustomerContextSource
+
+	adminGate AdminInterventionGate
+}
+
+// AdminInterventionGate is the Taxi-owned administrative overlay
+// (admininterventions.Gate). A non-empty reason means the provider (on that
+// vehicle) may not receive new work: restricted, out-of-service vehicle,
+// pending reverification or an invalid canonical document.
+type AdminInterventionGate interface {
+	AssignmentBlock(ctx context.Context, providerID, vehicleID string) (string, error)
 }
 
 // CapabilityGate runs Section 7 hard eligibility gates before scoring. It
@@ -272,6 +282,9 @@ type Options struct {
 	// CustomerContext supplies saved customer mobility needs. nil skips the
 	// handoff; explicit request requirements still apply.
 	CustomerContext CustomerContextSource
+	// AdminGate excludes administratively restricted providers/vehicles from
+	// new offers. nil keeps matching unchanged.
+	AdminGate AdminInterventionGate
 }
 
 func NewBookingService(opts Options) *BookingService {
@@ -294,6 +307,7 @@ func NewBookingService(opts Options) *BookingService {
 
 		products:        opts.ProductPolicy,
 		customerContext: opts.CustomerContext,
+		adminGate:       opts.AdminGate,
 	}
 }
 

@@ -56,9 +56,11 @@ import (
 	provideruploadsusecases "cosmicforge/logistics/services/hauling-service/internal/features/provider_uploads/usecases"
 
 	"cosmicforge/logistics/services/hauling-service/internal/apiresponse"
+	"cosmicforge/logistics/services/hauling-service/internal/features/admincommands"
 	"cosmicforge/logistics/services/hauling-service/internal/features/adminresources"
 	haulingsettlement "cosmicforge/logistics/services/hauling-service/internal/features/booking/settlement"
 	"cosmicforge/logistics/services/hauling-service/internal/features/completedwork"
+	"cosmicforge/logistics/shared/go/admincommand"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
@@ -335,6 +337,7 @@ func main() {
 		HandoverSecret:       cfg.HandoverSecret,
 		AllowCashPayments:    cfg.CashPaymentsEnabled,
 		Restrictions:         restrictionService,
+		Suitability:          admincommands.SuitabilityGate{DB: db},
 		// nil when HAULING_ROUTES_API_KEY is unset: routes are then never
 		// fetched and the apps fall back to straight-line geometry.
 		Routes: routesClient,
@@ -439,9 +442,18 @@ func main() {
 	if err != nil {
 		logging.Fatal("configuration", "Hauling owner admin configuration invalid")
 	}
+	// Admin Section 10 owner command boundary. Both switches default off
+	// (HAULING_ADMIN_COMMAND_WRITES_ENABLED / _READBACK_ENABLED); with both off
+	// no key, policy or schema is touched.
+	commandSpec, _ := admincommand.ForOwner(adminresources.Owner)
+	ownerCommands, err := admincommand.Runtime(ownerAdmin, commandSpec, admincommands.New(capability.service, capability.recoveryService), "HAULING")
+	if err != nil {
+		logging.Fatal("configuration", "Hauling owner admin command configuration invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		RegisterRoot: func(root *gin.Engine) {
 			ownerAdmin.Register(root)
+			ownerCommands.Register(root)
 			customershare.Register(root, shareService, fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"customer-service"}), fleetauthority.BoundaryWithDB(db, inboundVerifier, []string{"vendor-service"}))
 		},
 		Name:        "hauling-service",

@@ -62,6 +62,16 @@ type RestrictionGate interface {
 	Restricted(ctx context.Context, organizationID, subjectType, subjectReference string) (bool, error)
 }
 
+// CargoSuitabilityGate reports whether an owner administrative cargo
+// suitability decision (UNSUITABLE, or a remediation still PENDING) blocks
+// assigning a truck to a booking. An empty truckID asks whether ANY of the
+// provider's trucks is blocked for the booking (the provider's truck is not
+// yet fixed), which fails closed. It never authorizes an assignment: current
+// fit is always re-evaluated by the matcher itself.
+type CargoSuitabilityGate interface {
+	Blocked(ctx context.Context, bookingID, providerID, truckID string) (bool, error)
+}
+
 // PaymentClient binds a booking's fare to a payment-wallet-service payment
 // intent. Implemented by an adapter over shared/go/walletclient in cmd wiring;
 // nil in local dev (payment becomes a no-op and bookings settle as before).
@@ -123,6 +133,7 @@ type BookingService struct {
 	maxRadiusKm        float64
 	allowCashPayments  bool
 	restrictions       RestrictionGate
+	suitability        CargoSuitabilityGate
 	activeMatches      sync.Map // map[bookingID]*matchHandle
 	handoverSecret     []byte
 	secureHandover     bookingrepo.SecureHandoverRepository
@@ -165,6 +176,9 @@ type Options struct {
 	HandoverSecret      []byte // signs/verifies pickup & delivery handover codes
 	AllowCashPayments   bool
 	Restrictions        RestrictionGate
+	// Suitability is the owner administrative cargo suitability gate. nil
+	// disables it (no decisions can exist without the admin command path).
+	Suitability CargoSuitabilityGate
 	// Routes fetches road geometry for the live map and the progress bar.
 	// nil disables route fetching; every consumer then falls back to
 	// straight-line geometry.
@@ -215,6 +229,7 @@ func NewBookingService(opts Options) *BookingService {
 		maxRadiusKm:          radius,
 		allowCashPayments:    opts.AllowCashPayments,
 		restrictions:         opts.Restrictions,
+		suitability:          opts.Suitability,
 		handoverSecret:       opts.HandoverSecret,
 		secureHandover:       secureHandover,
 		routes:               opts.Routes,
@@ -786,6 +801,12 @@ func (s *BookingService) eligibleProviders(
 				}
 			}
 		}
+		if s.suitability != nil {
+			blocked, err := s.suitability.Blocked(ctx, booking.ID, p.ProviderID, p.TruckID)
+			if err != nil || blocked {
+				continue
+			}
+		}
 		if rejected[p.ProviderID] {
 			continue
 		}
@@ -1203,6 +1224,19 @@ func (s *BookingService) AcceptBooking(ctx context.Context, id, providerID strin
 		}
 		if restricted {
 			return bookingmodels.PublicBooking{}, apperrors.Forbidden("You are temporarily restricted from accepting work.", nil)
+		}
+	}
+	if s.suitability != nil {
+		truckID := ""
+		if b.TruckID != nil {
+			truckID = *b.TruckID
+		}
+		blocked, gateErr := s.suitability.Blocked(ctx, id, providerID, truckID)
+		if gateErr != nil {
+			return bookingmodels.PublicBooking{}, apperrors.Unavailable("Cargo suitability authority is unavailable.", gateErr)
+		}
+		if blocked {
+			return bookingmodels.PublicBooking{}, apperrors.Forbidden("This truck is not cleared to carry this cargo.", nil)
 		}
 	}
 

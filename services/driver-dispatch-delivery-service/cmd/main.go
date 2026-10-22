@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/adminintervention"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/adminresources"
 	"errors"
 	"log"
@@ -350,6 +351,11 @@ func main() {
 		log.Fatal("Dispatch owner admin configuration invalid")
 	}
 	ownerAdmin.Register(engine)
+	adminCommands, err := adminintervention.Runtime(ownerAdmin, adminintervention.EnginesFromConfig(cfg))
+	if err != nil {
+		log.Fatal("Dispatch admin command configuration invalid")
+	}
+	adminCommands.Register(engine)
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           engine,

@@ -95,7 +95,8 @@ func (r *Repository) Create(ctx context.Context, in CreateRequest, fingerprint s
 		   AND p.account_status = 'active'
 		   AND p.onboarding_status = 'complete'
 		   AND v.status = 'active'
-		   AND COALESCE(s.state, 'OFFLINE') NOT IN ('OFFLINE', 'SUSPENDED')`,
+		   AND COALESCE(s.state, 'OFFLINE') NOT IN ('OFFLINE', 'SUSPENDED')
+		   AND taxi_admin_assignment_block(p.id::text, v.id::text, now()) IS NULL`,
 		in.ExecutingProviderID, in.VehicleID).Scan(&eligible, &vehicleClass)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return record{}, ErrIneligible
