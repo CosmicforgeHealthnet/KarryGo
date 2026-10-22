@@ -19,7 +19,7 @@ signed retained native facts. Every bounded subset remains PARTIAL_COVERAGE and
 fully suppressed; it does not prove producer completeness. Recovery counts are
 not mean resolution time; provider components are not a score. Supply fails
 closed without a native individual roster. Demand forecast fails closed without
-complete authorized history and an authoritative model contract. These two deny
+complete owner-witnessed scoped history for the existing native forecast model. These two deny
 paths and the other component transports are not a claim of completed reporting
 semantics or complete source exports. No aggregate totals become privacy members.
 
@@ -145,6 +145,7 @@ and Hauling, with separate source evidence allocations, exact subject membership
 modern Media ownership/case binding and verified source/policy expiry. Real owner
 migrations and a real Customer-process-to-Media private transport test cover the
 integration. No legacy asset mapping, standalone Fleet incident-case authority or
-inspection-conclusion model is invented. HQ-facing facade remains separate work.
+inspection-conclusion model is invented. The fixed HQ issue/content/revoke facade
+is compiled and covered by real mTLS/PostgreSQL/typed-client/audit-failure tests.
 Initial permission/scope/purpose/lifetime approval and live enrollment remain
 BLOCKED_POLICY; no privileged feature is activated by this change.

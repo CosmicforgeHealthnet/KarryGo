@@ -1,5 +1,6 @@
 """Validate or regenerate the pinned OpenAPI/JSON Schema bundle. No network needed."""
 import work_item_contracts
+import media_bridge_contracts
 import report_contracts
 import argparse
 import hashlib
@@ -85,7 +86,8 @@ def build():
     release["allOf"] = [{"if": {"anyOf": [{"properties": {"coverage": {"const": "PARTIAL_COVERAGE"}}}, {"properties": {"freshness": {"const": "STALE"}}}]}, "then": {"properties": {"cells": {"items": {"properties": {"value": {"type": "null"}, "suppression": {"not": {"const": "NONE"}}}}}}}}]
     schemas["ScopedMissionSuccessRelease"] = release
     schemas.update(report_contracts.schemas(release))
-    matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text())
+    schemas.update(media_bridge_contracts.schemas(obj,string,opaque))
+    matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text(encoding="utf-8"))
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
@@ -97,12 +99,15 @@ def build():
         if c["id"].startswith("analytics.scoped."):
             params = [p for p in params if p["name"] not in ("limit", "cursor")]
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("authority", "product_code")]
+        if c["id"].startswith("media.case."):
+            params += [{"name":key,"in":"query","required":True,"schema":opaque} for key in ("zone","tenant")]
         for segment in c["bridge_endpoint"].split("/"):
             if segment.startswith("{"):
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = "MediaCaseGrant" if c["id"].startswith("media.case.") else "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            if c["id"]=="media.case.grant.revoke":result="MediaCaseRevocation"
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}
@@ -112,6 +117,10 @@ def build():
             op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":
             op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("CustomerWorkItemCommand" if c["id"]=="customer.review.work_item.submit" else "CustomerReviewRequest" if c["id"] == "customer.review.submit" else "Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
+        if c["id"].startswith("media.case."):
+            op["requestBody"]["content"]["application/json"]["schema"]={"$ref":"#/components/schemas/"+media_bridge_contracts.request_schema(c["id"])}
+            if c["id"]=="media.case.content.read":
+                op["responses"]["200"]={"description":"Privately audited attachment; no storage URL. Exact current source membership, object safety and grant are rechecked.","content":{"application/octet-stream":{"schema":{"type":"string","format":"binary"}}},"headers":{"X-Media-Case-Contract":{"schema":{"const":"media.admin-case-content.v1"}},"X-Media-Object-ID":{"schema":opaque},"X-Correlation-ID":{"schema":string(format="uuid")}}}
         paths.setdefault(BASE + c["bridge_endpoint"], {})[c["method"].lower()] = op
     api = {"openapi": "3.1.0", "info": {"title": "Karryam private HQ bridge", "version": "1.0.0", "description": "Private transport plus mTLS, HMAC v2 and delegated Ed25519 JWT are all mandatory. Owner review intake is compiled and default off; all production access requires approved governance and current source authorization."}, "paths": paths, "security": [{"WorkloadMTLS": [], "ServiceHMAC": [], "StaffAssertion": []}], "components": {"securitySchemes": {"WorkloadMTLS": {"type": "mutualTLS"}, "ServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 profile in signing-profile.md; requires all X-Service-* headers and X-HQ-Key-ID."}, "StaffAssertion": {"type": "http", "scheme": "bearer", "bearerFormat": "EdDSA JWT"}}, "schemas": schemas}}
     files = {"openapi.json": api}

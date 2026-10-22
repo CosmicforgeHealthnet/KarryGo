@@ -206,6 +206,26 @@ func run() error {
 			return e
 		}
 	}
+	if client, reads, revokes, e := cfg.MediaCaseClient(); e != nil {
+		return e
+	} else if client != nil {
+		defer client.Close()
+		var approved *adminpolicy.Engine
+		if reads {
+			approved, e = adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+			if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+				return errors.New("invalid Media case policy")
+			}
+			if approved != nil {
+				if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+					return errors.New("Media case policy revision refused")
+				}
+			}
+		}
+		if e = app.ConfigureMediaCases(client, approved, reads, revokes); e != nil {
+			return e
+		}
+	}
 	srv := &http.Server{Addr: cfg.Address, Handler: app, TLSConfig: tlsConfig, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 32768}
 	probe := &http.Server{Addr: "127.0.0.1:8116", Handler: http.HandlerFunc(app.Probe), ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 4096}
 	failures := make(chan error, 2)

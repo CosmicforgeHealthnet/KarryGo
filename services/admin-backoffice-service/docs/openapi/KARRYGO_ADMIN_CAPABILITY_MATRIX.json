@@ -2153,5 +2153,77 @@
     ],
     "blocker": "BLOCKED_POLICY/default disabled. Current owner work-item state and actual version; original immutable intake scope and customer foreign keys are mandatory. No account decision implied.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
+  },
+  {
+    "id": "media.case.grant.issue",
+    "version": "1.0",
+    "owner": "media-file-service",
+    "source_endpoint": "/internal/media/v1/admin/case-grants",
+    "bridge_endpoint": "/media/case-grants",
+    "method": "POST",
+    "state": "READ_ONLY",
+    "permission": "media.case.content.read",
+    "scope": "karryam + exact market/zone/organization/tenant + verified staff; native case/subject/modern object",
+    "risk": "R2",
+    "privacy": "PRIVATE_CASE_EVIDENCE",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "Signed source evidence allocation and Media disclosure policy; own-grant revocation only reduces access",
+    "evidence": "Immutable Bridge and native audit before disclosure; current owner membership and object safety",
+    "feature_flag": "ADMIN_MEDIA_CASE_READ_ENABLED",
+    "tests": [
+      "TestPostgresMediaCaseBridgeMTLSDelegationAndDisclosureAudit",
+      "TestMediaCaseBridgeDeniesUnapprovedScopeActorInjectionAndFailures"
+    ],
+    "blocker": "BLOCKED_POLICY until initial owner evidence permissions/scopes/purposes and Media lifetime approval; flags default false",
+    "fallback": "No private bytes/URLs/grants; own-grant revocation remains separate from read activation"
+  },
+  {
+    "id": "media.case.content.read",
+    "version": "1.0",
+    "owner": "media-file-service",
+    "source_endpoint": "/internal/media/v1/admin/case-grants/{id}/content",
+    "bridge_endpoint": "/media/case-grants/{id}/content",
+    "method": "POST",
+    "state": "READ_ONLY",
+    "permission": "media.case.content.read",
+    "scope": "karryam + exact market/zone/organization/tenant + verified staff; native case/subject/modern object",
+    "risk": "R2",
+    "privacy": "PRIVATE_CASE_EVIDENCE",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "Signed source evidence allocation and Media disclosure policy; own-grant revocation only reduces access",
+    "evidence": "Immutable Bridge and native audit before disclosure; current owner membership and object safety",
+    "feature_flag": "ADMIN_MEDIA_CASE_READ_ENABLED",
+    "tests": [
+      "TestPostgresMediaCaseBridgeMTLSDelegationAndDisclosureAudit",
+      "TestMediaCaseBridgeDeniesUnapprovedScopeActorInjectionAndFailures"
+    ],
+    "blocker": "BLOCKED_POLICY until initial owner evidence permissions/scopes/purposes and Media lifetime approval; flags default false",
+    "fallback": "No private bytes/URLs/grants; own-grant revocation remains separate from read activation"
+  },
+  {
+    "id": "media.case.grant.revoke",
+    "version": "1.0",
+    "owner": "media-file-service",
+    "source_endpoint": "/internal/media/v1/admin/case-grants/{id}/revocations",
+    "bridge_endpoint": "/media/case-grants/{id}/revocations",
+    "method": "POST",
+    "state": "AVAILABLE",
+    "permission": "media.case.grant.revoke",
+    "scope": "karryam + exact market/zone/organization/tenant + verified staff; native case/subject/modern object",
+    "risk": "R1",
+    "privacy": "PRIVATE_CASE_EVIDENCE",
+    "source_version_required": false,
+    "idempotency_required": false,
+    "approval": "Signed source evidence allocation and Media disclosure policy; own-grant revocation only reduces access",
+    "evidence": "Immutable Bridge and native audit before disclosure; current owner membership and object safety",
+    "feature_flag": "ADMIN_MEDIA_CASE_REVOKE_ENABLED",
+    "tests": [
+      "TestPostgresMediaCaseBridgeMTLSDelegationAndDisclosureAudit",
+      "TestMediaCaseBridgeDeniesUnapprovedScopeActorInjectionAndFailures"
+    ],
+    "blocker": "BLOCKED_POLICY until initial owner evidence permissions/scopes/purposes and Media lifetime approval; flags default false",
+    "fallback": "No private bytes/URLs/grants; own-grant revocation remains separate from read activation"
   }
 ]

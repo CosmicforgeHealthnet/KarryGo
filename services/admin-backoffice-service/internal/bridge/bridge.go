@@ -25,6 +25,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
+	"cosmicforge/logistics/shared/go/adminmedia"
 	"cosmicforge/logistics/shared/go/adminowner"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminread"
@@ -48,23 +49,26 @@ type Repository interface {
 	Operation(context.Context, string, string, security.Scope) (operations.Operation, error)
 }
 type Bridge struct {
-	repo                  Repository
-	trust                 config.Trust
-	enabled               bool
-	taxi                  *clients.Taxi
-	resources             map[string]*clients.Resources
-	resourcePolicies      map[string]*adminpolicy.Engine
-	taxiRoles             []string
-	accessPolicy          *adminpolicy.Engine
-	features              config.DomainFlags
-	customerReview        *customerreviewops.Service
-	customerWorkItems     *customerworkitemops.Service
-	scopedAnalytics       *analyticsadmin.Client
-	scopedAnalyticsPolicy *adminpolicy.Engine
-	scopedAnalyticsRate   bool
-	verifiers             map[string]*serviceauth.Verifier
-	now                   func() time.Time
-	Denied, AuditFailures atomic.Uint64
+	repo                     Repository
+	trust                    config.Trust
+	enabled                  bool
+	taxi                     *clients.Taxi
+	resources                map[string]*clients.Resources
+	resourcePolicies         map[string]*adminpolicy.Engine
+	taxiRoles                []string
+	accessPolicy             *adminpolicy.Engine
+	features                 config.DomainFlags
+	customerReview           *customerreviewops.Service
+	customerWorkItems        *customerworkitemops.Service
+	mediaCases               *adminmedia.Client
+	mediaPolicy              *adminpolicy.Engine
+	mediaReads, mediaRevokes bool
+	scopedAnalytics          *analyticsadmin.Client
+	scopedAnalyticsPolicy    *adminpolicy.Engine
+	scopedAnalyticsRate      bool
+	verifiers                map[string]*serviceauth.Verifier
+	now                      func() time.Time
+	Denied, AuditFailures    atomic.Uint64
 }
 
 func New(repo Repository, trust config.Trust, enabled bool) (*Bridge, error) {
@@ -271,6 +275,10 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.RequestType = capability.ID
 	a.Permission = capability.Permission
 	a.TargetService = capability.Owner
+	if strings.HasPrefix(capability.ID, "media.case.") {
+		b.serveMediaCase(w, r, body, actor, a, capability.ID, correlation)
+		return
+	}
 	resourceProfile, resourceDefinition, resourceRef, resourceRead := adminowner.MatchBridge(path)
 	workItemRequest := capability.ID == "customer.review.work_item.submit" || capability.ID == "customer.review.work_item.readback"
 	reviewRequest := capability.ID == "customer.review.submit" || capability.ID == "customer.review.readback" || workItemRequest
@@ -429,6 +437,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		availability := b.resourceAvailability(actor.Roles, actor.Zones, actor.Tenants)
 		b.customerReviewAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		b.customerWorkItemAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
+		b.mediaCaseAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		for _, report := range analyticsadmin.Reports() {
 			availability[report.Permission] = b.scopedReportAvailable(report, actor.Roles, actor.Zones, actor.Tenants)
 		}

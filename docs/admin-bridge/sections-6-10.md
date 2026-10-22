@@ -19,7 +19,7 @@ signed retained native facts. Every bounded subset remains PARTIAL_COVERAGE and
 fully suppressed; it does not prove producer completeness. Recovery counts are
 not mean resolution time; provider components are not a score. Supply fails
 closed without a native individual roster. Demand forecast fails closed without
-complete authorized history and an authoritative model contract. These two deny
+complete owner-witnessed scoped history for the existing native forecast model. These two deny
 paths and the other component transports are not a claim of completed reporting
 semantics or complete source exports. No aggregate totals become privacy members.
 
@@ -662,6 +662,8 @@ ordinary read grants from implying evidence access. Authoritative case subject
 membership and actual modern object owner/organization/purpose/typed case binding
 are checked, alongside existing safety/quarantine/revocation/audit controls. Actual
 source authorization and signed policy expiry bound each grant. Legacy assets are
-not mapped. Source and Media activation remain disabled/BLOCKED_POLICY; the HQ
-facade, Fleet standalone case authority and inspection conclusions are not counted
-as complete by this adapter batch.
+not mapped. The separate private HQ facade now has fixed issue/content/revoke
+POSTs, verified-assertion-derived actors and immutable audit before native access
+and before HQ disclosure. Public Gateway denial covers every new path. Source,
+Bridge and Media activation remain disabled/BLOCKED_POLICY. Fleet standalone case
+authority and inspection conclusions are not counted as complete.

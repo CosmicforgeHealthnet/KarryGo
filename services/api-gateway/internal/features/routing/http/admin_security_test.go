@@ -57,6 +57,15 @@ func TestPublicOwnerAdministrativePathsNeverReachOwners(t *testing.T) {
 	router := gin.New()
 	router.NoRoute(edge.Handle)
 	paths := []string{
+		"/internal/karryam-admin/v1/media/case-grants",
+		"/internal/karryam-admin/v1/media/case-grants/ref/content",
+		"/internal/karryam-admin/v1/media/case-grants/ref/revocations",
+		"/internal/media/v1/admin/case-grants/ref/content",
+		"/api/v1/media/internal/media/v1/admin/case-grants/ref/content",
+		"/internal/customer/v1/admin/case-authority/proofs/review-work-items/ref/CUSTOMER/ref",
+		"/api/v1/taxi/internal/taxi/v1/admin/case-authority/proofs/recoveries/ref/CASE/ref",
+		"/api/v1/dispatch/internal/dispatch/v1/admin/case-authority/proofs/incidents/ref/TRIP/ref",
+		"/api/v1/hauling/internal/hauling/v1/admin/case-authority/proofs/recoveries/ref/CASE/ref",
 		"/internal/karryam-admin/v1/taxi/rides",
 		"/internal/taxi/v1/admin/rides",
 		"/api/v1/taxi/internal/bookings/ref/actions/force-recover",

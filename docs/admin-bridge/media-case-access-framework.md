@@ -129,7 +129,7 @@ and `_ADMIN_CASE_CONTEXT_PUBLISH_ENABLED`. Read and publisher credentials use
 `_ADMIN_CASE_SOURCE_SECRET_FILE` and `_ADMIN_CASE_CONTEXT_PUBLISH_SECRET_FILE`.
 Existing source policy and owner public-key files are reused; no signing endpoint,
 policy, grant, key or Media lifetime is installed. Missing enrollment or policy
-keeps disclosure blocked. The HQ facade is a separate engineering boundary.
+keeps disclosure blocked.
 
 Verification includes a real Customer executable with actual migrations, Redis,
 native review intake/ACK/CLOSE, independent ephemeral TEST_ONLY signatures,
@@ -139,3 +139,37 @@ revoked authorization and closed cases. Actual Taxi, Dispatch and Hauling migrat
 tests independently exercise their source proof handlers, scope, terminal-state,
 policy, audience and replay boundaries. These are software tests, not production
 policy approval or live environment certification.
+
+### Private Bridge facade
+
+Three fixed POSTs under `/internal/karryam-admin/v1/media/case-grants` issue a
+grant, redeem `/{id}/content`, or withdraw `/{id}/revocations`. Scope and purpose
+are the exact signed `market`, `zone`, `organization`, `tenant`, `purpose` query.
+Bodies contain only native case/subject/modern object identifiers (plus the
+original token for content), or a revocation reason. Actor, expiry, source
+capability, destination and policy are never request-body selectors. Actor and
+expiry come from the existing verified HQ assertion; the compiled case registry
+selects the source permission. Media and source permissions, current signed
+policy, approved disclosure settings and all five delegated scopes intersect.
+
+`ADMIN_MEDIA_CASE_READ_ENABLED` and `ADMIN_MEDIA_CASE_REVOKE_ENABLED` default
+false. `ADMIN_MEDIA_CASE_ORIGIN` and `_SECRET_FILE` are fixed operator enrollment;
+the case credential cannot reuse HQ, active resource, Taxi, scoped Analytics or
+Customer review keys. Read policy uses existing `ADMIN_ACCESS_POLICY_FILE` and
+`_KEYS_FILE`. Revocation requires `media.case.grant.revoke` and can only reduce
+the current staff member's own native grant; it remains possible after read/policy
+kills. No permission grant or production enrollment accompanies these definitions.
+
+Existing mTLS/workload identity, HMAC v2, delegated JWT, principal/session
+revocation, durable nonce and rate limits apply to every request. Immutable Bridge
+audit commits before native access and again before returning a token or bytes.
+Content uses a bounded, attachment-only binary response with no-store/nosniff;
+no raw URL, ambient download credential, private content or case token enters the
+Bridge audit. Native Media independently rechecks membership/safety and commits
+its own audit. Failed audit, malformed native response or outage withholds content.
+No automatic POST retry is introduced. Public Gateway tests explicitly deny the
+new HQ, native Media and source-case paths, including encoded traversal variants.
+
+The Bridge mTLS/PostgreSQL/SDK contract tests and the actual Customer-process →
+modern Media tests are separate complementary suites. They do not represent live
+HQ enrollment, production policy approval or a deployed environment certification.

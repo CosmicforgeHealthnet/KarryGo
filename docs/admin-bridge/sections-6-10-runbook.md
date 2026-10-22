@@ -448,3 +448,12 @@ Do not enroll these adapters or enable disclosure during code integration. No
 production lifetime, signing key, source allocation or disclosure policy is
 included. No domain migration is added by this adapter batch; existing case,
 source context/audit/nonce and modern Media migrations are required.
+
+The private Bridge evidence facade is now compiled: grant, content and own-grant
+revocation are fixed POST routes under `/internal/karryam-admin/v1/media/case-grants`.
+`ADMIN_MEDIA_CASE_READ_ENABLED` and `ADMIN_MEDIA_CASE_REVOKE_ENABLED` default false.
+The fixed native origin and dedicated case key use `ADMIN_MEDIA_CASE_ORIGIN` and
+`ADMIN_MEDIA_CASE_SECRET_FILE`. Do not enroll or activate these during integration.
+Read policy additionally needs the source case permission and approved Media
+disclosure settings. Revocation is separately permissioned and does not require
+read policy. Never place a grant token in a query, audit, log or raw storage URL.
