@@ -48,6 +48,7 @@ jobs:
         run: |
           # Keep the frontend scope guard; accept only exact newly added
           # review-branch preview holds, never application/deployment settings.
+          python -m unittest scripts/release/test_frontend_scope.py
           python scripts/release/frontend_scope.py "$COMPARISON_BASE_SHA"
       - name: Formatting and whitespace
         env:
