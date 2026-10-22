@@ -384,3 +384,11 @@ func (e *Engine) MediaDisclosure(now time.Time) (MediaDisclosure, error) {
 	out.SourceCapabilities = append([]string{}, out.SourceCapabilities...)
 	return out, nil
 }
+
+// ExpiresAt is signed policy metadata; it never supplies a grant or a default.
+func (e *Engine) ExpiresAt() time.Time {
+	if e == nil {
+		return time.Time{}
+	}
+	return e.document.ExpiresAt
+}

@@ -138,3 +138,13 @@ supports migration4 when this optional feature is off. New flags default false:
 both existing review switches; Bridge writes require dedicated readback and both
 existing remote/customer write kill gates. All disclosure/access remains
 BLOCKED_POLICY until initial owner governance is approved.
+# Native case evidence integration (22 October 2026)
+
+Software boundary added for six native case kinds across Customer, Taxi, Dispatch
+and Hauling, with separate source evidence allocations, exact subject membership,
+modern Media ownership/case binding and verified source/policy expiry. Real owner
+migrations and a real Customer-process-to-Media private transport test cover the
+integration. No legacy asset mapping, standalone Fleet incident-case authority or
+inspection-conclusion model is invented. HQ-facing facade remains separate work.
+Initial permission/scope/purpose/lifetime approval and live enrollment remain
+BLOCKED_POLICY; no privileged feature is activated by this change.

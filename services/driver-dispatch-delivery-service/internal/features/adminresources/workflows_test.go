@@ -55,6 +55,9 @@ func TestDispatchWorkflowReadsBindCanonicalTripAndRejectCrossLinks(t *testing.T)
 		t.Fatal(err)
 	}
 	source := Source()
+	for kind, ref := range map[string]string{"incidents": incident, "delivery-recoveries": recovery, "returns": returned} {
+		t.Run("case-evidence-"+kind, func(t *testing.T) { fixture.CaseBoundary(t, db, source, Owner, kind, ref, true) })
+	}
 	issuer := contextfixture.New(t, Owner)
 	store := admincontext.Store{DB: db, Reader: source, Authority: issuer.Authority}
 	scope := adminpolicy.Scope{Product: "karryam", Market: "M1", Zone: "Z1", Organization: org, Tenant: org}

@@ -18,8 +18,8 @@ import (
 	policyfixture "cosmicforge/logistics/shared/go/adminpolicy/testfixture"
 )
 
-// This is an explicitly TEST_ONLY source-case authority. No production source
-// adapter or legacy-asset -> modern-object mapping is supplied by these tests.
+// This TEST_ONLY authority isolates native Media state-machine failures. The
+// native Customer process integration is tested separately without this stub.
 type testCaseAuthority struct {
 	proof  usecases.CaseProof
 	denied bool
@@ -74,6 +74,17 @@ func (f *caseFixture) issue(t *testing.T) *usecases.CaseGrant {
 		t.Fatal(err)
 	}
 	return g
+}
+
+func TestPostgresMediaCaseGrantCannotOutliveSignedDisclosurePolicy(t *testing.T) {
+	f := newCaseFixture(t)
+	f.policy.Document.ExpiresAt = f.media.now.Add(25 * time.Second)
+	f.policy.Sign(t)
+	f.access = f.media.service.NewCaseAccess(usecases.CaseAccessConfig{Enabled: true, Policy: f.policy.Engine, Authority: f.authority})
+	grant := f.issue(t)
+	if grant.ExpiresAt.After(f.policy.Document.ExpiresAt) {
+		t.Fatal("grant outlived signed disclosure policy")
+	}
 }
 func (f *caseFixture) read(t *testing.T, g *usecases.CaseGrant) {
 	t.Helper()

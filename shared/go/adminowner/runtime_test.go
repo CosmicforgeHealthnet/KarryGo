@@ -15,6 +15,9 @@ func TestOwnerResourcesDefaultDisabledWithoutCredentialAccess(t *testing.T) {
 		t.Run(profile.Domain, func(t *testing.T) {
 			t.Setenv(profile.Prefix+"_ADMIN_RESOURCE_READ_ENABLED", "false")
 			t.Setenv(profile.Prefix+"_ADMIN_CONTEXT_PUBLISH_ENABLED", "false")
+			t.Setenv(profile.Prefix+"_ADMIN_CASE_SOURCE_READ_ENABLED", "false")
+			t.Setenv(profile.Prefix+"_ADMIN_CASE_CONTEXT_PUBLISH_ENABLED", "false")
+			t.Setenv(profile.Prefix+"_ADMIN_CASE_SOURCE_SECRET_FILE", "missing-must-not-be-opened")
 			t.Setenv(profile.Prefix+"_ADMIN_RESOURCE_SECRET_FILE", "missing-must-not-be-opened")
 			h, err := FromEnvironment(context.Background(), nil, nil, profile.Definitions, profile.Owner, profile.Prefix, profile.Path)
 			if err != nil || h.Enabled || h.PublishEnabled {

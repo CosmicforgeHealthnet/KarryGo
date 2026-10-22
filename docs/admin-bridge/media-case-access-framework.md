@@ -93,10 +93,49 @@ alias rejection, fixed method/path, no query overrides and durable namespaced
 nonces protect the native boundary. Existing replay storage/cleanup is reused;
 no historical migration is changed. Content is attachment-only/no-store/nosniff.
 
-Runtime intentionally supplies a nil case authority until real owner case and
-modern-object membership/remediation contracts exist. Consequently even a read
-flag plus valid workload key cannot disclose bytes under current production code.
-The private HTTP/SDK tests use real PostgreSQL, actual signed native uploads,
-real filesystem storage and an explicitly TEST_ONLY case authority. They establish
-transport/enforcement behavior, not a real source case association or HQ/staging
-certification. Source route audit shows no new public exposure or contract drift.
+### Owner-backed case integration — 22 October 2026
+
+Runtime can now enroll the compiled owner-case adapters through the optional
+`MEDIA_ADMIN_CASE_SOURCES_FILE`. Its strict JSON contains `sources`, each with
+`owner`, `origin` and `secret_file`. Only Customer, Taxi, Dispatch and Hauling are
+recognized. Origins and credentials are operator configuration, never request
+selectors. Source keys must differ from each other, the Bridge case key, legacy
+owner keys and the ambient download signer. No enrollment file is supplied.
+
+Customer review work items, Taxi recovery cases, Dispatch incidents/delivery
+recoveries/returns and Hauling recovery cases have fixed source proof paths:
+`/internal/{domain}/v1/admin/case-authority/proofs/{kind}/{id}/{subject}/{reference}`.
+They accept only the `media-file-service-case-authorizer` workload audience.
+Each source uses its real records, native active/terminal states and exact subject
+references. A separate signed allocation under `media-case:<kind>` and the new
+`{domain}.case.evidence.read` permission is mandatory. Ordinary directory grants
+cannot authorize evidence. Scope follows actual canonical parents; unknown
+dimensions still require independent owner allocation. Closed or revoked cases,
+replayed requests, stale policy and failed immutable source audit deny access.
+Independent preparation/publication uses the same case-authority prefix and a
+distinct publisher credential; preparation creates no access grant.
+
+The modern object must already belong to that source workload, organization,
+subject and an allowed purpose, and must have the exact typed native case binding.
+The adapter queries `media_objects` only. No legacy UUID, URL, inspection reference
+or arbitrary metadata becomes a modern object ID. Legacy mapping and a standalone
+Fleet investigation-case contract remain unavailable. Current safety, quarantine,
+retention, object version, revocation and immutable Media disclosure audit are
+rechecked by the existing framework. Grant expiry is bounded by the actual signed
+source allocation, signed disclosure policy and authenticated staff expiry.
+
+All new flags default false: `{CUSTOMER,TAXI,DISPATCH,HAULING}_ADMIN_CASE_SOURCE_READ_ENABLED`
+and `_ADMIN_CASE_CONTEXT_PUBLISH_ENABLED`. Read and publisher credentials use
+`_ADMIN_CASE_SOURCE_SECRET_FILE` and `_ADMIN_CASE_CONTEXT_PUBLISH_SECRET_FILE`.
+Existing source policy and owner public-key files are reused; no signing endpoint,
+policy, grant, key or Media lifetime is installed. Missing enrollment or policy
+keeps disclosure blocked. The HQ facade is a separate engineering boundary.
+
+Verification includes a real Customer executable with actual migrations, Redis,
+native review intake/ACK/CLOSE, independent ephemeral TEST_ONLY signatures,
+modern Media upload and real filesystem bytes through the private Media SDK.
+It denies foreign subjects/tenants/cases, actual legacy assets, source audit failure,
+revoked authorization and closed cases. Actual Taxi, Dispatch and Hauling migration
+tests independently exercise their source proof handlers, scope, terminal-state,
+policy, audience and replay boundaries. These are software tests, not production
+policy approval or live environment certification.

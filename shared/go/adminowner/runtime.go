@@ -1,6 +1,7 @@
 package adminowner
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
@@ -96,6 +97,11 @@ func ownerKeys(path string) (map[string]ed25519.PublicKey, error) {
 func FromEnvironment(ctx context.Context, db *pgxpool.Pool, source Source, definitions map[string]Definition, owner, prefix, path string) (*Handler, error) {
 	h := &Handler{Owner: owner, Path: path, DB: db, Source: source, Definitions: definitions, Enabled: os.Getenv(prefix+"_ADMIN_RESOURCE_READ_ENABLED") == "true", PublishEnabled: os.Getenv(prefix+"_ADMIN_CONTEXT_PUBLISH_ENABLED") == "true"}
 	h.Contexts = &admincontext.Store{DB: db, Reader: source, Authority: admincontext.Authority{Owner: owner, Environment: adminpolicyenv.Environment, Keys: map[string]ed25519.PublicKey{}}}
+	cases, caseErr := caseFromEnvironment(ctx, db, source, owner, prefix, path)
+	if caseErr != nil {
+		return nil, caseErr
+	}
+	h.Cases = cases
 	if !h.Enabled && !h.PublishEnabled {
 		return h, nil
 	}
@@ -130,6 +136,13 @@ func FromEnvironment(ctx context.Context, db *pgxpool.Pool, source Source, defin
 		h.PublishSecret, err = secretFile(os.Getenv(prefix + "_ADMIN_CONTEXT_PUBLISH_SECRET_FILE"))
 		if err != nil {
 			return nil, err
+		}
+	}
+	if h.Cases != nil {
+		for _, key := range [][]byte{h.Secret, h.PublishSecret} {
+			if len(key) > 0 && (bytes.Equal(key, h.Cases.Secret) || bytes.Equal(key, h.Cases.Publisher.PublishSecret)) {
+				return nil, ErrConfiguration
+			}
 		}
 	}
 	return h, nil

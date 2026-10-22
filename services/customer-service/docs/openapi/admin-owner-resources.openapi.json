@@ -2057,6 +2057,621 @@
           }
         }
       }
+    },
+    "/internal/customer/v1/admin/case-authority/proofs/{kind}/{id}/{subject}/{reference}": {
+      "get": {
+        "operationId": "customer.admin.case.subject-proof",
+        "description": "Default disabled. Fixed Media source-authorizer workload audience and separate credential. Requires a distinct media-case:<kind> source-owner signed allocation, current native case status and exact native subject membership, five-dimensional scope, signed policy and immutable audit. Returns no evidence metadata, URLs or bytes. Expiry is bounded by verified source authorization and policy.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "review-work-items"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "reference",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "organization",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "tenant",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "staff",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "policy_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "policy_checksum",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "contract_version": {
+                      "const": "karryam.source-case-authorization.v1"
+                    },
+                    "owner": {
+                      "const": "customer-service"
+                    },
+                    "case_kind": {
+                      "enum": [
+                        "review-work-items"
+                      ]
+                    },
+                    "case_reference": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                    },
+                    "subject_type": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                    },
+                    "subject_reference": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "product": {
+                          "type": "string"
+                        },
+                        "market": {
+                          "type": "string"
+                        },
+                        "zone": {
+                          "type": "string"
+                        },
+                        "organization": {
+                          "type": "string"
+                        },
+                        "tenant": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "product",
+                        "market",
+                        "zone",
+                        "organization",
+                        "tenant"
+                      ]
+                    },
+                    "source_contract": {
+                      "const": "customer.admin-case-evidence.v1"
+                    },
+                    "native_fingerprint": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "policy_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                    },
+                    "policy_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "policy_checksum": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "required": [
+                    "contract_version",
+                    "owner",
+                    "case_kind",
+                    "case_reference",
+                    "subject_type",
+                    "subject_reference",
+                    "scope",
+                    "source_contract",
+                    "native_fingerprint",
+                    "expires_at",
+                    "policy_id",
+                    "policy_version",
+                    "policy_checksum"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "security": [
+          {
+            "MediaSourceHMAC": []
+          }
+        ]
+      }
+    },
+    "/internal/customer/v1/admin/case-authority/authorization-contexts/bindings/{kind}/{id}": {
+      "get": {
+        "operationId": "customer.admin.case.contexts.prepare",
+        "description": "Default disabled. Exact owner authorization and approved policy intersection, immutable audit before disclosure. No domain mutation authority.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "DRAFT_PENDING_OWNER_APPROVAL"
+                    },
+                    "binding": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "fingerprint": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "source_contract": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "known_source_dimensions": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "product": {
+                              "type": "string"
+                            },
+                            "market": {
+                              "type": "string"
+                            },
+                            "zone": {
+                              "type": "string"
+                            },
+                            "organization": {
+                              "type": "string"
+                            },
+                            "tenant": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "product",
+                            "market",
+                            "zone",
+                            "organization",
+                            "tenant"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "fingerprint",
+                        "source_contract",
+                        "known_source_dimensions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "binding"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        }
+      }
+    },
+    "/internal/customer/v1/admin/case-authority/authorization-contexts": {
+      "post": {
+        "operationId": "customer.admin.case.contexts.publish",
+        "description": "Default disabled. Exact owner authorization and approved policy intersection, immutable audit before disclosure. No domain mutation authority.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized source response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": {
+                      "const": "RECORDED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sanitized denial; no source data"
+          },
+          "401": {
+            "description": "Sanitized denial; no source data"
+          },
+          "403": {
+            "description": "Sanitized denial; no source data"
+          },
+          "404": {
+            "description": "Sanitized denial; no source data"
+          },
+          "409": {
+            "description": "Sanitized denial; no source data"
+          },
+          "413": {
+            "description": "Sanitized denial; no source data"
+          },
+          "429": {
+            "description": "Sanitized denial; no source data"
+          },
+          "503": {
+            "description": "Sanitized denial; no source data"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "document": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "owner": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "environment": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_kind": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "resource_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "source_contract": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "provenance_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "approval_ref": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                      },
+                      "schema_version": {
+                        "const": 1
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "binding_fingerprint": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "scope": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "product": {
+                            "type": "string"
+                          },
+                          "market": {
+                            "type": "string"
+                          },
+                          "zone": {
+                            "type": "string"
+                          },
+                          "organization": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "product",
+                          "market",
+                          "zone",
+                          "organization",
+                          "tenant"
+                        ]
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                        },
+                        "minItems": 1,
+                        "maxItems": 32
+                      },
+                      "effective_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expires_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "owner",
+                      "environment",
+                      "state",
+                      "resource_kind",
+                      "resource_ref",
+                      "source_contract",
+                      "provenance_ref",
+                      "approval_ref",
+                      "schema_version",
+                      "revision",
+                      "binding_fingerprint",
+                      "scope",
+                      "capabilities",
+                      "effective_at",
+                      "expires_at"
+                    ]
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "document",
+                  "key_id",
+                  "signature"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2066,6 +2681,12 @@
         "in": "header",
         "name": "X-Service-Signature",
         "description": "HMAC v2 over exact body/path/query, X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature-Version. Durable nonce protection. Read caller admin-backoffice-service; publisher is the separately credentialed owner-authorization-context-publisher. Publication additionally requires an independent Ed25519 owner signature over the exact document bytes."
+      },
+      "MediaSourceHMAC": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Signature",
+        "description": "HMAC v2; caller media-file-service-case-authorizer. Durable owner/case-proof nonce namespace, separate from admin-backoffice-service reads and owner publication. No alternate caller accepted."
       }
     }
   }

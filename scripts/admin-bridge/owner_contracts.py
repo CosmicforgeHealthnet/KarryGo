@@ -29,6 +29,22 @@ def document(owner, domain):
     publish = operation("contexts.publish", [], obj({"status": {"const": "RECORDED"}}))
     publish["requestBody"] = {"required": True, "content": {"application/json": {"schema": envelope}}}
     paths[base + "/authorization-contexts"] = {"post": publish}
+    case_kinds = {"customer-service": ["review-work-items"], "driver-taxi-service": ["recoveries"], "driver-dispatch-delivery-service": ["incidents", "delivery-recoveries", "returns"], "driver-hauling-service": ["recoveries"]}.get(owner)
+    if case_kinds:
+        case_base = base + "/case-authority"
+        proof = obj({"contract_version": {"const": "karryam.source-case-authorization.v1"}, "owner": {"const": owner}, "case_kind": {"enum": case_kinds}, **{k: opaque for k in ("case_reference", "subject_type", "subject_reference")}, "scope": scope, "source_contract": {"const": domain + ".admin-case-evidence.v1"}, "native_fingerprint": string(pattern="^[0-9a-f]{64}$"), "expires_at": string(format="date-time"), "policy_id": opaque, "policy_version": {"type":"integer", "minimum":1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$")})
+        case_query = [p for p in query if p["name"] not in ("limit", "cursor")] + [parameter("limit", {"const": 1})]
+        case_parameters = [parameter("kind", {"enum": case_kinds}, "path"), parameter("id", where="path"), parameter("subject", where="path"), parameter("reference", where="path")] + case_query
+        case_read = operation("case.subject-proof", case_parameters, proof)
+        case_read["description"] = "Default disabled. Fixed Media source-authorizer workload audience and separate credential. Requires a distinct media-case:<kind> source-owner signed allocation, current native case status and exact native subject membership, five-dimensional scope, signed policy and immutable audit. Returns no evidence metadata, URLs or bytes. Expiry is bounded by verified source authorization and policy."
+        case_read["security"] = [{"MediaSourceHMAC": []}]
+        paths[case_base + "/proofs/{kind}/{id}/{subject}/{reference}"] = {"get": case_read}
+        case_prepare = operation("case.contexts.prepare", pathparams + [parameter("purpose")], obj({"state": {"const": "DRAFT_PENDING_OWNER_APPROVAL"}, "binding": binding}))
+        paths[case_base + "/authorization-contexts/bindings/{kind}/{id}"] = {"get": case_prepare}
+        case_publish = operation("case.contexts.publish", [], obj({"status": {"const": "RECORDED"}}))
+        case_publish["requestBody"] = {"required": True, "content": {"application/json": {"schema": envelope}}}
+        paths[case_base + "/authorization-contexts"] = {"post": case_publish}
+        schemes["MediaSourceHMAC"] = {"type":"apiKey", "in":"header", "name":"X-Service-Signature", "description":"HMAC v2; caller media-file-service-case-authorizer. Durable owner/case-proof nonce namespace, separate from admin-backoffice-service reads and owner publication. No alternate caller accepted."}
     return {"openapi": "3.1.0", "info": {"title": owner + " private Admin resource authority", "version": "1.0.0"}, "security": [{"ServiceHMAC": []}], "paths": paths, "components": {"securitySchemes": schemes}}
 
 def main():

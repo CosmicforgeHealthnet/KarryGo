@@ -159,6 +159,7 @@ func TestHaulingRecoveryReadsBindActualPlanningTenantAndMission(t *testing.T) {
 	if binding.Canonical.Organization != "planning-org" || binding.Canonical.Tenant != "planning-org" {
 		t.Fatal("settlement identity became authorization")
 	}
+	t.Run("case-evidence", func(t *testing.T) { fixture.CaseBoundary(t, db, source, Owner, "recoveries", recovery, true) })
 	captureHaulingResource(t, "hauling-recovery-resource.json", item)
 	raw, _ := json.Marshal(item)
 	if strings.Contains(string(raw), "PRIVATE_") {

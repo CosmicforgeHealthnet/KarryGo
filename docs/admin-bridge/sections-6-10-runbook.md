@@ -430,3 +430,21 @@ supports migration4 when this optional feature is off. New flags default false:
 both existing review switches; Bridge writes require dedicated readback and both
 existing remote/customer write kill gates. All disclosure/access remains
 BLOCKED_POLICY until initial owner governance is approved.
+# Owner case evidence adapters (22 October 2026)
+
+All case-source and Media disclosure switches remain off. Separate owner approval
+is required for the new case-evidence permissions and signed `media-case:<kind>`
+allocations. Use each owner's fixed case-authority preparation endpoint to obtain
+current native fingerprints; preparation is DRAFT only. Independently signed
+source publication cannot change canonical tenant/organization relationships.
+Publish revocation through the same owner authority; ordinary directory grants
+never imply evidence access. Active case version changes invalidate existing
+Media grants; closed cases cannot issue or redeem grants. Revocation of one's
+own Media grant remains available after case closure/read kills.
+
+Only modern owner-uploaded objects with an exact supported typed case binding are
+eligible. Legacy asset IDs and opaque inspection references have no mapping.
+Do not enroll these adapters or enable disclosure during code integration. No
+production lifetime, signing key, source allocation or disclosure policy is
+included. No domain migration is added by this adapter batch; existing case,
+source context/audit/nonce and modern Media migrations are required.

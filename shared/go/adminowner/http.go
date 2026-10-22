@@ -27,6 +27,7 @@ import (
 
 type Handler struct {
 	Owner, Path string
+	Cases       *CaseAuthorityHandler
 	DB          *pgxpool.Pool
 	// PreparationReader supports binding-only producers without exposing resource reads.
 	PreparationReader admincontext.BindingReader
@@ -50,6 +51,9 @@ func (h *Handler) RegisterOn(group *gin.RouterGroup) {
 	base := strings.TrimRight(group.BasePath(), "/")
 	if !strings.HasPrefix(h.Path, base+"/") {
 		panic("owner admin route outside native group")
+	}
+	if h.Cases != nil {
+		h.Cases.RegisterOn(group)
 	}
 	prefix := strings.TrimPrefix(h.Path, base)
 	group.GET(prefix+"/resources/:kind", h.Serve)

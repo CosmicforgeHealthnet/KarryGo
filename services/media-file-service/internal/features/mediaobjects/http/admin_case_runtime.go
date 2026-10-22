@@ -50,6 +50,15 @@ func AdminCaseRuntime(ctx context.Context, service *usecases.Service, pool *pgxp
 			return nil, errors.New("invalid private Media case policy")
 		}
 	}
+	if reads && authority == nil {
+		ownerAuthority, e := ownerCaseAuthority(service, policy, key, downloadSecret, legacy)
+		if e != nil {
+			return nil, e
+		}
+		if ownerAuthority != nil {
+			authority = ownerAuthority
+		}
+	}
 	ready, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	var ok bool

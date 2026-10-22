@@ -59,6 +59,8 @@ func TestTaxiRecoveryReadsBindNativeParentsAndNeverInferGoodsScope(t *testing.T)
 	}
 	pb := binding(passengerCase)
 	gb := binding(goodsCase)
+	t.Run("case-evidence-active", func(t *testing.T) { fixture.CaseBoundary(t, db, source, Owner, "recoveries", goodsCase, true) })
+	t.Run("case-evidence-terminal", func(t *testing.T) { fixture.CaseBoundary(t, db, source, Owner, "recoveries", passengerCase, false) })
 	if pb.Canonical.Market != market || pb.Canonical.Zone != "Z1" || pb.Canonical.Organization != "org-1" || pb.Canonical.Tenant != "org-1" {
 		t.Fatal("native booking scope lost", pb.Canonical)
 	}

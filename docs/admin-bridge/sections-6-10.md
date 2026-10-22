@@ -653,3 +653,15 @@ supports migration4 when this optional feature is off. New flags default false:
 both existing review switches; Bridge writes require dedicated readback and both
 existing remote/customer write kill gates. All disclosure/access remains
 BLOCKED_POLICY until initial owner governance is approved.
+# Native case evidence integration (22 October 2026)
+
+The shared Media framework now has concrete source adapters for Customer review
+work items, Taxi recovery, Dispatch incidents/recovery/returns and Hauling recovery.
+Dedicated signed case-evidence allocations and Media workload credentials prevent
+ordinary read grants from implying evidence access. Authoritative case subject
+membership and actual modern object owner/organization/purpose/typed case binding
+are checked, alongside existing safety/quarantine/revocation/audit controls. Actual
+source authorization and signed policy expiry bound each grant. Legacy assets are
+not mapped. Source and Media activation remain disabled/BLOCKED_POLICY; the HQ
+facade, Fleet standalone case authority and inspection conclusions are not counted
+as complete by this adapter batch.

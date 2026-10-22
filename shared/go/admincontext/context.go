@@ -234,8 +234,12 @@ func matches(a Approval, b RecordBinding) bool {
 // Resolve rechecks the current source links and source-owner signature on every
 // disclosure. A revoked head, stale binding or missing record is never authority.
 func (s *Store) Resolve(ctx context.Context, tx pgx.Tx, kind, ref, capability string, scope adminpolicy.Scope, now time.Time) (adminpolicy.Facts, error) {
+	facts, _, err := s.ResolveWithExpiry(ctx, tx, kind, ref, capability, scope, now)
+	return facts, err
+}
+func (s *Store) ResolveWithExpiry(ctx context.Context, tx pgx.Tx, kind, ref, capability string, scope adminpolicy.Scope, now time.Time) (adminpolicy.Facts, time.Time, error) {
 	if s.Reader == nil || tx == nil {
-		return adminpolicy.Facts{}, ErrUnmapped
+		return adminpolicy.Facts{}, time.Time{}, ErrUnmapped
 	}
 	rows, err := tx.Query(ctx, `SELECT h.context_id,h.revision,h.checksum,v.envelope FROM admin_owner_context_heads h JOIN admin_owner_context_history v
 	 ON v.owner=h.owner AND v.context_id=h.context_id AND v.revision=h.revision AND v.checksum=h.checksum
@@ -243,7 +247,7 @@ func (s *Store) Resolve(ctx context.Context, tx pgx.Tx, kind, ref, capability st
 	 AND h.revision=(SELECT max(x.revision) FROM admin_owner_context_history x WHERE x.owner=h.owner AND x.context_id=h.context_id)
 	 ORDER BY h.context_id LIMIT 33`, s.Authority.Owner, kind, ref)
 	if err != nil {
-		return adminpolicy.Facts{}, err
+		return adminpolicy.Facts{}, time.Time{}, err
 	}
 	type candidate struct {
 		id, checksum string
@@ -255,21 +259,21 @@ func (s *Store) Resolve(ctx context.Context, tx pgx.Tx, kind, ref, capability st
 		var item candidate
 		if err := rows.Scan(&item.id, &item.revision, &item.checksum, &item.raw); err != nil {
 			rows.Close()
-			return adminpolicy.Facts{}, err
+			return adminpolicy.Facts{}, time.Time{}, err
 		}
 		candidates = append(candidates, item)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return adminpolicy.Facts{}, err
+		return adminpolicy.Facts{}, time.Time{}, err
 	}
 	if len(candidates) > 32 {
-		return adminpolicy.Facts{}, ErrUnmapped
+		return adminpolicy.Facts{}, time.Time{}, ErrUnmapped
 	}
 	binding, err := s.Reader.Binding(ctx, tx, kind, ref)
 	if err != nil {
-		return adminpolicy.Facts{}, ErrUnmapped
+		return adminpolicy.Facts{}, time.Time{}, ErrUnmapped
 	}
 	for _, item := range candidates {
 		approval, checksum, err := s.Authority.Verify(item.raw, now)
@@ -281,8 +285,8 @@ func (s *Store) Resolve(ctx context.Context, tx pgx.Tx, kind, ref, capability st
 			allowed = allowed || value == capability
 		}
 		if allowed {
-			return adminpolicy.Facts{Owner: s.Authority.Owner, Reference: ref, SourceContract: approval.SourceContract, Scope: approval.Scope}, nil
+			return adminpolicy.Facts{Owner: s.Authority.Owner, Reference: ref, SourceContract: approval.SourceContract, Scope: approval.Scope}, approval.ExpiresAt, nil
 		}
 	}
-	return adminpolicy.Facts{}, ErrUnmapped
+	return adminpolicy.Facts{}, time.Time{}, ErrUnmapped
 }

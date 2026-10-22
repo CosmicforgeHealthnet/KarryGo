@@ -128,6 +128,9 @@ func (s *CaseAccessService) assess(ctx context.Context, actor CaseActor, q CaseR
 		return empty, time.Time{}, err
 	}
 	expires := now.Add(time.Duration(policy.MaxGrantSeconds) * time.Second)
+	if s.config.Policy.ExpiresAt().Before(expires) {
+		expires = s.config.Policy.ExpiresAt()
+	}
 	if actor.ExpiresAt.Before(expires) {
 		expires = actor.ExpiresAt
 	}
