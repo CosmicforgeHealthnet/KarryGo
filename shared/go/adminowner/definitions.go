@@ -29,14 +29,16 @@ func Profiles() []Profile {
 			"independent-rides": makeDef("taxi", "independent-rides", "taxi.independent_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),
 		}},
 		{Owner: "driver-dispatch-delivery-service", Domain: "dispatch", Prefix: "DISPATCH", Path: "/internal/dispatch/v1/admin", Definitions: map[string]Definition{
-			"handover-states":     makeDef("dispatch", "handover-states", "dispatch.handover.read", []string{"stage", "notification"}, nil, []string{"trip"}),
-			"incidents":           makeDef("dispatch", "incidents", "dispatch.incidents.read", []string{"reason", "replacement_strategy", "recovery_result"}, []string{"recovery_attempts"}, []string{"trip", "original_provider", "replacement_provider"}),
-			"delivery-recoveries": makeDef("dispatch", "delivery-recoveries", "dispatch.recovery.read", []string{"action"}, nil, []string{"trip", "delivery_attempt"}),
-			"returns":             makeDef("dispatch", "returns", "dispatch.returns.read", nil, nil, []string{"trip", "recovery_action", "return_mission", "return_booking"}),
-			"riders":              makeDef("dispatch", "riders", "dispatch.riders.read", providerDimensions, nil, nil),
-			"motorcycles":         makeDef("dispatch", "motorcycles", "dispatch.motorcycles.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
-			"missions":            makeDef("dispatch", "missions", "dispatch.missions.read", missionDimensions, nil, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
-			"custody-missions":    makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
+			"incident-recovery-status": makeDef("dispatch", "incident-recovery-status", "dispatch.incident_recovery.read", []string{"recovery_result", "replacement_strategy", "next_attempt_at_utc", "deadline_utc"}, []string{"recovery_attempts", "captured_trip_revision"}, []string{"trip", "original_provider", "replacement_provider"}),
+			"return-execution-status":  makeDef("dispatch", "return-execution-status", "dispatch.return_execution.read", []string{"assignment_state", "next_attempt_at_utc"}, []string{"assignment_attempts"}, []string{"trip", "recovery_action", "return_mission", "return_booking"}),
+			"handover-states":          makeDef("dispatch", "handover-states", "dispatch.handover.read", []string{"stage", "notification"}, nil, []string{"trip"}),
+			"incidents":                makeDef("dispatch", "incidents", "dispatch.incidents.read", []string{"reason", "replacement_strategy", "recovery_result"}, []string{"recovery_attempts"}, []string{"trip", "original_provider", "replacement_provider"}),
+			"delivery-recoveries":      makeDef("dispatch", "delivery-recoveries", "dispatch.recovery.read", []string{"action"}, nil, []string{"trip", "delivery_attempt"}),
+			"returns":                  makeDef("dispatch", "returns", "dispatch.returns.read", nil, nil, []string{"trip", "recovery_action", "return_mission", "return_booking"}),
+			"riders":                   makeDef("dispatch", "riders", "dispatch.riders.read", providerDimensions, nil, nil),
+			"motorcycles":              makeDef("dispatch", "motorcycles", "dispatch.motorcycles.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
+			"missions":                 makeDef("dispatch", "missions", "dispatch.missions.read", missionDimensions, nil, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
+			"custody-missions":         makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
 			"product-eligibility": makeDef("hauling", "product-eligibility", "hauling.product_eligibility.read", []string{"product", "policy_revision", "effective_window", "effective_at_utc", "expires_at_utc", "record_window_usable", "inspection_reference_recorded", "certification_reference_recorded"}, []string{"authority_source_revision"}, []string{"provider", "truck"}),
@@ -56,6 +58,11 @@ func Profiles() []Profile {
 	}
 	for i := range profiles {
 		if profiles[i].Domain == "dispatch" {
+			for kind, contract := range map[string]string{"incident-recovery-status": "dispatch.admin-incident-recovery-status.v1", "return-execution-status": "dispatch.admin-return-execution.v1"} {
+				definition := profiles[i].Definitions[kind]
+				definition.SourceContract = contract
+				profiles[i].Definitions[kind] = definition
+			}
 			definition := profiles[i].Definitions["handover-states"]
 			definition.SourceContract = "dispatch.admin-handover-state.v1"
 			profiles[i].Definitions["handover-states"] = definition

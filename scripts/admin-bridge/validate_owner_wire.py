@@ -83,3 +83,13 @@ assert dimensions["inspection_reference_recorded"]["flag"] is True
 assert dimensions["certification_reference_recorded"]["flag"] is True
 assert "PRIVATE_" not in json.dumps(eligibility) and "private.invalid" not in json.dumps(eligibility)
 print("Actual Hauling product-admission HTTP output uses canonical links/native windows and withholds private evidence references")
+
+for kind,dimension,counters in (("incident-recovery-status","recovery_result",{"recovery_attempts":2,"captured_trip_revision":9}),("return-execution-status","assignment_state",{"assignment_attempts":3})):
+    execution=json.loads((Path(sys.argv[1])/f"dispatch-{kind}.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema,format_checker=jsonschema.FormatChecker()).validate(execution)
+    assert execution["owner"]=="driver-dispatch-delivery-service" and execution["kind"]==kind and len(execution["items"])==1
+    item=execution["items"][0]
+    assert item["source_version"] is None and "PRIVATE_" not in json.dumps(execution)
+    assert {d["name"]:d["value"] for d in item["dimensions"]}[dimension]=="UNKNOWN"
+    assert {c["name"]:c["value"] for c in item["counters"]}==counters
+print("Actual Dispatch execution views preserve UNKNOWN and native counters without exposing replay/custody/financial credentials")

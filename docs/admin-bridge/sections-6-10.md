@@ -681,3 +681,20 @@ Membership replacement/revocation invalidates prior allocations. Callback revisi
 is a labeled counter; the full mutation version remains unknown. Inspection and
 certification reference presence flags expose no private references or conclusions.
 This read grants no assignment, remediation, restriction or cargo-fit authority.
+
+## Dispatch incident and return execution observations
+
+`incident-recovery-status` and `return-execution-status` have separate permissions
+and source contracts for recorded recovery/assignment outcomes, attempt counts
+and UTC schedule metadata. UNKNOWN remains UNKNOWN. A captured Trip revision is
+a labeled historical counter; neither it nor an attempt count is a full workflow
+version or permission to retry. Leases, raw errors, wallet references, route
+snapshots, handover credentials and evidence references remain withheld.
+
+Both the existing return read and the new execution view validate the actual
+native `return:<trip>` mission, same-customer booking, execution link and group
+organization relationship before disclosing child references. Draft rows with no
+children remain readable; partial/foreign children and changed parent authority
+deny. Existing draft allocations cannot silently follow new child identities.
+Migrations 070–072 and all native reconciliation consumers/fences are unchanged.
+No recovery/retry/reassignment command or automatic uncertain POST replay is added.

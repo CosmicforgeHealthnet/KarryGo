@@ -2693,5 +2693,26 @@
         "description": "HMAC v2; caller media-file-service-case-authorizer. Durable owner/case-proof nonce namespace, separate from admin-backoffice-service reads and owner publication. No alternate caller accepted."
       }
     }
+  },
+  "x-source-owned-resource-contracts": {
+    "incident-recovery-status": {
+      "source_contract": "dispatch.admin-incident-recovery-status.v1",
+      "permission": "dispatch.incident_recovery.read",
+      "canonical_scope": "Actual original Trip organization/tenant; native incident and provider links",
+      "source_version": null,
+      "captured_trip_revision": "Captured native Trip revision, not an incident mutation counter",
+      "result": "Exact recorded recovery result; UNKNOWN cannot become success or permission to replay",
+      "private_fields": "No lease owners, free-text errors, credentials, fingerprints or custody evidence",
+      "mutation_authority": false
+    },
+    "return-execution-status": {
+      "source_contract": "dispatch.admin-return-execution.v1",
+      "permission": "dispatch.return_execution.read",
+      "canonical_scope": "Actual original Trip, recovery action/attempt and native return:<trip> mission/booking/execution-link graph; customer/organization consistency",
+      "source_version": null,
+      "assignment_state": "Exact native reconciliation outcome; attempt count is not a full mutation version",
+      "private_fields": "No wallet references, lease identity, raw route snapshot, custody secret or private evidence",
+      "mutation_authority": false
+    }
   }
 }

@@ -156,3 +156,10 @@ PostgreSQL callback-concurrency/isolation tests. Native expired/suspended/future
 admissions cannot become a positive window observation. Actual inspection and
 certification references remain private presence flags; no inspection conclusion,
 remediation decision or permission for a new assignment is manufactured.
+
+Dispatch recorded incident-recovery/return-assignment views now expose bounded
+operational detail while preserving UNKNOWN and full-version uncertainty. Return
+child references require the native return mission/booking/execution-link graph
+and matching customer/organization. Real owner migrations, signed HTTP, foreign
+child/tenant/parent denials and immutable source allocation checks cover the views.
+No native recovery transition or uncertainty fence is replaced by an Admin action.

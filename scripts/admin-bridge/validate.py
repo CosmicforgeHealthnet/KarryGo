@@ -49,7 +49,7 @@ def main():
         operation = api["paths"][BASE + row["bridge_endpoint"]][row["method"].lower()]
         assert operation["x-capability-state"] == row["state"]
         assert ("200" in operation["responses"]) == (row["state"] in ("READ_ONLY", "AVAILABLE"))
-    owner_kinds = {"customer": ["review-work-items", "customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["product-eligibility", "providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions", "fit-decisions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
+    owner_kinds = {"customer": ["review-work-items", "customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["incident-recovery-status", "return-execution-status", "riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["product-eligibility", "providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions", "fit-decisions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
     canonical_resource_owners = {"customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service", "hauling": "driver-hauling-service", "fleet": "fleet-partner-service"}
     for row in matrix:
         if ".resources." in row["id"]:

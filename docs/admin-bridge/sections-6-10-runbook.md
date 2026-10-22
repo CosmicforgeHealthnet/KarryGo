@@ -466,3 +466,10 @@ Recorded admission and its native temporal-window result are observations only.
 Fresh matching must still run every existing fit, capacity, restriction, inspection,
 availability, organization and assignment-concurrency check. Callback revision is
 not a full aggregate version. No new migration, policy or enablement is installed.
+
+Dispatch incident/return execution views are read-only and default disabled under
+their new source contracts/permissions. UNKNOWN or a recorded next-attempt time
+is never authorization to resend a POST, release custody or replace an assignment.
+Use existing original-action GET reconciliation and uncertainty procedures. Current
+return child ownership is validated against the native mission/booking/execution
+graph; partial links deny. No migration or consumer transition is introduced.
