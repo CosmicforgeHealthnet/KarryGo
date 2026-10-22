@@ -2,16 +2,16 @@
  "kind": "karryam-customer-v4-backend-release-manifest",
  "manifest_version": 1,
  "statement": "LOCAL RELEASE CANDIDATE. Not a production build ID, not a commit, not a deployed immutable build.",
- "local_head": "4e9aea76c16846542edb675c637da16b63506400",
+ "local_head": "647440b2a75428551e02292ab111d48d400339ee",
  "branch": "staging",
  "worktree": {
-  "dirty": true,
-  "modified": 3,
-  "untracked": 1
+  "dirty": false,
+  "modified": 0,
+  "untracked": 0
  },
  "LOCAL_RELEASE_CANDIDATE_DIGEST": {
-  "sha256": "b14b7ba12de7e29ca4b17f8d55d663de08f10e0abf5eecf94bf0b0cc5f75342a",
-  "files": 5354,
+  "sha256": "951ee31514a816541185a2b1c1698d4de7849bb76de508bb616cc7c793ef2460",
+  "files": 5389,
   "roots": [
    "services/",
    "shared/go/",
@@ -40,12 +40,12 @@
    "files": 19
   },
   "driver-dispatch-delivery-service": {
-   "tip": "000075_analytics_coverage_producer.up.sql",
-   "files": 81
+   "tip": "000077_dispatch_recovery_outcome_facts.up.sql",
+   "files": 83
   },
   "driver-hauling-service": {
-   "tip": "031_analytics_coverage_producer.up.sql",
-   "files": 33
+   "tip": "032_recovery_payment_rebind_obligations.up.sql",
+   "files": 34
   },
   "driver-taxi-service": {
    "tip": "028_analytics_coverage_producer.sql",
@@ -154,11 +154,11 @@
   "public_unauthenticated_reviewed": "scripts/customer-v4/public-unauthenticated-routes.reviewed.txt"
  },
  "openapi_fingerprints": {
-  "services/admin-backoffice-service/docs/openapi/KARRYGO_ADMIN_CAPABILITY_MATRIX.json": "3876f305936cfa30f1d639b183192f833c7472f792e7e6b80695dabb7ae44dd4",
+  "services/admin-backoffice-service/docs/openapi/KARRYGO_ADMIN_CAPABILITY_MATRIX.json": "50d062f521a0acb7da5d1073260f528e8eb0c2b8825ee7499f700b34f5d351ae",
   "services/admin-backoffice-service/docs/openapi/fixtures/command.json": "fea81187bb66ee21d5bc0fa3b4f65431447b423773ee9f62f1546d1db22d1fe1",
   "services/admin-backoffice-service/docs/openapi/fixtures/staff-assertion.json": "67a2f18646e6933499226b2ba0b1f235a87a38ecbfc3490ec3c2301856c4957d",
   "services/admin-backoffice-service/docs/openapi/fixtures/unavailable-response.json": "a8ada201f92a08509c426d4cab42205167969c65c6a38ef24719f36964a5bd0b",
-  "services/admin-backoffice-service/docs/openapi/openapi.json": "6b7c71d0e8fb6c36fd71412bace7326c94f049844d6566656251b4a1a0637be3",
+  "services/admin-backoffice-service/docs/openapi/openapi.json": "2156800e460a81e15ec74172468c160ed47a3181f083d04dce2e882fcf4341df",
   "services/admin-backoffice-service/docs/openapi/schemas/Capability.json": "6d18726e8d9fad832d583d6a4b582e5f25563a8bf5cd23f19deeb919b3d01ad7",
   "services/admin-backoffice-service/docs/openapi/schemas/Command.json": "d7715eb2ca16bdc3d0cbf14b162b2437a0a08d30873b719460e66630f381ff05",
   "services/admin-backoffice-service/docs/openapi/schemas/CustomerReviewOperation.json": "a9d7794583c1eae04a028f3898d8d3bfba84bacf6d70a395d3d38a6ee9016a74",
@@ -557,7 +557,7 @@
   "TRUCK_BOOKING_DETAIL"
  ],
  "service_allowlists": {
-  "customer_context_caller_scopes_default": "driver-taxi-service=mobility_preferences|saved_location|guest_traveller;vendor-service=saved_location",
+  "customer_context_caller_scopes_default": "driver-taxi-service=mobility_preferences|saved_location|guest_traveller|account_standing;driver-dispatch-delivery-service=account_standing;driver-hauling-service=account_standing;vendor-service=saved_location",
   "metrics_scrape_callers": [
    "admin-backoffice-service",
    "analytics-service"

@@ -1,6 +1,196 @@
 # Secure Admin staging integration — current backend status
 
-## 22 October 2026 (evening) — Sections 6–10 owner operations implemented
+## 22 October 2026 (night) — final corrective pass: the four remaining gaps
+
+Continued directly on `staging` from `63368ee76c0a37c069bc50c9832b446cd3de22da`. No branch,
+worktree, PR, reset or force push; every commit is a fast-forward. Nothing from the earlier
+Sections 6–10 work was rebuilt.
+
+| Commit | Gap |
+|---|---|
+| `92b366ca` | 4. Hauling race in `TestMatch_RejectedProviderNotReDispatchedSameBooking` |
+| `d015bcf8` | 1. Customer booking hold enforced in Taxi, Dispatch and Hauling |
+| `ccd6ed74` | 2. Durable Wallet payment rebind for Hauling recovery replacements |
+| `647440b2` | 3. Analytics coverage: Dispatch unmatched and recovery facts, one fact per mission, enrolled populations |
+
+All seven mandatory workflows passed on `647440b2a75428551e02292ab111d48d400339ee`, the last code
+commit (this report commit changes documentation only):
+
+| Workflow | Successful GitHub run |
+|---|---|
+| admin-bridge.yml | [39856491395](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491395) |
+| admin-owner-closure.yml | [39856491239](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491239) |
+| section31-mandatory.yml | [39856491254](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491254) |
+| customer-v4-certification.yml | [39856491286](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491286) |
+| vendor-section46-48.yml | [39856491329](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491329) |
+| partner-gateway-split.yml | [39856491190](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491190) |
+| deployment-safety.yml | [39856491235](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39856491235) |
+
+### 1. Customer booking hold — enforced in all three booking authorities
+
+**How it works.** Customer-service stays the only source of account standing. Its internal
+context endpoint gained a dedicated `account_standing` scope (answered 503, never "eligible",
+if no standing reader is wired) and an `as_of` read time. The new `shared/go/customerstanding`
+client signs with HMAC, never caches, and fails closed: a transport error, timeout, non-200,
+malformed or contradictory answer, customer mismatch, or an `as_of` older than 30 s or in the
+future is 503 `customer_standing_unavailable`; a restricted customer (`BOOKING_HOLD` or
+`LOGIN_BLOCKED`) is 403 `customer_booking_hold`, without disclosing the restriction. The
+customer id is always the verified bearer subject; client-supplied ids and eligibility are
+ignored (tested).
+
+**Where it is enforced** — before any side effect (insert, quote, wallet hold, broadcast or
+matching, notification):
+
+| Service | Path | Proof (real PostgreSQL) |
+|---|---|---|
+| Taxi | `BookingService.CreateBooking` (immediate, scheduled, hourly, parcel) | `TestPostgresCustomerStanding_HoldBlocksNewBookingsOnly`, `TestPostgresCreateBookingRouteEnforcesStanding` |
+| Dispatch | `Service.CreateBookingWithKey` | `TestPostgresCustomerStandingWritesNothingWhenRefused`, `TestPostgresCustomerStandingReplaysPreHoldBookingForItsKey` |
+| Hauling | `BookingService.CreateBooking` (incl. scheduled) | `TestPostgresCustomerStanding_HoldBlocksNewBookingsOnly` |
+
+Each service also has usecase and handler tests for: held customer creates nothing; outage,
+timeout and stale answers refused; eligible customer unchanged; a lifted hold allows the next
+booking at once (no caching); concurrent attempts by a held customer all refused; an existing
+booking continues through cancel/accept/lifecycle after the hold; enforcement off asks nothing.
+Customer-service proves the scope end to end with real RESTRICT/LIFT admin commands
+(`TestPostgresAccountStandingScopeDrivesSharedClient`).
+
+**Recovery and retries.** A Dispatch retry of a create that already produced a booking before
+the hold replays that booking rather than refusing it. Taxi's idempotency store releases the
+key on 403 and 5xx, so a retry after an outage or a lifted hold runs again. Hauling create has
+no idempotency key.
+
+Not gated, by design: the lifecycle of existing bookings; B2B partner bookings (not
+customer-service customers); Dispatch return missions for parcels already in custody; Vendor
+commerce missions (the order is already paid at Vendor — see business decisions).
+
+Switches: `TAXI_`, `DISPATCH_`, `HAULING_CUSTOMER_STANDING_ENFORCED`, default false and refused
+without the customer-service origin and secret.
+
+### 2. Hauling replacement — the held payment is reconciled through Wallet
+
+Every replacement path (automatic, custody-transfer completion, and the KARRYAM
+`REQUEST_RECOVERY_REPLACEMENT` command) now writes a payment rebind obligation in the same
+transaction that rebinds the booking (migration 032, unique per recovery case and provider).
+A leased worker drives it through Wallet's existing execution-provider contract; Hauling never
+touches Wallet tables and Wallet was not changed (it already enforces source ownership,
+version fencing, idempotency with request fingerprints and rebind history).
+
+- **Stale provider:** before calling Wallet the worker re-reads the booking and case; a provider
+  who is no longer the replacement is `SUPERSEDED` and Wallet is never called.
+- **UNKNOWN_OUTCOME:** every attempt reads Wallet's binding first, so a rebind Wallet applied but
+  whose response was lost is recognised by readback and never sent twice.
+- **Retries and races:** the send uses the version just read as its fence and the same
+  idempotency key the settlement guard builds; concurrent workers claim with `SKIP LOCKED`.
+- **Terminal states:** `COMPLETED`, `COMPLETED_NOT_HELD` (refunded, settled or no Wallet
+  payment), `SUPERSEDED`; bounded backoff ends in `RECONCILIATION_REQUIRED`, readable at
+  `GET /recovery/bookings/:id/payment-rebinds` (HMAC).
+- **Settlement guard preserved:** `EnsureExecutionProvider` is unchanged and still refuses an
+  unexplained provider.
+
+The worker runs whenever recovery and Wallet are configured
+(`HAULING_RECOVERY_PAYMENT_REBIND_WORKER_ENABLED=false` switches it off). Proof, real
+PostgreSQL with a Wallet test server that enforces the real contract:
+`TestPaymentRebindObligationWrittenWith{AutomaticReplacement,CustodyTransfer,OperatorReplacementAndRolledBackWithIt}`,
+`TestPaymentRebindObligationNotWrittenWhenReplacementRollsBack`,
+`TestPaymentRebindLostResponseResolvesByReadbackWithoutASecondEffect` (one send, one effect),
+`TestPaymentRebindConcurrentWorkersProcessOneObligationOnce` (8 workers),
+`TestPaymentRebindWalletOutageThenRecovery`, `TestPaymentRebindNotHeldIsTerminalWithoutASend`,
+`TestPaymentRebindStaleProviderIsSupersededWithoutCallingWallet`,
+`TestPaymentRebindMaxAttemptsParksForReconciliation`,
+`TestSettlementGuardStillRefusesAnUnexplainedProviderAndAcceptsAnExplainedOne`, and the
+admin command test asserting the operator path writes exactly one obligation. Migration 032
+applies, rolls back (refused while obligations are open) and reapplies.
+
+### 3. Analytics coverage — correct populations, no inferred records
+
+- **Dispatch unmatched demand:** `dispatch.booking.unmatched.v1` is written once per authoritative
+  unmatched outcome (the booking's compare-and-set, or a partner broadcast ending
+  `no_provider_found`/`expired`) in the owner's transaction (migration 000076). The demand
+  report's unmatched cell is computed and releases under full attested coverage.
+- **One fact per mission and kind:** review found that Dispatch double counted assignments of
+  organization-managed bookings and missed independent and partner assignments. Each parcel
+  booking, commerce mission and partner request now gets exactly one committed, assigned,
+  unmatched, cancelled and completed fact from a single authoritative source; commerce work is
+  labelled `DISPATCH_COMMERCE` instead of `DISPATCH_PARCEL`.
+- **Dispatch recovery outcomes:** incident and delivery-recovery resolved/failed facts are written
+  at the engine's own terminal transitions (migration 000077), so recovery cells and
+  recovery-resolution durations are no longer zero. A recovery made moot by the trip ending is
+  not counted as failed.
+- **Populations:** Dispatch bookings (including unmatched ones with no trip), delivery missions,
+  commerce missions and partner requests, and Taxi goods missions and corporate rides, are
+  enrolled owner resource kinds exactly like consumer Dispatch trips and riders. Membership is
+  proven per record by owner-signed context from the owner's own row; no scope is invented and
+  quote geography is never used. Reports over them release COMPLETE only when signed manifests
+  tile the window, PARTIAL otherwise. A closed declaration of unattested populations (now
+  empty) makes any future unanchored fact refuse COMPLETE instead of being dropped silently.
+  The Dispatch trip anchor lookup was also fixed (upper-case `TRIP` facts were never attested).
+- New reads are default-off; the Gateway isolation test covers every new private path; the
+  capability matrix (148 entries), OpenAPI and checksums were regenerated; v1 report contracts
+  are unchanged (`validate.py --base 63368ee7`).
+
+Proof (real PostgreSQL): `TestPostgresDispatchUnmatchedFactProducedExactlyOncePerAuthoritativeOutcome`,
+`TestPostgresDispatchLifecycleFactsOncePerMissionAndKind`,
+`TestPostgresDispatchRecoveryOutcomesOncePerRecovery`,
+`TestPostgresDispatchProducerAnchorsEveryPopulationToSignedContexts`,
+`TestPostgresTaxiProducerAnchorsGoodsMissionsAndCorporateRides`,
+`TestPostgresDispatchUnmatchedDemandReleasesCompleteUnderAttestedCoverage`,
+`TestPostgresDispatchMissionOutcomesCountEachMissionOncePerKind`,
+`TestPostgresDispatchRecoveryOutcomesAndResolutionDurations`,
+`TestPostgresEnrolledPopulationsReleaseCompleteOnlyWhenTiled`,
+`TestPostgresDeclaredUnattestedPopulationStillRefusesComplete`, plus authority tests that the
+new reads bind only the owner's own rows.
+
+### 4. Hauling race — resolved, assertion unchanged
+
+The race was in the test harness, not production. The test called `matchBooking` directly, so
+its matcher was never registered and `RejectBooking` could not cancel it; the replacement
+matcher then ran beside it and both appended to an unlocked test notifier. Production only
+starts matchers through `startMatchGoroutine`, which cancels the earlier one. The test now uses
+that entry point, waits for every matcher to finish, and the notifier is locked. It passes under
+`-race` repeatedly and with the whole Hauling module (`-race -p 1`); temporarily disabling the
+reject record makes it fail, so the safety assertion still bites.
+
+### Verification
+
+Local, real PostgreSQL 16 and Redis, each commit checked on an exported copy of exactly its
+staged files: build and vet of shared/go, customer, Taxi, Dispatch, Hauling, analytics,
+Vendor, Gateway and admin-backoffice; customer-service full suite; Hauling full module with
+`-race -p 1`; Taxi, Dispatch and Hauling booking and config packages; Dispatch producer,
+adminresources, booking and migration packages on a 77-migration database; analytics-service
+133 passed, 0 skipped; shared analyticsadmin, networkanalytics, adminowner and
+customerstanding; admin-bridge gates (testgate 560, authority 161, command 144, dispatch
+safety 437); contract regeneration with no drift; Customer V4 route audit and release
+manifest (refreshed in this commit). Then the seven GitHub workflows above.
+
+### Status: BACKEND_FUNCTIONALLY_COMPLETE (Sections 6–10)
+
+No engineering gap remains that stops the Sections 6–10 operations from working correctly and
+securely once they are switched on. Everything still open is a decision or a governance act,
+not missing software:
+
+**Business decisions**
+- Whether a customer under booking hold may still place Vendor commerce orders. Today the hold
+  stops new Taxi, Dispatch and Hauling bookings only; if commerce orders must also stop, the
+  check belongs at Vendor checkout (not built, because it depends on this decision).
+- Which Taxi documents belong to the driver and which to the vehicle (licence → provider;
+  registration, insurance, roadworthiness → vehicle is the current mapping).
+- Whether Dispatch return-to-sender bookings count as separate missions (they do today).
+- What erasure means across services after a privacy request; customer-service fulfils its own
+  records, and other owners need a legal decision before any contract is built.
+
+**Governance before production**
+- Turn on `*_CUSTOMER_STANDING_ENFORCED` in Taxi, Dispatch and Hauling (with matching
+  customer-service secrets) before enabling Customer's `BOOKING_HOLD` command.
+- Signed policies, owner signing keys and key pins, owner context approvals including a
+  coverage-export context for each record, approved roles.
+- Suppression values, including how structural zeros are treated: Dispatch has no guarantee
+  concept, so its `guarantee_breaches` cell is always 0, and under the current small-cell rule
+  that withholds Dispatch mission-outcomes and mission-success entirely.
+- All production feature flags remain disabled.
+
+---
+
+## 22 October 2026 (evening) — Sections 6–10 owner operations implemented (superseded by the night pass above)
 
 Work continued directly on `staging` from `7cf8a0836aa38f03b38b2d99cea6b94ab599f022`.
 No branch, worktree-based merge, PR, reset or force push was used; every commit is a
