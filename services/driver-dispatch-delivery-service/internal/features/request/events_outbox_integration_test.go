@@ -88,11 +88,15 @@ type broadcastEvent struct {
 	Payload          map[string]any
 }
 
+// events are the request emitter's own canonical events. Analytics facts
+// (aggregate 'analytics:*', migration 000076's partner-request lifecycle)
+// are a separate projection and are excluded.
 func (f *broadcastEmissionFixture) events(t *testing.T, ctx context.Context) []broadcastEvent {
 	t.Helper()
 	rows, err := f.pool.Query(ctx, `
 		SELECT event_type, aggregate_version, payload
 		FROM dispatch_marketplace_outbox
+		WHERE aggregate_type NOT LIKE 'analytics:%'
 		ORDER BY aggregate_version, created_at`)
 	if err != nil {
 		t.Fatal(err)

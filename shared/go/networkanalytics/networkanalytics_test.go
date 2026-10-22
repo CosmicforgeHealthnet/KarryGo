@@ -23,6 +23,15 @@ func TestClassifyMapsEveryProducerSpelling(t *testing.T) {
 		"dispatch.capability_mismatch.v1":          {AuthorityDispatch, KindCapabilityMismatch},
 		"dispatch.provider_replacement.started.v1": {AuthorityDispatch, KindRecoveryReplaced},
 		"trip.completed.v1":                        {AuthorityDispatch, KindMissionCompleted},
+		"dispatch.booking.unmatched.v1":            {AuthorityDispatch, KindMissionFailed},
+		"dispatch.booking.cancelled.v1":            {AuthorityDispatch, KindMissionCancelled},
+		"dispatch.incident_recovery.started.v1":    {AuthorityDispatch, KindRecoveryStarted},
+		"dispatch.incident_recovery.resolved.v1":   {AuthorityDispatch, KindRecoveryResolved},
+		"dispatch.incident_recovery.failed.v1":     {AuthorityDispatch, KindRecoveryFailed},
+		"dispatch.delivery_recovery.resolved.v1":   {AuthorityDispatch, KindRecoveryResolved},
+		"dispatch.delivery_recovery.failed.v1":     {AuthorityDispatch, KindRecoveryFailed},
+		"taxi.booking.unmatched":                   {AuthorityTaxi, KindMissionFailed},
+		"hauling.booking.unmatched.v1":             {AuthorityHauling, KindMissionFailed},
 		EventBranchReadiness:                       {AuthorityVendor, KindBranchReadiness},
 	}
 	for name, want := range cases {

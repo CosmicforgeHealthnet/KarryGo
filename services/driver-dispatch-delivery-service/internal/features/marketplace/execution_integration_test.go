@@ -307,20 +307,21 @@ func TestExecutionCreatesExactlyOneTripAndReplays(t *testing.T) {
 		t.Fatalf("read-back by key = %d (%v)", status, byKey)
 	}
 
-	// trip.created event was written in the same transaction, once; the
-	// network-analytics fan-out (migration 000064) adds exactly one delivery
-	// copy for analytics, which is not a second event.
-	var eventCount, analyticsCopies int
+	// trip.created event was written in the same transaction, once. Analytics
+	// records the assignment exactly once from the trip row itself
+	// (migration 000076), so trip.created.v1 is not copied to analytics.
+	var eventCount, analyticsCopies, assigned int
 	_ = pool.QueryRow(context.Background(),
-		`SELECT count(*) FILTER (WHERE aggregate_type NOT LIKE 'analytics:%'),
-			count(*) FILTER (WHERE aggregate_type LIKE 'analytics:%')
-		FROM dispatch_marketplace_outbox WHERE event_type = 'trip.created.v1'`).
-		Scan(&eventCount, &analyticsCopies)
+		`SELECT count(*) FILTER (WHERE event_type = 'trip.created.v1' AND aggregate_type NOT LIKE 'analytics:%'),
+			count(*) FILTER (WHERE event_type = 'trip.created.v1' AND aggregate_type LIKE 'analytics:%'),
+			count(*) FILTER (WHERE event_type = 'dispatch.booking.assigned.v1' AND target_service = 'analytics-service')
+		FROM dispatch_marketplace_outbox`).
+		Scan(&eventCount, &analyticsCopies, &assigned)
 	if eventCount != 1 {
 		t.Fatalf("trip.created events = %d, want exactly 1", eventCount)
 	}
-	if analyticsCopies != 1 {
-		t.Fatalf("trip.created analytics copies = %d, want exactly 1", analyticsCopies)
+	if analyticsCopies != 0 || assigned != 1 {
+		t.Fatalf("analytics assignment facts: trip.created copies = %d, assigned = %d, want 0 and 1", analyticsCopies, assigned)
 	}
 }
 

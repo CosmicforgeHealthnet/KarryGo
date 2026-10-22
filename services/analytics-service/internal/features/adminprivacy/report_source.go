@@ -344,11 +344,13 @@ func reportComponents(report string, fact LineageFact, raw []byte) (map[string]i
 }
 
 // unmatchedEvents are the owner events that record a request nobody served.
-// An authority without such an event has an UNKNOWN unmatched count.
-var unmatchedEvents = map[string]bool{"taxi.booking.unmatched": true, "hauling.booking.unmatched.v1": true}
+// An authority without such an event has an UNKNOWN unmatched count. Dispatch
+// delivery failure (trip.delivery_failed.v1) is not unmatched demand; its
+// authoritative unmatched outcome is the customer booking's own transition.
+var unmatchedEvents = map[string]bool{"taxi.booking.unmatched": true, "hauling.booking.unmatched.v1": true, networkanalytics.EventDispatchBookingUnmatched: true}
 
 // unmatchedKnown reports whether an authority publishes an explicit unmatched
-// outcome. Dispatch publishes delivery failure, which is not unmatched demand.
+// outcome.
 func unmatchedKnown(authority string) bool {
-	return authority == networkanalytics.AuthorityTaxi || authority == networkanalytics.AuthorityHauling
+	return authority == networkanalytics.AuthorityTaxi || authority == networkanalytics.AuthorityHauling || authority == networkanalytics.AuthorityDispatch
 }

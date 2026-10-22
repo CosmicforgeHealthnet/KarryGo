@@ -34,16 +34,35 @@ const (
 	maxFacts            = 200000
 )
 
-// anchors maps the delivered aggregate type to the Dispatch admin resource
-// whose signed context assigns scope. Customer bookings and commerce missions
-// have no enrolled Dispatch admin resource kind; they belong to no scope.
+// anchors maps the delivered aggregate type (lower-cased: the trip lifecycle
+// is emitted as 'TRIP', recovery facts as 'trip', commerce missions as
+// 'COMMERCE_MISSION') to the Dispatch admin resource whose owner-signed
+// context alone assigns its scope. Customer bookings (including unmatched
+// ones), partner-API requests, delivery missions and commerce missions are enrolled
+// kinds like trips: a record with no signed context belongs to no scope.
 var anchors = map[string]string{
 	"trip":                                  "missions",
 	"delivery_recovery_action":              "delivery-recoveries",
+	"delivery_incident":                     "incidents",
+	"dispatch_booking":                      "bookings",
+	"delivery_mission":                      "delivery-missions",
+	"commerce_mission":                      "commerce-missions",
+	"partner_request":                       "partner-requests",
 	networkanalytics.SupplyRosterEntityType: "riders",
 }
 
-func AnchorKinds() []string { return []string{"missions", "delivery-recoveries", "riders"} }
+// anchorFor returns the resource kind for a delivered aggregate type, "" with
+// ok=true for a declared unattested population, and ok=false otherwise.
+func anchorFor(entityType string) (string, bool) {
+	if kind := anchors[strings.ToLower(entityType)]; kind != "" {
+		return kind, true
+	}
+	return "", analyticsadmin.UnattestedEntityType(Owner, entityType)
+}
+
+func AnchorKinds() []string {
+	return []string{"missions", "delivery-recoveries", "incidents", "bookings", "delivery-missions", "commerce-missions", "partner-requests", "riders"}
+}
 
 // Facts rebuilds each fact's identity exactly as the analytics outbox worker
 // delivers it (row id, stripped aggregate type, aggregate version, created_at).
@@ -71,8 +90,8 @@ func (f Facts) Facts(ctx context.Context, start, end time.Time) ([]analyticsadmi
 		_ = json.Unmarshal(payload, &hint)
 		family, ok := analyticsadmin.FactFamily(name, hint.Authority)
 		entityType := strings.TrimPrefix(aggregateType, analyticsCopyPrefix)
-		kind := anchors[entityType]
-		if !ok || kind == "" {
+		kind, known := anchorFor(entityType)
+		if !ok || !known {
 			continue
 		}
 		out = append(out, analyticsadmin.ProducerFact{Family: family, AnchorKind: kind, AnchorRef: aggregateID, Member: analyticsadmin.ManifestMember{EventID: id, EventName: name, EntityType: entityType, EntityID: aggregateID, Version: version, OccurredAt: at.UTC().Truncate(time.Microsecond)}})

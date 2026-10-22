@@ -76,6 +76,13 @@ const (
 	EventSupplySnapshot  = "network.supply.snapshot.v1"
 	EventDemandObserved  = "network.demand.observed.v1"
 	EventBranchReadiness = "vendor.branch.readiness_observed.v1"
+	// EventDispatchBookingUnmatched is Dispatch's authoritative unmatched
+	// customer booking outcome.
+	EventDispatchBookingUnmatched = "dispatch.booking.unmatched.v1"
+	// EventDispatchBookingCancelled is a Dispatch request (customer booking,
+	// commerce mission or partner request) cancelled before any trip existed;
+	// once a trip exists, trip.cancelled.v1 is the cancellation fact.
+	EventDispatchBookingCancelled = "dispatch.booking.cancelled.v1"
 )
 
 type classification struct {
@@ -143,9 +150,23 @@ var eventKinds = map[string]classification{
 	// emitted by migration 000064's triggers.
 	"dispatch.booking.committed.v1": {AuthorityDispatch, KindMissionCommitted},
 	"dispatch.booking.assigned.v1":  {AuthorityDispatch, KindMissionAssigned},
-	"commerce.mission.created.v1":   {AuthorityDispatch, KindMissionCommitted},
-	"trip.delivery_failed.v1":       {AuthorityDispatch, KindMissionFailed},
-	"trip.cancelled.v1":             {AuthorityDispatch, KindMissionCancelled},
+	// A customer booking reaching 'unmatched' (no rider found before the
+	// broadcast window closed), emitted by migration 000076's trigger in the
+	// same transaction as the booking's own compare-and-set. The same
+	// vocabulary as taxi.booking.unmatched and hauling.booking.unmatched.v1.
+	EventDispatchBookingUnmatched: {AuthorityDispatch, KindMissionFailed},
+	EventDispatchBookingCancelled: {AuthorityDispatch, KindMissionCancelled},
+	// Dispatch recovery outcomes, recorded by migration 000077 from each
+	// recovery engine's own state change (provider-replacement incidents and
+	// delivery recovery actions). Analytics-only names.
+	"dispatch.incident_recovery.started.v1":  {AuthorityDispatch, KindRecoveryStarted},
+	"dispatch.incident_recovery.resolved.v1": {AuthorityDispatch, KindRecoveryResolved},
+	"dispatch.incident_recovery.failed.v1":   {AuthorityDispatch, KindRecoveryFailed},
+	"dispatch.delivery_recovery.resolved.v1": {AuthorityDispatch, KindRecoveryResolved},
+	"dispatch.delivery_recovery.failed.v1":   {AuthorityDispatch, KindRecoveryFailed},
+	"commerce.mission.created.v1":            {AuthorityDispatch, KindMissionCommitted},
+	"trip.delivery_failed.v1":                {AuthorityDispatch, KindMissionFailed},
+	"trip.cancelled.v1":                      {AuthorityDispatch, KindMissionCancelled},
 
 	// Vendor.
 	EventBranchReadiness: {AuthorityVendor, KindBranchReadiness},

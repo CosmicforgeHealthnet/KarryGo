@@ -27,7 +27,13 @@ func Profiles() []Profile {
 			"providers":         makeDef("taxi", "providers", "taxi.providers.read", providerDimensions, nil, nil),
 			"vehicles":          makeDef("taxi", "vehicles", "taxi.vehicles.read", assetDimensions, []string{"capacity_kg", "seat_capacity"}, []string{"provider"}),
 			"independent-rides": makeDef("taxi", "independent-rides", "taxi.independent_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),
-			"incidents":         makeDef("taxi", "incidents", "taxi.incidents.read", []string{"subject_type", "category", "severity"}, nil, []string{"provider", "vehicle", "booking"}),
+			// Corporate rides: the same native taxi_bookings rows, with the
+			// organization the row itself records.
+			"corporate-rides": makeDef("taxi", "corporate-rides", "taxi.corporate_rides.read", missionDimensions, nil, []string{"provider", "vehicle"}),
+			// Vendor commerce goods missions. No geography or tenant is recorded
+			// on the row; every dimension needs an owner-signed context.
+			"goods-missions": makeDef("taxi", "goods-missions", "taxi.goods_missions.read", []string{"execution", "plan_binding", "custody"}, nil, []string{"provider", "vehicle"}),
+			"incidents":      makeDef("taxi", "incidents", "taxi.incidents.read", []string{"subject_type", "category", "severity"}, nil, []string{"provider", "vehicle", "booking"}),
 		}},
 		{Owner: "driver-dispatch-delivery-service", Domain: "dispatch", Prefix: "DISPATCH", Path: "/internal/dispatch/v1/admin", Definitions: map[string]Definition{
 			"incident-recovery-status": makeDef("dispatch", "incident-recovery-status", "dispatch.incident_recovery.read", []string{"recovery_result", "replacement_strategy", "next_attempt_at_utc", "deadline_utc"}, []string{"recovery_attempts", "captured_trip_revision"}, []string{"trip", "original_provider", "replacement_provider"}),
@@ -39,7 +45,15 @@ func Profiles() []Profile {
 			"riders":                   makeDef("dispatch", "riders", "dispatch.riders.read", providerDimensions, nil, nil),
 			"motorcycles":              makeDef("dispatch", "motorcycles", "dispatch.motorcycles.read", assetDimensions, []string{"capacity_kg"}, []string{"provider"}),
 			"missions":                 makeDef("dispatch", "missions", "dispatch.missions.read", missionDimensions, nil, []string{"provider", "vehicle", "fleet_assignment", "fleet_response"}),
-			"custody-missions":         makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
+			// Customer bookings (including unmatched ones that never get a trip),
+			// assignment-queue delivery missions and Vendor commerce missions.
+			"bookings":          makeDef("dispatch", "bookings", "dispatch.bookings.read", []string{"execution", "service_tier", "package_size"}, nil, []string{"provider"}),
+			"delivery-missions": makeDef("dispatch", "delivery-missions", "dispatch.delivery_missions.read", []string{"execution", "source_type"}, nil, []string{"booking", "trip"}),
+			"commerce-missions": makeDef("dispatch", "commerce-missions", "dispatch.commerce_missions.read", []string{"decision", "runtime"}, nil, []string{"booking", "trip"}),
+			// Partner-API requests: Dispatch's own broadcast row for a request
+			// that has no dispatch_bookings row.
+			"partner-requests": makeDef("dispatch", "partner-requests", "dispatch.partner_requests.read", []string{"execution", "service_type"}, nil, []string{"provider"}),
+			"custody-missions": makeDef("dispatch", "custody-missions", "dispatch.custody.read", []string{"phase", "handover", "return"}, nil, []string{"mission"}),
 		}},
 		{Owner: "driver-hauling-service", Domain: "hauling", Prefix: "HAULING", Path: "/internal/hauling/v1/admin", Definitions: map[string]Definition{
 			"booking-cargo-inputs": makeDef("hauling", "booking-cargo-inputs", "hauling.cargo_inputs.read", []string{"preferred_truck_type", "fragile_handling_required"}, []string{"recorded_weight_kg", "normalized_weight_grams"}, nil),

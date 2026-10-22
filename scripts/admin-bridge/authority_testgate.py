@@ -16,6 +16,8 @@ required = {
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingRestrictionReadsRequireActualSubjectsAndCurrentCanonicalLinks"),
     (prefix + "services/dispatch-delivery-service/internal/features/adminresources", "TestDispatchHandoverStateReadsBindFrozenNativeParentsAndExcludeCredentials"),
     (prefix + "services/taxi-service/internal/features/adminresources", "TestTaxiRecoveryReadsBindNativeParentsAndNeverInferGoodsScope"),
+    (prefix + "services/taxi-service/internal/features/adminresources", "TestTaxiGoodsAndCorporateRideReadsBindOwnRowsWithoutInventingScope"),
+    (prefix + "services/dispatch-delivery-service/internal/features/adminresources", "TestDispatchConsumerPopulationReadsBindOwnRowsWithoutInventingScope"),
     (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewRuntimeRequiresDistinctKeysAndNativeSchema"),
     (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewRecordsOwnerRequestWithImmutableReadback"),
     (prefix + "services/customer-service/internal/features/adminreview", "TestPostgresCustomerReviewConcurrentIdentityAndFreshKeysCannotDuplicate"),

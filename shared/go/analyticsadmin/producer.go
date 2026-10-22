@@ -46,7 +46,9 @@ func ProducerSchemaSHA256() string {
 }
 
 // ProducerFact is one fact the owner delivered (or will deliver) to Analytics,
-// with the owner resource whose authorization context assigns its scope.
+// with the owner resource whose authorization context assigns its scope. An
+// empty AnchorKind marks a fact of a declared unattested population
+// (UnattestedPopulations): it is counted, never anchored and never attested.
 type ProducerFact struct {
 	Member     ManifestMember
 	Family     string
@@ -166,6 +168,9 @@ type Producer struct {
 
 type ProducerResult struct {
 	Published, Unchanged, Unscoped, SkippedRoster int
+	// Unattested counts facts of declared unattested populations: delivered to
+	// Analytics, but with no resource whose context could place them in a scope.
+	Unattested int
 }
 
 func (p *Producer) now() time.Time {
@@ -219,6 +224,14 @@ func (p *Producer) RunOnce(ctx context.Context) (ProducerResult, error) {
 			continue
 		}
 		if fact.Family == FamilySupplyRoster && !p.RosterEnabled {
+			continue
+		}
+		if fact.AnchorKind == "" && !p.Global {
+			if !UnattestedEntityType(p.Owner, fact.Member.EntityType) {
+				// Only a declared population may be left out of every scope.
+				return result, ErrInvalid
+			}
+			result.Unattested++
 			continue
 		}
 		key := fact.AnchorKind + "\x00" + fact.AnchorRef

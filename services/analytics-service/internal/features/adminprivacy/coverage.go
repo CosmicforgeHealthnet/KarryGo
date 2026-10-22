@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -34,6 +35,11 @@ import (
 )
 
 var ErrCoverage = errors.New("owner coverage incomplete or unverifiable")
+
+// ErrUnattestedPopulation: the report reads a population its owner declares
+// it cannot attest into any scope (analyticsadmin.UnattestedPopulations). It is
+// a coverage failure: the bounded PARTIAL path applies, never COMPLETE.
+var ErrUnattestedPopulation = fmt.Errorf("%w: owner-declared unattested population", ErrCoverage)
 var errStaleManifest = errors.New("stale or conflicting manifest revision")
 
 // ManifestStore imports owner manifests into the Analytics database.

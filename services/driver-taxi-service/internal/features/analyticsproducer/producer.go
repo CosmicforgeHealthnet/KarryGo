@@ -33,14 +33,41 @@ const (
 )
 
 // anchors maps an analytics outbox aggregate to the Taxi admin resource whose
-// signed context assigns scope. Goods missions have no enrolled Taxi admin
-// resource kind, so their facts belong to no scope (never guessed).
+// owner-signed context alone assigns scope. A passenger booking is anchored
+// to independent-rides or corporate-rides according to its own row (see
+// corporateBookings); goods missions to the enrolled goods-missions kind. A
+// record with no signed context belongs to no scope; nothing is guessed.
 var anchors = map[string]string{
 	"booking":                               "independent-rides",
+	"taxi_goods_mission":                    "goods-missions",
 	networkanalytics.SupplyRosterEntityType: "providers",
 }
 
-func AnchorKinds() []string { return []string{"independent-rides", "providers"} }
+func AnchorKinds() []string {
+	return []string{"independent-rides", "corporate-rides", "goods-missions", "providers"}
+}
+
+// corporateBookings returns the bookings whose own row records corporate
+// management or an organization: the exact rows independent-rides excludes.
+func corporateBookings(ctx context.Context, db *pgxpool.Pool, ids []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := db.Query(ctx, `SELECT id::text FROM taxi_bookings WHERE id::text=ANY($1) AND (is_corporate_managed OR organization_id IS NOT NULL)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
 
 // Facts rebuilds each delivered fact through outbox.AnalyticsEnvelope, the
 // same function the delivery path uses, so identities match exactly.
@@ -53,6 +80,7 @@ func (f Facts) Facts(ctx context.Context, start, end time.Time) ([]analyticsadmi
 	}
 	defer rows.Close()
 	out := []analyticsadmin.ProducerFact{}
+	bookings := []string{}
 	for rows.Next() {
 		var record outbox.Record
 		if err := rows.Scan(&record.ID, &record.AggregateType, &record.AggregateID, &record.EventType, &record.Payload, &record.OccurredAt); err != nil {
@@ -65,15 +93,31 @@ func (f Facts) Facts(ctx context.Context, start, end time.Time) ([]analyticsadmi
 		_ = json.Unmarshal(record.Payload, &hint)
 		family, ok := analyticsadmin.FactFamily(envelope.EventName, hint.Authority)
 		kind := anchors[envelope.SourceEntityType]
-		if !ok || kind == "" {
+		if !ok || kind == "" && !analyticsadmin.UnattestedEntityType(Owner, envelope.SourceEntityType) {
 			continue
+		}
+		if kind == "independent-rides" {
+			bookings = append(bookings, envelope.SourceEntityID)
 		}
 		out = append(out, analyticsadmin.ProducerFact{Family: family, AnchorKind: kind, AnchorRef: envelope.SourceEntityID, Member: analyticsadmin.ManifestMember{EventID: envelope.EventID, EventName: envelope.EventName, EntityType: envelope.SourceEntityType, EntityID: envelope.SourceEntityID, Version: envelope.SourceVersion, OccurredAt: envelope.OccurredAt.Truncate(time.Microsecond)}})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
 	if len(out) > maxFacts {
 		return nil, errors.New("analytics producer window too large")
 	}
-	return out, rows.Err()
+	corporate, err := corporateBookings(ctx, f.DB, bookings)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].AnchorKind == "independent-rides" && corporate[out[i].AnchorRef] {
+			out[i].AnchorKind = "corporate-rides"
+		}
+	}
+	return out, nil
 }
 
 type OnlineSet interface {

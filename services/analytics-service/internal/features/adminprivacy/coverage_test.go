@@ -580,8 +580,9 @@ func TestPostgresCompleteCountingReportsAndTypedSDK(t *testing.T) {
 		payload                                                 map[string]any
 		want                                                    map[string]int64
 	}{
-		{"capability-mismatches", "driver-dispatch-delivery-service", "DISPATCH", "DISPATCH_PARCEL", "source_entity_id", "dispatch.capability_mismatch.v1", "trip", map[string]any{"reason_codes": []any{"CAPACITY"}}, map[string]int64{"mismatches": 6}},
-		{"declines", "driver-dispatch-delivery-service", "DISPATCH", "DISPATCH_PARCEL", "provider_id", "dispatch.offer.declined.v1", "trip", map[string]any{"reason_code": "UNSAFE_ROUTE"}, map[string]int64{"declines": 0, "safety_declines": 6}},
+		// Dispatch delivery-mission mismatches and declines are covered by
+		// TestPostgresEnrolledPopulationsReleaseCompleteOnlyWhenTiled.
+		{"capability-mismatches", "driver-hauling-service", "HAULING", "HAULAGE", "source_entity_id", "hauling.capability_mismatch", "recovery_case", map[string]any{"reason_code": "CAPACITY"}, map[string]int64{"mismatches": 6}},
 		{"demand", "driver-hauling-service", "HAULING", "HAULAGE", "source_entity_id", "hauling.booking.committed.v1", "haulage_booking", map[string]any{}, map[string]int64{"requests": 6, "unmatched": 0}},
 		{"mission-outcomes", "driver-hauling-service", "HAULING", "HAULAGE", "source_entity_id", "hauling.booking.completed.v1", "haulage_booking", map[string]any{}, map[string]int64{"completed": 6, "committed": 0}},
 	}
@@ -627,14 +628,26 @@ func TestPostgresCompleteCountingReportsAndTypedSDK(t *testing.T) {
 	}
 }
 
-func TestDemandUnmatchedUnknownForDispatch(t *testing.T) {
-	cells, err := reduceComplete(completeInput{Report: "demand", Field: "source_entity_id", Query: Query{Filters: map[string]string{"authority": "DISPATCH"}}, Sets: map[string]coveredSet{}})
+// An authority with no authoritative unmatched event keeps an UNKNOWN cell; a
+// Dispatch delivery failure is never read as unmatched demand.
+func TestDemandUnmatchedUnknownWithoutAuthoritativeEvent(t *testing.T) {
+	cells, err := reduceComplete(completeInput{Report: "demand", Field: "source_entity_id", Query: Query{Filters: map[string]string{"authority": "VENDOR"}}, Sets: map[string]coveredSet{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range cells {
 		if c.Key == "unmatched" && c.Count != nil {
-			t.Fatal("dispatch unmatched invented")
+			t.Fatal("unmatched invented for an authority with no unmatched outcome")
+		}
+	}
+	failed := LineageFact{EventID: "f1", EventName: "trip.delivery_failed.v1", Authority: "DISPATCH", SubjectHash: "s1"}
+	cells, err = reduceComplete(completeInput{Report: "demand", Field: "source_entity_id", Query: Query{Filters: map[string]string{"authority": "DISPATCH"}}, Sets: map[string]coveredSet{analyticsadmin.FamilyNetworkEvents: {Facts: []LineageFact{failed}, Payloads: map[string][]byte{"f1": []byte(`{}`)}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cells {
+		if c.Key == "unmatched" && (c.Count == nil || *c.Count != 0) {
+			t.Fatal("a delivery failure was counted as unmatched demand", c)
 		}
 	}
 	if m, md := meanMedian([]int64{4, 1, 3, 2}); m != 2 || md != 2 {

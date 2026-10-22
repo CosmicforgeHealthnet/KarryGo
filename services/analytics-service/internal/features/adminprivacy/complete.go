@@ -67,6 +67,10 @@ func unitFields(report, field string, kind networkanalytics.Kind) []string {
 	return []string{field}
 }
 
+// unattestedPopulations is the owners' closed declaration; a variable only so
+// this package's tests can prove the refusal for a declared population.
+var unattestedPopulations = analyticsadmin.UnattestedPopulations
+
 // collectCovered verifies one family's coverage and reads every relevant
 // member as a native unit fact. A relevant member that cannot be attributed to
 // the approved unit makes the set incomplete; it is never silently dropped.
@@ -84,6 +88,12 @@ func collectCovered(ctx context.Context, tx pgx.Tx, authority admincontext.Autho
 	}
 	if err != nil {
 		return out, err
+	}
+	// A scoped manifest can only attest facts the owner can place in a scope.
+	// A population the owner declares unattestable is in no scoped manifest,
+	// so its absence proves nothing: such a report is never COMPLETE.
+	if !global && !analyticsadmin.PopulationAttestedUnder(unattestedPopulations(), q.Filters["authority"], q.Filters["product_code"], lineageReports[report].kinds) {
+		return out, ErrUnattestedPopulation
 	}
 	out.Proof = proof
 	reader := LineageReader{Owner: authority.Owner}
@@ -473,7 +483,7 @@ func reduceComplete(in completeInput) ([]Cell, error) {
 func caseKey(fact LineageFact, payload []byte) string {
 	var p map[string]any
 	_ = json.Unmarshal(payload, &p)
-	for _, key := range []string{"recovery_case_id", "recovery_case_ref", "incident_id"} {
+	for _, key := range []string{"recovery_case_id", "recovery_case_ref", "incident_id", "recovery_action_id"} {
 		if v, ok := p[key].(string); ok && v != "" {
 			return v
 		}

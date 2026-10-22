@@ -161,15 +161,20 @@ func (r LineageReader) ReadUnit(ctx context.Context, tx pgx.Tx, report, field, e
 		family = "BRANCH"
 	case "source_entity_id":
 		switch out.EntityType {
-		case "booking", "taxi_booking", "taxi_goods_mission", "haulage_booking", "trip", "dispatch_booking", "delivery_mission":
+		case "booking", "taxi_booking", "taxi_goods_mission", "haulage_booking", "trip", "dispatch_booking", "delivery_mission", "partner_request":
 			family = "SOURCE_ENTITY." + out.EntityType
+		case "TRIP", "COMMERCE_MISSION", "commerce_mission":
+			// Dispatch emits its trip lifecycle as 'TRIP' (recovery facts as
+			// 'trip'; both are trips.id, so one subject) and commerce missions
+			// as 'COMMERCE_MISSION' (the mission's canonical reference).
+			family = "SOURCE_ENTITY." + strings.ToLower(out.EntityType)
 
 		case "vendor_order":
 			if report != "readiness" || expected != "vendor-service" {
 				return LineageFact{}, ErrUnmapped
 			}
 			family = "SOURCE_ENTITY.vendor_order"
-		case "recovery_case", "delivery_recovery_action":
+		case "recovery_case", "delivery_recovery_action", "delivery_incident":
 			family = "SOURCE_ENTITY." + out.EntityType
 		case networkanalytics.SupplyRosterEntityType:
 			if actualKind != networkanalytics.KindSupplyRoster {

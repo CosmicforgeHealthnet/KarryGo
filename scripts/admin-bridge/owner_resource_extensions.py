@@ -7,9 +7,20 @@ idempotently (re)writes their capability matrix entries.
 KINDS = {
     ("taxi", "incidents"): ("driver-taxi-service", "taxi.incidents.read", "R2", ["TestTaxiIncidentReadsAndCaseEvidenceAuthority"]),
     ("fleet", "investigations"): ("fleet-partner-service", "fleet.investigations.read", "R2", ['TestPostgresFleetInvestigationLifecycleApprovalAndRealEffects', 'TestPostgresFleetInvestigationCaseAuthorityProof']),
+    # Section 6 analytics populations: native owner rows anchored by
+    # owner-signed contexts exactly like trips, riders and independent rides.
+    ("dispatch", "bookings"): ("driver-dispatch-delivery-service", "dispatch.bookings.read", "R2", ["TestDispatchConsumerPopulationReadsBindOwnRowsWithoutInventingScope"]),
+    ("dispatch", "delivery-missions"): ("driver-dispatch-delivery-service", "dispatch.delivery_missions.read", "R2", ["TestDispatchConsumerPopulationReadsBindOwnRowsWithoutInventingScope"]),
+    ("dispatch", "commerce-missions"): ("driver-dispatch-delivery-service", "dispatch.commerce_missions.read", "R2", ["TestDispatchConsumerPopulationReadsBindOwnRowsWithoutInventingScope"]),
+    ("dispatch", "partner-requests"): ("driver-dispatch-delivery-service", "dispatch.partner_requests.read", "R2", ["TestDispatchConsumerPopulationReadsBindOwnRowsWithoutInventingScope"]),
+    ("taxi", "goods-missions"): ("driver-taxi-service", "taxi.goods_missions.read", "R2", ["TestTaxiGoodsAndCorporateRideReadsBindOwnRowsWithoutInventingScope"]),
+    ("taxi", "corporate-rides"): ("driver-taxi-service", "taxi.corporate_rides.read", "R2", ["TestTaxiGoodsAndCorporateRideReadsBindOwnRowsWithoutInventingScope"]),
     ("hauling", "inspections"): ("driver-hauling-service", "hauling.inspections.read", "R2", ["TestPostgresInspectionLifecycleFailRestrictsTruckAndServesCaseAuthority", "TestPostgresInspectionCrossTenantAndRevokedOwnership"]),
 }
-SOURCE_PATH = {"taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources"}
+SOURCE_PATH = {"dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources"}
+
+# Native operational rows rather than case records.
+EVIDENCE = {key: "Owner-native operational row bound by an owner-signed context; immutable owner disclosure audit and bridge audit" for key in KINDS if key[1] in ("bookings", "delivery-missions", "commerce-missions", "partner-requests", "goods-missions", "corporate-rides")}
 
 
 def entries():
@@ -23,7 +34,7 @@ def entries():
                 "scope": "karryam + exact market + zone + organization + tenant; delegated staff and current signed source-owner context",
                 "risk": risk, "privacy": "MINIMIZED_OPERATIONAL_METADATA", "source_version_required": False, "idempotency_required": False,
                 "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
-                "evidence": "Owner-written case record and its immutable decision history; immutable owner disclosure audit and bridge audit",
+                "evidence": EVIDENCE.get((domain, kind), "Owner-written case record and its immutable decision history; immutable owner disclosure audit and bridge audit"),
                 "feature_flag": f"ADMIN_{'FLEET_PARTNER' if domain == 'fleet' else domain.upper()}_RESOURCE_READ_ENABLED; {'FLEET_PARTNER' if domain == 'fleet' else domain.upper()}_ADMIN_RESOURCE_READ_ENABLED",
                 "tests": ["TestActualOwnerMigrationsAndSourceDictionary", "TestOwnerResourcesDelegation", *tests],
                 "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",

@@ -85,6 +85,21 @@ func TestPublicOwnerAdministrativePathsNeverReachOwners(t *testing.T) {
 		"/api/v1/hauling/internal/hauling/v1/admin/commands",
 		"/internal/fleet/v1/admin/commands",
 		"/internal/fleet/v1/admin/case-authority/proofs/investigations/ref/CASE/ref",
+		// Section 6 analytics populations enrolled as owner resource kinds.
+		"/internal/karryam-admin/v1/dispatch/resources/bookings",
+		"/internal/karryam-admin/v1/dispatch/resources/delivery-missions/ref",
+		"/internal/karryam-admin/v1/dispatch/resources/commerce-missions/ref",
+		"/internal/karryam-admin/v1/dispatch/resources/partner-requests/ref",
+		"/api/v1/dispatch/internal/dispatch/v1/admin/resources/partner-requests",
+		"/internal/karryam-admin/v1/taxi/resources/goods-missions",
+		"/internal/karryam-admin/v1/taxi/resources/corporate-rides/ref",
+		"/internal/dispatch/v1/admin/resources/bookings/ref",
+		"/api/v1/dispatch/internal/dispatch/v1/admin/resources/delivery-missions",
+		"/api/v1/dispatch/internal/dispatch/v1/admin/resources/commerce-missions/ref",
+		"/api/v1/dispatch/internal/dispatch/v1/admin/authorization-contexts/bindings/bookings/ref",
+		"/internal/taxi/v1/admin/resources/goods-missions/ref",
+		"/api/v1/taxi/internal/taxi/v1/admin/resources/corporate-rides",
+		"/api/v1/taxi/internal/taxi/v1/admin/authorization-contexts/bindings/goods-missions/ref",
 	}
 	for _, base := range paths {
 		for _, path := range []string{base, strings.ReplaceAll(base, "internal", "%2569nternal"), "/api/v1/taxi/../.." + base} {

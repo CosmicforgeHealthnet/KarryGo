@@ -182,14 +182,20 @@ func TestDispatchPublishesSupplyAndDemandAsCountsOnly(t *testing.T) {
 	}
 }
 
-// Migration 000064: committed and assigned bookings, and the real 'TRIP'
-// aggregate, reach analytics.
+// Migrations 000064/000076: a committed booking, its assignment (recorded once,
+// from the trip row that executes it) and the real 'TRIP' aggregate reach
+// analytics.
 func TestDispatchLifecycleReachesAnalytics(t *testing.T) {
 	pool, cleanup := operationalTestPool(t)
 	defer cleanup()
 	ctx := context.Background()
 	seedBooking(t, pool, "searching")
 	if _, err := pool.Exec(ctx, `UPDATE dispatch_bookings SET status='accepted'`); err != nil {
+		t.Fatal(err)
+	}
+	rider := seedRider(t, pool, "busy", true)
+	if _, err := pool.Exec(ctx, `INSERT INTO trips(booking_id,provider_id,customer_id,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone)
+		SELECT id,$1,customer_id,'a',0,0,'b',0,0,100,'r','p' FROM dispatch_bookings`, rider); err != nil {
 		t.Fatal(err)
 	}
 	trip := uuid.NewString()
