@@ -226,12 +226,19 @@ func TestPostgresRecoveryReplacementRequiresCurrentOwnerValidation(t *testing.T)
 	if w.scalar(`SELECT state FROM hauling_recovery_cases WHERE id=$1`, recoveryID) != "DETECTED" {
 		t.Fatal("rejected replacement moved the case")
 	}
+	if w.scalar(`SELECT count(*)::text FROM hauling_payment_rebind_obligations WHERE booking_id=$1`, booking) != "0" {
+		t.Fatal("a rejected replacement wrote a payment rebind obligation")
+	}
 	r := w.must(replace(w.provider2, w.truck2))
 	if r.PriorState != "DETECTED" || r.ResultingState != "IN_PROGRESS" || r.Outcome != "REPLACEMENT_BOUND" {
 		t.Fatal(r)
 	}
 	if w.scalar(`SELECT provider_id::text||'/'||truck_id::text FROM haulage_bookings WHERE id=$1`, booking) != w.provider2+"/"+w.truck2 {
 		t.Fatal("booking not rebound")
+	}
+	// The held payment must follow: the obligation commits with the command.
+	if w.scalar(`SELECT state||'/'||provider_id::text||'/'||recovery_case_id::text FROM hauling_payment_rebind_obligations WHERE booking_id=$1`, booking) != "PENDING/"+w.provider2+"/"+recoveryID {
+		t.Fatal("operator replacement did not write the payment rebind obligation")
 	}
 	w.expect(w.command("recoveries", recoveryID, "REQUEST_RECOVERY_REPLACEMENT", "", 1, map[string]string{"replacement_provider_id": w.provider, "replacement_truck_id": w.truck}), admincommand.ErrRejected)
 	tx, _ := w.db.Begin(ctx)

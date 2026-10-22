@@ -3,6 +3,7 @@ package config
 import (
 	"cosmicforge/logistics/shared/go/redisx"
 	"errors"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -59,6 +60,12 @@ type Config struct {
 	// Internal service clients
 	NotificationURL    string
 	NotificationSecret []byte
+
+	// CustomerStandingEnforced refuses NEW customer bookings while
+	// customer-service reports an administrative hold, and fails closed when
+	// the standing cannot be confirmed. Off by default; requires
+	// CustomerServiceURL (bare origin) and CustomerServiceSecret.
+	CustomerStandingEnforced bool
 
 	// Customer movement events. Disabled by default; enabling it requires the
 	// customer-service origin and the shared HMAC secret.
@@ -175,6 +182,17 @@ type Config struct {
 	RecoveryEventsEnabled bool
 	// RecoveryEventTarget names the outbox delivery target.
 	RecoveryEventTarget string
+	// RecoveryPaymentRebindWorkerEnabled lets the worker that drives each
+	// replacement's durable payment rebind obligation through Wallet's
+	// execution-provider contract run. It runs only when recovery is enabled
+	// and Wallet credentials are configured (without them nothing is held, so
+	// nothing needs moving). On by default because it is reconciliation, not a
+	// new capability; setting it false is an explicit off switch, and the
+	// settlement-time guard remains the backstop either way.
+	RecoveryPaymentRebindWorkerEnabled bool
+	// RecoveryPaymentRebindMaxAttempts bounds Wallet attempts per obligation
+	// before it is parked as RECONCILIATION_REQUIRED.
+	RecoveryPaymentRebindMaxAttempts int
 	// Section 13. AnalyticsEventsEnabled starts the worker that delivers
 	// analytics-addressed outbox rows to analytics-service. Off by default:
 	// analytics is advisory, and nothing about a load depends on it.
@@ -248,6 +266,7 @@ func Load() Config {
 		CustomerMovementEventsEnabled: getEnvBool("HAULING_CUSTOMER_MOVEMENT_EVENTS_ENABLED", false),
 		CustomerServiceURL:            os.Getenv("HAULING_CUSTOMER_SERVICE_URL"),
 		CustomerServiceSecret:         []byte(os.Getenv("HAULING_CUSTOMER_SERVICE_SECRET")),
+		CustomerStandingEnforced:      getEnvBool("HAULING_CUSTOMER_STANDING_ENFORCED", false),
 		PaymentURL:                    os.Getenv("HAULING_PAYMENT_URL"),
 		PaymentSecret:                 []byte(os.Getenv("HAULING_PAYMENT_SECRET")),
 		MediaURL:                      os.Getenv("HAULING_MEDIA_URL"),
@@ -294,6 +313,9 @@ func Load() Config {
 		PolicyReconcileInterval:       time.Duration(getEnvInt("HAULING_POLICY_RECONCILE_INTERVAL_SECONDS", 120)) * time.Second,
 		CapabilityMaintenanceInterval: time.Duration(getEnvInt("HAULING_CAPABILITY_MAINTENANCE_INTERVAL_SECONDS", 900)) * time.Second,
 		MatchDecisionRetention:        time.Duration(getEnvInt("HAULING_MATCH_DECISION_RETENTION_DAYS", 30)) * 24 * time.Hour,
+
+		RecoveryPaymentRebindWorkerEnabled: getEnvBool("HAULING_RECOVERY_PAYMENT_REBIND_WORKER_ENABLED", true),
+		RecoveryPaymentRebindMaxAttempts:   getEnvInt("HAULING_RECOVERY_PAYMENT_REBIND_MAX_ATTEMPTS", 12),
 
 		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
@@ -380,6 +402,17 @@ func (c Config) Validate() error {
 	// nothing, which is worse than a refusal at startup.
 	if c.RecoveryEventsEnabled && !c.RecoveryEnabled {
 		problems = append(problems, "HAULING_RECOVERY_EVENTS_ENABLED requires HAULING_RECOVERY_ENABLED")
+	}
+	// Obligations are only ever parked after at least one Wallet attempt.
+	if c.RecoveryPaymentRebindWorkerEnabled && c.RecoveryPaymentRebindMaxAttempts < 1 {
+		problems = append(problems, "HAULING_RECOVERY_PAYMENT_REBIND_MAX_ATTEMPTS must be at least 1")
+	}
+	if c.CustomerStandingEnforced {
+		if strings.TrimSpace(c.CustomerServiceURL) == "" || len(c.CustomerServiceSecret) == 0 {
+			problems = append(problems, "HAULING_CUSTOMER_STANDING_ENFORCED requires HAULING_CUSTOMER_SERVICE_URL and HAULING_CUSTOMER_SERVICE_SECRET")
+		} else if parsed, err := url.Parse(strings.TrimSpace(c.CustomerServiceURL)); err != nil || parsed.Scheme == "" || parsed.Host == "" || strings.Trim(parsed.Path, "/") != "" {
+			problems = append(problems, "HAULING_CUSTOMER_SERVICE_URL must be a bare origin when HAULING_CUSTOMER_STANDING_ENFORCED is true")
+		}
 	}
 	if c.ProviderOrganizationModeEnabled {
 		if strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" || len(c.FleetServiceSecret) == 0 {

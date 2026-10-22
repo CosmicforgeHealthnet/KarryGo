@@ -1,6 +1,7 @@
 package recovery
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,9 +114,82 @@ func TestMigrationNumbersAreUnique(t *testing.T) {
 			counts[prefix]++
 		}
 	}
-	for _, number := range []string{"022", "023"} {
+	for _, number := range []string{"022", "023", "032"} {
 		if counts[number] != 1 {
 			t.Fatalf("found %d migrations numbered %s, want exactly 1", counts[number], number)
 		}
+	}
+}
+
+// Every obligation state the worker can write must be accepted by the CHECK
+// constraint, and the down migration must reverse the up.
+func TestPaymentRebindMigrationMatchesTheModel(t *testing.T) {
+	up := readMigration(t, "032_recovery_payment_rebind_obligations.up.sql")
+	down := readMigration(t, "032_recovery_payment_rebind_obligations.down.sql")
+	for _, state := range []RebindState{
+		RebindPending, RebindUnknownOutcome, RebindCompleted, RebindCompletedNotHeld,
+		RebindSuperseded, RebindReconciliationRequired,
+	} {
+		if !strings.Contains(up, "'"+string(state)+"'") {
+			t.Errorf("migration does not accept obligation state %q", state)
+		}
+	}
+	for _, required := range []string{
+		"hauling_payment_rebind_obligations", "uq_hauling_payment_rebind_case_provider",
+		"UNIQUE (recovery_case_id, provider_id)", "chk_hauling_payment_rebind_terminal",
+		"lease_owner", "lease_expires_at", "next_attempt_at", "attempts", "last_error_code",
+		"wallet_binding_version",
+	} {
+		if !strings.Contains(up, required) {
+			t.Errorf("payment rebind migration missing %q", required)
+		}
+	}
+	if !strings.Contains(down, "DROP TABLE IF EXISTS hauling_payment_rebind_obligations") {
+		t.Error("down does not drop the obligation table")
+	}
+	if !strings.Contains(down, "RAISE EXCEPTION") {
+		t.Error("down must refuse while obligations are still open")
+	}
+}
+
+// The down migration refuses while an obligation is open, succeeds once none
+// is, and the up re-applies cleanly.
+func TestPaymentRebindMigrationRollsBackOnlyWhenSettledAndReapplies(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	bookingID, _ := replacedBooking(t, pool, "op-rebind-migration")
+	var otherOpen int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM hauling_payment_rebind_obligations
+		WHERE booking_id<>$1 AND state IN ('PENDING','UNKNOWN_OUTCOME')`, bookingID).Scan(&otherOpen); err != nil {
+		t.Fatal(err)
+	}
+	if otherOpen > 0 {
+		t.Skip("another package left open obligations in this database")
+	}
+	up := readMigration(t, "032_recovery_payment_rebind_obligations.up.sql")
+	down := readMigration(t, "032_recovery_payment_rebind_obligations.down.sql")
+	if _, err := pool.Exec(ctx, down); err == nil {
+		t.Fatal("rollback dropped an open payment rebind obligation")
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM hauling_payment_rebind_obligations`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, down); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	var exists bool
+	_ = pool.QueryRow(ctx, `SELECT to_regclass('hauling_payment_rebind_obligations') IS NOT NULL`).Scan(&exists)
+	if exists {
+		t.Fatal("rollback left the table")
+	}
+	if _, err := pool.Exec(ctx, up); err != nil {
+		t.Fatalf("reapply: %v", err)
+	}
+	if _, err := pool.Exec(ctx, up); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	_ = pool.QueryRow(ctx, `SELECT to_regclass('hauling_payment_rebind_obligations') IS NOT NULL`).Scan(&exists)
+	if !exists {
+		t.Fatal("reapply did not recreate the table")
 	}
 }

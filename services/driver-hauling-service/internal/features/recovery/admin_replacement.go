@@ -41,9 +41,11 @@ func (r *Repository) CaseByIDTx(ctx context.Context, tx pgx.Tx, caseID string) (
 // an ACTIVE truck of the named provider and must pass cargofit.Evaluate against
 // the booking's CURRENT requirement. A case that already has a replacement, a
 // terminal case or a booking that moved on is refused with ErrConflict. Events
-// are written through the transactional sink; notifications and the payment
-// rebind are left to the settlement-time guard (which re-checks the binding by
-// recovery case before releasing anything).
+// are written through the transactional sink, and -- when the booking is
+// rebound here -- the payment rebind obligation is written in the same
+// transaction, so the held payment follows the replacement durably (the
+// payment rebind worker drives it; the settlement-time guard remains the
+// backstop). Notifications are not sent from inside the caller's transaction.
 func (s *Service) SelectNamedReplacementTx(ctx context.Context, tx pgx.Tx, caseID, providerID, truckID, actor string) (Case, error) {
 	if !s.Enabled() {
 		return Case{}, ErrUnavailable
@@ -96,6 +98,13 @@ func (s *Service) SelectNamedReplacementTx(ctx context.Context, tx pgx.Tx, caseI
 	advanced, err := repo.Advance(ctx, AdvanceInput{CaseID: current.ID, State: next, ReplacementProviderID: providerID, ReplacementTruckID: truckID, ExpectedVersion: current.Version, Actor: actor}, now)
 	if err != nil {
 		return Case{}, err
+	}
+	if next == StateInProgress {
+		// The booking was rebound above, in this transaction: the obligation
+		// commits or rolls back with it (and with the admin command ledger).
+		if err := s.repo.RecordPaymentRebindTx(ctx, tx, booking.ID, current.ID, providerID); err != nil {
+			return Case{}, err
+		}
 	}
 	s.publish(ctx, tx, EventRecoveryProviderReplaced, advanced, map[string]any{"custody_transfer_required": advanced.CustodyTransferRequired, "operator_directed": true})
 	return advanced, nil

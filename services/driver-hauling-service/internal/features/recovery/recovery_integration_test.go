@@ -3,13 +3,17 @@ package recovery
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/hauling-service/internal/cargofit"
+	"cosmicforge/logistics/services/hauling-service/internal/database"
 	"cosmicforge/logistics/shared/go/custodyops"
 	"cosmicforge/logistics/shared/go/geo"
 )
@@ -34,7 +38,33 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	if err := pool.Ping(context.Background()); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
+	migrateOnce.Do(func() { migrateErr = applyServiceMigrations(pool) })
+	if migrateErr != nil {
+		t.Fatalf("apply migrations: %v", migrateErr)
+	}
 	return pool
+}
+
+var (
+	migrateOnce sync.Once
+	migrateErr  error
+)
+
+// applyServiceMigrations runs the service's real migration runner, so this
+// package works against an EMPTY test database as well as one another package
+// already migrated (the runner is tracked and replay-safe).
+func applyServiceMigrations(pool *pgxpool.Pool) error {
+	_, sourceFile, _, _ := runtime.Caller(0)
+	serviceRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", "..", ".."))
+	previous, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	if err := os.Chdir(serviceRoot); err != nil {
+		return err
+	}
+	defer func() { _ = os.Chdir(previous) }()
+	return database.ApplyMigrations(context.Background(), pool)
 }
 
 const (
@@ -65,6 +95,7 @@ func seed(t *testing.T, pool *pgxpool.Pool, status string) string {
 	// whatever else is in the database.
 	for _, statement := range []string{
 		`UPDATE haulage_bookings SET active_recovery_id=NULL WHERE id=$1`,
+		`DELETE FROM hauling_payment_rebind_obligations WHERE booking_id=$1`,
 		`DELETE FROM hauling_recovery_cases WHERE booking_id=$1`,
 		`DELETE FROM booking_events WHERE booking_id=$1`,
 		`DELETE FROM haulage_bookings WHERE id=$1`,

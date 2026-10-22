@@ -36,6 +36,7 @@ func RegisterInternal(group *gin.RouterGroup, handler *Handler) {
 	group.POST("/recovery/bookings/:id/complete-transfer", handler.completeTransfer)
 	group.POST("/recovery/bookings/:id/resolve", handler.resolve)
 	group.GET("/recovery/bookings/:id", handler.get)
+	group.GET("/recovery/bookings/:id/payment-rebinds", handler.paymentRebinds)
 }
 
 type startRequest struct {
@@ -122,6 +123,17 @@ func (h *Handler) resolve(c *gin.Context) {
 func (h *Handler) get(c *gin.Context) {
 	result, err := h.service.Get(c.Request.Context(), c.Param("id"))
 	respond(c, result, err)
+}
+
+// paymentRebinds lists the booking's payment rebind obligations, newest first,
+// so an operator can see whether the held payment followed each replacement.
+func (h *Handler) paymentRebinds(c *gin.Context) {
+	obligations, err := h.service.PaymentRebinds(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"obligations": obligations}})
 }
 
 func respond(c *gin.Context, result Public, err error) {

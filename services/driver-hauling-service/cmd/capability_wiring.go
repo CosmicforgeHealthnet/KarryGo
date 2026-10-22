@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"cosmicforge/logistics/shared/go/policyingest"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"cosmicforge/logistics/shared/go/supportcase"
+	"cosmicforge/logistics/shared/go/walletclient"
 )
 
 // nearbyProviderAdapter narrows the full availability store to the two fields
@@ -64,8 +66,11 @@ type capabilityWiring struct {
 	// recoveryService is the same recovery authority the handler wraps; the
 	// owner administrative command path binds named replacements through it.
 	recoveryService *recovery.Service
-	support         *supportcontext.Projector
-	config          config.Config
+	// paymentRebinds drives each replacement's payment rebind obligation.
+	// Nil without Wallet credentials; its sweep runs while recovery is enabled.
+	paymentRebinds *recovery.PaymentRebindWorker
+	support        *supportcontext.Projector
+	config         config.Config
 }
 
 // buildCapabilityWiring constructs the capability feature.
@@ -84,19 +89,21 @@ func buildCapabilityWiring(
 		Repository:                    truckcapability.NewRepository(db),
 		CertificationRequiredProducts: cfg.CertificationRequiredProducts,
 	})
+	rebinds := recoveryPaymentRebinds(cfg, db)
 	recoveryService := recovery.New(recovery.Options{
 		Repository: recovery.NewRepository(db),
 		Candidates: recoveryCandidates{store: availability},
 		// The SAME capability service the matcher uses. Recovery has no
 		// fit rules of its own, so a replacement is evaluated by exactly
 		// the call that chose the original provider.
-		Capability:  service,
-		Custody:     custodyops.NewRepository(db, "HAULING"),
-		Events:      recovery.NewOutboxSink(db, cfg.RecoveryEventTarget, cfg.RecoveryEventsEnabled, nil),
-		MaxRadiusKm: cfg.MatchMaxRadiusKm,
-		Enabled:     cfg.RecoveryEnabled,
-		Payments:    recoveryPayments(cfg),
-		Notifier:    notifier,
+		Capability:     service,
+		Custody:        custodyops.NewRepository(db, "HAULING"),
+		Events:         recovery.NewOutboxSink(db, cfg.RecoveryEventTarget, cfg.RecoveryEventsEnabled, nil),
+		MaxRadiusKm:    cfg.MatchMaxRadiusKm,
+		Enabled:        cfg.RecoveryEnabled,
+		Payments:       recoveryPayments(cfg),
+		PaymentRebinds: rebinds,
+		Notifier:       notifier,
 	})
 	return capabilityWiring{
 		service: service,
@@ -110,6 +117,7 @@ func buildCapabilityWiring(
 		authority:       capabilityAuthority{service: service},
 		recovery:        recovery.NewHandler(recoveryService),
 		recoveryService: recoveryService,
+		paymentRebinds:  rebinds,
 		policy: truckcapability.NewPolicyIngest(truckcapability.PolicyIngestOptions{
 			DB:                db,
 			CallerName:        cfg.AdminServiceCaller,
@@ -212,6 +220,22 @@ func (c recoveryCandidates) NearbyProviders(
 		})
 	}
 	return out, nil
+}
+
+// recoveryPaymentRebinds builds the obligation worker over the same Wallet
+// credentials and HMAC identity the booking payments client uses.
+func recoveryPaymentRebinds(cfg config.Config, db *pgxpool.Pool) *recovery.PaymentRebindWorker {
+	if strings.TrimSpace(cfg.PaymentURL) == "" || len(cfg.PaymentSecret) == 0 {
+		return nil
+	}
+	return &recovery.PaymentRebindWorker{
+		DB: db,
+		Wallet: walletclient.Client{
+			BaseURL: cfg.PaymentURL, ServiceName: "driver-hauling-service", Secret: cfg.PaymentSecret,
+			HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		},
+		MaxAttempts: cfg.RecoveryPaymentRebindMaxAttempts,
+	}
 }
 
 // recoveryPayments moves a booking's held payment to its replacement (Section

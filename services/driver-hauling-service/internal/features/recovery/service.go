@@ -79,6 +79,10 @@ type Options struct {
 	// Notifier tells the customer, providers, managing organization and
 	// operations about a recovery (Section 14). Optional.
 	Notifier notifications.Notifier
+	// PaymentRebinds drives the durable payment rebind obligation each
+	// replacement writes. When set, the post-commit fast path goes through it
+	// (so its outcome is recorded) instead of calling Payments directly.
+	PaymentRebinds *PaymentRebindWorker
 }
 
 // PaymentRebinder moves a booking's held payment to the provider who replaced
@@ -95,6 +99,7 @@ type Service struct {
 	custody    CustodyAuthority
 	events     EventSink
 	payments   PaymentRebinder
+	rebinds    *PaymentRebindWorker
 	notifier   notifications.Notifier
 	radiusKm   float64
 	enabled    bool
@@ -114,7 +119,7 @@ func New(options Options) *Service {
 	return &Service{
 		repo: options.Repository, candidates: options.Candidates,
 		capability: options.Capability, custody: options.Custody, events: options.Events,
-		payments: options.Payments, notifier: options.Notifier,
+		payments: options.Payments, rebinds: options.PaymentRebinds, notifier: options.Notifier,
 		radiusKm: radius, enabled: options.Enabled, now: now,
 	}
 }
@@ -348,17 +353,24 @@ func (s *Service) bindReplacement(
 		}
 		return Public{}, apperrors.Internal("Replacement could not be bound.", err)
 	}
-	if err := transaction.Commit(ctx); err != nil {
-		return Public{}, apperrors.Internal("Replacement could not be bound.", err)
-	}
-
-	advanced, err := s.advance(ctx, AdvanceInput{
+	// The case advance and the payment rebind obligation commit with the
+	// booking rebind. Advancing after the commit left a window in which the
+	// booking named the replacement and the case did not, and the payment
+	// obligation must never exist without -- or be lost after -- the rebind
+	// that created it.
+	advanced, err := s.advanceIn(ctx, s.repo.WithTx(transaction), AdvanceInput{
 		CaseID: current.ID, State: StateInProgress,
 		ReplacementProviderID: providerID, ReplacementTruckID: truckID,
 		ExpectedVersion: current.Version, Actor: actor,
 	})
 	if err != nil {
 		return Public{}, err
+	}
+	if err := s.repo.RecordPaymentRebindTx(ctx, transaction, booking.ID, current.ID, providerID); err != nil {
+		return Public{}, apperrors.Internal("Replacement could not be bound.", err)
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return Public{}, apperrors.Internal("Replacement could not be bound.", err)
 	}
 	observability.RecoveryOutcome("REPLACED")
 	s.publish(ctx, nil, EventRecoveryProviderReplaced, advanced, map[string]any{
@@ -441,17 +453,22 @@ func (s *Service) CompleteTransfer(ctx context.Context, command TransferCommand)
 		return Public{}, apperrors.Internal("Replacement could not be bound.", err)
 	}
 
-	if err := transaction.Commit(ctx); err != nil {
-		return Public{}, apperrors.Internal("Transfer could not be completed.", err)
-	}
-
-	advanced, err := s.advance(ctx, AdvanceInput{
+	// Case advance and payment rebind obligation commit with the custody
+	// transfer and the booking rebind -- see bindReplacement.
+	advanced, err := s.advanceIn(ctx, s.repo.WithTx(transaction), AdvanceInput{
 		CaseID: current.ID, State: StateInProgress,
 		CustodyTransferRef: command.TransferRef, EvidenceRef: command.EvidenceRef,
 		ExpectedVersion: current.Version, Actor: command.Actor,
 	})
 	if err != nil {
 		return Public{}, err
+	}
+	if err := s.repo.RecordPaymentRebindTx(ctx, transaction, booking.ID, current.ID, current.ReplacementProviderID); err != nil {
+		return Public{}, apperrors.Internal("Transfer could not be completed.", err)
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return Public{}, apperrors.Internal("Transfer could not be completed.", err)
 	}
 	observability.RecoveryOutcome("REPLACED")
 	s.publish(ctx, nil, EventRecoveryProviderReplaced, advanced, map[string]any{
@@ -461,16 +478,27 @@ func (s *Service) CompleteTransfer(ctx context.Context, command TransferCommand)
 	return advanced.Public(), nil
 }
 
-// rebindPayment moves the held payment to the replacement once the booking
-// itself has been rebound.
+// rebindPayment is the post-commit fast path for the payment rebind
+// obligation the replacement transaction already wrote.
 //
 // It runs after the commit, never inside it: a remote call inside the
 // transaction would hold the booking lock across the network, and a Wallet
-// outage must not undo a replacement that already happened. A failure here is
-// not lost -- settlement re-checks the binding before releasing anything, and
-// refuses to pay a provider the payment is not bound to.
+// outage must not undo a replacement that already happened. It is NOT the
+// mechanism: the durable obligation is. A failure here leaves the obligation
+// for the payment rebind worker, and settlement still re-checks the binding
+// before releasing anything.
 func (s *Service) rebindPayment(ctx context.Context, bookingID, providerID, caseID string) {
-	if s.payments == nil || providerID == "" {
+	if providerID == "" {
+		return
+	}
+	if s.rebinds != nil {
+		if _, err := s.rebinds.Nudge(ctx, caseID, providerID); err != nil {
+			logging.Notice("hauling-recovery",
+				"booking %s: payment rebind left for the worker (%v)", bookingID, err)
+		}
+		return
+	}
+	if s.payments == nil {
 		return
 	}
 	if err := s.payments.RebindToReplacement(ctx, bookingID, providerID, caseID); err != nil {
@@ -504,6 +532,18 @@ func (s *Service) Resolve(ctx context.Context, command ResolveCommand) (Public, 
 	}
 	s.publish(ctx, nil, EventRecoveryResolved, resolved, nil)
 	return resolved.Public(), nil
+}
+
+// PaymentRebinds lists a booking's payment rebind obligations (operator read).
+func (s *Service) PaymentRebinds(ctx context.Context, bookingID string) ([]PaymentRebindObligation, error) {
+	if s == nil || s.repo == nil {
+		return nil, apperrors.Unavailable("Recovery is not enabled.", nil)
+	}
+	obligations, err := s.repo.PaymentRebindsForBooking(ctx, bookingID)
+	if err != nil {
+		return nil, apperrors.Internal("Payment rebind obligations could not be read.", err)
+	}
+	return obligations, nil
 }
 
 // Get reads a booking's open recovery.
@@ -540,7 +580,12 @@ func (s *Service) toOps(ctx context.Context, current Case, reason, actor string)
 }
 
 func (s *Service) advance(ctx context.Context, input AdvanceInput) (Case, error) {
-	advanced, err := s.repo.Advance(ctx, input, s.now())
+	return s.advanceIn(ctx, s.repo, input)
+}
+
+// advanceIn advances through repo, which may be a transaction-bound view.
+func (s *Service) advanceIn(ctx context.Context, repo *Repository, input AdvanceInput) (Case, error) {
+	advanced, err := repo.Advance(ctx, input, s.now())
 	switch {
 	case errors.Is(err, ErrConflict):
 		return Case{}, apperrors.Conflict("This recovery changed. Reload and try again.", err)

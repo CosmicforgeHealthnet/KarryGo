@@ -66,6 +66,7 @@ import (
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
 	"cosmicforge/logistics/shared/go/custodyops"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/events"
 	"cosmicforge/logistics/shared/go/fleetproviderwork"
 	"cosmicforge/logistics/shared/go/logging"
@@ -315,6 +316,19 @@ func main() {
 	// reach the completeness needed to enable it.
 	capability := buildCapabilityWiring(cfg, db, availabilityStore, bookingclients.NewDurableQueue(notificationRedis))
 
+	// Administrative account standing (customer-service owned). Off by
+	// default; when on, every new customer booking asks customer-service live
+	// and an unconfirmable standing refuses the booking (fail closed).
+	var customerStandingGate *customerstanding.Gate
+	if cfg.CustomerStandingEnforced {
+		standingClient, standingErr := customerstanding.NewClient(customerstanding.Config{
+			BaseURL: cfg.CustomerServiceURL, ServiceName: movement.SourceService, Secret: cfg.CustomerServiceSecret,
+		})
+		if standingErr != nil {
+			logging.Fatal("configuration", "HAULING_CUSTOMER_STANDING_ENFORCED: %v", standingErr)
+		}
+		customerStandingGate = customerstanding.NewGate(standingClient)
+	}
 	bookingService := bookingusecases.NewBookingService(bookingusecases.Options{
 		Bookings:     bookingRepo,
 		Availability: availabilityStore,
@@ -341,7 +355,8 @@ func main() {
 		Suitability:          admincommands.SuitabilityGate{DB: db},
 		// nil when HAULING_ROUTES_API_KEY is unset: routes are then never
 		// fetched and the apps fall back to straight-line geometry.
-		Routes: routesClient,
+		Routes:           routesClient,
+		CustomerStanding: customerStandingGate,
 	})
 	// Customer tracking reuses the Share Journey booking-bound reader: only the
 	// current assignment's point, never the driver's global heartbeat.
@@ -417,6 +432,15 @@ func main() {
 	// stranding in pending_match forever.
 	if !cfg.FleetIntegrationKillSwitch {
 		go bookingService.RunMatchRecoveryWorker(ctx)
+	}
+
+	// Section 17: drives each recovery replacement's durable payment rebind
+	// obligation through Wallet whenever recovery runs with Wallet configured
+	// (HAULING_RECOVERY_PAYMENT_REBIND_WORKER_ENABLED=false switches it off).
+	// The settlement-time guard remains the backstop either way.
+	if cfg.RecoveryPaymentRebindWorkerEnabled && cfg.RecoveryEnabled && capability.paymentRebinds != nil {
+		go capability.paymentRebinds.Run(ctx, 15*time.Second)
+		logging.Notice("hauling-recovery", "payment rebind obligation worker enabled")
 	}
 
 	// Outbox and reconciliation health, in the same metric names every other
