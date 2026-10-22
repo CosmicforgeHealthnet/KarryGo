@@ -173,3 +173,8 @@ new HQ, native Media and source-case paths, including encoded traversal variants
 The Bridge mTLS/PostgreSQL/SDK contract tests and the actual Customer-process →
 modern Media tests are separate complementary suites. They do not represent live
 HQ enrollment, production policy approval or a deployed environment certification.
+
+Recovery source proofs include the native open `EVALUATING` state. Taxi subjects
+use actual original/replacement vehicle references; Hauling uses truck references.
+These types are not interchangeable. Owner migration tests exercise every present
+native subject reference as well as case identity and terminal-state denial.

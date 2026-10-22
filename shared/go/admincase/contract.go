@@ -19,11 +19,12 @@ type Spec struct {
 
 func Specs() []Spec {
 	recoverySubjects := map[string][]string{"CASE": {"$CASE"}, "PROVIDER": {"original_provider", "replacement_provider"}, "BOOKING": {"booking"}, "MISSION": {"mission", "goods_mission"}, "TRUCK": {"original_truck", "replacement_truck"}}
-	recoveryStates := []string{"DETECTED", "REPLACEMENT_SEARCH", "TRANSFER_REQUIRED", "IN_PROGRESS", "OPS_REQUIRED"}
+	taxiSubjects := map[string][]string{"CASE": {"$CASE"}, "PROVIDER": {"original_provider", "replacement_provider"}, "BOOKING": {"booking"}, "MISSION": {"goods_mission"}, "VEHICLE": {"original_vehicle", "replacement_vehicle"}}
+	recoveryStates := []string{"DETECTED", "EVALUATING", "REPLACEMENT_SEARCH", "TRANSFER_REQUIRED", "IN_PROGRESS", "OPS_REQUIRED"}
 	purposes := []string{"CARGO_CONDITION", "DAMAGE_EVIDENCE", "RECOVERY_TRANSFER", "SAFETY_INCIDENT", "INCIDENT_ATTACHMENT"}
 	return []Spec{
 		{"customer-service", "customer", "review-work-items", "customer.case.evidence.read", "customer.admin-case-evidence.v1", "VERIFICATION_CASE", map[string][]string{"CASE": {"$CASE"}, "CUSTOMER": {"customer"}}, []string{"REQUESTED", "ACKNOWLEDGED"}, []string{"COMPLIANCE_DOCUMENT", "PROOF_DOCUMENT", "DISPUTE_ATTACHMENT"}},
-		{"driver-taxi-service", "taxi", "recoveries", "taxi.case.evidence.read", "taxi.admin-case-evidence.v1", "RECOVERY_CASE", recoverySubjects, recoveryStates, purposes},
+		{"driver-taxi-service", "taxi", "recoveries", "taxi.case.evidence.read", "taxi.admin-case-evidence.v1", "RECOVERY_CASE", taxiSubjects, recoveryStates, purposes},
 		{"driver-dispatch-delivery-service", "dispatch", "incidents", "dispatch.case.evidence.read", "dispatch.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "TRIP": {"trip"}, "PROVIDER": {"original_provider", "replacement_provider"}}, []string{"REPORTED", "REASSIGNING", "TRANSFER_PENDING", "EMERGENCY_RECOVERY"}, purposes},
 		{"driver-dispatch-delivery-service", "dispatch", "delivery-recoveries", "dispatch.case.evidence.read", "dispatch.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "TRIP": {"trip"}}, []string{"REQUESTED", "SCHEDULED", "READY", "AWAITING_CUSTOMER_APPROVAL", "AWAITING_FINANCIAL_AUTHORIZATION", "RECONCILIATION_REQUIRED"}, purposes},
 		{"driver-dispatch-delivery-service", "dispatch", "returns", "dispatch.case.evidence.read", "dispatch.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "TRIP": {"trip"}}, []string{"REQUIRED", "ROUTED", "RETURNING", "HANDOVER_REQUIRED", "SUPPORT_REQUIRED"}, purposes},

@@ -104,6 +104,11 @@ func TestCaseRegistryHasOnlyNativeCasesAndExactSubjectRoles(t *testing.T) {
 	if len(seen) != 6 {
 		t.Fatal("unexpected native case count", len(seen))
 	}
+	taxi, _ := Find("driver-taxi-service", "recoveries")
+	hauling, _ := Find("driver-hauling-service", "recoveries")
+	if !Contains(taxi.States, "EVALUATING") || !Contains(hauling.States, "EVALUATING") || len(taxi.Subjects["VEHICLE"]) != 2 || len(taxi.Subjects["TRUCK"]) != 0 || len(hauling.Subjects["VEHICLE"]) != 0 {
+		t.Fatal("recovery cases lost native state/subject vocabulary")
+	}
 	for _, raw := range []string{`{"scope":{"tenant":"one","tenant":"two"}}`, `{"Owner":"x"}`, `{"owner":"one","owner":"two"}`, `{"owner":"x"} {}`, `{"extra":"x"}`} {
 		var p Proof
 		if Strict([]byte(raw), &p) == nil {

@@ -33,9 +33,13 @@ func CaseBoundary(t *testing.T, db *pgxpool.Pool, source adminowner.Source, owne
 		t.Fatal(err)
 	}
 	binding, err := reader.Binding(ctx, tx, admincase.ContextPrefix+kind, ref)
+	item, itemErr := source.Read(ctx, tx, kind, ref, false)
 	tx.Rollback(ctx)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if itemErr != nil {
+		t.Fatal(itemErr)
 	}
 	scope := binding.Canonical
 	if scope.Market == "" {
@@ -82,6 +86,32 @@ func CaseBoundary(t *testing.T, db *pgxpool.Pool, source adminowner.Source, owne
 		}
 	} else if err == nil {
 		t.Fatal("terminal native case authorized")
+	}
+	if active {
+		for subject, roles := range spec.Subjects {
+			for _, link := range item.References {
+				if admincase.Contains(roles, link.Kind) {
+					if _, err := client.Authorize(ctx, q, kind, ref, subject, link.Reference); err != nil {
+						t.Fatal("actual native subject membership unavailable", subject, link.Kind, err)
+					}
+				}
+			}
+		}
+		// EVALUATING is a real open native state in both recovery schemas.
+		if kind == "recoveries" && (owner == "driver-taxi-service" || owner == "driver-hauling-service") {
+			table := "taxi_recovery_cases"
+			if owner == "driver-hauling-service" {
+				table = "hauling_recovery_cases"
+			}
+			if _, err := db.Exec(ctx, `UPDATE `+table+` SET state='EVALUATING' WHERE id::text=$1`, ref); err != nil {
+				t.Fatal(err)
+			}
+			_, evaluationErr := client.Authorize(ctx, q, kind, ref, "CASE", ref)
+			_, restoreErr := db.Exec(ctx, `UPDATE `+table+` SET state=$2 WHERE id::text=$1`, ref, *item.Status)
+			if evaluationErr != nil || restoreErr != nil {
+				t.Fatal("native EVALUATING case proof failed", evaluationErr, restoreErr)
+			}
+		}
 	}
 	address := server.URL + spec.Path() + "/proofs/" + kind + "/" + ref + "/CASE/" + ref + "?" + q.Values().Encode()
 	for _, caller := range []string{adminread.Caller, admincase.Caller} {
