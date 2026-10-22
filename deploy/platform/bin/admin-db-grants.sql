@@ -14,4 +14,8 @@ GRANT SELECT,INSERT ON admin_customer_review_operations TO :"runtime_role";
 GRANT UPDATE(status,receipt,updated_at) ON admin_customer_review_operations TO :"runtime_role";
 GRANT INSERT ON admin_customer_review_operation_audit TO :"runtime_role";
 GRANT USAGE ON SEQUENCE admin_customer_review_operation_audit_id_seq TO :"runtime_role";
+GRANT SELECT,INSERT ON admin_customer_work_item_operations TO :"runtime_role";
+GRANT UPDATE(status,receipt,updated_at) ON admin_customer_work_item_operations TO :"runtime_role";
+GRANT INSERT ON admin_customer_work_item_operation_audit TO :"runtime_role";
+GRANT USAGE ON SEQUENCE admin_customer_work_item_operation_audit_id_seq TO :"runtime_role";
 COMMIT;

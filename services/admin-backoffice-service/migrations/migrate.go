@@ -19,6 +19,9 @@ var policySchema string
 //go:embed 004_customer_review_operations.sql
 var customerReviewSchema string
 
+//go:embed 005_customer_work_item_operations.sql
+var customerWorkItemSchema string
+
 // Apply serializes schema installation across replicas and rolls back on failure.
 // Use a migration role; the runtime role must not own the evidence tables.
 func Apply(ctx context.Context, pool *pgxpool.Pool) error {
@@ -75,6 +78,17 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("bridge customer review migration: %w", err)
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO admin_schema_versions(version) VALUES(4)`); err != nil {
+			return err
+		}
+	}
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM admin_schema_versions WHERE version=5)`).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		if _, err = tx.Exec(ctx, customerWorkItemSchema); err != nil {
+			return fmt.Errorf("bridge work item migration: %w", err)
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO admin_schema_versions(version)VALUES(5)`); err != nil {
 			return err
 		}
 	}

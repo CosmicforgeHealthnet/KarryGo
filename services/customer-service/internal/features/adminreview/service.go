@@ -25,6 +25,7 @@ type Service struct {
 	Policy                    *adminpolicy.Engine
 	Contexts                  *admincontext.Store
 	WriteEnabled, ReadEnabled bool
+	WorkItemsEnabled          bool
 	Now                       func() time.Time
 }
 
@@ -48,6 +49,9 @@ func (s *Service) authorize(ctx context.Context, tx pgx.Tx, actor adminpolicy.Ac
 	// The source-owned request operation defines its own eligibility contract;
 	// the independently signed allocation above still binds the actual review
 	// aggregate and customer. No body tenant or read-model ETag supplies facts.
+	if capability == customerreview.WorkItemCapability || capability == customerreview.WorkItemReadCapability {
+		facts.SourceContract = customerreview.WorkItemContract
+	}
 	if capability == customerreview.RequestCapability {
 		facts.SourceContract = customerreview.Contract
 	}

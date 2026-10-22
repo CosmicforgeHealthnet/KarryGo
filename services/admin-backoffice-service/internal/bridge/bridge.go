@@ -21,6 +21,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerworkitemops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/operations"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/security"
@@ -57,6 +58,7 @@ type Bridge struct {
 	accessPolicy          *adminpolicy.Engine
 	features              config.DomainFlags
 	customerReview        *customerreviewops.Service
+	customerWorkItems     *customerworkitemops.Service
 	scopedAnalytics       *analyticsadmin.Client
 	scopedAnalyticsPolicy *adminpolicy.Engine
 	scopedAnalyticsRate   bool
@@ -270,7 +272,8 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Permission = capability.Permission
 	a.TargetService = capability.Owner
 	resourceProfile, resourceDefinition, resourceRef, resourceRead := adminowner.MatchBridge(path)
-	reviewRequest := capability.ID == "customer.review.submit" || capability.ID == "customer.review.readback"
+	workItemRequest := capability.ID == "customer.review.work_item.submit" || capability.ID == "customer.review.work_item.readback"
+	reviewRequest := capability.ID == "customer.review.submit" || capability.ID == "customer.review.readback" || workItemRequest
 	analyticsRate := capability.ID == analyticsadmin.MissionRatePermission
 	analyticsReport, scopedReport := scopedReportCapability(capability.ID)
 	analyticsRead := scopedReport || analyticsRate
@@ -287,11 +290,19 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		readPolicy = b.scopedAnalyticsPolicy
 	}
 	if reviewRequest {
-		if b.customerReview == nil {
-			fail(503, "capability_blocked")
-			return
+		if workItemRequest {
+			if b.customerWorkItems == nil {
+				fail(503, "capability_blocked")
+				return
+			}
+			readPolicy = b.customerWorkItems.Policy
+		} else {
+			if b.customerReview == nil {
+				fail(503, "capability_blocked")
+				return
+			}
+			readPolicy = b.customerReview.Policy
 		}
-		readPolicy = b.customerReview.Policy
 	}
 	if resourceRead {
 		readPolicy = b.resourcePolicies[resourceProfile.Owner]
@@ -323,6 +334,9 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			expected := customerreview.Contract
 			if r.Method == "GET" {
 				expected = customerreview.StateContract
+			}
+			if workItemRequest {
+				expected = customerreview.WorkItemContract
 			}
 			if e != nil || rule.Owner != customerreview.Owner || rule.SourceContract != expected {
 				fail(503, "blocked_policy")
@@ -414,6 +428,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, policyErr := b.accessPolicy.Rule(adminread.TaxiPermission, b.now())
 		availability := b.resourceAvailability(actor.Roles, actor.Zones, actor.Tenants)
 		b.customerReviewAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
+		b.customerWorkItemAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		for _, report := range analyticsadmin.Reports() {
 			availability[report.Permission] = b.scopedReportAvailable(report, actor.Roles, actor.Zones, actor.Tenants)
 		}
@@ -507,6 +522,64 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			result = out
 		}
+	case "customer.review.work_item.submit", "customer.review.work_item.readback":
+		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
+		var out customerworkitemops.Operation
+		var e error
+		if r.Method == "POST" {
+			if !b.features.WriteFamilyRequested(customerreview.WorkItemCapability) {
+				fail(503, "capability_blocked")
+				return
+			}
+			media, _, parseErr := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if parseErr != nil || media != "application/json" {
+				fail(415, "json_required")
+				return
+			}
+			input, decodeErr := customerreview.DecodeWorkItemCommand(body)
+			if decodeErr != nil {
+				fail(400, "invalid_command")
+				return
+			}
+			a.TargetRef = input.CustomerID
+			a.ReasonCode = input.ReasonCode
+			out, e = b.customerWorkItems.Submit(r.Context(), delegated, taxiQuery, input)
+		} else {
+			id := strings.TrimPrefix(path, "/customer/review-work-items/")
+			a.TargetRef = id
+			out, e = b.customerWorkItems.Reconcile(r.Context(), delegated, taxiQuery, id)
+		}
+		if e != nil {
+			status, code := 503, "operation_unavailable"
+			switch {
+			case errors.Is(e, customerworkitemops.ErrDisabled):
+				code = "capability_blocked"
+			case errors.Is(e, adminpolicy.ErrBlocked):
+				code = "blocked_policy"
+			case errors.Is(e, adminpolicy.ErrDenied), errors.Is(e, customerreview.ErrRefused):
+				status, code = 403, "forbidden"
+			case errors.Is(e, customerworkitemops.ErrConflict):
+				status, code = 409, "idempotency_conflict"
+			case errors.Is(e, customerworkitemops.ErrNotFound):
+				status, code = 404, "not_found"
+			case errors.Is(e, customerreview.ErrInvalid):
+				status, code = 400, "invalid_command"
+			case errors.Is(e, customerworkitemops.ErrProof):
+				code = "owner_contract_invalid"
+			}
+			// Generic transport retry advice must never cause a command resubmit.
+			a.Outcome = code
+			if !b.audit(r, a) {
+				status, code = 503, "audit_unavailable"
+			}
+			b.reply(w, correlation, status, nil, &apiError{Code: code, Message: "Use original operation readback to resolve the outcome.", Retryable: false})
+			return
+		}
+		a.Status = out.Status
+		if out.Receipt != nil {
+			a.SourceVersion = out.Receipt.RecordedVersion
+		}
+		result = out
 	case "customer.review.submit", "customer.review.readback":
 		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
 		var out customerreviewops.Operation

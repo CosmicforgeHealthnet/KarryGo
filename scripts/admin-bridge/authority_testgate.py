@@ -43,5 +43,6 @@ required = {
 }
 for module in ("customer-service", "taxi-service", "dispatch-delivery-service", "hauling-service", "fleet-partner-service"):
     required.add((prefix + "services/" + module + "/internal/features/adminresources", "TestActualOwnerMigrationsAndSourceDictionary"))
+required |= {(prefix+"services/customer-service/internal/features/adminreview",name) for name in ("TestPostgresCustomerWorkItemLifecycleConcurrentIdentityAndOriginalReadback","TestPostgresCustomerWorkItemAuditFailureScopeDenialAndTypedTransport")}
 assert required <= passed, f"Missing source authority scenarios: {sorted(required - passed)}"
 print(f"{len(passed)} source authority scenarios passed; all five actual owner migration suites executed, zero skips")

@@ -59,3 +59,18 @@ func TestCustomerReviewConfigurationSeparatesAudiencesAndReadback(t *testing.T) 
 		t.Fatal("origin invented without canonical source configuration")
 	}
 }
+
+func TestCustomerWorkItemFlagsDoNotEnableIntakeOrBypassReadback(t *testing.T) {
+	c := Config{}
+	t.Setenv("ADMIN_CUSTOMER_REVIEW_WRITES_ENABLED", "false")
+	t.Setenv("ADMIN_CUSTOMER_REVIEW_READBACK_ENABLED", "false")
+	t.Setenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_WRITES_ENABLED", "false")
+	t.Setenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_READBACK_ENABLED", "false")
+	if client, write, read, err := c.CustomerReviewClient(); client != nil || write || read || err != nil {
+		t.Fatal("off read keys", err)
+	}
+	t.Setenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_WRITES_ENABLED", "true")
+	if _, _, _, err := c.CustomerReviewClient(); err == nil {
+		t.Fatal("work item writes bypassed readback")
+	}
+}

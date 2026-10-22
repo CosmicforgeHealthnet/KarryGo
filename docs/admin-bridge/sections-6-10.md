@@ -617,3 +617,39 @@ Readiness reducer validation: 317 combined Bridge/Taxi/Analytics/policy test cas
 passed with real PostgreSQL, zero skips, plus Go vet, deterministic contracts and
 independent actual-wire validation. Mandatory Linux race/acceptance remains a
 separate current-head CI gate. No production capability is enabled by this result.
+
+
+### Customer review queue lifecycle — 22 October 2026
+
+Source-owned work-item ACKNOWLEDGE (`REQUESTED` → `ACKNOWLEDGED`) and CLOSE
+(`ACKNOWLEDGED` → `CLOSED`) now have a separate typed contract
+`customer.admin-review-work-item.v1`. Closure is explicitly
+`REVIEW_CLOSED_WITHOUT_ACCOUNT_CHANGE`; it performs no account restriction,
+consent decision, privacy fulfillment, Trip or Wallet mutation. Customer has no
+canonical restriction/unrestriction or privacy/support fulfillment contract;
+those actions remain unsupported, separately from initial policy approval.
+
+Native POST `/internal/customer/v1/admin/review-work-item-transitions` and GET
+`/{customer}/{key}` use the existing separate review write/readback audiences,
+new delegated permissions `customer.review.work_item.transition` and
+`customer.review.work_item.read`, current owner allocation, original intake scope,
+real child work-item versions and immutable transition evidence. Only Customer
+writes queue state. ACK does not close a case; CLOSE frees the pending review
+aggregate and advances its revision, preserving every original intake receipt.
+
+Private Bridge POST `/internal/karryam-admin/v1/customer/review-work-items` and
+GET `/{operation_id}` commit a durable claim and immutable audit before one POST.
+Case/customer/version fences prevent concurrent/fresh-key resubmission. All
+uncertain/crashed outcomes recover using original GET only, never automatic POST
+replay. Current owner authorization is rechecked even for confirmed receipts.
+
+Normal test migrations are Customer 017 and Bridge 005. No live migration was
+applied. Apply normal owner migration and updated least-privilege runtime grants
+only during a separately authorized rollout; existing Bridge readiness still
+supports migration4 when this optional feature is off. New flags default false:
+`CUSTOMER_ADMIN_REVIEW_WORK_ITEMS_ENABLED`,
+`ADMIN_CUSTOMER_REVIEW_WORK_ITEM_WRITES_ENABLED`,
+`ADMIN_CUSTOMER_REVIEW_WORK_ITEM_READBACK_ENABLED`. Native transition requires
+both existing review switches; Bridge writes require dedicated readback and both
+existing remote/customer write kill gates. All disclosure/access remains
+BLOCKED_POLICY until initial owner governance is approved.

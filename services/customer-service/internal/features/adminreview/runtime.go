@@ -39,6 +39,10 @@ func reviewSecret(path string) ([]byte, error) {
 func Runtime(owner *adminowner.Handler) (*Handler, error) {
 	write, read := os.Getenv("CUSTOMER_ADMIN_REVIEW_WRITES_ENABLED") == "true", os.Getenv("CUSTOMER_ADMIN_REVIEW_READBACK_ENABLED") == "true"
 	h := &Handler{Service: &Service{WriteEnabled: write, ReadEnabled: read}}
+	h.Service.WorkItemsEnabled = os.Getenv("CUSTOMER_ADMIN_REVIEW_WORK_ITEMS_ENABLED") == "true"
+	if h.Service.WorkItemsEnabled && (!write || !read) {
+		return nil, ErrConfiguration
+	}
 	if !write && !read {
 		return h, nil
 	}
@@ -48,7 +52,7 @@ func Runtime(owner *adminowner.Handler) (*Handler, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	var schemaReady bool
-	if err := owner.DB.QueryRow(ctx, `SELECT to_regclass('customer_admin_review_state') IS NOT NULL AND to_regclass('customer_admin_review_requests') IS NOT NULL AND to_regclass('customer_admin_review_work_items') IS NOT NULL AND to_regclass('customer_admin_review_audit') IS NOT NULL`).Scan(&schemaReady); err != nil || !schemaReady {
+	if err := owner.DB.QueryRow(ctx, `SELECT to_regclass('customer_admin_review_state') IS NOT NULL AND to_regclass('customer_admin_review_requests') IS NOT NULL AND to_regclass('customer_admin_review_work_items') IS NOT NULL AND to_regclass('customer_admin_review_audit') IS NOT NULL AND (NOT $1::boolean OR to_regclass('customer_admin_review_transitions') IS NOT NULL)`, h.Service.WorkItemsEnabled).Scan(&schemaReady); err != nil || !schemaReady {
 		return nil, ErrConfiguration
 	}
 	h.Service.DB = owner.DB

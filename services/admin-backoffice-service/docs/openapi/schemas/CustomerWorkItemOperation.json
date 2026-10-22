@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "operation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "customer_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "product": {
+          "const": "karryam"
+        },
+        "market": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "zone": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "organization": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "tenant": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        }
+      },
+      "required": [
+        "product",
+        "market",
+        "zone",
+        "organization",
+        "tenant"
+      ]
+    },
+    "status": {
+      "enum": [
+        "EXECUTING",
+        "UNKNOWN_OUTCOME",
+        "CONFIRMED"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "customer.admin-review-work-item.v1"
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "review_request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customer_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "intent_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "state": {
+          "enum": [
+            "ACKNOWLEDGED",
+            "CLOSED"
+          ]
+        },
+        "recorded_version": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "outcome": {
+          "enum": [
+            "REVIEW_ACKNOWLEDGED",
+            "REVIEW_CLOSED_WITHOUT_ACCOUNT_CHANGE"
+          ]
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "product": {
+              "const": "karryam"
+            },
+            "market": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            },
+            "zone": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            },
+            "organization": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            },
+            "tenant": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "product",
+            "market",
+            "zone",
+            "organization",
+            "tenant"
+          ]
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "contract_version",
+        "operation_id",
+        "review_request_id",
+        "customer_id",
+        "idempotency_key",
+        "intent_digest",
+        "state",
+        "recorded_version",
+        "outcome",
+        "scope",
+        "recorded_at"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ACKNOWLEDGED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "REVIEW_ACKNOWLEDGED"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "outcome": {
+                "const": "REVIEW_CLOSED_WITHOUT_ACCOUNT_CHANGE"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "operation_id",
+    "customer_id",
+    "scope",
+    "status",
+    "created_at",
+    "as_of"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "CONFIRMED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "receipt"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "receipt"
+          ]
+        }
+      }
+    }
+  ]
+}

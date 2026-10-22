@@ -6,6 +6,7 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/clients"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerworkitemops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
 	"cosmicforge/logistics/shared/go/adminpolicy"
@@ -148,6 +149,18 @@ func run() error {
 		if e = app.ConfigureCustomerReview(&customerreviewops.Service{DB: pool, Owner: client, Policy: approved, WriteEnabled: write, ReadEnabled: read}); e != nil {
 			return e
 		}
+		workWrite := os.Getenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_WRITES_ENABLED") == "true"
+		workRead := os.Getenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_READBACK_ENABLED") == "true"
+		if workWrite || workRead {
+			var ready bool
+			if e := pool.QueryRow(ctx, `SELECT to_regclass('admin_customer_work_item_operations') IS NOT NULL AND to_regclass('admin_customer_work_item_operation_audit') IS NOT NULL`).Scan(&ready); e != nil || !ready {
+				return errors.New("Customer work-item orchestration schema unavailable")
+			}
+			if e := app.ConfigureCustomerWorkItems(&customerworkitemops.Service{DB: pool, Owner: client, Policy: approved, WriteEnabled: workWrite, ReadEnabled: workRead}); e != nil {
+				return e
+			}
+		}
+
 	}
 	if client, e := cfg.ScopedAnalyticsClient(); e != nil {
 		return e

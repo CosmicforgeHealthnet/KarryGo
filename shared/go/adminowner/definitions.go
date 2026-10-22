@@ -16,6 +16,7 @@ func Profiles() []Profile {
 	}
 	profiles := []Profile{
 		{Owner: "customer-service", Domain: "customer", Prefix: "CUSTOMER", Path: "/internal/customer/v1/admin", Definitions: map[string]Definition{
+			"review-work-items":  makeDef("customer", "review-work-items", "customer.review.work_item.state.read", nil, nil, []string{"customer"}),
 			"review-states":      makeDef("customer", "review-states", "customer.review.read", nil, nil, nil),
 			"customers":          makeDef("customer", "customers", "customer.directory.read", []string{"onboarding", "verification", "analytics_consent", "marketing_consent"}, nil, nil),
 			"consents":           makeDef("customer", "consents", "customer.consent.read", []string{"active", "trip_sharing_enabled", "emergency_alerts_enabled"}, nil, []string{"customer"}),
@@ -59,6 +60,9 @@ func Profiles() []Profile {
 			profiles[i].Definitions["handover-states"] = definition
 		}
 		if profiles[i].Domain == "customer" {
+			work := profiles[i].Definitions["review-work-items"]
+			work.SourceContract = "customer.admin-review-work-item-state.v1"
+			profiles[i].Definitions["review-work-items"] = work
 			definition := profiles[i].Definitions["review-states"]
 			definition.SourceContract = "customer.admin-review-state.v1"
 			profiles[i].Definitions["review-states"] = definition

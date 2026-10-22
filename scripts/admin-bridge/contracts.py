@@ -1,4 +1,5 @@
 """Validate or regenerate the pinned OpenAPI/JSON Schema bundle. No network needed."""
+import work_item_contracts
 import report_contracts
 import argparse
 import hashlib
@@ -76,6 +77,7 @@ def build():
     review_operation = obj({"operation_id": string(format="uuid"), "customer_id": string(format="uuid"), "scope": review_receipt["properties"]["scope"], "status": {"enum": ["EXECUTING", "UNKNOWN_OUTCOME", "CONFIRMED"]}, "created_at": string(format="date-time"), "as_of": string(format="date-time"), "receipt": review_receipt}, ["operation_id", "customer_id", "scope", "status", "created_at", "as_of"])
     review_operation["allOf"] = [{"if": {"properties": {"status": {"const": "CONFIRMED"}}}, "then": {"required": ["receipt"]}, "else": {"not": {"required": ["receipt"]}}}]
     schemas.update(CustomerReviewRequest=review_request, CustomerReviewOperation=review_operation)
+    schemas.update(work_item_contracts.build(obj,string,opaque,review_operation))
     released_cell = obj({"key": {"enum": ["completed", "failed", "cancelled", "guarantee_breaches"]}, "value": {"type": ["integer", "null"], "minimum": 0}, "suppression": {"enum": ["NONE", "UNKNOWN", "SMALL_CELL", "COMPLEMENTARY", "PARTIAL_COVERAGE", "STALE"]}})
     released_cell["allOf"] = [{"if": {"properties": {"suppression": {"const": "NONE"}}}, "then": {"properties": {"value": {"type": "integer"}}}, "else": {"properties": {"value": {"type": "null"}}}}]
     released_cells = {"type": "array", "minItems": 4, "maxItems": 4, "items": released_cell, "allOf": [{"contains": {"properties": {"key": {"const": key}}, "required": ["key"]}, "minContains": 1, "maxContains": 1} for key in ("completed", "failed", "cancelled", "guarantee_breaches")]}
@@ -100,7 +102,7 @@ def build():
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}
@@ -109,7 +111,7 @@ def build():
                 success_schema["properties"]["result"] = {"allOf": [{"$ref": f"#/components/schemas/{result}"}, {"properties": {"items": {"items": {"required": ["custody"]}}}}]}
             op["responses"]["200"] = {"description": "Authorized owner snapshot." if c["permission"] == "taxi.rides.read" else "Authorized local metadata.", "content": {"application/json": {"schema": success_schema}}}
         if c["method"] == "POST":
-            op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("CustomerReviewRequest" if c["id"] == "customer.review.submit" else "Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
+            op["requestBody"] = {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/" + ("CustomerWorkItemCommand" if c["id"]=="customer.review.work_item.submit" else "CustomerReviewRequest" if c["id"] == "customer.review.submit" else "Command" if c["id"] == "bridge.operations.submit" else "DisabledRequest")}}}}
         paths.setdefault(BASE + c["bridge_endpoint"], {})[c["method"].lower()] = op
     api = {"openapi": "3.1.0", "info": {"title": "Karryam private HQ bridge", "version": "1.0.0", "description": "Private transport plus mTLS, HMAC v2 and delegated Ed25519 JWT are all mandatory. Owner review intake is compiled and default off; all production access requires approved governance and current source authorization."}, "paths": paths, "security": [{"WorkloadMTLS": [], "ServiceHMAC": [], "StaffAssertion": []}], "components": {"securitySchemes": {"WorkloadMTLS": {"type": "mutualTLS"}, "ServiceHMAC": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "HMAC v2 profile in signing-profile.md; requires all X-Service-* headers and X-HQ-Key-ID."}, "StaffAssertion": {"type": "http", "scheme": "bearer", "bearerFormat": "EdDSA JWT"}}, "schemas": schemas}}
     files = {"openapi.json": api}

@@ -22,6 +22,7 @@ required |= {"TestAnalyticsProducerPreparationReturnsOnlyDraftNativeBinding", "T
 required |= {"TestMediaCasePolicyNeedsExplicitSignedValuesWithoutProductionDefaults", "TestPostgresVendorReadinessPublicationUsesIndependentNativeBranchBinding"}
 required |= {"TestPostgresReadinessComponentsUseNativeOrdersAndWithholdPartialMembership", "TestReadinessComponentsNeverInventMissingTimingFacts", "TestMissionRateUsesOnlyDisclosedCountsAndNeverGuessesUnknownValues", "TestPostgresScopedMissionRateRequiresBothPermissionsAndPreservesSuppression"}
 required |= {"TestPostgresScopedReportsNativeReductionSignedTransportAndRevocation", "TestScopedReportsDoNotManufactureSupplyMembershipOrForecastModel", "TestPostgresAllScopedReportsBridgeMTLS"}
+required |= {"TestPostgresCustomerWorkItemBridgeConcurrentSubmissionPostsOnce", "TestPostgresCustomerWorkItemBridgeUnknownOutcomeOnlyReadsOriginal", "TestPostgresCustomerWorkItemBridgeCrashFenceAndMismatchedProof", "TestPostgresCustomerWorkItemBridgeScopeAndAuditFailureFence", "TestPostgresCustomerWorkItemBridgeTypedOwnerBoundaryAndRecovery"}
 if args.suite == "gateway":
     required = {"TestPublicAdminIsolation", "TestForgedHQHeadersAreStrippedFromPublicRoutes", "TestPostgresRefreshRotationAndMigrationReplay"}
 assert not failures, f"Failed/skipped tests: {[(e.get('Package'), e.get('Test')) for e in failures]}"

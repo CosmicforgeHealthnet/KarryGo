@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "customer.admin-review-work-item.v1"
+    },
+    "operation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "review_request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "customer_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "expected_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "action": {
+      "enum": [
+        "ACKNOWLEDGE",
+        "CLOSE"
+      ]
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "contract_version",
+    "operation_id",
+    "review_request_id",
+    "customer_id",
+    "expected_version",
+    "action",
+    "idempotency_key",
+    "reason_code",
+    "requested_at"
+  ]
+}

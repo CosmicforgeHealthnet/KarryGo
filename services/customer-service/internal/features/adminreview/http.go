@@ -27,6 +27,8 @@ type Handler struct {
 }
 
 func (h *Handler) Register(root *gin.Engine) {
+	root.POST(customerreview.WorkItemPath, h.signedWorkItem)
+	root.GET(customerreview.WorkItemPath+"/:customer/:key", h.signedWorkItemReceipt)
 	root.POST(customerreview.Path, h.signedRequest)
 	root.GET(customerreview.Path+"/:customer/:key", h.signedReceipt)
 }
@@ -176,6 +178,48 @@ func (h *Handler) signedReceipt(c *gin.Context) {
 	}
 	actor, scope := reviewActor(q, customerreview.ReadCapability)
 	receipt, err := h.Service.Receipt(ctx, actor, q.Purpose, c.Param("customer"), c.Param("key"), scope)
+	if err != nil {
+		h.problem(c, err, q, c.Param("customer"))
+		return
+	}
+	c.JSON(200, receipt)
+}
+
+func (h *Handler) signedWorkItem(c *gin.Context) {
+	if h.Service == nil || !h.Service.WorkItemsEnabled {
+		h.fail(c, 503, "capability_blocked", nil, "")
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	defer cancel()
+	c.Request = c.Request.WithContext(ctx)
+	q, raw, ok := h.authenticate(c, true)
+	if !ok {
+		return
+	}
+	input, err := customerreview.DecodeWorkItemCommand(raw)
+	if err != nil {
+		h.problem(c, err, q, "")
+		return
+	}
+	actor, scope := reviewActor(q, customerreview.WorkItemCapability)
+	receipt, err := h.Service.TransitionWorkItem(ctx, actor, q.Purpose, scope, input)
+	if err != nil {
+		h.problem(c, err, q, input.CustomerID)
+		return
+	}
+	c.JSON(200, receipt)
+}
+func (h *Handler) signedWorkItemReceipt(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	defer cancel()
+	c.Request = c.Request.WithContext(ctx)
+	q, _, ok := h.authenticate(c, false)
+	if !ok {
+		return
+	}
+	actor, scope := reviewActor(q, customerreview.WorkItemReadCapability)
+	receipt, err := h.Service.WorkItemReadback(ctx, actor, q.Purpose, c.Param("customer"), c.Param("key"), scope)
 	if err != nil {
 		h.problem(c, err, q, c.Param("customer"))
 		return

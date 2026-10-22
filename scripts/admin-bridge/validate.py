@@ -49,14 +49,14 @@ def main():
         operation = api["paths"][BASE + row["bridge_endpoint"]][row["method"].lower()]
         assert operation["x-capability-state"] == row["state"]
         assert ("200" in operation["responses"]) == (row["state"] in ("READ_ONLY", "AVAILABLE"))
-    owner_kinds = {"customer": ["customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions", "fit-decisions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
+    owner_kinds = {"customer": ["review-work-items", "customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions", "fit-decisions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
     canonical_resource_owners = {"customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service", "hauling": "driver-hauling-service", "fleet": "fleet-partner-service"}
     for row in matrix:
         if ".resources." in row["id"]:
             domain = row["id"].split(".", 1)[0]
             assert row["owner"] == canonical_resource_owners[domain], f"Noncanonical owner in capability contract: {row['id']}"
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | resource_ids | {report_contracts.permission(name) for name in report_contracts.REPORTS}
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | {"customer.review.work_item.readback"} | resource_ids | {report_contracts.permission(name) for name in report_contracts.REPORTS}
     if args.wire_dir:
         for name in report_contracts.REPORTS:
             schema=validators[report_contracts.schema_name(name)]
@@ -65,6 +65,10 @@ def main():
                 if path.exists():
                     value=load(path)
                     schema.validate(value["result"] if envelope else value)
+    if args.wire_dir:
+        for suffix in ("unknown","confirmed"):
+            path=args.wire_dir/f"customer-work-item-{suffix}.json"
+            if path.exists():validators["CustomerWorkItemOperation"].validate(load(path)["result"])
     command = load(OUT / "fixtures/command.json")
     validators["Command"].validate(command)
     for mutate in [lambda c: c.update(performed_by="forged-admin"), lambda c: c.update(product="healthnet"), lambda c: c["target"].update(expected_version=0), lambda c: c.pop("idempotency_key"), lambda c: c["scope"].update(organization="*")]:

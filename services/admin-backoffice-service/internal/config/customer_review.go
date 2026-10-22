@@ -15,6 +15,14 @@ import (
 func (c Config) CustomerReviewClient() (*customerreview.Client, bool, bool, error) {
 	write := os.Getenv("ADMIN_CUSTOMER_REVIEW_WRITES_ENABLED") == "true"
 	read := os.Getenv("ADMIN_CUSTOMER_REVIEW_READBACK_ENABLED") == "true"
+	oldWrite, oldRead := write, read
+	workWrite := os.Getenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_WRITES_ENABLED") == "true"
+	workRead := os.Getenv("ADMIN_CUSTOMER_REVIEW_WORK_ITEM_READBACK_ENABLED") == "true"
+	if workWrite && !workRead {
+		return nil, false, false, errors.New("work-item writes require readback")
+	}
+	write = write || workWrite
+	read = read || workRead
 	if !write && !read {
 		return nil, false, false, nil
 	}
@@ -71,5 +79,5 @@ func (c Config) CustomerReviewClient() (*customerreview.Client, bool, bool, erro
 		}
 	}
 	client, err := customerreview.NewClient(customer.Origin, writeKey, readKey)
-	return client, write, read, err
+	return client, oldWrite, oldRead, err
 }
