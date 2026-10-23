@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/config"
 	"cosmicforge/logistics/services/vendor-service/internal/features/orders"
 	staffrepositories "cosmicforge/logistics/services/vendor-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/vendor-service/internal/features/staff/usecases"
@@ -9,7 +10,9 @@ import (
 	"cosmicforge/logistics/shared/go/customerstanding/standingtest"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -116,5 +119,22 @@ func TestVendorCustomerStandingLiftIsNotCached(t *testing.T) {
 	server.Lift(f.customerID, 2)
 	if _, created, err := s.CreateFromQuote(ctx, f.customerID, f.quoteID, f.finger); err != nil || !created {
 		t.Fatal("lift not current", created, err)
+	}
+}
+
+func TestVendorStandingNeverFollowsCredentialRedirect(t *testing.T) {
+	var forwarded atomic.Int64
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { forwarded.Add(1); w.WriteHeader(200) }))
+	defer target.Close()
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+	}))
+	defer origin.Close()
+	gate, err := configuredCustomerStanding(config.Config{CustomerStandingEnforced: true, CustomerStandingURL: origin.URL, CustomerStandingSecret: "test-only-standing-workload-secret-32"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = gate.Allow(context.Background(), "test-customer"); !errors.Is(err, customerstanding.ErrUnavailable) || forwarded.Load() != 0 {
+		t.Fatal("standing redirect did not fail closed", forwarded.Load(), err)
 	}
 }

@@ -62,6 +62,9 @@ CUSTOMER_FLAGS = dict(
     PAYMENT_WALLET_FINANCE_PRIVATE_API_ENABLED="true", SUPPORT_NETWORK_CONTEXT_ENABLED="true",
 )
 SERVICE_FLAGS = {
+    # Dedicated standing enrollment stays distinct from the generic disposable
+    # service key; startup validates this same isolation in real deployments.
+    "customer-service": dict(CUSTOMER_VENDOR_STANDING_SECRET="customer-v4-disposable-standing-only-key-0001"),
 	# Gateway reads its upstream inventory from shared/gatewayupstreams, outside
 	# the service config scan below. The audit never serves or calls this origin.
 	"api-gateway": dict(GATEWAY_UPSTREAM_PARTNER_WEB_URL="http://127.0.0.1:1"),
@@ -73,7 +76,7 @@ SERVICE_FLAGS = {
         DISPATCH_ASSIGNMENT_ROLLOUT_SERVICE_TIERS="standard", DISPATCH_DELIVERY_RECOVERY_ENABLED="true",
         DISPATCH_ROUTE_ALERTS_ENABLED="true", DISPATCH_ROUTE_SERVICEABILITY_ENABLED="true",
         DISPATCH_PACKAGE_POLICY_ENABLED="true"),
-    "vendor-service": dict(VENDOR_SERVICE_ENABLED="true", VENDOR_PROCESS_MODE="api"),
+    "vendor-service": dict(VENDOR_SERVICE_ENABLED="true", VENDOR_PROCESS_MODE="api", VENDOR_CUSTOMER_STANDING_SECRET="customer-v4-disposable-standing-only-key-0001"),
 }
 AUDIT_HELPER = '''package main
 

@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"cosmicforge/logistics/shared/go/customerstanding"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -214,5 +215,6 @@ func configuredCustomerStanding(cfg config.Config) (*customerstanding.Gate, erro
 	if err != nil {
 		return nil, err
 	}
+	client.HTTPClient = &http.Client{Timeout: customerstanding.DefaultTimeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	return customerstanding.NewGate(client), nil
 }
