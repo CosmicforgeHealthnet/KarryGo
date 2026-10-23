@@ -96,8 +96,8 @@ func TestGroupingMigrationRollbackAndReapply(t *testing.T) {
 	// this test fail rather than unwind the entire schema looking for it.
 	rolledBack := 0
 	for columnExists("group_index") {
-		if rolledBack >= 8 {
-			t.Fatal("rolled back 8 migrations and group_index is still present; " +
+		if rolledBack >= knownMigrationCount(t) {
+			t.Fatal("rolled back the full known migration chain and group_index is still present; " +
 				"000118's down file is not dropping it")
 		}
 		if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
@@ -169,8 +169,8 @@ func TestLifecycleEventMigrationRollbackAndReapply(t *testing.T) {
 	// package's own doc comment warns about.
 	rolledBack := 0
 	for accepts("ORDER_BOUND") {
-		if rolledBack >= 8 {
-			t.Fatal("rolled back 8 migrations and ORDER_BOUND is still accepted; " +
+		if rolledBack >= knownMigrationCount(t) {
+			t.Fatal("rolled back the full known migration chain and ORDER_BOUND is still accepted; " +
 				"000120's down file is not narrowing the CHECK")
 		}
 		if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {

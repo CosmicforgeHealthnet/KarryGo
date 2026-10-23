@@ -111,7 +111,13 @@ func newFixture(t *testing.T) *fixture {
 	uri, _ := url.Parse(trust.WorkloadURI)
 	cert := &x509.Certificate{Raw: []byte("test-verified-certificate"), URIs: []*url.URL{uri}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour)}
 	permissions := []string{}
+	// The default fixture retains its existing domains. Resource/command tests
+	// delegate only their specific permissions; the production 128-entry bound
+	// must not grow with the capability catalogue.
 	for _, c := range contract.Matrix() {
+		if strings.HasPrefix(c.Permission, "vendor.") {
+			continue
+		}
 		if !config.Contains(permissions, c.Permission) {
 			permissions = append(permissions, c.Permission)
 		}
@@ -285,6 +291,7 @@ func TestDisabledRoutes(t *testing.T) {
 			continue
 		}
 		f := newFixture(t)
+		f.claims.Permissions = []string{c.Permission}
 		path := c.BridgeEndpoint
 		for strings.Contains(path, "{") {
 			start := strings.Index(path, "{")

@@ -560,7 +560,7 @@ func TestHistoricalSnapshotSurvivesAPriceChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	if before.Completeness != CompletenessComplete {
-		t.Skipf("purchase evidence unavailable in this database; completeness=%s", before.Completeness)
+		t.Fatalf("required seeded purchase evidence incomplete: %s", before.Completeness)
 	}
 	before.CalculationType = CalcRecipeSnapshot
 

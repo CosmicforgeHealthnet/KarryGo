@@ -6,7 +6,7 @@ from contracts import build, obj, string
 from openapi_spec_validator import validate_spec
 
 ROOT = Path(__file__).resolve().parents[2]
-OWNERS = {"customer-service": "customer", "driver-taxi-service": "taxi", "driver-dispatch-delivery-service": "dispatch", "driver-hauling-service": "hauling", "fleet-partner-service": "fleet-partner"}
+OWNERS = {"vendor-service":"vendor","customer-service": "customer", "driver-taxi-service": "taxi", "driver-dispatch-delivery-service": "dispatch", "driver-hauling-service": "hauling", "fleet-partner-service": "fleet-partner"}
 
 def document(owner, domain):
     opaque = string(pattern="^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$")
@@ -24,12 +24,12 @@ def document(owner, domain):
     query += [parameter("limit", {"type": "integer", "minimum": 1, "maximum": 100}), parameter("cursor", string(maxLength=4096), required=False)]
     def operation(name, parameters, response):
         return {"operationId": domain + ".admin." + name, "description": "Default disabled. Exact owner authorization and approved policy intersection, immutable audit before disclosure. No domain mutation authority.", "parameters": parameters, "responses": {"200": {"description": "Authorized source response", "content": {"application/json": {"schema": response}}}, **{str(code): {"description": "Sanitized denial; no source data"} for code in (400, 401, 403, 404, 409, 413, 429, 503)}}}
-    snapshot = build()["openapi.json"]["components"]["schemas"]["OwnerResourcesSnapshot"]
+    snapshot = build()["openapi.json"]["components"]["schemas"]["VendorResourcesSnapshot" if owner=="vendor-service" else "OwnerResourcesSnapshot"]
     paths = {base + "/resources/{kind}": {"get": operation("resources.list", pathparams[:1] + query, snapshot)}, base + "/resources/{kind}/{id}": {"get": operation("resources.detail", pathparams + query, snapshot)}, base + "/authorization-contexts/bindings/{kind}/{id}": {"get": operation("contexts.prepare", pathparams + [parameter("purpose")], obj({"state": {"const": "DRAFT_PENDING_OWNER_APPROVAL"}, "binding": binding}))}}
     publish = operation("contexts.publish", [], obj({"status": {"const": "RECORDED"}}))
     publish["requestBody"] = {"required": True, "content": {"application/json": {"schema": envelope}}}
     paths[base + "/authorization-contexts"] = {"post": publish}
-    case_kinds = {"customer-service": ["review-work-items"], "driver-taxi-service": ["recoveries"], "driver-dispatch-delivery-service": ["incidents", "delivery-recoveries", "returns"], "driver-hauling-service": ["recoveries"]}.get(owner)
+    case_kinds = {"vendor-service":["cases"],"customer-service": ["review-work-items"], "driver-taxi-service": ["recoveries"], "driver-dispatch-delivery-service": ["incidents", "delivery-recoveries", "returns"], "driver-hauling-service": ["recoveries"]}.get(owner)
     if case_kinds:
         case_base = base + "/case-authority"
         proof = obj({"contract_version": {"const": "karryam.source-case-authorization.v1"}, "owner": {"const": owner}, "case_kind": {"enum": case_kinds}, **{k: opaque for k in ("case_reference", "subject_type", "subject_reference")}, "scope": scope, "source_contract": {"const": domain + ".admin-case-evidence.v1"}, "native_fingerprint": string(pattern="^[0-9a-f]{64}$"), "expires_at": string(format="date-time"), "policy_id": opaque, "policy_version": {"type":"integer", "minimum":1}, "policy_checksum": string(pattern="^[0-9a-f]{64}$")})
@@ -67,7 +67,7 @@ def main():
             target.write_bytes(content)
         else:
             assert target.read_bytes() == content, f"Source contract drift: {owner}"
-    print("Five source authority OpenAPI contracts validated")
+    print(f"{len(OWNERS)} source authority OpenAPI contracts validated")
 
 if __name__ == "__main__":
     main()

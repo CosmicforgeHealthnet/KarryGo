@@ -1901,8 +1901,8 @@ func (h *Handler) transitionJob(c *gin.Context) {
 		httpx.RespondError(c, apperrors.NotFound("Job not found.", nil))
 		return
 	}
-	valid := map[string]map[string]bool{"PLANNED": {"QUEUED": true, "IN_PROGRESS": true, "CANCELLED": true}, "QUEUED": {"IN_PROGRESS": true, "BLOCKED": true, "CANCELLED": true}, "IN_PROGRESS": {"BLOCKED": true, "READY": true, "CANCELLED": true}, "BLOCKED": {"IN_PROGRESS": true, "CANCELLED": true}, "READY": {"COMPLETED": true}, "COMPLETED": {}, "CANCELLED": {}}
-	if !valid[current][status] {
+
+	if !NativeJobTransitionAllowed(current, status) {
 		httpx.RespondError(c, coded(apperrors.Conflict("Invalid production job transition.", nil), CodeInvalidTransition))
 		return
 	}

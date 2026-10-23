@@ -25,8 +25,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/vendor-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/vendor-service/internal/features/adminresources"
 	"cosmicforge/logistics/services/vendor-service/internal/features/assets"
 	"cosmicforge/logistics/services/vendor-service/internal/features/customershare"
+	"cosmicforge/logistics/shared/go/admincommand"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/journeyshare"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -135,7 +138,8 @@ import (
 // routes are included. The figure is measured from production registration.
 // Current composition includes the existing Section 21/context/reference and
 // staff-access routes plus the three asset routes mounted by cmd/main.go.
-const ExpectedRouteCount = 890
+// Secure Admin adds seven source resource/context/case routes and three command routes.
+const ExpectedRouteCount = 900
 
 // allFlagsOn enables every CRM module, because the inventory must describe the
 // full surface a fully-enabled deployment exposes.
@@ -161,6 +165,18 @@ func buildProductionRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	// Register the same private handlers as cmd/main.go; all activation flags
+	// remain off in this structural inventory (no policies or credentials).
+	owner, err := adminresources.Runtime(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, err := admincommand.Runtime(owner, admincommands.Spec(), admincommands.Executor{}, "VENDOR")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner.RegisterOn(router.Group(""))
+	commands.Register(router)
 	shareService := &customershare.Service{}
 	journeyshare.RegisterRead(router, "/internal/vendor/v1/customer-share/missions/:sourceRef", shareService.Read)
 

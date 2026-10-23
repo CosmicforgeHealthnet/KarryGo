@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -211,10 +214,10 @@ func main() {
 		passed++
 
 		fmt.Printf(
-			"PASS: %s [%d/%d]\n",
+			"PASS: %s [%d/%d] — %s\n",
 			pkg.shortName,
 			passed+failedCount,
-			len(packages),
+			len(packages), output,
 		)
 	}
 
@@ -431,12 +434,20 @@ func runPackage(
 	cmd := exec.Command(
 		"go",
 		"test",
+		"-json",
 		pkg.importPath,
 		"-count=1",
 		"-timeout",
 		"20m",
 	)
 
+	// The existing Customer certification also separates this five-process
+	// running-stack test from isolated owner certification (cert.py VENDOR_ENV).
+	// Exclude that exact optional stack test visibly; no database test is exempt.
+	if pkg.shortName == "internal/features/fulfilmentgroup" {
+		cmd.Args = append(cmd.Args, "-skip", "^TestStackOwnDeliveryShare$")
+		fmt.Println("EXTERNAL STACK CERTIFICATION NOT RUN: TestStackOwnDeliveryShare requires five running local services; isolated owner cases still mandatory")
+	}
 	cmd.Dir = root
 
 	env := os.Environ()
@@ -446,10 +457,72 @@ func runPackage(
 		dsn,
 	)
 
+	env = replaceEnv(env, "VENDOR_TEST_DATABASE_URL", dsn)
+	env = replaceEnv(env, "CLOSURE_MIGRATION_DATABASE_URL", dsn)
+	env = replaceEnv(env, "CUSTOMER14_MIGRATION_ROUNDTRIP_DATABASE_URL", dsn)
+	if addr := os.Getenv("VENDOR_REDIS_ADDR"); addr != "" {
+		env = replaceEnv(env, "VENDOR_SERVICE_TEST_REDIS_ADDR", addr)
+		env = replaceEnv(env, "CUSTOMER14_TEST_REDIS_ADDR", addr)
+		env = replaceEnv(env, "JOURNEY_TEST_REDIS_ADDR", addr)
+	}
 	cmd.Env = env
 
 	output, err := cmd.CombinedOutput()
-	return string(output), err
+	if directory := strings.TrimSpace(os.Getenv("VENDOR_SERVICE_TEST_EVIDENCE_DIR")); directory != "" {
+		if mkdirErr := os.MkdirAll(directory, 0700); mkdirErr != nil {
+			return string(output), mkdirErr
+		}
+		filename := strings.ReplaceAll(pkg.shortName, "/", "_") + ".jsonl"
+		if writeErr := os.WriteFile(filepath.Join(directory, filename), output, 0600); writeErr != nil {
+			return string(output), writeErr
+		}
+	}
+	if err != nil {
+		return string(output), err
+	}
+	count, skipped, evidenceErr := testEvidence(output)
+	if evidenceErr != nil {
+		return string(output) + "\n" + evidenceErr.Error(), evidenceErr
+	}
+	return fmt.Sprintf("%d tests passed; %d skipped", count, len(skipped)), nil
+}
+
+// A successful package exit alone is insufficient: missing fixtures used to
+// silently skip database cases while the canonical runner still printed GO.
+func testEvidence(output []byte) (int, []string, error) {
+	passed := 0
+	skipped := []string{}
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	scanner.Buffer(make([]byte, 64<<10), 4<<20)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 || line[0] != '{' {
+			continue
+		}
+		var event struct{ Action, Test, Package string }
+		if err := json.Unmarshal(line, &event); err != nil {
+			return passed, skipped, err
+		}
+		if event.Action == "fail" {
+			return passed, skipped, fmt.Errorf("failed test/package %s %s", event.Package, event.Test)
+		}
+		if event.Test != "" && event.Action == "pass" {
+			passed++
+		}
+		if event.Test != "" && event.Action == "skip" {
+			skipped = append(skipped, event.Test)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return passed, skipped, err
+	}
+	if len(skipped) > 0 {
+		return passed, skipped, fmt.Errorf("skipped required Vendor tests: %s", strings.Join(skipped, ", "))
+	}
+	if passed == 0 {
+		return 0, skipped, fmt.Errorf("no passing Vendor test evidence")
+	}
+	return passed, skipped, nil
 }
 
 func replaceEnv(

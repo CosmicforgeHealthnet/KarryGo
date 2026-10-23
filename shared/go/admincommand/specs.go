@@ -92,7 +92,7 @@ var noteOpt = ParamSpec{Kind: ParamText, Max: 280}
 
 func Specs() []Spec {
 	severity := enum(true, "LOW", "MEDIUM", "HIGH", "CRITICAL")
-	return []Spec{
+	return append([]Spec{
 		{
 			Owner: "customer-service", Domain: "customer", Contract: "customer.admin-command.v1",
 			Capability: "customer.admin.command.execute", ReadCapability: "customer.admin.command.read", ApproveCapability: "customer.admin.command.approve",
@@ -164,7 +164,7 @@ func Specs() []Spec {
 				"CLOSE_INVESTIGATION": {SubjectKinds: kinds("shipments", "private-assignments", "execution-links"), RequiresCase: true, Params: map[string]ParamSpec{"closure": enum(true, "RESOLVED", "REFERRED_TO_OWNER", "NO_FURTHER_ACTION")}, RequiresApproval: true, VersionOf: VersionCase},
 			},
 		},
-	}
+	}, VendorSpec())
 }
 
 func ForOwner(owner string) (Spec, bool) {

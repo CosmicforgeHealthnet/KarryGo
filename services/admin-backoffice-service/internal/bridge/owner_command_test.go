@@ -33,10 +33,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type standingReader struct{}
+type standingReader struct{ contract string }
 
-func (standingReader) Binding(ctx context.Context, tx pgx.Tx, kind, ref string) (admincontext.RecordBinding, error) {
-	b := admincontext.RecordBinding{SourceContract: "taxi.admin-resources.v1"}
+func (r standingReader) Binding(ctx context.Context, tx pgx.Tx, kind, ref string) (admincontext.RecordBinding, error) {
+	contract := standingReaderContract(r.contract)
+	b := admincontext.RecordBinding{SourceContract: contract}
 	err := tx.QueryRow(ctx, `SELECT fingerprint,tenant_ref FROM e2e_subjects WHERE kind=$1 AND id=$2`, kind, ref).Scan(&b.Fingerprint, &b.Canonical.Tenant)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return b, admincontext.ErrUnmapped
@@ -46,9 +47,9 @@ func (standingReader) Binding(ctx context.Context, tx pgx.Tx, kind, ref string) 
 
 // standingExecutor is a minimal provider standing machine for the Bridge
 // transport test only; real owner state machines are certified in each owner.
-type standingExecutor struct{}
+type standingExecutor struct{ vendor bool }
 
-func (standingExecutor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (admincommand.Transition, error) {
+func (e standingExecutor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (admincommand.Transition, error) {
 	var version int64
 	var state string
 	if err := tx.QueryRow(ctx, `SELECT version,state FROM e2e_subjects WHERE kind=$1 AND id=$2 FOR UPDATE`, in.SubjectKind, in.SubjectID).Scan(&version, &state); err != nil {
@@ -58,6 +59,9 @@ func (standingExecutor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Ex
 		return admincommand.Transition{}, admincommand.ErrConflict
 	}
 	next := map[string]string{"RESTRICT_PROVIDER": "RESTRICTED", "LIFT_PROVIDER_RESTRICTION": "ACTIVE", "REQUEST_REVERIFICATION": "REVERIFICATION_REQUIRED"}[in.Action]
+	if e.vendor {
+		next = map[string]string{"PAUSE_BRANCH": "PAUSED", "REOPEN_BRANCH": "ACTIVE"}[in.Action]
+	}
 	if next == "" || next == state {
 		return admincommand.Transition{}, admincommand.ErrRejected
 	}
@@ -101,11 +105,30 @@ func ownerSchema(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+func standingReaderContract(value string) string {
+	if value != "" {
+		return value
+	}
+	return "taxi.admin-resources.v1"
+}
 func TestPostgresOwnerCommandBridgeMTLSRoundTrip(t *testing.T) {
+	ownerCommandBridgeMTLSRoundTrip(t, false)
+}
+func TestPostgresVendorCommandBridgeMTLSRoundTrip(t *testing.T) {
+	ownerCommandBridgeMTLSRoundTrip(t, true)
+}
+func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
 	db := testutil.Database(t)
 	owner := ownerSchema(t)
 	ctx := context.Background()
 	spec, _ := admincommand.ForOwner("driver-taxi-service")
+	kind, contract, action, resultState := "providers", "taxi.admin-resources.v1", "RESTRICT_PROVIDER", "RESTRICTED"
+	params := map[string]string{"restriction": "SUSPEND_ONLINE"}
+	if vendor {
+		spec = admincommand.VendorSpec()
+		kind, contract, action, resultState = "branches", "vendor.admin-resources.v1", "PAUSE_BRANCH", "PAUSED"
+		params = map[string]string{}
+	}
 	sc := adminpolicy.Scope{Product: "karryam", Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"}
 	p := policyfixture.New(t, sc, spec.Owner, spec.Capability, spec.Contract)
 	for _, cap := range []string{spec.ReadCapability, spec.ApproveCapability} {
@@ -116,18 +139,18 @@ func TestPostgresOwnerCommandBridgeMTLSRoundTrip(t *testing.T) {
 	p.Sign(t)
 	subject := uuid.NewString()
 	fingerprint := strings.Repeat("cd", 32)
-	if _, err := owner.Exec(ctx, `INSERT INTO e2e_subjects VALUES('providers',$1,$2,'org-1',0,'ACTIVE')`, subject, fingerprint); err != nil {
+	if _, err := owner.Exec(ctx, `INSERT INTO e2e_subjects VALUES($1,$2,$3,'org-1',0,'ACTIVE')`, kind, subject, fingerprint); err != nil {
 		t.Fatal(err)
 	}
 	issuer := contextfixture.New(t, spec.Owner)
-	store := &admincontext.Store{DB: owner, Authority: issuer.Authority, Reader: standingReader{}}
-	approval := issuer.Approval("ctx-"+subject, "providers", subject, spec.Capability, admincontext.RecordBinding{SourceContract: "taxi.admin-resources.v1", Fingerprint: fingerprint}, sc)
+	store := &admincontext.Store{DB: owner, Authority: issuer.Authority, Reader: standingReader{contract: contract}}
+	approval := issuer.Approval("ctx-"+subject, kind, subject, spec.Capability, admincontext.RecordBinding{SourceContract: contract, Fingerprint: fingerprint}, sc)
 	approval.Capabilities = []string{spec.Capability, spec.ReadCapability}
 	if err := store.Import(ctx, issuer.Sign(t, approval), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	writeKey, readKey := []byte(strings.Repeat("W", 32)), []byte(strings.Repeat("R", 32))
-	handler := &admincommand.Handler{Service: &admincommand.Service{Spec: spec, DB: owner, Policy: p.Engine, Contexts: store, Executor: standingExecutor{}, WriteEnabled: true, ReadEnabled: true}, WriteSecret: writeKey, ReadSecret: readKey}
+	handler := &admincommand.Handler{Service: &admincommand.Service{Spec: spec, DB: owner, Policy: p.Engine, Contexts: store, Executor: standingExecutor{vendor: vendor}, WriteEnabled: true, ReadEnabled: true}, WriteSecret: writeKey, ReadSecret: readKey}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	handler.Register(router)
@@ -147,7 +170,8 @@ func TestPostgresOwnerCommandBridgeMTLSRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := newFixture(t)
-	f.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, TaxiWrites: true})
+	f.claims.Permissions = []string{spec.Capability, spec.ReadCapability, spec.ApproveCapability}
+	f.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, TaxiWrites: true, VendorWrites: true})
 	f.claims.Zones, f.claims.Tenants = []string{"Z1"}, []string{"org-1"}
 	pair, leaf, roots := workloadCertificate(t, f.b.trust.WorkloadURI, false)
 	f.cert = leaf
@@ -193,65 +217,71 @@ func TestPostgresOwnerCommandBridgeMTLSRoundTrip(t *testing.T) {
 	suffix := "?" + values.Encode()
 
 	approvalID := uuid.NewString()
-	proposal, _ := json.Marshal(admincommand.Proposal{ContractVersion: spec.Contract, ApprovalID: approvalID, SubjectKind: "providers", SubjectID: subject, Action: "RESTRICT_PROVIDER", ExpectedVersion: 0, ReasonCode: "SAFETY_REVIEW", Params: map[string]string{"restriction": "SUSPEND_ONLINE"}})
-	if code, out := call("staff-1", "POST", "/taxi/command-approvals"+suffix, proposal); code != 200 || result(out)["status"] != "PENDING" {
+	proposal, _ := json.Marshal(admincommand.Proposal{ContractVersion: spec.Contract, ApprovalID: approvalID, SubjectKind: kind, SubjectID: subject, Action: action, ExpectedVersion: 0, ReasonCode: "SAFETY_REVIEW", Params: params})
+	if code, out := call("staff-1", "POST", "/"+spec.Domain+"/command-approvals"+suffix, proposal); code != 200 || result(out)["status"] != "PENDING" {
 		t.Fatal("proposal", code, out)
 	}
 	decision, _ := json.Marshal(admincommand.ApprovalDecision{Decision: "APPROVE", ReasonCode: "EVIDENCE_REVIEWED"})
-	if code, _ := call("staff-1", "POST", "/taxi/command-approvals/"+approvalID+"/decisions"+suffix, decision); code != 403 {
+	if code, _ := call("staff-1", "POST", "/"+spec.Domain+"/command-approvals/"+approvalID+"/decisions"+suffix, decision); code != 403 {
 		t.Fatal("requester approved own proposal", code)
 	}
-	if code, out := call("staff-2", "POST", "/taxi/command-approvals/"+approvalID+"/decisions"+suffix, decision); code != 200 || result(out)["status"] != "APPROVED" {
+	if code, out := call("staff-2", "POST", "/"+spec.Domain+"/command-approvals/"+approvalID+"/decisions"+suffix, decision); code != 200 || result(out)["status"] != "APPROVED" {
 		t.Fatal("independent approval", code, out)
 	}
-	submission := admincommand.Submission{ContractVersion: spec.Contract, OperationID: uuid.NewString(), SubjectKind: "providers", SubjectID: subject, Action: "RESTRICT_PROVIDER", ExpectedVersion: 0, IdempotencyKey: uuid.NewString(), ReasonCode: "SAFETY_REVIEW", Params: map[string]string{"restriction": "SUSPEND_ONLINE"}, ApprovalID: approvalID, RequestedAt: time.Now().UTC().Add(-time.Second)}
+	submission := admincommand.Submission{ContractVersion: spec.Contract, OperationID: uuid.NewString(), SubjectKind: kind, SubjectID: subject, Action: action, ExpectedVersion: 0, IdempotencyKey: uuid.NewString(), ReasonCode: "SAFETY_REVIEW", Params: params, ApprovalID: approvalID, RequestedAt: time.Now().UTC().Add(-time.Second)}
 	body, _ := json.Marshal(submission)
-	if code, _ := call("staff-2", "POST", "/taxi/commands"+suffix, body); code != 409 {
+	if code, _ := call("staff-2", "POST", "/"+spec.Domain+"/commands"+suffix, body); code != 409 {
 		t.Fatal("approver executed the requester's approval", code)
 	}
-	code, out := call("staff-1", "POST", "/taxi/commands"+suffix, body)
+	code, out := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, body)
 	if code != 200 || result(out)["status"] != "CONFIRMED" {
 		t.Fatal("approved command", code, out)
 	}
 	var state string
 	owner.QueryRow(ctx, `SELECT state FROM e2e_subjects WHERE id=$1`, subject).Scan(&state)
-	if state != "RESTRICTED" {
+	if state != resultState {
 		t.Fatal("owner state not changed by the owner", state)
 	}
-	if code, out := call("staff-1", "POST", "/taxi/commands"+suffix, body); code != 200 || result(out)["status"] != "CONFIRMED" || ownerPosts.Load() != 1 {
+	if code, out := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, body); code != 200 || result(out)["status"] != "CONFIRMED" || ownerPosts.Load() != 1 {
 		t.Fatal("replay re-posted", code, out, ownerPosts.Load())
 	}
-	if code, out := call("staff-1", "GET", "/taxi/commands/"+submission.OperationID+suffix, nil); code != 200 || result(out)["status"] != "CONFIRMED" {
+	if code, out := call("staff-1", "GET", "/"+spec.Domain+"/commands/"+submission.OperationID+suffix, nil); code != 200 || result(out)["status"] != "CONFIRMED" {
 		t.Fatal("readback", code, out)
 	}
-	code, out = call("staff-1", "GET", "/taxi/command-history/providers/"+subject+suffix, nil)
-	if code != 200 || result(out)["current_state"] != "RESTRICTED" || len(result(out)["decisions"].([]any)) != 1 {
+	code, out = call("staff-1", "GET", "/"+spec.Domain+"/command-history/"+kind+"/"+subject+suffix, nil)
+	if code != 200 || result(out)["current_state"] != resultState || len(result(out)["decisions"].([]any)) != 1 {
 		t.Fatal("history", code, out)
 	}
-	stale := admincommand.Submission{ContractVersion: spec.Contract, OperationID: uuid.NewString(), SubjectKind: "providers", SubjectID: subject, Action: "REQUEST_REVERIFICATION", ExpectedVersion: 0, IdempotencyKey: uuid.NewString(), ReasonCode: "DOCUMENT_REVIEW", Params: map[string]string{"document": "INSURANCE"}, RequestedAt: time.Now().UTC().Add(-time.Second)}
-	staleBody, _ := json.Marshal(stale)
-	if code, _ := call("staff-1", "POST", "/taxi/commands"+suffix, staleBody); code != 409 {
-		t.Fatal("Bridge did not hold the confirmed version slot", code)
+	var staleBody []byte
+	if !vendor {
+		stale := admincommand.Submission{ContractVersion: spec.Contract, OperationID: uuid.NewString(), SubjectKind: kind, SubjectID: subject, Action: "REQUEST_REVERIFICATION", ExpectedVersion: 0, IdempotencyKey: uuid.NewString(), ReasonCode: "DOCUMENT_REVIEW", Params: map[string]string{"document": "INSURANCE"}, RequestedAt: time.Now().UTC().Add(-time.Second)}
+		staleBody, _ = json.Marshal(stale)
+		if code, _ := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, staleBody); code != 409 {
+			t.Fatal("Bridge did not hold the confirmed version slot", code)
+		}
+		stale.OperationID, stale.IdempotencyKey, stale.ExpectedVersion = uuid.NewString(), uuid.NewString(), 5
+		staleBody, _ = json.Marshal(stale)
+		if code, out := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, staleBody); code != 200 || result(out)["status"] != "REJECTED" || result(out)["rejection_code"] != "owner_refused" {
+			t.Fatal("stale version not settled as owner refusal", code, out)
+		}
+	} else {
+		staleBody = body
 	}
-	stale.OperationID, stale.IdempotencyKey, stale.ExpectedVersion = uuid.NewString(), uuid.NewString(), 5
-	staleBody, _ = json.Marshal(stale)
-	if code, out := call("staff-1", "POST", "/taxi/commands"+suffix, staleBody); code != 200 || result(out)["status"] != "REJECTED" || result(out)["rejection_code"] != "owner_refused" {
-		t.Fatal("stale version not settled as owner refusal", code, out)
-	}
+
 	forged := strings.Replace(string(body), `"approval_id"`, `"approval":{"approval_id":"x"},"approval_id"`, 1)
-	if code, _ := call("staff-1", "POST", "/taxi/commands"+suffix, []byte(forged)); code != 400 {
+	if code, _ := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, []byte(forged)); code != 400 {
 		t.Fatal("HQ-supplied approval object accepted", code)
 	}
 	f.claims.Zones = []string{"Z2"}
-	if code, _ := call("staff-1", "GET", "/taxi/commands/"+submission.OperationID+suffix, nil); code != 403 {
+	if code, _ := call("staff-1", "GET", "/"+spec.Domain+"/commands/"+submission.OperationID+suffix, nil); code != 403 {
 		t.Fatal("zone escape", code)
 	}
 	f.claims.Zones = []string{"Z1"}
-	f.b.ConfigureDomainFlags(config.DomainFlags{TaxiWrites: true})
-	if code, _ := call("staff-1", "POST", "/taxi/commands"+suffix, staleBody); code != 503 {
+	f.b.ConfigureDomainFlags(config.DomainFlags{TaxiWrites: true, VendorWrites: true})
+	if code, _ := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, staleBody); code != 503 {
 		t.Fatal("global write kill ignored", code)
 	}
-	if code, _ := call("staff-1", "GET", "/taxi/commands/"+submission.OperationID+suffix, nil); code != 200 {
+	if code, _ := call("staff-1", "GET", "/"+spec.Domain+"/commands/"+submission.OperationID+suffix, nil); code != 200 {
 		t.Fatal("readback must survive the write kill", code)
 	}
 	if code, _ := call("staff-1", "POST", "/hauling/commands"+suffix, staleBody); code != 503 {

@@ -20,7 +20,7 @@ func TestPublicAdminIsolation(t *testing.T) {
 	r := gin.New()
 	r.NoRoute(edge.Handle)
 	for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT"} {
-		for _, path := range []string{"/api/v1/admin", "/api/v1/admin/", "/API/v1/AdMiN/x", "/api/v1%2fadmin/x", "/api/v1%252fadmin/x", "/api/v1/%2561dmin/x", "/api/v1/./admin/x", "/api/v1/customer/../admin/x", "/api/v1/customer/%252e%252e/admin/x", "/internal/karryam-admin/v1/capabilities", "/api/v1/customer/%255c..%255cadmin/x", "/innocent"} {
+		for _, path := range []string{"/api/v1/admin", "/api/v1/admin/", "/API/v1/AdMiN/x", "/api/v1%2fadmin/x", "/api/v1%252fadmin/x", "/api/v1/%2561dmin/x", "/api/v1/./admin/x", "/api/v1/customer/../admin/x", "/api/v1/customer/%252e%252e/admin/x", "/internal/karryam-admin/v1/capabilities", "/internal/vendor/v1/admin/resources/merchants", "/internal/vendor/v1/admin/commands", "/internal/vendor/v1/admin/case-authority/proofs/cases/case-id/CASE/case-id", "/internal/karryam-admin/v1/vendor/resources/branches", "/internal/karryam-admin/v1/vendor/commands", "/api/v1/customer/%255c..%255cadmin/x", "/innocent"} {
 			req := httptest.NewRequest(method, path, nil)
 			req.Host = "admin-backoffice-service:8110"
 			for k, v := range map[string]string{"Upgrade": "websocket", "Connection": "upgrade", "X-Gateway-Scope": "ADMIN", "X-HQ-Principal": "cosmicforge-hq-karryam-admin", "X-Forwarded-Host": "admin-backoffice-service", "X-Service-Name": "admin-backoffice-service", "X-Admin-Role": "owner"} {

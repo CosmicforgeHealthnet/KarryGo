@@ -107,8 +107,8 @@ func TestCapabilityVocabularyMigrationRollbackAndReapply(t *testing.T) {
 		if !newer {
 			break
 		}
-		if unwound >= 8 {
-			t.Fatal("unwound 8 later migrations and 000121 is still not the tip")
+		if unwound >= knownMigrationCount(t) {
+			t.Fatal("unwound the full known migration chain and 000121 is still not the tip")
 		}
 		if err := RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
 			t.Fatalf("unwind towards 000121: %v", err)

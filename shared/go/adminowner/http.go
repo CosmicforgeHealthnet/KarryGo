@@ -204,6 +204,14 @@ func (h *Handler) Serve(c *gin.Context) {
 			h.fail(c, 403, "forbidden")
 			return
 		}
+		if native, ok := h.Source.(StaffAuthorizer); ok {
+			if err := native.AuthorizeStaff(ctx, tx, query.Staff, definition.Kind, candidate); errors.Is(err, pgx.ErrNoRows) {
+				continue
+			} else if err != nil {
+				h.fail(c, 503, "owner_authorization_unavailable")
+				return
+			}
+		}
 		authorizedCandidates++
 		item, err := h.Source.Read(ctx, tx, definition.Kind, candidate, ref != "")
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -8,6 +8,7 @@ assert events, "Missing Media test evidence"
 assert not [e for e in events if e["Action"] == "fail" or e["Action"] == "skip" and e.get("Test")], "Failed/skipped Media tests"
 passed = {e["Test"] for e in events if e["Action"] == "pass" and e.get("Test")}
 required = {
+ "TestPostgresMediaVendorCaseEvidenceThroughExistingCaseServices",
  "TestPostgresMediaNativeCustomerCaseMembershipAndModernEvidence",
  "TestSourceCaseClientPinsOwnerMembershipScopePolicyAndAudience",
  "TestOwnerCaseEnrollmentRequiresFiniteOwnersAndDistinctAudienceKeys",

@@ -224,6 +224,96 @@ func TestPostgresMediaFleetInvestigationEvidenceThroughExistingCaseServices(t *t
 	}
 }
 
+func TestPostgresMediaVendorCaseEvidenceThroughExistingCaseServices(t *testing.T) {
+	f := newMediaFixture(t, fixtureOptions{scanner: cleanScanner{}})
+	ctx := context.Background()
+	spec, ok := admincase.Find("vendor-service", "cases")
+	if !ok || !models.ValidBindingType(spec.BindingType) || !models.CaseOnlyBindingType(spec.BindingType) {
+		t.Fatal("vendor investigation case vocabulary not recognized by Media")
+	}
+	scope := adminpolicy.Scope{Product: "karryam", Market: "M1", Zone: "Z1", Organization: testOrgID, Tenant: testOrgID}
+	policy := casePolicy(t, scope, spec)
+	caseRef, branch := "INV-"+uuid.NewString(), "branch_"+strings.ReplaceAll(uuid.NewString(), "-", "")
+	sourceKey := bytes.Repeat([]byte("f"), 32)
+	source := &signedCaseSource{spec: spec, key: sourceKey, nonces: map[string]bool{}, open: map[string]bool{caseRef: true}, subjects: map[string]map[string]string{caseRef: {"BRANCH": branch}}}
+	sourceServer := httptest.NewServer(source.handler())
+	defer sourceServer.Close()
+	client, err := admincase.NewClient(spec.Owner, sourceServer.URL, sourceKey)
+	if err != nil {
+		t.Fatal("vendor case source client", err)
+	}
+	defer client.Close()
+	payload := pdfFile(64)
+	objectID := uploadCaseEvidence(t, f, spec.Owner, "BRANCH", branch, "CARGO_CONDITION", spec.BindingType, caseRef, payload)
+	// Case-registry binding types are case evidence and may never be public.
+	if _, err := f.service.AuthorizeUpload(ctx, usecases.AuthorizeUploadInput{Caller: usecases.Caller{Service: spec.Owner, OrganizationID: testOrgID}, OwnerType: "BRANCH", OwnerReference: branch, UploadPurpose: "INCIDENT_ATTACHMENT", Visibility: "PUBLIC", FileName: "x.pdf", AllowedMIMETypes: []string{"application/pdf"}, MaxSizeBytes: 4096, IdempotencyKey: "public-" + uuid.NewString(), RequestFingerprint: "fp", BindingType: spec.BindingType, BindingID: caseRef}); err == nil {
+		t.Fatal("public case evidence authorized")
+	}
+	authority := &usecases.OwnerCaseAuthority{Media: f.service, Policy: policy.Engine, Sources: map[string]usecases.CaseSource{spec.Owner: client}}
+	access := f.service.NewCaseAccess(usecases.CaseAccessConfig{Enabled: true, Policy: policy.Engine, Authority: authority})
+	router := gin.New()
+	mediaKey := bytes.Repeat([]byte("m"), 32)
+	mediahttp.NewAdminCaseHandler(access, f.pool, mediaKey, true, true).Register(router)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	media, err := adminmedia.NewClient(server.URL, mediaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer media.Close()
+	actor := caseActorFor(scope, spec.Permission)
+	request := adminmedia.Request{Scope: scope, Purpose: "case-1", SourceCapability: spec.Permission, CaseOwner: spec.Owner, CaseKind: spec.Kind, CaseReference: caseRef, SubjectType: "BRANCH", SubjectReference: branch, MediaObjectID: objectID}
+	grant, err := media.Issue(ctx, actor, request)
+	if err != nil {
+		t.Fatal("vendor case grant", err)
+	}
+	content, err := media.Read(ctx, actor, request, grant.ID, grant.Token)
+	if err != nil || !bytes.Equal(content, payload) {
+		t.Fatal("vendor case content", err)
+	}
+	caseRequest := request
+	caseRequest.SubjectType, caseRequest.SubjectReference = "CASE", caseRef
+	if _, err := media.Issue(ctx, actor, caseRequest); err == nil {
+		t.Fatal("object owned by the branch released under the CASE subject")
+	}
+	for _, name := range []string{"subject", "tenant", "case", "kind"} {
+		bad := request
+		switch name {
+		case "subject":
+			bad.SubjectReference = "branch_foreign"
+		case "tenant":
+			bad.Scope.Tenant = "foreign"
+		case "case":
+			bad.CaseReference = "INV-" + uuid.NewString()
+		case "kind":
+			bad.CaseKind = "recoveries"
+		}
+		if _, err := media.Issue(ctx, actor, bad); err == nil {
+			t.Fatal("foreign vendor case evidence authorized", name)
+		}
+	}
+	if err := media.Revoke(ctx, actor, grant.ID, "CASE_REVIEW_DONE"); err != nil {
+		t.Fatal("revoke", err)
+	}
+	if body, err := media.Read(ctx, actor, request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+		t.Fatal("revoked vendor grant served content")
+	}
+	// Closing the Vendor case ends issuance and redemption of fresh grants.
+	fresh, err := media.Issue(ctx, actor, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.mu.Lock()
+	source.open[caseRef] = false
+	source.mu.Unlock()
+	if body, err := media.Read(ctx, actor, request, fresh.ID, fresh.Token); err == nil || len(body) > 0 {
+		t.Fatal("closed vendor investigation served content")
+	}
+	if _, err := media.Issue(ctx, actor, request); err == nil {
+		t.Fatal("closed vendor investigation minted a grant")
+	}
+}
+
 // A case kind constructed only in this test proves Media's authority is
 // driven by the case registry it is given, not by a hardcoded owner list.
 func TestPostgresMediaCaseAuthorityFollowsRegistryForConstructedKind(t *testing.T) {

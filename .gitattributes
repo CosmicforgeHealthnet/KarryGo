@@ -5,3 +5,6 @@ services/admin-backoffice-service/docs/openapi/** text eol=lf
 services/*/docs/openapi/admin-*.json text eol=lf
 services/*/migrations/*admin*.sql text eol=lf
 shared/go/admin*/schema.sql text eol=lf
+
+# Embedded Analytics producer schemas participate in signed canonical hashes.
+shared/go/analyticsadmin/producer_schema.sql text eol=lf

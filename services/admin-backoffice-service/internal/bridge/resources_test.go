@@ -35,6 +35,7 @@ func TestOwnerResourcesDelegation(t *testing.T) {
 				}
 				for _, name := range []string{"allowed", "zone", "tenant", "organization", "permission", "role", "policy", "spoofed_actor", "unconfigured"} {
 					f := newFixture(t)
+					f.claims.Permissions = []string{definition.Capability}
 					f.claims.Zones = []string{"Z1"}
 					f.claims.Tenants = []string{"org-1"}
 					if name != "unconfigured" {

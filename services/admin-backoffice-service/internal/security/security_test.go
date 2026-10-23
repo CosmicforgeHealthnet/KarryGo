@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +27,12 @@ func TestAssertionAndAuthorization(t *testing.T) {
 	if _, err := Verify(sign(t, valid, key, "one"), trust, now); err != nil {
 		t.Fatal("valid assertion denied", err)
 	}
-	tests := map[string]func(*Claims){"issuer": func(c *Claims) { c.Issuer = "evil" }, "audience": func(c *Claims) { c.Audience = "healthnet" }, "product": func(c *Claims) { c.Product = "healthnet" }, "subject": func(c *Claims) { c.Subject = "" }, "session": func(c *Claims) { c.SessionID = "" }, "session_expired": func(c *Claims) { c.AuthTime = now.Add(-time.Hour).Unix() }, "expiry": func(c *Claims) { c.Expires = now.Unix() }, "future": func(c *Claims) { c.NotBefore = now.Add(time.Second).Unix() }, "lifetime": func(c *Claims) { c.Expires = now.Add(time.Hour).Unix() }, "mfa": func(c *Claims) { c.ACR = "password" }, "empty_permissions": func(c *Claims) { c.Permissions = nil }, "duplicate_scope": func(c *Claims) { c.Markets = []string{"NG", "NG"} }}
+	tests := map[string]func(*Claims){"issuer": func(c *Claims) { c.Issuer = "evil" }, "audience": func(c *Claims) { c.Audience = "healthnet" }, "product": func(c *Claims) { c.Product = "healthnet" }, "subject": func(c *Claims) { c.Subject = "" }, "session": func(c *Claims) { c.SessionID = "" }, "session_expired": func(c *Claims) { c.AuthTime = now.Add(-time.Hour).Unix() }, "expiry": func(c *Claims) { c.Expires = now.Unix() }, "future": func(c *Claims) { c.NotBefore = now.Add(time.Second).Unix() }, "lifetime": func(c *Claims) { c.Expires = now.Add(time.Hour).Unix() }, "mfa": func(c *Claims) { c.ACR = "password" }, "permission_bound": func(c *Claims) {
+		c.Permissions = make([]string, 129)
+		for i := range c.Permissions {
+			c.Permissions[i] = fmt.Sprintf("permission.%d", i)
+		}
+	}, "empty_permissions": func(c *Claims) { c.Permissions = nil }, "duplicate_scope": func(c *Claims) { c.Markets = []string{"NG", "NG"} }}
 	for name, change := range tests {
 		t.Run(name, func(t *testing.T) {
 			c := valid

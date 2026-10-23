@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/services/vendor-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/vendor-service/internal/features/adminresources"
+	"cosmicforge/logistics/shared/go/admincommand"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -1334,6 +1337,17 @@ func main() {
 	// pending jobs, outbox rows, audit and reads untouched.
 	workers = workersForProcess(cfg.ProcessMode, cfg.Flags.CommerceGlobalKillSwitch, workers)
 
+	vendorAdmin, adminErr := adminresources.Runtime(ctx, db)
+	if adminErr != nil {
+		logging.Fatal("configuration", "Vendor private Admin configuration invalid")
+	}
+	vendorCommands, adminErr := admincommand.Runtime(vendorAdmin, admincommands.Spec(), admincommands.Executor{Vendor: vendorService, Food: foodService, Shop: shopService, Production: productionService, Orders: orderService}, "VENDOR")
+	if adminErr != nil {
+		logging.Fatal("configuration", "Vendor private command configuration invalid")
+	}
+	if err := vendorAdminCredentialIsolation(cfg, vendorAdmin, vendorCommands); err != nil {
+		logging.Fatal("configuration", "Vendor private Admin credential isolation invalid")
+	}
 	serviceapp.Run(serviceapp.Options{
 		Name:        "vendor-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -1452,6 +1466,9 @@ func main() {
 
 		},
 		RegisterRoot: func(router *gin.Engine) {
+			vendorAdmin.RegisterOn(router.Group(""))
+			vendorCommands.Register(router)
+
 			// Customer V4 §27.2: every customer commerce route below is
 			// registered after this, so each is measured by family/outcome.
 			router.Use(commerceRequestMetrics())

@@ -2,31 +2,18 @@ package database
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestSection13AMigrationReplayAndBoundary(t *testing.T) {
-	t.Skip("Section 13A rollback test superseded by dependency-aware rollback-chain test")
-	dsn := os.Getenv("VENDOR_SERVICE_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("VENDOR_SERVICE_TEST_DATABASE_URL not set; skipping real-Postgres Section 13A replay")
-	}
-
+	pool, migrationsDir := historicalMigrationPool(t, "000047")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
+	var err error
 
 	// Apply every currently known Vendor migration through Section 13A.
-	if err = ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
+	if err = ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("fresh replay through Section 13A: %v", err)
 	}
 
@@ -142,7 +129,7 @@ func TestSection13AMigrationReplayAndBoundary(t *testing.T) {
 	}
 
 	// Roll back exactly the latest migration: 000047.
-	if err = RollbackLastMigration(ctx, pool, "../../migrations"); err != nil {
+	if err = RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("rollback Section 13A: %v", err)
 	}
 
@@ -177,7 +164,7 @@ func TestSection13AMigrationReplayAndBoundary(t *testing.T) {
 	}
 
 	// Reapply Section 13A.
-	if err = ApplyMigrations(ctx, pool, "../../migrations"); err != nil {
+	if err = ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("reapply Section 13A: %v", err)
 	}
 

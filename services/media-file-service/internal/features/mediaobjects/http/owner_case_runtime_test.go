@@ -88,7 +88,7 @@ func TestOwnerCaseEnrollmentRequiresFiniteOwnersAndDistinctAudienceKeys(t *testi
 			if name == "valid" || name == "fleet" || name == "all-owners" {
 				want := 1
 				if name == "all-owners" {
-					want = 5
+					want = 6
 				}
 				if err != nil || len(authority.Sources) != want {
 					t.Fatal(err)

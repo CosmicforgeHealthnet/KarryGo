@@ -913,3 +913,8 @@ hauling-fit-decision-read-model.md; hauling-restriction-read-model.md;
 media-case-access-framework.md; provider-decision-readback.md. Policy documents
 are under ../admin/policies (repository docs/admin/policies). The capability
 matrix and pinned schemas are under services/admin-backoffice-service/docs/openapi.
+
+
+## Secure Admin Section 11 continuation — 24 October 2026
+
+The historical candidate/partial Sections 6–10 narrative above describes its original review, not today's staging status. PR #15 and subsequent staging history are preserved; Sections 6–10 are not reopened. Section 11 extends the existing owner/Bridge engines directly on staging. Current behavior, source authority limits and test methodology are recorded in [section-11-vendor.md](section-11-vendor.md); migration, disabled enrollment and original-action recovery constraints are in [section-11-vendor-runbook.md](section-11-vendor-runbook.md). No live deployment, production activation, Partner/Gateway cutover or later section work is part of this change. Final acceptance must refer to the actual pushed head, never an earlier green run.

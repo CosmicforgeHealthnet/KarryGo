@@ -89,7 +89,7 @@ func onboard(t *testing.T, svc *Service, pool *pgxpool.Pool, ctx context.Context
 	if err != nil {
 		t.Fatalf("create branch: %v", err)
 	}
-	branchCapability, err := svc.PutBranchCapability(ctx, actor, business.ID, branch.ID, held.ID, 0)
+	branchCapability, err := svc.PutBranchCapability(ctx, actor, business.ID, branch.ID, held.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch.ID, held.ID))
 	if err != nil {
 		t.Fatalf("attach %s to branch: %v", capability, err)
 	}
@@ -258,4 +258,16 @@ func TestOnboardingAPIAcceptsCateringAndManufacturer(t *testing.T) {
 			t.Fatalf("%s missing from the capability-types listing: %s", capability, listed.Body.String())
 		}
 	}
+}
+
+// Branch creation now links the vendor's existing capabilities. Read the
+// current source version rather than pretending that link does not exist.
+func currentBranchCapabilityVersion(t *testing.T, pool *pgxpool.Pool, ctx context.Context, business, branch, capability string) int64 {
+	t.Helper()
+	var version int64
+	err := pool.QueryRow(ctx, `SELECT COALESCE((SELECT version FROM vendor_branch_capabilities WHERE business_id=$1 AND branch_id=$2 AND vendor_capability_id=$3),0)`, business, branch, capability).Scan(&version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return version
 }

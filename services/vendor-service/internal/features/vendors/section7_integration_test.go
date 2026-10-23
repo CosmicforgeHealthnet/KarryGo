@@ -80,19 +80,19 @@ func TestSection7ActivationMatrixExpirySuspensionAndSourceIntegrity(t *testing.T
 	if e != nil {
 		t.Fatal(e)
 	}
-	rest1, e := svc.PutBranchCapability(ctx, actor, business.ID, branch1.ID, restaurant.ID, 0)
+	rest1, e := svc.PutBranchCapability(ctx, actor, business.ID, branch1.ID, restaurant.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch1.ID, restaurant.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
-	rest2, e := svc.PutBranchCapability(ctx, actor, business.ID, branch2.ID, restaurant.ID, 0)
+	rest2, e := svc.PutBranchCapability(ctx, actor, business.ID, branch2.ID, restaurant.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch2.ID, restaurant.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, e = svc.PutBranchCapability(ctx, actor, business.ID, branch1.ID, shop.ID, 0)
+	_, e = svc.PutBranchCapability(ctx, actor, business.ID, branch1.ID, shop.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch1.ID, shop.ID))
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = svc.PutBranchCapability(ctx, actor, business.ID, branch2.ID, shop.ID, 0); e != nil {
+	if _, e = svc.PutBranchCapability(ctx, actor, business.ID, branch2.ID, shop.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch2.ID, shop.ID)); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = svc.SubmitOnboarding(ctx, actor); e != nil {

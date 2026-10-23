@@ -101,15 +101,15 @@ func TestCaseRegistryHasOnlyNativeCasesAndExactSubjectRoles(t *testing.T) {
 			}
 		}
 	}
-	// Every enrolled case belongs to one of the five source owners; the
+	// Every enrolled case belongs to one of the six source owners; the
 	// original native cases and Fleet's standalone investigations stay present.
-	owners := map[string]bool{"customer-service": true, "driver-taxi-service": true, "driver-dispatch-delivery-service": true, "driver-hauling-service": true, "fleet-partner-service": true}
+	owners := map[string]bool{"vendor-service": true, "customer-service": true, "driver-taxi-service": true, "driver-dispatch-delivery-service": true, "driver-hauling-service": true, "fleet-partner-service": true}
 	for identity := range seen {
 		if !owners[identity[:strings.Index(identity, ":")]] {
 			t.Fatal("case enrolled for a non-source owner", identity)
 		}
 	}
-	for _, identity := range []string{"customer-service:review-work-items", "driver-taxi-service:recoveries", "driver-dispatch-delivery-service:incidents", "driver-dispatch-delivery-service:delivery-recoveries", "driver-dispatch-delivery-service:returns", "driver-hauling-service:recoveries", "fleet-partner-service:investigations"} {
+	for _, identity := range []string{"vendor-service:cases", "customer-service:review-work-items", "driver-taxi-service:recoveries", "driver-dispatch-delivery-service:incidents", "driver-dispatch-delivery-service:delivery-recoveries", "driver-dispatch-delivery-service:returns", "driver-hauling-service:recoveries", "fleet-partner-service:investigations"} {
 		if !seen[identity] {
 			t.Fatal("native case missing", identity)
 		}
@@ -127,5 +127,12 @@ func TestCaseRegistryHasOnlyNativeCasesAndExactSubjectRoles(t *testing.T) {
 		if Strict([]byte(raw), &p) == nil {
 			t.Fatal("ambiguous source contract accepted", raw)
 		}
+	}
+}
+
+func TestVendorCaseRegistryUsesOnlyNativeCaseIdentity(t *testing.T) {
+	s, ok := Find("vendor-service", "cases")
+	if !ok || len(s.Subjects) != 3 || !Contains(s.Subjects["CASE"], "$CASE") || !Contains(s.Subjects["BUSINESS"], "business") || !Contains(s.Subjects["BRANCH"], "branch") || Contains(s.States, "CLOSED") {
+		t.Fatal("Vendor case authority must be exact and closed-state denying")
 	}
 }

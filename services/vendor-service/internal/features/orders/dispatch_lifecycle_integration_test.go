@@ -26,11 +26,7 @@ func TestDispatchLifecycleDuplicateStaleAndForeignParcelPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	id := uuid.NewString()
-	var ref, parcel string
-	err = pool.QueryRow(ctx, `SELECT r.id,p.parcel_ref FROM commerce_platform_mission_refs r JOIN commerce_fulfilment_plan_mission_parcels mp ON mp.plan_mission_id=r.plan_mission_id JOIN commerce_fulfilment_parcels p ON p.id=mp.parcel_id WHERE r.authority='DISPATCH' LIMIT 1`).Scan(&ref, &parcel)
-	if err != nil {
-		t.Skip("canonical Vendor test database has no reserved Dispatch fixture")
-	}
+	ref, parcel := seedAdministrativeDispatchReference(t, pool)
 	if _, err = pool.Exec(ctx, `INSERT INTO commerce_platform_mission_refs(id,group_id,plan_id,plan_mission_id,authority,mission_ref,link_state) SELECT $1,group_id,plan_id,plan_mission_id,'DISPATCH',$1,'SUPERSEDED' FROM commerce_platform_mission_refs WHERE id=$2`, id, ref); err != nil {
 		t.Fatal(err)
 	}

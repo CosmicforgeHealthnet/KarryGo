@@ -9,6 +9,7 @@ package config
 
 import (
 	"cosmicforge/logistics/shared/go/customerstanding"
+	"cosmicforge/logistics/shared/go/serviceauth"
 	"errors"
 	"net/url"
 	"os"
@@ -654,7 +655,11 @@ func (c Config) Validate() error {
 		if _, err := customerstanding.NewClient(customerstanding.Config{BaseURL: c.CustomerStandingURL, ServiceName: "vendor-service", Secret: []byte(c.CustomerStandingSecret)}); err != nil {
 			problems = append(problems, "VENDOR_CUSTOMER_STANDING_ENFORCED requires a valid dedicated standing client: "+err.Error())
 		}
-		for _, secret := range []string{c.CustomerSecret, c.WalletSecret, c.DispatchSecret, c.TaxiSecret, c.HaulingSecret, c.MediaSecret} {
+		standingOtherSecrets := []string{c.CustomerSecret, c.WalletSecret, c.DispatchSecret, c.TaxiSecret, c.HaulingSecret, c.MediaSecret, c.VerificationSecret, c.NotificationSecret, c.SupportSecret, c.AdminSecret, c.AnalyticsSecret, string(c.Auth.AccessTokenSecret), string(c.Auth.RefreshTokenSecret), string(c.Auth.OTPSecret), string(c.CustomerAccessTokenSecret)}
+		for _, secret := range serviceauth.ParseSecrets(c.ServiceSecrets) {
+			standingOtherSecrets = append(standingOtherSecrets, string(secret))
+		}
+		for _, secret := range standingOtherSecrets {
 			if secret != "" && secret == c.CustomerStandingSecret {
 				problems = append(problems, "VENDOR_CUSTOMER_STANDING_SECRET must be dedicated")
 				break

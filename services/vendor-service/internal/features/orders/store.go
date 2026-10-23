@@ -139,6 +139,9 @@ func (s *Store) createGuarded(ctx context.Context, source QuoteSource, plan Allo
 	if _, err := standing.Allow(ctx, source.CustomerID); err != nil {
 		return ParentOrder{}, false, err
 	}
+	if err := guardAdministrativeBookability(ctx, tx, source); err != nil {
+		return ParentOrder{}, false, err
+	}
 
 	parentID := "cpo_" + uuid.NewString()
 	addressJSON, err := json.Marshal(source.Address)
@@ -1269,6 +1272,9 @@ func refreshParentState(
 // existingQuote is customer- and agreement-bound. A hold never hides an existing
 // committed order, but another identity/fingerprint cannot use its receipt.
 func (s *Store) existingQuote(ctx context.Context, customerID, quoteID, fingerprint string) (ParentOrder, bool, error) {
+	if s == nil || s.db == nil {
+		return ParentOrder{}, false, ErrDependencyMissing
+	}
 	var id, stored string
 	err := s.db.QueryRow(ctx, `SELECT id,quote_fingerprint FROM commerce_parent_orders WHERE customer_id=$1 AND quote_id=$2`, customerID, quoteID).Scan(&id, &stored)
 	if errors.Is(err, pgx.ErrNoRows) {

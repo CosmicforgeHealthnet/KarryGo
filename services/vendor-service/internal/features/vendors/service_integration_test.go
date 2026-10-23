@@ -104,14 +104,14 @@ func TestSection6AggregatePersistsAndScopesToAuthenticatedBusiness(t *testing.T)
 	if err != nil || settings.Version != 1 {
 		t.Fatalf("put settings: %+v err=%v", settings, err)
 	}
-	configured, err := svc.PutBranchCapability(ctx, actor, business.ID, branch.ID, capability.ID, 0)
+	configured, err := svc.PutBranchCapability(ctx, actor, business.ID, branch.ID, capability.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch.ID, capability.ID))
 	if err != nil {
 		t.Fatalf("configure branch capability: %v", err)
 	}
 	if configured.Status != BranchCapabilityDraft || configured.Effective {
 		t.Fatalf("branch capability self-activated: %+v", configured)
 	}
-	configuredAtBranchTwo, err := svc.PutBranchCapability(ctx, actor, business.ID, branchTwo.ID, capability.ID, 0)
+	configuredAtBranchTwo, err := svc.PutBranchCapability(ctx, actor, business.ID, branchTwo.ID, capability.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branchTwo.ID, capability.ID))
 	if err != nil {
 		t.Fatalf("configure second branch: %v", err)
 	}
@@ -119,12 +119,16 @@ func TestSection6AggregatePersistsAndScopesToAuthenticatedBusiness(t *testing.T)
 	if err != nil {
 		t.Fatalf("create second capability: %v", err)
 	}
-	configuredPastry, err := svc.PutBranchCapability(ctx, actor, business.ID, branch.ID, pastry.ID, 0)
+	configuredPastry, err := svc.PutBranchCapability(ctx, actor, business.ID, branch.ID, pastry.ID, currentBranchCapabilityVersion(t, pool, ctx, business.ID, branch.ID, pastry.ID))
 	if err != nil {
 		t.Fatalf("configure second branch capability: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `WITH activate_business AS (UPDATE vendor_businesses SET status='ACTIVE' WHERE id=$1 RETURNING id), activate_branches AS (UPDATE vendor_branches SET status='ACTIVE' WHERE business_id=$1 RETURNING id), activate_capabilities AS (UPDATE vendor_capabilities SET status='ACTIVE' WHERE business_id=$1 RETURNING id) UPDATE vendor_branch_capabilities SET status='ACTIVE' WHERE business_id=$1`, business.ID); err != nil {
 		t.Fatalf("operator activation seed: %v", err)
+	}
+	branchTwoBefore, err := svc.ListBranchCapabilities(ctx, actor, business.ID, branchTwo.ID)
+	if err != nil {
+		t.Fatal(err)
 	}
 	paused, err := svc.ChangeBranchCapabilityStatus(ctx, actor, business.ID, branch.ID, capability.ID, BranchCapabilityPaused, configured.Version)
 	if err != nil {
@@ -148,9 +152,20 @@ func TestSection6AggregatePersistsAndScopesToAuthenticatedBusiness(t *testing.T)
 	if err != nil {
 		t.Fatalf("list second branch: %v", err)
 	}
-	if len(branchTwoStates) != 1 || branchTwoStates[0].Status != BranchCapabilityActive || !branchTwoStates[0].Effective {
-		t.Fatalf("pausing branch one changed branch two: %+v", branchTwoStates)
+	if len(branchTwoBefore) != 2 || len(branchTwoStates) != len(branchTwoBefore) {
+		t.Fatalf("unexpected auto-linked capability inventory: before=%+v after=%+v", branchTwoBefore, branchTwoStates)
 	}
+	beforeByID := map[string]BranchCapability{}
+	for _, c := range branchTwoBefore {
+		beforeByID[c.ID] = c
+	}
+	for _, c := range branchTwoStates {
+		b, ok := beforeByID[c.ID]
+		if !ok || c.Status != b.Status || c.Version != b.Version || c.Effective != b.Effective {
+			t.Fatalf("pausing branch one changed branch two: %+v", branchTwoStates)
+		}
+	}
+
 	if _, err = pool.Exec(ctx, `UPDATE vendor_businesses SET status='PAUSED' WHERE id=$1`, business.ID); err != nil {
 		t.Fatal(err)
 	}

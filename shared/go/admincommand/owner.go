@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/shared/go/admincontext"
+	"cosmicforge/logistics/shared/go/adminowner"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -94,6 +95,11 @@ func (s *Service) ready(ctx context.Context, actor adminpolicy.Actor, capability
 // context. The subject must still be bound to exactly this scope through the
 // owner's own resource contract; only then does the command contract apply.
 func (s *Service) authorize(ctx context.Context, tx pgx.Tx, actor adminpolicy.Actor, purpose, kind, id, capability string, scope adminpolicy.Scope, now time.Time) error {
+	if native, ok := s.Executor.(adminowner.StaffAuthorizer); ok {
+		if err := native.AuthorizeStaff(ctx, tx, actor.Staff, kind, id); err != nil {
+			return adminpolicy.ErrDenied
+		}
+	}
 	expected, ok := s.Spec.SubjectContract(kind)
 	if !ok {
 		return ErrNotFound

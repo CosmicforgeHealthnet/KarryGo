@@ -1137,6 +1137,22 @@ type RescheduleInput struct {
 // Releasing first and then discovering the target is full would leave a
 // reservation with nothing, which is exactly the failure this ordering prevents.
 func (s *Service) Reschedule(ctx context.Context, actor Actor, scope Scope, reservationID string, in RescheduleInput) (Reservation, []AllocationView, error) {
+	var moved Reservation
+	var allocations []AllocationView
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var e error
+		moved, allocations, e = s.RescheduleInTx(ctx, tx, actor, scope, reservationID, in)
+		return e
+	})
+	if err != nil {
+		return Reservation{}, nil, err
+	}
+	return moved, allocations, nil
+}
+
+// RescheduleInTx reuses the native availability locks, blackout/expiry checks,
+// allocations and calendar revision in the caller's owner transaction.
+func (s *Service) RescheduleInTx(ctx context.Context, tx pgx.Tx, actor Actor, scope Scope, reservationID string, in RescheduleInput) (Reservation, []AllocationView, error) {
 	if err := s.requireWrites(); err != nil {
 		return Reservation{}, nil, err
 	}
@@ -1147,7 +1163,7 @@ func (s *Service) Reschedule(ctx context.Context, actor Actor, scope Scope, rese
 		moved       Reservation
 		allocations []AllocationView
 	)
-	err := s.inTx(ctx, func(tx pgx.Tx) error {
+	err := func() error {
 		now := s.now()
 		current, err := loadReservation(ctx, tx, actor.VendorID, reservationID, true)
 		if err != nil {
@@ -1223,7 +1239,7 @@ func (s *Service) Reschedule(ctx context.Context, actor Actor, scope Scope, rese
 		if err != nil {
 			return err
 		}
-		return s.record(ctx, tx, actor, evidence{
+		recordErr := s.record(ctx, tx, actor, evidence{
 			action: "production.reservation.rescheduled", eventType: "production.reservation.rescheduled",
 			aggregateType: "capacity_reservation", aggregateID: moved.ID, branchID: moved.BranchID,
 			version: moved.Version,
@@ -1231,7 +1247,12 @@ func (s *Service) Reschedule(ctx context.Context, actor Actor, scope Scope, rese
 			payload: map[string]any{"reservation": ReservationViewOf(moved, allocations, now),
 				"calendar_revision": revision},
 		})
-	})
+		if recordErr != nil {
+			return recordErr
+		}
+		return nil
+
+	}()
 	if err != nil {
 		return Reservation{}, nil, err
 	}

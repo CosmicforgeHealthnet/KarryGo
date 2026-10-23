@@ -34,7 +34,12 @@ jobs:
     env:
       GOFLAGS: -buildvcs=false
       VENDOR_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/vendor_test?sslmode=disable
+      VENDOR_SERVICE_TEST_DATABASE_URL: postgres://karrygo_test:karrygo_test@127.0.0.1:5432/vendor_test?sslmode=disable
+      CUSTOMER14_TEST_REDIS_ADDR: 127.0.0.1:6379
       VENDOR_REDIS_ADDR: 127.0.0.1:6379
+      VENDOR_SERVICE_TEST_WIRE_DIR: ${{ github.workspace }}/test-artifacts/vendor-wire
+      VENDOR_SERVICE_TEST_EVIDENCE_DIR: ${{ github.workspace }}/test-artifacts/vendor-isolated
+      VENDOR_SERVICE_TEST_REDIS_ADDR: 127.0.0.1:6379
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
@@ -65,7 +70,7 @@ jobs:
           git diff --check
       - name: Configuration, topology, route, event and worker contracts
         working-directory: services/vendor-service
-        run: go test ./internal/config ./internal/operational ./internal/crmcontract ./internal/events ./internal/jobs -count=1 -p 1 -timeout=600s
+        run: go test ./internal/config ./internal/operational ./internal/crmcontract -count=1 -p 1 -timeout=600s
       - name: VPS deployment bundle
         env:
           VENDOR_IMAGE: ghcr.io/cosmicforgehealthnet/vendor-service:ci-validation
@@ -73,9 +78,18 @@ jobs:
         run: |
           docker compose -f deploy/vendor-service/docker-compose.staging.yml config --quiet
           docker build -f services/vendor-service/Dockerfile -t "$VENDOR_IMAGE" .
+      - name: Native Vendor wire schema dependencies
+        run: python -m pip install -r scripts/admin-bridge/requirements.txt
       - name: Vendor tests
         working-directory: services/vendor-service
-        run: go test ./... -count=1 -p 1 -timeout=1200s
+        # Each test package receives a distinct migrated PostgreSQL database.
+        # Events/jobs/database cases are included by this canonical full runner.
+        env:
+          GOFLAGS: -buildvcs=false -race
+        run: |
+          go run ./tools/vendor-test-runner
+          python ../../scripts/admin-bridge/vendor_testgate.py "$VENDOR_SERVICE_TEST_EVIDENCE_DIR"
+          python ../../scripts/admin-bridge/vendor_wire_contract.py "$VENDOR_SERVICE_TEST_WIRE_DIR"
       - name: Vet and build
         working-directory: services/vendor-service
         run: go vet ./... && go build ./...
@@ -85,3 +99,11 @@ jobs:
           ! git grep -n -I -E -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|sk-proj-[A-Za-z0-9_-]{20,}' -- services/vendor-service shared/go
           test -z "$(git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -Ev '\.env\.(example|sample|template)$' || true)"
           test -z "$(git grep -n -I -E 'log\.(Print|Printf|Info|Debug).*([Oo][Tt][Pp]|[Qq][Rr]|[Tt]oken|[Pp]assword|[Ss]ecret)' -- 'services/vendor-service/**' 'shared/go/**' ':(exclude)**/*_test.go' || true)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vendor-isolated-certification-evidence
+          path: |
+            test-artifacts/vendor-isolated/
+            test-artifacts/vendor-wire/

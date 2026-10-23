@@ -52,6 +52,27 @@ func replacementFingerprint(r ReservationReplacementRequest) string {
 // quantity in the same reservation. A retry with the same key returns the
 // durable result; reusing it for different material evidence is rejected.
 func (s *StockService) ReplaceReservationAllocation(ctx context.Context, actor Actor, scope BranchScope, request ReservationReplacementRequest) (ReservationReplacementResult, error) {
+	return s.replaceReservationAllocation(ctx, actor, scope, request, s.withWriteTransaction)
+}
+
+// ReplaceReservationAllocationInTx preserves the native Inventory engine's
+// guards, locking, arithmetic, audit and outbox in the caller's source-owned
+// transaction. It cannot commit independently of the administrative receipt.
+func (s *StockService) ReplaceReservationAllocationInTx(ctx context.Context, tx pgx.Tx, actor Actor, scope BranchScope, request ReservationReplacementRequest) (ReservationReplacementResult, error) {
+	return s.replaceReservationAllocation(ctx, actor, scope, request, func(ctx context.Context, actor Actor, scope BranchScope, branch string, work func(InventoryTransaction, pgx.Tx) error) error {
+		if tx == nil {
+			return ErrDependencyMissing
+		}
+		if err := s.foundation.RequireBranch(ctx, actor, scope, actor.BusinessID, branch, true); err != nil {
+			return err
+		}
+		if err := enableInventoryMutation(ctx, tx); err != nil {
+			return err
+		}
+		return work(postgresInventoryTransaction{ctx: ctx, tx: tx}, tx)
+	})
+}
+func (s *StockService) replaceReservationAllocation(ctx context.Context, actor Actor, scope BranchScope, request ReservationReplacementRequest, within func(context.Context, Actor, BranchScope, string, func(InventoryTransaction, pgx.Tx) error) error) (ReservationReplacementResult, error) {
 	if err := s.requireDependencies(); err != nil {
 		return ReservationReplacementResult{}, err
 	}
@@ -66,7 +87,7 @@ func (s *StockService) ReplaceReservationAllocation(ctx context.Context, actor A
 	}
 	fingerprint := replacementFingerprint(request)
 	var out ReservationReplacementResult
-	err := s.withWriteTransaction(ctx, actor, scope, scopeBranchID(scope), func(inventoryTx InventoryTransaction, tx pgx.Tx) error {
+	err := within(ctx, actor, scope, scopeBranchID(scope), func(inventoryTx InventoryTransaction, tx pgx.Tx) error {
 		var branchID, businessID, sourceType, sourceRef, status string
 		var version int64
 		if err := tx.QueryRow(ctx, `SELECT branch_id,business_id,source_type,source_ref,status,version FROM inventory_reservations WHERE id=$1 AND business_id=$2 FOR UPDATE`, request.ReservationID, actor.BusinessID).Scan(&branchID, &businessID, &sourceType, &sourceRef, &status, &version); errors.Is(err, pgx.ErrNoRows) {

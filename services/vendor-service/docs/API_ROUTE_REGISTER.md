@@ -2026,3 +2026,20 @@ parity guard. Existing staff/resource permissions and privacy checks still apply
 | GET | /api/v1/vendor/staff/me/access | Verified staff member's own current access |
 
 `POST /api/v1/vendor/auth/register/verify` accepts one contact identifier, challenge_id, otp and optional device_id. The ordinary auth start/resend routes issue the challenge. Only successful OTP validation reaches owner registration. Owner, role assignment, audit and staff-created outbox event commit atomically; business details are supplied later through the existing authenticated `POST /api/v1/vendor/businesses` route. Optional legal_name, currency and timezone remain accepted for older staging APKs; when supplied, the compatibility path also creates a DRAFT business and its creation event atomically. Concurrent retries reuse existing affiliations. A caller cannot select or take over an existing business, and suspended access remains suspended. See `openapi/vendor-registration.openapi.json`.
+
+### Secure Admin Section 11 — private, disabled by default
+
+These source-owned routes are mounted at the root, never under public Swagger or the public Gateway. Exact source scope, native staff permission, signed owner policy, HMAC v2, durable audit and separate credentials are required.
+
+| Method | Private path | Authority |
+| --- | --- | --- |
+| GET | /internal/vendor/v1/admin/resources/{kind} | Scoped source list |
+| GET | /internal/vendor/v1/admin/resources/{kind}/{id} | Scoped source detail |
+| GET | /internal/vendor/v1/admin/authorization-contexts/bindings/{kind}/{id} | Draft binding preparation |
+| POST | /internal/vendor/v1/admin/authorization-contexts | Signed owner publication |
+| GET | /internal/vendor/v1/admin/case-authority/proofs/{kind}/{id}/{subject}/{reference} | Current case membership |
+| GET | /internal/vendor/v1/admin/case-authority/authorization-contexts/bindings/{kind}/{id} | Draft case binding |
+| POST | /internal/vendor/v1/admin/case-authority/authorization-contexts | Signed case publication |
+| POST | /internal/vendor/v1/admin/commands | Fixed owner action |
+| GET | /internal/vendor/v1/admin/commands/{kind}/{id} | Native decision history |
+| GET | /internal/vendor/v1/admin/commands/{kind}/{id}/{key} | Original command readback |

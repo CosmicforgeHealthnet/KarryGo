@@ -906,8 +906,13 @@ func (s *Service) effective(ctx context.Context, c BranchCapability) (bool, stri
 }
 
 func (s *Service) verificationEffective(ctx context.Context, c BranchCapability) (bool, string) {
+	return verificationEffectiveWith(ctx, s.db, c)
+}
+func verificationEffectiveWith(ctx context.Context, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, c BranchCapability) (bool, string) {
 	var onboardingStatus string
-	err := s.db.QueryRow(ctx, `SELECT status FROM vendor_onboarding_profiles WHERE business_id=$1`, c.BusinessID).Scan(&onboardingStatus)
+	err := q.QueryRow(ctx, `SELECT status FROM vendor_onboarding_profiles WHERE business_id=$1`, c.BusinessID).Scan(&onboardingStatus)
 	if errors.Is(err, pgx.ErrNoRows) || onboardingStatus == "NOT_STARTED" {
 		return true, "ACTIVE"
 	}
@@ -915,7 +920,7 @@ func (s *Service) verificationEffective(ctx context.Context, c BranchCapability)
 		return false, "VERIFICATION_STATE_UNAVAILABLE"
 	}
 	var blocked bool
-	err = s.db.QueryRow(ctx, `SELECT EXISTS(
+	err = q.QueryRow(ctx, `SELECT EXISTS(
 		SELECT 1 FROM vendor_verification_projections p
 		WHERE p.business_id=$1 AND (
 			(p.dimension IN ('IDENTITY','BUSINESS') AND p.subject_type IN ('BUSINESS','REPRESENTATIVE')) OR

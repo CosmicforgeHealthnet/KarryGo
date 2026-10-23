@@ -333,7 +333,7 @@ func TestSection43AllOpenAPIDocumentsAreStructurallyValid(t *testing.T) {
 			}
 		}
 	}
-	if operations != 900 || len(operationIDs) != operations {
+	if operations != 910 || len(operationIDs) != operations {
 		t.Fatalf("OpenAPI inventory changed: operations=%d uniqueOperationIds=%d", operations, len(operationIDs))
 	}
 }

@@ -3,11 +3,25 @@ package adminowner
 import (
 	"cosmicforge/logistics/shared/go/adminread"
 	"errors"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 var ErrContract = errors.New("invalid minimized owner resource")
 
 func ValidateResource(resource Resource, definition Definition, details ...bool) error {
+	if resource.Label != nil {
+		value := *resource.Label
+		if !definition.Label || strings.TrimSpace(value) == "" || utf8.RuneCountInString(value) > 240 {
+			return ErrContract
+		}
+		for _, r := range value {
+			if unicode.IsControl(r) {
+				return ErrContract
+			}
+		}
+	}
 	includeCustody := definition.Custody && len(details) > 0 && details[0]
 	if includeCustody != (resource.Custody != nil) {
 		return ErrContract

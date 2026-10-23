@@ -26,7 +26,7 @@ func TestMigrationEmbedsSharedProducerSchemaVerbatim(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
-	if !strings.Contains(text, analyticsadmin.ProducerSchema) || !strings.Contains(text, "-- shared-template-sha256: "+analyticsadmin.ProducerSchemaSHA256()) {
+	if !strings.Contains(text, strings.ReplaceAll(analyticsadmin.ProducerSchema, "\r\n", "\n")) || !strings.Contains(text, "-- shared-template-sha256: "+analyticsadmin.ProducerSchemaSHA256()) {
 		t.Fatal("000132 drifted from shared/go/analyticsadmin/producer_schema.sql")
 	}
 }

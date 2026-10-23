@@ -23,6 +23,8 @@ func Specs() []Spec {
 	recoveryStates := []string{"DETECTED", "EVALUATING", "REPLACEMENT_SEARCH", "TRANSFER_REQUIRED", "IN_PROGRESS", "OPS_REQUIRED"}
 	purposes := []string{"CARGO_CONDITION", "DAMAGE_EVIDENCE", "RECOVERY_TRANSFER", "SAFETY_INCIDENT", "INCIDENT_ATTACHMENT"}
 	return []Spec{
+		{"vendor-service", "vendor", "cases", "vendor.case.evidence.read", "vendor.admin-case-evidence.v1", "VENDOR_CASE", map[string][]string{"CASE": {"$CASE"}, "BUSINESS": {"business"}, "BRANCH": {"branch"}}, []string{"OPEN", "ESCALATED", "REVIEWED", "APPEALED", "APPEAL_DECIDED"}, []string{"INCIDENT_ATTACHMENT", "DAMAGE_EVIDENCE", "CARGO_CONDITION", "SAFETY_INCIDENT", "DISPUTE_ATTACHMENT"}},
+
 		{"customer-service", "customer", "review-work-items", "customer.case.evidence.read", "customer.admin-case-evidence.v1", "VERIFICATION_CASE", map[string][]string{"CASE": {"$CASE"}, "CUSTOMER": {"customer"}}, []string{"REQUESTED", "ACKNOWLEDGED"}, []string{"COMPLIANCE_DOCUMENT", "PROOF_DOCUMENT", "DISPUTE_ATTACHMENT"}},
 		{"driver-taxi-service", "taxi", "recoveries", "taxi.case.evidence.read", "taxi.admin-case-evidence.v1", "RECOVERY_CASE", taxiSubjects, recoveryStates, purposes},
 		{"driver-taxi-service", "taxi", "incidents", "taxi.case.evidence.read", "taxi.admin-case-evidence.v1", "RECOVERY_CASE", map[string][]string{"CASE": {"$CASE"}, "PROVIDER": {"provider"}, "VEHICLE": {"vehicle"}, "BOOKING": {"booking"}}, []string{"OPEN", "REMEDIATION_IN_PROGRESS"}, purposes},

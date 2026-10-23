@@ -27,11 +27,7 @@ func TestSupportCaseLinkRaceReplayAndOrderingPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	var parent, vendorOrder, customer, business string
-	err = pool.QueryRow(ctx, `SELECT p.id,v.id,p.customer_id,v.business_id FROM commerce_parent_orders p JOIN commerce_vendor_orders v ON v.parent_order_id=p.id ORDER BY p.created_at DESC LIMIT 1`).Scan(&parent, &vendorOrder, &customer, &business)
-	if err != nil {
-		t.Skip("canonical Vendor test DB has no CommerceOrder fixture")
-	}
+	parent, vendorOrder, customer, business := seedAdministrativeOrder(t, pool)
 	store := NewStore(pool)
 	op := "support-race-" + uuid.NewString()
 	req := supportcase.CreateRequest{SchemaVersion: 1, OperationRef: op, Category: supportcase.DeliveryDelay, Priority: "normal", Subject: "Delivery delay", Description: "Delivery timing dispute", CustomerRef: customer, Context: supportcase.Context{CommerceOrderRef: parent, VendorOrderRef: vendorOrder, VendorRef: business}}

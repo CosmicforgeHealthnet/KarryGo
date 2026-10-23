@@ -167,6 +167,12 @@ func (h *CaseAuthorityHandler) Serve(c *gin.Context) {
 		fail(403, "forbidden")
 		return
 	}
+	if native, ok := h.Source.(StaffAuthorizer); ok {
+		if err := native.AuthorizeStaff(ctx, tx, q.Staff, spec.Kind, ref); err != nil {
+			fail(404, "case_unavailable")
+			return
+		}
+	}
 	item, err := h.Source.Read(ctx, tx, spec.Kind, ref, false)
 	if err != nil || item.Status == nil || !admincase.Contains(spec.States, *item.Status) {
 		fail(404, "case_unavailable")

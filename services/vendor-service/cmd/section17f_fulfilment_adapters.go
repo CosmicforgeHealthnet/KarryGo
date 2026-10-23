@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"errors"
+	"github.com/jackc/pgx/v5"
 	"strings"
 	"time"
 
@@ -70,6 +71,25 @@ func (a *section17FInventoryAuthority) ReplaceReservationAllocation(ctx context.
 	}
 	actor, scope := a.scope(businessID, branchID)
 	result, err := a.stock.ReplaceReservationAllocation(ctx, actor, scope, inventory.ReservationReplacementRequest{
+		ReservationID: request.ReservationRef, SourceType: request.SourceType, SourceRef: request.SourceRef,
+		OriginalItemID: request.OriginalItemRef, OriginalOrderedQty: request.OriginalOrderedQty,
+		OriginalFoundQty: request.OriginalFoundQty, MissingQty: request.MissingQty,
+		ReplacementItemID: request.ReplacementItemRef, ReplacementQty: request.ReplacementQty,
+		ExpectedVersion: request.ExpectedVersion, IdempotencyKey: request.IdempotencyKey,
+		CorrelationID: request.CorrelationID,
+	})
+	if err != nil {
+		return orders.InventoryReplacementResult{}, err
+	}
+	return orders.InventoryReplacementResult{OriginalFulfilled: result.OriginalFulfilled, OriginalReleased: result.OriginalReleased, ReplacementReserved: result.ReplacementReserved, Version: result.Version}, nil
+}
+
+func (a *section17FInventoryAuthority) ReplaceReservationAllocationInTx(ctx context.Context, tx pgx.Tx, businessID, branchID string, request orders.InventoryReplacementRequest) (orders.InventoryReplacementResult, error) {
+	if a == nil || a.stock == nil {
+		return orders.InventoryReplacementResult{}, orders.ErrDependencyMissing
+	}
+	actor, scope := a.scope(businessID, branchID)
+	result, err := a.stock.ReplaceReservationAllocationInTx(ctx, tx, actor, scope, inventory.ReservationReplacementRequest{
 		ReservationID: request.ReservationRef, SourceType: request.SourceType, SourceRef: request.SourceRef,
 		OriginalItemID: request.OriginalItemRef, OriginalOrderedQty: request.OriginalOrderedQty,
 		OriginalFoundQty: request.OriginalFoundQty, MissingQty: request.MissingQty,

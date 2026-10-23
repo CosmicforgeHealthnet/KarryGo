@@ -34,6 +34,7 @@ type Reference struct {
 }
 type Resource struct {
 	Reference         string            `json:"reference"`
+	Label             *string           `json:"label,omitempty"`
 	Kind              string            `json:"kind"`
 	Status            *string           `json:"status"`
 	SourceVersion     *int64            `json:"source_version"`
@@ -66,6 +67,7 @@ type Snapshot struct {
 type Definition struct {
 	Kind, Capability, SourceContract string
 	Dimensions, Counters, References []string
+	Label                            bool
 	Custody                          bool
 }
 type Source interface {
@@ -73,4 +75,11 @@ type Source interface {
 	// The final flag requests bounded detail enrichment. Read models never
 	// lock or mutate business state; native command usecases own those guards.
 	Read(context.Context, pgx.Tx, string, string, bool) (Resource, error)
+}
+
+// StaffAuthorizer is an additional native owner check for sources whose IAM
+// grants are narrower than the five delegated geographic/tenant dimensions.
+// Implementations must use current owner records; a branch grant is not global.
+type StaffAuthorizer interface {
+	AuthorizeStaff(context.Context, pgx.Tx, string, string, string) error
 }

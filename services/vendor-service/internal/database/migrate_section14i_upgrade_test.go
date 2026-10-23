@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -32,9 +33,10 @@ func section14IMigrationsDir() string {
 // last pre-Section-14 migration must reach the tip, because that is what every
 // existing deployment will actually do.
 func TestSection14IUpgradesAPreSection14Database(t *testing.T) {
-	pool, ctx := section14iPool(t)
+	pool, migrationsDir := historicalMigrationPool(t, "000066")
+	ctx := context.Background()
 
-	migrations, err := ListMigrations(section14IMigrationsDir())
+	migrations, err := ListMigrations(migrationsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,13 +54,8 @@ func TestSection14IUpgradesAPreSection14Database(t *testing.T) {
 		t.Fatal("no Section 14 migrations were found")
 	}
 
-	if migrations[len(migrations)-1].Version != "000066_vendor_inventory_operational_hardening" {
-		t.Skipf("a later section owns the tip (%s); scenario B belongs to that section",
-			migrations[len(migrations)-1].Version)
-	}
-
 	for i := 0; i < section14; i++ {
-		if err = RollbackLastMigration(ctx, pool, section14IMigrationsDir()); err != nil {
+		if err = RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 			t.Fatalf("rolling back to the pre-Section-14 state failed at step %d: %v", i+1, err)
 		}
 	}
@@ -81,7 +78,7 @@ func TestSection14IUpgradesAPreSection14Database(t *testing.T) {
 	}
 
 	// Scenario B proper: the upgrade an existing deployment performs.
-	if err = ApplyMigrations(ctx, pool, section14IMigrationsDir()); err != nil {
+	if err = ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("a pre-Section-14 database could not upgrade to the tip: %v", err)
 	}
 
@@ -104,15 +101,10 @@ func TestSection14IUpgradesAPreSection14Database(t *testing.T) {
 // migrations are additive, but "additive" is a claim about behaviour, and the
 // rows in question are a deployed vendor's real stock.
 func TestSection14IPreservesExistingShopInventoryRows(t *testing.T) {
-	pool, ctx := section14iPool(t)
+	pool, migrationsDir := historicalMigrationPool(t, "000066")
+	ctx := context.Background()
 
-	migrations, err := ListMigrations(section14IMigrationsDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if migrations[len(migrations)-1].Version != "000066_vendor_inventory_operational_hardening" {
-		t.Skip("a later section owns the tip; scenario D belongs to that section")
-	}
+	var err error
 
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
 	user := "s14i_up_user_" + suffix
@@ -176,6 +168,10 @@ func TestSection14IPreservesExistingShopInventoryRows(t *testing.T) {
 	}
 
 	// Roll Section 14 off and back on underneath that row.
+	migrations, err := ListMigrations(migrationsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var section14 int
 	for _, migration := range migrations {
 		if strings.HasPrefix(migration.Version, "00006") && migration.Version >= "000060" {
@@ -184,7 +180,7 @@ func TestSection14IPreservesExistingShopInventoryRows(t *testing.T) {
 	}
 
 	for i := 0; i < section14; i++ {
-		if err = RollbackLastMigration(ctx, pool, section14IMigrationsDir()); err != nil {
+		if err = RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 			t.Fatalf("rollback step %d: %v", i+1, err)
 		}
 	}
@@ -199,7 +195,7 @@ func TestSection14IPreservesExistingShopInventoryRows(t *testing.T) {
 		t.Fatal("a Section 12 stock basis was destroyed by rolling Section 14 back")
 	}
 
-	if err = ApplyMigrations(ctx, pool, section14IMigrationsDir()); err != nil {
+	if err = ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatalf("reapply after the round trip: %v", err)
 	}
 

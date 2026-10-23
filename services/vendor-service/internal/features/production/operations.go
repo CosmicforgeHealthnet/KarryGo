@@ -144,7 +144,25 @@ type DelayInput struct {
 
 // ReportDelay appends immutable delay evidence and revises only the
 // operational expected-ready window. promised_ready_at is never changed.
+// ReportDelay retains the native API transaction boundary.
 func (s *Service) ReportDelay(ctx context.Context, actor Actor, jobID string, in DelayInput) error {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = s.ReportDelayInTx(ctx, tx, actor, jobID, in); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// ReportDelayInTx lets source-owned commands commit delay/readiness/ETA evidence
+// atomically with their immutable command receipt. It never changes the promise.
+func (s *Service) ReportDelayInTx(ctx context.Context, tx pgx.Tx, actor Actor, jobID string, in DelayInput) error {
+	if err := s.requireWrites(); err != nil {
+		return err
+	}
 	if !inVocabulary([]string{"STAFF_SHORTAGE", "EQUIPMENT_FAILURE", "INGREDIENT_SHORTAGE", "QUALITY_REWORK", "CAPACITY_CONFLICT", "LOGISTICS_CONSTRAINT", "OTHER"}, strings.ToUpper(strings.TrimSpace(in.ReasonCode))) || len(in.Note) > 280 || in.NewWindowStart == nil || in.NewWindowEnd == nil || !in.NewWindowEnd.After(*in.NewWindowStart) {
 		return validation()
 	}
@@ -155,11 +173,7 @@ func (s *Service) ReportDelay(ctx context.Context, actor Actor, jobID string, in
 	if key == "" {
 		return validation()
 	}
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
+	var err error
 	var branch string
 	var promised, oldStart, oldEnd *time.Time
 	var version int64
@@ -175,7 +189,7 @@ func (s *Service) ReportDelay(ctx context.Context, actor Actor, jobID string, in
 			return e
 		}
 		if already {
-			return tx.Commit(ctx)
+			return nil
 		}
 		return errStaleVersion()
 	}
@@ -186,7 +200,7 @@ func (s *Service) ReportDelay(ctx context.Context, actor Actor, jobID string, in
 		if priorJob != jobID || priorStart == nil || priorEnd == nil || !priorStart.Equal(*in.NewWindowStart) || !priorEnd.Equal(*in.NewWindowEnd) {
 			return coded(apperrors.Conflict("This delay command key was already used with different evidence.", nil), CodeIdempotencyConflict)
 		}
-		return tx.Commit(ctx)
+		return nil
 	}
 	if !errors.Is(lookupErr, pgx.ErrNoRows) {
 		return lookupErr
@@ -217,7 +231,7 @@ func (s *Service) ReportDelay(ctx context.Context, actor Actor, jobID string, in
 		// Until the logistics authority returns a current delivery window, an
 		// updated production window is not a customer ETA. Marking it honestly
 		// as unavailable prevents a stale promise from being shown as current.
-		_, err = tx.Exec(ctx, `UPDATE commerce_vendor_order_readiness SET expected_window_start=$1,expected_window_end=$2,customer_eta_status='NOT_AVAILABLE',customer_eta_start=NULL,customer_eta_end=NULL,timing_revision=timing_revision+1,timing_source_evidence=jsonb_build_object('production_job_id',$4::text,'production_window_start',$1,'production_window_end',$2,'logistics_timing','NOT_AVAILABLE'),source_version=source_version+1,updated_at=now() WHERE business_id=$3 AND production_job_id=$4`, in.NewWindowStart, in.NewWindowEnd, actor.VendorID, jobID)
+		_, err = tx.Exec(ctx, `UPDATE commerce_vendor_order_readiness SET expected_window_start=$1,expected_window_end=$2,customer_eta_status='NOT_AVAILABLE',customer_eta_start=NULL,customer_eta_end=NULL,timing_revision=timing_revision+1,timing_source_evidence=jsonb_build_object('production_job_id',$4::text,'production_window_start',$1::timestamptz,'production_window_end',$2::timestamptz,'logistics_timing','NOT_AVAILABLE'),source_version=source_version+1,updated_at=now() WHERE business_id=$3 AND production_job_id=$4`, in.NewWindowStart, in.NewWindowEnd, actor.VendorID, jobID)
 	}
 	if err == nil {
 		// Platform logistics owns the mission, but its pickup timing projection
@@ -250,9 +264,6 @@ func (s *Service) ReportDelay(ctx context.Context, actor Actor, jobID string, in
 			}
 			err = s.publishTx(ctx, tx, actor, "commerce.customer_eta.changed", "VendorOrder", vendorOrderID, version+1, payload)
 		}
-	}
-	if err == nil {
-		err = tx.Commit(ctx)
 	}
 	return err
 }

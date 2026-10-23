@@ -233,21 +233,24 @@ func TestSnapshotImmutabilityIsEnforcedByTheDatabase(t *testing.T) {
 			// be asserting against a weaker guarantee than the real one.
 			id := fmt.Sprintf("cs_imm_%s_%d", testCase.calculationType, time.Now().UnixNano())
 
-			// Production calculation types need a batch, which Section 16C
-			// owns; the trigger itself is type-driven, so the recipe types
-			// exercise exactly the same code path.
-			if testCase.calculationType == CalcProductionExpected ||
-				testCase.calculationType == CalcProductionActual {
-				t.Skip("production types require a Section 16C batch fixture")
+			var batchID any
+			if testCase.calculationType == CalcProductionExpected || testCase.calculationType == CalcProductionActual {
+				batchID = id + "_batch"
+				exec(t, pool, ctx, `INSERT INTO vendor_production_batches(
+                  id,business_id,branch_id,recipe_id,recipe_version_id,recipe_version_number,
+                  target_type,target_ref,target_variant_ref,planned_output_numerator,planned_output_denominator,
+                  output_unit_code,expected_output_numerator,expected_output_denominator,recipe_expected_waste_bps,
+                  multiplier_numerator,multiplier_denominator,operating_model,output_inventory_numerator,
+                  output_inventory_denominator,status,actual_consumption_recorded,actual_output_numerator,
+                  actual_output_denominator,cancel_reason,version)
+                  VALUES($1,$2,$3,'vcost_recipe_imm','vcost_version_imm',1,'FOOD_ITEM','imm_target','',
+                  10,1,'kg',10,1,0,1,1,'BATCH_STOCK',10,1,'COMPLETED',true,10,1,'',1)`, batchID, businessID, branchA1)
 			}
-			if _, err := pool.Exec(ctx, `
-				INSERT INTO vendor_cost_snapshots(
-					id,business_id,calculation_type,calculation_version,
-					recipe_id,recipe_version_id,strategy,currency,completeness,
-					total_cost_minor,calculated_by_staff_id)
-				VALUES($1,$2,$3,1,$4,$5,'MANUAL_CONFIGURED_COST','NGN','COMPLETE',1000,$6)`,
-				id, businessID, testCase.calculationType,
-				"vcost_recipe_imm", "vcost_version_imm", businessID+"_owner"); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO vendor_cost_snapshots(
+                id,business_id,calculation_type,calculation_version,recipe_id,recipe_version_id,
+                batch_id,strategy,currency,completeness,total_cost_minor,calculated_by_staff_id)
+                VALUES($1,$2,$3,1,$4,$5,$6,'MANUAL_CONFIGURED_COST','NGN','COMPLETE',1000,$7)`,
+				id, businessID, testCase.calculationType, "vcost_recipe_imm", "vcost_version_imm", batchID, businessID+"_owner"); err != nil {
 				t.Fatalf("seed snapshot: %v", err)
 			}
 
@@ -491,7 +494,7 @@ func TestPolicyResolutionPrefersBranchOverrideAndCannotEscapeBranch(t *testing.T
 		t.Fatal(err)
 	}
 	if !branchExists {
-		t.Skip("branch fixture unavailable; branch-override precedence covered by the service tests")
+		t.Fatal("required native branch fixture unavailable")
 	}
 
 	exec(t, pool, ctx, `
