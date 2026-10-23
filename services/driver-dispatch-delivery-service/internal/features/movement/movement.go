@@ -144,6 +144,9 @@ func (p *Publisher) Sweep(ctx context.Context) (events.EmissionResult, error) {
 		LEFT JOIN trips t ON t.booking_id = b.id
 		LEFT JOIN commerce_missions cm ON cm.booking_id = b.id
 		WHERE (b.updated_at > $1 OR t.updated_at > $1) AND b.id > $3::uuid
+		  -- A return-to-sender execution record is part of the original
+		  -- booking, whose movement already carries the return state above.
+		  AND NOT EXISTS (SELECT 1 FROM dispatch_return_workflows rx WHERE rx.return_booking_id = b.id)
 		ORDER BY b.id
 		LIMIT $2`, since, p.batch, after)
 	if err != nil {

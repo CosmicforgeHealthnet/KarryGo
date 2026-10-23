@@ -93,3 +93,64 @@ func TestSweepPublishesDropoffArrivalWithoutCredential(t *testing.T) {
 		}
 	}
 }
+
+// Decision 3: a return-to-sender is part of the original booking. The sweep
+// publishes the original booking's movement (which carries the return state)
+// and never publishes the return execution record as a second movement.
+func TestSweepNeverPublishesAReturnExecutionAsItsOwnMovement(t *testing.T) {
+	dsn := os.Getenv("DISPATCH_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("NOT EXECUTED: DISPATCH_TEST_DATABASE_URL (isolated, migrated dispatch database) is required")
+	}
+	ctx := context.Background()
+	db, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if _, e := db.Exec(ctx, sql, args...); e != nil {
+			t.Fatal(e)
+		}
+	}
+	owner, provider, original, originalTrip, returnBooking := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	attempt, recovery := uuid.NewString(), uuid.NewString()
+	exec("INSERT INTO providers(id,phone,full_name)VALUES($1,$2,'Rider')", provider, provider)
+	for _, id := range []string{original, returnBooking} {
+		exec(`INSERT INTO dispatch_bookings(id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone)
+			VALUES($1,$2,'accepted','pickup',6,3,'dropoff',7,4,0,'Receiver','+2348000000000')`, id, owner)
+	}
+	exec(`INSERT INTO trips(id,booking_id,provider_id,customer_id,status,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,fare_amount,receiver_name,receiver_phone)
+		VALUES($1,$2,$3,$4,'in_progress','pickup',6,3,'dropoff',7,4,0,'Receiver','+2348000000000')`, originalTrip, original, provider, owner)
+	exec(`INSERT INTO dispatch_delivery_attempts(id,trip_id,provider_id,attempt_number,arrived_at,grace_expires_at,policy_version,source_version,idempotency_key,request_fingerprint)
+		VALUES($1,$2,$3,1,now(),now()+interval '5 minutes','test-policy',9,$4,'fp')`, attempt, originalTrip, provider, "attempt-"+attempt)
+	exec(`INSERT INTO dispatch_delivery_recovery_actions(id,delivery_attempt_id,trip_id,booking_id,customer_id,action,state,policy_version,expected_trip_version,idempotency_key,request_fingerprint)
+		VALUES($1,$2,$3,$4,$5,'RETURN_TO_SENDER','REQUESTED','test-policy',9,$6,'fp')`, recovery, attempt, originalTrip, original, owner, "recovery-"+recovery)
+	exec(`INSERT INTO dispatch_return_workflows(id,recovery_action_id,original_trip_id,return_booking_id,route_reference,route_snapshot,policy_version)
+		VALUES($1,$2,$3,$4,'route','{}','test-policy')`, uuid.NewString(), recovery, originalTrip, returnBooking)
+
+	p := NewPublisher(db)
+	for i := 0; i < 1000; i++ {
+		if _, err := p.Sweep(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if p.after == "" {
+			break
+		}
+	}
+	count := func(ref string) int {
+		t.Helper()
+		var n int
+		if err := db.QueryRow(ctx, `SELECT count(*) FROM customer_movement_outbox WHERE source_ref=$1`, ref).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if count(original) == 0 {
+		t.Fatal("the original booking's movement was not published")
+	}
+	if n := count(returnBooking); n != 0 {
+		t.Fatalf("the return execution was published as its own movement %d times", n)
+	}
+}

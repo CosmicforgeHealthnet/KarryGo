@@ -88,6 +88,31 @@ type idempotentBookingCreator interface {
 	InsertIdempotent(context.Context, Booking, string, string, string, int64, string) (Booking, bool, error)
 }
 
+// returnExecutionReader identifies the internal execution record of a
+// return-to-sender. A return stays part of the original booking: the customer
+// manages it through that booking's delivery recovery, never as a booking of
+// its own.
+type returnExecutionReader interface {
+	IsReturnExecution(ctx context.Context, bookingID string) (bool, error)
+}
+
+// refuseReturnExecution refuses a customer action that would treat a return
+// execution record as an independent booking.
+func (s *Service) refuseReturnExecution(ctx context.Context, bookingID string) error {
+	reader, ok := s.repository.(returnExecutionReader)
+	if !ok {
+		return nil
+	}
+	isReturn, err := reader.IsReturnExecution(ctx, bookingID)
+	if err != nil {
+		return err
+	}
+	if isReturn {
+		return apperrors.Conflict("This return is part of your original delivery. Manage it from that delivery.", nil)
+	}
+	return nil
+}
+
 // idempotentBookingFinder reports whether the customer already created a
 // booking under an Idempotency-Key. A retry of that request replays the
 // existing booking, so it is not a new booking and is not standing-gated.
@@ -545,6 +570,9 @@ func (s *Service) CancelBooking(ctx context.Context, customerID, id, reason stri
 	if err != nil {
 		return BookingView{}, err
 	}
+	if err := s.refuseReturnExecution(ctx, state.Booking.ID); err != nil {
+		return BookingView{}, err
+	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		reason = "customer_cancelled"
@@ -629,6 +657,9 @@ func (s *Service) SubmitReview(ctx context.Context, customerID, id string, in Re
 	}
 	state, err := s.getOwnedBooking(ctx, customerID, id)
 	if err != nil {
+		return Review{}, err
+	}
+	if err := s.refuseReturnExecution(ctx, state.Booking.ID); err != nil {
 		return Review{}, err
 	}
 	switch state.WireStatus() {

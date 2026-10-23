@@ -101,6 +101,22 @@ func (r *PostgresRepository) Insert(ctx context.Context, booking Booking) (Booki
 // the same fingerprint reads the original booking; a changed payload fails
 // closed. The booking row itself is the durable operation record, so a timeout
 // after INSERT can safely resume the idempotent Wallet/broadcast steps.
+// returnExecutionPredicate is true for a dispatch_bookings row created as the
+// internal execution record of a return-to-sender (deliveryrecovery). Such a
+// row is part of the original customer booking, never a booking of its own.
+const returnExecutionPredicate = `EXISTS (SELECT 1 FROM dispatch_return_workflows rw WHERE rw.return_booking_id = b.id)`
+
+// IsReturnExecution reports whether the booking is a return-to-sender
+// execution record of another booking.
+func (r *PostgresRepository) IsReturnExecution(ctx context.Context, bookingID string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `SELECT `+returnExecutionPredicate+` FROM dispatch_bookings b WHERE b.id = $1::uuid`, bookingID).Scan(&exists)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return exists, err
+}
+
 // CreatedWithIdempotencyKey reports whether the customer already created a
 // booking with this Idempotency-Key.
 func (r *PostgresRepository) CreatedWithIdempotencyKey(ctx context.Context, customerID, key string) (bool, error) {
@@ -189,7 +205,7 @@ func (r *PostgresRepository) ListWithDerivedState(ctx context.Context, customerI
 		offset = 0
 	}
 	rows, err := r.db.Query(ctx, derivedStateSelect+`
-		WHERE b.customer_id = $1
+		WHERE b.customer_id = $1 AND NOT `+returnExecutionPredicate+`
 		ORDER BY b.created_at DESC
 		LIMIT $2 OFFSET $3`, customerID, limit, offset)
 	if err != nil {
