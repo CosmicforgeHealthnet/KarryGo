@@ -26,7 +26,27 @@ func RegisterInternalRoutes(group *gin.RouterGroup, service *contextusecases.Ser
 	if len(vendorStandingSecrets) == 1 && len(vendorStandingSecrets[0]) >= 32 {
 		standingVerifier = serviceauth.NewVerifier(serviceauth.Secrets{"vendor-service": vendorStandingSecrets[0]}, 30*time.Second)
 	}
-	internal.Use(func(c *gin.Context) {
+	internal.Use(scopedVendorHMAC(verifier, standingVerifier))
+	internal.GET("/customers/:customerId/context", func(c *gin.Context) {
+		result, err := service.Resolve(c.Request.Context(), contextusecases.Request{
+			Caller:           c.GetString("service_name"),
+			CustomerID:       c.Param("customerId"),
+			RequestedScopes:  strings.Split(c.Query("scopes"), ","),
+			SavedLocationID:  c.Query("saved_location_id"),
+			GuestTravellerID: c.Query("guest_traveller_id"),
+		})
+		if err != nil {
+			httpx.RespondError(c, apperrors.From(err))
+			return
+		}
+		c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": result})
+	})
+}
+
+// scopedVendorHMAC identifies this concrete HMAC middleware in native router
+// introspection while keeping the standing key restricted to its exact scope.
+func scopedVendorHMAC(verifier, standingVerifier *serviceauth.Verifier) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		selected := verifier
 		if c.GetHeader(serviceauth.HeaderServiceName) == "vendor-service" {
 			scopes := strings.Split(c.Query("scopes"), ",")
@@ -49,19 +69,6 @@ func RegisterInternalRoutes(group *gin.RouterGroup, service *contextusecases.Ser
 			}
 		}
 		serviceauth.Middleware(selected)(c)
-	})
-	internal.GET("/customers/:customerId/context", func(c *gin.Context) {
-		result, err := service.Resolve(c.Request.Context(), contextusecases.Request{
-			Caller:           c.GetString("service_name"),
-			CustomerID:       c.Param("customerId"),
-			RequestedScopes:  strings.Split(c.Query("scopes"), ","),
-			SavedLocationID:  c.Query("saved_location_id"),
-			GuestTravellerID: c.Query("guest_traveller_id"),
-		})
-		if err != nil {
-			httpx.RespondError(c, apperrors.From(err))
-			return
-		}
-		c.JSON(nethttp.StatusOK, gin.H{"success": true, "data": result})
-	})
+
+	}
 }
