@@ -99,5 +99,5 @@ if __name__ == "__main__":
     matrix = json.loads(path.read_text(encoding="utf-8"))
     ids = {row["id"] for row in entries()}
     matrix = [row for row in matrix if row["id"] not in ids] + entries()
-    path.write_text(json.dumps(matrix, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_bytes((json.dumps(matrix, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
     print(f"{len(matrix)} capability entries")

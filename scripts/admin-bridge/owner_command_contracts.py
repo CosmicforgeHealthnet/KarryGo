@@ -107,5 +107,5 @@ if __name__ == "__main__":
     path = Path(__file__).resolve().parents[2] / "services/admin-backoffice-service/docs/openapi/KARRYGO_ADMIN_CAPABILITY_MATRIX.json"
     matrix = json.loads(path.read_text(encoding="utf-8"))
     matrix = [row for row in matrix if not is_command(row["id"])] + matrix_entries()
-    path.write_text(json.dumps(matrix, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_bytes((json.dumps(matrix, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
     print(f"{len(matrix)} capability entries")
