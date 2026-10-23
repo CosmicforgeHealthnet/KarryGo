@@ -131,6 +131,12 @@ func main() {
 	)
 	preferenceStore := preferences.NewStore(db)
 	mobilityRepo := mobilityrepositories.NewPostgresRepository(db)
+	if len(cfg.VendorStandingSecret) > 0 {
+		prior := serviceauth.ParseSecrets(cfg.ServiceSecrets)["vendor-service"]
+		if len(cfg.VendorStandingSecret) < 32 || string(prior) == string(cfg.VendorStandingSecret) {
+			logging.Fatal("configuration", "CUSTOMER_VENDOR_STANDING_SECRET must be a distinct dedicated HMAC credential of at least 32 bytes")
+		}
+	}
 	callerScopes, err := contextusecases.ParseCallerScopes(cfg.ContextCallerScopes)
 	if err != nil {
 		logging.Fatal("configuration", "%v", err)
@@ -252,7 +258,7 @@ func main() {
 			})
 			profilehttp.RegisterTrustedContactRoutes(group, trustedContactService, authService.AccessSigner())
 			mobilityhttp.RegisterRoutes(group, mobilityService, authService.AccessSigner())
-			contexthttp.RegisterInternalRoutes(group, customerContextService, serviceVerifier)
+			contexthttp.RegisterInternalRoutes(group, customerContextService, serviceVerifier, cfg.VendorStandingSecret)
 			movementhttp.RegisterCustomerRoutes(group, movementService, authService.AccessSigner())
 			savedlocationhttp.RegisterSavedLocationRoutes(group, savedLocationService, authService.AccessSigner())
 			savedlocationhttp.RegisterInternalRoutes(

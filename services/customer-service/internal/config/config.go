@@ -55,7 +55,8 @@ type Config struct {
 
 	// ServiceSecrets are the HMAC secrets for internal service-to-service callers
 	// (e.g. support-dispute-service resolving a customer identity).
-	ServiceSecrets string
+	ServiceSecrets       string
+	VendorStandingSecret []byte
 
 	// Referral feed: announces new customers to referral-service. Off by
 	// default; when on, the URL (bare origin), secret and pepper are all
@@ -135,7 +136,8 @@ func Load() Config {
 		// Development defaults only. The three booking authorities sign as
 		// their canonical service names (movement events and the
 		// account_standing context read).
-		ServiceSecrets: getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret,driver-taxi-service=development-taxi-customer-service-secret,driver-dispatch-delivery-service=development-dispatch-customer-service-secret,driver-hauling-service=development-hauling-customer-service-secret"),
+		VendorStandingSecret: []byte(os.Getenv("CUSTOMER_VENDOR_STANDING_SECRET")),
+		ServiceSecrets:       getEnv("CUSTOMER_SERVICE_SECRETS", "support-dispute-service=development-support-dispute-service-secret,driver-taxi-service=development-taxi-customer-service-secret,driver-dispatch-delivery-service=development-dispatch-customer-service-secret,driver-hauling-service=development-hauling-customer-service-secret"),
 
 		ReferralFeedEnabled:           getEnvBool("CUSTOMER_REFERRAL_FEED_ENABLED", false),
 		ReferralServiceURL:            getEnv("CUSTOMER_REFERRAL_SERVICE_URL", ""),

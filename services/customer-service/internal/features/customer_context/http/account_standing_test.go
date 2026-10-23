@@ -155,7 +155,41 @@ func TestDefaultCallerScopesGrantBookingAuthoritiesStanding(t *testing.T) {
 			t.Fatalf("%s has no default HMAC secret", caller)
 		}
 	}
-	if scopes["vendor-service"][contextusecases.ScopeAccountStanding] {
-		t.Fatal("vendor-service must not read account standing")
+	if !scopes["vendor-service"][contextusecases.ScopeAccountStanding] {
+		t.Fatal("Vendor checkout requires an explicit standing scope")
+	}
+	if len(trusted["vendor-service"]) != 0 {
+		t.Fatal("Vendor standing must not install a default workload credential")
+	}
+	if scopes["unapproved-service"][contextusecases.ScopeAccountStanding] {
+		t.Fatal("Unapproved caller gained standing scope")
+	}
+
+}
+
+func TestVendorStandingUsesDedicatedScopeRestrictedHMAC(t *testing.T) {
+	scopes, err := contextusecases.ParseCallerScopes("vendor-service=saved_location|account_standing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := &standing{restriction: "BOOKING_HOLD", version: 5}
+	svc := contextusecases.NewService(scopes, prefs{}, locations{}).WithStanding(reader)
+	baseVerifier := serviceauth.NewVerifier(serviceauth.Secrets{"vendor-service": []byte("saved-location-only-test-key")}, time.Minute)
+	dedicated := []byte("dedicated-test-standing-workload-key-32")
+	r := gin.New()
+	RegisterInternalRoutes(r.Group("/api/v1/customer"), svc, baseVerifier, dedicated)
+	code, _ := call(t, r, "vendor-service", string(dedicated), standingPath)
+	if code != 200 {
+		t.Fatal("dedicated standing read unavailable", code)
+	}
+	for _, tc := range []struct{ key, path string }{{"saved-location-only-test-key", standingPath}, {string(dedicated), base + "?scopes=account_standing,saved_location"}, {string(dedicated), base + "?scopes=saved_location"}} {
+		if code, _ := call(t, r, "vendor-service", tc.key, tc.path); code == 200 {
+			t.Fatal("credential scope crossed", tc.path)
+		}
+	}
+	rOff := gin.New()
+	RegisterInternalRoutes(rOff.Group("/api/v1/customer"), svc, baseVerifier)
+	if code, _ := call(t, rOff, "vendor-service", "saved-location-only-test-key", standingPath); code != 503 {
+		t.Fatal("missing dedicated enrollment did not fail closed", code)
 	}
 }
