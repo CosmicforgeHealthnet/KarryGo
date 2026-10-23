@@ -516,6 +516,12 @@ func (s *Service) Resend(ctx context.Context, providerID, missionRef, stage stri
 	if err != nil {
 		return Credential{}, err
 	}
+	// Consumption is terminal. Verification may have committed after the
+	// mission read; never take the non-ACTIVE insertion path in that case.
+	// ACTIVE races remain fenced by ReplaceChallenge's conditional update.
+	if latest.Status == "CONSUMED" {
+		return Credential{}, ErrResendUnavailable
+	}
 	now := s.now().UTC()
 	if latest.ResendCount >= handover.MaxResends || now.Before(latest.ResendAvailableAt) {
 		return Credential{}, ErrResendUnavailable

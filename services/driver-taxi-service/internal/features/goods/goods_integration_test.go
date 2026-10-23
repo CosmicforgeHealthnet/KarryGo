@@ -459,3 +459,33 @@ func missionRefFor(t *testing.T, db *pgxpool.Pool, missionID string) string {
 	}
 	return ref
 }
+
+// Verification winning before LatestChallenge used to let Resend insert a new
+// ACTIVE row. This ordering is deterministic rather than scheduler-dependent.
+func TestConsumedPickupCredentialCannotBeResent(t *testing.T) {
+	for _, method := range []string{"OTP", "QR"} {
+		t.Run(method, func(t *testing.T) {
+			db := goodsTestDB(t)
+			f := seedHandoverRaceFixture(t, db, StagePickup)
+			missionRef := missionRefFor(t, db, f.mission)
+			credential := f.credential.OTP
+			if method == "QR" {
+				credential = f.credential.QRToken
+			}
+			command := VerifyCredential{ChallengeRef: f.credential.ChallengeRef, Method: method, Credential: credential, OperationRef: "consume-before-resend-" + uuid.NewString()}
+			if _, err := f.service.VerifyPickup(context.Background(), "vendor-service", missionRef, command); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.service.Resend(context.Background(), f.provider, missionRef, StagePickup); !errors.Is(err, ErrResendUnavailable) {
+				t.Fatalf("consumed credential resend: %v", err)
+			}
+			var total, active, consumed int
+			if err := db.QueryRow(context.Background(), `SELECT count(*),count(*) FILTER (WHERE status='ACTIVE'),count(*) FILTER (WHERE status='CONSUMED') FROM taxi_goods_handover_challenges WHERE mission_id=$1 AND stage=$2`, f.mission, StagePickup).Scan(&total, &active, &consumed); err != nil {
+				t.Fatal(err)
+			}
+			if total != 1 || active != 0 || consumed != 1 {
+				t.Fatalf("resend changed consumed history: total=%d active=%d consumed=%d", total, active, consumed)
+			}
+		})
+	}
+}

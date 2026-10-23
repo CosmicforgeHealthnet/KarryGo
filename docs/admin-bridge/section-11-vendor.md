@@ -32,7 +32,11 @@ Additional suites cover Bridge mTLS/HMAC/delegation/approval/readback, existing-
 
 `TestStackOwnDeliveryShare` is separately identified as external running-stack certification requiring five local processes. It is not silently counted as a passing isolated database test. No deployment or live-stack certification was performed.
 
-Exact pushed commit, required seven workflow results and final test totals belong in the closure report after acceptance finishes. Earlier passing staging runs do not certify a later commit.
+Local canonical certification passed all **76 packages / 2,763 test cases**, with zero failed or skipped owner tests. The Section 11 behavior gate found all mandatory new owner scenarios; signed native directory, command receipt and case proof passed schema validation. The focused native owner run passed 334 cases, Media passed 219 cases, and the shared owner/command PostgreSQL suite passed 21 cases. Linux workflow acceptance supplies race instrumentation and retained artifacts.
+
+Section 31 also exposed a pre-existing Taxi Goods resend/verification ordering bug relevant to Vendor logistics: resend could insert a fresh credential if it observed the original challenge after consumption. A narrow terminal-consumption guard preserves the existing custody engine and one-winner assertion. `TestConsumedPickupCredentialCannotBeResent` deterministically checks the previously failing ordering; the existing OTP/QR race assertion remains strict.
+
+Exact final pushed commit and required seven workflow results belong in the closure report after acceptance finishes. Earlier passing staging runs do not certify a later commit.
 
 ## Explicit unavailable authority and activation gates
 
