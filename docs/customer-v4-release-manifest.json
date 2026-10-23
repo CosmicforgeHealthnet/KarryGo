@@ -2,16 +2,16 @@
  "kind": "karryam-customer-v4-backend-release-manifest",
  "manifest_version": 1,
  "statement": "LOCAL RELEASE CANDIDATE. Not a production build ID, not a commit, not a deployed immutable build.",
- "local_head": "647440b2a75428551e02292ab111d48d400339ee",
+ "local_head": "d7b5e468cf4f7a716a1ebfe13849cc064dfab102",
  "branch": "staging",
  "worktree": {
-  "dirty": false,
-  "modified": 0,
+  "dirty": true,
+  "modified": 4,
   "untracked": 0
  },
  "LOCAL_RELEASE_CANDIDATE_DIGEST": {
-  "sha256": "951ee31514a816541185a2b1c1698d4de7849bb76de508bb616cc7c793ef2460",
-  "files": 5389,
+  "sha256": "c7b3208eef1e61cad99d9a514507979ad361d389d4a66e5cbb0218b4fa70cb92",
+  "files": 5392,
   "roots": [
    "services/",
    "shared/go/",
@@ -40,8 +40,8 @@
    "files": 19
   },
   "driver-dispatch-delivery-service": {
-   "tip": "000077_dispatch_recovery_outcome_facts.up.sql",
-   "files": 83
+   "tip": "000078_dispatch_return_is_part_of_original_booking.up.sql",
+   "files": 84
   },
   "driver-hauling-service": {
    "tip": "032_recovery_payment_rebind_obligations.up.sql",

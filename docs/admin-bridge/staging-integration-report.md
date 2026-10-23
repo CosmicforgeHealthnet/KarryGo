@@ -1,5 +1,145 @@
 # Secure Admin staging integration — current backend status
 
+## Final closure record — 23 October 2026
+
+**Sections 6–10: CLOSED — BACKEND_FUNCTIONALLY_COMPLETE.**
+**Production readiness: PENDING GOVERNANCE AND DEPLOYMENT CERTIFICATION** (not approved).
+**Section 11: next development phase.**
+
+Final staging SHA and CI: see "Final verification" below. Work continued directly on
+`staging` from `b02459bb0ff1cfeb33d8d320712263d3430df97d`; no branch, worktree, PR, `main`
+change or deployment.
+
+### Verified capabilities
+
+| Section | Capability (owner-executed, on staging) | Evidence |
+|---|---|---|
+| 6 Analytics | Source-backed scoped reports; owner-signed coverage and membership manifests; COMPLETE only when manifests tile the window; one fact per mission and kind; Dispatch unmatched and recovery outcomes; all consumer populations enrolled | Night pass, gap 3; Dispatch migrations 000075–000078; `TestPostgresDispatchLifecycleFactsOncePerMissionAndKind`, `TestPostgresDispatchReturnIsPartOfTheOriginalBooking`, `TestPostgresEnrolledPopulationsReleaseCompleteOnlyWhenTiled` |
+| 7 Customer | Account standing (`BOOKING_HOLD`, `LOGIN_BLOCKED`), restriction and lift, remediation, privacy request disposition, case-bound support decisions; booking hold enforced by Taxi, Dispatch and Hauling | Evening section; night pass, gap 1; Customer migrations 018–019 |
+| 8 Taxi | Incident cases and remediation, canonical document decisions and reverification, provider and vehicle restrictions enforced in every assignment path | Evening section; Taxi migrations 026–027 |
+| 9 Dispatch | Incident recovery retry and escalation, safe reassignment, return re-arm, delivery replan under customer approval; returns stay part of the original booking | Evening section; Dispatch migrations 000073–000074, 000078; `TestSweepNeverPublishesAReturnExecutionAsItsOwnMovement` |
+| 10 Hauling/Fleet | Inspections and conclusions, tenant-scoped restrictions, cargo suitability, recovery replacement with durable Wallet payment rebind, Fleet investigation cases | Evening section; night pass, gap 2; Hauling migrations 029–032, Fleet 000082–000083 |
+| Shared Media | Case-bound private evidence, owner-attested legacy adoption, revocation and immutable disclosure audit | Evening section; Media migration 000008 |
+
+Security controls preserved throughout: mTLS and HMAC v2, delegated staff authorization,
+five-scope authorization, immutable audit, source-owned transactions, expected-version
+fencing, idempotency and replay protection, original-action readback, UNKNOWN_OUTCOME
+handling, public Gateway isolation, default-disabled privileged capabilities. No production
+credentials, keys, permissions or governance approvals were added.
+
+### Business decisions and their implementation
+
+**1. Booking hold covers Vendor purchases.** A customer under an active `BOOKING_HOLD` must not
+start a new Vendor purchase. Vendor checkout does **not** yet check standing: vendor-service
+never calls the customer standing scope, and its customer-context grant is `saved_location`
+only. Every Vendor order is created by one function, `orders.Service.CreateFromQuote`
+(`services/vendor-service/internal/features/orders/service.go`), reached from customer
+checkout (`POST /quotes/:quoteId/orders`), payment start, RFQ payment and group/scheduled
+commerce orders. **Assigned to Section 11** — see "Section 11 requirement" below. Paid-order
+fulfilment, logistics missions for already-paid orders and recovery are not affected.
+
+**2. Taxi documents.** Existing behaviour confirmed and kept. The driver's licence
+(`DRIVER_LICENSE`) belongs to the provider; vehicle registration, insurance and roadworthiness
+(`VEHICLE_REGISTRATION`, `INSURANCE`, `ROADWORTHINESS`) belong to the vehicle. The mapping is
+closed in code (`admininterventions.documentSubject`) and enforced by a database CHECK on
+`taxi_admin_document_decisions` and the reverification table (migration 027). Expiry is the end
+of the `expires_on` day in Africa/Lagos. Onboarding stores the registration upload URL on the
+provider profile (`vehicle_reg_url`); that is only where the file sits, and verification
+decisions still bind to the vehicle. No discrepancy.
+
+**3. Return-to-sender is part of the original booking.** Verified and corrected (commit
+`d7b5e468`):
+- Original identity is kept and the return is linked to it: `dispatch_return_workflows`
+  records the original trip, the recovery action, the return mission and the return execution
+  booking. Custody moves to the linked return manifest in the same transaction, and rider
+  activity and return evidence stay on the return trip and mission.
+- Dispatch still needs its own execution row for the return trip and wallet hold. That row is
+  no longer treated as a second customer booking. It is now absent from the customer's booking
+  list and movement history (the original's movement carries the return state). Customer
+  cancel and review on it are refused, and it stays readable by id.
+- Analytics: migration 000078 stops booking and trip lifecycle facts for return executions, so
+  a return is no longer counted as a second order. Recovery facts and provider activity on the
+  return trip are kept. Before the fix a return produced committed, assigned, completed, failed
+  and cancelled facts of its own (proven by removing 000078 and re-running the test).
+- Charges: unchanged. A return fee is charged only when the customer's recovery choice carries
+  a financial authorization that Wallet validates (`deliveryrecovery.Service`); nothing is
+  waived or imposed automatically. The return-fee amount and liability rule need an approved
+  pricing policy before use (governance, below).
+
+**4. Cross-service erasure is a later Privacy phase.** Customer's privacy request and
+disposition flow is kept unchanged (it fulfils customer-service records and withdraws consent).
+Coordinating erasure and retention across owners is **assigned to the Privacy/Data Protection
+phase**. No cross-service deletion command was built, and no retention period was invented.
+Personal information by owner:
+
+| Owner | Customer-related records |
+|---|---|
+| customer-service | Profile, phone and email, sessions and auth events, saved locations, emergency/trusted contacts, guest travellers, mobility preferences, consents, privacy requests, account standing, movement history projection |
+| driver-taxi-service | Ride and parcel bookings (addresses, receiver details), ratings, live trip location |
+| driver-dispatch-delivery-service | Delivery bookings (addresses, receiver name and phone), handover challenges, proof of delivery, delivery attempts and returns |
+| driver-hauling-service | Haulage bookings (addresses, receiver and package details), proof of delivery, reviews |
+| vendor-service | Carts, quotes, orders and order addresses, CRM customer records |
+| payment-wallet-service | Wallet accounts, ledger, payment intents and refunds, Paystack references |
+| media-file-service | Uploaded files: profile photos, proof images, signatures, case evidence |
+| notification-service | Device tokens, messages and delivery attempts |
+| support-dispute-service | Complaints, chat messages, evidence, identity snapshots |
+| referral-service | Keyed phone/email/device hashes, referral links and rewards |
+| fleet-partner-service | Corporate shipments and customer contacts of organizations |
+| analytics-service | Aggregate facts only; no names, phones, addresses or coordinates by design |
+
+Records under a mandatory retention obligation (for example the Wallet ledger and immutable
+audit trails) are not deletable by design; which obligations apply, and for how long, is a
+legal decision for the Privacy phase.
+
+### Section 11 requirement (Vendor booking hold)
+
+At the start of `orders.Service.CreateFromQuote`, before the quote lock is consumed or any order
+is cut, ask customer standing through the existing `shared/go/customerstanding` gate (caller
+identity `vendor-service`), behind a new `VENDOR_CUSTOMER_STANDING_ENFORCED` flag (default off).
+Grant `vendor-service` the `account_standing` scope in `CUSTOMER_CONTEXT_CALLER_SCOPES` with a
+matching dev secret, as for the three booking authorities. A retry for a quote that already
+produced an order must return that order rather than refuse it (as Dispatch does). Not gated:
+fulfilment, delivery missions and refunds of orders created before the hold. A business answer
+is also needed on recurring orders scheduled before a hold.
+
+### Outstanding before production (governance — not approved)
+
+- Enable `TAXI_`, `DISPATCH_`, `HAULING_CUSTOMER_STANDING_ENFORCED` with matching
+  customer-service secrets before enabling Customer's `BOOKING_HOLD` command; after Section 11,
+  the Vendor flag too.
+- Signed policies, owner signing keys and key pins, owner context approvals (including a
+  coverage-export context per record), approved staff roles.
+- Suppression values, including the treatment of structural zeros (Dispatch has no guarantee
+  concept, so Dispatch mission-outcomes and mission-success stay withheld under the current
+  small-cell rule).
+- An approved return-fee and liability policy before any return fee is charged.
+- Privacy phase: cross-service erasure and retention coordination.
+- Deployment certification. All production feature flags remain disabled.
+
+### Final verification
+
+The only code change in the closure is `d7b5e468cf4f7a716a1ebfe13849cc064dfab102` (Decision 3). All seven mandatory workflows passed on it:
+
+| Workflow | Successful GitHub run |
+|---|---|
+| admin-bridge.yml | [39924253086](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924253086) |
+| admin-owner-closure.yml | [39924252908](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924252908) |
+| section31-mandatory.yml | [39924253103](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924253103) |
+| customer-v4-certification.yml | [39924253141](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924253141) |
+| vendor-section46-48.yml | [39924253012](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924253012) |
+| partner-gateway-split.yml | [39924253128](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924253128) |
+| deployment-safety.yml | [39924252911](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/39924252911) |
+
+Local, real PostgreSQL 16 and Redis: the whole Dispatch module under `-race -p 1` (1,889 passed,
+0 failed; the one skip is the subprocess helper `TestAcceptanceToCanonicalTripDispatchHarness`,
+which runs only when its parent test launches it); `TestPostgresDispatchReturnIsPartOfTheOriginalBooking`
+and `TestSweepNeverPublishesAReturnExecutionAsItsOwnMovement` pass, and the return test fails
+with 000078 removed; 000078 replays down → up → up; Customer V4 route audit and release manifest
+pass (manifest refreshed in this commit). The closure documentation commit that follows changes
+documentation and the release manifest only; its own CI results are reported with it.
+
+---
+
 ## 22 October 2026 (night) — final corrective pass: the four remaining gaps
 
 Continued directly on `staging` from `63368ee76c0a37c069bc50c9832b446cd3de22da`. No branch,
@@ -168,7 +308,8 @@ No engineering gap remains that stops the Sections 6–10 operations from workin
 securely once they are switched on. Everything still open is a decision or a governance act,
 not missing software:
 
-**Business decisions**
+**Business decisions** (open on 22 October; all four were decided on 23 October — see the
+closure record above)
 - Whether a customer under booking hold may still place Vendor commerce orders. Today the hold
   stops new Taxi, Dispatch and Hauling bookings only; if commerce orders must also stop, the
   check belongs at Vendor checkout (not built, because it depends on this decision).
@@ -306,19 +447,20 @@ preserved. No trip status, completion, location, fare, custody or wallet value c
 an administrative command. No production grants, keys, suppression values or Media lifetimes
 were added. No deployment, VPS access, `main` change or Sections 11+ work.
 
-### Status
+### Status (historical, 22 October 2026 evening — superseded)
 
 Sections 6–10 have working owner-executed software for every requested function listed above.
-This is **not** a BACKEND_FUNCTIONALLY_COMPLETE declaration: the cross-service enforcement of
+At that time this was **not** a BACKEND_FUNCTIONALLY_COMPLETE declaration: the cross-service enforcement of
 the Customer booking hold in Taxi/Dispatch/Hauling and the Wallet move on Hauling recovery
 replacement remain engineering follow-ups, and production use is blocked on governance
 (signed policies, owner context approvals, keys, roles and suppression values).
 
 ---
 
-## 22 October 2026 — direct staging continuation after merged PR #15
+## 22 October 2026 — direct staging continuation after merged PR #15 (historical)
 
-**Code integration is verified; Sections 6–10 remain PARTIAL.** This is not a
+**Historical status (22 October 2026, superseded by the closure record above): code integration
+is verified; Sections 6–10 remain PARTIAL.** This is not a
 BACKEND_FUNCTIONALLY_COMPLETE declaration. This dated report supersedes the
 historical unmerged-PR and deployment-readiness statements retained below.
 Work began from verified staging `f16fa7eda2558178cdab5f9cfc55659123f132aa`.

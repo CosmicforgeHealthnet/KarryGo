@@ -1,6 +1,15 @@
 # Karryam Admin Sections 6–10 — incremental implementation report
 
-## Current completion assessment — 22 October 2026
+## Final status — 23 October 2026: CLOSED — BACKEND_FUNCTIONALLY_COMPLETE
+
+Sections 6–10 are closed as **BACKEND_FUNCTIONALLY_COMPLETE**. The closure record, with the
+verified capabilities, the four business decisions, the Section 11 Vendor booking-hold
+requirement, the Privacy-phase erasure dependency, outstanding governance and the final CI
+evidence, is at the top of [the staging report](staging-integration-report.md). Production readiness is **pending
+governance and deployment certification**; nothing here approves it. Everything below is dated
+history.
+
+## Completion assessment — 22 October 2026 (historical)
 
 **Superseded the same evening:** owner-executed software for Sections 6–10 is now on staging; see the top section of [the staging report](staging-integration-report.md). Earlier assessment: Sections 6, 7, 8, 9 and 10 remained **PARTIAL**. Supported new software and exact
 remaining owner-contract/producer-coverage prerequisites are recorded in
