@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -48,11 +49,16 @@ func buildSection17EOrderService(
 		orderStore.SetEventPublisher(outboxes[0])
 	}
 	orderStore.SetCustomerOrderMovements(cfg.Flags.CustomerMovementGroupingEnabled)
+	standing, standingErr := configuredCustomerStanding(cfg)
+	if standingErr != nil {
+		return nil
+	}
 	service, err := orders.NewService(orders.Options{
-		Store:   orderStore,
-		Quotes:  newSection17EQuoteAuthority(db),
-		Scopes:  section17EScopeAdapter{evaluator: evaluator},
-		Enabled: cfg.Flags.CommerceOrdersEnabled,
+		Store:            orderStore,
+		CustomerStanding: standing,
+		Quotes:           newSection17EQuoteAuthority(db),
+		Scopes:           section17EScopeAdapter{evaluator: evaluator},
+		Enabled:          cfg.Flags.CommerceOrdersEnabled,
 	})
 	if err != nil {
 		return nil
@@ -198,4 +204,15 @@ func registerSection17ECustomerOrderRoutes(
 		// authority is wired to the service.
 		service.PaymentEnabled(),
 	)
+}
+
+func configuredCustomerStanding(cfg config.Config) (*customerstanding.Gate, error) {
+	if !cfg.CustomerStandingEnforced {
+		return nil, nil
+	}
+	client, err := customerstanding.NewClient(customerstanding.Config{BaseURL: cfg.CustomerStandingURL, ServiceName: "vendor-service", Secret: []byte(cfg.CustomerStandingSecret)})
+	if err != nil {
+		return nil, err
+	}
+	return customerstanding.NewGate(client), nil
 }

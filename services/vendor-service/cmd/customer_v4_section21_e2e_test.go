@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/customerstanding"
+	"cosmicforge/logistics/shared/go/customerstanding/standingtest"
 	"errors"
 	"testing"
 	"time"
@@ -80,7 +82,8 @@ func TestCustomerV4E2E07ScheduledAndRFQBehindCapabilityFlag(t *testing.T) {
 		t.Fatalf("disabled RFQ = %v", err)
 	}
 
-	s21 := orders.NewSection21Service(orders.Section21Options{DB: env.pool, Checkout: quotes, Production: lifecycleProduction(env),
+	standing := standingtest.New(t, "vendor-service")
+	s21 := orders.NewSection21Service(orders.Section21Options{CustomerStanding: standing.Gate(time.Second), DB: env.pool, Checkout: quotes, Production: lifecycleProduction(env),
 		Events: events.NewOutboxRepository(env.pool), Enabled: true})
 
 	// Scheduled/bulk: bound to the approved quote, idempotent per key, and a
@@ -88,14 +91,21 @@ func TestCustomerV4E2E07ScheduledAndRFQBehindCapabilityFlag(t *testing.T) {
 	scheduled := orders.ScheduledOrderInput{BusinessID: env.businessA, CustomerID: customer, QuoteID: quote.ID, BranchID: env.foodBranch,
 		DesiredDeliveryAt: now.Add(48 * time.Hour), TentativeVehicleClass: "van", BulkRequirement: map[string]any{"servings": 40},
 		IdempotencyKey: "sched-e2e-07"}
+	standing.Hold(customer, "BOOKING_HOLD", 1)
+	if _, _, err := s21.AcceptScheduled(ctx, scheduled); !errors.Is(err, customerstanding.ErrBookingHold) {
+		t.Fatal("scheduled hold bypass", err)
+	}
+	standing.Lift(customer, 2)
 	first, created, err := s21.AcceptScheduled(ctx, scheduled)
 	if err != nil || !created || first.SchedulingStatus != "ACCEPTED" || first.CapacityStatus != "NOT_REQUIRED" || first.TentativeVehicleClass != "VAN" {
 		t.Fatalf("scheduled accept = %+v created=%t err=%v", first, created, err)
 	}
+	standing.Hold(customer, "LOGIN_BLOCKED", 3)
 	again, created, err := s21.AcceptScheduled(ctx, scheduled)
 	if err != nil || created || again.ID != first.ID {
 		t.Fatalf("replay must return the original: %+v created=%t err=%v", again, created, err)
 	}
+	standing.Lift(customer, 4)
 	stolen := scheduled
 	stolen.CustomerID = other
 	if _, _, err := s21.AcceptScheduled(ctx, stolen); !errors.Is(err, orders.ErrSection21Conflict) {
@@ -143,6 +153,11 @@ func TestCustomerV4E2E07ScheduledAndRFQBehindCapabilityFlag(t *testing.T) {
 	if _, err := s21.AcceptRFQQuote(ctx, other, rfq.ID, revision.QuoteID, revision.Revision, quote.ID); !errors.Is(err, orders.ErrSection21NotFound) {
 		t.Fatalf("another customer accepted the RFQ: %v", err)
 	}
+	standing.Hold(customer, "BOOKING_HOLD", 5)
+	if _, err := s21.AcceptRFQQuote(ctx, customer, rfq.ID, revision.QuoteID, revision.Revision, quote.ID); !errors.Is(err, customerstanding.ErrBookingHold) {
+		t.Fatal("RFQ capacity hold bypass", err)
+	}
+	standing.Lift(customer, 6)
 	acceptedRFQ, err := s21.AcceptRFQQuote(ctx, customer, rfq.ID, revision.QuoteID, revision.Revision, quote.ID)
 	if err != nil || acceptedRFQ.Status != "ACCEPTED" || acceptedRFQ.CheckoutQuoteID != quote.ID {
 		t.Fatalf("accept RFQ = %+v %v", acceptedRFQ, err)

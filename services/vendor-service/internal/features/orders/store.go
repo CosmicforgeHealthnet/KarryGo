@@ -8,6 +8,7 @@ package orders
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -94,6 +95,10 @@ func (s *Store) Create(
 	lines []LineSource,
 	now time.Time,
 ) (ParentOrder, bool, error) {
+	return s.createGuarded(ctx, source, plan, lines, now, nil)
+}
+
+func (s *Store) createGuarded(ctx context.Context, source QuoteSource, plan AllocationPlan, lines []LineSource, now time.Time, standing *customerstanding.Gate) (ParentOrder, bool, error) {
 	if s == nil || s.db == nil {
 		return ParentOrder{}, false, ErrDependencyMissing
 	}
@@ -126,6 +131,12 @@ func (s *Store) Create(
 		return existing, false, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
+		return ParentOrder{}, false, err
+	}
+
+	// The quote lock serializes retries; only a genuinely new booking reaches
+	// Customer. No order, promotion consumption or stock commitment precedes it.
+	if _, err := standing.Allow(ctx, source.CustomerID); err != nil {
 		return ParentOrder{}, false, err
 	}
 
@@ -1253,4 +1264,22 @@ func refreshParentState(
 	}
 
 	return loadParent(ctx, tx, customerID, parentID)
+}
+
+// existingQuote is customer- and agreement-bound. A hold never hides an existing
+// committed order, but another identity/fingerprint cannot use its receipt.
+func (s *Store) existingQuote(ctx context.Context, customerID, quoteID, fingerprint string) (ParentOrder, bool, error) {
+	var id, stored string
+	err := s.db.QueryRow(ctx, `SELECT id,quote_fingerprint FROM commerce_parent_orders WHERE customer_id=$1 AND quote_id=$2`, customerID, quoteID).Scan(&id, &stored)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ParentOrder{}, false, nil
+	}
+	if err != nil {
+		return ParentOrder{}, false, err
+	}
+	if stored != fingerprint {
+		return ParentOrder{}, false, ErrFingerprintMismatch
+	}
+	order, err := loadParent(ctx, s.db, customerID, id)
+	return order, err == nil, err
 }

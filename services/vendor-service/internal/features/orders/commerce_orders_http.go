@@ -17,6 +17,10 @@ import (
 type section21Handler struct{ service *Section21Service }
 
 func section21Error(err error) error {
+	var typed *apperrors.Error
+	if errors.As(err, &typed) {
+		return typed
+	}
 	switch {
 	case errors.Is(err, errScheduleView):
 		return apperrors.Validation("Choose a valid schedule filter.", nil)

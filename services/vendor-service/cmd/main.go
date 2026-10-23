@@ -967,8 +967,12 @@ func main() {
 
 	// Section 21 Prompt 1 commerce foundations. Orders remains the conversion
 	// authority and Production remains the capacity authority.
+	section21Standing, standingErr := configuredCustomerStanding(cfg)
+	if standingErr != nil {
+		logging.Fatal("configuration", "Vendor Customer standing configuration invalid: %v", standingErr)
+	}
 	section21Service := orders.NewSection21Service(orders.Section21Options{
-		DB: db, Orders: orderService, Checkout: quoteService, Production: productionService,
+		CustomerStanding: section21Standing, DB: db, Orders: orderService, Checkout: quoteService, Production: productionService,
 		Payments: newSection17FPaymentAuthority(cfg.Flags.PaymentWalletCommerceEnabled, cfg.WalletURL, cfg.WalletSecret, cfg.Fulfilment.QuoteTimeout),
 		Scopes:   section17EScopeAdapter{evaluator: evaluator},
 		Events:   events.NewOutboxRepository(db),

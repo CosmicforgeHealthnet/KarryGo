@@ -152,7 +152,7 @@ func Load() Config {
 
 		// account_standing lets each booking authority enforce administrative
 		// booking holds on new customer bookings.
-		ContextCallerScopes: getEnv("CUSTOMER_CONTEXT_CALLER_SCOPES", "driver-taxi-service=mobility_preferences|saved_location|guest_traveller|account_standing;driver-dispatch-delivery-service=account_standing;driver-hauling-service=account_standing;vendor-service=saved_location"),
+		ContextCallerScopes: getEnv("CUSTOMER_CONTEXT_CALLER_SCOPES", "driver-taxi-service=mobility_preferences|saved_location|guest_traveller|account_standing;driver-dispatch-delivery-service=account_standing;driver-hauling-service=account_standing;vendor-service=saved_location|account_standing"),
 	}
 }
 

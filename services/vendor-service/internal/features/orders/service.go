@@ -9,6 +9,7 @@ package orders
 import (
 	"context"
 	handoverintegration "cosmicforge/logistics/services/vendor-service/internal/integrations/handover"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"fmt"
 	"strings"
 	"time"
@@ -19,9 +20,10 @@ import (
 
 // Options configures the order service.
 type Options struct {
-	Store  *Store
-	Quotes QuoteAuthority
-	Scopes ScopeResolver
+	Store            *Store
+	Quotes           QuoteAuthority
+	Scopes           ScopeResolver
+	CustomerStanding *customerstanding.Gate
 
 	// Enabled is the deployment capability switch. With it false the service
 	// is not built and no route is registered.
@@ -59,12 +61,13 @@ func (snapshotRestrictedGoodsAuthority) ValidateOrderForFulfilment(_ context.Con
 
 // Service owns Section 17E order orchestration.
 type Service struct {
-	handover handoverintegration.Router
-	store    *Store
-	quotes   QuoteAuthority
-	scopes   ScopeResolver
-	enabled  bool
-	now      func() time.Time
+	handover         handoverintegration.Router
+	store            *Store
+	quotes           QuoteAuthority
+	scopes           ScopeResolver
+	enabled          bool
+	customerStanding *customerstanding.Gate
+	now              func() time.Time
 
 	// payments is the Section 17F money authority. It is nil until
 	// SetPaymentAuthority wires one, so a deployment without Wallet
@@ -144,12 +147,13 @@ func NewService(options Options) (*Service, error) {
 		now = time.Now
 	}
 	return &Service{
-		store:           options.Store,
-		quotes:          options.Quotes,
-		scopes:          options.Scopes,
-		enabled:         options.Enabled,
-		now:             now,
-		restrictedGoods: snapshotRestrictedGoodsAuthority{},
+		store:            options.Store,
+		quotes:           options.Quotes,
+		scopes:           options.Scopes,
+		enabled:          options.Enabled,
+		customerStanding: options.CustomerStanding,
+		now:              now,
+		restrictedGoods:  snapshotRestrictedGoodsAuthority{},
 	}, nil
 }
 
@@ -177,6 +181,11 @@ func (s *Service) CreateFromQuote(
 		return ParentOrder{}, false, ErrQuoteNotOrderable
 	}
 
+	// Read an already committed agreement before consulting mutable standing or
+	// quote expiry. This is readback, not permission to create another order.
+	if existing, found, err := s.store.existingQuote(ctx, customerID, quoteID, fingerprint); err != nil || found {
+		return existing, false, err
+	}
 	now := s.now().UTC()
 
 	source, err := s.quotes.LoadApprovedQuote(ctx, customerID, quoteID, now)
@@ -195,7 +204,7 @@ func (s *Service) CreateFromQuote(
 		return ParentOrder{}, false, err
 	}
 
-	return s.store.Create(ctx, source, plan, source.Lines, now)
+	return s.store.createGuarded(ctx, source, plan, source.Lines, now, s.customerStanding)
 }
 
 // GetForCustomer reads one of the customer's own purchases.

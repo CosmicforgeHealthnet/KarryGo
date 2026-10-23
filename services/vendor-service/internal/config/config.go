@@ -8,6 +8,7 @@
 package config
 
 import (
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"errors"
 	"net/url"
 	"os"
@@ -21,8 +22,10 @@ import (
 
 // Config is vendor-service's full environment-derived configuration.
 type Config struct {
-	AppEnv   string
-	HTTPAddr string
+	CustomerStandingEnforced                    bool
+	CustomerStandingURL, CustomerStandingSecret string
+	AppEnv                                      string
+	HTTPAddr                                    string
 	// ProcessMode controls deployment topology. "api" serves HTTP without
 	// claiming jobs, "worker" claims jobs without a public listener, and
 	// "all" preserves the legacy combined development mode.
@@ -428,9 +431,12 @@ func Load() Config {
 		return value
 	}
 	cfg := Config{
-		AppEnv:      getEnv("APP_ENV", "development"),
-		HTTPAddr:    getEnv("HTTP_ADDR", ":8112"),
-		ProcessMode: strings.ToLower(strings.TrimSpace(getEnv("VENDOR_PROCESS_MODE", "all"))),
+		CustomerStandingEnforced: boolValue("VENDOR_CUSTOMER_STANDING_ENFORCED", false),
+		CustomerStandingURL:      os.Getenv("VENDOR_CUSTOMER_STANDING_URL"),
+		CustomerStandingSecret:   os.Getenv("VENDOR_CUSTOMER_STANDING_SECRET"),
+		AppEnv:                   getEnv("APP_ENV", "development"),
+		HTTPAddr:                 getEnv("HTTP_ADDR", ":8112"),
+		ProcessMode:              strings.ToLower(strings.TrimSpace(getEnv("VENDOR_PROCESS_MODE", "all"))),
 
 		Migration: getEnvBool("VENDOR_MIGRATION", false),
 
@@ -641,6 +647,20 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if c.CustomerStandingEnforced {
+		if len(c.CustomerStandingSecret) < 32 {
+			problems = append(problems, "VENDOR_CUSTOMER_STANDING_ENFORCED requires a dedicated HMAC secret of at least 32 bytes")
+		}
+		if _, err := customerstanding.NewClient(customerstanding.Config{BaseURL: c.CustomerStandingURL, ServiceName: "vendor-service", Secret: []byte(c.CustomerStandingSecret)}); err != nil {
+			problems = append(problems, "VENDOR_CUSTOMER_STANDING_ENFORCED requires a valid dedicated standing client: "+err.Error())
+		}
+		for _, secret := range []string{c.CustomerSecret, c.WalletSecret, c.DispatchSecret, c.TaxiSecret, c.HaulingSecret, c.MediaSecret} {
+			if secret != "" && secret == c.CustomerStandingSecret {
+				problems = append(problems, "VENDOR_CUSTOMER_STANDING_SECRET must be dedicated")
+				break
+			}
+		}
+	}
 	if c.Flags.CustomerFoodEnabled && !c.Flags.CommerceFoodEnabled {
 		problems = append(problems, "CUSTOMER_FOOD_ENABLED requires COMMERCE_FOOD_ENABLED")
 	}

@@ -6,6 +6,7 @@ package orders
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/customerstanding"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -39,27 +40,29 @@ var (
 )
 
 type Section21Options struct {
-	DB         *pgxpool.Pool
-	Orders     *Service
-	Checkout   *checkoutquote.Service
-	Production *production.Service
-	Payments   PaymentAuthority
-	Scopes     ScopeResolver
-	Events     *vendorevents.OutboxRepository
-	Enabled    bool
-	Now        func() time.Time
+	CustomerStanding *customerstanding.Gate
+	DB               *pgxpool.Pool
+	Orders           *Service
+	Checkout         *checkoutquote.Service
+	Production       *production.Service
+	Payments         PaymentAuthority
+	Scopes           ScopeResolver
+	Events           *vendorevents.OutboxRepository
+	Enabled          bool
+	Now              func() time.Time
 }
 
 type Section21Service struct {
-	db         *pgxpool.Pool
-	orders     *Service
-	checkout   *checkoutquote.Service
-	production *production.Service
-	payments   PaymentAuthority
-	scopes     ScopeResolver
-	events     *vendorevents.OutboxRepository
-	enabled    bool
-	now        func() time.Time
+	customerStanding *customerstanding.Gate
+	db               *pgxpool.Pool
+	orders           *Service
+	checkout         *checkoutquote.Service
+	production       *production.Service
+	payments         PaymentAuthority
+	scopes           ScopeResolver
+	events           *vendorevents.OutboxRepository
+	enabled          bool
+	now              func() time.Time
 }
 
 func NewSection21Service(o Section21Options) *Section21Service {
@@ -67,7 +70,7 @@ func NewSection21Service(o Section21Options) *Section21Service {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &Section21Service{db: o.DB, orders: o.Orders, checkout: o.Checkout, production: o.Production, payments: o.Payments, scopes: o.Scopes, events: o.Events, enabled: o.Enabled, now: now}
+	return &Section21Service{customerStanding: o.CustomerStanding, db: o.DB, orders: o.Orders, checkout: o.Checkout, production: o.Production, payments: o.Payments, scopes: o.Scopes, events: o.Events, enabled: o.Enabled, now: now}
 }
 
 func (s *Section21Service) appendEvent(ctx context.Context, tx pgx.Tx, eventType, aggregateType, aggregateID, vendorID string, version int64, payload any) error {
@@ -227,6 +230,14 @@ func (s *Section21Service) AcceptScheduled(ctx context.Context, in ScheduledOrde
 	approvedQuote, err := s.checkout.Get(ctx, in.CustomerID, in.QuoteID)
 	if err != nil || !approvedQuoteContainsBranch(approvedQuote, in.BusinessID, in.BranchID) {
 		return ScheduledOrder{}, false, ErrSection21CheckoutNeeded
+	}
+	if in.VendorOrderID != "" {
+		var bound bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM commerce_vendor_orders v JOIN commerce_parent_orders p ON p.id=v.parent_order_id WHERE v.id=$1 AND v.customer_id=$2 AND v.business_id=$3 AND v.branch_id=$4 AND p.quote_id=$5)`, in.VendorOrderID, in.CustomerID, in.BusinessID, in.BranchID, in.QuoteID).Scan(&bound); err != nil || !bound {
+			return ScheduledOrder{}, false, ErrSection21Forbidden
+		}
+	} else if _, err := s.customerStanding.Allow(ctx, approvedQuote.CustomerID); err != nil {
+		return ScheduledOrder{}, false, err
 	}
 	var reservationID *string
 	capacityStatus := "NOT_REQUIRED"
@@ -829,6 +840,9 @@ func (s *Section21Service) AcceptRFQQuote(ctx context.Context, requesterID, rfqI
 			return r, nil
 		}
 		return RFQ{}, ErrSection21Expired
+	}
+	if _, err := s.customerStanding.Allow(ctx, requesterID); err != nil {
+		return RFQ{}, err
 	}
 	checkout, err := s.checkout.Get(ctx, requesterID, checkoutQuoteID)
 	if err != nil || checkout.Expired {

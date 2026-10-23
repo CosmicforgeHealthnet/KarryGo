@@ -97,6 +97,12 @@ func (s *Section21Service) ensureRFQPaymentAndOrder(ctx context.Context, request
 	if s.orders == nil {
 		return ErrSection21CheckoutNeeded
 	}
+	// Materialize the canonical order before any deposit request. The current
+	// Customer standing gate and original-order readback apply to RFQ as well.
+	order, _, err := s.orders.CreateFromQuote(ctx, requesterID, checkoutID, fingerprint)
+	if err != nil {
+		return err
+	}
 	var obligationID, status, walletRef, parentOrderID, paymentOperationID string
 	var required, remaining int64
 	if err = s.db.QueryRow(ctx, `INSERT INTO commerce_rfq_payment_obligations(id,rfq_id,binding_id,checkout_quote_id,payment_policy,cancellation_policy,total_minor,required_minor,remaining_minor,currency,status,wallet_idempotency_key) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CASE WHEN $8=0 THEN 'NOT_REQUIRED' ELSE 'PENDING' END,$11 ON CONFLICT (rfq_id) DO UPDATE SET updated_at=commerce_rfq_payment_obligations.updated_at RETURNING id,status,required_minor,remaining_minor,COALESCE(wallet_operation_ref,''),COALESCE(parent_order_id,''),COALESCE(payment_operation_id,'')`, sid("rfqo_"), rfqID, bindingID, checkoutID, paymentRaw, cancellationRaw, total, policy.DepositMinor, total-policy.DepositMinor, currency, "rfq-deposit-"+rfqID).Scan(&obligationID, &status, &required, &remaining, &walletRef, &parentOrderID, &paymentOperationID); err != nil {
@@ -156,10 +162,6 @@ func (s *Section21Service) ensureRFQPaymentAndOrder(ctx context.Context, request
 		if _, err = s.db.Exec(ctx, `UPDATE commerce_rfq_payment_obligations SET status='HELD',wallet_operation_ref=$2,updated_at=now(),version=version+1 WHERE id=$1 AND status IN ('PENDING','UNKNOWN','AUTHORIZING')`, obligationID, walletRef); err != nil {
 			return err
 		}
-	}
-	order, _, err := s.orders.CreateFromQuote(ctx, requesterID, checkoutID, fingerprint)
-	if err != nil {
-		return err
 	}
 	_, err = s.db.Exec(ctx, `UPDATE commerce_rfq_payment_obligations SET status='ORDER_CREATED',parent_order_id=$2,updated_at=now(),version=version+1 WHERE id=$1 AND status='HELD'`, obligationID, order.ID)
 	return err
