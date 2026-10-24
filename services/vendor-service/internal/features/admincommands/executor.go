@@ -101,7 +101,7 @@ func (e Executor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Executio
 		if err = adminresources.RequireNativeStaffForMutation(ctx, tx, in.Staff, business, branch, "vendor.inventory.manage"); err != nil {
 			return out, admincommand.ErrNotFound
 		}
-		version, next, err = e.Orders.ProcessApprovedSubstitutionInTx(ctx, tx, orders.Actor{StaffID: in.Staff, VendorID: business}, in.SubjectID, in.ExpectedVersion)
+		version, next, err = e.Orders.ProcessApprovedSubstitutionInTx(ctx, tx, orders.Actor{StaffID: in.Staff, VendorID: business}, orders.Scope{BranchIDs: []string{branch}}, in.SubjectID, in.ExpectedVersion)
 		prior = "APPROVED"
 
 	case "PAUSE_MERCHANT", "REOPEN_MERCHANT", "PAUSE_BRANCH", "REOPEN_BRANCH":

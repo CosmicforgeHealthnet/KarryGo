@@ -15,11 +15,14 @@ type TransactionalReplacementInventoryAuthority interface {
 
 // ProcessApprovedSubstitutionInTx processes an existing customer's decision.
 // It cannot accept an approval, replacement identity, quantity or price input.
-func (s *Service) ProcessApprovedSubstitutionInTx(ctx context.Context, tx pgx.Tx, actor Actor, id string, expected int64) (int64, string, error) {
-	scope, err := s.authorize(ctx, actor, PermOrdersManage)
-	if err != nil {
-		return 0, "", err
+// The caller must supply the exact branch scope it authorized and locked in tx;
+// resolving staff scope through the pool while tx is held can exhaust the pool
+// when commands for the same subject arrive concurrently.
+func (s *Service) ProcessApprovedSubstitutionInTx(ctx context.Context, tx pgx.Tx, actor Actor, scope Scope, id string, expected int64) (int64, string, error) {
+	if !s.enabled || actor.StaffID == "" || actor.VendorID == "" || scope.Empty() {
+		return 0, "", ErrForbidden
 	}
+	var err error
 	var customer string
 	if err = tx.QueryRow(ctx, `SELECT customer_id FROM commerce_substitution_proposals WHERE id=$1 AND business_id=$2`, id, actor.VendorID).Scan(&customer); err != nil {
 		return 0, "", err
