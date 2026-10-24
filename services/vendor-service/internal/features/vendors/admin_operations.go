@@ -7,6 +7,96 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// AdministrativeBranchDomainEligibility applies the existing operational and
+// verification reducer to the branch capability that can fulfil a new order.
+// Historical merchants without an onboarding profile retain their legacy
+// booking contract; once onboarding starts, a current eligible capability is
+// mandatory. The checkout transaction holds the capability and verification
+// evidence with share locks so a concurrent restriction cannot be missed.
+func AdministrativeBranchDomainEligibility(ctx context.Context, tx pgx.Tx, businessID, branchID, domain string) (bool, string, error) {
+	var onboardingStatus string
+	err := tx.QueryRow(ctx, `SELECT status FROM vendor_onboarding_profiles WHERE business_id=$1 FOR SHARE`, businessID).Scan(&onboardingStatus)
+	if errors.Is(err, pgx.ErrNoRows) || onboardingStatus == "NOT_STARTED" {
+		return true, "LEGACY_ONBOARDING_NOT_STARTED", nil
+	}
+	if err != nil {
+		return false, "VERIFICATION_STATE_UNAVAILABLE", err
+	}
+
+	family := domain
+	if family != "FOOD" && family != "SHOP" {
+		return false, "CAPABILITY_FAMILY_UNAVAILABLE", nil
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT bc.id
+		  FROM vendor_branch_capabilities bc
+		  JOIN vendor_capabilities c ON c.id=bc.vendor_capability_id AND c.business_id=bc.business_id
+		 WHERE bc.business_id=$1 AND bc.branch_id=$2
+		   AND CASE WHEN bc.capability_type IN ('RESTAURANT','FAST_FOOD','CLOUD_KITCHEN','PASTRY_BAKERY','CATERING') THEN 'FOOD'
+		            WHEN bc.capability_type IN ('SHOP_GROCERY','MARKET','WHOLESALE') THEN 'SHOP'
+		            ELSE '' END=$3
+		 ORDER BY bc.id FOR SHARE`, businessID, branchID, family)
+	if err != nil {
+		return false, "CAPABILITY_STATE_UNAVAILABLE", err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return false, "CAPABILITY_STATE_UNAVAILABLE", err
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return false, "CAPABILITY_STATE_UNAVAILABLE", err
+	}
+	rows.Close()
+	if len(ids) == 0 {
+		return false, "CAPABILITY_NOT_CONFIGURED", nil
+	}
+
+	// Lock the current verification evidence before reducing it. This uses the
+	// same dimensions as verificationEffectiveWith and never creates or changes
+	// a Verification-owned decision.
+	verificationRows, err := tx.Query(ctx, `
+		SELECT p.id FROM vendor_verification_projections p
+		 WHERE p.business_id=$1 AND (
+			(p.dimension IN ('IDENTITY','BUSINESS') AND p.subject_type IN ('BUSINESS','REPRESENTATIVE')) OR
+			(p.dimension='LOCATION' AND p.subject_type='BRANCH' AND p.subject_ref=$2) OR
+			(p.dimension='FOOD_KITCHEN' AND p.subject_type='BRANCH_CAPABILITY' AND p.subject_ref=ANY($3::text[]))
+		 ) ORDER BY p.id FOR SHARE`, businessID, branchID, ids)
+	if err != nil {
+		return false, "VERIFICATION_STATE_UNAVAILABLE", err
+	}
+	for verificationRows.Next() {
+		var ignored string
+		if err = verificationRows.Scan(&ignored); err != nil {
+			verificationRows.Close()
+			return false, "VERIFICATION_STATE_UNAVAILABLE", err
+		}
+	}
+	if err = verificationRows.Err(); err != nil {
+		verificationRows.Close()
+		return false, "VERIFICATION_STATE_UNAVAILABLE", err
+	}
+	verificationRows.Close()
+
+	lastReason := "VERIFICATION_REQUIREMENTS_NOT_SATISFIED"
+	for _, id := range ids {
+		allowed, reason, eligibilityErr := AdministrativeBranchCapabilityEligibility(ctx, tx, id)
+		if eligibilityErr != nil {
+			return false, reason, eligibilityErr
+		}
+		if allowed {
+			return true, reason, nil
+		}
+		lastReason = reason
+	}
+	return false, lastReason, nil
+}
+
 // AdministrativeOperationalStatusTx uses the native ACTIVE/PAUSED state
 // machine. It cannot activate DRAFT, SUSPENDED or verification-owned states.
 // Caller supplies the source transaction that also commits its command receipt.

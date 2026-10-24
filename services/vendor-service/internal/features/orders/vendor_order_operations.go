@@ -304,9 +304,6 @@ func (s *Service) RespondToSubstitution(ctx context.Context, customerID, proposa
 		if proposal.Status != SubstitutionPending && proposal.Status != SubstitutionApproved {
 			return SubstitutionProposal{}, ErrOrderConflict
 		}
-		if proposal.Status == SubstitutionPending && proposal.ExpiresAt != nil && !proposal.ExpiresAt.After(s.now().UTC()) {
-			return SubstitutionProposal{}, ErrCommercialChangeExpired
-		}
 		if proposal.Status == SubstitutionPending && proposal.PriceDifferenceMinor > 0 {
 			if appliedChangeID, err = s.ensureSubstitutionCommercialChange(ctx, proposal); err != nil {
 				// A more-expensive replacement is not a direct customer
@@ -647,7 +644,7 @@ func (s *Store) CreateSubstitutionProposal(ctx context.Context, businessID, vend
 	if s == nil || s.db == nil {
 		return SubstitutionProposal{}, ErrDependencyMissing
 	}
-	if strings.TrimSpace(idempotencyKey) == "" || strings.TrimSpace(proposal.Reason) == "" || proposal.ProposedQuantity <= 0 || proposal.ProposedPriceMinor < 0 {
+	if strings.TrimSpace(idempotencyKey) == "" || strings.TrimSpace(proposal.Reason) == "" || proposal.ProposedQuantity <= 0 || proposal.ProposedPriceMinor < 0 || proposal.ExpiresAt == nil || !proposal.ExpiresAt.After(now) {
 		return SubstitutionProposal{}, ErrOrderConflict
 	}
 	var p SubstitutionProposal
@@ -763,7 +760,7 @@ func (s *Store) RespondSubstitution(ctx context.Context, customerID, proposalID 
 		}
 		return SubstitutionProposal{}, ErrOrderConflict
 	}
-	if p.ExpiresAt != nil && now.After(*p.ExpiresAt) {
+	if p.ExpiresAt != nil && !p.ExpiresAt.After(now) {
 		if _, err = tx.Exec(ctx, `UPDATE commerce_substitution_proposals SET status='EXPIRED',version=version+1,updated_at=$1,responded_at=$1 WHERE id=$2 AND status='PENDING'`, now, proposalID); err != nil {
 			return SubstitutionProposal{}, err
 		}

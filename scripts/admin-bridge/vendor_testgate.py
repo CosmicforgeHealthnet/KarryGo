@@ -23,6 +23,11 @@ required = {
  "TestVendorSecureAdminReplacementAdapterJoinsRealStockTransaction",
  "TestVendorSecureAdminStockReadsUseCanonicalExpiryAwareAvailability",
  "TestVendorSecureAdminEligibilityUsesNativeVerificationReducer",
+ "TestVendorCheckoutFailsClosedForExpiredVerificationOnApprovedQuote",
+ "TestVendorCheckoutRejectsSuspendedMerchantAndClosedBranch",
+ "TestVendorCheckoutRejectsTakenDownRealListing",
+ "TestSubstitution_DeadlineRequiredAndExpiredApprovalPersistsTerminalState",
+ "TestSubstitution_PendingLiabilityRemainsDurableUntilWalletApplies",
 }
 
 def verify(directory):

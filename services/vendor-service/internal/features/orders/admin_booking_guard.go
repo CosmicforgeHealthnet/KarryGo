@@ -2,6 +2,7 @@ package orders
 
 import (
 	"context"
+	"cosmicforge/logistics/services/vendor-service/internal/features/vendors"
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"sort"
@@ -78,6 +79,15 @@ func guardAdministrativeBookability(ctx context.Context, tx pgx.Tx, source Quote
 			return err
 		}
 		if state != "ACTIVE" {
+			return ErrQuoteNotOrderable
+		}
+	}
+	for _, group := range groups {
+		eligible, _, err := vendors.AdministrativeBranchDomainEligibility(ctx, tx, group.BusinessID, group.BranchID, group.Domain)
+		if err != nil {
+			return err
+		}
+		if !eligible {
 			return ErrQuoteNotOrderable
 		}
 	}

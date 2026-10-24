@@ -4334,7 +4334,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminOrderAllocationGraph"
+      "TestVendorSecureAdminOrderAllocationGraph",
+      "TestSubstitution_PendingLiabilityRemainsDurableUntilWalletApplies"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4359,7 +4360,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminOrderAllocationGraph"
+      "TestVendorSecureAdminOrderAllocationGraph",
+      "TestSubstitution_PendingLiabilityRemainsDurableUntilWalletApplies"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4434,7 +4436,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutRejectsSuspendedMerchantAndClosedBranch"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4459,7 +4462,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutRejectsSuspendedMerchantAndClosedBranch"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4584,7 +4588,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutRejectsSuspendedMerchantAndClosedBranch"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4609,7 +4614,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutRejectsSuspendedMerchantAndClosedBranch"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4734,7 +4740,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutFailsClosedForExpiredVerificationOnApprovedQuote"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4759,7 +4766,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutFailsClosedForExpiredVerificationOnApprovedQuote"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -4984,7 +4992,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutRejectsTakenDownRealListing"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -5009,7 +5018,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestVendorCheckoutRejectsTakenDownRealListing"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -5584,7 +5594,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestSubstitution_DeadlineRequiredAndExpiredApprovalPersistsTerminalState"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."
@@ -5609,7 +5620,8 @@
     "tests": [
       "TestActualOwnerMigrationsAndSourceDictionary",
       "TestOwnerResourcesDelegation",
-      "TestVendorSecureAdminNativeRowsAndBranchAuthorization"
+      "TestVendorSecureAdminNativeRowsAndBranchAuthorization",
+      "TestSubstitution_DeadlineRequiredAndExpiredApprovalPersistsTerminalState"
     ],
     "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
     "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback."

@@ -4,7 +4,7 @@
 
 **Sections 6–10: CLOSED — BACKEND_FUNCTIONALLY_COMPLETE.**
 **Production readiness: PENDING GOVERNANCE AND DEPLOYMENT CERTIFICATION** (not approved).
-**Section 11: next development phase.**
+**Section 11: CLOSED — `SECTION_11_BACKEND_FUNCTIONALLY_COMPLETE`.** See the 24 October closure record below; production remains disabled.
 
 Final staging SHA and CI: see "Final verification" below. Work continued directly on
 `staging` from `b02459bb0ff1cfeb33d8d320712263d3430df97d`; no branch, worktree, PR, `main`
@@ -918,3 +918,5 @@ matrix and pinned schemas are under services/admin-backoffice-service/docs/opena
 ## Secure Admin Section 11 continuation — 24 October 2026
 
 The historical candidate/partial Sections 6–10 narrative above describes its original review, not today's staging status. PR #15 and subsequent staging history are preserved; Sections 6–10 are not reopened. Section 11 extends the existing owner/Bridge engines directly on staging. Current behavior, source authority limits and test methodology are recorded in [section-11-vendor.md](section-11-vendor.md); migration, disabled enrollment and original-action recovery constraints are in [section-11-vendor-runbook.md](section-11-vendor-runbook.md). No live deployment, production activation, Partner/Gateway cutover or later section work is part of this change. Final acceptance must refer to the actual pushed head, never an earlier green run.
+
+The current authoritative Vendor-owned software status is `SECTION_11_BACKEND_FUNCTIONALLY_COMPLETE`. Final closure adds transaction-time Verification eligibility to the existing merchant/branch/listing booking fence, requires and durably enforces substitution deadlines, and proves Wallet `PENDING_LIABILITY` recovery under the original financial identity. Global market/zone policy remains assigned to Section 14, Wallet adjudication to Section 13, and legacy Media association to Section 19. These are external-owner gates; all production Admin flags remain disabled.

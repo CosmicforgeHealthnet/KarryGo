@@ -4,6 +4,8 @@ This document describes the software boundary, not authorization to deploy or ac
 
 ## Development verification
 
+The current Vendor-owned software target is `SECTION_11_BACKEND_FUNCTIONALLY_COMPLETE`. This runbook does not authorize production activation.
+
 Run `go run ./tools/vendor-test-runner` from `services/vendor-service` using a disposable PostgreSQL database authorized for clone/create/drop and disposable Redis. Set `VENDOR_SERVICE_TEST_DATABASE_URL`, `VENDOR_REDIS_ADDR`, `VENDOR_SERVICE_TEST_EVIDENCE_DIR` and `VENDOR_SERVICE_TEST_WIRE_DIR`. The runner creates a migrated template and a distinct database per test-bearing package. The runner remaps legacy test DSN aliases to that package's database and fails on skipped mandatory database cases. The separate five-process stack certification is explicitly reported.
 
 Then run `scripts/admin-bridge/vendor_testgate.py` against the evidence directory and `scripts/admin-bridge/vendor_wire_contract.py` against native wire capture. Generate/validate private contracts with the existing Admin contract tools. Use the existing workflow commands for Bridge, Media and all seven required acceptance workflows. Do not substitute a shared-state Vendor `go test ./...` run for canonical certification.
@@ -28,4 +30,10 @@ Keep all Admin switches off through any future migration verification. A service
 
 For an interrupted command, use the same operation identity and the private original-action readback. `UNKNOWN_OUTCOME` is not proof that a mutation failed. Never generate a replacement identity to retry stock, payment, refund or delivery effects. On audit persistence failure the native transaction rolls back; on readback outage retain uncertainty. Customer-approved substitution reconciliation uses the original deterministic inventory replacement identity and the same native transaction.
 
+Substitution proposals must carry a future deadline from the versioned customer-approved policy flow. The recovery worker expires due cases and proposals idempotently; an approval at or after the deadline also persists `EXPIRED` before refusing the action. Do not extend a proposal by editing its deadline or reuse its identity for another candidate. `PENDING_LIABILITY` is a live Wallet-owned obligation: keep the decision and allocation at their pending states and recover only through the same Wallet idempotency key.
+
+For new orders, the commit transaction rechecks merchant, branch and listing state and, once Vendor onboarding has started, the current native capability/Verification reducer. Do not bypass this check for an old approved quote. Existing committed orders use idempotent readback and continue their permitted fulfillment lifecycle.
+
 Requests for refunds, verification, custody changes or cross-market closure cannot be converted into generic Admin mutations. Escalation records must remain visibly separate from actual owner results. Existing paid orders, financial allocations and mission execution must not be cancelled by a booking hold or merchant pause.
+
+External-owner follow-up remains separate: Section 13 owns Wallet adjudication/execution, Section 14 owns any future canonical global market/zone closure, and Section 19 owns authoritative legacy Media association. Dispatch, Taxi and Hauling retain mission and custody authority. Their unavailable commands do not authorize a Vendor-side loop, database write or synthetic success.

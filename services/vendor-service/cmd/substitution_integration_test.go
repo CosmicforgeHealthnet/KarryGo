@@ -63,6 +63,7 @@ type commerceWallet struct {
 	operations       map[string]orders.CommerceFinancialResult
 	refundCalls      int
 	loseNextResponse bool
+	pendingLiability bool
 }
 
 func newCommerceWallet(base *fakeAuthority, order orders.ParentOrder) *commerceWallet {
@@ -98,9 +99,15 @@ func (w *commerceWallet) RefundCommerceAllocation(_ context.Context, request ord
 	if op, ok := w.operations[request.IdempotencyKey]; ok {
 		return op, nil
 	}
-	op := orders.CommerceFinancialResult{Reference: "crf_" + request.IdempotencyKey, Status: "APPLIED", AmountMinor: request.CustomerRefundMinor}
+	status := "APPLIED"
+	if w.pendingLiability {
+		status = "PENDING_LIABILITY"
+	}
+	op := orders.CommerceFinancialResult{Reference: "crf_" + request.IdempotencyKey, Status: status, AmountMinor: request.CustomerRefundMinor}
 	w.operations[request.IdempotencyKey] = op
-	w.refunded[request.VendorOrderID] += request.CustomerRefundMinor
+	if status == "APPLIED" {
+		w.refunded[request.VendorOrderID] += request.CustomerRefundMinor
+	}
 	if w.loseNextResponse {
 		w.loseNextResponse = false
 		return orders.CommerceFinancialResult{}, errors.New("wallet timeout")
@@ -286,6 +293,52 @@ func TestSubstitution_CheaperRefundsTheDifferenceOnce(t *testing.T) {
 	s.originalQuoteUnchanged(t)
 }
 
+func TestSubstitution_PendingLiabilityRemainsDurableUntilWalletApplies(t *testing.T) {
+	s := newSubstitutionEnv(t)
+	ctx := context.Background()
+	const cheaper = int64(275)
+	wallet := newCommerceWallet(s.wallet, s.order)
+	wallet.pendingLiability = true
+	s.fixture.service.SetPaymentAuthority(orders.PaymentOptions{Authority: wallet})
+	proposal := s.propose(t, s.candidate(t, s.unitPrice-cheaper))
+
+	resolved, err := s.fixture.service.RespondToSubstitution(ctx, s.fixture.customerID, proposal.ID, true, proposal.Version)
+	if err != nil || resolved.Status != orders.SubstitutionApproved {
+		t.Fatalf("approve with pending liability: status=%s err=%v", resolved.Status, err)
+	}
+	var walletStatus, refundState string
+	var refundedMinor int64
+	if err = s.fixture.env.pool.QueryRow(ctx, `SELECT d.wallet_status,v.refund_state,v.refund_refunded_minor FROM commerce_refund_policy_decisions d JOIN commerce_vendor_orders v ON v.id=d.vendor_order_id WHERE d.vendor_order_id=$1`, s.vendorA.ID).Scan(&walletStatus, &refundState, &refundedMinor); err != nil {
+		t.Fatal(err)
+	}
+	if walletStatus != "PENDING_LIABILITY" || refundState != "REFUND_PENDING" || refundedMinor != 0 {
+		t.Fatalf("liability status=%s refund=%s amount=%d", walletStatus, refundState, refundedMinor)
+	}
+	if wallet.refunded[s.vendorA.ID] != 0 || len(wallet.operations) != 1 {
+		t.Fatalf("pending liability manufactured or duplicated a payout: refunded=%d operations=%d", wallet.refunded[s.vendorA.ID], len(wallet.operations))
+	}
+
+	// Wallet later resolves the SAME idempotent operation. Vendor recovery
+	// reads it back and projects the entitlement without issuing another one.
+	key := "commerce-replacement-refund-" + proposal.ID
+	wallet.mu.Lock()
+	op := wallet.operations[key]
+	op.Status = "APPLIED"
+	wallet.operations[key] = op
+	wallet.refunded[s.vendorA.ID] = cheaper
+	wallet.pendingLiability = false
+	wallet.mu.Unlock()
+	if recovered, recoverErr := s.fixture.service.RecoverCommerceRefundPolicies(ctx, 10); recoverErr != nil || recovered != 1 {
+		t.Fatalf("recover pending liability: recovered=%d err=%v", recovered, recoverErr)
+	}
+	if err = s.fixture.env.pool.QueryRow(ctx, `SELECT wallet_status FROM commerce_refund_policy_decisions WHERE vendor_order_id=$1`, s.vendorA.ID).Scan(&walletStatus); err != nil || walletStatus != "APPLIED" {
+		t.Fatalf("wallet status=%s err=%v", walletStatus, err)
+	}
+	if len(wallet.operations) != 1 || wallet.refunded[s.vendorA.ID] != cheaper {
+		t.Fatalf("recovery duplicated entitlement: refunded=%d operations=%d", wallet.refunded[s.vendorA.ID], len(wallet.operations))
+	}
+}
+
 func TestSubstitution_CostlierRequiresApprovalBeforeCharging(t *testing.T) {
 	s := newSubstitutionEnv(t)
 	ctx := context.Background()
@@ -401,5 +454,39 @@ func TestSubstitution_ExactOnlyLineRefusesAnyProposal(t *testing.T) {
 	}
 	if n := s.count(t, `SELECT count(*) FROM commerce_substitution_proposals WHERE vendor_order_id=$1`, s.vendorA.ID); n != 0 {
 		t.Fatalf("proposals=%d, want none", n)
+	}
+}
+
+func TestSubstitution_DeadlineRequiredAndExpiredApprovalPersistsTerminalState(t *testing.T) {
+	s := newSubstitutionEnv(t)
+	ctx := context.Background()
+	listing := s.candidate(t, s.unitPrice)
+	if _, err := s.fixture.service.ProposeSubstitution(ctx, s.actorA, s.vendorA.ID, s.lineID,
+		orders.SubstitutionProposal{ProposedCatalogueRef: listing, Reason: "out of stock"}, "sub-no-deadline"); !errors.Is(err, orders.ErrOrderConflict) {
+		t.Fatalf("missing deadline err=%v", err)
+	}
+	past := time.Now().UTC().Add(-time.Second)
+	if _, err := s.fixture.service.ProposeSubstitution(ctx, s.actorA, s.vendorA.ID, s.lineID,
+		orders.SubstitutionProposal{ProposedCatalogueRef: listing, Reason: "out of stock", ExpiresAt: &past}, "sub-past-deadline"); !errors.Is(err, orders.ErrOrderConflict) {
+		t.Fatalf("past deadline err=%v", err)
+	}
+
+	proposal := s.propose(t, listing)
+	if _, err := s.fixture.env.pool.Exec(ctx, `UPDATE commerce_substitution_proposals SET expires_at=now()-interval '1 second' WHERE id=$1`, proposal.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.fixture.service.RespondToSubstitution(ctx, s.fixture.customerID, proposal.ID, true, proposal.Version); !errors.Is(err, orders.ErrCommercialChangeExpired) {
+		t.Fatalf("expired approval err=%v", err)
+	}
+	persisted, err := orders.NewStore(s.fixture.env.pool).GetSubstitutionForCustomer(ctx, s.fixture.customerID, proposal.ID)
+	if err != nil || persisted.Status != orders.SubstitutionExpired || persisted.Version != proposal.Version+1 {
+		t.Fatalf("persisted proposal=%+v err=%v", persisted, err)
+	}
+	var caseState string
+	if err = s.fixture.env.pool.QueryRow(ctx, `SELECT state FROM commerce_substitution_cases WHERE id=$1`, proposal.CaseID).Scan(&caseState); err != nil || caseState != "EXPIRED" {
+		t.Fatalf("case state=%s err=%v", caseState, err)
+	}
+	if len(s.inventory.replaced) != 0 || len(s.wallet.refundedFor()) != 0 {
+		t.Fatal("expired approval moved stock or money")
 	}
 }
