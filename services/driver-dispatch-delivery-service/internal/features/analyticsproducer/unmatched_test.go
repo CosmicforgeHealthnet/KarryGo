@@ -455,8 +455,11 @@ func TestPostgresDispatchProducerAnchorsEveryPopulationToSignedContexts(t *testi
 	pub, key, _ := ed25519.GenerateKey(rand.Reader)
 	authority := admincontext.Authority{Owner: Owner, Environment: adminpolicy.TestOnly, Keys: map[string]ed25519.PublicKey{"k": pub}}
 	publisher := &capture{}
+	// Setup can straddle an exact UTC hour boundary. Cover the preceding bucket
+	// as well so facts inserted a few milliseconds before the boundary are
+	// still checked with the rest of this test's population.
 	p := &analyticsadmin.Producer{Owner: Owner, Environment: adminpolicy.TestOnly, DB: db, Source: Facts{DB: db}, Resolver: &analyticsadmin.ContextScopeResolver{DB: db, Store: store}, AnchorKinds: AnchorKinds(), Signer: analyticsadmin.Signer{KeyID: "k", Key: key}, Publisher: publisher,
-		Period: time.Hour, Lookback: time.Hour, TTL: 72 * time.Hour, ProvenanceRef: "TEST_ONLY", ApprovalRef: "TEST_ONLY", Now: func() time.Time { return window.Add(time.Hour) }}
+		Period: time.Hour, Lookback: 2 * time.Hour, TTL: 72 * time.Hour, ProvenanceRef: "TEST_ONLY", ApprovalRef: "TEST_ONLY", Now: func() time.Time { return window.Add(time.Hour) }}
 	result, err := p.RunOnce(ctx)
 	if err != nil {
 		t.Fatal(err)
