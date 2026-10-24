@@ -188,7 +188,7 @@ func (s *Service) Open(ctx context.Context, request OpenRequest) (Orchestration,
 	// re-plan from scratch on every retry. Comparing what is already stored is
 	// what keeps a retry free.
 	if sameRequirement(opened.Requirement, request.Requirement) {
-		existing, pickupErr := s.repo.Pickups(ctx, opened.ID)
+		existing, pickupErr := s.repo.PickupsTx(ctx, tx, opened.ID)
 		if pickupErr == nil && samePickups(existing, request.Pickups) {
 			if err = tx.Commit(ctx); err != nil {
 				return Orchestration{}, err

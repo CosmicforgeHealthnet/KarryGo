@@ -207,9 +207,25 @@ func (r *Repository) ReplacePickups(ctx context.Context, tx pgx.Tx, id string, p
 	return nil
 }
 
+type pickupQuerier interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
 // Pickups returns the vendor orders this orchestration collects.
 func (r *Repository) Pickups(ctx context.Context, id string) ([]Pickup, error) {
-	rows, err := r.db.Query(ctx, `
+	return pickupsWith(ctx, r.db, id)
+}
+
+// PickupsTx returns the vendor orders using the caller's transaction. A caller
+// that already holds a pooled connection must use this form: acquiring another
+// connection while concurrent transactions hold the rest of a bounded pool can
+// deadlock every participant.
+func (r *Repository) PickupsTx(ctx context.Context, tx pgx.Tx, id string) ([]Pickup, error) {
+	return pickupsWith(ctx, tx, id)
+}
+
+func pickupsWith(ctx context.Context, query pickupQuerier, id string) ([]Pickup, error) {
+	rows, err := query.Query(ctx, `
 		SELECT vendor_order_id, sequence, business_id, branch_id,
 		       COALESCE(pickup_latitude,0), COALESCE(pickup_longitude,0),
 		       weight_grams, volume_ml, package_count, handling,
