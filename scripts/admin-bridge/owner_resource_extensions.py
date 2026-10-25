@@ -94,7 +94,48 @@ for _kind, _permission, _risk in [
         ['TestCorporateAdminResourcesAreOwnerBackedAndMinimized'],
     )
 
-SOURCE_PATH = {"vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources"}
+# Secure Admin Section 13: Wallet-native financial projections. Amounts are
+# minor-unit integers and bank/payment-provider credentials are never exposed.
+for _kind, _permission, _risk in [
+    ('customer-accounts', 'wallet.customer_accounts.read', 'R3'),
+    ('payment-intents', 'wallet.payment_intents.read', 'R3'),
+    ('customer-refunds', 'wallet.refunds.read', 'R3'),
+    ('provider-payouts', 'wallet.provider_withdrawals.read', 'R3'),
+    ('provider-webhook-events', 'wallet.reconciliation.read', 'R3'),
+    ('commerce-payment-intents', 'wallet.commerce_payments.read', 'R3'),
+    ('commerce-allocations', 'wallet.commerce_allocations.read', 'R3'),
+    ('commerce-operations', 'wallet.commerce_operations.read', 'R3'),
+    ('organization-wallets', 'wallet.accounts.read', 'R3'),
+    ('provider-accounts', 'wallet.provider_accounts.read', 'R3'),
+    ('ledger-accounts', 'wallet.ledger_accounts.read', 'R3'),
+    ('ledger-balances', 'wallet.ledger_balances.read', 'R3'),
+    ('journals', 'wallet.transactions.read', 'R3'),
+    ('journal-lines', 'wallet.transactions.read', 'R3'),
+    ('holds', 'wallet.holds.read', 'R3'),
+    ('subscriptions', 'wallet.subscriptions.read', 'R3'),
+    ('invoices', 'wallet.invoices.read', 'R3'),
+    ('payments', 'wallet.payments.read', 'R3'),
+    ('commission-rules', 'wallet.commissions.read', 'R3'),
+    ('earning-allocations', 'wallet.allocations.read', 'R3'),
+    ('settlements', 'wallet.settlements.read', 'R3'),
+    ('settlement-items', 'wallet.settlements.read', 'R3'),
+    ('refunds', 'wallet.refunds.read', 'R3'),
+    ('reversals', 'wallet.reversals.read', 'R3'),
+    ('provider-allocations', 'wallet.provider_allocations.read', 'R3'),
+    ('provider-withdrawals', 'wallet.provider_withdrawals.read', 'R3'),
+    ('job-payments', 'wallet.job_payments.read', 'R3'),
+    ('reconciliation-runs', 'wallet.reconciliation.read', 'R3'),
+    ('reconciliation-findings', 'wallet.reconciliation.read', 'R3'),
+    ('statements', 'wallet.statements.read', 'R3'),
+    ('financial-audit', 'wallet.audit.read', 'R3'),
+    ('financial-cases', 'wallet.cases.read', 'R3'),
+]:
+    KINDS[('wallet', _kind)] = (
+        'payment-wallet-service', _permission, _risk,
+        ['TestPostgresWalletAdminResourcesAndNativeFinancialCommands'],
+    )
+
+SOURCE_PATH = {"vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources", "wallet": "/internal/payment-wallet/v1/admin/resources"}
 
 # Native operational rows rather than case records.
 EVIDENCE = {key: "Owner-native operational row bound by an owner-signed context; immutable owner disclosure audit and bridge audit" for key in KINDS if key[1] in ("bookings", "delivery-missions", "commerce-missions", "partner-requests", "goods-missions", "corporate-rides")}
@@ -113,7 +154,7 @@ def entries():
                 "risk": risk, "privacy": "MINIMIZED_OPERATIONAL_METADATA", "source_version_required": False, "idempotency_required": False,
                 "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
                 "evidence": EVIDENCE.get((domain, kind), "Owner-written case record and its immutable decision history; immutable owner disclosure audit and bridge audit"),
-                "feature_flag": f"ADMIN_{'FLEET_PARTNER' if domain == 'fleet' else domain.upper()}_RESOURCE_READ_ENABLED; {'FLEET_PARTNER' if domain == 'fleet' else domain.upper()}_ADMIN_RESOURCE_READ_ENABLED",
+                "feature_flag": f"ADMIN_{'FLEET_PARTNER' if domain == 'fleet' else 'PAYMENT_WALLET' if domain == 'wallet' else domain.upper()}_RESOURCE_READ_ENABLED; {'FLEET_PARTNER' if domain == 'fleet' else 'PAYMENT_WALLET' if domain == 'wallet' else domain.upper()}_ADMIN_RESOURCE_READ_ENABLED",
                 "tests": ["TestActualOwnerMigrationsAndSourceDictionary", "TestOwnerResourcesDelegation", *tests],
                 "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
                 "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback.",

@@ -12,6 +12,8 @@ import (
 	"cosmicforge/logistics/services/payment-wallet-service/internal/config"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/database"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/events"
+	"cosmicforge/logistics/services/payment-wallet-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/payment-wallet-service/internal/features/adminresources"
 	financehttp "cosmicforge/logistics/services/payment-wallet-service/internal/features/finance/http"
 	financeintegration "cosmicforge/logistics/services/payment-wallet-service/internal/features/finance/integration"
 	financerepositories "cosmicforge/logistics/services/payment-wallet-service/internal/features/finance/repositories"
@@ -22,6 +24,7 @@ import (
 	walletusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/usecases"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/audit"
 	"cosmicforge/logistics/services/payment-wallet-service/internal/platform/financeauth"
+	"cosmicforge/logistics/shared/go/admincommand"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/outbox"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
@@ -62,21 +65,38 @@ func main() {
 	// No-op when PAYMENT_WALLET_NOTIFICATION_URL/SECRET are unset (local dev).
 	walletNotifier := walletclients.NewWalletNotifier(cfg.NotificationURL, cfg.NotificationSecret)
 	ledger := financerepositories.NewLedgerRepository(db)
+	accounts := financerepositories.NewAccountRepository(db, ledger)
+	operations := financerepositories.NewOperationsRepository(db)
+	reversals := financerepositories.NewReversalRepository(db)
+	providerOps := financerepositories.NewProviderOperationsRepository(db)
+	marketplace := financerepositories.NewMarketplaceRepository(db)
 	outboxRepository := events.NewOutboxRepository(db)
 	financeService := financeusecases.NewService(financeusecases.Options{
 		Pool:        db,
 		Ledger:      ledger,
-		Accounts:    financerepositories.NewAccountRepository(db, ledger),
+		Accounts:    accounts,
 		Billing:     financerepositories.NewBillingRepository(db),
-		Marketplace: financerepositories.NewMarketplaceRepository(db),
+		Marketplace: marketplace,
 		Holds:       financerepositories.NewHoldRepository(db),
-		Operations:  financerepositories.NewOperationsRepository(db),
-		Reversals:   financerepositories.NewReversalRepository(db),
+		Operations:  operations,
+		Reversals:   reversals,
+		ProviderOps: providerOps,
 		JobPayments: financerepositories.NewJobPaymentRepository(db),
 		Authorizer:  financeauth.NewAuthorizer(db),
 		Audit:       audit.NewRecorder(),
 		Events:      events.NewDomainPublisher(outboxRepository),
 	})
+	walletAdmin, adminErr := adminresources.Runtime(ctx, db)
+	if adminErr != nil {
+		log.Fatalf("configure Wallet private Admin boundary: %v", adminErr)
+	}
+	walletCommands, adminErr := admincommand.Runtime(walletAdmin, admincommands.Spec(), admincommands.Executor{
+		Accounts: accounts, Ledger: ledger, Operations: operations, Reversals: reversals, ProviderOps: providerOps, Marketplace: marketplace, Audit: audit.NewRecorder(),
+		Events: events.NewDomainPublisher(outboxRepository),
+	}, "PAYMENT_WALLET")
+	if adminErr != nil {
+		log.Fatalf("configure Wallet private Admin command boundary: %v", adminErr)
+	}
 
 	// The payment flow mirrors every job payment transition into the
 	// authoritative verification record other services read. Constructing the
@@ -209,6 +229,10 @@ func main() {
 				financehttp.RegisterPrivateRoutes(group.Group("/internal/finance"), financeService,
 					serviceauth.NewVerifier(cfg.ServiceSecrets, 5*time.Minute), cfg.FinanceAllowedCallers)
 			}
+		},
+		RegisterRoot: func(router *gin.Engine) {
+			walletAdmin.RegisterOn(router.Group(""))
+			walletCommands.Register(router)
 		},
 		Workers: workers,
 	})

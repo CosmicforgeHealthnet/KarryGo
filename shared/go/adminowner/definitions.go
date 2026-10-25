@@ -151,7 +151,7 @@ func Profiles() []Profile {
 			profiles[i].Definitions["custody-missions"] = definition
 		}
 	}
-	return append(profiles, VendorProfile())
+	return append(profiles, VendorProfile(), WalletProfile())
 }
 
 func ForOwner(owner string) (Profile, bool) {

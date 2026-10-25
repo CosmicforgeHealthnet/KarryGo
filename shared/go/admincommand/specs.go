@@ -164,7 +164,7 @@ func Specs() []Spec {
 				"CLOSE_INVESTIGATION": {SubjectKinds: kinds("shipments", "private-assignments", "execution-links", "organizations", "assets", "contracts", "incidents", "route-plans", "route-optimizations", "sla-measurements"), RequiresCase: true, Params: map[string]ParamSpec{"closure": enum(true, "RESOLVED", "REFERRED_TO_OWNER", "NO_FURTHER_ACTION")}, RequiresApproval: true, VersionOf: VersionCase},
 			},
 		},
-	}, VendorSpec())
+	}, VendorSpec(), WalletSpec())
 }
 
 func ForOwner(owner string) (Spec, bool) {

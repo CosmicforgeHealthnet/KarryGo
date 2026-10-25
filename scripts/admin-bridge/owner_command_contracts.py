@@ -10,6 +10,7 @@ DOMAINS = {
     "dispatch": ("driver-dispatch-delivery-service", "dispatch.admin-command.v1", "DISPATCH"),
     "hauling": ("driver-hauling-service", "hauling.admin-command.v1", "HAULING"),
     "fleet": ("fleet-partner-service", "fleet.admin-command.v1", "FLEET_PARTNER"),
+    "wallet": ("payment-wallet-service", "wallet.admin-command.v1", "PAYMENT_WALLET"),
 }
 ROUTES = [
     # suffix, bridge path, method, permission kind, state, risk
@@ -21,8 +22,8 @@ ROUTES = [
     ("approval.decide", "/{d}/command-approvals/{approval_id}/decisions", "POST", "approve", "AVAILABLE", "R3"),
 ]
 SOURCE = {"submit": "POST /internal/{d}/v1/admin/commands", "readback": "GET /internal/{d}/v1/admin/commands/{kind}/{id}/{key}", "history": "GET /internal/{d}/v1/admin/commands/{kind}/{id}", "approval.propose": "Bridge-local two-person approval", "approval.read": "Bridge-local two-person approval", "approval.decide": "Bridge-local two-person approval"}
-SEGMENT = {"fleet": "fleet-partner"}
-FLAG = {"vendor":"ADMIN_VENDOR_WRITES_ENABLED","customer": "ADMIN_CUSTOMER_WRITES_ENABLED", "taxi": "ADMIN_TAXI_WRITES_ENABLED", "dispatch": "ADMIN_DISPATCH_RECOVERY_ENABLED", "hauling": "ADMIN_HAULING_RECOVERY_ENABLED", "fleet": "ADMIN_FLEET_WRITES_ENABLED"}
+SEGMENT = {"fleet": "fleet-partner", "wallet": "payment-wallet"}
+FLAG = {"vendor":"ADMIN_VENDOR_WRITES_ENABLED","customer": "ADMIN_CUSTOMER_WRITES_ENABLED", "taxi": "ADMIN_TAXI_WRITES_ENABLED", "dispatch": "ADMIN_DISPATCH_RECOVERY_ENABLED", "hauling": "ADMIN_HAULING_RECOVERY_ENABLED", "fleet": "ADMIN_FLEET_WRITES_ENABLED", "wallet": "ADMIN_WALLET_WRITES_ENABLED"}
 TESTS = ["TestPostgresOwnerCommandTwoPersonApprovalIsBoundSingleUseAndRequesterOnly", "TestPostgresOwnerCommandUncertainOutcomeReconcilesWithoutResubmit", "TestPostgresOwnerCommandRefusalAndSupersessionReleaseOnlyProvenSlots", "TestPostgresOwnerCommandBridgeMTLSRoundTrip"]
 
 

@@ -47,6 +47,7 @@ jobs:
       DISPATCH_ADMIN_TEST_REDIS_ADDR: 127.0.0.1:6379
       MEDIA_FILE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/media_admin_test?sslmode=disable
       FLEET_PARTNER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/fleet_admin_test?sslmode=disable
+      PAYMENT_WALLET_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/wallet_admin_test?sslmode=disable
       TAXI_REDIS_ADDR: 127.0.0.1:6379
       TAXI_NOTIFICATION_REDIS_ADDR: 127.0.0.1:6379
       ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
@@ -68,6 +69,7 @@ jobs:
           createdb dispatch_admin_test
           createdb fleet_admin_test
           createdb media_admin_test
+          createdb wallet_admin_test
           for migration in services/driver-dispatch-delivery-service/migrations/*.up.sql; do
             psql -d dispatch_admin_test -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
@@ -78,10 +80,11 @@ jobs:
           go test -race -json -count=1 -timeout=300s ./services/admin-backoffice-service/... ./services/driver-taxi-service/internal/features/adminread ./services/analytics-service/internal/features/adminprivacy ./shared/go/adminread ./shared/go/analyticsadmin ./shared/go/adminpolicy/... > test-artifacts/admin-owner.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/admin-owner.jsonl
           python scripts/admin-bridge/scoped_analytics_contract.py
-          go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
+          go test -race -p 1 -json -count=1 -timeout=300s ./shared/go/admincontext/... ./shared/go/adminowner/... ./services/customer-service/internal/features/adminresources ./services/customer-service/internal/features/adminreview ./shared/go/customerreview ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminresources ./services/driver-hauling-service/internal/features/adminresources ./services/fleet-partner-service/internal/features/adminresources ./services/payment-wallet-service/internal/features/adminresources > test-artifacts/owner-authority.jsonl
           python scripts/admin-bridge/authority_testgate.py test-artifacts/owner-authority.jsonl
-          go test -race -p 1 -json -count=1 -timeout=600s ./shared/go/admincommand/... ./services/customer-service/internal/features/admincommands ./services/driver-taxi-service/internal/features/admininterventions ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminintervention ./services/driver-dispatch-delivery-service/internal/features/legacymediaadoption ./services/driver-hauling-service/internal/features/admincommands ./services/fleet-partner-service/internal/features/admininvestigations ./services/driver-taxi-service/internal/features/analyticsproducer ./services/driver-dispatch-delivery-service/internal/features/analyticsproducer ./services/driver-hauling-service/internal/features/analyticsproducer ./shared/go/analyticsadmin/... ./shared/go/networkanalytics/... > test-artifacts/owner-commands.jsonl
+          go test -race -p 1 -json -count=1 -timeout=600s ./shared/go/admincommand/... ./services/customer-service/internal/features/admincommands ./services/driver-taxi-service/internal/features/admininterventions ./services/driver-taxi-service/internal/features/adminresources ./services/driver-dispatch-delivery-service/internal/features/adminintervention ./services/driver-dispatch-delivery-service/internal/features/legacymediaadoption ./services/driver-hauling-service/internal/features/admincommands ./services/fleet-partner-service/internal/features/admininvestigations ./services/payment-wallet-service/internal/features/admincommands ./services/driver-taxi-service/internal/features/analyticsproducer ./services/driver-dispatch-delivery-service/internal/features/analyticsproducer ./services/driver-hauling-service/internal/features/analyticsproducer ./shared/go/analyticsadmin/... ./shared/go/networkanalytics/... > test-artifacts/owner-commands.jsonl
           python scripts/admin-bridge/command_testgate.py test-artifacts/owner-commands.jsonl
+          go test -race -count=1 -timeout=300s ./services/payment-wallet-service/internal/integration -run TestPostgresWalletAdminResourcesAndNativeFinancialCommands
           go test -race -p 1 -json -count=1 -timeout=300s ./services/media-file-service/... ./shared/go/adminmedia/... ./shared/go/admincase/... > test-artifacts/media-cases.jsonl
           python scripts/admin-bridge/media_testgate.py test-artifacts/media-cases.jsonl
           python scripts/admin-bridge/media_case_contract.py

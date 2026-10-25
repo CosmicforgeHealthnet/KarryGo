@@ -9,7 +9,8 @@
         "taxi.admin-command.v1",
         "dispatch.admin-command.v1",
         "hauling.admin-command.v1",
-        "fleet.admin-command.v1"
+        "fleet.admin-command.v1",
+        "wallet.admin-command.v1"
       ]
     },
     "approval_id": {
