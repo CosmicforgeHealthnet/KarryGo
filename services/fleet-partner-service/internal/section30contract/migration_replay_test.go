@@ -256,7 +256,7 @@ func replayMigrationTip(t *testing.T) string {
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_current_tip")
 	ctx := context.Background()
-	if replayMigrationTip(t) != "000083_admin_investigation_cases" {
+	if replayMigrationTip(t) != "000084_admin_investigation_subjects" {
 		t.Fatal("review latest migration object/retention assertions for the new tip")
 	}
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
@@ -267,6 +267,9 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 			t.Fatalf("missing source object %s", table)
 		}
 	}
+	if !columnExists(t, pool, "fleet_partner_admin_investigations", "organization_subject_id") {
+		t.Fatal("expanded investigation subjects missing at current tip")
+	}
 	before := appliedMigrationVersions(t, pool)
 	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
@@ -275,8 +278,11 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if len(after) != len(before)-1 || after[len(after)-1] != before[len(before)-2] {
 		t.Fatal("rollback changed the wrong migration ledger entries")
 	}
-	if tableExists(t, pool, "fleet_partner_admin_investigations") || tableExists(t, pool, "fleet_partner_admin_investigation_history") {
-		t.Fatal("latest tables survived their own empty rollback")
+	if !tableExists(t, pool, "fleet_partner_admin_investigations") || !tableExists(t, pool, "fleet_partner_admin_investigation_history") {
+		t.Fatal("rolling back the subject expansion removed the earlier investigation tables")
+	}
+	if columnExists(t, pool, "fleet_partner_admin_investigations", "organization_subject_id") {
+		t.Fatal("expanded investigation columns survived their own empty rollback")
 	}
 	for _, table := range []string{"admin_owner_command_decisions", "fleet_partner_provider_offer_decision_receipts", "admin_owner_context_history", "admin_owner_read_audit", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
 		if !tableExists(t, pool, table) {
@@ -286,15 +292,12 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
 	}
-	if !tableExists(t, pool, "fleet_partner_admin_investigations") {
-		t.Fatal("investigation cases not restored")
+	if !tableExists(t, pool, "fleet_partner_admin_investigations") || !columnExists(t, pool, "fleet_partner_admin_investigations", "organization_subject_id") {
+		t.Fatal("expanded investigation subjects not restored")
 	}
 	for _, q := range []string{
 		`INSERT INTO fleet_partner_organizations(id,legal_name,registration_number,country_code,timezone,default_currency,status,created_at,updated_at) VALUES('test-org','Tip Co','RC-TIP-1','NG','Africa/Lagos','NGN','ACTIVE',now(),now())`,
-		`INSERT INTO fleet_partner_branches(id,organization_id,code,name,timezone) VALUES('test-branch','test-org','TIP','HQ','Africa/Lagos')`,
-		`INSERT INTO fleet_partner_organization_provider_memberships(id,organization_id,provider_service,service_category,provider_id,onboarding_source,status) VALUES('test-membership','test-org','driver-dispatch-delivery-service','DISPATCH','test-provider','EXISTING_PROVIDER_LINKED','ACTIVE')`,
-		`INSERT INTO fleet_partner_private_assignments(id,organization_id,branch_id,work_origin,route_stop_id,provider_membership_id,provider_id,execution_service,status,response_deadline,created_by) VALUES('test-assignment','test-org','test-branch','ROUTE_STOP','test-stop','test-membership','test-provider','DISPATCH','COMPLETED',now()+interval '1 hour','test-user')`,
-		`INSERT INTO fleet_partner_admin_investigations(case_ref,organization_id,subject_kind,subject_id,private_assignment_id,category,severity,occurred_on,state,version,opened_by) VALUES('test-case','test-org','private-assignments','test-assignment','test-assignment','SAFETY','LOW','2026-10-01','OPEN',1,'test-staff')`,
+		`INSERT INTO fleet_partner_admin_investigations(case_ref,organization_id,subject_kind,subject_id,organization_subject_id,category,severity,occurred_on,state,version,opened_by) VALUES('test-case','test-org','organizations','test-org','test-org','ONBOARDING','LOW','2026-10-01','OPEN',1,'test-staff')`,
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
