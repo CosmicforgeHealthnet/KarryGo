@@ -44,6 +44,7 @@ required = {
     (prefix + "shared/go/adminowner", "TestPostgresContextPreparationRequiresOwnerWorkloadAndImmutableAudit"),
     (prefix + "shared/go/adminowner", "TestOwnerResourcesDefaultDisabledWithoutCredentialAccess"),
     (prefix + "services/hauling-service/internal/features/adminresources", "TestHaulingPlanningTenantCannotUseSettlementOrConflictingOwner"),
+    (prefix + "services/referral-service/internal/features/adminresources", "TestReferralOwnerProfileUsesFixedPrivacyMinimizedDictionary"),
 }
 for module in ("customer-service", "taxi-service", "dispatch-delivery-service", "hauling-service", "fleet-partner-service"):
     required.add((prefix + "services/" + module + "/internal/features/adminresources", "TestActualOwnerMigrationsAndSourceDictionary"))
