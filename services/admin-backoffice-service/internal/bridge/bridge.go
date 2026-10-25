@@ -68,6 +68,10 @@ type Bridge struct {
 	scopedAnalytics          *analyticsadmin.Client
 	scopedAnalyticsPolicy    *adminpolicy.Engine
 	scopedAnalyticsRate      bool
+	pricing                  *clients.Pricing
+	pricingPolicy            *adminpolicy.Engine
+	pricingReads             bool
+	pricingWrites            bool
 	verifiers                map[string]*serviceauth.Verifier
 	now                      func() time.Time
 	Denied, AuditFailures    atomic.Uint64
@@ -288,6 +292,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	analyticsReport, scopedReport := scopedReportCapability(capability.ID)
 	analyticsRead := scopedReport || analyticsRate
 	commandService, commandRoute, ownerCommand := b.ownerCommandRoute(capability.ID)
+	pricingRequest := strings.HasPrefix(capability.ID, "pricing.")
 	readPolicy := b.accessPolicy
 	if ownerCommand {
 		if commandService == nil {
@@ -295,6 +300,17 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		readPolicy = commandService.Policy
+		if readPolicy == nil {
+			fail(503, "blocked_policy")
+			return
+		}
+	}
+	if pricingRequest {
+		if b.pricing == nil || !b.pricingReads {
+			fail(503, "capability_blocked")
+			return
+		}
+		readPolicy = b.pricingPolicy
 		if readPolicy == nil {
 			fail(503, "blocked_policy")
 			return
@@ -340,7 +356,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var taxiQuery adminread.Query
 	var analyticsFilters analyticsadmin.Filters
 	query, err := strictQuery(r)
-	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead || ownerCommand {
+	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead || ownerCommand || pricingRequest {
 		role := actor.Roles[0]
 		approvedRoles := b.taxiRoles
 		if analyticsRead {
@@ -383,6 +399,14 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			approvedRoles = rule.Roles
 		}
+		if pricingRequest {
+			rule, e := readPolicy.Rule(capability.Permission, b.now())
+			if e != nil || rule.Owner != clients.PricingOwner || rule.SourceContract != "pricing.admin.v1" {
+				fail(503, "blocked_policy")
+				return
+			}
+			approvedRoles = rule.Roles
+		}
 		for _, candidate := range actor.Roles {
 			if config.Contains(approvedRoles, candidate) {
 				role = candidate
@@ -419,7 +443,7 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(403, "forbidden")
 		return
 	}
-	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead || ownerCommand {
+	if capability.Permission == adminread.TaxiPermission || resourceRead || reviewRequest || analyticsRead || ownerCommand || pricingRequest {
 		delegated := adminpolicy.Actor{Product: actor.Product, Staff: actor.Subject, Roles: actor.Roles, Permissions: actor.Permissions, Markets: actor.Markets, Zones: actor.Zones, Organizations: actor.Organizations, Tenants: actor.Tenants}
 		requested := adminpolicy.Scope{Product: config.Product, Market: taxiQuery.Scope.Market, Zone: taxiQuery.Scope.Zone, Organization: taxiQuery.Scope.Organization, Tenant: taxiQuery.Scope.Tenant}
 		if e := readPolicy.AuthorizeDelegation(delegated, capability.Permission, taxiQuery.Purpose, requested, b.now()); e != nil {
@@ -457,6 +481,10 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.serveOwnerCommand(w, r, body, commandService, commandRoute, path, delegated, taxiQuery, a, correlation)
 		return
 	}
+	if pricingRequest {
+		b.servePricing(w, r, body, actor, a, taxiQuery, capability.ID, path, correlation)
+		return
+	}
 
 	var result any
 	switch capability.ID {
@@ -467,6 +495,11 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		b.customerWorkItemAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		b.mediaCaseAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
 		b.ownerCommandAvailability(availability, actor.Roles, actor.Zones, actor.Tenants)
+		for _, candidate := range contract.Matrix() {
+			if strings.HasPrefix(candidate.ID, "pricing.") {
+				availability[candidate.Permission] = b.pricingAvailable(candidate.Permission, actor)
+			}
+		}
 		for _, report := range analyticsadmin.Reports() {
 			availability[report.Permission] = b.scopedReportAvailable(report, actor.Roles, actor.Zones, actor.Tenants)
 		}

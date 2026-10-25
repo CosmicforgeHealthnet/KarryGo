@@ -78,11 +78,11 @@ func usage() {
 	fmt.Fprint(os.Stderr, `pricingctl manages pricing configuration through the signed admin API.
 
 Commands:
-  import-draft  --file <seed.json> --by <operator> --reason <why>
-  submit        --version <id> --by <operator> --reason <why>
-  approve       --version <id> --by <operator> --reason <why>   (must differ from the submitter)
-  reject        --version <id> --by <operator> --reason <why>
-  activate      --version <id> --by <operator> --reason <why> [--from <RFC3339>] [--rollback]
+  import-draft  --file <seed.json> --by <operator> --reason <why> --idempotency-key <command>
+  submit        --version <id> --expected-body-hash <sha256> --by <operator> --reason <why> --idempotency-key <command>
+  approve       --version <id> --expected-body-hash <sha256> --by <operator> --reason <why> --idempotency-key <command>
+  reject        --version <id> --expected-body-hash <sha256> --by <operator> --reason <why> --idempotency-key <command>
+  activate      --version <id> --expected-body-hash <sha256> --by <operator> --reason <why> --idempotency-key <command> [--from <RFC3339>] [--rollback]
   resolve       --kind <kind> [--country|--state|--market|--zone <ref>] [--as-of <RFC3339>]
   simulate      --version <id> --scope <TAXI|DISPATCH|HAULAGE> --class <class> [--metres N --seconds N ...]
   rollout       --scope <s> --capability <QUOTE|BIND|RECONCILE> --market <code> --mode <LEGACY|SHADOW|CENTRAL> --by <op> --reason <why>
@@ -110,11 +110,12 @@ func importDraft(args []string) error {
 	file := flags.String("file", "", "seed file to load")
 	by := flags.String("by", "", "operator creating the draft")
 	reason := flags.String("reason", "", "why this change is being made")
+	idempotencyKey := flags.String("idempotency-key", "", "stable identity for this command and its retries")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *file == "" || *by == "" {
-		return fmt.Errorf("--file and --by are required")
+	if *file == "" || *by == "" || *idempotencyKey == "" {
+		return fmt.Errorf("--file, --by and --idempotency-key are required")
 	}
 
 	raw, err := os.ReadFile(*file)
@@ -142,6 +143,7 @@ func importDraft(args []string) error {
 		"body":            seed.Body,
 		"performed_by":    *by,
 		"reason":          changeReason,
+		"idempotency_key": *idempotencyKey,
 	})
 }
 
@@ -150,14 +152,16 @@ func lifecycle(args []string, action string) error {
 	version := flags.String("version", "", "policy version id")
 	by := flags.String("by", "", "operator performing the action")
 	reason := flags.String("reason", "", "why")
+	expectedBodyHash := flags.String("expected-body-hash", "", "body_hash returned by the source read")
+	idempotencyKey := flags.String("idempotency-key", "", "stable identity for this command and its retries")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *version == "" || *by == "" || *reason == "" {
-		return fmt.Errorf("--version, --by and --reason are required")
+	if *version == "" || *by == "" || *reason == "" || *expectedBodyHash == "" || *idempotencyKey == "" {
+		return fmt.Errorf("--version, --expected-body-hash, --by, --reason and --idempotency-key are required")
 	}
 	return call("POST", "/policy-versions/"+*version+"/"+action, map[string]any{
-		"performed_by": *by, "reason": *reason,
+		"performed_by": *by, "reason": *reason, "expected_body_hash": *expectedBodyHash, "idempotency_key": *idempotencyKey,
 	})
 }
 
@@ -168,13 +172,15 @@ func activate(args []string) error {
 	reason := flags.String("reason", "", "why")
 	from := flags.String("from", "", "RFC3339 moment to go live (default now)")
 	rollback := flags.Bool("rollback", false, "mark this as a return to an earlier version")
+	expectedBodyHash := flags.String("expected-body-hash", "", "body_hash returned by the source read")
+	idempotencyKey := flags.String("idempotency-key", "", "stable identity for this command and its retries")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *version == "" || *by == "" || *reason == "" {
-		return fmt.Errorf("--version, --by and --reason are required")
+	if *version == "" || *by == "" || *reason == "" || *expectedBodyHash == "" || *idempotencyKey == "" {
+		return fmt.Errorf("--version, --expected-body-hash, --by, --reason and --idempotency-key are required")
 	}
-	body := map[string]any{"performed_by": *by, "reason": *reason, "rollback": *rollback}
+	body := map[string]any{"performed_by": *by, "reason": *reason, "rollback": *rollback, "expected_body_hash": *expectedBodyHash, "idempotency_key": *idempotencyKey}
 	if *from != "" {
 		body["effective_from"] = *from
 	}
@@ -244,15 +250,16 @@ func rollout(args []string) error {
 	mode := flags.String("mode", "", "LEGACY, SHADOW or CENTRAL")
 	by := flags.String("by", "", "operator")
 	reason := flags.String("reason", "", "why")
+	idempotencyKey := flags.String("idempotency-key", "", "stable identity for this command and its retries")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *scope == "" || *capability == "" || *market == "" || *mode == "" || *by == "" || *reason == "" {
-		return fmt.Errorf("all of --scope --capability --market --mode --by --reason are required")
+	if *scope == "" || *capability == "" || *market == "" || *mode == "" || *by == "" || *reason == "" || *idempotencyKey == "" {
+		return fmt.Errorf("all of --scope --capability --market --mode --by --reason --idempotency-key are required")
 	}
 	return call("POST", "/rollouts", map[string]any{
 		"scope": *scope, "capability": *capability, "market_code": *market,
-		"mode": *mode, "performed_by": *by, "reason": *reason,
+		"mode": *mode, "performed_by": *by, "reason": *reason, "idempotency_key": *idempotencyKey,
 	})
 }
 
@@ -295,6 +302,14 @@ func call(method, path string, payload any) error {
 	}
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	if method != http.MethodGet && path != "/simulate" {
+		values, ok := payload.(map[string]any)
+		key, keyOK := values["idempotency_key"].(string)
+		if !ok || !keyOK || strings.TrimSpace(key) == "" {
+			return fmt.Errorf("a stable idempotency key is required for mutations")
+		}
+		request.Header.Set("X-Idempotency-Key", key)
 	}
 	if err := serviceauth.SignRequest(request, caller, []byte(secret), body, time.Now()); err != nil {
 		return err

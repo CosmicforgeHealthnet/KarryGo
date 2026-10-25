@@ -99,11 +99,11 @@ func (s *Store) GetVersion(ctx context.Context, id string) (models.Version, erro
 
 // UpdateDraftBody replaces a draft's body. The database refuses this once the
 // version has left DRAFT, so a lost race cannot rewrite approved numbers.
-func (s *Store) UpdateDraftBody(ctx context.Context, id string, body []byte, bodyHash, changeReason string) error {
+func (s *Store) UpdateDraftBody(ctx context.Context, id string, body []byte, expectedBodyHash, bodyHash, changeReason string) error {
 	tag, err := s.db.Exec(ctx, `
 		UPDATE pricing_policy_versions
-		SET body = $2, body_hash = $3, change_reason = $4
-		WHERE id = $1 AND status = 'DRAFT'`, id, body, bodyHash, changeReason)
+		SET body = $3, body_hash = $4, change_reason = $5
+		WHERE id = $1 AND status = 'DRAFT' AND body_hash = $2`, id, expectedBodyHash, body, bodyHash, changeReason)
 	if err != nil {
 		if strings.Contains(err.Error(), "cannot change once it is") {
 			return fmt.Errorf("%w: %s", models.ErrNotDraft, id)
@@ -111,22 +111,22 @@ func (s *Store) UpdateDraftBody(ctx context.Context, id string, body []byte, bod
 		return fmt.Errorf("policies: update draft: %w", err)
 	}
 	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("%w: %s", models.ErrNotDraft, id)
+		return fmt.Errorf("%w: %s was changed or left draft", models.ErrStaleVersion, id)
 	}
 	return nil
 }
 
 // TransitionStatus moves a version between statuses, refusing a move from an
 // unexpected current status so two operators cannot both "approve" a version.
-func (s *Store) TransitionStatus(ctx context.Context, id, from, to string) error {
+func (s *Store) TransitionStatus(ctx context.Context, id, from, to, expectedBodyHash string) error {
 	tag, err := s.db.Exec(ctx, `
 		UPDATE pricing_policy_versions SET status = $3
-		WHERE id = $1 AND status = $2`, id, from, to)
+		WHERE id = $1 AND status = $2 AND body_hash = $4`, id, from, to, expectedBodyHash)
 	if err != nil {
 		return fmt.Errorf("policies: transition %s -> %s: %w", from, to, err)
 	}
 	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("policies: version %s is not %s, so it cannot become %s", id, from, to)
+		return fmt.Errorf("%w: version %s is not the reviewed %s version", models.ErrStaleVersion, id, from)
 	}
 	return nil
 }

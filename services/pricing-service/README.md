@@ -99,6 +99,10 @@ Pricing has no login of its own. Administration arrives as an HMAC-signed reques
 from `admin-backoffice-service` (or the ops CLI) naming the person responsible in
 `performed_by`, under `/internal/pricing/v1/admin`. Every signed request is
 single-use, and a caller holding a quote secret still cannot change a rate.
+Every mutation also requires a stable `X-Idempotency-Key`; a retry returns the
+recorded original response, while reuse for a different payload is refused.
+Editing, submission, decision and activation require the current 64-character
+`expected_body_hash`, so an operator cannot act on a version changed after read.
 
 | Route | Purpose |
 |---|---|
@@ -121,10 +125,10 @@ door into the database.
 
 ```bash
 export PRICING_OPS_SECRET=...            # the pricing-ops-cli secret
-go run ./cmd/pricingctl import-draft --file seeds/v1/taxi_tariff_ng.json --by ada@karrygo --reason "V1 baseline"
-go run ./cmd/pricingctl submit   --version pv_... --by ada@karrygo  --reason "ready for review"
-go run ./cmd/pricingctl approve  --version pv_... --by bola@karrygo --reason "verified"   # a different person
-go run ./cmd/pricingctl activate --version pv_... --by bola@karrygo --reason "go live"
+go run ./cmd/pricingctl import-draft --file seeds/v1/taxi_tariff_ng.json --by ada@karrygo --reason "V1 baseline" --idempotency-key case-123-draft
+go run ./cmd/pricingctl submit   --version pv_... --expected-body-hash sha256... --by ada@karrygo  --reason "ready for review" --idempotency-key case-123-submit
+go run ./cmd/pricingctl approve  --version pv_... --expected-body-hash sha256... --by bola@karrygo --reason "verified" --idempotency-key case-123-approve   # a different person
+go run ./cmd/pricingctl activate --version pv_... --expected-body-hash sha256... --by bola@karrygo --reason "go live" --idempotency-key case-123-activate
 go run ./cmd/pricingctl simulate --version pv_... --scope TAXI --class economy --metres 8000 --seconds 1230
 ```
 

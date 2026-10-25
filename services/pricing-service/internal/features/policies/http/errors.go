@@ -31,6 +31,8 @@ func respond(c *gin.Context, err error) {
 		httpx.Abort(c, apperrors.Forbidden("This operator does not hold the role required for this action.", err))
 	case errors.Is(err, operators.ErrUnknownOperator):
 		httpx.Abort(c, apperrors.Forbidden("performed_by is not a known active pricing operator.", err))
+	case errors.Is(err, errAdminScope):
+		httpx.Abort(c, apperrors.Forbidden("The delegated Admin scope does not authorize this Pricing resource.", err))
 	case errors.Is(err, approvalmodels.ErrSubjectChanged):
 		httpx.Abort(c, apperrors.Conflict("The policy body changed after it was approved. Submit it for approval again.", err))
 	case errors.Is(err, approvalmodels.ErrAlreadyDecided):
@@ -39,6 +41,8 @@ func respond(c *gin.Context, err error) {
 		httpx.Abort(c, apperrors.Conflict("Only a draft can be edited. Create a new version instead.", err))
 	case errors.Is(err, policymodels.ErrNotApproved):
 		httpx.Abort(c, apperrors.Conflict("Only an approved version can be activated.", err))
+	case errors.Is(err, policymodels.ErrStaleVersion):
+		httpx.Abort(c, apperrors.Conflict("The pricing policy changed after it was read. Read the current source version before retrying.", err))
 	case errors.Is(err, policymodels.ErrNoActivePolicy):
 		httpx.Abort(c, apperrors.NotFound("No active pricing policy for that kind, place and time.", err))
 	case errors.Is(err, policymodels.ErrNotFound),

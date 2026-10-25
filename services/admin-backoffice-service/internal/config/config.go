@@ -78,6 +78,8 @@ type Config struct {
 	TaxiReadEnabled                                 bool
 	TaxiOrigin, TaxiSecretFile                      string
 	TaxiReadRoles                                   []string
+	PricingReadEnabled                              bool
+	PricingOrigin, PricingSecretFile                string
 	AccessPolicyFile, AccessPolicyKeysFile          string
 }
 
@@ -94,11 +96,17 @@ func Load() (Config, error) {
 	c.AccessPolicyKeysFile = os.Getenv("ADMIN_ACCESS_POLICY_KEYS_FILE")
 	c.TaxiOrigin = os.Getenv("ADMIN_TAXI_ORIGIN")
 	c.TaxiSecretFile = os.Getenv("ADMIN_TAXI_SECRET_FILE")
+	c.PricingReadEnabled = os.Getenv("ADMIN_PRICING_READ_ENABLED") == "true"
+	c.PricingOrigin = os.Getenv("ADMIN_PRICING_ORIGIN")
+	c.PricingSecretFile = os.Getenv("ADMIN_PRICING_SECRET_FILE")
 	if roles := os.Getenv("ADMIN_TAXI_READ_ROLES"); roles != "" {
 		c.TaxiReadRoles = strings.Split(roles, ",")
 	}
 	if c.TaxiReadEnabled && (c.TaxiOrigin == "" || c.TaxiSecretFile == "" || len(c.TaxiReadRoles) == 0) {
 		return c, errors.New("Taxi reads require fixed origin, dedicated secret file and approved roles")
+	}
+	if (c.PricingReadEnabled || c.Features.PricingWrites) && (c.PricingOrigin == "" || c.PricingSecretFile == "" || c.AccessPolicyFile == "" || c.AccessPolicyKeysFile == "") {
+		return c, errors.New("Pricing Admin integration requires fixed origin, dedicated secret file and signed policy files")
 	}
 	if c.Address == "" {
 		c.Address = ":8110"

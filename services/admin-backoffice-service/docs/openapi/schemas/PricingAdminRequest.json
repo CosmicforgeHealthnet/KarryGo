@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "expected_body_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "geography_level": {
+      "type": "string"
+    },
+    "geography_ref": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "clone_from": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "effective_from": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rollback": {
+      "type": "boolean"
+    },
+    "version_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "commission_version_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "scope": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string"
+    },
+    "class": {
+      "type": "string"
+    },
+    "distance_meters": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duration_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "traffic_duration_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "route_confidence": {
+      "type": "string"
+    },
+    "route_degraded": {
+      "type": "boolean"
+    },
+    "package_size": {
+      "type": "string"
+    },
+    "service_tier": {
+      "type": "string"
+    },
+    "weight_grams": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "helpers": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "zone_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "market_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "state_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "country_code": {
+      "type": "string"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capability": {
+      "type": "string"
+    },
+    "market_code": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    }
+  },
+  "required": []
+}

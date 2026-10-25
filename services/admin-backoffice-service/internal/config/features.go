@@ -17,6 +17,7 @@ type DomainFlags struct {
 	FleetWrites            bool
 	VendorWrites           bool
 	WalletWrites           bool
+	PricingWrites          bool
 	RemoteWrites           bool
 }
 
@@ -31,6 +32,7 @@ func loadDomainFlags() DomainFlags {
 		FleetWrites:            os.Getenv("ADMIN_FLEET_WRITES_ENABLED") == "true",
 		VendorWrites:           os.Getenv("ADMIN_VENDOR_WRITES_ENABLED") == "true",
 		WalletWrites:           os.Getenv("ADMIN_WALLET_WRITES_ENABLED") == "true",
+		PricingWrites:          os.Getenv("ADMIN_PRICING_WRITES_ENABLED") == "true",
 		RemoteWrites:           os.Getenv("ADMIN_REMOTE_WRITES_ENABLED") == "true",
 	}
 }
@@ -53,6 +55,8 @@ func (f DomainFlags) WriteFamilyRequested(action string) bool {
 		return f.FleetWrites
 	case strings.HasPrefix(action, "wallet."):
 		return f.WalletWrites
+	case strings.HasPrefix(action, "pricing."):
+		return f.PricingWrites
 	}
 	return false
 }

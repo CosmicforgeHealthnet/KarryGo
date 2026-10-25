@@ -2,7 +2,10 @@ package http
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +55,10 @@ func (h *Handler) CreateDraft(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
 		return
 	}
+	if err := authorizeDirectScope(c, request.GeographyLevel, request.GeographyRef); err != nil {
+		respond(c, err)
+		return
+	}
 	version, err := h.policies.CreateDraft(c.Request.Context(), policyusecases.DraftInput{
 		Kind:           request.Kind,
 		GeographyLevel: request.GeographyLevel,
@@ -78,8 +85,16 @@ func (h *Handler) UpdateDraft(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
 		return
 	}
+	if !validExpectedHash(request.ExpectedBodyHash) {
+		httpx.Abort(c, apperrors.BadRequest("expected_body_hash must be the 64-character source hash read before editing.", errors.New("missing or invalid expected_body_hash")))
+		return
+	}
+	if err := h.authorizeVersionScope(c, c.Param("id")); err != nil {
+		respond(c, err)
+		return
+	}
 	version, err := h.policies.UpdateDraft(c.Request.Context(), c.Param("id"), request.Body,
-		request.PerformedBy, servicetrust.CallerFrom(c), request.Reason, httpx.GetRequestID(c))
+		request.PerformedBy, servicetrust.CallerFrom(c), request.Reason, httpx.GetRequestID(c), request.ExpectedBodyHash)
 	if err != nil {
 		respond(c, err)
 		return
@@ -94,8 +109,16 @@ func (h *Handler) Submit(c *gin.Context) {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
 		return
 	}
+	if !validExpectedHash(request.ExpectedBodyHash) {
+		httpx.Abort(c, apperrors.BadRequest("expected_body_hash must identify the draft being submitted.", errors.New("missing or invalid expected_body_hash")))
+		return
+	}
+	if err := h.authorizeVersionScope(c, c.Param("id")); err != nil {
+		respond(c, err)
+		return
+	}
 	approvalID, err := h.policies.Submit(c.Request.Context(), c.Param("id"),
-		request.PerformedBy, servicetrust.CallerFrom(c), request.Reason, httpx.GetRequestID(c))
+		request.PerformedBy, servicetrust.CallerFrom(c), request.Reason, httpx.GetRequestID(c), request.ExpectedBodyHash)
 	if err != nil {
 		respond(c, err)
 		return
@@ -119,6 +142,14 @@ func (h *Handler) decide(c *gin.Context, approve bool) {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
 		return
 	}
+	if !validExpectedHash(request.ExpectedBodyHash) {
+		httpx.Abort(c, apperrors.BadRequest("expected_body_hash must identify the submitted version being decided.", errors.New("missing or invalid expected_body_hash")))
+		return
+	}
+	if err := h.authorizeVersionScope(c, c.Param("id")); err != nil {
+		respond(c, err)
+		return
+	}
 	action := h.policies.Reject
 	status := policymodels.StatusRejected
 	if approve {
@@ -126,7 +157,7 @@ func (h *Handler) decide(c *gin.Context, approve bool) {
 		status = policymodels.StatusApproved
 	}
 	if err := action(c.Request.Context(), c.Param("id"), request.PerformedBy,
-		servicetrust.CallerFrom(c), request.Reason, httpx.GetRequestID(c)); err != nil {
+		servicetrust.CallerFrom(c), request.Reason, httpx.GetRequestID(c), request.ExpectedBodyHash); err != nil {
 		respond(c, err)
 		return
 	}
@@ -138,6 +169,14 @@ func (h *Handler) Activate(c *gin.Context) {
 	var request activateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
+		return
+	}
+	if !validExpectedHash(request.ExpectedBodyHash) {
+		httpx.Abort(c, apperrors.BadRequest("expected_body_hash must identify the approved version being activated.", errors.New("missing or invalid expected_body_hash")))
+		return
+	}
+	if err := h.authorizeVersionScope(c, c.Param("id")); err != nil {
+		respond(c, err)
 		return
 	}
 
@@ -152,13 +191,14 @@ func (h *Handler) Activate(c *gin.Context) {
 	}
 
 	activation, err := h.policies.Activate(c.Request.Context(), policyusecases.ActivateInput{
-		VersionID:     c.Param("id"),
-		EffectiveFrom: effectiveFrom,
-		PerformedBy:   request.PerformedBy,
-		ActorCaller:   servicetrust.CallerFrom(c),
-		Reason:        request.Reason,
-		RequestID:     httpx.GetRequestID(c),
-		Rollback:      request.Rollback,
+		VersionID:        c.Param("id"),
+		EffectiveFrom:    effectiveFrom,
+		PerformedBy:      request.PerformedBy,
+		ActorCaller:      servicetrust.CallerFrom(c),
+		Reason:           request.Reason,
+		RequestID:        httpx.GetRequestID(c),
+		ExpectedBodyHash: request.ExpectedBodyHash,
+		Rollback:         request.Rollback,
 	})
 	if err != nil {
 		respond(c, err)
@@ -172,8 +212,17 @@ func (h *Handler) Activate(c *gin.Context) {
 	})
 }
 
+func validExpectedHash(value string) bool {
+	decoded, err := hex.DecodeString(value)
+	return err == nil && len(decoded) == 32 && value == strings.ToLower(value)
+}
+
 // GetVersion returns one version and its body.
 func (h *Handler) GetVersion(c *gin.Context) {
+	if err := h.authorizeVersionScope(c, c.Param("id")); err != nil {
+		respond(c, err)
+		return
+	}
 	version, err := h.policies.GetVersion(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		respond(c, err)
@@ -184,6 +233,10 @@ func (h *Handler) GetVersion(c *gin.Context) {
 
 // ListVersions returns a lineage's editions.
 func (h *Handler) ListVersions(c *gin.Context) {
+	if err := h.authorizePolicyIDScope(c, c.Param("id")); err != nil {
+		respond(c, err)
+		return
+	}
 	versions, err := h.policies.ListVersions(c.Request.Context(), c.Param("id"), 50)
 	if err != nil {
 		respond(c, err)
@@ -202,6 +255,10 @@ func (h *Handler) Resolve(c *gin.Context) {
 	var request resolveRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the query.", err))
+		return
+	}
+	if err := authorizeResolveScope(c, request); err != nil {
+		respond(c, err)
 		return
 	}
 	asOf := time.Now().UTC()
@@ -241,6 +298,10 @@ func (h *Handler) Simulate(c *gin.Context) {
 	var request simulateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
+		return
+	}
+	if err := h.authorizeVersionScope(c, request.VersionID); err != nil {
+		respond(c, err)
 		return
 	}
 
@@ -357,6 +418,24 @@ func (h *Handler) ListApprovals(c *gin.Context) {
 		respond(c, err)
 		return
 	}
+	if _, scoped, scopeErr := bridgeScope(c); scopeErr != nil {
+		respond(c, scopeErr)
+		return
+	} else if scoped {
+		filtered := pending[:0]
+		for _, request := range pending {
+			if request.SubjectType != approvalmodels.SubjectPolicyVersion {
+				continue
+			}
+			if scopeErr = h.authorizeVersionScope(c, request.SubjectID); scopeErr == nil {
+				filtered = append(filtered, request)
+			} else if !errors.Is(scopeErr, errAdminScope) {
+				respond(c, scopeErr)
+				return
+			}
+		}
+		pending = filtered
+	}
 	ok(c, gin.H{"pending": pending})
 }
 
@@ -365,6 +444,10 @@ func (h *Handler) SetRollout(c *gin.Context) {
 	var request rolloutRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
+		return
+	}
+	if err := authorizeMarketScope(c, request.MarketCode); err != nil {
+		respond(c, err)
 		return
 	}
 	if err := rolloutmodels.ValidateRollout(request.Scope, request.Capability,
@@ -391,6 +474,18 @@ func (h *Handler) ListRollouts(c *gin.Context) {
 		respond(c, err)
 		return
 	}
+	if scope, scoped, scopeErr := bridgeScope(c); scopeErr != nil {
+		respond(c, scopeErr)
+		return
+	} else if scoped {
+		filtered := rollouts[:0]
+		for _, rollout := range rollouts {
+			if rollout.MarketCode == scope.Market {
+				filtered = append(filtered, rollout)
+			}
+		}
+		rollouts = filtered
+	}
 	ok(c, gin.H{"rollouts": rollouts})
 }
 
@@ -411,6 +506,10 @@ func (h *Handler) setFreeze(c *gin.Context, action string) {
 		httpx.Abort(c, apperrors.BadRequest("Could not read the request body.", err))
 		return
 	}
+	if err := authorizeMarketScope(c, c.Param("code")); err != nil {
+		respond(c, err)
+		return
+	}
 	if request.PerformedBy == "" || request.Reason == "" {
 		httpx.Abort(c, apperrors.BadRequest("performed_by and reason are required.", nil))
 		return
@@ -427,6 +526,10 @@ func (h *Handler) setFreeze(c *gin.Context, action string) {
 
 // FreezeState reports whether a market is frozen.
 func (h *Handler) FreezeState(c *gin.Context) {
+	if err := authorizeMarketScope(c, c.Param("code")); err != nil {
+		respond(c, err)
+		return
+	}
 	state, err := h.rollouts.FreezeStateFor(c.Request.Context(), c.Param("code"))
 	if err != nil {
 		respond(c, err)

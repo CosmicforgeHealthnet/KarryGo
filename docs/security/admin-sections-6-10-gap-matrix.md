@@ -9,6 +9,17 @@ evidence, is at the top of [the staging report](../admin-bridge/staging-integrat
 governance and deployment certification**; nothing here approves it. Everything below is dated
 history.
 
+## Later secure-Admin closure register — Sections 12–15
+
+This register is additive and does not reopen Sections 6–10.
+
+| Section | Owner | Current software state | Explicit external/absent authority |
+|---|---|---|---|
+| 12 Fleet / enterprise | `fleet-partner-service` | `BACKEND_FUNCTIONALLY_COMPLETE`; fixed owner projections, tenant-safe investigations and Bridge contracts | Production grants, source allocations, Media policy and deployment remain blocked governance/infrastructure |
+| 13 Wallet / finance | `payment-wallet-service` | `BACKEND_FUNCTIONALLY_COMPLETE`; minimized financial reads and owner-native, approval-fenced commands | Arbitrary balance adjustment and chargeback adjudication are `BLOCKED_DOMAIN`; thresholds and live finance grants are `BLOCKED_POLICY` |
+| 14 Pricing | `pricing-service` | `BACKEND_FUNCTIONALLY_COMPLETE`; 16 fixed Bridge capabilities, source geography recheck, stale-hash and idempotency fences | Quote issue/bind/reconcile and global commerce closure are `BLOCKED_DOMAIN`; live rate/approval grants and approval-expiry values are `BLOCKED_POLICY` |
+| 15 Referral / rewards | `referral-service` | IN PROGRESS after Section 14 gate | Wallet settlement-reversal producer must be verified; no financial truth may be inferred |
+
 ## Completion assessment — 22 October 2026 (historical)
 
 **Superseded the same evening:** owner-executed software for Sections 6–10 is now on staging; see the top section of [the staging report](../admin-bridge/staging-integration-report.md). Earlier assessment: Sections 6, 7, 8, 9 and 10 remained **PARTIAL**. Supported new software and exact

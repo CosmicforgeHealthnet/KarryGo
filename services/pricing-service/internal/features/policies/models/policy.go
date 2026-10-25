@@ -44,6 +44,9 @@ var (
 	// ErrNotApproved is returned when activation is attempted on a version that
 	// has not been approved.
 	ErrNotApproved = errors.New("policies: only an approved version may be activated")
+	// ErrStaleVersion refuses a command whose expected immutable body hash no
+	// longer identifies the source version the operator reviewed.
+	ErrStaleVersion = errors.New("policies: stale policy version")
 	// ErrAmbiguous means two lineages claim the same kind and place. Resolution
 	// must never guess.
 	ErrAmbiguous = errors.New("policies: more than one policy claims this kind and geography")

@@ -146,6 +146,7 @@ func main() {
 				Handler:      adminHandler,
 				Verifier:     verifier,
 				NonceStore:   db,
+				Idempotency:  idempotencyStore,
 				AdminCallers: cfg.AdminCallers,
 			})
 			// Quote routes (issue, bind, reconcile) arrive with the quote

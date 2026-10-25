@@ -22,18 +22,21 @@ type createDraftRequest struct {
 
 type updateDraftRequest struct {
 	actor
-	Body json.RawMessage `json:"body"`
+	Body             json.RawMessage `json:"body"`
+	ExpectedBodyHash string          `json:"expected_body_hash"`
 }
 
 type decideRequest struct {
 	actor
+	ExpectedBodyHash string `json:"expected_body_hash"`
 }
 
 type activateRequest struct {
 	actor
 	// EffectiveFrom is RFC 3339. Empty means now. A past time is refused.
-	EffectiveFrom string `json:"effective_from,omitempty"`
-	Rollback      bool   `json:"rollback,omitempty"`
+	EffectiveFrom    string `json:"effective_from,omitempty"`
+	Rollback         bool   `json:"rollback,omitempty"`
+	ExpectedBodyHash string `json:"expected_body_hash"`
 }
 
 type simulateRequest struct {

@@ -203,6 +203,33 @@ func run() error {
 			return e
 		}
 	}
+	if cfg.PricingReadEnabled || cfg.Features.PricingWrites {
+		encoded, e := os.ReadFile(cfg.PricingSecretFile)
+		if e != nil || len(encoded) > 4096 {
+			return errors.New("Pricing Admin secret file unavailable")
+		}
+		secret, e := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(encoded)))
+		if e != nil {
+			return errors.New("invalid Pricing Admin secret encoding")
+		}
+		pricing, e := clients.NewPricing(cfg.PricingOrigin, secret)
+		if e != nil {
+			return e
+		}
+		defer pricing.Close()
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid Pricing Admin policy")
+		}
+		if approved != nil {
+			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+				return errors.New("Pricing Admin policy revision refused")
+			}
+		}
+		if e = app.ConfigurePricing(pricing, approved, cfg.PricingReadEnabled, cfg.Features.PricingWrites); e != nil {
+			return e
+		}
+	}
 	if cfg.TaxiReadEnabled {
 		encoded, e := os.ReadFile(cfg.TaxiSecretFile)
 		if e != nil {

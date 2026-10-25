@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -31,6 +32,26 @@ CREATE TABLE IF NOT EXISTS pricing_service_schema_migrations (
     version text PRIMARY KEY,
     applied_at timestamptz NOT NULL DEFAULT now()
 )`
+
+const migrationLockID int64 = 708_214_001
+
+func lockMigrations(ctx context.Context, pool *pgxpool.Pool) (*pgxpool.Conn, func(), error) {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("acquire migration connection: %w", err)
+	}
+	if _, err = conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrationLockID); err != nil {
+		conn.Release()
+		return nil, nil, fmt.Errorf("lock migrations: %w", err)
+	}
+	release := func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = conn.Exec(unlockCtx, `SELECT pg_advisory_unlock($1)`, migrationLockID)
+		conn.Release()
+	}
+	return conn, release, nil
+}
 
 // Migration is one discovered migration file pair.
 type Migration struct {
@@ -121,7 +142,12 @@ func parseNumber(stem string) (int, error) {
 
 // ApplyMigrations applies every unapplied migration from dir in numeric order.
 func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error {
-	if _, err := pool.Exec(ctx, migrationsTable); err != nil {
+	conn, release, err := lockMigrations(ctx, pool)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err := conn.Exec(ctx, migrationsTable); err != nil {
 		return fmt.Errorf("create migrations table: %w", err)
 	}
 
@@ -132,7 +158,7 @@ func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error 
 
 	for _, migration := range migrations {
 		var exists bool
-		if err := pool.QueryRow(ctx,
+		if err := conn.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM pricing_service_schema_migrations WHERE version = $1)`, migration.Version,
 		).Scan(&exists); err != nil {
 			return fmt.Errorf("check migration %s: %w", migration.Version, err)
@@ -146,7 +172,7 @@ func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error 
 			return fmt.Errorf("read migration %s: %w", migration.Version, err)
 		}
 
-		tx, err := pool.Begin(ctx)
+		tx, err := conn.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin migration %s: %w", migration.Version, err)
 		}
@@ -171,6 +197,11 @@ func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error 
 // migration, determined by querying the tracking table (not a caller-supplied
 // count). Used by migration replay tests and operational rollback.
 func RollbackLastMigration(ctx context.Context, pool *pgxpool.Pool, dir string) error {
+	conn, release, err := lockMigrations(ctx, pool)
+	if err != nil {
+		return err
+	}
+	defer release()
 	migrations, err := ListMigrations(dir)
 	if err != nil {
 		return err
@@ -179,7 +210,7 @@ func RollbackLastMigration(ctx context.Context, pool *pgxpool.Pool, dir string) 
 	var applied []Migration
 	for _, migration := range migrations {
 		var exists bool
-		if err := pool.QueryRow(ctx,
+		if err := conn.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM pricing_service_schema_migrations WHERE version = $1)`, migration.Version,
 		).Scan(&exists); err != nil {
 			return fmt.Errorf("check migration %s: %w", migration.Version, err)
@@ -202,7 +233,7 @@ func RollbackLastMigration(ctx context.Context, pool *pgxpool.Pool, dir string) 
 		return fmt.Errorf("read down migration %s: %w", last.Version, err)
 	}
 
-	tx, err := pool.Begin(ctx)
+	tx, err := conn.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin rollback %s: %w", last.Version, err)
 	}

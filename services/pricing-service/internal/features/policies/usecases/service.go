@@ -36,8 +36,8 @@ type Store interface {
 	NextVersionNo(ctx context.Context, policyID string) (int, error)
 	CreateVersion(ctx context.Context, version models.Version) error
 	GetVersion(ctx context.Context, id string) (models.Version, error)
-	UpdateDraftBody(ctx context.Context, id string, body []byte, bodyHash, changeReason string) error
-	TransitionStatus(ctx context.Context, id, from, to string) error
+	UpdateDraftBody(ctx context.Context, id string, body []byte, expectedBodyHash, bodyHash, changeReason string) error
+	TransitionStatus(ctx context.Context, id, from, to, expectedBodyHash string) error
 	RecordEvent(ctx context.Context, versionID, event, from, to, performedBy, reason string) error
 	Activate(ctx context.Context, activation models.Activation) error
 	LatestActivation(ctx context.Context, policyID string, asOf time.Time) (models.Activation, error)
@@ -208,7 +208,7 @@ func (s *Service) CreateDraft(ctx context.Context, in DraftInput) (models.Versio
 }
 
 // UpdateDraft replaces a draft's body.
-func (s *Service) UpdateDraft(ctx context.Context, versionID string, body []byte, performedBy, actorCaller, changeReason, requestID string) (models.Version, error) {
+func (s *Service) UpdateDraft(ctx context.Context, versionID string, body []byte, performedBy, actorCaller, changeReason, requestID string, expectedBodyHash ...string) (models.Version, error) {
 	if changeReason == "" {
 		return models.Version{}, errors.New("policies: a change reason is required")
 	}
@@ -223,6 +223,10 @@ func (s *Service) UpdateDraft(ctx context.Context, versionID string, body []byte
 	if existing.Status != models.StatusDraft {
 		return models.Version{}, fmt.Errorf("%w: version %s is %s", models.ErrNotDraft, versionID, existing.Status)
 	}
+	expected, err := expectedHash(existing.BodyHash, expectedBodyHash)
+	if err != nil {
+		return models.Version{}, err
+	}
 
 	canonicalBody, bodyHash, err := engine.CanonicalBody(existing.Kind, existing.SchemaVersion, body)
 	if err != nil {
@@ -230,7 +234,7 @@ func (s *Service) UpdateDraft(ctx context.Context, versionID string, body []byte
 	}
 
 	err = s.inTx(ctx, func(store Store, approvals Approvals, q database.Querier) error {
-		if err := store.UpdateDraftBody(ctx, versionID, canonicalBody, bodyHash, changeReason); err != nil {
+		if err := store.UpdateDraftBody(ctx, versionID, canonicalBody, expected, bodyHash, changeReason); err != nil {
 			return err
 		}
 		if err := store.RecordEvent(ctx, versionID, "DRAFT_UPDATED", models.StatusDraft, models.StatusDraft, performedBy, changeReason); err != nil {
@@ -253,7 +257,7 @@ func (s *Service) UpdateDraft(ctx context.Context, versionID string, body []byte
 
 // Submit moves a draft to SUBMITTED and opens an approval request bound to the
 // body's hash.
-func (s *Service) Submit(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string) (string, error) {
+func (s *Service) Submit(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string, expectedBodyHash ...string) (string, error) {
 	if reason == "" {
 		return "", errors.New("policies: a reason is required to submit a change for approval")
 	}
@@ -268,10 +272,14 @@ func (s *Service) Submit(ctx context.Context, versionID, performedBy, actorCalle
 	if version.Status != models.StatusDraft {
 		return "", fmt.Errorf("%w: version %s is %s", models.ErrNotDraft, versionID, version.Status)
 	}
+	expected, err := expectedHash(version.BodyHash, expectedBodyHash)
+	if err != nil {
+		return "", err
+	}
 
 	var approvalID string
 	err = s.inTx(ctx, func(store Store, approvals Approvals, q database.Querier) error {
-		if err := store.TransitionStatus(ctx, versionID, models.StatusDraft, models.StatusSubmitted); err != nil {
+		if err := store.TransitionStatus(ctx, versionID, models.StatusDraft, models.StatusSubmitted, expected); err != nil {
 			return err
 		}
 		// The approval binds to the body hash, so editing after approval
@@ -301,16 +309,16 @@ func (s *Service) Submit(ctx context.Context, versionID, performedBy, actorCalle
 // Approve marks a submitted version APPROVED. It does not make it live: that is
 // a separate, deliberate activation step, so a rate can be approved now and take
 // effect at a chosen moment.
-func (s *Service) Approve(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string) error {
-	return s.decide(ctx, versionID, performedBy, actorCaller, reason, requestID, true)
+func (s *Service) Approve(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string, expectedBodyHash ...string) error {
+	return s.decide(ctx, versionID, performedBy, actorCaller, reason, requestID, expectedBodyHash, true)
 }
 
 // Reject returns a submitted version to its author.
-func (s *Service) Reject(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string) error {
-	return s.decide(ctx, versionID, performedBy, actorCaller, reason, requestID, false)
+func (s *Service) Reject(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string, expectedBodyHash ...string) error {
+	return s.decide(ctx, versionID, performedBy, actorCaller, reason, requestID, expectedBodyHash, false)
 }
 
-func (s *Service) decide(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string, approve bool) error {
+func (s *Service) decide(ctx context.Context, versionID, performedBy, actorCaller, reason, requestID string, expectedBodyHash []string, approve bool) error {
 	if reason == "" {
 		return errors.New("policies: a reason is required to decide a change")
 	}
@@ -324,6 +332,10 @@ func (s *Service) decide(ctx context.Context, versionID, performedBy, actorCalle
 	}
 	if version.Status != models.StatusSubmitted {
 		return fmt.Errorf("policies: version %s is %s, not submitted for approval", versionID, version.Status)
+	}
+	expected, err := expectedHash(version.BodyHash, expectedBodyHash)
+	if err != nil {
+		return err
 	}
 
 	to := models.StatusRejected
@@ -339,7 +351,7 @@ func (s *Service) decide(ctx context.Context, versionID, performedBy, actorCalle
 		if err := approvals.DecideForSubject(ctx, approvalmodels.SubjectPolicyVersion, versionID, performedBy, reason, decision); err != nil {
 			return err
 		}
-		if err := store.TransitionStatus(ctx, versionID, models.StatusSubmitted, to); err != nil {
+		if err := store.TransitionStatus(ctx, versionID, models.StatusSubmitted, to, expected); err != nil {
 			return err
 		}
 		if err := store.RecordEvent(ctx, versionID, action, models.StatusSubmitted, to, performedBy, reason); err != nil {
@@ -358,12 +370,13 @@ func (s *Service) decide(ctx context.Context, versionID, performedBy, actorCalle
 
 // ActivateInput makes an approved version live.
 type ActivateInput struct {
-	VersionID     string
-	EffectiveFrom time.Time
-	PerformedBy   string
-	ActorCaller   string
-	Reason        string
-	RequestID     string
+	VersionID        string
+	EffectiveFrom    time.Time
+	PerformedBy      string
+	ActorCaller      string
+	Reason           string
+	RequestID        string
+	ExpectedBodyHash string
 	// Rollback marks this activation as a return to an earlier version.
 	Rollback bool
 }
@@ -388,6 +401,9 @@ func (s *Service) Activate(ctx context.Context, in ActivateInput) (models.Activa
 	}
 	if version.Status != models.StatusApproved {
 		return models.Activation{}, fmt.Errorf("%w: version %s is %s", models.ErrNotApproved, in.VersionID, version.Status)
+	}
+	if in.ExpectedBodyHash != "" && in.ExpectedBodyHash != version.BodyHash {
+		return models.Activation{}, fmt.Errorf("%w: expected body hash does not match %s", models.ErrStaleVersion, in.VersionID)
 	}
 
 	// The approval must still match the body being activated.
@@ -454,6 +470,16 @@ func (s *Service) Activate(ctx context.Context, in ActivateInput) (models.Activa
 		return models.Activation{}, err
 	}
 	return activation, nil
+}
+
+func expectedHash(current string, supplied []string) (string, error) {
+	if len(supplied) == 0 {
+		return current, nil
+	}
+	if len(supplied) != 1 || supplied[0] == "" || supplied[0] != current {
+		return "", fmt.Errorf("%w: expected body hash does not match", models.ErrStaleVersion)
+	}
+	return supplied[0], nil
 }
 
 // Resolve returns the version that prices a kind for a place at a moment.

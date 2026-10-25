@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,14 +23,16 @@ import (
 	policyusecases "cosmicforge/logistics/services/pricing-service/internal/features/policies/usecases"
 	rolloutrepos "cosmicforge/logistics/services/pricing-service/internal/features/rollouts/repositories"
 	"cosmicforge/logistics/services/pricing-service/internal/platform/audit"
+	"cosmicforge/logistics/services/pricing-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/pricing-service/internal/platform/operators"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 const (
-	testAdminCaller = "admin-backoffice-service"
-	testAdminSecret = "test-admin-secret"
+	testAdminCaller  = "pricing-ops-cli"
+	testBridgeCaller = "admin-backoffice-service"
+	testAdminSecret  = "test-admin-secret"
 )
 
 // adminServer builds the real router the way cmd/main.go does, so these tests
@@ -74,9 +78,10 @@ func newAdminServer(t *testing.T) adminServer {
 		Handler: policyhttp.NewHandler(policyService,
 			approvalusecases.NewService(approvalrepos.NewStore(pool)),
 			rolloutrepos.NewStore(pool)),
-		Verifier:     serviceauth.NewVerifier(serviceauth.Secrets{testAdminCaller: []byte(testAdminSecret)}, 5*time.Minute),
+		Verifier:     serviceauth.NewVerifier(serviceauth.Secrets{testAdminCaller: []byte(testAdminSecret), testBridgeCaller: []byte(testAdminSecret)}, 5*time.Minute),
 		NonceStore:   pool,
-		AdminCallers: []string{testAdminCaller},
+		Idempotency:  idempotency.NewStore(pool, idempotency.DefaultExpiry),
+		AdminCallers: []string{testAdminCaller, testBridgeCaller},
 	})
 
 	server := httptest.NewServer(router)
@@ -103,6 +108,15 @@ func (a adminServer) do(t *testing.T, method, path string, payload any, sign fun
 	}
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	if method != http.MethodGet && path != "/simulate" {
+		key := unique("http-idem")
+		if values, ok := payload.(map[string]any); ok {
+			if supplied, ok := values["idempotency_key"].(string); ok && supplied != "" {
+				key = supplied
+			}
+		}
+		request.Header.Set("X-Idempotency-Key", key)
 	}
 	if sign == nil {
 		if err := serviceauth.SignRequest(request, testAdminCaller, []byte(testAdminSecret), body, time.Now()); err != nil {
@@ -250,7 +264,7 @@ func TestAdminAPIWalksTheApprovalJourney(t *testing.T) {
 
 	t.Run("a draft cannot be activated", func(t *testing.T) {
 		status, _ := admin.do(t, "POST", "/policy-versions/"+versionID+"/activate",
-			map[string]any{"performed_by": admin.approver, "reason": "skip the queue"}, nil)
+			map[string]any{"performed_by": admin.approver, "reason": "skip the queue", "expected_body_hash": bodyHash}, nil)
 		if status != http.StatusConflict {
 			t.Fatalf("status = %d, want 409", status)
 		}
@@ -274,8 +288,18 @@ func TestAdminAPIWalksTheApprovalJourney(t *testing.T) {
 	})
 
 	t.Run("submitting opens an approval", func(t *testing.T) {
+		status, _ := admin.do(t, "POST", "/policy-versions/"+versionID+"/submit",
+			map[string]any{"performed_by": admin.editor, "reason": "missing source fence"}, nil)
+		if status != http.StatusBadRequest {
+			t.Fatalf("missing body hash status = %d, want 400", status)
+		}
+		status, _ = admin.do(t, "POST", "/policy-versions/"+versionID+"/submit",
+			map[string]any{"performed_by": admin.editor, "reason": "stale source fence", "expected_body_hash": strings.Repeat("0", 64)}, nil)
+		if status != http.StatusConflict {
+			t.Fatalf("stale body hash status = %d, want 409", status)
+		}
 		status, response := admin.do(t, "POST", "/policy-versions/"+versionID+"/submit",
-			map[string]any{"performed_by": admin.editor, "reason": "ready for review"}, nil)
+			map[string]any{"performed_by": admin.editor, "reason": "ready for review", "expected_body_hash": bodyHash}, nil)
 		if status != http.StatusOK {
 			t.Fatalf("status = %d, body = %v", status, response)
 		}
@@ -300,7 +324,7 @@ func TestAdminAPIWalksTheApprovalJourney(t *testing.T) {
 			t.Fatalf("grant role: %v", err)
 		}
 		status, response := admin.do(t, "POST", "/policy-versions/"+versionID+"/approve",
-			map[string]any{"performed_by": admin.editor, "reason": "my own work"}, nil)
+			map[string]any{"performed_by": admin.editor, "reason": "my own work", "expected_body_hash": bodyHash}, nil)
 		if status != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403; body = %v", status, response)
 		}
@@ -312,15 +336,20 @@ func TestAdminAPIWalksTheApprovalJourney(t *testing.T) {
 
 	t.Run("a second operator approves and activates", func(t *testing.T) {
 		status, response := admin.do(t, "POST", "/policy-versions/"+versionID+"/approve",
-			map[string]any{"performed_by": admin.approver, "reason": "verified against the golden corpus"}, nil)
+			map[string]any{"performed_by": admin.approver, "reason": "verified against the golden corpus", "expected_body_hash": bodyHash}, nil)
 		if status != http.StatusOK {
 			t.Fatalf("approve status = %d, body = %v", status, response)
 		}
 
-		status, response = admin.do(t, "POST", "/policy-versions/"+versionID+"/activate",
-			map[string]any{"performed_by": admin.approver, "reason": "go live"}, nil)
+		activationCommand := map[string]any{"idempotency_key": unique("activate-command"), "performed_by": admin.approver, "reason": "go live", "expected_body_hash": bodyHash}
+		status, response = admin.do(t, "POST", "/policy-versions/"+versionID+"/activate", activationCommand, nil)
 		if status != http.StatusOK {
 			t.Fatalf("activate status = %d, body = %v", status, response)
+		}
+		activationID := response["data"].(map[string]any)["activation_id"]
+		status, replay := admin.do(t, "POST", "/policy-versions/"+versionID+"/activate", activationCommand, nil)
+		if status != http.StatusOK || replay["data"].(map[string]any)["activation_id"] != activationID {
+			t.Fatalf("activation retry did not return the original source outcome: %d %#v", status, replay)
 		}
 	})
 
@@ -363,11 +392,83 @@ func TestAdminAPIWalksTheApprovalJourney(t *testing.T) {
 
 	t.Run("an approved version can no longer be edited", func(t *testing.T) {
 		status, _ := admin.do(t, "PUT", "/policy-versions/"+versionID,
-			map[string]any{"performed_by": admin.editor, "reason": "sneak a change in", "body": seed["body"]}, nil)
+			map[string]any{"performed_by": admin.editor, "reason": "sneak a change in", "body": seed["body"], "expected_body_hash": bodyHash}, nil)
 		if status != http.StatusConflict {
 			t.Fatalf("status = %d, want 409", status)
 		}
 	})
+}
+
+func TestAdminMutationIdempotencyReturnsOriginalOutcome(t *testing.T) {
+	admin := newAdminServer(t)
+	pool := testPool(t)
+	stateID := unique("idem-state")
+	if _, err := pool.Exec(context.Background(), `INSERT INTO pricing_countries (code, name, currency) VALUES ('IY', 'Idempotency', 'NGN') ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `INSERT INTO pricing_states (id, country_code, code, name) VALUES ($1, 'IY', $2, 'Idempotency State')`, stateID, unique("IS")); err != nil {
+		t.Fatal(err)
+	}
+	seed := seedPayload(t, "taxi_tariff_ng.json")
+	command := map[string]any{"idempotency_key": unique("draft-command"), "kind": seed["kind"], "geography_level": "STATE", "geography_ref": stateID, "schema_version": seed["schema_version"], "body": seed["body"], "performed_by": admin.editor, "reason": "idempotency proof"}
+	status1, first := admin.do(t, http.MethodPost, "/policies/drafts", command, nil)
+	status2, second := admin.do(t, http.MethodPost, "/policies/drafts", command, nil)
+	if status1 != http.StatusCreated || status2 != status1 || first["data"].(map[string]any)["id"] != second["data"].(map[string]any)["id"] {
+		t.Fatalf("retry did not return original outcome: %d %#v / %d %#v", status1, first, status2, second)
+	}
+	changed := map[string]any{}
+	for key, value := range command {
+		changed[key] = value
+	}
+	changed["reason"] = "different command"
+	status3, _ := admin.do(t, http.MethodPost, "/policies/drafts", changed, nil)
+	if status3 != http.StatusConflict {
+		t.Fatalf("idempotency key reuse status = %d, want 409", status3)
+	}
+}
+
+func TestBridgePricingScopeIsRecheckedAgainstOwnerPolicyGeography(t *testing.T) {
+	admin := newAdminServer(t)
+	pool := testPool(t)
+	ctx := context.Background()
+	stateID, marketID := unique("bridge-state"), unique("bridge-market")
+	if _, err := pool.Exec(ctx, `INSERT INTO pricing_countries (code, name, currency) VALUES ('IB', 'Bridge Scope', 'NGN') ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO pricing_states (id, country_code, code, name) VALUES ($1, 'IB', $2, 'Bridge State')`, stateID, unique("BS")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO pricing_markets (id, country_code, state_id, code, name) VALUES ($1, 'IB', $2, $3, 'Bridge Market')`, marketID, stateID, unique("BM")); err != nil {
+		t.Fatal(err)
+	}
+	seed := seedPayload(t, "taxi_tariff_ng.json")
+	status, created := admin.do(t, http.MethodPost, "/policies/drafts", map[string]any{"idempotency_key": unique("bridge-draft"), "kind": seed["kind"], "geography_level": "MARKET", "geography_ref": marketID, "schema_version": seed["schema_version"], "body": seed["body"], "performed_by": admin.editor, "reason": "owner scope proof"}, nil)
+	if status != http.StatusCreated {
+		t.Fatalf("create status %d: %#v", status, created)
+	}
+	versionID := created["data"].(map[string]any)["id"].(string)
+	call := func(market string) int {
+		query := url.Values{"admin_market": {market}, "admin_zone": {"zone-1"}, "admin_organization": {"org-1"}, "admin_tenant": {"tenant-1"}}
+		request, err := http.NewRequest(http.MethodGet, admin.server.URL+"/internal/pricing/v1/admin/policy-versions/"+versionID+"?"+query.Encode(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = serviceauth.SignRequest(request, testBridgeCaller, []byte(testAdminSecret), nil, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		response, err := admin.server.Client().Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		return response.StatusCode
+	}
+	if status = call(marketID); status != http.StatusOK {
+		t.Fatalf("matching owner market status = %d", status)
+	}
+	if status = call("another-market"); status != http.StatusForbidden {
+		t.Fatalf("foreign owner market status = %d, want 403", status)
+	}
 }
 
 func TestAdminAPIManagesRolloutsAndFreezes(t *testing.T) {

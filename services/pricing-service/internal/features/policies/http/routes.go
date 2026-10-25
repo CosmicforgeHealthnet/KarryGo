@@ -4,15 +4,17 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/pricing-service/internal/database"
+	"cosmicforge/logistics/services/pricing-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/pricing-service/internal/platform/servicetrust"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
 // AdminOptions wires the administrative surface.
 type AdminOptions struct {
-	Handler    *Handler
-	Verifier   *serviceauth.Verifier
-	NonceStore database.Querier
+	Handler     *Handler
+	Verifier    *serviceauth.Verifier
+	NonceStore  database.Querier
+	Idempotency *idempotency.Store
 	// AdminCallers may use these routes. Holding a secret is not permission: a
 	// booking service can ask for a quote but must never change a rate.
 	AdminCallers []string
@@ -28,6 +30,7 @@ func RegisterAdminRoutes(router *gin.Engine, opts AdminOptions) {
 	group.Use(serviceauth.Middleware(opts.Verifier))
 	group.Use(servicetrust.RejectReplayedNonce(opts.NonceStore))
 	group.Use(servicetrust.RequireCallers(opts.AdminCallers...))
+	group.Use(requireIdempotency(opts.Idempotency))
 
 	// Policy lifecycle. Each step is a separate route because each is a separate
 	// authority: drafting, submitting, deciding and activating are deliberately
