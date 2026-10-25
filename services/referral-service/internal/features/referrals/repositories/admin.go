@@ -117,7 +117,7 @@ func (s *Store) GetFlag(ctx context.Context, q database.Querier, id string, lock
 // ResolveFlag records a reviewer's outcome for a flag.
 func (s *Store) ResolveFlag(ctx context.Context, q database.Querier, id, status, resolvedBy, note string, at time.Time) error {
 	_, err := q.Exec(ctx, `
-		UPDATE fraud_flags SET status = $2, resolved_by = $3, resolution_note = $4, resolved_at = $5
+		UPDATE fraud_flags SET status = $2, resolved_by = $3, resolution_note = $4, resolved_at = $5, version = version + 1
 		WHERE id = $1`, id, status, resolvedBy, note, at)
 	return err
 }

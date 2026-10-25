@@ -6,7 +6,7 @@ from contracts import build, obj, string
 from openapi_spec_validator import validate_spec
 
 ROOT = Path(__file__).resolve().parents[2]
-OWNERS = {"vendor-service":"vendor","customer-service": "customer", "driver-taxi-service": "taxi", "driver-dispatch-delivery-service": "dispatch", "driver-hauling-service": "hauling", "fleet-partner-service": "fleet-partner", "payment-wallet-service": "payment-wallet"}
+OWNERS = {"vendor-service":"vendor","customer-service": "customer", "driver-taxi-service": "taxi", "driver-dispatch-delivery-service": "dispatch", "driver-hauling-service": "hauling", "fleet-partner-service": "fleet-partner", "payment-wallet-service": "payment-wallet", "referral-service": "referral"}
 
 def document(owner, domain):
     opaque = string(pattern="^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$")

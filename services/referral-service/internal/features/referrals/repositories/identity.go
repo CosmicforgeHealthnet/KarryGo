@@ -164,7 +164,7 @@ func (s *Store) PersonHasFingerprint(ctx context.Context, q database.Querier, pe
 
 // SetPersonStatus changes a person's standing.
 func (s *Store) SetPersonStatus(ctx context.Context, q database.Querier, id, status, reason string) error {
-	tag, err := q.Exec(ctx, `UPDATE referral_persons SET status = $2, status_reason = $3, updated_at = now() WHERE id = $1`, id, status, reason)
+	tag, err := q.Exec(ctx, `UPDATE referral_persons SET status = $2, status_reason = $3, version = version + 1, updated_at = now() WHERE id = $1`, id, status, reason)
 	if err != nil {
 		return err
 	}
@@ -315,7 +315,7 @@ func (s *Store) GetReferral(ctx context.Context, q database.Querier, id string, 
 
 // SetReferralStatus changes a referral's standing.
 func (s *Store) SetReferralStatus(ctx context.Context, q database.Querier, id, status, reason string) error {
-	tag, err := q.Exec(ctx, `UPDATE referrals SET status = $2, status_reason = $3, updated_at = now() WHERE id = $1`, id, status, reason)
+	tag, err := q.Exec(ctx, `UPDATE referrals SET status = $2, status_reason = $3, version = version + 1, updated_at = now() WHERE id = $1`, id, status, reason)
 	if err != nil {
 		return err
 	}

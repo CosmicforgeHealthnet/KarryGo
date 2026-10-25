@@ -28,4 +28,8 @@ Pricing freeze is not global market closure. Quote issue/bind/reconcile cutover 
 
 ## Section 15 — Referral
 
-To be completed with Section 15 implementation evidence. Referral eligibility remains Referral-owned and all financial posting/reversal truth remains Wallet-owned.
+Apply Referral migration `000007` only through the normal Referral migration role. It installs no staff grant or scope relationship. Provision Referral-native staff grants separately, then publish an independently signed owner context for each exact subject and five-part scope. Because Referral records have no canonical market/zone/organization/tenant relationship, a missing context is expected to deny access; never derive one from request parameters or account type.
+
+Keep `REFERRAL_LEGACY_ADMIN_ENABLED=false`. Reads require the separate source resource key and matching source/Bridge read switches. Commands require separate write and readback keys, the matching owner/Bridge command switches, `ADMIN_REFERRAL_WRITES_ENABLED` and `ADMIN_REMOTE_WRITES_ENABLED`. Verify an allowed read, foreign-tenant denial, revoked-context denial, immutable audit failure, stale version, self-approval denial, same-key replay and original-identity readback before any rollout.
+
+Reward reversal means Referral recorded a take-back request in its native ledger. It does not mean Wallet posted the financial effect. Reconcile Wallet state using the original reward/reversal references. Do not enable automatic post-settlement job reversal propagation until Wallet publishes the exact `finance.job.settlement_reversed.v1` contract and that path is separately certified.

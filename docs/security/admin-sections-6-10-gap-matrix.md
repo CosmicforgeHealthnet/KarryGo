@@ -181,6 +181,24 @@ is compiled and covered by real mTLS/PostgreSQL/typed-client/audit-failure tests
 Initial permission/scope/purpose/lifetime approval and live enrollment remain
 BLOCKED_POLICY; no privileged feature is activated by this change.
 
+## Section 15 closure — Referral, rewards and incentives (25 October 2026)
+
+Referral now has nine privacy-minimized source resource families, eight named
+native transitions, monotonic source versions, native staff grants, independently
+signed subject scope, immutable read/command evidence and the standard private
+Bridge command/approval/readback flow. The legacy HMAC-only operator routes are
+default-off. Real PostgreSQL tests cover all resource projections, concurrent
+idempotency, stale versions, cross-tenant denial, approval separation and native
+readback. No production grants, mappings, policies or credentials are included.
+
+Remaining engineering dependency: payment-wallet has no producer for the exact
+`finance.job.settlement_reversed.v1` Referral consumer contract. Referral appeals,
+campaigns and ranking/leaderboard publication also have no owner state machines;
+they remain `BLOCKED_DOMAIN`, not successful placeholders. Production scope
+contexts and incentive/privacy approvals remain `BLOCKED_POLICY`; deployment and
+live credentials remain `BLOCKED_INFRA`. Full evidence is in
+`docs/admin-bridge/section-15-referral.md`.
+
 Hauling product-admission investigation now has a separate canonical-link-backed
 resource, typed Bridge list/detail, actual native window semantics and real
 PostgreSQL callback-concurrency/isolation tests. Native expired/suspended/future

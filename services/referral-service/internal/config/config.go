@@ -33,6 +33,9 @@ type Config struct {
 	ServiceSecrets serviceauth.Secrets
 	// AdminCallers may use the admin routes (freeze, clear, reverse).
 	AdminCallers []string
+	// LegacyAdminEnabled keeps the pre-owner-context operator surface available
+	// only for an explicit compatibility window. It is disabled by default.
+	LegacyAdminEnabled bool
 	// WithdrawalCheckCallers may ask whether a person may cash out.
 	WithdrawalCheckCallers []string
 
@@ -108,6 +111,7 @@ func Load() Config {
 
 		ServiceSecrets:         serviceauth.ParseSecrets(os.Getenv("REFERRAL_SERVICE_SECRETS")),
 		AdminCallers:           splitCSV(getEnv("REFERRAL_ADMIN_CALLERS", "admin-backoffice-service")),
+		LegacyAdminEnabled:     getEnvBool("REFERRAL_LEGACY_ADMIN_ENABLED", false),
 		WithdrawalCheckCallers: splitCSV(getEnv("REFERRAL_WITHDRAWAL_CHECK_CALLERS", "payment-wallet-service")),
 
 		CustomerTokenSecret:  []byte(os.Getenv("REFERRAL_CUSTOMER_TOKEN_SECRET")),

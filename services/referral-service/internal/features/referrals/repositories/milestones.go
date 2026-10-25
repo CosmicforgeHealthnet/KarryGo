@@ -44,7 +44,7 @@ func (s *Store) SetMilestoneReward(ctx context.Context, q database.Querier, pers
 // SetPowerUser gives a person the Power User badge, keeping the first date.
 func (s *Store) SetPowerUser(ctx context.Context, q database.Querier, personID string, at time.Time) error {
 	_, err := q.Exec(ctx, `
-		UPDATE referral_persons SET power_user_since = COALESCE(power_user_since, $2), updated_at = now()
+		UPDATE referral_persons SET power_user_since = COALESCE(power_user_since, $2), version = version + 1, updated_at = now()
 		WHERE id = $1`, personID, at)
 	return err
 }

@@ -94,7 +94,7 @@ func (s *Store) ClaimRewardsToDecide(ctx context.Context, q database.Querier, no
 // to take back.
 func (s *Store) SetRewardStatus(ctx context.Context, q database.Querier, id, status, reason string, now time.Time) error {
 	_, err := q.Exec(ctx, `
-		UPDATE reward_ledger SET status = $2, status_reason = $3, decided_at = COALESCE(decided_at, $4), updated_at = now(),
+		UPDATE reward_ledger SET status = $2, status_reason = $3, decided_at = COALESCE(decided_at, $4), version = version + 1, updated_at = now(),
 			wallet_state = CASE
 				WHEN $2 = 'available' AND wallet_state = 'not_sent' THEN 'pending'
 				WHEN $2 = 'rejected' AND wallet_state = 'pending' THEN 'not_sent'
@@ -105,7 +105,7 @@ func (s *Store) SetRewardStatus(ctx context.Context, q database.Querier, id, sta
 		return err
 	}
 	_, err = q.Exec(ctx, `
-		UPDATE reward_ledger SET status = 'rejected', status_reason = $2, decided_at = $3, updated_at = now(),
+		UPDATE reward_ledger SET status = 'rejected', status_reason = $2, decided_at = $3, version = version + 1, updated_at = now(),
 			wallet_state = CASE WHEN wallet_state = 'pending' THEN 'not_sent' ELSE wallet_state END
 		WHERE reverses_reward_id = $1 AND status <> 'rejected' AND wallet_state <> 'posted'`,
 		id, referralmodels.ReasonOriginalRejected, now)
@@ -116,7 +116,7 @@ func (s *Store) SetRewardStatus(ctx context.Context, q database.Querier, id, sta
 // qualification into the activity decision queue.
 func (s *Store) ReleaseHeldRewards(ctx context.Context, q database.Querier, referralID, model string, decideAfter time.Time) (int64, error) {
 	tag, err := q.Exec(ctx, `
-		UPDATE reward_ledger SET status = $4, decide_after = $5, updated_at = now()
+		UPDATE reward_ledger SET status = $4, decide_after = $5, version = version + 1, updated_at = now()
 		WHERE referral_id = $1 AND model = $2 AND status = $3`,
 		referralID, model, referralmodels.RewardPendingQualification, referralmodels.RewardPendingActivity, decideAfter)
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *Store) ReleaseHeldRewards(ctx context.Context, q database.Querier, refe
 // before it was paid.
 func (s *Store) ClaimRewardsToPost(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]referralmodels.Reward, error) {
 	rows, err := s.pool.Query(ctx, `
-		UPDATE reward_ledger SET wallet_lease_until = $2
+		UPDATE reward_ledger SET wallet_lease_until = $2, version = version + 1
 		WHERE id IN (
 			SELECT r.id FROM reward_ledger r
 			WHERE r.wallet_state = 'pending' AND r.status IN ('available', 'reversed')
@@ -170,7 +170,7 @@ func (s *Store) ClaimRewardsToPost(ctx context.Context, now time.Time, lease tim
 // original posting instead of paying twice.
 func (s *Store) MarkRewardPosted(ctx context.Context, id, walletReference string) error {
 	_, err := s.pool.Exec(ctx, `
-		UPDATE reward_ledger SET wallet_state = 'posted', wallet_reference = $2, wallet_lease_until = NULL,
+		UPDATE reward_ledger SET wallet_state = 'posted', wallet_reference = $2, wallet_lease_until = NULL, version = version + 1,
 			wallet_last_error = '', updated_at = now()
 		WHERE id = $1 AND wallet_state = 'pending' AND status IN ('available', 'reversed')`, id, walletReference)
 	return err
@@ -183,7 +183,7 @@ func (s *Store) MarkRewardPostFailed(ctx context.Context, id string, postErr err
 		message = message[:300]
 	}
 	_, err := s.pool.Exec(ctx, `
-		UPDATE reward_ledger SET wallet_attempts = wallet_attempts + 1, wallet_next_attempt_at = $2,
+		UPDATE reward_ledger SET wallet_attempts = wallet_attempts + 1, wallet_next_attempt_at = $2, version = version + 1,
 			wallet_last_error = $3, wallet_lease_until = NULL, updated_at = now()
 		WHERE id = $1 AND wallet_state = 'pending'`, id, nextAttempt, message)
 	return err

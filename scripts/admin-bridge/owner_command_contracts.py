@@ -11,6 +11,7 @@ DOMAINS = {
     "hauling": ("driver-hauling-service", "hauling.admin-command.v1", "HAULING"),
     "fleet": ("fleet-partner-service", "fleet.admin-command.v1", "FLEET_PARTNER"),
     "wallet": ("payment-wallet-service", "wallet.admin-command.v1", "PAYMENT_WALLET"),
+    "referral": ("referral-service", "referral.admin-command.v1", "REFERRAL"),
 }
 ROUTES = [
     # suffix, bridge path, method, permission kind, state, risk
@@ -23,7 +24,7 @@ ROUTES = [
 ]
 SOURCE = {"submit": "POST /internal/{d}/v1/admin/commands", "readback": "GET /internal/{d}/v1/admin/commands/{kind}/{id}/{key}", "history": "GET /internal/{d}/v1/admin/commands/{kind}/{id}", "approval.propose": "Bridge-local two-person approval", "approval.read": "Bridge-local two-person approval", "approval.decide": "Bridge-local two-person approval"}
 SEGMENT = {"fleet": "fleet-partner", "wallet": "payment-wallet"}
-FLAG = {"vendor":"ADMIN_VENDOR_WRITES_ENABLED","customer": "ADMIN_CUSTOMER_WRITES_ENABLED", "taxi": "ADMIN_TAXI_WRITES_ENABLED", "dispatch": "ADMIN_DISPATCH_RECOVERY_ENABLED", "hauling": "ADMIN_HAULING_RECOVERY_ENABLED", "fleet": "ADMIN_FLEET_WRITES_ENABLED", "wallet": "ADMIN_WALLET_WRITES_ENABLED"}
+FLAG = {"vendor":"ADMIN_VENDOR_WRITES_ENABLED","customer": "ADMIN_CUSTOMER_WRITES_ENABLED", "taxi": "ADMIN_TAXI_WRITES_ENABLED", "dispatch": "ADMIN_DISPATCH_RECOVERY_ENABLED", "hauling": "ADMIN_HAULING_RECOVERY_ENABLED", "fleet": "ADMIN_FLEET_WRITES_ENABLED", "wallet": "ADMIN_WALLET_WRITES_ENABLED", "referral": "ADMIN_REFERRAL_WRITES_ENABLED"}
 TESTS = ["TestPostgresOwnerCommandTwoPersonApprovalIsBoundSingleUseAndRequesterOnly", "TestPostgresOwnerCommandUncertainOutcomeReconcilesWithoutResubmit", "TestPostgresOwnerCommandRefusalAndSupersessionReleaseOnlyProvenSlots", "TestPostgresOwnerCommandBridgeMTLSRoundTrip"]
 
 
@@ -57,7 +58,7 @@ def schemas(obj, string, opaque, response_scope):
     identifier = string(format="uuid")
     token = string(pattern="^[A-Z][A-Z0-9_]{0,63}$")
     digest = string(pattern="^[0-9a-f]{64}$")
-    contract = {"enum": [c for d, (_, c, _) in DOMAINS.items() if d != "vendor"]}
+    contract = {"enum": [c for d, (_, c, _) in DOMAINS.items() if d not in ("vendor", "referral")]}
     params = {"type": "object", "maxProperties": 16, "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"}, "additionalProperties": string(minLength=1, maxLength=512)}
     version = {"type": "integer", "minimum": 0}
     submission = obj({"contract_version": contract, "operation_id": identifier, "subject_kind": opaque, "subject_id": opaque, "case_ref": {"anyOf": [opaque, {"const": ""}]}, "action": token, "expected_version": version, "idempotency_key": opaque, "reason_code": token, "params": params, "approval_id": {"anyOf": [identifier, {"const": ""}]}, "requested_at": string(format="date-time")})
@@ -72,30 +73,35 @@ def schemas(obj, string, opaque, response_scope):
     history = obj({"contract_version": contract, "owner": opaque, "subject_kind": opaque, "subject_id": opaque, "current_version": version, "current_state": token, "decisions": {"type": "array", "maxItems": 50, "items": receipt}, "truncated": {"type": "boolean"}, "scope": response_scope, "as_of": string(format="date-time")})
     approval = obj({"approval_id": identifier, "owner": opaque, "action": token, "subject_kind": opaque, "subject_id": opaque, "case_ref": {"anyOf": [opaque, {"const": ""}]}, "expected_version": version, "intent_digest": digest, "status": {"enum": ["PENDING", "APPROVED", "REJECTED", "CONSUMED", "EXPIRED"]}, "scope": response_scope, "expires_at": string(format="date-time"), "decided_at": string(format="date-time"), "created_at": string(format="date-time")}, ["approval_id", "owner", "action", "subject_kind", "subject_id", "case_ref", "expected_version", "intent_digest", "status", "scope", "expires_at", "created_at"])
     base = {"OwnerCommandSubmission": submission, "OwnerCommandProposal": proposal, "OwnerCommandApprovalDecision": decision, "OwnerCommandReceipt": receipt, "OwnerCommandOperation": operation, "OwnerCommandHistory": history, "OwnerCommandApproval": approval}
-    # Vendor is an additive contract family: do not widen the existing five
-    # owners' pinned v1 schema enums or alter their wire promises.
+    # New owner domains are additive contract families: do not widen the
+    # existing owners' pinned v1 schema enums or alter their wire promises.
     import copy
-    vendor = copy.deepcopy(base)
-    def specialize(value):
+    def specialize(value, domain):
         if isinstance(value, dict):
             if value == contract:
-                value["enum"] = [DOMAINS["vendor"][1]]
+                value["enum"] = [DOMAINS[domain][1]]
             else:
-                for child in value.values(): specialize(child)
+                for child in value.values(): specialize(child, domain)
         elif isinstance(value, list):
-            for child in value: specialize(child)
-    specialize(vendor)
-    return {**base, **{"Vendor" + name: value for name, value in vendor.items()}}
+            for child in value: specialize(child, domain)
+    additions = {}
+    for domain, prefix in (("vendor", "Vendor"), ("referral", "Referral")):
+        family = copy.deepcopy(base)
+        specialize(family, domain)
+        additions.update({prefix + name: value for name, value in family.items()})
+    return {**base, **additions}
 
 
 def result_schema(identifier):
     suffix = identifier.split(".command.", 1)[1]
-    return ("Vendor" if identifier.startswith("vendor.") else "") + {"submit": "OwnerCommandOperation", "readback": "OwnerCommandOperation", "history": "OwnerCommandHistory", "approval.propose": "OwnerCommandApproval", "approval.read": "OwnerCommandApproval", "approval.decide": "OwnerCommandApproval"}[suffix]
+    prefix = "Vendor" if identifier.startswith("vendor.") else "Referral" if identifier.startswith("referral.") else ""
+    return prefix + {"submit": "OwnerCommandOperation", "readback": "OwnerCommandOperation", "history": "OwnerCommandHistory", "approval.propose": "OwnerCommandApproval", "approval.read": "OwnerCommandApproval", "approval.decide": "OwnerCommandApproval"}[suffix]
 
 
 def request_schema(identifier):
     suffix = identifier.split(".command.", 1)[1]
-    return ("Vendor" if identifier.startswith("vendor.") else "") + {"submit": "OwnerCommandSubmission", "approval.propose": "OwnerCommandProposal", "approval.decide": "OwnerCommandApprovalDecision"}[suffix]
+    prefix = "Vendor" if identifier.startswith("vendor.") else "Referral" if identifier.startswith("referral.") else ""
+    return prefix + {"submit": "OwnerCommandSubmission", "approval.propose": "OwnerCommandProposal", "approval.decide": "OwnerCommandApprovalDecision"}[suffix]
 
 
 def is_command(identifier):

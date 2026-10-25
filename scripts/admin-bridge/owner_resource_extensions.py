@@ -135,7 +135,27 @@ for _kind, _permission, _risk in [
         ['TestPostgresWalletAdminResourcesAndNativeFinancialCommands'],
     )
 
-SOURCE_PATH = {"vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources", "wallet": "/internal/payment-wallet/v1/admin/resources"}
+# Secure Admin Section 15: person-scoped Referral programme projections.
+# Referral stores no canonical market/zone/organization/tenant relationship;
+# every row therefore remains unavailable until a separately signed owner
+# context binds that exact subject to all five delegated scope dimensions.
+for _kind, _permission, _risk in [
+    ('persons', 'referral.persons.read', 'R3'),
+    ('accounts', 'referral.accounts.read', 'R3'),
+    ('referrals', 'referral.referrals.read', 'R3'),
+    ('tracks', 'referral.tracks.read', 'R2'),
+    ('rewards', 'referral.rewards.read', 'R3'),
+    ('fraud-flags', 'referral.fraud_flags.read', 'R3'),
+    ('milestones', 'referral.milestones.read', 'R2'),
+    ('reconciliation-mismatches', 'referral.reconciliation.read', 'R3'),
+    ('admin-actions', 'referral.admin_actions.read', 'R3'),
+]:
+    KINDS[('referral', _kind)] = (
+        'referral-service', _permission, _risk,
+        ['TestReferralSecureAdminOwnerBoundary'],
+    )
+
+SOURCE_PATH = {"vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources", "wallet": "/internal/payment-wallet/v1/admin/resources", "referral": "/internal/referral/v1/admin-owner/resources"}
 
 # Native operational rows rather than case records.
 EVIDENCE = {key: "Owner-native operational row bound by an owner-signed context; immutable owner disclosure audit and bridge audit" for key in KINDS if key[1] in ("bookings", "delivery-missions", "commerce-missions", "partner-requests", "goods-missions", "corporate-rides")}

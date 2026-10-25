@@ -12,11 +12,14 @@ import (
 	"cosmicforge/logistics/services/referral-service/internal/config"
 	"cosmicforge/logistics/services/referral-service/internal/database"
 	"cosmicforge/logistics/services/referral-service/internal/events"
+	"cosmicforge/logistics/services/referral-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/referral-service/internal/features/adminresources"
 	referralhttp "cosmicforge/logistics/services/referral-service/internal/features/referrals/http"
 	referralmodels "cosmicforge/logistics/services/referral-service/internal/features/referrals/models"
 	referralrepositories "cosmicforge/logistics/services/referral-service/internal/features/referrals/repositories"
 	referralusecases "cosmicforge/logistics/services/referral-service/internal/features/referrals/usecases"
 	"cosmicforge/logistics/services/referral-service/internal/jobs"
+	"cosmicforge/logistics/shared/go/admincommand"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/ratelimit"
 	"cosmicforge/logistics/shared/go/serviceapp"
@@ -142,6 +145,15 @@ func main() {
 		},
 	}
 
+	referralAdmin, adminErr := adminresources.Runtime(ctx, db)
+	if adminErr != nil {
+		logging.Fatal("configuration", "Referral private Admin configuration invalid")
+	}
+	referralCommands, adminErr := admincommand.Runtime(referralAdmin, admincommands.Spec(), admincommands.Executor{Referral: service}, "REFERRAL")
+	if adminErr != nil {
+		logging.Fatal("configuration", "Referral private command configuration invalid")
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "referral-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -163,11 +175,14 @@ func main() {
 			})
 		},
 		RegisterRoot: func(router *gin.Engine) {
+			referralAdmin.RegisterOn(router.Group(""))
+			referralCommands.Register(router)
 			referralhttp.RegisterInternalRoutes(router, referralhttp.InternalOptions{
-				Service:      service,
-				Verifier:     serviceauth.NewVerifier(cfg.ServiceSecrets, 5*time.Minute),
-				NonceStore:   db,
-				AdminCallers: cfg.AdminCallers,
+				Service:            service,
+				Verifier:           serviceauth.NewVerifier(cfg.ServiceSecrets, 5*time.Minute),
+				NonceStore:         db,
+				AdminCallers:       cfg.AdminCallers,
+				LegacyAdminEnabled: cfg.LegacyAdminEnabled,
 				// Referral cash-outs are refused while this list is empty.
 				WithdrawalCheckCallers: cfg.WithdrawalCheckCallers,
 			})

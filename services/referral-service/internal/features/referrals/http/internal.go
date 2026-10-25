@@ -28,8 +28,9 @@ type InternalOptions struct {
 	Service  *referralusecases.Service
 	Verifier *serviceauth.Verifier
 	// NonceStore records each signed request's nonce to reject replays.
-	NonceStore   database.Querier
-	AdminCallers []string
+	NonceStore         database.Querier
+	AdminCallers       []string
+	LegacyAdminEnabled bool
 	// WithdrawalCheckCallers may ask whether a driver may cash out
 	// (payment-wallet-service).
 	WithdrawalCheckCallers []string
@@ -46,15 +47,17 @@ func RegisterInternalRoutes(router *gin.Engine, opts InternalOptions) {
 	group.POST("/events", events.RequireCallers(referralusecases.Producers()...), h.ingestEvent)
 	group.POST("/withdrawal-eligibility", events.RequireCallers(opts.WithdrawalCheckCallers...), h.withdrawalEligibility)
 
-	admin := group.Group("", events.RequireCallers(opts.AdminCallers...))
-	admin.GET("/activity/:actorType/:actorId", h.activity)
-	admin.GET("/admin/accounts/:actorType/:actorId", h.accountOverview)
-	admin.GET("/admin/flags", h.listFlags)
-	admin.POST("/admin/flags/:id/resolve", h.resolveFlag)
-	admin.POST("/admin/persons/:id/:action", h.personAction)
-	admin.POST("/admin/referrals/:id/:action", h.referralAction)
-	admin.POST("/admin/rewards/:id/reverse", h.reverseReward)
-	admin.GET("/admin/reconciliation", h.openMismatches)
+	if opts.LegacyAdminEnabled {
+		admin := group.Group("", events.RequireCallers(opts.AdminCallers...))
+		admin.GET("/activity/:actorType/:actorId", h.activity)
+		admin.GET("/admin/accounts/:actorType/:actorId", h.accountOverview)
+		admin.GET("/admin/flags", h.listFlags)
+		admin.POST("/admin/flags/:id/resolve", h.resolveFlag)
+		admin.POST("/admin/persons/:id/:action", h.personAction)
+		admin.POST("/admin/referrals/:id/:action", h.referralAction)
+		admin.POST("/admin/rewards/:id/reverse", h.reverseReward)
+		admin.GET("/admin/reconciliation", h.openMismatches)
+	}
 }
 
 type internalHandler struct {

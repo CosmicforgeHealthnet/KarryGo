@@ -47,7 +47,7 @@ func (r standingReader) Binding(ctx context.Context, tx pgx.Tx, kind, ref string
 
 // standingExecutor is a minimal provider standing machine for the Bridge
 // transport test only; real owner state machines are certified in each owner.
-type standingExecutor struct{ vendor bool }
+type standingExecutor struct{ domain string }
 
 func (e standingExecutor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (admincommand.Transition, error) {
 	var version int64
@@ -59,8 +59,10 @@ func (e standingExecutor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.
 		return admincommand.Transition{}, admincommand.ErrConflict
 	}
 	next := map[string]string{"RESTRICT_PROVIDER": "RESTRICTED", "LIFT_PROVIDER_RESTRICTION": "ACTIVE", "REQUEST_REVERIFICATION": "REVERIFICATION_REQUIRED"}[in.Action]
-	if e.vendor {
+	if e.domain == "vendor" {
 		next = map[string]string{"PAUSE_BRANCH": "PAUSED", "REOPEN_BRANCH": "ACTIVE"}[in.Action]
+	} else if e.domain == "referral" {
+		next = map[string]string{"CLEAR_PERSON": "ACTIVE"}[in.Action]
 	}
 	if next == "" || next == state {
 		return admincommand.Transition{}, admincommand.ErrRejected
@@ -112,21 +114,28 @@ func standingReaderContract(value string) string {
 	return "taxi.admin-resources.v1"
 }
 func TestPostgresOwnerCommandBridgeMTLSRoundTrip(t *testing.T) {
-	ownerCommandBridgeMTLSRoundTrip(t, false)
+	ownerCommandBridgeMTLSRoundTrip(t, "taxi")
 }
 func TestPostgresVendorCommandBridgeMTLSRoundTrip(t *testing.T) {
-	ownerCommandBridgeMTLSRoundTrip(t, true)
+	ownerCommandBridgeMTLSRoundTrip(t, "vendor")
 }
-func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
+func TestPostgresReferralCommandBridgeMTLSRoundTrip(t *testing.T) {
+	ownerCommandBridgeMTLSRoundTrip(t, "referral")
+}
+func ownerCommandBridgeMTLSRoundTrip(t *testing.T, domain string) {
 	db := testutil.Database(t)
 	owner := ownerSchema(t)
 	ctx := context.Background()
 	spec, _ := admincommand.ForOwner("driver-taxi-service")
 	kind, contract, action, resultState := "providers", "taxi.admin-resources.v1", "RESTRICT_PROVIDER", "RESTRICTED"
 	params := map[string]string{"restriction": "SUSPEND_ONLINE"}
-	if vendor {
+	if domain == "vendor" {
 		spec = admincommand.VendorSpec()
 		kind, contract, action, resultState = "branches", "vendor.admin-resources.v1", "PAUSE_BRANCH", "PAUSED"
+		params = map[string]string{}
+	} else if domain == "referral" {
+		spec = admincommand.ReferralSpec()
+		kind, contract, action, resultState = "persons", "referral.admin-resources.v1", "CLEAR_PERSON", "ACTIVE"
 		params = map[string]string{}
 	}
 	sc := adminpolicy.Scope{Product: "karryam", Market: "NG", Zone: "Z1", Organization: "org-1", Tenant: "org-1"}
@@ -139,7 +148,11 @@ func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
 	p.Sign(t)
 	subject := uuid.NewString()
 	fingerprint := strings.Repeat("cd", 32)
-	if _, err := owner.Exec(ctx, `INSERT INTO e2e_subjects VALUES($1,$2,$3,'org-1',0,'ACTIVE')`, kind, subject, fingerprint); err != nil {
+	initialState := "ACTIVE"
+	if domain == "referral" {
+		initialState = "FROZEN"
+	}
+	if _, err := owner.Exec(ctx, `INSERT INTO e2e_subjects VALUES($1,$2,$3,'org-1',0,$4)`, kind, subject, fingerprint, initialState); err != nil {
 		t.Fatal(err)
 	}
 	issuer := contextfixture.New(t, spec.Owner)
@@ -150,7 +163,7 @@ func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
 		t.Fatal(err)
 	}
 	writeKey, readKey := []byte(strings.Repeat("W", 32)), []byte(strings.Repeat("R", 32))
-	handler := &admincommand.Handler{Service: &admincommand.Service{Spec: spec, DB: owner, Policy: p.Engine, Contexts: store, Executor: standingExecutor{vendor: vendor}, WriteEnabled: true, ReadEnabled: true}, WriteSecret: writeKey, ReadSecret: readKey}
+	handler := &admincommand.Handler{Service: &admincommand.Service{Spec: spec, DB: owner, Policy: p.Engine, Contexts: store, Executor: standingExecutor{domain: domain}, WriteEnabled: true, ReadEnabled: true}, WriteSecret: writeKey, ReadSecret: readKey}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	handler.Register(router)
@@ -171,7 +184,7 @@ func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
 	}
 	f := newFixture(t)
 	f.claims.Permissions = []string{spec.Capability, spec.ReadCapability, spec.ApproveCapability}
-	f.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, TaxiWrites: true, VendorWrites: true})
+	f.b.ConfigureDomainFlags(config.DomainFlags{RemoteWrites: true, TaxiWrites: true, VendorWrites: true, ReferralWrites: true})
 	f.claims.Zones, f.claims.Tenants = []string{"Z1"}, []string{"org-1"}
 	pair, leaf, roots := workloadCertificate(t, f.b.trust.WorkloadURI, false)
 	f.cert = leaf
@@ -253,7 +266,7 @@ func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
 		t.Fatal("history", code, out)
 	}
 	var staleBody []byte
-	if !vendor {
+	if domain == "taxi" {
 		stale := admincommand.Submission{ContractVersion: spec.Contract, OperationID: uuid.NewString(), SubjectKind: kind, SubjectID: subject, Action: "REQUEST_REVERIFICATION", ExpectedVersion: 0, IdempotencyKey: uuid.NewString(), ReasonCode: "DOCUMENT_REVIEW", Params: map[string]string{"document": "INSURANCE"}, RequestedAt: time.Now().UTC().Add(-time.Second)}
 		staleBody, _ = json.Marshal(stale)
 		if code, _ := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, staleBody); code != 409 {
@@ -277,7 +290,7 @@ func ownerCommandBridgeMTLSRoundTrip(t *testing.T, vendor bool) {
 		t.Fatal("zone escape", code)
 	}
 	f.claims.Zones = []string{"Z1"}
-	f.b.ConfigureDomainFlags(config.DomainFlags{TaxiWrites: true, VendorWrites: true})
+	f.b.ConfigureDomainFlags(config.DomainFlags{TaxiWrites: true, VendorWrites: true, ReferralWrites: true})
 	if code, _ := call("staff-1", "POST", "/"+spec.Domain+"/commands"+suffix, staleBody); code != 503 {
 		t.Fatal("global write kill ignored", code)
 	}

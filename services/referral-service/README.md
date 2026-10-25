@@ -75,6 +75,9 @@ All amounts and thresholds are settings (see `.env.example`).
 | `GET /api/v1/referrals/me` | a customer or driver login token | My code, share link, standing, qualified referrals and badge. |
 | `POST /internal/referral/v1/events` | the producers above, HMAC-signed | Receive relayed events. |
 | `POST /internal/referral/v1/withdrawal-eligibility` | payment-wallet-service | May this driver cash out referral earnings now? Records the destination bank account's hash. |
+The following compatibility routes are disabled unless
+`REFERRAL_LEGACY_ADMIN_ENABLED=true`; they are not the Secure Admin boundary.
+
 | `GET /internal/referral/v1/activity/:actorType/:actorId` | admin callers | Paid jobs in the activity window. |
 | `GET /internal/referral/v1/admin/accounts/:actorType/:actorId` | admin callers | Everything about the person behind an account. |
 | `GET /internal/referral/v1/admin/flags?status=open` | admin callers | Review flags. |
@@ -86,6 +89,17 @@ All amounts and thresholds are settings (see `.env.example`).
 
 Every admin action needs `performed_by` and `reason` in its JSON body, is
 recorded in `referral_admin_actions`, and never moves money directly.
+
+Secure Admin uses the default-off, independently credentialed owner routes:
+
+- `GET /internal/referral/v1/admin-owner/resources/:kind` and `/:kind/:id`
+- `POST /internal/referral/v1/admin/commands`
+- `GET /internal/referral/v1/admin/commands/:kind/:id` and `/:kind/:id/:key`
+
+These routes additionally require a current signed owner context, exact five-part
+scope, Referral-native staff grant, source version, stable idempotency identity,
+immutable audit/receipt and independent approval where the action declares it.
+No production context or staff grant is installed by migration.
 `disqualify` and `block` accept `"reverse_paid": true` to also take back
 rewards already paid. All internal routes require an HMAC service signature
 with a fresh nonce.

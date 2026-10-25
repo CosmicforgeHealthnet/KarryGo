@@ -61,7 +61,14 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	rows, err := pool.Query(context.Background(), `
 		SELECT tablename FROM pg_tables
-		WHERE schemaname = 'public' AND tablename <> 'referral_service_schema_migrations'`)
+		WHERE schemaname = 'public'
+		AND tablename NOT IN (
+			'referral_service_schema_migrations',
+			'admin_owner_context_history',
+			'admin_owner_context_preparation_audit',
+			'admin_owner_read_audit',
+			'admin_owner_command_decisions'
+		)`)
 	if err != nil {
 		t.Fatalf("list tables: %v", err)
 	}
@@ -172,6 +179,7 @@ func signedRouter(t *testing.T, pool *pgxpool.Pool, svc *referralusecases.Servic
 		Verifier:               serviceauth.NewVerifier(secrets, 5*time.Minute),
 		NonceStore:             pool,
 		AdminCallers:           []string{"admin-backoffice-service"},
+		LegacyAdminEnabled:     true,
 		WithdrawalCheckCallers: []string{"payment-wallet-service"},
 	})
 	return router
