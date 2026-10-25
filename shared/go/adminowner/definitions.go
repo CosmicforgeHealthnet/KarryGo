@@ -68,10 +68,42 @@ func Profiles() []Profile {
 			"inspections":          {Kind: "inspections", Capability: "hauling.inspections.read", SourceContract: "hauling.admin-inspection.v1", Dimensions: []string{"inspection_kind", "conclusion", "performed_on", "valid_until"}, Counters: []string{"evidence_count"}, References: []string{"truck", "provider"}},
 		}},
 		{Owner: "fleet-partner-service", Domain: "fleet", Prefix: "FLEET_PARTNER", Path: "/internal/fleet-partner/v1/admin", Definitions: map[string]Definition{
+			"organizations":          makeDef("fleet", "organizations", "fleet.organizations.read", []string{"country", "currency", "timezone"}, nil, nil),
+			"onboarding-stages":      makeDef("fleet", "onboarding-stages", "fleet.onboarding_stages.read", []string{"stage"}, nil, []string{"organization"}),
+			"organization-documents": makeDef("fleet", "organization-documents", "fleet.organization_documents.read", []string{"document_type", "expires_at"}, []string{"verification_source_version"}, []string{"organization", "media_object", "verification"}),
+			"branches":               makeDef("fleet", "branches", "fleet.branches.read", []string{"branch_type", "timezone", "geofence"}, nil, []string{"organization"}),
+			"departments":            makeDef("fleet", "departments", "fleet.departments.read", []string{"cost_centre"}, nil, []string{"organization", "branch", "parent_department"}),
+			// Deliberately excludes names, contact coordinates, invitation secrets
+			// and identity-provider identifiers. Company IAM remains separate from
+			// delegated Headquarters authorization.
+			"organization-staff":   makeDef("fleet", "organization-staff", "fleet.organization_staff.read", []string{"job_title"}, []string{"role_version"}, []string{"organization"}),
+			"role-bindings":        makeDef("fleet", "role-bindings", "fleet.role_bindings.read", []string{"scope_type", "effective_state"}, nil, []string{"organization", "organization_staff", "role", "scope"}),
+			"provider-memberships": makeDef("fleet", "provider-memberships", "fleet.provider_memberships.read", []string{"service_type", "provider_category", "relationship_type", "onboarding_source"}, nil, []string{"organization", "home_branch", "provider"}),
+			"assets":               makeDef("fleet", "assets", "fleet.assets.read", []string{"asset_type", "ownership_type", "lifecycle", "assignment_active"}, nil, []string{"organization", "branch", "platform_vehicle"}),
+			"asset-assignments":    makeDef("fleet", "asset-assignments", "fleet.asset_assignments.read", []string{"assignment_type", "start_at", "end_at"}, nil, []string{"organization", "asset", "provider_membership", "shift"}),
+			"asset-documents":      makeDef("fleet", "asset-documents", "fleet.asset_documents.read", []string{"document_type", "expires_at"}, nil, []string{"organization", "asset", "media_object", "verification"}),
+			"contracts":            makeDef("fleet", "contracts", "fleet.contracts.read", []string{"effective_from", "effective_until", "currency"}, nil, []string{"organization", "branch", "customer", "quotation"}),
+			// CRM contact coordinates and display names are intentionally omitted;
+			// Admin sees only the record's consent/purpose posture and owner refs.
+			"crm-contacts":        makeDef("fleet", "crm-contacts", "fleet.crm_contacts.read", []string{"preferred_channel", "contact_purpose", "consent"}, nil, []string{"organization", "customer"}),
+			"quotations":          makeDef("fleet", "quotations", "fleet.quotations.read", []string{"currency", "valid_until"}, []string{"current_version", "total_amount_minor"}, []string{"organization", "branch", "customer", "opportunity", "contract_approval"}),
+			"approval-requests":   makeDef("fleet", "approval-requests", "fleet.approval_requests.read", []string{"resource_type", "action", "expires_at"}, []string{"current_step"}, []string{"organization", "policy", "resource"}),
+			"wallet-transactions": makeDef("fleet", "wallet-transactions", "fleet.wallet_transactions.read", []string{"direction", "category", "currency", "freshness"}, []string{"amount_minor", "source_version"}, []string{"organization", "branch", "wallet", "transaction", "subject"}),
+			"private-orders":      makeDef("fleet", "private-orders", "fleet.private_orders.read", []string{"source", "priority", "timezone"}, nil, []string{"organization", "branch", "customer", "contract", "quotation"}),
+			"recurring-orders":    makeDef("fleet", "recurring-orders", "fleet.recurring_orders.read", []string{"recurrence_type", "timezone", "next_run_at", "missed_run_policy"}, []string{"attempts"}, []string{"organization", "branch", "customer", "contract"}),
+			// Manifests use their own capability because they expose consolidated
+			// private routing/shipment references.
+			"manifests":           makeDef("fleet", "manifests", "fleet.private_manifests.read", []string{"route_reference"}, nil, []string{"organization", "branch", "provider_membership", "route_plan"}),
+			"route-plans":         makeDef("fleet", "route-plans", "fleet.route_plans.read", []string{"route_type", "execution_service", "distance_unit"}, []string{"planned_duration_seconds", "optimization_version"}, []string{"organization", "branch", "dispatch_plan", "replacement_route", "provider_membership"}),
+			"route-optimizations": makeDef("fleet", "route-optimizations", "fleet.route_optimizations.read", []string{"provider_reference"}, []string{"route_version", "optimization_version", "result_version", "estimated_duration_seconds"}, []string{"organization", "route_plan"}),
+			"operational-alerts":  makeDef("fleet", "operational-alerts", "fleet.operational_alerts.read", []string{"alert_type", "severity", "source_type", "sla_due_at"}, nil, []string{"organization", "branch", "source", "route_plan", "assignment", "shipment"}),
+			"incidents":           makeDef("fleet", "incidents", "fleet.incidents.read", []string{"incident_type", "severity", "occurred_at"}, nil, []string{"organization", "branch", "route", "assignment", "trip"}),
+			"sla-measurements":    makeDef("fleet", "sla-measurements", "fleet.sla_measurements.read", []string{"metric_code", "unit", "target", "measured", "period_start", "period_end"}, []string{"formula_version"}, []string{"organization", "contract", "customer", "agreement"}),
+			"audit-records":       makeDef("fleet", "audit-records", "fleet.audit_records.read", []string{"action", "resource_type"}, nil, []string{"organization", "resource"}),
 			"shipments":           makeDef("fleet", "shipments", "fleet.shipments.read", []string{"planning", "custody", "return"}, nil, []string{"order", "branch"}),
 			"private-assignments": makeDef("fleet", "private-assignments", "fleet.private_assignments.read", []string{"execution_service", "work_origin"}, nil, []string{"provider", "vehicle", "shipment", "order"}),
 			"execution-links":     makeDef("fleet", "execution-links", "fleet.execution_links.read", []string{"execution_service"}, nil, []string{"provider", "vehicle", "shipment", "assignment", "response", "canonical_mission"}),
-			"investigations":      {Kind: "investigations", Capability: "fleet.investigations.read", SourceContract: "fleet.admin-investigation.v1", Dimensions: []string{"subject_kind", "category", "severity", "occurred_on", "finding", "closure"}, References: []string{"organization", "shipment", "private_assignment", "execution_link"}},
+			"investigations":      {Kind: "investigations", Capability: "fleet.investigations.read", SourceContract: "fleet.admin-investigation.v2", Dimensions: []string{"subject_kind", "category", "severity", "occurred_on", "finding", "closure"}, References: []string{"organization", "shipment", "private_assignment", "execution_link", "organization_subject", "asset", "contract", "incident", "route_plan", "route_optimization", "sla_measurement"}},
 		}},
 	}
 	for i := range profiles {

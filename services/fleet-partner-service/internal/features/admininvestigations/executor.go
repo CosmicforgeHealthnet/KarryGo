@@ -32,10 +32,17 @@ const (
 // subjectTables is the compiled map from enrolled subject kind to its
 // authoritative Fleet table and the case column carrying the reference. No
 // request selects a table.
-var subjectTables = map[string]struct{ table, column string }{
-	"shipments":           {"fleet_partner_shipments", "shipment_id"},
-	"private-assignments": {"fleet_partner_private_assignments", "private_assignment_id"},
-	"execution-links":     {"fleet_partner_private_execution_operations", "execution_link_id"},
+var subjectTables = map[string]struct{ table, column, organizationColumn string }{
+	"shipments":           {"fleet_partner_shipments", "shipment_id", "organization_id"},
+	"private-assignments": {"fleet_partner_private_assignments", "private_assignment_id", "organization_id"},
+	"execution-links":     {"fleet_partner_private_execution_operations", "execution_link_id", "organization_id"},
+	"organizations":       {"fleet_partner_organizations", "organization_subject_id", "id"},
+	"assets":              {"fleet_partner_assets", "asset_id", "organization_id"},
+	"contracts":           {"fleet_partner_contracts", "contract_id", "organization_id"},
+	"incidents":           {"fleet_partner_incidents", "incident_id", "organization_id"},
+	"route-plans":         {"fleet_partner_route_plans", "route_plan_id", "organization_id"},
+	"route-optimizations": {"fleet_partner_route_optimization_requests", "route_optimization_id", "organization_id"},
+	"sla-measurements":    {"fleet_partner_sla_measurements", "sla_measurement_id", "organization_id"},
 }
 
 // Executor implements admincommand.Executor for Fleet.
@@ -54,7 +61,7 @@ func subjectOrganization(ctx context.Context, tx pgx.Tx, kind, id string) (strin
 		return "", admincommand.ErrNotFound
 	}
 	var org string
-	err := tx.QueryRow(ctx, `SELECT organization_id FROM `+target.table+` WHERE id=$1 FOR SHARE`, id).Scan(&org)
+	err := tx.QueryRow(ctx, `SELECT `+target.organizationColumn+` FROM `+target.table+` WHERE id=$1 FOR SHARE`, id).Scan(&org)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", admincommand.ErrNotFound
 	}

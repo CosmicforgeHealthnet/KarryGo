@@ -58,6 +58,42 @@ KINDS.update({
 ('vendor', 'cases'):('vendor-service', 'vendor.cases.read', 'R2', ['TestVendorSecureAdminCasesAndNativeMutations']),
 })
 
+# Secure Admin Section 12: Fleet corporate operations. Every entry is a
+# fixed, minimized Fleet-owned projection. The two explicit exceptions to the
+# general R2 risk are private manifests and immutable audit history, which use
+# dedicated capabilities and R3 review.
+for _kind, _permission, _risk in [
+    ('organizations', 'fleet.organizations.read', 'R2'),
+    ('onboarding-stages', 'fleet.onboarding_stages.read', 'R2'),
+    ('organization-documents', 'fleet.organization_documents.read', 'R3'),
+    ('branches', 'fleet.branches.read', 'R2'),
+    ('departments', 'fleet.departments.read', 'R2'),
+    ('organization-staff', 'fleet.organization_staff.read', 'R3'),
+    ('role-bindings', 'fleet.role_bindings.read', 'R3'),
+    ('provider-memberships', 'fleet.provider_memberships.read', 'R2'),
+    ('assets', 'fleet.assets.read', 'R2'),
+    ('asset-assignments', 'fleet.asset_assignments.read', 'R2'),
+    ('asset-documents', 'fleet.asset_documents.read', 'R3'),
+    ('contracts', 'fleet.contracts.read', 'R3'),
+    ('crm-contacts', 'fleet.crm_contacts.read', 'R3'),
+    ('quotations', 'fleet.quotations.read', 'R3'),
+    ('approval-requests', 'fleet.approval_requests.read', 'R3'),
+    ('wallet-transactions', 'fleet.wallet_transactions.read', 'R3'),
+    ('private-orders', 'fleet.private_orders.read', 'R3'),
+    ('recurring-orders', 'fleet.recurring_orders.read', 'R2'),
+    ('manifests', 'fleet.private_manifests.read', 'R3'),
+    ('route-plans', 'fleet.route_plans.read', 'R2'),
+    ('route-optimizations', 'fleet.route_optimizations.read', 'R2'),
+    ('operational-alerts', 'fleet.operational_alerts.read', 'R2'),
+    ('incidents', 'fleet.incidents.read', 'R3'),
+    ('sla-measurements', 'fleet.sla_measurements.read', 'R2'),
+    ('audit-records', 'fleet.audit_records.read', 'R3'),
+]:
+    KINDS[('fleet', _kind)] = (
+        'fleet-partner-service', _permission, _risk,
+        ['TestCorporateAdminResourcesAreOwnerBackedAndMinimized'],
+    )
+
 SOURCE_PATH = {"vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources"}
 
 # Native operational rows rather than case records.

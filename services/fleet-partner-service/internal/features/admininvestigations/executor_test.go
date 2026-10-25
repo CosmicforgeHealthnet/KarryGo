@@ -242,6 +242,43 @@ func TestPostgresFleetInvestigationLifecycleApprovalAndRealEffects(t *testing.T)
 	}
 }
 
+func TestPostgresFleetOrganizationInvestigationUsesAuthoritativeTenant(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	importContext(t, e, "organizations", e.orgA, e.scope, e.svc.Spec.Capability, e.svc.Spec.ReadCapability)
+	cmd := e.command("OPEN_INVESTIGATION", "INV-ORG-"+uuid.NewString(), 0)
+	cmd.SubjectKind = "organizations"
+	cmd.SubjectID = e.orgA
+	cmd.Params = map[string]string{"category": "ONBOARDING", "severity": "MEDIUM", "occurred_on": "2026-10-01"}
+	receipt, err := e.svc.Execute(ctx, e.actor, purpose, e.scope, cmd)
+	if err != nil || receipt.ResultingState != "OPEN" {
+		t.Fatal("organization investigation", err, receipt)
+	}
+	var owner, subject, linked string
+	if err := e.db.QueryRow(ctx, `SELECT organization_id,subject_id,organization_subject_id FROM fleet_partner_admin_investigations WHERE case_ref=$1`, cmd.CaseRef).Scan(&owner, &subject, &linked); err != nil {
+		t.Fatal(err)
+	}
+	if owner != e.orgA || subject != e.orgA || linked != e.orgA {
+		t.Fatal("organization ownership was caller-derived", owner, subject, linked)
+	}
+	tx, err := e.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := adminresources.Source().Read(ctx, tx, "investigations", cmd.CaseRef, false)
+	tx.Rollback(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := map[string]string{}
+	for _, ref := range item.References {
+		refs[ref.Kind] = ref.Reference
+	}
+	if refs["organization"] != e.orgA || refs["organization_subject"] != e.orgA {
+		t.Fatal("organization investigation refs", refs)
+	}
+}
+
 func TestPostgresFleetInvestigationCrossTenantAndConcurrency(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()

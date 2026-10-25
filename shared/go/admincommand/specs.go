@@ -159,9 +159,9 @@ func Specs() []Spec {
 			Owner: "fleet-partner-service", Domain: "fleet", Segment: "fleet-partner", Contract: "fleet.admin-command.v1",
 			Capability: "fleet.admin.command.execute", ReadCapability: "fleet.admin.command.read", ApproveCapability: "fleet.admin.command.approve",
 			Actions: map[string]ActionSpec{
-				"OPEN_INVESTIGATION":  {SubjectKinds: kinds("shipments", "private-assignments", "execution-links"), RequiresCase: true, Params: map[string]ParamSpec{"category": enum(true, "CARGO_DAMAGE", "CARGO_LOSS", "SAFETY", "CONDUCT", "SERVICE_FAILURE"), "severity": severity, "occurred_on": dateReq}, VersionOf: VersionCase},
-				"RECORD_FINDING":      {SubjectKinds: kinds("shipments", "private-assignments", "execution-links"), RequiresCase: true, Params: map[string]ParamSpec{"finding": enum(true, "SUBSTANTIATED", "UNSUBSTANTIATED", "INCONCLUSIVE"), "note": noteOpt}, VersionOf: VersionCase},
-				"CLOSE_INVESTIGATION": {SubjectKinds: kinds("shipments", "private-assignments", "execution-links"), RequiresCase: true, Params: map[string]ParamSpec{"closure": enum(true, "RESOLVED", "REFERRED_TO_OWNER", "NO_FURTHER_ACTION")}, RequiresApproval: true, VersionOf: VersionCase},
+				"OPEN_INVESTIGATION":  {SubjectKinds: kinds("shipments", "private-assignments", "execution-links", "organizations", "assets", "contracts", "incidents", "route-plans", "route-optimizations", "sla-measurements"), RequiresCase: true, Params: map[string]ParamSpec{"category": enum(true, "CARGO_DAMAGE", "CARGO_LOSS", "SAFETY", "CONDUCT", "SERVICE_FAILURE", "ONBOARDING", "ASSET_COMPLIANCE", "CONTRACT_EXPIRY", "CORPORATE_INCIDENT", "ROUTE_PLANNING", "SLA_BREACH"), "severity": severity, "occurred_on": dateReq}, VersionOf: VersionCase},
+				"RECORD_FINDING":      {SubjectKinds: kinds("shipments", "private-assignments", "execution-links", "organizations", "assets", "contracts", "incidents", "route-plans", "route-optimizations", "sla-measurements"), RequiresCase: true, Params: map[string]ParamSpec{"finding": enum(true, "SUBSTANTIATED", "UNSUBSTANTIATED", "INCONCLUSIVE"), "note": noteOpt}, VersionOf: VersionCase},
+				"CLOSE_INVESTIGATION": {SubjectKinds: kinds("shipments", "private-assignments", "execution-links", "organizations", "assets", "contracts", "incidents", "route-plans", "route-optimizations", "sla-measurements"), RequiresCase: true, Params: map[string]ParamSpec{"closure": enum(true, "RESOLVED", "REFERRED_TO_OWNER", "NO_FURTHER_ACTION")}, RequiresApproval: true, VersionOf: VersionCase},
 			},
 		},
 	}, VendorSpec())
