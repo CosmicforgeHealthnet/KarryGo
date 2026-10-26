@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "karryam.finance-report.v1"
+    },
+    "owner": {
+      "const": "payment-wallet-service"
+    },
+    "period_start": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "period_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "data_as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_watermark": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "aggregation_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "unit": {
+      "const": "MINOR_UNITS"
+    },
+    "definitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "measure": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "source_field": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "calculation": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "recognition": {
+            "enum": [
+              "NOT_REVENUE",
+              "SOURCE_FIGURE_RECOGNITION_POLICY_PENDING",
+              "RECOGNIZED_BY_APPROVED_POLICY"
+            ]
+          },
+          "correction": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "measure",
+          "source_field",
+          "calculation",
+          "recognition",
+          "correction"
+        ]
+      }
+    },
+    "figures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "measure": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "amount_minor": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "completeness": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "unknown_reason": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "measure",
+          "currency",
+          "amount_minor",
+          "count",
+          "completeness"
+        ]
+      }
+    },
+    "completeness": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL_COVERAGE"
+      ]
+    },
+    "error_reason": {
+      "type": "string",
+      "maxLength": 128
+    }
+  },
+  "required": [
+    "contract_version",
+    "owner",
+    "period_start",
+    "period_end",
+    "timezone",
+    "data_as_of",
+    "source_watermark",
+    "aggregation_version",
+    "unit",
+    "definitions",
+    "figures",
+    "completeness"
+  ]
+}

@@ -115,7 +115,7 @@ func newFixture(t *testing.T) *fixture {
 	// delegate only their specific permissions; the production 128-entry bound
 	// must not grow with the capability catalogue.
 	for _, c := range contract.Matrix() {
-		if strings.HasPrefix(c.Permission, "vendor.") || strings.HasPrefix(c.Permission, "wallet.") || strings.HasPrefix(c.Permission, "referral.") {
+		if strings.HasPrefix(c.Permission, "vendor.") || strings.HasPrefix(c.Permission, "wallet.") || strings.HasPrefix(c.Permission, "referral.") || strings.HasPrefix(c.Permission, "support.") || strings.HasPrefix(c.Permission, "verification.") || strings.HasPrefix(c.Permission, "hq.") {
 			continue
 		}
 		if !config.Contains(permissions, c.Permission) {

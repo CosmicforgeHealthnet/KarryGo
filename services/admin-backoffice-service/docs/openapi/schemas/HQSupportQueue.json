@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product": {
+            "const": "karryam"
+          },
+          "source_service": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "source_case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "composite_id": {
+            "type": "string",
+            "pattern": "^karryam:[A-Za-z0-9._-]+:[A-Za-z0-9._:@/-]+$"
+          },
+          "source_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "classification": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "organization": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "fields": {
+            "type": "object",
+            "maxProperties": 32
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "coverage": {
+            "enum": [
+              "INCREMENTAL",
+              "BACKFILLED",
+              "RECONCILED"
+            ]
+          }
+        },
+        "required": [
+          "product",
+          "source_service",
+          "source_case_id",
+          "composite_id",
+          "source_version",
+          "classification",
+          "organization",
+          "fields",
+          "received_at",
+          "coverage"
+        ]
+      }
+    },
+    "next_cursor": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness": {
+      "enum": [
+        "LIVE",
+        "STALE",
+        "UNKNOWN"
+      ]
+    },
+    "coverage": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL_COVERAGE"
+      ]
+    }
+  },
+  "required": [
+    "items",
+    "next_cursor",
+    "as_of",
+    "freshness",
+    "coverage"
+  ]
+}

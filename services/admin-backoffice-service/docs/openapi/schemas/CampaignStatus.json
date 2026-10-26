@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "karryam.campaign-intent.v1"
+    },
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "intent_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state": {
+      "enum": [
+        "ACCEPTED_BY_KARRYGO",
+        "PLANNED",
+        "QUEUED",
+        "SENT",
+        "DELIVERED",
+        "COMPLETED",
+        "REJECTED",
+        "FAILED",
+        "SUPPRESSED",
+        "CANCELLED"
+      ]
+    },
+    "rejection_code": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "audience_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "eligible_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "suppressed_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "suppression_reasons": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "queued_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sent_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "logged_only_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failed_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "delivered_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "delivery_confirmation": {
+      "enum": [
+        "UNAVAILABLE",
+        "PROVIDER_RECEIPTS"
+      ]
+    },
+    "conversion_reporting": {
+      "enum": [
+        "UNAVAILABLE"
+      ]
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "contract_version",
+    "campaign_id",
+    "revision",
+    "intent_digest",
+    "state",
+    "audience_count",
+    "eligible_count",
+    "suppressed_count",
+    "suppression_reasons",
+    "queued_count",
+    "sent_count",
+    "logged_only_count",
+    "failed_count",
+    "delivered_count",
+    "delivery_confirmation",
+    "conversion_reporting",
+    "as_of"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "delivery_confirmation": {
+            "const": "UNAVAILABLE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "delivered_count": {
+            "type": "null"
+          },
+          "state": {
+            "not": {
+              "const": "DELIVERED"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

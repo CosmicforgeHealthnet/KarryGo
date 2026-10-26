@@ -145,6 +145,9 @@ func (s *Service) Submit(ctx context.Context, actor adminpolicy.Actor, q adminre
 	if err := s.Authorize(ctx, actor, q, spec.Capability); err != nil {
 		return admincommand.Operation{}, err
 	}
+	if err := s.walletRemedyConfirmed(ctx, q, cmd); err != nil {
+		return admincommand.Operation{}, err
+	}
 	r, won, err := s.begin(ctx, actor, q, cmd, action, in.ApprovalID)
 	if err != nil {
 		return admincommand.Operation{}, err

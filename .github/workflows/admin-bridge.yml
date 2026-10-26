@@ -95,6 +95,8 @@ jobs:
         run: |
           test "$(docker inspect -f '{{.Config.User}}' karrygo-admin:test)" = cosmicforge
           test "$(docker run --rm --entrypoint id karrygo-admin:test -u)" != 0
+          # The admin compose pins user: "100:101"; it must equal the image's real cosmicforge ids.
+          test "$(docker run --rm --entrypoint id karrygo-admin:test -u):$(docker run --rm --entrypoint id karrygo-admin:test -g)" = "$(python -c "import yaml;print(yaml.safe_load(open('deploy/platform/compose/admin-backoffice-service.yml'))['services']['app']['user'])")"
           sudo mkdir -p /opt/karrygo/admin-backoffice-service
           for file in admin.env admin.migrate.env db.env; do sudo touch "/opt/karrygo/admin-backoffice-service/$file"; done
           docker compose -f deploy/platform/compose/admin-backoffice-service.yml config --quiet

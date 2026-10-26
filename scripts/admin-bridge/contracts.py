@@ -4,6 +4,7 @@ import owner_command_contracts
 import media_bridge_contracts
 import report_contracts
 import pricing_admin_contracts
+import hq_contracts
 import argparse
 import hashlib
 import json
@@ -101,12 +102,20 @@ def build():
     schemas.update(media_bridge_contracts.schemas(obj,string,opaque))
     schemas.update(owner_command_contracts.schemas(obj, string, opaque, review_receipt["properties"]["scope"]))
     schemas.update(pricing_admin_contracts.schemas(obj, string(), opaque))
+    schemas.update(hq_contracts.schemas(obj, string, opaque))
+    # Support labels (redacted bounded previews) are additive to a new family.
+    support_resources = copy.deepcopy(resources)
+    support_resources["properties"]["owner"] = {"const": "support-dispute-service"}
+    support_item = support_resources["properties"]["items"]["items"]
+    support_item["properties"]["label"] = string(minLength=1,maxLength=240,pattern=r"^[^\x00-\x1f\x7f-\x9f]+$")
+    support_item["allOf"].append({"if":{"properties":{"kind":{"enum":["cases","case-messages"]}}},"else":{"not":{"required":["label"]}}})
+    schemas["SupportResourcesSnapshot"] = support_resources
     matrix = json.loads((OUT / "KARRYGO_ADMIN_CAPABILITY_MATRIX.json").read_text(encoding="utf-8"))
     paths = {}
     error_response = {"description": "Sanitized error envelope. Never retry a domain command without authoritative outcome resolution.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Response"}}}}
     for c in matrix:
         params = [{"name": k, "in": "query", "required": True, "schema": opaque} for k in ("market", "organization", "purpose")]
-        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"].startswith("analytics.scoped.") or c["id"].startswith("pricing.") or owner_command_contracts.is_command(c["id"]):
+        if c["permission"] == "taxi.rides.read" or ".resources." in c["id"] or c["id"].startswith("customer.review.") or c["id"].startswith("analytics.scoped.") or c["id"].startswith("pricing.") or owner_command_contracts.is_command(c["id"]) or hq_contracts.is_hq(c["id"]):
             params += [{"name": key, "in": "query", "required": True, "schema": opaque} for key in ("zone", "tenant")]
             params += [{"name": k, "in": "query", "required": True, "schema": string(format="date-time")} for k in ("start", "end")]
             params += [{"name": "limit", "in": "query", "required": True, "schema": {"type": "integer", "minimum": 1, "maximum": 100}}, {"name": "cursor", "in": "query", "required": False, "schema": string(maxLength=4096)}]
@@ -120,8 +129,10 @@ def build():
                 params.append({"name": segment[1:-1], "in": "path", "required": True, "schema": opaque})
         op = {"operationId": c["id"], "summary": c["id"], "description": c["blocker"] or "Functional bridge metadata; scoped and audited.", "x-capability-state": c["state"], "x-owner": c["owner"], "x-required-permission": c["permission"], "parameters": params, "responses": {str(status): error_response for status in [400, 401, 403, 404, 409, 413, 415, 429, 503]}}
         if c["state"] in ("READ_ONLY", "AVAILABLE"):
-            result = "PricingAdminResult" if c["id"].startswith("pricing.") else owner_command_contracts.result_schema(c["id"]) if owner_command_contracts.is_command(c["id"]) else "MediaCaseGrant" if c["id"].startswith("media.case.") else "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "VendorResourcesSnapshot" if c["id"].startswith("vendor.resources.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
+            result = hq_contracts.result_schema(c["id"]) if hq_contracts.is_hq(c["id"]) else "SupportResourcesSnapshot" if c["id"].startswith("support.resources.") else "PricingAdminResult" if c["id"].startswith("pricing.") else owner_command_contracts.result_schema(c["id"]) if owner_command_contracts.is_command(c["id"]) else "MediaCaseGrant" if c["id"].startswith("media.case.") else "ScopedMissionSuccessRateRelease" if c["id"] == "analytics.scoped.mission-success-rate.read" else "ScopedMissionSuccessRelease" if c["id"] == "analytics.scoped.mission-success.read" else report_contracts.schema_name(c["bridge_endpoint"].rsplit("/",1)[-1]) if c["id"].startswith("analytics.scoped.") else "CustomerWorkItemOperation" if c["id"].startswith("customer.review.work_item.") else "CustomerReviewOperation" if c["id"].startswith("customer.review.") else "VendorResourcesSnapshot" if c["id"].startswith("vendor.resources.") else "OwnerResourcesSnapshot" if ".resources." in c["id"] else {"bridge.capabilities": "Discovery", "bridge.health": "Health", "bridge.operations.read": "Operation", "taxi.rides.list": "TaxiSnapshot", "taxi.rides.detail": "TaxiSnapshot"}[c["id"]]
             if c["id"]=="media.case.grant.revoke":result="MediaCaseRevocation"
+            if result is None:
+                result = "Response"
             success_schema = {**response, "properties": {**response["properties"], "result": {"$ref": f"#/components/schemas/{result}"}}, "not": {"required": ["error"]}}
             if ".resources." in c["id"] and c["id"].endswith(".list"):
                 metadata = {"properties": {"items": {"items": {"not": {"required": ["custody"]}, "properties": {"timeline": {"maxItems": 0}, "timeline_truncated": {"const": False}}}}}}
@@ -138,6 +149,10 @@ def build():
             op["requestBody"]["content"]["application/json"]["schema"]={"allOf":[{"$ref":"#/components/schemas/PricingAdminRequest"},{"type":"object","required":required}]}
         if owner_command_contracts.is_command(c["id"]) and c["method"] == "POST":
             op["requestBody"]["content"]["application/json"]["schema"]={"$ref":"#/components/schemas/"+owner_command_contracts.request_schema(c["id"])}
+        if hq_contracts.is_hq(c["id"]) and c["method"] == "POST":
+            op["requestBody"]["content"]["application/json"]["schema"]={"$ref":"#/components/schemas/"+hq_contracts.request_schema(c["id"])}
+        if c["id"] == "hq.exports.download":
+            op["responses"]["200"]={"description":"Single-use, requester-bound, expiring decrypted CSV; delivery audited.","content":{"text/csv":{"schema":{"type":"string"}}},"headers":{"X-Correlation-ID":{"schema":string(format="uuid")}}}
         if c["id"].startswith("media.case."):
             op["requestBody"]["content"]["application/json"]["schema"]={"$ref":"#/components/schemas/"+media_bridge_contracts.request_schema(c["id"])}
             if c["id"]=="media.case.content.read":

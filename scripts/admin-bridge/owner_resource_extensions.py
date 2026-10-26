@@ -155,11 +155,36 @@ for _kind, _permission, _risk in [
         ['TestReferralSecureAdminOwnerBoundary'],
     )
 
-SOURCE_PATH = {"vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources", "wallet": "/internal/payment-wallet/v1/admin/resources", "referral": "/internal/referral/v1/admin-owner/resources"}
+# Secure Admin Section 16: Support cases, SOS, disputes, message metadata and
+# evidence references. Chat bodies, identity snapshots and coordinates are never
+# disclosed; message/case labels are credential-redacted bounded previews.
+for _kind, _permission, _risk in [
+    ('cases', 'support.cases.read', 'R2'),
+    ('sos-cases', 'support.sos.read', 'R3'),
+    ('disputes', 'support.disputes.read', 'R3'),
+    ('case-messages', 'support.messages.read', 'R3'),
+    ('case-evidence', 'support.evidence.read', 'R3'),
+]:
+    KINDS[('support', _kind)] = ('support-dispute-service', _permission, _risk, ['TestSupportSecureAdminOwnerBoundary'])
+
+# Secure Admin Section 18: formal Verification cases and automation findings.
+# Document references, identity numbers and bank data are never disclosed.
+for _kind, _permission, _risk in [
+    ('vendor-cases', 'verification.vendor_cases.read', 'R3'),
+    ('vendor-case-findings', 'verification.findings.read', 'R3'),
+    ('asset-capability-cases', 'verification.asset_cases.read', 'R3'),
+    ('organization-submissions', 'verification.organization_submissions.read', 'R3'),
+]:
+    KINDS[('verification', _kind)] = ('verification-compliance-service', _permission, _risk, ['TestVerificationSecureAdminOwnerBoundary'])
+
+SOURCE_PATH = {"support": "/internal/support/v1/admin/resources", "verification": "/internal/verification/v1/admin/resources", "vendor":"/internal/vendor/v1/admin/resources","dispatch": "/internal/dispatch/v1/admin/resources", "taxi": "/internal/taxi/v1/admin/resources", "hauling": "/internal/hauling/v1/admin/resources", "fleet": "/internal/fleet-partner/v1/admin/resources", "wallet": "/internal/payment-wallet/v1/admin/resources", "referral": "/internal/referral/v1/admin-owner/resources"}
 
 # Native operational rows rather than case records.
 EVIDENCE = {key: "Owner-native operational row bound by an owner-signed context; immutable owner disclosure audit and bridge audit" for key in KINDS if key[1] in ("bookings", "delivery-missions", "commerce-missions", "partner-requests", "goods-missions", "corporate-rides")}
 EVIDENCE.update({key:"Current Vendor-native row and canonical parent relationships; immutable owner disclosure audit and Bridge audit. A native status or historical result is not new operational authority." for key in KINDS if key[0]=="vendor" and key[1]!="cases"})
+
+
+PREFIX = {"fleet": "FLEET_PARTNER", "wallet": "PAYMENT_WALLET", "support": "SUPPORT_DISPUTE", "verification": "VERIFICATION_COMPLIANCE"}
 
 
 def entries():
@@ -174,7 +199,7 @@ def entries():
                 "risk": risk, "privacy": "MINIMIZED_OPERATIONAL_METADATA", "source_version_required": False, "idempotency_required": False,
                 "approval": "BLOCKED_POLICY until independently signed owner context and approved governance policy exist",
                 "evidence": EVIDENCE.get((domain, kind), "Owner-written case record and its immutable decision history; immutable owner disclosure audit and bridge audit"),
-                "feature_flag": f"ADMIN_{'FLEET_PARTNER' if domain == 'fleet' else 'PAYMENT_WALLET' if domain == 'wallet' else domain.upper()}_RESOURCE_READ_ENABLED; {'FLEET_PARTNER' if domain == 'fleet' else 'PAYMENT_WALLET' if domain == 'wallet' else domain.upper()}_ADMIN_RESOURCE_READ_ENABLED",
+                "feature_flag": f"ADMIN_{PREFIX.get(domain, domain.upper())}_RESOURCE_READ_ENABLED; {PREFIX.get(domain, domain.upper())}_ADMIN_RESOURCE_READ_ENABLED",
                 "tests": ["TestActualOwnerMigrationsAndSourceDictionary", "TestOwnerResourcesDelegation", *tests],
                 "blocker": "Disabled by default; draft policy documents provide no access grants. Missing or conflicting source authority denies access.",
                 "fallback": "Fail closed; no privileged mutations, raw owner proxy or tenant fallback.",

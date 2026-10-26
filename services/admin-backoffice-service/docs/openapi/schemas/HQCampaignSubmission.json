@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "approval_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "karryam.campaign-intent.v1"
+        },
+        "campaign_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "product": {
+          "const": "karryam"
+        },
+        "requesting_department": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "requested_by": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "approvals": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "approval_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "approver_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+                "maxLength": 128
+              },
+              "approved_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "approval_id",
+              "approver_ref",
+              "approved_at"
+            ]
+          }
+        },
+        "category": {
+          "enum": [
+            "MARKETING",
+            "PRODUCT_ANNOUNCEMENT"
+          ]
+        },
+        "markets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          }
+        },
+        "zones": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          }
+        },
+        "audience": {
+          "const": "CUSTOMERS_OPTED_IN"
+        },
+        "audience_definition_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "legal_basis": {
+          "const": "CONSENT"
+        },
+        "channels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "in_app",
+              "push",
+              "email"
+            ]
+          }
+        },
+        "template_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "template_locale": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+          "maxLength": 128
+        },
+        "template_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "start_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "max_per_recipient_per_day": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "max_messages": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "budget_minor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 3
+        },
+        "priority": {
+          "enum": [
+            "low",
+            "normal"
+          ]
+        },
+        "quiet_hours": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                },
+                "timezone": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "start",
+                "end",
+                "timezone"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "correlation_id": {
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "contract_version",
+        "campaign_id",
+        "revision",
+        "idempotency_key",
+        "product",
+        "requesting_department",
+        "requested_by",
+        "approvals",
+        "category",
+        "markets",
+        "zones",
+        "audience",
+        "audience_definition_sha256",
+        "legal_basis",
+        "channels",
+        "template_key",
+        "template_locale",
+        "template_revision",
+        "content_sha256",
+        "start_at",
+        "end_at",
+        "max_per_recipient_per_day",
+        "max_messages",
+        "budget_minor",
+        "currency",
+        "priority",
+        "quiet_hours",
+        "correlation_id"
+      ]
+    }
+  },
+  "required": [
+    "approval_id",
+    "intent"
+  ]
+}

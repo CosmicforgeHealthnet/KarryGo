@@ -1,0 +1,78 @@
+name: Admin Sections 16-38 owner certification
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [staging]
+permissions:
+  contents: read
+concurrency:
+  group: admin-sections-16-38-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  owners:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: owner_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: owner_s16_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U owner_test" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PG: postgres://owner_test:disposable_ci_only@127.0.0.1:5432
+      SUPPORT_DISPUTE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/support_s16_test?sslmode=disable
+      NOTIFICATION_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/notification_s17_test?sslmode=disable
+      NOTIFICATION_REDIS_ADDR: 127.0.0.1:6379
+      CUSTOMER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/customer_s17_test?sslmode=disable
+      ADMIN_OWNER_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/customer_s17_test?sslmode=disable
+      JOURNEY_TEST_REDIS_ADDR: 127.0.0.1:6379
+      CLOSURE_MIGRATION_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/customer_closure_s17_test?sslmode=disable
+      VERIFICATION_COMPLIANCE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/verification_s18_test?sslmode=disable
+      MEDIA_FILE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/media_s19_test?sslmode=disable
+      PAYMENT_WALLET_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/wallet_s26_test?sslmode=disable
+      WALLET_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/wallet_isolated_s26_test?sslmode=disable
+      WALLET_LOAD_TEST: '1'
+      REFERRAL_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/referral_s15_test?sslmode=disable
+      ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_s22_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache: true
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Create isolated disposable databases
+        run: |
+          for db in wallet_isolated_s26_test customer_closure_s17_test support_s16_test notification_s17_test customer_s17_test verification_s18_test media_s19_test wallet_s26_test referral_s15_test admin_s22_test; do
+            PGPASSWORD=disposable_ci_only createdb -h 127.0.0.1 -U owner_test "$db"
+          done
+      - name: Owner suites (PostgreSQL + Redis, race, zero skips)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-artifacts
+          : > test-artifacts/sections16-38.jsonl
+          for module in support-dispute-service notification-service customer-service verification-compliance-service media-file-service payment-wallet-service referral-service; do
+            (cd "services/$module" && go test -race -p 1 -json -count=1 -timeout=900s ./...) >> test-artifacts/sections16-38.jsonl
+          done
+          (cd shared/go && go test -race -json -count=1 ./adminevents/... ./admincampaign/... ./financereport/... ./adminmedia/...) >> test-artifacts/sections16-38.jsonl
+          python scripts/admin-bridge/sections16_38_testgate.py test-artifacts/sections16-38.jsonl
+      - name: Bridge event pipeline and HQ department routes (zero skips)
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -race -json -count=1 -timeout=600s ./services/admin-backoffice-service/... > test-artifacts/bridge-s16-38.jsonl
+          python scripts/admin-bridge/testgate.py test-artifacts/bridge-s16-38.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sections-16-38-evidence
+          path: test-artifacts/

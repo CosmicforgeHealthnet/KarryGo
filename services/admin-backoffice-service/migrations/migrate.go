@@ -25,6 +25,9 @@ var customerWorkItemSchema string
 //go:embed 006_owner_command_operations.sql
 var ownerCommandSchema string
 
+//go:embed 007_hq_integration.sql
+var hqIntegrationSchema string
+
 // Apply serializes schema installation across replicas and rolls back on failure.
 // Use a migration role; the runtime role must not own the evidence tables.
 func Apply(ctx context.Context, pool *pgxpool.Pool) error {
@@ -103,6 +106,17 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("bridge owner command migration: %w", err)
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO admin_schema_versions(version)VALUES(6)`); err != nil {
+			return err
+		}
+	}
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM admin_schema_versions WHERE version=7)`).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		if _, err = tx.Exec(ctx, hqIntegrationSchema); err != nil {
+			return fmt.Errorf("bridge HQ integration migration: %w", err)
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO admin_schema_versions(version)VALUES(7)`); err != nil {
 			return err
 		}
 	}

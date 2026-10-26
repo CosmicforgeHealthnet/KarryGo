@@ -7,11 +7,14 @@ import (
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/config"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerreviewops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/customerworkitemops"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/hqevents"
+	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/hqops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/features/ownercommandops"
 	"cosmicforge/logistics/services/admin-backoffice-service/internal/persistence"
 	"cosmicforge/logistics/services/admin-backoffice-service/migrations"
 	"cosmicforge/logistics/shared/go/adminpolicy"
 	"cosmicforge/logistics/shared/go/adminpolicyenv"
+	"cosmicforge/logistics/shared/go/serviceauth"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
@@ -22,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -43,11 +47,24 @@ func main() {
 	if len(os.Args) > 1 && !(len(os.Args) == 2 && os.Args[1] == "--migrate") {
 		os.Exit(2)
 	}
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	// Structured, sanitized logs: correlation ids and outcome codes only; no
+	// request bodies, tokens, nonces, OTPs, coordinates or bank data (Section 27).
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "admin-backoffice-service", "product", "karryam", "build_sha", buildSHA()))
 	if err := run(); err != nil {
 		slog.Error("admin_bridge_startup_failed")
 		os.Exit(1)
 	}
+}
+
+func buildSHA() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" && len(setting.Value) >= 7 {
+				return setting.Value
+			}
+		}
+	}
+	return "unknown"
 }
 
 func run() error {
@@ -277,9 +294,87 @@ func run() error {
 			return e
 		}
 	}
+	hqCfg, err := cfg.LoadHQ()
+	if err != nil {
+		return err
+	}
+	var ingress *http.Server
+	if hqCfg.Events || hqCfg.SupportQueue || hqCfg.Approvals || hqCfg.Campaigns || hqCfg.Finance || hqCfg.Privacy || hqCfg.Exports || hqCfg.IngressEnabled || hqCfg.BackfillEnabled {
+		var ready bool
+		if e := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM admin_schema_versions WHERE version=7)`).Scan(&ready); e != nil || !ready {
+			return errors.New("HQ integration schema unavailable; apply migration 007")
+		}
+		store := &hqevents.Store{DB: pool}
+		metrics := &hqevents.Metrics{}
+		ops := &hqops.Service{DB: pool, CampaignReads: hqCfg.Campaigns, CampaignWrites: hqCfg.CampaignWrites, FinanceReads: hqCfg.Finance, PrivacyWrites: hqCfg.Privacy, ExportKey: hqCfg.ExportKey, ExportKeyID: hqCfg.ExportKeyID}
+		if hqCfg.Campaigns {
+			c, e := clients.NewCampaigns(hqCfg.NotificationOrigin, hqCfg.CampaignSecret)
+			if e != nil {
+				return e
+			}
+			defer c.Close()
+			ops.Campaigns = c
+		}
+		if hqCfg.Finance {
+			c, e := clients.NewFinance(hqCfg.FinanceOrigin, hqCfg.FinanceSecret)
+			if e != nil {
+				return e
+			}
+			defer c.Close()
+			ops.Finance = c
+		}
+		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+			return errors.New("invalid HQ integration policy")
+		}
+		if approved != nil {
+			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+				return errors.New("HQ integration policy revision refused")
+			}
+		}
+		if e = app.ConfigureHQ(store, ops, approved, bridge.HQFlags{Events: hqCfg.Events, SupportQueue: hqCfg.SupportQueue, Approvals: hqCfg.Approvals, Campaigns: hqCfg.Campaigns, Finance: hqCfg.Finance, Privacy: hqCfg.Privacy, Exports: hqCfg.Exports, MediaMapping: hqCfg.MediaMapping}); e != nil {
+			return e
+		}
+		app.EventMetrics = metrics
+		if hqCfg.IngressEnabled {
+			raw, e := os.ReadFile(hqCfg.SourceSecretsFile)
+			if e != nil {
+				return errors.New("event source secrets unavailable")
+			}
+			secrets, e := hqevents.SourceSecrets(raw)
+			if e != nil {
+				return e
+			}
+			for _, secret := range secrets {
+				for _, encoded := range cfg.Trust.ServiceKeys {
+					hqKey, _ := base64.RawURLEncoding.DecodeString(encoded)
+					if string(hqKey) == string(secret) {
+						return errors.New("event source secret reused an HQ workload key")
+					}
+				}
+			}
+			handler := &hqevents.IngressHandler{Store: store, Enabled: true, Metrics: metrics, Verifier: serviceauth.NewVerifier(secrets, 30*time.Second)}
+			ingress = &http.Server{Addr: hqCfg.IngressAddr, Handler: handler, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+		}
+		if hqCfg.BackfillEnabled && len(hqCfg.Snapshots) > 0 {
+			var sources []hqevents.SnapshotSource
+			for owner, src := range hqCfg.Snapshots {
+				c, e := hqevents.NewSnapshotClient(owner, src.Origin, src.Secret)
+				if e != nil {
+					return e
+				}
+				sources = append(sources, c)
+			}
+			go hqevents.RunSweeps(ctx, store, sources, hqCfg.ReconcileInterval)
+		}
+	}
 	srv := &http.Server{Addr: cfg.Address, Handler: app, TLSConfig: tlsConfig, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 32768}
 	probe := &http.Server{Addr: "127.0.0.1:8116", Handler: http.HandlerFunc(app.Probe), ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 4096}
-	failures := make(chan error, 2)
+	failures := make(chan error, 3)
+	if ingress != nil {
+		go func() { failures <- ingress.ListenAndServe() }()
+		defer ingress.Close()
+	}
 	go func() { failures <- srv.ListenAndServeTLS("", "") }()
 	go func() { failures <- probe.ListenAndServe() }()
 	slog.Info("admin_bridge_started", "contract_version", "1.0", "remote_enabled", cfg.RemoteEnabled, "remote_writes", "DISABLED")

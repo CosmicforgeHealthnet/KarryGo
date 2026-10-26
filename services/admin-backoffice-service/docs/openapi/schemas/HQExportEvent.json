@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "cosmicforge.product-admin-event.v1"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_type": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "source_service": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "product": {
+      "const": "karryam"
+    },
+    "entity_type": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "entity_ref": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+      "maxLength": 128
+    },
+    "entity_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "tombstone": {
+      "type": "boolean"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "emitted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "market": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "zone": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "organization": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "tenant": {
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "zone",
+        "organization",
+        "tenant"
+      ]
+    },
+    "classification": {
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "OPERATIONS_MINIMIZED",
+        "FINANCIAL_SENSITIVE",
+        "SAFETY_EVIDENCE"
+      ]
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 32
+    }
+  },
+  "required": [
+    "schema",
+    "event_id",
+    "sequence",
+    "event_type",
+    "source_service",
+    "product",
+    "entity_type",
+    "entity_ref",
+    "entity_version",
+    "tombstone",
+    "occurred_at",
+    "emitted_at",
+    "market",
+    "scope",
+    "classification",
+    "correlation_id",
+    "payload"
+  ]
+}

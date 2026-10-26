@@ -53,13 +53,13 @@ def main():
     owner_kinds = {"customer": ["review-work-items", "customers", "consents", "booking-references", "review-states"], "taxi": ["providers", "vehicles", "independent-rides", "recoveries"], "dispatch": ["incident-recovery-status", "return-execution-status", "riders", "motorcycles", "missions", "custody-missions", "incidents", "delivery-recoveries", "returns", "handover-states"], "hauling": ["booking-cargo-inputs", "product-eligibility", "providers", "trucks", "missions", "custody-missions", "recoveries", "restrictions", "fit-decisions"], "fleet": ["shipments", "private-assignments", "execution-links"]}
     for domain, kinds in __import__("owner_resource_extensions").kinds_by_domain().items():
         owner_kinds.setdefault(domain, []).extend(kinds)
-    canonical_resource_owners = {"vendor": "vendor-service", "customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service", "hauling": "driver-hauling-service", "fleet": "fleet-partner-service", "wallet": "payment-wallet-service", "referral": "referral-service"}
+    canonical_resource_owners = {"vendor": "vendor-service", "customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service", "hauling": "driver-hauling-service", "fleet": "fleet-partner-service", "wallet": "payment-wallet-service", "referral": "referral-service", "support": "support-dispute-service", "verification": "verification-compliance-service"}
     for row in matrix:
         if ".resources." in row["id"]:
             domain = row["id"].split(".", 1)[0]
             assert row["owner"] == canonical_resource_owners[domain], f"Noncanonical owner in capability contract: {row['id']}"
     resource_ids = {f"{domain}.resources.{kind}.{operation}" for domain, kinds in owner_kinds.items() for kind in kinds for operation in ("list", "detail")}
-    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | {"customer.review.work_item.readback", "media.case.grant.issue", "media.case.content.read"} | resource_ids | {row["id"] for row in __import__("owner_command_contracts").matrix_entries() if row["state"] == "READ_ONLY"} | {report_contracts.permission(name) for name in report_contracts.REPORTS} | {row["id"] for row in pricing_admin_contracts.matrix_entries() if row["state"] == "READ_ONLY"}
+    assert {r["id"] for r in matrix if r["state"] == "READ_ONLY"} == {"bridge.capabilities", "bridge.health", "analytics.scoped.mission-success.read", "analytics.scoped.mission-success-rate.read", "bridge.operations.read", "customer.review.readback", "taxi.rides.list", "taxi.rides.detail"} | {"customer.review.work_item.readback", "media.case.grant.issue", "media.case.content.read"} | resource_ids | {row["id"] for row in __import__("owner_command_contracts").matrix_entries() if row["state"] == "READ_ONLY"} | {report_contracts.permission(name) for name in report_contracts.REPORTS} | {row["id"] for row in pricing_admin_contracts.matrix_entries() if row["state"] == "READ_ONLY"} | {row["id"] for row in __import__("hq_contracts").matrix_entries() if row["state"] == "READ_ONLY"}
     if args.wire_dir:
         media_grant=args.wire_dir/"media-case-grant.json"
         if media_grant.exists():
@@ -117,12 +117,25 @@ def main():
     compose = yaml.safe_load((ROOT / "deploy/platform/compose/admin-backoffice-service.yml").read_text())
     app = compose["services"]["app"]
     assert app["ports"] == ["${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}:8110:8110"]
-    assert app["networks"] == ["admin-private"] and compose["networks"]["admin-private"]["internal"] is True
-    assert app["read_only"] and app["cap_drop"] == ["ALL"] and app["security_opt"] == ["no-new-privileges:true"]
+    # Section 29: Docker publishes only from a non-internal network, so the
+    # listener uses a dedicated inert ingress network (no NAT egress, no ICC,
+    # private default binding); the DB and migrations stay internal-only.
+    networks = compose["networks"]
+    assert app["networks"] == ["admin-ingress", "admin-private"] and networks["admin-private"]["internal"] is True
+    ingress = networks["admin-ingress"]
+    assert ingress.get("internal") is False and ingress["driver_opts"]["com.docker.network.bridge.enable_ip_masquerade"] == "false"
+    assert ingress["driver_opts"]["com.docker.network.bridge.enable_icc"] == "false"
+    assert ingress["driver_opts"]["com.docker.network.bridge.host_binding_ipv4"] == "${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}"
+    assert all(service["networks"] == ["admin-private"] for name, service in compose["services"].items() if name != "app")
+    for service in compose["services"].values():
+        assert service["read_only"] and service["cap_drop"] == ["ALL"] and "no-new-privileges:true" in service["security_opt"]
+        assert not any("unconfined" in option for option in service["security_opt"])
+    assert app["user"] == compose["services"]["migrate"]["user"] and app["user"].split(":")[0] not in ("0", "root")
     assert all("ports" not in service for name, service in compose["services"].items() if name != "app")
     assert compose["services"]["migrate"]["env_file"] != app["env_file"]
     nginx = (ROOT / "deploy/platform/nginx/api-gateway.staging.karryam.com.conf").read_text()
     assert nginx.index("location ~* ^/api/v1/admin") < nginx.index("location /api/v1/")
+    assert nginx.index("location ~* ^/internal(/|$)") < nginx.index("proxy_pass")
     # Manual-only releases replace the old broad auto-deploy planner. Keep the
     # isolation invariant for BOTH deployment paths, not a historical grep.
     for name in ("deploy-platform.yml", "deploy-vendor-service.yml"):

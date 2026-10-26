@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "subject_kind": {
+      "enum": [
+        "CUSTOMER",
+        "PROVIDER",
+        "VENDOR_STAFF"
+      ]
+    },
+    "request_type": {
+      "enum": [
+        "ACCESS_EXPORT",
+        "ERASURE",
+        "RECTIFICATION",
+        "CONSENT_WITHDRAWAL",
+        "RESTRICT_PROCESSING"
+      ]
+    },
+    "received_on": {
+      "type": "string",
+      "format": "date"
+    },
+    "legal_hold": {
+      "type": "boolean"
+    },
+    "dispositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "owner": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "disposition": {
+            "enum": [
+              "PENDING_OWNER_ACTION",
+              "POLICY_REQUIRED",
+              "LEGAL_HOLD",
+              "FULFILLED_BY_OWNER",
+              "RETAINED_LEGAL_OBLIGATION",
+              "NOT_HELD_BY_OWNER",
+              "PROJECTION_TOMBSTONED"
+            ]
+          },
+          "evidence_ref": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "owner",
+          "disposition",
+          "evidence_ref",
+          "recorded_at"
+        ]
+      }
+    },
+    "complete": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "request_id",
+    "subject_kind",
+    "request_type",
+    "received_on",
+    "legal_hold",
+    "dispositions",
+    "complete"
+  ]
+}

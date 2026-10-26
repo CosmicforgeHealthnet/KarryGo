@@ -153,6 +153,8 @@ func (b *Bridge) serveOwnerCommand(w http.ResponseWriter, r *http.Request, body 
 			status, code = 403, "forbidden"
 		case errors.Is(err, ownercommandops.ErrConflict):
 			status, code = 409, "idempotency_or_slot_conflict"
+		case errors.Is(err, ownercommandops.ErrRemedyUnconfirmed):
+			status, code = 409, "wallet_confirmation_required"
 		case errors.Is(err, ownercommandops.ErrApproval):
 			status, code = 409, "approval_unusable"
 		case errors.Is(err, ownercommandops.ErrNotFound), errors.Is(err, admincommand.ErrAbsent):

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness_threshold_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_service": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "entity_type": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$",
+            "maxLength": 128
+          },
+          "projections": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_received_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lag_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "open_gaps": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "freshness": {
+            "enum": [
+              "LIVE",
+              "STALE",
+              "UNKNOWN"
+            ]
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL_COVERAGE"
+            ]
+          },
+          "last_backfill_status": {
+            "enum": [
+              "NONE",
+              "RUNNING",
+              "COMPLETE",
+              "PARTIAL_COVERAGE",
+              "FAILED"
+            ]
+          }
+        },
+        "required": [
+          "source_service",
+          "entity_type",
+          "projections",
+          "last_received_at",
+          "lag_seconds",
+          "open_gaps",
+          "freshness",
+          "coverage",
+          "last_backfill_status"
+        ]
+      }
+    },
+    "quarantined": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "head_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "consumer_lag": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  },
+  "required": [
+    "as_of",
+    "freshness_threshold_seconds",
+    "sources",
+    "quarantined",
+    "head_sequence",
+    "consumer_lag"
+  ]
+}
