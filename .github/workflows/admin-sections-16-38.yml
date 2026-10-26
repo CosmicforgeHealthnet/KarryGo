@@ -41,6 +41,8 @@ jobs:
       WALLET_LOAD_TEST: '1'
       REFERRAL_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/referral_s15_test?sslmode=disable
       ADMIN_BRIDGE_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/admin_s22_test?sslmode=disable
+      TAXI_ADMIN_TEST_DATABASE_URL: postgres://owner_test:disposable_ci_only@127.0.0.1:5432/taxi_bridge_s22_test?sslmode=disable
+      ADMIN_TAXI_TEST_BINARY: ${{ github.workspace }}/test-artifacts/taxi-admin-owner
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -51,7 +53,7 @@ jobs:
         with: {python-version: '3.12'}
       - name: Create isolated disposable databases
         run: |
-          for db in wallet_isolated_s26_test customer_closure_s17_test support_s16_test notification_s17_test customer_s17_test verification_s18_test media_s19_test wallet_s26_test referral_s15_test admin_s22_test; do
+          for db in wallet_isolated_s26_test customer_closure_s17_test support_s16_test notification_s17_test customer_s17_test verification_s18_test media_s19_test wallet_s26_test referral_s15_test admin_s22_test taxi_bridge_s22_test; do
             PGPASSWORD=disposable_ci_only createdb -h 127.0.0.1 -U owner_test "$db"
           done
       - name: Owner suites (PostgreSQL + Redis, race, zero skips)
@@ -69,6 +71,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The real Taxi owner process is required by TestTaxiOwnerProcessPostgresMTLS.
+          go build -tags admin_policy_test -o "$ADMIN_TAXI_TEST_BINARY" ./services/driver-taxi-service/cmd
           go test -race -json -count=1 -timeout=600s ./services/admin-backoffice-service/... > test-artifacts/bridge-s16-38.jsonl
           python scripts/admin-bridge/testgate.py test-artifacts/bridge-s16-38.jsonl
       - uses: actions/upload-artifact@v4

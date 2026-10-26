@@ -145,6 +145,12 @@ and conclusions (Admin Bridge 2–5, Admin Owner Closure, Section 31, Customer V
 Partner Gateway split, Deployment Safety, Admin Sections 16–38) are reported in the handover
 message, because recording them here would require a further, untested commit.
 
+First-attempt failure, disclosed: on `cc500c9` the new "Admin Sections 16–38" workflow (run
+40298958085) failed because its Bridge step did not build the Taxi owner binary, so
+`TestTaxiOwnerProcessPostgresMTLS` skipped and the zero-skip gate rejected the run. The test itself
+passed on that SHA in "Admin bridge Sections 2-5" (run 40298957956). The workflow was corrected
+(build the binary, provision its disposable database) in the next commit, not rerun.
+
 ## E. Remaining external requirements
 
 - **BLOCKED_DOMAIN:** Pricing quote issue/bind/reconcile; Wallet `finance.job.settlement_reversed.v1`
