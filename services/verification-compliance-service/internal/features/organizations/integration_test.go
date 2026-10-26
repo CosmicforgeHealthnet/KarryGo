@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/verification-compliance-service/internal/database"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/testdb"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -29,6 +30,7 @@ func TestOrganizationVerificationLifecyclePostgres(t *testing.T) {
 	if err != nil || !strings.Contains(strings.ToLower(parsed.Path), "test") {
 		t.Fatal("refusing to reset a database whose name is not test-specific")
 	}
+	testdb.Lock(t, dsn)
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatal(err)

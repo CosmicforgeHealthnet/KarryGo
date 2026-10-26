@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/verification-compliance-service/internal/database"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/testdb"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -90,6 +91,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal("refusing a database whose name does not identify it as a test database")
 	}
 	ctx := context.Background()
+	testdb.Lock(t, dsn)
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)

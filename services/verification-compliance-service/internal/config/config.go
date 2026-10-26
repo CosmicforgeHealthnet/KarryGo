@@ -44,6 +44,18 @@ type Config struct {
 	// than trusted.
 	MediaBaseURL string
 	MediaToken   string
+
+	// Section 18. AutomationEnabled (VERIFICATION_COMPLIANCE_AUTOMATION_ENABLED)
+	// runs the leased pre-verification worker that records findings and an
+	// advisory recommendation; it never changes a formal status.
+	// CaseExpiryEnabled (VERIFICATION_COMPLIANCE_CASE_EXPIRY_ENABLED) moves
+	// VERIFIED vendor cases past their expiry to EXPIRED. Both default false.
+	AutomationEnabled bool
+	CaseExpiryEnabled bool
+	// ExternalAuthority names an external verification provider. No registry
+	// or KYC provider is contracted, so the only accepted values are "" and
+	// "disabled"; anything else is refused rather than silently ignored.
+	ExternalAuthority string
 }
 
 func Load() Config {
@@ -69,6 +81,10 @@ func Load() Config {
 
 		MediaBaseURL: strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_MEDIA_BASE_URL")),
 		MediaToken:   strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_MEDIA_TOKEN")),
+
+		AutomationEnabled: getEnv("VERIFICATION_COMPLIANCE_AUTOMATION_ENABLED", "false") == "true",
+		CaseExpiryEnabled: getEnv("VERIFICATION_COMPLIANCE_CASE_EXPIRY_ENABLED", "false") == "true",
+		ExternalAuthority: strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_EXTERNAL_AUTHORITY")),
 	}
 }
 
@@ -95,6 +111,12 @@ func (c Config) Validate() error {
 		}
 	}
 	p = append(p, c.validateAssetCapability()...)
+	if c.ExternalAuthority != "" && c.ExternalAuthority != "disabled" {
+		p = append(p, "VERIFICATION_COMPLIANCE_EXTERNAL_AUTHORITY: no external verification provider is contracted; only \"disabled\" is accepted")
+	}
+	if c.AutomationEnabled && (c.MediaBaseURL == "") != (c.MediaToken == "") {
+		p = append(p, "VERIFICATION_COMPLIANCE_AUTOMATION_ENABLED with Media requires both VERIFICATION_COMPLIANCE_MEDIA_BASE_URL and VERIFICATION_COMPLIANCE_MEDIA_TOKEN")
+	}
 	if len(p) > 0 {
 		return errors.New("configuration invalid: " + strings.Join(p, "; "))
 	}

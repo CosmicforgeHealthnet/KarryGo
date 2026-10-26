@@ -3,7 +3,9 @@
 //
 //	vendor-review list                       businesses waiting for review
 //	vendor-review show    <business_id>      every check for one business
-//	vendor-review approve <business_id>      approve all of its waiting checks
+//	vendor-review approve <business_id> <expires_on YYYY-MM-DD>
+//	                                         approve all of its waiting checks;
+//	                                         a verification always has a future expiry
 //	vendor-review reject  <business_id> "<what the vendor must fix>"
 //
 // Reads the case list from the verification database, but records every
@@ -16,7 +18,8 @@
 //	VERIFICATION_COMPLIANCE_DATABASE_URL  verification database (read only use)
 //	VENDOR_REVIEW_SECRET                  admin-backoffice-service HMAC secret
 //	VENDOR_REVIEW_URL                     service origin (default http://karrygo-verification-staging:8111)
-//	VENDOR_REVIEW_OPERATOR                name recorded in the reason code (optional)
+//	VENDOR_REVIEW_OPERATOR                staff reference recorded as the decider (optional;
+//	                                      an opaque staff id, never a personal name)
 package main
 
 import (
@@ -67,8 +70,12 @@ func main() {
 		need(3)
 		printCases(load(ctx, db, os.Args[2], false))
 	case "approve":
-		need(3)
-		decide(ctx, db, os.Args[2], "VERIFIED", "")
+		need(4)
+		expires, err := time.Parse("2006-01-02", os.Args[3])
+		if err != nil || !expires.After(time.Now()) {
+			fail("give the date the verification expires as YYYY-MM-DD, in the future")
+		}
+		decideWithExpiry(ctx, db, os.Args[2], "VERIFIED", "", &expires)
 	case "reject":
 		need(4)
 		decide(ctx, db, os.Args[2], "REJECTED", strings.TrimSpace(strings.Join(os.Args[3:], " ")))
@@ -134,6 +141,10 @@ func printCases(cases []reviewCase) {
 }
 
 func decide(ctx context.Context, db *pgxpool.Pool, business, status, remediation string) {
+	decideWithExpiry(ctx, db, business, status, remediation, nil)
+}
+
+func decideWithExpiry(ctx context.Context, db *pgxpool.Pool, business, status, remediation string, expires *time.Time) {
 	if status == "REJECTED" && remediation == "" {
 		fail("say what the vendor must fix, e.g. reject vb_123 \"Upload a clear photo of your CAC certificate\"")
 	}
@@ -144,18 +155,25 @@ func decide(ctx context.Context, db *pgxpool.Pool, business, status, remediation
 	}
 	secret := []byte(mustEnv("VENDOR_REVIEW_SECRET"))
 	base := strings.TrimRight(envOr("VENDOR_REVIEW_URL", "http://karrygo-verification-staging:8111"), "/")
+	// Reason codes are bounded tokens and are exported to HQ; the operator is
+	// recorded as the decider instead, never folded into the reason.
 	reason := "MANUAL_REVIEW"
-	if op := strings.TrimSpace(os.Getenv("VENDOR_REVIEW_OPERATOR")); op != "" {
-		reason = "MANUAL_REVIEW_" + strings.ToUpper(strings.ReplaceAll(op, " ", "_"))
-	}
+	operator := strings.TrimSpace(os.Getenv("VENDOR_REVIEW_OPERATOR"))
 	failed := 0
 	for _, c := range cases {
-		body, _ := json.Marshal(map[string]any{
+		request := map[string]any{
 			"status":                  status,
 			"reason_code":             reason,
 			"remediation":             remediation,
 			"expected_source_version": c.Version,
-		})
+		}
+		if expires != nil {
+			request["expires_at"] = expires.UTC()
+		}
+		if operator != "" {
+			request["decided_by_staff_ref"] = operator
+		}
+		body, _ := json.Marshal(request)
 		url := base + "/api/v1/verification-compliance/internal/vendor-cases/cases/" + c.ID + "/decisions"
 		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -195,7 +213,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   vendor-review list
   vendor-review show    <business_id>
-  vendor-review approve <business_id>
+  vendor-review approve <business_id> <expires_on YYYY-MM-DD>
   vendor-review reject  <business_id> "<what the vendor must fix>"`)
 	os.Exit(2)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -75,6 +76,11 @@ type decisionBody struct {
 	Remediation           string     `json:"remediation"`
 	ExpiresAt             *time.Time `json:"expires_at"`
 	ExpectedSourceVersion int64      `json:"expected_source_version"`
+	// AppealRef is required (and only allowed) when reopening a REJECTED,
+	// EXPIRED or SUSPENDED case back to PENDING_REVIEW.
+	AppealRef string `json:"appeal_ref,omitempty"`
+	// DecidedByStaffRef names the human reviewer, when the caller knows one.
+	DecidedByStaffRef string `json:"decided_by_staff_ref,omitempty"`
 }
 type view struct {
 	SourceRef       string     `json:"source_ref"`
@@ -221,16 +227,21 @@ func (h *Handler) decide(c *gin.Context) {
 		return
 	}
 	var b decisionBody
-	if c.ShouldBindJSON(&b) != nil || !decision(b.Status) || b.ExpectedSourceVersion < 1 {
+	if c.ShouldBindJSON(&b) != nil || !decision(b.Status) || b.ExpectedSourceVersion < 1 || (b.DecidedByStaffRef != "" && !staffRef.MatchString(b.DecidedByStaffRef)) {
 		c.AbortWithStatus(400)
 		return
 	}
 	key := c.GetHeader("Idempotency-Key")
-	if key == "" {
+	if key == "" || len(key) > 200 {
 		c.AbortWithStatus(400)
 		return
 	}
-	raw, _ := json.Marshal(b)
+	// The fingerprint binds the exact case and body; reusing a key for a
+	// different case or decision is an identity conflict, never a new decision.
+	raw, _ := json.Marshal(struct {
+		Case string       `json:"case"`
+		Body decisionBody `json:"body"`
+	}{c.Param("caseRef"), b})
 	sum := sha256.Sum256(raw)
 	fp := hex.EncodeToString(sum[:])
 	tx, e := h.db.Begin(c)
@@ -239,9 +250,19 @@ func (h *Handler) decide(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback(c)
+	// Serialize concurrent uses of one key so the second one observes the first.
+	if _, e = tx.Exec(c, `SELECT pg_advisory_xact_lock(hashtextextended('vendor_case_decision:'||$1,0))`, key); e != nil {
+		c.AbortWithStatus(500)
+		return
+	}
 	var cached []byte
-	e = tx.QueryRow(c, `SELECT response_body FROM verification_commands WHERE command_type='vendor_case_decision' AND idempotency_key=$1 AND request_fingerprint=$2`, key, fp).Scan(&cached)
+	var storedFP string
+	e = tx.QueryRow(c, `SELECT request_fingerprint,response_body FROM verification_commands WHERE command_type='vendor_case_decision' AND idempotency_key=$1`, key).Scan(&storedFP, &cached)
 	if e == nil {
+		if storedFP != fp {
+			c.JSON(409, gin.H{"error": gin.H{"code": "IDEMPOTENCY_CONFLICT"}})
+			return
+		}
 		c.Data(200, "application/json", cached)
 		return
 	}
@@ -249,27 +270,16 @@ func (h *Handler) decide(c *gin.Context) {
 		c.AbortWithStatus(500)
 		return
 	}
-	v, e := scan(tx.QueryRow(c, `UPDATE vendor_verification_cases SET status=$1,source_version=source_version+1,reason_code=NULLIF($2,''),remediation=NULLIF($3,''),expires_at=$4,observed_at=now(),updated_at=now() WHERE id::text=$5 AND source_version=$6 RETURNING `+cols, b.Status, b.ReasonCode, b.Remediation, b.ExpiresAt, c.Param("caseRef"), b.ExpectedSourceVersion))
-	if errors.Is(e, pgx.ErrNoRows) {
-		c.JSON(409, gin.H{"error": gin.H{"code": "VERSION_CONFLICT"}})
-		return
+	decidedBy, kind := caller(c), DecidedByService
+	if b.DecidedByStaffRef != "" {
+		decidedBy, kind = b.DecidedByStaffRef, DecidedByStaff
 	}
+	result, e := ApplyDecision(c, tx, DecisionInput{CaseRef: c.Param("caseRef"), ExpectedVersion: b.ExpectedSourceVersion, Status: b.Status, ReasonCode: b.ReasonCode, Remediation: b.Remediation, ExpiresAt: b.ExpiresAt, AppealRef: b.AppealRef, DecidedBy: decidedBy, DecidedByKind: kind, OperationRef: "idempotency:" + key, Now: time.Now().UTC()})
 	if e != nil {
-		c.AbortWithStatus(500)
+		decisionError(c, e)
 		return
 	}
-	_, e = tx.Exec(c, `INSERT INTO vendor_verification_case_history(case_id,source_version,status,reason_code,remediation,expires_at,observed_at,decided_by) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8)`, v.SourceRef, v.SourceVersion, v.Status, v.ReasonCode, v.Remediation, v.ExpiresAt, v.ObservedAt, caller(c))
-	if e != nil {
-		c.AbortWithStatus(500)
-		return
-	}
-	payload, _ := json.Marshal(v)
-	_, e = tx.Exec(c, `INSERT INTO verification_outbox(aggregate_id,event_type,event_version,payload) VALUES($1,'vendor.verification.status_changed',$2,$3)`, v.SourceRef, v.SourceVersion, payload)
-	if e != nil {
-		c.AbortWithStatus(500)
-		return
-	}
-	response, _ := json.Marshal(gin.H{"success": true, "data": v})
+	response, _ := json.Marshal(gin.H{"success": true, "data": result.Current})
 	_, e = tx.Exec(c, `INSERT INTO verification_commands(command_type,idempotency_key,request_fingerprint,response_body) VALUES('vendor_case_decision',$1,$2,$3)`, key, fp, response)
 	if e != nil {
 		c.AbortWithStatus(500)
@@ -280,4 +290,36 @@ func (h *Handler) decide(c *gin.Context) {
 		return
 	}
 	c.Data(200, "application/json", response)
+}
+
+var staffRef = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$`)
+
+// decisionError maps the native state machine and fence onto stable codes.
+func decisionError(c *gin.Context, e error) {
+	code, status := "", 500
+	switch {
+	case errors.Is(e, ErrCaseNotFound):
+		code, status = "CASE_NOT_FOUND", 404
+	case errors.Is(e, ErrVersionConflict):
+		code, status = "VERSION_CONFLICT", 409
+	case errors.Is(e, ErrIllegalTransition):
+		code, status = "ILLEGAL_TRANSITION", 409
+	case errors.Is(e, ErrAppealReused):
+		code, status = "APPEAL_ALREADY_DECIDED", 409
+	case errors.Is(e, ErrReasonRequired):
+		code, status = "REASON_REQUIRED", 400
+	case errors.Is(e, ErrInvalidReason):
+		code, status = "INVALID_REASON_CODE", 400
+	case errors.Is(e, ErrFutureExpiryRequired):
+		code, status = "FUTURE_EXPIRY_REQUIRED", 400
+	case errors.Is(e, ErrAppealRequired):
+		code, status = "APPEAL_REQUIRED", 400
+	case errors.Is(e, ErrAppealNotApplicable):
+		code, status = "APPEAL_NOT_APPLICABLE", 400
+	}
+	if code == "" {
+		c.AbortWithStatus(status)
+		return
+	}
+	c.JSON(status, gin.H{"error": gin.H{"code": code}})
 }

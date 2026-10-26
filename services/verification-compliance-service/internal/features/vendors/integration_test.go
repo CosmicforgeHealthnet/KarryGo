@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/verification-compliance-service/internal/database"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/testdb"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -30,6 +31,7 @@ func TestVendorCaseAuthorityHMACReplayIdempotencyAndHistory(t *testing.T) {
 	if e != nil || !strings.Contains(strings.ToLower(parsed.Path), "test") {
 		t.Fatal("refusing non-test database")
 	}
+	testdb.Lock(t, dsn)
 	pool, e := pgxpool.New(context.Background(), dsn)
 	if e != nil {
 		t.Fatal(e)
@@ -72,7 +74,10 @@ func TestVendorCaseAuthorityHMACReplayIdempotencyAndHistory(t *testing.T) {
 		t.Fatal(e)
 	}
 	caseID := envelope.Data.SourceRef
-	decision := map[string]any{"status": "PENDING_REVIEW", "reason_code": "", "remediation": "", "expected_source_version": 1}
+	// Section 18: PENDING_REVIEW -> PENDING_REVIEW is not a transition of the
+	// case state machine (the pre-Section-18 route accepted it); a reviewer
+	// picking the case up is PENDING_REVIEW -> IN_PROGRESS.
+	decision := map[string]any{"status": "IN_PROGRESS", "reason_code": "", "remediation": "", "expected_source_version": 1}
 	decisionPath := "/api/v1/verification-compliance/internal/vendor-cases/cases/" + caseID + "/decisions"
 	forbidden := call(t, router, "vendor-service", vendorSecret, http.MethodPost, decisionPath, decision, "decision-1", "nonce-vendor-decision")
 	if forbidden.Code != 403 {
@@ -113,7 +118,7 @@ func TestVendorCaseAuthorityHMACReplayIdempotencyAndHistory(t *testing.T) {
 			return
 		}
 		var event map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&event); err != nil || event["event_id"] == "" || event["status"] != "PENDING_REVIEW" {
+		if err := json.NewDecoder(r.Body).Decode(&event); err != nil || event["event_id"] == "" || event["status"] != "IN_PROGRESS" {
 			http.Error(w, "invalid callback", http.StatusBadRequest)
 			return
 		}
@@ -175,6 +180,7 @@ func TestVendorCaseMigrationRollbackAndReapply(t *testing.T) {
 	if dsn == "" {
 		t.Skip("VERIFICATION_COMPLIANCE_TEST_DATABASE_URL is required")
 	}
+	testdb.Lock(t, dsn)
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatal(err)
@@ -186,23 +192,29 @@ func TestVendorCaseMigrationRollbackAndReapply(t *testing.T) {
 	if err = database.Apply(context.Background(), pool, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../../migrations/000002_vendor_verification_cases.down.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = pool.Exec(context.Background(), string(down)); err != nil {
-		t.Fatalf("rollback: %v", err)
+	// Later migrations depend on the case tables, so roll back in reverse
+	// order (Section 18 added 000004 on top of 000002).
+	for _, name := range []string{"000004_secure_admin_boundary.down.sql", "000002_vendor_verification_cases.down.sql"} {
+		down, err := os.ReadFile("../../../migrations/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = pool.Exec(context.Background(), string(down)); err != nil {
+			t.Fatalf("rollback %s: %v", name, err)
+		}
 	}
 	var exists bool
 	if err = pool.QueryRow(context.Background(), `SELECT to_regclass('public.vendor_verification_cases') IS NOT NULL`).Scan(&exists); err != nil || exists {
 		t.Fatalf("Vendor case table survived rollback exists=%t err=%v", exists, err)
 	}
-	up, err := os.ReadFile("../../../migrations/000002_vendor_verification_cases.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = pool.Exec(context.Background(), string(up)); err != nil {
-		t.Fatalf("reapply: %v", err)
+	for _, name := range []string{"000002_vendor_verification_cases.up.sql", "000004_secure_admin_boundary.up.sql"} {
+		up, err := os.ReadFile("../../../migrations/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = pool.Exec(context.Background(), string(up)); err != nil {
+			t.Fatalf("reapply %s: %v", name, err)
+		}
 	}
 	if err = pool.QueryRow(context.Background(), `SELECT to_regclass('public.vendor_verification_cases') IS NOT NULL`).Scan(&exists); err != nil || !exists {
 		t.Fatalf("Vendor case table missing after reapply exists=%t err=%v", exists, err)

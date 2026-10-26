@@ -11,9 +11,14 @@ import (
 
 	"cosmicforge/logistics/services/verification-compliance-service/internal/config"
 	"cosmicforge/logistics/services/verification-compliance-service/internal/database"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/features/adminresources"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/features/adminsnapshot"
 	assetcapability "cosmicforge/logistics/services/verification-compliance-service/internal/features/assetcapability"
 	organizations "cosmicforge/logistics/services/verification-compliance-service/internal/features/organizations"
 	vendors "cosmicforge/logistics/services/verification-compliance-service/internal/features/vendors"
+	"cosmicforge/logistics/shared/go/admincommand"
+	"cosmicforge/logistics/shared/go/adminevents"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/serviceapp"
 	"cosmicforge/logistics/shared/go/serviceauth"
@@ -112,6 +117,47 @@ func main() {
 		}
 	})
 
+	// Section 18: automated pre-verification (advisory only) and vendor case
+	// expiry. Both default off.
+	if cfg.AutomationEnabled {
+		automation := &vendors.Automation{DB: db, External: vendors.DisabledAuthority{}, Owner: "verification-automation"}
+		if cfg.MediaBaseURL != "" {
+			automation.Media = mediaclient.New(mediaclient.Config{BaseURL: cfg.MediaBaseURL, ServiceName: assetcapability.ServiceName, Token: cfg.MediaToken})
+		}
+		workers = append(workers, tickerWorker("verification vendor automation", time.Minute, func(runCtx context.Context) error {
+			_, err := automation.RunOnce(runCtx, 25)
+			return err
+		}))
+	}
+	if cfg.CaseExpiryEnabled {
+		workers = append(workers, tickerWorker("verification vendor case expiry", 5*time.Minute, func(runCtx context.Context) error {
+			_, err := vendors.RunExpirySweep(runCtx, db, 100, nil)
+			return err
+		}))
+	}
+
+	// Section 18: Secure Admin owner boundary. Every switch defaults off; with
+	// all of them off no credential, policy or schema is touched.
+	verificationAdmin, err := adminresources.Runtime(ctx, db)
+	if err != nil {
+		log.Fatalf("verification secure admin configuration invalid: %v", err)
+	}
+	verificationCommands, err := admincommand.Runtime(verificationAdmin, admincommands.Spec(), admincommands.Executor{}, adminresources.Prefix)
+	if err != nil {
+		log.Fatalf("verification secure admin command configuration invalid: %v", err)
+	}
+	snapshot, err := adminsnapshot.FromEnvironment(db)
+	if err != nil {
+		log.Fatalf("verification admin event snapshot configuration invalid: %v", err)
+	}
+	relay, err := adminevents.RelayFromEnvironment(db, adminresources.Prefix, "verification-compliance-service")
+	if err != nil {
+		log.Fatalf("verification admin event relay configuration invalid: %v", err)
+	}
+	if relay != nil {
+		workers = append(workers, relay.Run)
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "verification-compliance-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -128,6 +174,11 @@ func main() {
 			organizations.Register(group, organizations.New(db, cfg.PrivateAPIEnabled), verifier, allowed)
 			vendors.Register(group, vendors.New(db, cfg.PrivateAPIEnabled, allowed), verifier)
 			assetcapability.Register(group, assetHandler, verifier)
+		},
+		RegisterRoot: func(router *gin.Engine) {
+			verificationAdmin.RegisterOn(router.Group(""))
+			verificationCommands.Register(router)
+			snapshot.Register(router)
 		},
 		Workers: workers,
 	})
@@ -154,6 +205,23 @@ func assetCallbackEndpoints(cfg config.Config) map[assetcapability.Authority]ass
 			BaseURL: cfg.HaulingCallbackURL, Path: paths[assetcapability.AuthorityHauling],
 			Secret: []byte(cfg.HaulingCallbackSecret),
 		},
+	}
+}
+
+func tickerWorker(name string, every time.Duration, pass func(context.Context) error) func(context.Context) error {
+	return func(runCtx context.Context) error {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		for {
+			if err := pass(runCtx); err != nil && runCtx.Err() == nil {
+				log.Printf("%s worker error=%v", name, err)
+			}
+			select {
+			case <-runCtx.Done():
+				return runCtx.Err()
+			case <-ticker.C:
+			}
+		}
 	}
 }
 
