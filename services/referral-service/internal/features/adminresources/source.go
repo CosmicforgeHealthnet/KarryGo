@@ -33,9 +33,17 @@ var readPermission = map[string]string{
 	"persons": "referral.persons.read", "accounts": "referral.accounts.read", "referrals": "referral.referrals.read", "tracks": "referral.tracks.read", "rewards": "referral.rewards.read", "fraud-flags": "referral.fraud_flags.read", "milestones": "referral.milestones.read", "reconciliation-mismatches": "referral.reconciliation.read", "admin-actions": "referral.admin_actions.read",
 }
 
-func requireGrant(ctx context.Context, tx pgx.Tx, staff, permission string) error {
+// requireGrant checks a current native grant. Read authorization runs inside
+// read-only owner transactions (history/readback), where row locks are not
+// permitted; mutations take a share lock so a concurrent revocation cannot
+// interleave with the command transaction.
+func requireGrant(ctx context.Context, tx pgx.Tx, staff, permission string, lock bool) error {
 	var id string
-	return tx.QueryRow(ctx, `SELECT id FROM referral_admin_staff_grants WHERE staff_ref=$1 AND permission=$2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now()) ORDER BY id LIMIT 1 FOR SHARE`, staff, permission).Scan(&id)
+	query := `SELECT id FROM referral_admin_staff_grants WHERE staff_ref=$1 AND permission=$2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now()) ORDER BY id LIMIT 1`
+	if lock {
+		query += ` FOR SHARE`
+	}
+	return tx.QueryRow(ctx, query, staff, permission).Scan(&id)
 }
 
 func (s *SourceReader) AuthorizeStaff(ctx context.Context, tx pgx.Tx, staff, kind, _ string) error {
@@ -43,11 +51,11 @@ func (s *SourceReader) AuthorizeStaff(ctx context.Context, tx pgx.Tx, staff, kin
 	if permission == "" {
 		return pgx.ErrNoRows
 	}
-	return requireGrant(ctx, tx, staff, permission)
+	return requireGrant(ctx, tx, staff, permission, false)
 }
 
 func RequireMutationGrant(ctx context.Context, tx pgx.Tx, staff, permission string) error {
-	return requireGrant(ctx, tx, staff, permission)
+	return requireGrant(ctx, tx, staff, permission, true)
 }
 
 func Runtime(ctx context.Context, db *pgxpool.Pool) (*adminowner.Handler, error) {

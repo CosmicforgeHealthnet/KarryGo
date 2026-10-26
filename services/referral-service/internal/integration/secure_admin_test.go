@@ -137,6 +137,13 @@ func TestReferralSecureAdminOwnerBoundary(t *testing.T) {
 		t.Fatalf("source readback: %+v %v", resource, err)
 	}
 
+	// Regression: history runs in a read-only owner transaction; the native
+	// grant check must not take a row lock there.
+	history, err := service.History(ctx, actor, "case-1", scope, "persons", person)
+	if err != nil || len(history.Decisions) != 2 || history.CurrentVersion != 3 {
+		t.Fatalf("read-only command history: %+v %v", history, err)
+	}
+
 	// A paid reward reversal remains Referral's negative ledger request until
 	// Wallet posts it. The Admin command must not manufacture Wallet success.
 	reward := uuid.NewString()
