@@ -150,6 +150,10 @@ First-attempt failure, disclosed: on `cc500c9` the new "Admin Sections 16–38" 
 `TestTaxiOwnerProcessPostgresMTLS` skipped and the zero-skip gate rejected the run. The test itself
 passed on that SHA in "Admin bridge Sections 2-5" (run 40298957956). The workflow was corrected
 (build the binary, provision its disposable database) in the next commit, not rerun.
+On `c88209c` the same workflow (run 40301370644) failed a second time: its Bridge step ran only
+the Bridge module, while `testgate.py` requires the Taxi, Analytics and policy packages that
+"Admin bridge Sections 2-5" also runs (that workflow passed on the same SHA, run 40301370481).
+The step now runs the identical package set; it was corrected in a new commit, not rerun.
 
 ## E. Remaining external requirements
 
