@@ -25,6 +25,13 @@ type Config struct {
 	MaxUploadBytes   int64
 	ServiceTokens    map[string]string
 	PartnerJWTSecret string
+	// LegacyPublicSensitiveDownload re-opens the unauthenticated legacy
+	// /:id/download route for every purpose other than profile_photo.
+	// Default false (Section 19): documents, proof images and signatures are
+	// then reachable only through the authenticated owner route
+	// (/files/:id/content) or, once adopted, a private case grant. Even when
+	// enabled, adoption, integrity and malware checks still apply.
+	LegacyPublicSensitiveDownload bool
 
 	// --- WP10 private media object contract ---
 
@@ -94,6 +101,8 @@ func Load() Config {
 		MaxUploadBytes:   getEnvInt64("MEDIA_FILE_MAX_UPLOAD_BYTES", 25*1024*1024),
 		ServiceTokens:    getEnvServiceTokens("MEDIA_FILE_SERVICE_TOKENS"),
 		PartnerJWTSecret: getEnv("PARTNER_JWT_SECRET", ""),
+
+		LegacyPublicSensitiveDownload: getEnvBool("MEDIA_LEGACY_PUBLIC_SENSITIVE_DOWNLOAD_ENABLED", false),
 
 		PrivateAPIEnabled:     getEnvBool("MEDIA_FILE_PRIVATE_API_ENABLED", false),
 		ServiceSecrets:        getEnv("MEDIA_FILE_SERVICE_SECRETS", ""),

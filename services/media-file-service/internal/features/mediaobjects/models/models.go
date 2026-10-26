@@ -143,6 +143,36 @@ func SensitiveEvidencePurpose(purpose string) bool {
 	}
 }
 
+// HighRiskPurpose reports purposes whose bytes must be positively confirmed
+// SAFE by the malware scanner before ANY read path releases them, whatever
+// MEDIA_FILE_REQUIRE_SAFE_FOR_DOWNLOAD says (Section 19).
+//
+// The set is: every sensitive evidence purpose (which already includes the
+// purposes only a compiled source case declares), generated DATA_EXPORT
+// files, and identity/verification documents. PENDING and UNKNOWN — which
+// is what a deployment without a scanner, or with an unreachable one,
+// produces — are refused for these purposes. The deployment policy flag can
+// only ADD purposes to the fail-closed set; it can never remove these.
+func HighRiskPurpose(purpose string) bool {
+	if SensitiveEvidencePurpose(purpose) {
+		return true
+	}
+	switch purpose {
+	case PurposeDataExport,
+		PurposeProviderDocument, PurposeVehicleDocument, PurposeInsuranceDocument,
+		PurposeComplianceDocument, PurposeCompanyDocument, PurposeBranchDocument:
+		return true
+	default:
+		return false
+	}
+}
+
+// RequiresSafeVerdict combines the deployment policy with the fixed
+// high-risk floor.
+func RequiresSafeVerdict(purpose string, policyRequiresSafe bool) bool {
+	return policyRequiresSafe || HighRiskPurpose(purpose)
+}
+
 // Binding types: what a file is evidence FOR.
 //
 // Deliberately a closed list. An arbitrary string would let a caller bind a

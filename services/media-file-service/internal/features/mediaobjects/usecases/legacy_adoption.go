@@ -247,3 +247,61 @@ func (l *LegacyAdoptionService) LegacyMapping(ctx context.Context, legacyID stri
 	}
 	return id, err
 }
+
+// ErrLegacyMappingInconsistent means a stored mapping row does not agree with
+// the legacy row, the modern object or its own attestation digest — for
+// example a row written outside the adoption pipeline. It is never served.
+var ErrLegacyMappingInconsistent = errors.New("media: legacy mapping inconsistent")
+
+// LookupMapping resolves an adopted legacy asset for the private Bridge
+// lookup (Section 19). It never infers a relationship: the only source is the
+// immutable adoption row, and that row is re-verified against the legacy
+// asset, the modern object (owner, tenant, subject, purpose, checksum, case
+// binding, privacy) and the owner's recomputed attestation digest before an
+// answer of opaque IDs plus the digest is returned. The lookup is audited.
+func (l *LegacyAdoptionService) LookupMapping(ctx context.Context, actor, legacyID string) (adminmedia.LegacyMapping, error) {
+	var empty adminmedia.LegacyMapping
+	if l == nil || l.media == nil || l.media.opts.Pool == nil {
+		return empty, ErrUnavailable
+	}
+	var a adminmedia.LegacyAdoption
+	var objectID, owner, legacyOwner, legacyPurpose, checksum, digest string
+	var assetOwner, assetOwnerID, assetPurpose, assetChecksum string
+	err := l.media.opts.Pool.QueryRow(ctx, `SELECT a.media_object_id,a.owner_service,a.legacy_owner_service,a.legacy_owner_reference,a.legacy_purpose,a.organization_id,a.case_kind,a.case_reference,a.subject_type,a.subject_reference,a.purpose,a.checksum_sha256,a.attestation_digest,m.owner_service,m.owner_id,m.purpose,m.checksum_sha256 FROM media_legacy_adoptions a JOIN media_assets m ON m.id=a.legacy_asset_id WHERE a.legacy_asset_id=$1::uuid`, legacyID).
+		Scan(&objectID, &owner, &legacyOwner, &a.LegacyOwnerReference, &legacyPurpose, &a.OrganizationID, &a.CaseKind, &a.CaseReference, &a.SubjectType, &a.SubjectReference, &a.Purpose, &checksum, &digest, &assetOwner, &assetOwnerID, &assetPurpose, &assetChecksum)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return empty, ErrNotFound
+	}
+	if err != nil {
+		return empty, ErrUnavailable
+	}
+	a.ContractVersion, a.LegacyAssetID = adminmedia.LegacyAdoptionContract, legacyID
+	expectedLegacyOwner, known := legacyOwnerIdentities[owner]
+	allowed := false
+	for _, purpose := range legacyPurposeMap[assetPurpose] {
+		allowed = allowed || purpose == a.Purpose
+	}
+	if !known || legacyOwner != expectedLegacyOwner || assetOwner != legacyOwner || assetOwnerID != a.LegacyOwnerReference ||
+		assetPurpose != legacyPurpose || !allowed || !strings.EqualFold(assetChecksum, checksum) ||
+		!a.Valid(owner) || a.Digest(owner) != digest {
+		return empty, ErrLegacyMappingInconsistent
+	}
+	object, err := l.media.opts.Objects.GetObject(ctx, nil, objectID)
+	if err != nil {
+		return empty, ErrLegacyMappingInconsistent
+	}
+	object.SecondaryBindings, err = l.media.opts.Objects.SecondaryBindings(ctx, nil, object.ID)
+	if err != nil {
+		return empty, ErrUnavailable
+	}
+	spec, _ := admincase.Find(owner, a.CaseKind)
+	if object.ChecksumSHA256 != checksum || object.OwnerService != owner || object.OrganizationID != a.OrganizationID ||
+		object.OwnerType != a.SubjectType || object.OwnerReference != a.SubjectReference || object.UploadPurpose != a.Purpose ||
+		object.Visibility != models.VisibilityPrivate || !object.BoundTo(spec.BindingType, a.CaseReference) {
+		return empty, ErrLegacyMappingInconsistent
+	}
+	if err := l.media.opts.Audit.Record(ctx, l.media.opts.Pool, audit.Entry{OrganizationID: a.OrganizationID, ActorType: "SERVICE", ActorID: actor, Action: "media.legacy_mapping.resolved", ResourceType: "media_object", ResourceID: object.ID, NewValues: map[string]any{"legacyAssetId": legacyID}}); err != nil {
+		return empty, ErrUnavailable
+	}
+	return adminmedia.LegacyMapping{ContractVersion: adminmedia.LegacyMappingContract, LegacyAssetID: legacyID, MediaObjectID: object.ID, AttestationDigest: digest}, nil
+}

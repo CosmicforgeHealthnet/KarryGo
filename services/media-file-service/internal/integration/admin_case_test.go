@@ -112,8 +112,18 @@ func TestPostgresMediaCaseGrantBindsStaffCaseSubjectScopeAndNativeObject(t *test
 	if b, _, err := f.media.service.ReadContent(context.Background(), f.request.MediaObjectID, g.Token); err == nil || len(b) > 0 {
 		t.Fatal("case token bypassed owner download namespace")
 	}
+	// Section 19: grants are single-use, so the first read above consumed g.
+	// A consumed grant must never be redeemed again.
+	if b, err := f.access.Read(context.Background(), f.actor, f.request, g.ID, g.Token); err == nil || len(b) > 0 {
+		t.Fatal("one-time case grant redeemed twice")
+	}
+	// Each boundary case uses its own fresh grant, so the refusal is caused
+	// by the boundary and not by prior consumption. Afterwards the legitimate
+	// holder must still be able to redeem it: a mismatched attempt neither
+	// consumes nor revokes someone else's grant.
 	for _, name := range []string{"staff", "product", "source permission", "media permission", "role", "purpose", "subject", "case", "object", "zone", "tenant", "token"} {
 		t.Run(name, func(t *testing.T) {
+			g := f.issue(t)
 			actor, q, token := f.actor, f.request, g.Token
 			switch name {
 			case "staff":
@@ -144,15 +154,21 @@ func TestPostgresMediaCaseGrantBindsStaffCaseSubjectScopeAndNativeObject(t *test
 			if b, err := f.access.Read(context.Background(), actor, q, g.ID, token); err == nil || len(b) > 0 {
 				t.Fatal("case grant boundary bypass", name)
 			}
+			f.read(t, g)
 		})
 	}
+	closed := f.issue(t)
 	f.authority.denied = true
-	if b, err := f.access.Read(context.Background(), f.actor, f.request, g.ID, g.Token); err == nil || len(b) > 0 {
+	if b, err := f.access.Read(context.Background(), f.actor, f.request, closed.ID, closed.Token); err == nil || len(b) > 0 {
 		t.Fatal("closed/revoked source case served bytes")
 	}
 	f.authority.denied = false
+	if b, err := f.access.Read(context.Background(), f.actor, f.request, closed.ID, closed.Token); err == nil || len(b) > 0 {
+		t.Fatal("case-closure revocation did not persist")
+	}
+	changed := f.issue(t)
 	f.authority.proof.NativeFingerprint = admincontext.Fingerprint("TEST_ONLY_CHANGED_CASE_RECORD")
-	if b, err := f.access.Read(context.Background(), f.actor, f.request, g.ID, g.Token); err == nil || len(b) > 0 {
+	if b, err := f.access.Read(context.Background(), f.actor, f.request, changed.ID, changed.Token); err == nil || len(b) > 0 {
 		t.Fatal("changed source binding served old grant")
 	}
 }
@@ -261,18 +277,15 @@ func TestPostgresMediaCaseAuditAtomicityImmutabilityAndRevocationAfterKill(t *te
 			t.Fatal("grant evidence mutable")
 		}
 	}
-	// 000008 (case vocabulary / empty legacy adoption) may roll back; the case
-	// ledger migration beneath it must refuse while grant evidence exists.
-	if err := database.RollbackLastMigration(ctx, f.media.pool, migrationsDir); err != nil {
-		t.Fatal("empty legacy adoption tip could not roll back", err)
-	}
+	// The Section 19 tip (000009) holds the immutable redemption written by
+	// the successful read above; rollback must refuse to destroy it.
 	t.Cleanup(func() {
 		if err := database.ApplyMigrations(context.Background(), f.media.pool, migrationsDir); err != nil {
 			t.Errorf("reapply migrations: %v", err)
 		}
 	})
 	if err := database.RollbackLastMigration(ctx, f.media.pool, migrationsDir); err == nil {
-		t.Fatal("populated case evidence destroyed by rollback")
+		t.Fatal("populated case redemption evidence destroyed by rollback")
 	}
 }
 func TestPostgresMediaCaseExpiryAndPolicyRollbackCannotRestoreAccess(t *testing.T) {

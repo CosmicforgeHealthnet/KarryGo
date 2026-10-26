@@ -16,8 +16,12 @@ func RegisterUploadRoutes(group *gin.RouterGroup, uploadService *uploadusecases.
 	// compatibility alias while preserving the established media-files API.
 	protected.POST("../media/upload", handler.Upload)
 	protected.GET("/files/:id", handler.GetFile)
+	protected.GET("/files/:id/content", handler.OwnerContent)
 	protected.GET("/files", handler.ListFiles)
 	protected.DELETE("/files/:id", handler.DeleteFile)
 
+	// Unauthenticated by design for profile photos only. Every other legacy
+	// purpose answers not-found here unless
+	// MEDIA_LEGACY_PUBLIC_SENSITIVE_DOWNLOAD_ENABLED is set (Section 19).
 	group.GET("/:id/download", handler.Download)
 }

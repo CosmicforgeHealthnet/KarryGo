@@ -43,9 +43,9 @@ func TestPostgresMediaCasePrivateHTTPAndTypedClientEnforceActorScopeAndReplay(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if body, err := client.Read(context.Background(), actor, f.request, grant.ID, grant.Token); err != nil || len(body) == 0 {
-		t.Fatal("private case transport failed", err)
-	}
+	// Section 19: a copied grant link/token used by unrelated staff or under
+	// another tenant is refused BEFORE first use and does not spend the
+	// grant; the legitimate holder then redeems it exactly once.
 	other := actor
 	other.Staff = "staff-2"
 	if body, err := client.Read(context.Background(), other, f.request, grant.ID, grant.Token); err == nil || len(body) > 0 {
@@ -55,6 +55,12 @@ func TestPostgresMediaCasePrivateHTTPAndTypedClientEnforceActorScopeAndReplay(t 
 	q.Scope.Tenant = "another-tenant"
 	if body, err := client.Read(context.Background(), actor, q, grant.ID, grant.Token); err == nil || len(body) > 0 {
 		t.Fatal("tenant argument changed native authority")
+	}
+	if body, err := client.Read(context.Background(), actor, f.request, grant.ID, grant.Token); err != nil || len(body) == 0 {
+		t.Fatal("private case transport failed", err)
+	}
+	if body, err := client.Read(context.Background(), actor, f.request, grant.ID, grant.Token); !errors.Is(err, adminmedia.ErrNotFound) || len(body) > 0 {
+		t.Fatal("one-time private case grant redeemed twice over transport", err)
 	}
 	badActor := actor
 	badActor.Permissions = []string{adminmedia.Permission}
@@ -119,15 +125,19 @@ func TestPostgresMediaCasePrivateHTTPAndTypedClientEnforceActorScopeAndReplay(t 
 		t.Fatal(err)
 	}
 	defer killClient.Close()
-	if body, err := killClient.Read(context.Background(), actor, f.request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+	unspent, err := client.Issue(context.Background(), actor, f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body, err := killClient.Read(context.Background(), actor, f.request, unspent.ID, unspent.Token); err == nil || len(body) > 0 {
 		t.Fatal("transport read kill bypassed")
 	}
 	f.authority.denied = true
-	if err := killClient.Revoke(context.Background(), actor, grant.ID, "TEST_ONLY_WITHDRAWAL"); err != nil {
+	if err := killClient.Revoke(context.Background(), actor, unspent.ID, "TEST_ONLY_WITHDRAWAL"); err != nil {
 		t.Fatal("closed case prevented withdrawal", err)
 	}
 	f.authority.denied = false
-	if body, err := client.Read(context.Background(), actor, f.request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+	if body, err := client.Read(context.Background(), actor, f.request, unspent.ID, unspent.Token); err == nil || len(body) > 0 {
 		t.Fatal("withdrawn case token redeemed")
 	}
 }

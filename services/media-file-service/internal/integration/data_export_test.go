@@ -34,7 +34,9 @@ const (
 // would have.
 func newExportFixture(t *testing.T) *mediaFixture {
 	t.Helper()
-	return newMediaFixture(t, fixtureOptions{policy: mediausecases.Policy{
+	// DATA_EXPORT is a Section 19 high-risk purpose: its bytes are released
+	// only after a positive SAFE verdict, so the harness needs a scanner.
+	return newMediaFixture(t, fixtureOptions{scanner: cleanScanner{}, policy: mediausecases.Policy{
 		MaxSizeBytes: 1 << 20,
 		AllowedMIMETypes: []string{"application/pdf", "image/png",
 			"text/csv", "application/x-ndjson"},

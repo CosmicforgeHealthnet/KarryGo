@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"cosmicforge/logistics/services/media-file-service/internal/features/mediaobjects/models"
@@ -114,10 +115,17 @@ func (s *CaseAccessService) assess(ctx context.Context, actor CaseActor, q CaseR
 	}
 	proof, err := s.config.Authority.AuthorizeCase(ctx, actor, q)
 	if err != nil {
+		// A positive refusal by the live case authority (closed case, subject
+		// no longer bound, object no longer owned) is distinguished from an
+		// outage so a read can record it as an immutable revocation. An
+		// unavailable authority is never turned into a revocation.
+		if errors.Is(err, adminpolicy.ErrDenied) || errors.Is(err, ErrNotFound) {
+			return empty, time.Time{}, &caseRefusal{err: err}
+		}
 		return empty, time.Time{}, err
 	}
 	if proof.Facts.Owner != q.CaseOwner || proof.Facts.Reference != q.CaseReference || proof.CaseKind != q.CaseKind || proof.SubjectType != q.SubjectType || proof.SubjectReference != q.SubjectReference || proof.MediaObjectID != q.MediaObjectID || !validCaseHash(proof.NativeFingerprint) || !proof.ExpiresAt.After(now) {
-		return empty, time.Time{}, adminpolicy.ErrDenied
+		return empty, time.Time{}, &caseRefusal{err: adminpolicy.ErrDenied}
 	}
 	for _, v := range []string{proof.ObjectOwnerService, proof.ObjectOwnerType, proof.ObjectOwnerReference, proof.ObjectPurpose, proof.BindingType, proof.BindingID} {
 		if !adminread.Opaque(v) {
@@ -203,12 +211,28 @@ func (s *CaseAccessService) Issue(ctx context.Context, actor CaseActor, q CaseRe
 func (s *CaseAccessService) Read(ctx context.Context, actor CaseActor, q CaseRequest, id, token string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	proof, _, err := s.assess(ctx, actor, q)
-	if err != nil {
-		return nil, err
-	}
 	if parsed, err := uuid.Parse(id); err != nil || parsed.String() != id || len(token) != 43 {
 		return nil, ErrNotFound
+	}
+	// Fail fast: a grant already redeemed or revoked (including a recorded
+	// case-closure revocation) answers before the live case authority is
+	// consulted again. The authoritative re-check below still runs under lock.
+	if s.available() {
+		var spent bool
+		if err := s.media.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM media_admin_case_revocations WHERE grant_id=$1) OR EXISTS(SELECT 1 FROM media_admin_case_redemptions WHERE grant_id=$1)`, id).Scan(&spent); err != nil {
+			return nil, ErrUnavailable
+		}
+		if spent {
+			return nil, ErrNotFound
+		}
+	}
+	proof, _, err := s.assess(ctx, actor, q)
+	if err != nil {
+		var refusal *caseRefusal
+		if errors.As(err, &refusal) {
+			s.recordCaseRefusal(ctx, actor, q, id, token, "CASE_PROOF_REFUSED")
+		}
+		return nil, err
 	}
 	tx, err := s.media.opts.Pool.Begin(ctx)
 	if err != nil {
@@ -219,13 +243,21 @@ func (s *CaseAccessService) Read(ctx context.Context, actor CaseActor, q CaseReq
 	var request []byte
 	var version, objectVersion int64
 	var expires time.Time
-	var revoked bool
-	err = tx.QueryRow(ctx, `SELECT g.token_hash,g.staff_ref,g.request,g.binding_hash,g.policy_id,g.policy_version,g.policy_checksum,g.object_version,g.expires_at,EXISTS(SELECT 1 FROM media_admin_case_revocations r WHERE r.grant_id=g.id) FROM media_admin_case_grants g WHERE g.id=$1 FOR SHARE OF g`, id).Scan(&hash, &staff, &request, &binding, &policyID, &version, &checksum, &objectVersion, &expires, &revoked)
+	var revoked, redeemed bool
+	err = tx.QueryRow(ctx, `SELECT g.token_hash,g.staff_ref,g.request,g.binding_hash,g.policy_id,g.policy_version,g.policy_checksum,g.object_version,g.expires_at,EXISTS(SELECT 1 FROM media_admin_case_revocations r WHERE r.grant_id=g.id),EXISTS(SELECT 1 FROM media_admin_case_redemptions d WHERE d.grant_id=g.id) FROM media_admin_case_grants g WHERE g.id=$1 FOR SHARE OF g`, id).Scan(&hash, &staff, &request, &binding, &policyID, &version, &checksum, &objectVersion, &expires, &revoked, &redeemed)
 	if err != nil {
 		return nil, ErrNotFound
 	}
 	var original CaseRequest
-	if json.Unmarshal(request, &original) != nil || original != q || staff != actor.Delegation.Staff || !hmac.Equal([]byte(hash), []byte(caseTokenHash(id, token))) || revoked || !expires.After(s.media.opts.Now().UTC()) || binding != admincontext.Fingerprint(proof) || policyID != s.config.Policy.ID() || version != s.config.Policy.Version() || checksum != s.config.Policy.Checksum() {
+	holder := json.Unmarshal(request, &original) == nil && original == q && staff == actor.Delegation.Staff && hmac.Equal([]byte(hash), []byte(caseTokenHash(id, token)))
+	if !holder || revoked || redeemed || !expires.After(s.media.opts.Now().UTC()) || policyID != s.config.Policy.ID() || version != s.config.Policy.Version() || checksum != s.config.Policy.Checksum() {
+		return nil, ErrNotFound
+	}
+	if binding != admincontext.Fingerprint(proof) {
+		// The live case record changed since issue: this grant can never be
+		// valid again, so the legitimate holder's read records why.
+		_ = tx.Rollback(ctx)
+		s.recordCaseRefusal(ctx, actor, q, id, token, "CASE_BINDING_CHANGED")
 		return nil, ErrNotFound
 	}
 	object, err := s.object(ctx, tx, q, proof)
@@ -233,6 +265,17 @@ func (s *CaseAccessService) Read(ctx context.Context, actor CaseActor, q CaseReq
 		return nil, err
 	}
 	if object.Version != objectVersion {
+		return nil, ErrNotFound
+	}
+	// One-time redemption (Section 19). The redemption row is written before
+	// the bytes are read and committed together with the audit record, so a
+	// failed read leaves the grant unspent and a concurrent second
+	// redemption blocks on the primary key and then fails.
+	tag, err := tx.Exec(ctx, `INSERT INTO media_admin_case_redemptions(grant_id,staff_ref,redeemed_at) VALUES($1,$2,$3) ON CONFLICT (grant_id) DO NOTHING`, id, staff, s.media.opts.Now().UTC())
+	if err != nil {
+		return nil, ErrUnavailable
+	}
+	if tag.RowsAffected() != 1 {
 		return nil, ErrNotFound
 	}
 	content, err := s.media.opts.Storage.Get(ctx, object.StorageObjectKey)
@@ -283,4 +326,48 @@ func (s *CaseAccessService) Revoke(ctx context.Context, actor CaseActor, id, rea
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// caseRefusal marks a positive refusal by the live case authority, as
+// opposed to an outage. It unwraps to the original error so the transport
+// mapping is unchanged.
+type caseRefusal struct{ err error }
+
+func (r *caseRefusal) Error() string { return r.err.Error() }
+func (r *caseRefusal) Unwrap() error { return r.err }
+
+// recordCaseRefusal writes an explicit, immutable revocation when the
+// legitimate holder of a grant (same staff, same request, valid token) finds
+// the case closed or its proof refused. Later reads then fail fast and the
+// disclosure history shows why. A caller that is not the holder can never
+// revoke someone else's grant this way. Failures here never release bytes;
+// they only leave the grant to be refused again by the live re-check.
+func (s *CaseAccessService) recordCaseRefusal(ctx context.Context, actor CaseActor, q CaseRequest, id, token, reason string) {
+	if s == nil || s.media == nil || s.media.opts.Pool == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	tx, err := s.media.opts.Pool.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	var hash, staff string
+	var raw []byte
+	if err := tx.QueryRow(ctx, `SELECT token_hash,staff_ref,request FROM media_admin_case_grants WHERE id=$1 FOR UPDATE`, id).Scan(&hash, &staff, &raw); err != nil {
+		return
+	}
+	var original CaseRequest
+	if json.Unmarshal(raw, &original) != nil || original != q || staff != actor.Delegation.Staff || !hmac.Equal([]byte(hash), []byte(caseTokenHash(id, token))) {
+		return
+	}
+	tag, err := tx.Exec(ctx, `INSERT INTO media_admin_case_revocations(grant_id,staff_ref,reason_code) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, id, staff, reason)
+	if err != nil || tag.RowsAffected() != 1 {
+		return
+	}
+	if err := s.media.opts.Audit.Record(ctx, tx, audit.Entry{OrganizationID: q.Scope.Organization, ActorType: "STAFF", ActorID: staff, Action: "media.admin_case.revoked_case_closed", ResourceType: "media_admin_case_grant", ResourceID: id, NewValues: map[string]any{"mediaObjectId": q.MediaObjectID, "caseOwner": q.CaseOwner, "caseKind": q.CaseKind, "caseReference": q.CaseReference, "reasonCode": reason}}); err != nil {
+		return
+	}
+	_ = tx.Commit(ctx)
 }

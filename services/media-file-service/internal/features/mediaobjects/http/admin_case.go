@@ -42,6 +42,13 @@ func caseFail(c *gin.Context, status int, code string) {
 	c.JSON(status, gin.H{"error": gin.H{"code": code}})
 }
 func (h *AdminCaseHandler) authenticate(c *gin.Context, enabled bool, out any) (context.Context, context.CancelFunc, bool) {
+	return authenticateBridge(c, enabled && h.access != nil, h.pool, h.secret, "case-access-v1", "media-admin-case-v1:", "case_access_disabled", out)
+}
+
+// authenticateBridge is the shared private Bridge transport check: a single
+// JSON POST with no query, signed by the Bridge caller with its dedicated
+// key, a durable single-use nonce (per route family) and strict decoding.
+func authenticateBridge(c *gin.Context, enabled bool, pool *pgxpool.Pool, secret []byte, family, noncePrefix, disabledCode string, out any) (context.Context, context.CancelFunc, bool) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
@@ -50,8 +57,8 @@ func (h *AdminCaseHandler) authenticate(c *gin.Context, enabled bool, out any) (
 		cancel()
 		return nil, func() {}, false
 	}
-	if !enabled || h.access == nil || h.pool == nil || len(h.secret) < 32 {
-		return fail(503, "case_access_disabled")
+	if !enabled || pool == nil || len(secret) < 32 {
+		return fail(503, disabledCode)
 	}
 	r := c.Request
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -68,16 +75,16 @@ func (h *AdminCaseHandler) authenticate(c *gin.Context, enabled bool, out any) (
 		return fail(413, "request_too_large")
 	}
 	r.Body = io.NopCloser(bytes.NewReader(raw))
-	if _, err := serviceauth.NewVerifier(serviceauth.Secrets{adminmedia.Caller: h.secret}, 30*time.Second).VerifyRequest(r); err != nil {
+	if _, err := serviceauth.NewVerifier(serviceauth.Secrets{adminmedia.Caller: secret}, 30*time.Second).VerifyRequest(r); err != nil {
 		return fail(401, "unauthorized")
 	}
 	nonce := r.Header.Get(serviceauth.HeaderNonce)
 	if !adminread.Opaque(nonce) || nonce != strings.TrimSpace(nonce) {
 		return fail(401, "unauthorized")
 	}
-	nonceHash := sha256.Sum256([]byte("media-admin-case-v1:" + nonce))
+	nonceHash := sha256.Sum256([]byte(noncePrefix + nonce))
 	fingerprint := sha256.Sum256(append([]byte(r.Method+"\x00"+r.URL.Path+"\x00"), raw...))
-	err = repositories.ClaimServiceNonce(ctx, h.pool, adminmedia.Caller+"/case-access-v1", hex.EncodeToString(nonceHash[:]), hex.EncodeToString(fingerprint[:]), time.Now().UTC().Add(10*time.Minute))
+	err = repositories.ClaimServiceNonce(ctx, pool, adminmedia.Caller+"/"+family, hex.EncodeToString(nonceHash[:]), hex.EncodeToString(fingerprint[:]), time.Now().UTC().Add(10*time.Minute))
 	if errors.Is(err, repositories.ErrConflict) {
 		return fail(409, "replay_rejected")
 	}

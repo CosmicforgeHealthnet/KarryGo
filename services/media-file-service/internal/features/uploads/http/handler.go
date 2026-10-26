@@ -161,7 +161,7 @@ func (h *UploadHandler) DeleteFile(c *gin.Context) {
 		return
 	}
 
-	if err := h.uploads.Delete(c.Request.Context(), asset.ID); err != nil {
+	if err := h.uploads.Delete(c.Request.Context(), callerService(c), asset.ID); err != nil {
 		httpx.Abort(c, err)
 		return
 	}
@@ -169,18 +169,53 @@ func (h *UploadHandler) DeleteFile(c *gin.Context) {
 	respondOK(c, gin.H{"deleted": true})
 }
 
+// Download is the unauthenticated legacy route. Only profile photos are
+// served by default (Section 19).
 func (h *UploadHandler) Download(c *gin.Context) {
-	result, err := h.uploads.Download(c.Request.Context(), c.Param("id"))
+	setLegacySecurityHeaders(c)
+	result, err := h.uploads.PublicDownload(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		httpx.Abort(c, err)
 		return
 	}
-	defer result.Reader.Close()
+	writeDownload(c, result)
+}
 
+// OwnerContent serves a legacy asset to its authenticated owner service (and,
+// for partner sessions, only the partner's own files).
+func (h *UploadHandler) OwnerContent(c *gin.Context) {
+	setLegacySecurityHeaders(c)
+	ownerID := ""
+	if callerService(c) == partnerOwnerService {
+		ownerID = partnerID(c)
+	}
+	result, err := h.uploads.OwnerDownload(c.Request.Context(), callerService(c), ownerID, c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	writeDownload(c, result)
+}
+
+// setLegacySecurityHeaders applies before any outcome so error bodies are
+// never sniffed or cached either.
+func setLegacySecurityHeaders(c *gin.Context) {
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "sandbox; default-src 'none'")
+	c.Header("Cache-Control", "private, no-store")
+}
+
+func writeDownload(c *gin.Context, result uploadusecases.DownloadOutput) {
+	defer result.Reader.Close()
 	c.Header("Content-Type", result.ContentType)
 	c.Header("Content-Length", fmt.Sprintf("%d", result.Size))
-	c.Header("Content-Disposition", "inline")
-
+	c.Header("Cache-Control", result.CacheControl)
+	if result.Inline {
+		c.Header("Content-Disposition", "inline")
+	} else {
+		c.Header("Content-Disposition", "attachment")
+		c.Header("Pragma", "no-cache")
+	}
 	if _, err := io.Copy(c.Writer, result.Reader); err != nil {
 		c.Error(err)
 	}

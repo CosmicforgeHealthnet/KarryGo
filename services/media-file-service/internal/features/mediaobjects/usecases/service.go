@@ -1124,7 +1124,8 @@ func (s *Service) AuthorizeDownload(ctx context.Context, caller Caller, id strin
 	if object.AccessExpired(now) {
 		return nil, fmt.Errorf("%w: export retention elapsed", ErrNotDownloadable)
 	}
-	if s.opts.Policy.RequireSafeForDownload && !object.SafetyConfirmed() {
+	// High-risk purposes fail closed regardless of the deployment flag.
+	if models.RequiresSafeVerdict(object.UploadPurpose, s.opts.Policy.RequireSafeForDownload) && !object.SafetyConfirmed() {
 		return nil, fmt.Errorf("%w: safety status %s", ErrNotDownloadable, object.SafetyStatus)
 	}
 
@@ -1184,7 +1185,7 @@ func (s *Service) ReadContent(ctx context.Context, id string, token string) ([]b
 	}
 	// A previously issued token does not freeze the scanner verdict or the
 	// current download policy. Recheck the same SAFE floor before reading bytes.
-	if s.opts.Policy.RequireSafeForDownload && !object.SafetyConfirmed() {
+	if models.RequiresSafeVerdict(object.UploadPurpose, s.opts.Policy.RequireSafeForDownload) && !object.SafetyConfirmed() {
 		return nil, nil, ErrNotDownloadable
 	}
 	if object.AccessExpired(s.opts.Now().UTC()) {

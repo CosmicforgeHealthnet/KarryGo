@@ -65,11 +65,27 @@ func main() {
 	}
 
 	assetRepo := filemetadatarepositories.NewPostgresMediaAssetRepository(db)
+	// Legacy reads of anything but a profile photo are scanned at read time
+	// and fail closed without a scanner (Section 19).
+	var legacyScanner uploadusecases.LegacyScanner
+	if cfg.ScannerAddress != "" {
+		scanner, scannerErr := clamav.New(cfg.ScannerNetwork, cfg.ScannerAddress, cfg.ScannerTimeout, cfg.MaxUploadBytes)
+		if scannerErr != nil {
+			logging.Fatal("scanner", "configure legacy read scanner: %v", scannerErr)
+		}
+		legacyScanner = legacyScanAdapter{scanner: scanner}
+	}
 	uploadService := uploadusecases.NewUploadService(uploadusecases.Options{
-		Storage:        storageClient,
-		Assets:         assetRepo,
-		MaxUploadBytes: cfg.MaxUploadBytes,
+		Storage:                 storageClient,
+		Assets:                  assetRepo,
+		MaxUploadBytes:          cfg.MaxUploadBytes,
+		Governance:              filemetadatarepositories.NewPostgresLegacyGovernance(db),
+		Scanner:                 legacyScanner,
+		PublicSensitiveDownload: cfg.LegacyPublicSensitiveDownload,
 	})
+	if cfg.LegacyPublicSensitiveDownload {
+		logging.Notice("media", "MEDIA_LEGACY_PUBLIC_SENSITIVE_DOWNLOAD_ENABLED=true: legacy documents, proof images and signatures are publicly downloadable by id")
+	}
 
 	mediaService, privateStorage, err := buildPrivateMediaService(cfg, db, storageClient)
 	if err != nil {
@@ -94,6 +110,13 @@ func main() {
 	adoptionHandler, err := mediahttp.LegacyAdoptionRuntime(mediaService, db, storageClient, cfg.FirebaseBucket, cfg.MaxUploadBytes, adoptionOthers)
 	if err != nil {
 		logging.Fatal("media", "legacy adoption configuration refused")
+	}
+
+	// Private Bridge lookup of adopted legacy mappings;
+	// MEDIA_LEGACY_MAPPING_LOOKUP_ENABLED defaults false.
+	mappingHandler, err := mediahttp.LegacyMappingRuntime(ctx, mediaService, db, cfg.DownloadSecret, caseLegacyCredentials)
+	if err != nil {
+		logging.Fatal("media", "legacy mapping configuration refused")
 	}
 
 	var workers []func(context.Context) error
@@ -161,6 +184,7 @@ func main() {
 		RegisterRoot: func(root *gin.Engine) {
 			caseHandler.Register(root)
 			adoptionHandler.Register(root)
+			mappingHandler.Register(root)
 		},
 		Workers: workers,
 	})
@@ -245,4 +269,16 @@ func logConnectivity(ctx context.Context, databaseURL string, db interface{ Ping
 	} else {
 		logging.Success("database", "connected url=%s", databaseURL)
 	}
+}
+
+// legacyScanAdapter lets the legacy upload feature use the ClamAV scanner
+// without depending on the private media contract's types.
+type legacyScanAdapter struct{ scanner mediausecases.Scanner }
+
+func (a legacyScanAdapter) ScanLegacy(ctx context.Context, assetID string, content []byte) (bool, error) {
+	result, err := a.scanner.Scan(ctx, "legacy:"+assetID, content)
+	if err != nil {
+		return false, err
+	}
+	return result.Safe, nil
 }

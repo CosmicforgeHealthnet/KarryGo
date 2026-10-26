@@ -953,7 +953,10 @@ func TestExistingDownloadGrantRechecksCurrentSafetyPolicy(t *testing.T) {
 					t.Fatal(err)
 				}
 				data, _, err := f.service.ReadContent(context.Background(), id, token)
-				blocked := state == mediamodels.SafetyUnsafe || state == mediamodels.SafetyQuarantined || requireSafe && state != mediamodels.SafetySafe
+				// COMPANY_DOCUMENT is a Section 19 high-risk purpose: it fails
+				// closed on PENDING/UNKNOWN even when the policy flag is off.
+				requiresSafe := mediamodels.RequiresSafeVerdict(mediamodels.PurposeCompanyDocument, requireSafe)
+				blocked := state == mediamodels.SafetyUnsafe || state == mediamodels.SafetyQuarantined || requiresSafe && state != mediamodels.SafetySafe
 				if blocked {
 					if !errors.Is(err, mediausecases.ErrNotDownloadable) || len(data) != 0 {
 						t.Fatalf("existing grant bypassed current policy: state=%s error=%v bytes=%d", state, err, len(data))

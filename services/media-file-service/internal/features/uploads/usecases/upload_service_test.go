@@ -250,3 +250,22 @@ func (s *recordingStorage) Upload(ctx context.Context, input uploadclients.Uploa
 	s.public = input.Public
 	return s.fakeStorage.Upload(ctx, input)
 }
+
+// Section 19: owner_id is a storage path segment and must be opaque, and new
+// signature uploads may not be SVG (active content).
+func TestUploadRejectsPathManipulationAndSVGSignatures(t *testing.T) {
+	service := NewUploadService(Options{Storage: &fakeStorage{}, Assets: newFakeAssetRepository(), MaxUploadBytes: 1024})
+	for _, owner := range []string{"../x", "..", "a/b", `a\b`, "a b", ".x", "x..y", "x\n"} {
+		_, err := service.Upload(context.Background(), UploadInput{
+			CallerService: "driver-taxi-service", OwnerService: "driver-taxi-service", OwnerID: owner,
+			Purpose: "proof_image", OriginalFilename: "p.jpg", ContentType: "image/jpeg", Body: bytes.NewReader(jpegBytes()),
+		})
+		assertValidation(t, err)
+	}
+	_, err := service.Upload(context.Background(), UploadInput{
+		CallerService: "driver-taxi-service", OwnerService: "driver-taxi-service", OwnerID: "trip-1",
+		Purpose: "signature", OriginalFilename: "s.svg", ContentType: "image/svg+xml",
+		Body: bytes.NewReader([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>`)),
+	})
+	assertValidation(t, err)
+}

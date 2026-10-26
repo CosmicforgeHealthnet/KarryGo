@@ -158,6 +158,15 @@ func TestPostgresMediaNativeCustomerCaseMembershipAndModernEvidence(t *testing.T
 			}
 		})
 	}
+	// Section 19: the first grant is now spent. An unspent grant carries the
+	// later checks so each refusal is caused by the condition under test.
+	spare, err := client.Issue(ctx, actor, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body, err := client.Read(ctx, actor, request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+		t.Fatal("one-time grant redeemed twice")
+	}
 	// Source immutable audit failure blocks both minting and existing redemption.
 	if _, err := sourcePool.Exec(ctx, `CREATE FUNCTION fail_case_audit()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.outcome='CASE_SUBJECT_AUTHORIZED' THEN RAISE EXCEPTION 'test audit unavailable';END IF;RETURN NEW;END$$;CREATE TRIGGER fail_case_audit BEFORE INSERT ON admin_owner_read_audit FOR EACH ROW EXECUTE FUNCTION fail_case_audit()`); err != nil {
 		t.Fatal(err)
@@ -165,7 +174,7 @@ func TestPostgresMediaNativeCustomerCaseMembershipAndModernEvidence(t *testing.T
 	if _, err := client.Issue(ctx, actor, request); err == nil {
 		t.Fatal("grant despite failed owner audit")
 	}
-	if body, err := client.Read(ctx, actor, request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+	if body, err := client.Read(ctx, actor, request, spare.ID, spare.Token); err == nil || len(body) > 0 {
 		t.Fatal("disclosure despite failed owner audit")
 	}
 	if _, err := sourcePool.Exec(ctx, `DROP TRIGGER fail_case_audit ON admin_owner_read_audit;DROP FUNCTION fail_case_audit()`); err != nil {
@@ -174,19 +183,20 @@ func TestPostgresMediaNativeCustomerCaseMembershipAndModernEvidence(t *testing.T
 	caseAllocation.Revision++
 	caseAllocation.State = "REVOKED"
 	publish(caseBase, "case-publisher", caseAllocation)
-	if body, err := client.Read(ctx, actor, request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+	if body, err := client.Read(ctx, actor, request, spare.ID, spare.Token); err == nil || len(body) > 0 {
 		t.Fatal("revoked owner allocation served old grant")
 	}
 	caseAllocation.Revision++
 	caseAllocation.State = "APPROVED"
 	publish(caseBase, "case-publisher", caseAllocation)
+	var beforeClose adminmedia.Grant
 	for i, action := range []string{"ACKNOWLEDGE", "CLOSE"} {
 		_, err := reviews.TransitionWorkItem(ctx, q, customerreview.WorkItemCommand{ContractVersion: customerreview.WorkItemContract, OperationID: uuid.NewString(), ReviewRequestID: receipt.ReviewRequestID, CustomerID: customer, ExpectedVersion: int64(i + 1), Action: action, IdempotencyKey: "transition-" + action, ReasonCode: "SUPPORT_REVIEW", RequestedAt: time.Now().UTC()})
 		if err != nil {
 			t.Fatal("native review transition", err)
 		}
 		if action == "ACKNOWLEDGE" {
-			if body, err := client.Read(ctx, actor, request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+			if body, err := client.Read(ctx, actor, request, spare.ID, spare.Token); err == nil || len(body) > 0 {
 				t.Fatal("changed native case revision retained old grant")
 			}
 			current, err := client.Issue(ctx, actor, request)
@@ -196,12 +206,15 @@ func TestPostgresMediaNativeCustomerCaseMembershipAndModernEvidence(t *testing.T
 			if body, err := client.Read(ctx, actor, request, current.ID, current.Token); err != nil || !bytes.Equal(body, payload) {
 				t.Fatal("acknowledged native case unavailable", err)
 			}
+			if beforeClose, err = client.Issue(ctx, actor, request); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	if _, err := client.Issue(ctx, actor, request); err == nil {
 		t.Fatal("closed native case minted evidence grant")
 	}
-	if body, err := client.Read(ctx, actor, request, grant.ID, grant.Token); err == nil || len(body) > 0 {
+	if body, err := client.Read(ctx, actor, request, beforeClose.ID, beforeClose.Token); err == nil || len(body) > 0 {
 		t.Fatal("closed native case served old grant")
 	}
 	if err := client.Revoke(ctx, actor, grant.ID, "CASE_CLOSED"); err != nil {
