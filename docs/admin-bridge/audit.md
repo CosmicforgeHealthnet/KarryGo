@@ -1,5 +1,7 @@
 # Sections 2–5 audit (2026-10-18)
 
+> **Historical (superseded 26 October 2026).** The baseline gap matrix below reflects 18 October. Current gaps and blockers: `sections-16-38-final-report.md` §E and `a-z-final-capability-traceability.json` (`not_shipped`).
+
 Fetched `origin/staging` before editing. HEAD and previously audited commit are
 both `1f4ff09380f6e9bf74a9f7cc6dbfaab9e85efe95`; the intervening diff is empty.
 Working tree was clean. Implementation branch: `codex/secure-admin-sections-2-5`.

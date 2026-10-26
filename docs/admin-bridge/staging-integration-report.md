@@ -1,5 +1,15 @@
 # Secure Admin staging integration — current backend status
 
+## Sections 16–38 update — 26 October 2026
+
+**Sections 16–38: `BACKEND_INTEGRATION_READY`** (all new capabilities default-disabled; not
+END_TO_END_CERTIFIED, not PRODUCTION_READY). Current record:
+[`sections-16-38-final-report.md`](sections-16-38-final-report.md); runbooks
+[`sections-16-38-runbook.md`](sections-16-38-runbook.md); gates
+[`a-z-final-security-and-release-gates.md`](a-z-final-security-and-release-gates.md);
+traceability [`a-z-final-capability-traceability.json`](a-z-final-capability-traceability.json).
+The records below (23–25 October) are kept unchanged as history.
+
 ## Final closure record — 23 October 2026
 
 **Sections 6–10: CLOSED — BACKEND_FUNCTIONALLY_COMPLETE.**

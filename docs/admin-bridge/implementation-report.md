@@ -1,5 +1,7 @@
 # Sections 2–5 implementation and handover
 
+> **Historical (superseded 26 October 2026).** Current status: `sections-16-38-final-report.md`.
+
 Decision: **PARTIAL_BLOCKED** pending real HQ/VPS acceptance, reference PDF review,
 approved per-action high-risk policy, and scoped domain adapters. The KarryGo-side
 security/contract foundation is functional and ready for subsequent owner adapter
