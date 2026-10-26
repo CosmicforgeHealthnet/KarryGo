@@ -18,6 +18,9 @@ import (
 	financeintegration "cosmicforge/logistics/services/payment-wallet-service/internal/features/finance/integration"
 	financerepositories "cosmicforge/logistics/services/payment-wallet-service/internal/features/finance/repositories"
 	financeusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/finance/usecases"
+	financereporthttp "cosmicforge/logistics/services/payment-wallet-service/internal/features/financereports/http"
+	financereportrepositories "cosmicforge/logistics/services/payment-wallet-service/internal/features/financereports/repositories"
+	financereportusecases "cosmicforge/logistics/services/payment-wallet-service/internal/features/financereports/usecases"
 	walletclients "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/clients"
 	wallethttp "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/http"
 	walletrepositories "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/repositories"
@@ -96,6 +99,12 @@ func main() {
 	}, "PAYMENT_WALLET")
 	if adminErr != nil {
 		log.Fatalf("configure Wallet private Admin command boundary: %v", adminErr)
+	}
+	// Section 26: read-only group finance report for admin-backoffice-service.
+	// Off by default (503); enabling it requires a dedicated secret file.
+	financeReports, adminErr := financereporthttp.FromEnvironment(db, financereportusecases.Service{Reader: financereportrepositories.New(db)})
+	if adminErr != nil {
+		log.Fatalf("configure Wallet admin finance report boundary: %v", adminErr)
 	}
 
 	// The payment flow mirrors every job payment transition into the
@@ -233,6 +242,7 @@ func main() {
 		RegisterRoot: func(router *gin.Engine) {
 			walletAdmin.RegisterOn(router.Group(""))
 			walletCommands.Register(router)
+			financeReports.Register(router)
 		},
 		Workers: workers,
 	})

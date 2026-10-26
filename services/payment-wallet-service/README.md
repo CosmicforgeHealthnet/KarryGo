@@ -180,3 +180,47 @@ failure reason in payloads. The Notification service's production templates
 are in migration `007_customer_wallet_templates.sql`. Deployment must configure
 `PAYMENT_WALLET_NOTIFICATION_URL` and `PAYMENT_WALLET_NOTIFICATION_SECRET` to
 drain the outbox; without them, committed intents remain pending.
+
+## Group finance reporting (Section 26)
+
+`GET /internal/payment-wallet/v1/admin/finance-reports?period_start=&period_end=&timezone=`
+returns the `karryam.finance-report.v1` contract (`shared/go/financereport`) to
+**admin-backoffice-service only**. It is reporting, never control: read-only
+aggregate SQL, no ledger writes, no new money path.
+
+- **Boundary:** `PAYMENT_WALLET_ADMIN_FINANCE_REPORT_ENABLED` (default `false` → 503).
+  When on, `PAYMENT_WALLET_ADMIN_FINANCE_REPORT_SECRET_FILE` must hold a raw
+  base64url secret of ≥32 bytes that differs from every other
+  `PAYMENT_WALLET_ADMIN_*_SECRET_FILE` (startup fails otherwise). HMAC v2 via
+  `shared/go/serviceauth`, 30s skew, caller exactly `admin-backoffice-service`
+  (else 403), single-use nonce stored in `admin_owner_read_nonces` under owner
+  `payment-wallet-service:finance-report` (replay → 409), `Cache-Control: no-store`.
+- **Request:** `period_start`/`period_end` are UTC instants (RFC 3339, `Z`),
+  half-open `[start, end)`, at most 93 days; `timezone` is a required IANA name
+  recording which local calendar the caller used.
+- **Consistency:** one `REPEATABLE READ, READ ONLY` transaction. `data_as_of` is
+  `clock_timestamp()` of its first statement; window measures cover
+  `[period_start, min(period_end, data_as_of))` and an open period makes the
+  report `PARTIAL_COVERAGE` (`period_not_closed`). `source_watermark` is the
+  latest timestamp of any contributing row ≤ `data_as_of` (or `data_as_of` when
+  nothing contributed). `aggregation_version` = `wallet-finance-report.v1`.
+- **Measures** (per currency, never summed across currencies; exact SQL in
+  `internal/features/financereports/repositories`, pinned to the published
+  definitions by a test):
+
+| Measure | Source and timestamp |
+|---|---|
+| gross_transaction_value | job/commerce intents (`amount_kobo`, commerce `final_authorized_minor`) at their first funding posting (`wallet_payment_hold`, `paystack_charge_success`, `commerce_payment_hold`); top-ups excluded. NOT revenue. |
+| net_platform_fee | credits − debits on `platform_revenue` ledger accounts by posting time; reversals subtract once. `SOURCE_FIGURE_RECOGNITION_POLICY_PENDING` — no recognition policy exists. |
+| provider_earned | credits on `provider_payable` (excluding `withdrawal_*`), gross of later reversals. |
+| successful_settlements | intents released by `job_settlement` / `managed_work_settlement`; commerce allocation releases mark it partial. |
+| pending_payouts | `withdrawals` pending/processing/requires_otp + non-terminal `finance_provider_withdrawals`, at `data_as_of`. |
+| refunds | processed legacy refunds (at their processed posting), COMPLETED `finance_refunds` (`completed_at`), APPLIED commerce partial refunds. |
+| pending_liabilities | ledger balance of `job_escrow` + `commerce_escrow` at `data_as_of`; negative → unknown. |
+| reconciled_transactions | Paystack events matched to one intent/withdrawal/refund, processed without error in the window. |
+| unreconciled_transactions | matched events unprocessed/errored + OPEN managed-settlement reconciliations; **null with reason** when no COMPLETED reconciliation run exists or any currency-less open item (unmatched event, open finding) exists. |
+
+Unknown is always `null` with `unknown_reason`, never 0. The response contains
+aggregates only — no customer, provider, organization or account identifiers.
+The corporate `finance_*` journal ledger (organization wallets, payroll) is not
+in these measures.

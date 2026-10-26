@@ -1,0 +1,60 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Payment-Wallet group finance report (Section 26)",
+    "version": "wallet-finance-report.v1",
+    "description": "Private, read-only aggregate finance report for admin-backoffice-service. HMAC v2 (shared/go/serviceauth) with a dedicated secret; caller must be exactly admin-backoffice-service; each nonce is single-use. Disabled (503) unless PAYMENT_WALLET_ADMIN_FINANCE_REPORT_ENABLED=true. Figures are integer minor units per currency; none is recognized revenue. No customer, provider, organization or account identifier is ever returned."
+  },
+  "paths": {
+    "/internal/payment-wallet/v1/admin/finance-reports": {
+      "get": {
+        "operationId": "getGroupFinanceReport",
+        "security": [{"serviceHmacV2": []}],
+        "parameters": [
+          {"name": "period_start", "in": "query", "required": true, "schema": {"type": "string", "format": "date-time"}, "description": "UTC instant (RFC 3339, Z suffix), inclusive."},
+          {"name": "period_end", "in": "query", "required": true, "schema": {"type": "string", "format": "date-time"}, "description": "UTC instant (RFC 3339, Z suffix), exclusive. At most 93 days after period_start."},
+          {"name": "timezone", "in": "query", "required": true, "schema": {"type": "string"}, "description": "IANA timezone the caller used to choose the boundaries."}
+        ],
+        "responses": {
+          "200": {
+            "description": "karryam.finance-report.v1 report. Cache-Control: no-store.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Report"}}}
+          },
+          "400": {"description": "Invalid query (unknown/duplicate parameter, non-UTC instant, window empty or over 93 days, unknown timezone).", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "401": {"description": "Missing or invalid HMAC v2 signature.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "Caller is not admin-backoffice-service.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "Nonce replayed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "Feature disabled, replay protection or source read unavailable.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceHmacV2": {"type": "apiKey", "in": "header", "name": "X-Service-Signature", "description": "With X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature-Version, each exactly once."}
+    },
+    "schemas": {
+      "Error": {"type": "object", "properties": {"error": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}}, "required": ["error"]},
+      "Definition": {"type": "object", "properties": {"measure": {"type": "string"}, "source_field": {"type": "string"}, "calculation": {"type": "string"}, "recognition": {"type": "string", "enum": ["NOT_REVENUE", "SOURCE_FIGURE_RECOGNITION_POLICY_PENDING", "RECOGNIZED_BY_APPROVED_POLICY"]}, "correction": {"type": "string"}}},
+      "Figure": {"type": "object", "properties": {"measure": {"type": "string"}, "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}, "amount_minor": {"type": ["integer", "null"], "format": "int64"}, "count": {"type": ["integer", "null"], "format": "int64"}, "completeness": {"type": "string", "enum": ["COMPLETE", "PARTIAL_COVERAGE"]}, "unknown_reason": {"type": "string"}}},
+      "Report": {
+        "type": "object",
+        "properties": {
+          "contract_version": {"type": "string", "const": "karryam.finance-report.v1"},
+          "owner": {"type": "string", "const": "payment-wallet-service"},
+          "period_start": {"type": "string", "format": "date-time"},
+          "period_end": {"type": "string", "format": "date-time"},
+          "timezone": {"type": "string"},
+          "data_as_of": {"type": "string", "format": "date-time"},
+          "source_watermark": {"type": "string", "format": "date-time"},
+          "aggregation_version": {"type": "string", "const": "wallet-finance-report.v1"},
+          "unit": {"type": "string", "const": "MINOR_UNITS"},
+          "definitions": {"type": "array", "items": {"$ref": "#/components/schemas/Definition"}},
+          "figures": {"type": "array", "items": {"$ref": "#/components/schemas/Figure"}},
+          "completeness": {"type": "string", "enum": ["COMPLETE", "PARTIAL_COVERAGE"]},
+          "error_reason": {"type": "string"}
+        }
+      }
+    }
+  }
+}
