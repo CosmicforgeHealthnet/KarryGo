@@ -1,29 +1,56 @@
 # Independent bridge lifecycle. No public Gateway network or domain DB access.
+#
+# Section 29 topology (validated in CI by scripts/release/test_admin_exposure.py
+# and scripts/admin-bridge/validate.py; see deploy/platform/README-admin-exposure.md):
+#
+#   admin-ingress  non-internal bridge whose ONLY job is to let Docker publish
+#                  the private mTLS listener on ADMIN_PRIVATE_BIND_IP:8110.
+#                  Docker cannot publish a port of a container attached only to
+#                  an `internal: true` network, so the listener needs one
+#                  non-internal network. Masquerade is disabled (no internet
+#                  egress through NAT), inter-container traffic is disabled and
+#                  the default host binding is the private bind IP, never
+#                  0.0.0.0. Only `app` is attached.
+#   admin-private  internal-only network (no gateway, no egress, no published
+#                  ports) shared by app, its PostgreSQL and the migration tool.
+#
+# Nothing here joins karrygo-net or the public api-gateway network.
 name: karrygo-admin-backoffice-service
 services:
   app:
     image: ${IMAGE:?IMAGE must be an immutable certified image}
     container_name: karrygo-admin-backoffice-service
+    # The image's non-root `cosmicforge` account (alpine `adduser -S` after
+    # `addgroup -S`: uid 100, gid 101). Explicit here so a rebuilt image can
+    # never silently run as root; secret files must be owned by this uid.
+    user: "100:101"
     env_file:
       - /opt/karrygo/admin-backoffice-service/admin.env
     environment:
       ADMIN_TLS_ADDR: ":8110"
     ports:
       # Only an approved VPN address may replace this loopback default.
+      # The host address is always explicit; there is no 0.0.0.0 form.
       - "${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}:8110:8110"
-    networks: [admin-private]
+    networks: [admin-ingress, admin-private]
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    # Docker's default seccomp profile applies because none is overridden
+    # (never "seccomp=unconfined"); docker-default is the stock AppArmor
+    # profile on the Ubuntu host.
+    security_opt: ["no-new-privileges:true", "apparmor=docker-default"]
     pids_limit: 128
     mem_limit: 256m
+    memswap_limit: 256m
     cpus: 0.5
+    ulimits:
+      nofile: {soft: 4096, hard: 8192}
     stop_grace_period: 30s
-    tmpfs: ["/tmp:rw,noexec,nosuid,size=8m"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=8m"]
     volumes:
       - /opt/karrygo/admin-backoffice-service/secrets/server.crt:/run/admin-secrets/server.crt:ro
       - /opt/karrygo/admin-backoffice-service/secrets/server.key:/run/admin-secrets/server.key:ro
@@ -43,10 +70,26 @@ services:
     container_name: karrygo-admin-db
     env_file:
       - /opt/karrygo/admin-backoffice-service/db.env
+    # Internal-only: never published, never on admin-ingress.
     networks: [admin-private]
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:rw,nosuid,nodev,size=1m
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
     volumes: ["admin-data:/var/lib/postgresql/data"]
+    # The entrypoint runs as root only to chown the data/socket directories and
+    # drop to the postgres user (su-exec); these are exactly the capabilities
+    # that needs. Everything else is dropped.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true", "apparmor=docker-default"]
+    pids_limit: 128
     mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    shm_size: 64m
+    stop_grace_period: 60s
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
@@ -58,16 +101,34 @@ services:
   migrate:
     image: ${IMAGE:?IMAGE must be an immutable certified image}
     profiles: [tools]
+    user: "100:101"
     command: ["--migrate"]
     env_file:
       - /opt/karrygo/admin-backoffice-service/admin.migrate.env
     networks: [admin-private]
     read_only: true
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    security_opt: ["no-new-privileges:true", "apparmor=docker-default"]
     pids_limit: 64
     mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.5
+    restart: "no"
 networks:
+  admin-ingress:
+    # Not internal (Docker publishes ports only from non-internal networks),
+    # but deliberately inert: no NAT egress, no inter-container traffic, and a
+    # private default binding. Fixed subnet so the host firewall candidate can
+    # name it; override ADMIN_INGRESS_SUBNET if it collides on the host.
+    driver: bridge
+    internal: false
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.enable_icc: "false"
+      com.docker.network.bridge.host_binding_ipv4: ${ADMIN_PRIVATE_BIND_IP:-127.0.0.1}
+    ipam:
+      config:
+        - subnet: ${ADMIN_INGRESS_SUBNET:-172.31.110.0/28}
   admin-private:
     internal: true
 volumes:

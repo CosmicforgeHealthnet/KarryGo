@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Blocks internet access to KarryGo container ports that are published on all
-# addresses, without restarting anything. Run as root.
+# addresses, without restarting anything.
 #
-#   close-public-ports.sh            block them now and keep them blocked after reboots
-#   close-public-ports.sh --check    show whether the block is in place
-#   close-public-ports.sh --undo     remove the block
+#   close-public-ports.sh              DRY RUN (default): print the rules, change nothing
+#   close-public-ports.sh --apply      block them now and keep them blocked after reboots (root)
+#   close-public-ports.sh --check      show whether the block is in place (root)
+#   close-public-ports.sh --undo       remove the block (root)
+#   close-public-ports.sh --list-ports print the protected host ports, one per line
 #
 # Why this is needed: Docker writes its own firewall rules, which run BEFORE
 # Ubuntu's firewall (ufw). A port published as "4100:8080" is therefore open to
@@ -13,23 +15,79 @@
 #
 # Traffic from the server itself (nginx -> 127.0.0.1:4100) is not affected,
 # because only packets arriving on the public network interface are dropped.
+# Outbound traffic is not affected either: replies to connections the server or
+# a container opened are conntrack direction REPLY, and only ORIGINAL-direction
+# packets are matched. SSH (22), HTTP (80) and HTTPS (443) are never in the list
+# (the script refuses to run if they ever are).
 # Once a service is adopted under its compose file it is published on
-# 127.0.0.1 only and this block becomes a second layer of safety.
+# 127.0.0.1 only and this block becomes a second layer of safety. Host-native
+# listeners (not Docker) are governed by ufw's INPUT policy, not by this chain.
+#
+# Idempotent: every rule is checked (-C) before it is inserted, and --undo
+# removes every copy. Section 29 candidate: authoring this file applies nothing.
 set -euo pipefail
 
-# host port -> what it is
-PORTS=(4100 4101 4103)   # api-gateway, media-file-service, dispatch
+# Host ports (or first:last ranges) that must never be reachable from the
+# internet. Section 20/29 additions: 8110 (private admin bridge listener), the
+# Go service ports 8101-8116, the per-service PostgreSQL ports 5432-5451 and
+# Redis ports 6379-6391 used by the local/staging layout, and 8080 (gateway's
+# container port, should it ever be published directly).
+PORTS=(4100 4101 4103 8080 8110 8101:8116 5432:5451 6379:6391)
+NEVER_BLOCK=(22 80 443)
 COMMENT="karrygo-close-public-ports"
 UNIT=/etc/systemd/system/karrygo-close-public-ports.service
 
+guard_ports() {
+  local spec low high never
+  for spec in "${PORTS[@]}"; do
+    low="${spec%%:*}"; high="${spec##*:}"
+    [[ "$low" =~ ^[0-9]+$ && "$high" =~ ^[0-9]+$ && "$low" -le "$high" ]] || { echo "invalid port spec $spec" >&2; exit 2; }
+    for never in "${NEVER_BLOCK[@]}"; do
+      if [ "$never" -ge "$low" ] && [ "$never" -le "$high" ]; then
+        echo "refusing: $spec would block management/web port $never" >&2; exit 2
+      fi
+    done
+  done
+}
+guard_ports
+
+mode="${1:-}"
+case "$mode" in
+  ""|--dry-run|--apply|--apply-only|--check|--undo|--list-ports) ;;
+  *) echo "usage: $0 [--dry-run|--apply|--check|--undo|--list-ports]" >&2; exit 2 ;;
+esac
+
+if [ "$mode" = --list-ports ]; then
+  printf '%s\n' "${PORTS[@]}"
+  exit 0
+fi
+
+detect_ext_if() {
+  command -v ip >/dev/null 2>&1 || return 0
+  ip route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }'
+}
+
+if [ "$mode" = "" ] || [ "$mode" = --dry-run ]; then
+  ext_if="$(detect_ext_if)"
+  ext_if="${ext_if:-<public-interface>}"
+  echo "DRY RUN: nothing is changed. Re-run with --apply (as root) to insert these rules."
+  for p in "${PORTS[@]}"; do
+    echo "iptables -I DOCKER-USER -i $ext_if -p tcp -m conntrack --ctorigdstport $p --ctdir ORIGINAL -m comment --comment $COMMENT -j DROP"
+  done
+  echo "(the same rules are mirrored to ip6tables when Docker manages an IPv6 DOCKER-USER chain)"
+  echo "never blocked: ${NEVER_BLOCK[*]} and all outbound traffic"
+  exit 0
+fi
+
 [ "$(id -u)" = 0 ] || { echo "run as root (sudo)" >&2; exit 1; }
 
-ext_if="$(ip route get 1.1.1.1 | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')"
+ext_if="$(detect_ext_if)"
 [ -n "$ext_if" ] || { echo "could not find the public network interface" >&2; exit 1; }
 
 # After Docker's address translation the packet's port is the CONTAINER port,
-# so match on the ORIGINAL destination port that the visitor used.
-rule_args() { # port
+# so match on the ORIGINAL destination port that the visitor used. A spec may
+# be a single port or a first:last range (conntrack accepts both).
+rule_args() { # port or first:last
   echo "-i $ext_if -p tcp -m conntrack --ctorigdstport $1 --ctdir ORIGINAL -m comment --comment $COMMENT -j DROP"
 }
 
@@ -96,10 +154,9 @@ UNITFILE
   echo "Will be re-applied automatically after every reboot ($UNIT)"
 }
 
-case "${1:-}" in
-  "") apply; install_unit ;;
+case "$mode" in
+  --apply) apply; install_unit ;;
   --apply-only) apply ;;
   --check) check ;;
   --undo) undo ;;
-  *) echo "usage: $0 [--check|--undo]" >&2; exit 2 ;;
 esac

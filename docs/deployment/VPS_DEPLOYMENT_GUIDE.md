@@ -192,7 +192,8 @@ over plain HTTP, skipping nginx's padlock and its "block private pages" rules.
 working because it talks to these ports from *inside* the server.
 
 ```bash
-sudo bash /opt/karrygo/platform/bin/close-public-ports.sh
+sudo bash /opt/karrygo/platform/bin/close-public-ports.sh            # dry run: prints the plan only
+sudo bash /opt/karrygo/platform/bin/close-public-ports.sh --apply    # applies the DOCKER-USER drops (now also 8110 and internal ports)
 sudo bash /opt/karrygo/platform/bin/close-public-ports.sh --check
 ```
 

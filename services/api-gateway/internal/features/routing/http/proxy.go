@@ -106,6 +106,13 @@ func (e *Edge) Handle(c *gin.Context) {
 		notFound(c)
 		return
 	}
+	if requestsUpgrade(c.Request) && !upgradeAllowed(c.Request, route) {
+		// A protocol switch is only ever carried to an allowlisted websocket
+		// endpoint. Anything else is refused here, before an upstream (or
+		// its breaker) is touched, exactly like an unknown path.
+		notFound(c)
+		return
+	}
 	upstream, ok := e.upstreams[route.Upstream]
 	if !ok {
 		notFound(c)
@@ -175,6 +182,10 @@ func (e *Edge) reverseProxy(upstream *Upstream, transport http.RoundTripper) *ht
 				}
 			}
 			r.SetXForwarded()
+			// The inbound Host is client-chosen (including absolute-form
+			// request targets) and no upstream needs it. Never relay it as a
+			// platform-asserted header.
+			r.Out.Header.Del("X-Forwarded-Host")
 			correlation, _ := r.In.Context().Value(correlationKey{}).(string)
 			if correlation != "" {
 				r.Out.Header.Set(HeaderRequestID, correlation)
@@ -226,6 +237,38 @@ func wellFormed(id string) bool {
 
 func isUpgrade(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+}
+
+// requestsUpgrade reports any attempt to switch protocols: an Upgrade header
+// of any value (websocket, h2c, ...) or an "upgrade" Connection token.
+func requestsUpgrade(r *http.Request) bool {
+	if len(r.Header.Values("Upgrade")) > 0 {
+		return true
+	}
+	for _, value := range r.Header.Values("Connection") {
+		for _, token := range strings.Split(value, ",") {
+			if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// upgradeAllowed admits exactly one shape: GET, a single "websocket" Upgrade
+// value, on an allowlisted endpoint owned by the route's upstream.
+func upgradeAllowed(r *http.Request, route models.Route) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	if values := r.Header.Values("Upgrade"); len(values) != 1 || !strings.EqualFold(strings.TrimSpace(values[0]), "websocket") {
+		return false
+	}
+	if r.URL.RawPath != "" && r.URL.RawPath != r.URL.Path {
+		return false // encoded characters in a websocket path are never legitimate
+	}
+	endpoint, ok := models.WebsocketEndpointFor(r.URL.Path)
+	return ok && endpoint.Upstream == route.Upstream
 }
 
 func notFound(c *gin.Context) {

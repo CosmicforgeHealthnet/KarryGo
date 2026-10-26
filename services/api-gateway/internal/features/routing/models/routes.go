@@ -181,3 +181,76 @@ func privatePath(value string) bool {
 	}
 	return false
 }
+
+// WebsocketEndpoint is one public path that may switch protocols at the edge.
+//
+// Every other path answers an upgrade attempt with 404 before any upstream is
+// contacted. Pattern segments are literal except "{id}", which matches one
+// opaque identifier segment.
+type WebsocketEndpoint struct {
+	Pattern  string
+	Upstream string
+}
+
+// PublicWebsocketEndpoints are the websocket endpoints the apps actually use
+// through the edge:
+//
+//   - notification-service realtime feed (customer, truck and dispatch apps);
+//   - customer live tracking of a dispatch booking (dispatch_api.dart);
+//   - customer live tracking of a hauling booking (hauling_api.dart).
+//
+// Dispatch's rider-side /ws/provider/:id/location is not under any public
+// route prefix and is deliberately absent.
+func PublicWebsocketEndpoints() []WebsocketEndpoint {
+	return []WebsocketEndpoint{
+		{"/api/v1/notifications/ws", UpstreamNotification},
+		{"/api/v1/customer/dispatch/bookings/{id}/track", UpstreamDispatch},
+		{"/api/v1/hauling/customer/bookings/{id}/track", UpstreamHauling},
+	}
+}
+
+// WebsocketEndpointFor returns the allowlisted endpoint a path names. The
+// match is exact and case-sensitive on the decoded path: no trailing slash,
+// no empty or dot segments, and an identifier made only of [A-Za-z0-9_-].
+func WebsocketEndpointFor(value string) (WebsocketEndpoint, bool) {
+	if value == "" || IsInternalPath(value) {
+		return WebsocketEndpoint{}, false
+	}
+	got := strings.Split(value, "/")
+	for _, endpoint := range PublicWebsocketEndpoints() {
+		want := strings.Split(endpoint.Pattern, "/")
+		if len(got) != len(want) {
+			continue
+		}
+		matched := true
+		for i := range want {
+			if want[i] == "{id}" {
+				if !opaqueID(got[i]) {
+					matched = false
+					break
+				}
+				continue
+			}
+			if got[i] != want[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return endpoint, true
+		}
+	}
+	return WebsocketEndpoint{}, false
+}
+
+func opaqueID(segment string) bool {
+	if segment == "" || len(segment) > 128 {
+		return false
+	}
+	for _, r := range segment {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
