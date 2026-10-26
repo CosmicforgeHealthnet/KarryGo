@@ -415,7 +415,7 @@ func (r *PostgresSupportRepository) ListChatMessages(ctx context.Context, compla
 		SELECT id::text, complaint_id::text, sender_type, sender_id, content, media_url, is_read, created_at
 		FROM support_chat_messages
 		WHERE complaint_id = $1
-		ORDER BY created_at ASC
+		ORDER BY sequence ASC
 		LIMIT $2 OFFSET $3
 	`, complaintID, limit, offset)
 	if err != nil {

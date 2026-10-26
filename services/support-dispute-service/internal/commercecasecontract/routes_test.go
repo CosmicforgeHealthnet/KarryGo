@@ -1,6 +1,7 @@
 package commercecasecontract
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -8,9 +9,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/services/support-dispute-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/support-dispute-service/internal/features/adminfeed"
+	"cosmicforge/logistics/services/support-dispute-service/internal/features/adminresources"
 	notificationhttp "cosmicforge/logistics/services/support-dispute-service/internal/features/notifications/http"
 	supporthttp "cosmicforge/logistics/services/support-dispute-service/internal/features/support/http"
 	supportusecases "cosmicforge/logistics/services/support-dispute-service/internal/features/support/usecases"
+	"cosmicforge/logistics/shared/go/admincommand"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -24,12 +29,39 @@ func TestSupportRouteCountAndCommerceOpenAPI(t *testing.T) {
 	service := supportusecases.NewSupportService(nil, supportusecases.Options{})
 	supporthttp.RegisterRoutes(group, service, []byte("customer"), providers, secrets)
 	notificationhttp.RegisterNotificationRoutes(group, notifications.Client{BaseURL: "http://notification.invalid"}, []byte("customer"), providers)
+	// Section 16 Secure Admin owner routes, registered exactly as cmd/main.go
+	// does. With every switch off they exist but answer 503.
+	ownerAdmin, err := adminresources.Runtime(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, err := admincommand.Runtime(ownerAdmin, admincommands.Spec(), admincommands.Executor{}, adminfeed.Prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := adminfeed.SnapshotFromEnvironment(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerAdmin.RegisterOn(router.Group(""))
+	commands.Register(router)
+	snapshot.Register(router)
 	actual := map[string]bool{}
 	for _, route := range router.Routes() {
 		actual[route.Method+" "+normalize(route.Path)] = true
 	}
-	if len(actual) != 73 {
-		t.Fatalf("Support route count=%d want 73", len(actual))
+	if len(actual) != 81 {
+		t.Fatalf("Support route count=%d want 81 (73 product + 8 Secure Admin)", len(actual))
+	}
+	for _, route := range []string{
+		"GET /internal/support/v1/admin/resources/{kind}", "GET /internal/support/v1/admin/resources/{kind}/{id}",
+		"POST /internal/support/v1/admin/authorization-contexts", "GET /internal/support/v1/admin/authorization-contexts/bindings/{kind}/{id}",
+		"POST /internal/support/v1/admin/commands", "GET /internal/support/v1/admin/commands/{kind}/{id}",
+		"GET /internal/support/v1/admin/commands/{kind}/{id}/{key}", "GET /internal/support/v1/admin-events/snapshot",
+	} {
+		if !actual[route] {
+			t.Errorf("Secure Admin route missing: %s", route)
+		}
 	}
 	raw, err := os.ReadFile("../../docs/commerce-support-cases.openapi.json")
 	if err != nil {

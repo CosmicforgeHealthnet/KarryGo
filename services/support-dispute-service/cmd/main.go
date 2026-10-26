@@ -10,11 +10,16 @@ import (
 
 	"cosmicforge/logistics/services/support-dispute-service/internal/config"
 	"cosmicforge/logistics/services/support-dispute-service/internal/database"
+	"cosmicforge/logistics/services/support-dispute-service/internal/features/admincommands"
+	"cosmicforge/logistics/services/support-dispute-service/internal/features/adminfeed"
+	"cosmicforge/logistics/services/support-dispute-service/internal/features/adminresources"
 	notificationhttp "cosmicforge/logistics/services/support-dispute-service/internal/features/notifications/http"
 	supportclients "cosmicforge/logistics/services/support-dispute-service/internal/features/support/clients"
 	supporthttp "cosmicforge/logistics/services/support-dispute-service/internal/features/support/http"
 	supportrepositories "cosmicforge/logistics/services/support-dispute-service/internal/features/support/repositories"
 	supportusecases "cosmicforge/logistics/services/support-dispute-service/internal/features/support/usecases"
+	"cosmicforge/logistics/shared/go/admincommand"
+	"cosmicforge/logistics/shared/go/adminevents"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/serviceapp"
@@ -133,6 +138,38 @@ func main() {
 		Secret:      []byte(cfg.NotificationSecret),
 	}
 
+	// Section 16: Secure Admin owner boundary. Every switch defaults off; with
+	// all of them off no credential, policy or approval is read.
+	supportAdmin, adminErr := adminresources.Runtime(ctx, db)
+	if adminErr != nil {
+		logging.Fatal("configuration", "Support private Admin configuration invalid")
+	}
+	var commandMedia admincommands.EvidenceValidator
+	if media := supportclients.NewMediaEvidenceValidator(cfg.MediaFileURL, cfg.MediaFileSecret, 5*time.Second); media.Configured() {
+		commandMedia = media
+	}
+	supportCommands, adminErr := admincommand.Runtime(supportAdmin, admincommands.Spec(), admincommands.Executor{Media: commandMedia}, adminfeed.Prefix)
+	if adminErr != nil {
+		logging.Fatal("configuration", "Support private command configuration invalid")
+	}
+	adminSnapshot, adminErr := adminfeed.SnapshotFromEnvironment(ctx, db)
+	if adminErr != nil {
+		logging.Fatal("configuration", "Support admin event snapshot configuration invalid")
+	}
+	adminRelay, adminErr := adminevents.RelayFromEnvironment(db, adminfeed.Prefix, adminfeed.SourceService)
+	if adminErr != nil {
+		logging.Fatal("configuration", "Support admin event relay configuration invalid")
+	}
+	if adminRelay != nil {
+		workers = append(workers, adminRelay.Run)
+	}
+	if supportCommands.Service.WriteEnabled && notifier.Configured() {
+		// Admin replies are persisted by the command; telling the complainant
+		// is a separate, retried delivery that only sees committed replies.
+		delivery := &admincommands.ReplyDelivery{DB: db, Notifier: notifier}
+		workers = append(workers, delivery.Run)
+	}
+
 	serviceapp.Run(serviceapp.Options{
 		Name:        "support-dispute-service",
 		DefaultAddr: cfg.HTTPAddr,
@@ -151,6 +188,11 @@ func main() {
 			db.Ping,
 		},
 		Workers: workers,
+		RegisterRoot: func(router *gin.Engine) {
+			supportAdmin.RegisterOn(router.Group(""))
+			supportCommands.Register(router)
+			adminSnapshot.Register(router)
+		},
 		Register: func(group *gin.RouterGroup) {
 			supporthttp.RegisterRoutes(group, service, customerSecret, providerGroups, serviceSecrets)
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, customerSecret, providerGroups)

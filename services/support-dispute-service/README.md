@@ -184,3 +184,61 @@ the verdict is unusable, evidence attachment fails closed. Deterministic
 Commerce refunds continue through Wallet/domain policy independently of a
 case. Targeted HTTP, PostgreSQL, IDOR, Media-verdict and commerce-case race
 tests pass locally; staging service HMAC configuration remains to certify.
+
+## Secure Admin (Section 16)
+
+Support is an enrolled Secure Admin source owner (`shared/go/adminowner.SupportProfile`,
+`shared/go/admincommand.SupportSpec`). Migration `009_secure_admin_boundary.sql`
+(reversal in `migrations/down/`) adds the owner tables, native versions and the
+event outbox. **Everything is default-off and nothing is seeded** — no staff
+grant, policy, secret or approval.
+
+**Switches (prefix `SUPPORT_DISPUTE`)**
+
+| Variable | Effect |
+|---|---|
+| `_ADMIN_RESOURCE_READ_ENABLED` + `_ADMIN_RESOURCE_SECRET_FILE`, `_ADMIN_ACCESS_POLICY_FILE`, `_ADMIN_ACCESS_POLICY_KEYS_FILE`, `_ADMIN_CONTEXT_KEYS_FILE` | Minimized resource reads |
+| `_ADMIN_CONTEXT_PUBLISH_ENABLED` + `_ADMIN_CONTEXT_PUBLISH_SECRET_FILE` | Signed owner-context import |
+| `_ADMIN_COMMAND_WRITES_ENABLED` / `_ADMIN_COMMAND_READBACK_ENABLED` + `_ADMIN_COMMAND_WRITE_SECRET_FILE` / `_ADMIN_COMMAND_READBACK_SECRET_FILE` | Command execution / receipt readback (writes require readback) |
+| `_ADMIN_EVENTS_ENABLED` + `_ADMIN_EVENTS_BRIDGE_ORIGIN`, `_ADMIN_EVENTS_SECRET_FILE` | Outbox relay to the Bridge |
+| `_ADMIN_EVENTS_SNAPSHOT_ENABLED` + `_ADMIN_EVENTS_SNAPSHOT_SECRET_FILE` | Backfill snapshot route |
+
+Secret files hold base64url (raw) keys of at least 32 bytes; each key must
+differ from every other Admin key.
+
+**Routes** (root, never under the public API base, never via the gateway)
+
+- `GET /internal/support/v1/admin/resources/{kind}[/{id}]` — kinds `cases`, `sos-cases`
+  (priority emergency), `disputes`, `case-messages`, `case-evidence`.
+- `POST /internal/support/v1/admin/authorization-contexts`, `GET .../authorization-contexts/bindings/{kind}/{id}`.
+- `POST /internal/support/v1/admin/commands`, `GET .../commands/{kind}/{id}[/{key}]`.
+- `GET /internal/support/v1/admin-events/snapshot?cursor=&limit=` (limit ≤ 200) —
+  HMAC v2, caller exactly `admin-backoffice-service`, durable nonce replay guard.
+
+Projections never select chat bodies, descriptions, notes, names, phones,
+incident coordinates or media URLs. Labels (case subject, message preview) are
+credential/contact-redacted and bounded to 240 runes; evidence exposes only the
+media object reference. Every read and command also needs a native grant in
+`support_admin_staff_grants` (`support.cases.read` … per kind;
+`support.case.manage`, `support.sos.manage`, `support.dispute.decide`,
+`support.evidence.attach` for commands).
+
+**Command state machine** (version fence on `admin_version`, one immutable decision per command)
+
+- `TRANSITION_CASE`: OPEN ↔ UNDER_REVIEW ↔ AWAITING_EVIDENCE, ESCALATED → UNDER_REVIEW.
+- `ESCALATE_CASE` / `ESCALATE_SOS` (emergency only) → ESCALATED + `escalation_level`.
+- `CLOSE_CASE`: RESOLVED → `resolved`; NO_FURTHER_ACTION / DUPLICATE → `closed`.
+- `ASSIGN_CASE`, `REPLY_TO_CASE` (idempotent by `client_message_id`; complainant
+  notification is a separate retried delivery after commit), `ATTACH_EVIDENCE`
+  (Media verdict required).
+- Resolved/closed cases accept no action. `RESOLVE_DISPUTE` only from PENDING;
+  `RECORD_DISPUTE_REMEDY` only for FAVOUR_COMPLAINANT/SPLIT, once. Both need an
+  independent HQ approval.
+
+**Events**: every committed case change (including new messages, evidence, read
+state and disputes) emits exactly one `support.case.changed.v1` per version to
+`admin_event_outbox` in the same transaction.
+
+**Deliberately absent**: an SLA policy (events report `POLICY_UNAVAILABLE`), a
+locale column (events carry `null`), and any Wallet execution — Support records
+a remedy only as a link to a Wallet operation the Bridge already confirmed.

@@ -104,10 +104,37 @@ func (n *SupportNotifier) NotifyEmergencyAck(ctx context.Context, c supportmodel
 		notifications.PriorityHigh)
 }
 
+// DeliverNewMessage is NotifyNewMessage for a durable delivery worker: it
+// reports the transport outcome instead of logging it, so the caller can
+// record delivery state separately from the persisted message. A message the
+// complainant sent themselves needs no delivery and reports success.
+func (n *SupportNotifier) DeliverNewMessage(ctx context.Context, c supportmodels.Complaint, msg supportmodels.ChatMessage) error {
+	if string(msg.SenderType) == string(c.ComplainantType) || c.ComplainantID == "" {
+		return nil
+	}
+	return n.sendErr(ctx, c.ComplainantType, c.ComplainantID,
+		EventSupportMessage, msg.ID,
+		"New support message", msg.Content,
+		map[string]any{"complaint_id": c.ID, "message_id": msg.ID, "sender_type": string(msg.SenderType)},
+		notifications.DefaultChannels, notifications.PriorityNormal)
+}
+
+// Configured reports whether a real notification transport is wired.
+func (n *SupportNotifier) Configured() bool {
+	_, noop := n.notifier.(noopNotifier)
+	return !noop
+}
+
 func (n *SupportNotifier) send(ctx context.Context, recipientType supportmodels.ComplainantType, recipientID, eventType, dedupeID, title, body string, data map[string]any, channels []string, priority string) {
 	if recipientID == "" {
 		return
 	}
+	if err := n.sendErr(ctx, recipientType, recipientID, eventType, dedupeID, title, body, data, channels, priority); err != nil {
+		logging.Error("notification", "send event=%s recipient=%s: %v", eventType, recipientID, err)
+	}
+}
+
+func (n *SupportNotifier) sendErr(ctx context.Context, recipientType supportmodels.ComplainantType, recipientID, eventType, dedupeID, title, body string, data map[string]any, channels []string, priority string) error {
 	_, err := n.notifier.Send(ctx, notifications.Request{
 		IDempotencyKey: notifications.IdempotencyKey(sourceService, eventType, dedupeID),
 		SourceService:  sourceService,
@@ -122,9 +149,7 @@ func (n *SupportNotifier) send(ctx context.Context, recipientType supportmodels.
 		Data:     data,
 		Priority: priority,
 	})
-	if err != nil {
-		logging.Error("notification", "send event=%s recipient=%s: %v", eventType, recipientID, err)
-	}
+	return err
 }
 
 // noopNotifier is used when the notification-service is not configured.
