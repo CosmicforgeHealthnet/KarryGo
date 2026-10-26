@@ -103,13 +103,19 @@ func AdministrativeBranchDomainEligibility(ctx context.Context, tx pgx.Tx, busin
 func (s *Service) AdministrativeOperationalStatusTx(ctx context.Context, tx pgx.Tx, actor Actor, branch string, reopen bool, expected int64) (int64, string, string, error) {
 	table, id, aggregate, event := "vendor_businesses", actor.VendorID, "vendor_business", "vendor.business.status_changed"
 	permission := "vendor.business.manage"
-	var target *string
 	if branch != "" {
 		table, id, aggregate, event = "vendor_branches", branch, "vendor_branch", "vendor.branch.status_changed"
 		permission = "vendor.branches.manage"
-		target = &branch
 	}
-	if err := s.require(ctx, actor, permission, target); err != nil {
+	// This operation is invoked while the secure Admin command owns a source
+	// transaction and a per-subject advisory lock. Re-entering the ordinary
+	// pool-backed authorizer from here can exhaust a small pool when identical
+	// commands arrive concurrently: every waiter holds a transaction while the
+	// lock holder waits for another connection. Resolve and lock the same native
+	// grant through the caller's transaction instead. The Admin executor also
+	// performs its own source authorization; this check deliberately preserves
+	// the Vendor service's independent deny-by-default boundary.
+	if err := requireAdministrativePermissionTx(ctx, tx, actor, branch, permission); err != nil {
 		return 0, "", "", err
 	}
 	var current string
@@ -176,6 +182,24 @@ func (s *Service) AdministrativeOperationalStatusTx(ctx context.Context, tx pgx.
 		return 0, "", "", err
 	}
 	return version, current, next, nil
+}
+
+func requireAdministrativePermissionTx(ctx context.Context, tx pgx.Tx, actor Actor, branch, permission string) error {
+	if actor.StaffID == "" || actor.VendorID == "" || permission == "" {
+		return apperrors.Unauthorized("Authentication is required.", nil)
+	}
+	var staff string
+	err := tx.QueryRow(ctx, `SELECT s.id FROM vendor_staff s
+ JOIN vendor_staff_role_assignments a ON a.staff_id=s.id
+ JOIN vendor_role_permissions rp ON rp.role_id=a.role_id
+ JOIN vendor_permissions p ON p.id=rp.permission_id
+ WHERE s.id=$1 AND s.vendor_id=$2 AND s.status='active' AND a.revoked_at IS NULL
+ AND p.code=$4 AND (a.branch_id IS NULL OR ($3<>'' AND a.branch_id=$3))
+ ORDER BY a.id LIMIT 1 FOR SHARE OF s,a,rp`, actor.StaffID, actor.VendorID, branch, permission).Scan(&staff)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperrors.Forbidden("You do not have access to this action.", nil)
+	}
+	return err
 }
 
 // AdministrativeBranchCapabilityEligibility uses the same native operational

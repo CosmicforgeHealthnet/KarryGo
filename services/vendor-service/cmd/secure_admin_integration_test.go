@@ -111,6 +111,8 @@ func TestVendorSecureAdminCasesAndNativeMutations(t *testing.T) {
 	ctx := context.Background()
 	e.enroll(t, "branches", e.f.env.branchA)
 	c := e.cmd("PAUSE_BRANCH", "branches", e.f.env.branchA, "", 1, map[string]string{})
+	concurrentCtx, cancelConcurrent := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelConcurrent()
 	var wg sync.WaitGroup
 	receipts := make(chan admincommand.Receipt, 4)
 	failures := make(chan error, 4)
@@ -118,7 +120,7 @@ func TestVendorSecureAdminCasesAndNativeMutations(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r, err := e.svc.Execute(ctx, e.actor, "case-1", e.scope, c)
+			r, err := e.svc.Execute(concurrentCtx, e.actor, "case-1", e.scope, c)
 			receipts <- r
 			failures <- err
 		}()
