@@ -68,9 +68,13 @@ type Config struct {
 	ReferralIdentityPepper []byte
 	// Section 6 capability flags. All default to false so each capability is
 	// enabled deliberately per environment.
-	MobilityPreferencesEnabled    bool
-	GuestTravellersEnabled        bool
-	TrustedContactsEnabled        bool
+	MobilityPreferencesEnabled bool
+	GuestTravellersEnabled     bool
+	TrustedContactsEnabled     bool
+	// Section 17 marketing consent: capture (opt-in) and the internal
+	// notification-service audience/eligibility reads. Both default off.
+	MarketingConsentEnabled       bool
+	MarketingAudienceEnabled      bool
 	UnifiedMovementHistoryEnabled bool
 
 	// ContextCallerScopes allowlists which HMAC-authenticated service may read
@@ -146,6 +150,8 @@ func Load() Config {
 		MobilityPreferencesEnabled:    getEnvBool("CUSTOMER_MOBILITY_PREFERENCES_ENABLED", false),
 		GuestTravellersEnabled:        getEnvBool("CUSTOMER_GUEST_TRAVELLERS_ENABLED", false),
 		TrustedContactsEnabled:        getEnvBool("CUSTOMER_TRUSTED_CONTACTS_ENABLED", false),
+		MarketingConsentEnabled:       getEnvBool("CUSTOMER_MARKETING_CONSENT_ENABLED", false),
+		MarketingAudienceEnabled:      getEnvBool("CUSTOMER_MARKETING_AUDIENCE_ENABLED", false),
 		UnifiedMovementHistoryEnabled: getEnvBool("CUSTOMER_UNIFIED_MOVEMENT_HISTORY_ENABLED", false),
 
 		MovementEventsConsumerEnabled: getEnvBool("CUSTOMER_MOVEMENT_EVENTS_CONSUMER_ENABLED", false),

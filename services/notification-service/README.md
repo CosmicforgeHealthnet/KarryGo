@@ -131,3 +131,71 @@ NOTIFICATION_EMAIL_PREVIEW_DIR="$PWD/build/email-previews" \
 These are browser previews, not certification of rendering in every mail client.
 Only Notification needs rebuilding to apply this layout; no database migration,
 new API fields, or mobile build is required.
+
+## Section 17 campaign fulfilment (owner side)
+
+notification-service fulfils approved HQ marketing campaigns
+(`shared/go/admincampaign`, `karryam.campaign-intent.v1`). Accepting an intent
+never claims anything was delivered.
+
+**Private routes** (router root, HMAC v2, caller exactly
+`admin-backoffice-service`, dedicated secret `NOTIFICATION_CAMPAIGN_SECRET_FILE`
+(base64url, >=32 bytes), durable single-use nonce in `campaign_request_nonces`,
+`NOTIFICATION_CAMPAIGNS_ENABLED=false` → 503):
+
+| Route | Behaviour |
+|---|---|
+| `POST /internal/notification/v1/admin/campaigns` | Strict decode + validate. New revision → 202; same key + same digest, or same campaign/revision + same digest → 200 with the existing status; any other reuse, or a revision lower than one already accepted → 409. A higher revision cancels the unsent work of older revisions. Emergency/unknown categories → 422. |
+| `GET …/campaigns/{campaign_id}/revisions/{revision}` | `admincampaign.Status`. `delivered_count` is always null, `delivery_confirmation` and `conversion_reporting` are `UNAVAILABLE`. |
+| `POST …/campaigns/{campaign_id}/cancellations` | Idempotent by `cancellation_key` (reuse for another revision → 409). Planned recipients become `CANCELLED`; queued but unattempted pipeline deliveries are withdrawn; sent records stay. |
+| `GET /internal/notification/v1/admin-events/snapshot` | `adminevents.SnapshotPage` of campaign revisions (cursor `<campaign_id>:<revision>`, limit ≤200). Own flag `NOTIFICATION_ADMIN_EVENTS_SNAPSHOT_ENABLED` and secret `NOTIFICATION_ADMIN_EVENTS_SNAPSHOT_SECRET_FILE`. |
+
+**Engine** (leased, bounded worker; runs only when campaigns are enabled):
+
+1. `ACCEPTED_BY_KARRYGO` → validation: template key + locale must exist
+   exactly, be active, match `template_revision` (advanced by a trigger
+   whenever title/body change) and `content_sha256 = sha256(title NUL body)`,
+   else `REJECTED TEMPLATE_MISMATCH`. Any zone → `REJECTED
+   AUDIENCE_DIMENSION_UNAVAILABLE` (no customer zone exists anywhere).
+2. Planning pages customer-service's opted-in audience per (market, channel)
+   (`/internal/customer/v1/marketing-audience`). Customers with an unknown
+   market never match. One recipient row per recipient per channel.
+3. Sending only inside `[start_at, end_at)`; inside `quiet_hours` (evaluated in
+   the intent's IANA zone, may span midnight) work is deferred, never dropped;
+   no quiet-hour default is invented. After `end_at` remaining recipients are
+   `SUPPRESSED SEND_WINDOW_CLOSED`.
+4. Immediately before enqueue every batch is re-checked
+   (`/internal/customer/v1/marketing-consent/check`). Withdrawn →
+   `CONSENT_WITHDRAWN`; inactive/unknown account → `ACCOUNT_INACTIVE`; market
+   changed → `MARKET_CHANGED`; email channel without an address →
+   `NO_CONTACT_ADDRESS`; an unanswerable check leaves recipients `PLANNED`.
+   Then, under a per-recipient lock: `CAMPAIGN_CAP` (`max_messages` per
+   revision), `FREQUENCY_CAP` (`max_per_recipient_per_day` over the last 24 h
+   across all campaigns), `CHANNEL_DISABLED` (notification preference).
+5. Enqueue through the existing pipeline: idempotency key
+   `campaign:<id>:<rev>:<recipient>:<channel>`, `source_service
+   notification-service`, `event_type campaign.marketing`, the validated copy.
+6. Outcomes from deliveries: real provider acceptance → `SENT`; a
+   `logging_*` development provider → `LOGGED_ONLY` (never counted as sent);
+   failed/dead-lettered → `FAILED`; no device → `SUPPRESSED NO_ACTIVE_DEVICE`;
+   retrying (provider outage) → stays `QUEUED`.
+7. Revision state: `PLANNED` → `QUEUED` → `SENT` (≥1 sent, outcomes pending) →
+   `COMPLETED`; `FAILED` when nothing was sent and something failed;
+   `SUPPRESSED` when everyone was suppressed. Never `DELIVERED`.
+
+Every state/count change advances `campaigns.version` and appends
+`notification.campaign.changed.v1` (entity `campaign_revision`, ref
+`<campaign_id>:<revision>`) to `admin_event_outbox` in the same transaction.
+`adminevents.RelayFromEnvironment(pool, "NOTIFICATION", "notification-service")`
+delivers them (`NOTIFICATION_ADMIN_EVENTS_ENABLED`, `_BRIDGE_ORIGIN`,
+`_SECRET_FILE`).
+
+Campaign paths never log message bodies, titles, addresses, tokens or
+identifiers; the development logging senders now log only lengths.
+
+**Message status fix.** `notification_messages.status` used to stay at its
+insert value. It is now derived from the message's deliveries every time a
+delivery is marked (`RefreshMessageStatusSQL`).
+
+Tests: `NOTIFICATION_TEST_DATABASE_URL=<disposable db> go test ./...` (each
+campaign test applies the real migrations into its own schema).

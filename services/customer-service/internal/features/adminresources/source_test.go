@@ -83,3 +83,48 @@ func TestCustomerProjectionCannotAuthorizeOrphanCustomerReference(t *testing.T) 
 		t.Fatalf("orphan projection supplied customer authority: %v", err)
 	}
 }
+
+// Section 17: the marketing_consent dimension reflects the consent authority
+// and stays unknown (null) when nothing was ever recorded.
+func TestCustomerMarketingConsentDimension(t *testing.T) {
+	db := fixture.Database(t, "../../../migrations")
+	ctx := context.Background()
+	source := Source()
+	const id = "33333333-3333-4333-8333-333333333333"
+	if _, err := db.Exec(ctx, `INSERT INTO customers(id,email) VALUES($1,'mc-dimension@example.invalid')`, id); err != nil {
+		t.Fatal(err)
+	}
+	read := func() *string {
+		tx, err := db.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		resource, err := source.Read(ctx, tx, "customers", id, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range resource.Dimensions {
+			if d.Name == "marketing_consent" {
+				return d.Value
+			}
+		}
+		t.Fatal("marketing_consent dimension missing")
+		return nil
+	}
+	if v := read(); v != nil {
+		t.Fatalf("unrecorded consent presented as %q", *v)
+	}
+	if _, err := db.Exec(ctx, `INSERT INTO customer_marketing_consents(customer_id,channel,status,version,captured_at,withdrawn_at,capture_source) VALUES($1,'email','WITHDRAWN',1,now(),now(),'CUSTOMER_APP')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if v := read(); v == nil || *v != "WITHDRAWN" {
+		t.Fatalf("withdrawn consent: %v", v)
+	}
+	if _, err := db.Exec(ctx, `INSERT INTO customer_marketing_consents(customer_id,channel,status,market,version,captured_at,capture_source) VALUES($1,'push','OPTED_IN','NG-LAG',1,now(),'CUSTOMER_APP')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if v := read(); v == nil || *v != "OPTED_IN" {
+		t.Fatalf("opted-in consent: %v", v)
+	}
+}

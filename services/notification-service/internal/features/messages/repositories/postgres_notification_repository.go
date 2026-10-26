@@ -304,8 +304,36 @@ func (r *PostgresNotificationRepository) ListDueRetryDeliveries(ctx context.Cont
 	return deliveries, rows.Err()
 }
 
+// RefreshMessageStatusSQL derives a message's status from its deliveries
+// ($1 = message id). Before this, notification_messages.status stayed at its
+// insert value forever. All deliveries final: sent if any was sent, else the
+// worst failure, else suppressed, else skipped. Otherwise retrying when any
+// delivery is retrying, processing when some finished, queued when none did.
+const RefreshMessageStatusSQL = `
+UPDATE notification_messages m SET status = agg.status, updated_at = now()
+FROM (
+ SELECT CASE
+  WHEN bool_and(status IN ('sent','skipped','suppressed','failed','dead_lettered')) THEN CASE
+   WHEN bool_or(status='sent') THEN 'sent'
+   WHEN bool_or(status='failed') THEN 'failed'
+   WHEN bool_or(status='dead_lettered') THEN 'dead_lettered'
+   WHEN bool_or(status='suppressed') THEN 'suppressed'
+   ELSE 'skipped' END
+  WHEN bool_or(status='retrying') THEN 'retrying'
+  WHEN bool_or(status IN ('sent','skipped','suppressed','failed','dead_lettered')) THEN 'processing'
+  ELSE 'queued' END AS status
+ FROM notification_deliveries WHERE message_id = $1::uuid
+) agg
+WHERE m.id = $1::uuid AND agg.status IS NOT NULL AND m.status IS DISTINCT FROM agg.status`
+
 func (r *PostgresNotificationRepository) MarkDelivery(ctx context.Context, id string, status string, nextAttemptAt *time.Time, providerMessageID *string, lastError *string) error {
-	_, err := r.db.Exec(ctx, `
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var messageID string
+	err = tx.QueryRow(ctx, `
 		UPDATE notification_deliveries
 		SET status = $2,
 		    attempts = attempts + 1,
@@ -314,8 +342,18 @@ func (r *PostgresNotificationRepository) MarkDelivery(ctx context.Context, id st
 		    last_error = $5,
 		    updated_at = now()
 		WHERE id = $1
-	`, id, status, nextAttemptAt, providerMessageID, lastError)
-	return err
+		RETURNING message_id::text
+	`, id, status, nextAttemptAt, providerMessageID, lastError).Scan(&messageID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return tx.Commit(ctx)
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, RefreshMessageStatusSQL, messageID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresNotificationRepository) RecordAttempt(ctx context.Context, deliveryID string, provider string, providerMessageID *string, status string, errorMessage *string) error {

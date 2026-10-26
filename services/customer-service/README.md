@@ -182,3 +182,32 @@ intents atomically with share state in migration `011_journey_share_notification
 The worker retries and dead-letters Notification outages; no share token enters
 the outbox. PostgreSQL concurrency and outage/retry tests pass locally. The
 consumer must read current Share state after following a route intent.
+
+## Section 17 marketing consent authority
+
+customer-service owns marketing consent (`migrations/020_marketing_consent.sql`):
+`customer_marketing_consents` (one row per customer per channel
+`in_app|push|email`, `OPTED_IN|WITHDRAWN`, `market` as declared by the app at
+opt-in or NULL = unknown, `version`, `captured_at`, `withdrawn_at`,
+`capture_source`) plus the append-only `customer_marketing_consent_history`.
+Consent is never defaulted, inferred or backfilled; an unrecorded channel reads
+`NOT_RECORDED`.
+
+| Route | Auth | Notes |
+|---|---|---|
+| `GET /api/v1/customer/consents/marketing` | customer bearer | All three channels. |
+| `PUT /api/v1/customer/consents/marketing` | customer bearer | `{channel, opted_in, market?}`. Idempotent (a repeat changes nothing). Withdrawal always allowed; opt-in needs `CUSTOMER_MARKETING_CONSENT_ENABLED=true` (else 503). |
+| `GET /internal/customer/v1/marketing-audience?channel=&market=&cursor=&limit=` | HMAC v2, caller `notification-service` only, single-use nonce | Active customers opted into channel in market, id order, ≤500 per page, with `consent_version` and `as_of`. NULL market never matches. |
+| `POST /internal/customer/v1/marketing-consent/check` | same | `{channel, customer_ids[≤500]}` → current eligibility per id with a reason; the email address is returned only for the email channel and only when eligible. |
+
+The internal routes need `CUSTOMER_MARKETING_AUDIENCE_ENABLED=true` (else 503)
+and a `notification-service=<secret>` entry in `CUSTOMER_SERVICE_SECRETS`
+(the same value notification-service reads from
+`NOTIFICATION_CUSTOMER_AUDIENCE_SECRET_FILE`).
+
+Admin: the `customers` resource's `marketing_consent` dimension is `OPTED_IN`
+when any channel is opted in, `WITHDRAWN` when consent was recorded but none is
+opted in, and null when nothing was ever recorded. A fulfilled
+`CONSENT_WITHDRAWAL` privacy request now also withdraws every opted-in
+marketing channel (version advance + history row bound to the decision id) and
+counts them in `consents_withdrawn`.

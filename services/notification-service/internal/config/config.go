@@ -29,6 +29,16 @@ type Config struct {
 	RequestStream       string
 	DeliveryStream      string
 	DeadLetterStream    string
+
+	// Section 17 campaign fulfilment. Default off: the private routes answer
+	// 503 and no engine runs.
+	CampaignsEnabled           bool
+	CampaignSecretFile         string
+	CustomerServiceURL         string
+	CustomerAudienceSecretFile string
+	// Section 22 owner admin-event snapshot (backfill). Default off.
+	AdminEventsSnapshotEnabled    bool
+	AdminEventsSnapshotSecretFile string
 }
 
 type SMTPConfig struct {
@@ -76,6 +86,14 @@ func Load() Config {
 		RequestStream:       getEnv("NOTIFICATION_REQUEST_STREAM", "notification:requests"),
 		DeliveryStream:      getEnv("NOTIFICATION_DELIVERY_STREAM", "notification:deliveries"),
 		DeadLetterStream:    getEnv("NOTIFICATION_DEAD_LETTER_STREAM", "notification:dead_letters"),
+
+		CampaignsEnabled:           getEnvBool("NOTIFICATION_CAMPAIGNS_ENABLED", false),
+		CampaignSecretFile:         os.Getenv("NOTIFICATION_CAMPAIGN_SECRET_FILE"),
+		CustomerServiceURL:         os.Getenv("NOTIFICATION_CUSTOMER_SERVICE_URL"),
+		CustomerAudienceSecretFile: os.Getenv("NOTIFICATION_CUSTOMER_AUDIENCE_SECRET_FILE"),
+
+		AdminEventsSnapshotEnabled:    getEnvBool("NOTIFICATION_ADMIN_EVENTS_SNAPSHOT_ENABLED", false),
+		AdminEventsSnapshotSecretFile: os.Getenv("NOTIFICATION_ADMIN_EVENTS_SNAPSHOT_SECRET_FILE"),
 	}
 }
 

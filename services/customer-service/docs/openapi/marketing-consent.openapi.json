@@ -1,0 +1,314 @@
+{
+ "openapi": "3.0.3",
+ "info": {
+  "title": "Customer marketing consent (Section 17)",
+  "version": "1.0.0",
+  "description": "Customer-owned marketing consent per channel (in_app, push, email). Consent is never defaulted or inferred: an unrecorded channel reads NOT_RECORDED and is never eligible. market is the market code the customer's app declared at opt-in; null means unknown and never matches a market-targeted campaign. Withdrawal is always accepted and idempotent; opt-in requires CUSTOMER_MARKETING_CONSENT_ENABLED. The internal audience and eligibility reads are for notification-service only (exact caller, HMAC v2, single-use nonce) and require CUSTOMER_MARKETING_AUDIENCE_ENABLED."
+ },
+ "paths": {
+  "/api/v1/customer/consents/marketing": {
+   "get": {
+    "operationId": "getMarketingConsents",
+    "security": [
+     {
+      "CustomerBearer": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "All three channels; data.consents[] with channel, status (OPTED_IN|WITHDRAWN|NOT_RECORDED), market, version, captured_at, withdrawn_at, capture_source.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SuccessEnvelope"
+        }
+       }
+      }
+     },
+     "default": {
+      "description": "Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "operationId": "putMarketingConsent",
+    "security": [
+     {
+      "CustomerBearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "channel",
+         "opted_in"
+        ],
+        "properties": {
+         "channel": {
+          "type": "string",
+          "enum": [
+           "in_app",
+           "push",
+           "email"
+          ]
+         },
+         "opted_in": {
+          "type": "boolean"
+         },
+         "market": {
+          "type": "string",
+          "nullable": true,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,63}$",
+          "description": "Customer-declared market at opt-in. Omitted means unknown. Ignored on withdrawal."
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "data.consent (current state) and data.changed (false for an idempotent repeat). 503 when opt-in capture is disabled.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SuccessEnvelope"
+        }
+       }
+      }
+     },
+     "default": {
+      "description": "Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/internal/customer/v1/marketing-audience": {
+   "get": {
+    "operationId": "getMarketingAudience",
+    "x-internal": true,
+    "security": [
+     {
+      "ServiceHMAC": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "channel",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "in_app",
+        "push",
+        "email"
+       ]
+      }
+     },
+     {
+      "name": "market",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "cursor",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "format": "uuid"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 500
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Active customers opted into channel in market, ordered by id: data.members[] {customer_id, consent_version}, data.as_of, data.next_cursor.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SuccessEnvelope"
+        }
+       }
+      }
+     },
+     "default": {
+      "description": "Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/internal/customer/v1/marketing-consent/check": {
+   "post": {
+    "operationId": "checkMarketingConsent",
+    "x-internal": true,
+    "security": [
+     {
+      "ServiceHMAC": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "channel",
+         "customer_ids"
+        ],
+        "properties": {
+         "channel": {
+          "type": "string",
+          "enum": [
+           "in_app",
+           "push",
+           "email"
+          ]
+         },
+         "customer_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+           "type": "string",
+           "format": "uuid"
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Current eligibility per id: data.results[] {customer_id, eligible, reason (OPTED_IN|NOT_OPTED_IN|ACCOUNT_INACTIVE|ACCOUNT_NOT_FOUND|NO_EMAIL_ADDRESS), consent_version, market, email (email channel and eligible only)}, data.as_of.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SuccessEnvelope"
+        }
+       }
+      }
+     },
+     "default": {
+      "description": "Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "CustomerBearer": {
+    "type": "http",
+    "scheme": "bearer",
+    "bearerFormat": "JWT"
+   },
+   "ServiceHMAC": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-Service-Signature",
+    "description": "HMAC v2 service auth: X-Service-Name, X-Service-Timestamp, X-Service-Nonce and X-Service-Signature; caller must be notification-service; replayed nonce refused."
+   }
+  },
+  "schemas": {
+   "SuccessEnvelope": {
+    "type": "object",
+    "required": [
+     "success"
+    ],
+    "properties": {
+     "success": {
+      "type": "boolean"
+     },
+     "data": {}
+    }
+   },
+   "ErrorEnvelope": {
+    "type": "object",
+    "required": [
+     "success",
+     "error"
+    ],
+    "properties": {
+     "success": {
+      "type": "boolean",
+      "enum": [
+       false
+      ]
+     },
+     "error": {
+      "type": "object",
+      "required": [
+       "code",
+       "message"
+      ],
+      "properties": {
+       "code": {
+        "type": "string"
+       },
+       "message": {
+        "type": "string"
+       },
+       "request_id": {
+        "type": "string"
+       },
+       "fields": {
+        "type": "array",
+        "items": {}
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

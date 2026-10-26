@@ -22,6 +22,7 @@ import (
 	"time"
 
 	authrepositories "cosmicforge/logistics/services/customer-service/internal/features/auth/repositories"
+	marketingconsent "cosmicforge/logistics/services/customer-service/internal/features/marketing_consent"
 	profilemodels "cosmicforge/logistics/services/customer-service/internal/features/profile/models"
 	"cosmicforge/logistics/shared/go/admincommand"
 	"github.com/jackc/pgx/v5"
@@ -316,7 +317,7 @@ func applyPrivacy(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (ad
 		outcome = "DISPOSITION_RECORDED_CUSTOMER_SERVICE_ONLY"
 		if c.requestType == "CONSENT_WITHDRAWAL" {
 			var err error
-			if withdrawn, err = withdrawConsents(ctx, tx, in.SubjectID, in.Now); err != nil {
+			if withdrawn, err = withdrawConsents(ctx, tx, in.SubjectID, in.Now, in.DecisionID); err != nil {
 				return empty, err
 			}
 			outcome = "CONSENTS_WITHDRAWN"
@@ -345,10 +346,10 @@ func applyPrivacy(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (ad
 }
 
 // withdrawConsents turns off every consent customer-service owns for the
-// customer: trusted-contact trip sharing and emergency alerts, and the
-// safety-share default. Each changed row's own version advances so clients
+// customer: trusted-contact trip sharing and emergency alerts, the
+// safety-share default and every opted-in marketing channel. Each changed row's own version advances so clients
 // holding an older version cannot silently restore a withdrawn consent.
-func withdrawConsents(ctx context.Context, tx pgx.Tx, customer string, now time.Time) (int64, error) {
+func withdrawConsents(ctx context.Context, tx pgx.Tx, customer string, now time.Time, decision string) (int64, error) {
 	contacts, err := tx.Exec(ctx, `UPDATE emergency_contacts SET trip_sharing_enabled=false,emergency_alerts_enabled=false,version=version+1,updated_at=$2 WHERE customer_id=$1 AND (trip_sharing_enabled OR emergency_alerts_enabled)`, customer, now)
 	if err != nil {
 		return 0, err
@@ -357,7 +358,14 @@ func withdrawConsents(ctx context.Context, tx pgx.Tx, customer string, now time.
 	if err != nil {
 		return 0, err
 	}
-	return contacts.RowsAffected() + prefs.RowsAffected(), nil
+	// Marketing consent (Section 17): every opted-in channel is withdrawn
+	// with its own version advance and an append-only history row bound to
+	// this decision.
+	marketing, err := marketingconsent.WithdrawAllTx(ctx, tx, customer, now, decision)
+	if err != nil {
+		return 0, err
+	}
+	return contacts.RowsAffected() + prefs.RowsAffected() + marketing, nil
 }
 
 func privacyHistory(ctx context.Context, tx pgx.Tx, in admincommand.Execution, prior int64, priorState, next string, detail map[string]any) error {

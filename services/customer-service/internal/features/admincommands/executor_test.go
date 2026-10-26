@@ -408,6 +408,11 @@ func TestPostgresPrivacyRequestLifecycleAndConsentWithdrawal(t *testing.T) {
 	if _, err := h.db.Exec(ctx, `INSERT INTO customer_mobility_preferences(customer_id,safety_share_default) VALUES($1,true)`, h.customer); err != nil {
 		t.Fatal(err)
 	}
+	// Section 17: two opted-in marketing channels and one already withdrawn.
+	if _, err := h.db.Exec(ctx, `INSERT INTO customer_marketing_consents(customer_id,channel,status,market,version,captured_at,withdrawn_at,capture_source) VALUES
+		($1,'push','OPTED_IN','NG-LAG',1,now(),NULL,'CUSTOMER_APP'),($1,'email','OPTED_IN',NULL,3,now(),NULL,'CUSTOMER_APP'),($1,'in_app','WITHDRAWN',NULL,2,now(),now(),'CUSTOMER_APP')`, h.customer); err != nil {
+		t.Fatal(err)
+	}
 	today := time.Now().UTC().Format("2006-01-02")
 	caseRef := uuid.NewString()
 	open := h.cmd("OPEN_PRIVACY_REQUEST", 0, map[string]string{"request_type": "CONSENT_WITHDRAWAL", "channel": "IN_APP", "received_on": today}, caseRef)
@@ -455,8 +460,14 @@ func TestPostgresPrivacyRequestLifecycleAndConsentWithdrawal(t *testing.T) {
 	var scope, evidence string
 	var withdrawn int64
 	h.db.QueryRow(ctx, `SELECT fulfilment_scope,evidence_ref,consents_withdrawn FROM customer_privacy_requests WHERE case_ref=$1`, caseRef).Scan(&scope, &evidence, &withdrawn)
-	if scope != FulfilmentScope || evidence != "consent-log-7" || withdrawn != 2 {
+	if scope != FulfilmentScope || evidence != "consent-log-7" || withdrawn != 4 {
 		t.Fatal("fulfilment record", scope, evidence, withdrawn)
+	}
+	var optedIn, pushVersion, emailVersion, inAppVersion, history int64
+	h.db.QueryRow(ctx, `SELECT count(*) FILTER (WHERE status='OPTED_IN'),max(version) FILTER (WHERE channel='push'),max(version) FILTER (WHERE channel='email'),max(version) FILTER (WHERE channel='in_app') FROM customer_marketing_consents WHERE customer_id=$1`, h.customer).Scan(&optedIn, &pushVersion, &emailVersion, &inAppVersion)
+	h.db.QueryRow(ctx, `SELECT count(*) FROM customer_marketing_consent_history WHERE customer_id=$1 AND capture_source='ADMIN_PRIVACY_WITHDRAWAL' AND decision_ref=$2 AND status='WITHDRAWN' AND prior_status='OPTED_IN'`, h.customer, done.DecisionID).Scan(&history)
+	if optedIn != 0 || pushVersion != 2 || emailVersion != 4 || inAppVersion != 2 || history != 2 {
+		t.Fatal("marketing consents not withdrawn", optedIn, pushVersion, emailVersion, inAppVersion, history)
 	}
 	late := h.cmd("REJECT_PRIVACY_REQUEST", 3, map[string]string{"rejection": "DUPLICATE"}, caseRef)
 	h.approve(&late, "staff-b")

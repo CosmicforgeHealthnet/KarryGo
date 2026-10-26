@@ -53,3 +53,17 @@ func TestAccountStandingMigrationHistoryIsAppendOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestMarketingConsentMigrationHistoryIsAppendOnly(t *testing.T) {
+	content, err := os.ReadFile("020_marketing_consent.sql")
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	sql := string(content)
+	if !strings.Contains(sql, "BEFORE UPDATE OR DELETE OR TRUNCATE ON customer_marketing_consent_history ") {
+		t.Fatal("customer_marketing_consent_history is not append-only")
+	}
+	if strings.Contains(sql, "DEFAULT 'OPTED_IN'") || strings.Contains(sql, "INSERT INTO customer_marketing_consents") {
+		t.Fatal("marketing consent must never be defaulted or backfilled")
+	}
+}

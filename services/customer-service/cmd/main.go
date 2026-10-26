@@ -28,6 +28,7 @@ import (
 	contexthttp "cosmicforge/logistics/services/customer-service/internal/features/customer_context/http"
 	contextusecases "cosmicforge/logistics/services/customer-service/internal/features/customer_context/usecases"
 	identityhttp "cosmicforge/logistics/services/customer-service/internal/features/identity/http"
+	marketingconsent "cosmicforge/logistics/services/customer-service/internal/features/marketing_consent"
 	mediauploadhttp "cosmicforge/logistics/services/customer-service/internal/features/media_upload/http"
 	mobilityhttp "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/http"
 	mobilityrepositories "cosmicforge/logistics/services/customer-service/internal/features/mobility_context/repositories"
@@ -163,6 +164,8 @@ func main() {
 		MobilityPreferences: cfg.MobilityPreferencesEnabled,
 		GuestTravellers:     cfg.GuestTravellersEnabled,
 	})
+	marketingConsents := marketingconsent.NewStore(db)
+	marketingFlags := marketingconsent.Flags{CaptureEnabled: cfg.MarketingConsentEnabled, AudienceEnabled: cfg.MarketingAudienceEnabled}
 	trustedContactService := profileusecases.NewTrustedContactService(customerRepo, cfg.TrustedContactsEnabled)
 
 	var workers []func(context.Context) error
@@ -256,6 +259,7 @@ func main() {
 			mediauploadhttp.Register(group, authService.AccessSigner(), mediauploadhttp.Handler{
 				Config: cfg, Limiter: ratelimit.New(redisClient, "customer-evidence-media"),
 			})
+			marketingconsent.RegisterCustomerRoutes(group, marketingConsents, authService.AccessSigner(), marketingFlags)
 			profilehttp.RegisterTrustedContactRoutes(group, trustedContactService, authService.AccessSigner())
 			mobilityhttp.RegisterRoutes(group, mobilityService, authService.AccessSigner())
 			contexthttp.RegisterInternalRoutes(group, customerContextService, serviceVerifier, cfg.VendorStandingSecret)
@@ -283,6 +287,9 @@ func main() {
 				c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(customerMetrics.Render()+journeyshare.Render()))
 			})...)
 			movementhttp.RegisterIngress(engine, movementService, serviceVerifier)
+			// Section 17: notification-service is the only caller of the
+			// marketing audience; replayed nonces are refused.
+			marketingconsent.RegisterInternalRoutes(engine, marketingConsents, marketingFlags, journeyshare.RedisBoundary(serviceVerifier, redisClient, marketingconsent.AudienceCaller))
 		},
 	})
 }

@@ -13,7 +13,8 @@ func NewLoggingPushSender() *LoggingPushSender {
 }
 
 func (s *LoggingPushSender) SendPush(ctx context.Context, message PushMessage) (ProviderResult, error) {
-	log.Printf("notification_push title=%q token_count=%d", message.Title, len(message.Tokens))
+	// Shape only: marketing copy and device tokens are never logged.
+	log.Printf("notification_push title_len=%d token_count=%d", len(message.Title), len(message.Tokens))
 	providerID := "logged-push"
 	return ProviderResult{Provider: "logging_push", ProviderMessageID: &providerID}, nil
 }
@@ -26,7 +27,7 @@ func NewLoggingEmailSender() *LoggingEmailSender {
 
 func (s *LoggingEmailSender) SendEmail(ctx context.Context, message EmailMessage) (ProviderResult, error) {
 	// The development fallback records delivery shape, never the address.
-	log.Printf("notification_email recipient_configured=%t subject=%q", message.To != "", message.Subject)
+	log.Printf("notification_email recipient_configured=%t subject_len=%d", message.To != "", len(message.Subject))
 	providerID := "logged-email"
 	return ProviderResult{Provider: "logging_email", ProviderMessageID: &providerID}, nil
 }

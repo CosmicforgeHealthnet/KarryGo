@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"cosmicforge/logistics/shared/go/adminevents"
 	"cosmicforge/logistics/shared/go/notifications"
 )
 
@@ -105,5 +106,26 @@ func TestHandoverTemplatesAreReferenceOnly(t *testing.T) {
 	}
 	if strings.Contains(sql, "{{") {
 		t.Fatal("handover templates interpolate producer data")
+	}
+}
+
+// Section 17: the campaign migration embeds the shared owner-event outbox
+// schema verbatim and never creates a delivered-receipt notion.
+func TestCampaignMigrationEmbedsOutboxAndHasNoDeliveredRecipientState(t *testing.T) {
+	content, err := os.ReadFile("009_campaigns.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(content)
+	if !strings.Contains(sql, adminevents.OutboxSchema) {
+		t.Fatal("009_campaigns.sql drifted from adminevents.OutboxSchema")
+	}
+	for _, required := range []string{"CREATE TABLE IF NOT EXISTS campaigns", "CREATE TABLE IF NOT EXISTS campaign_recipients", "UNIQUE (campaign_id, revision, recipient_id, channel)", "idempotency_key text NOT NULL UNIQUE", "campaign_request_nonces", "ADD COLUMN IF NOT EXISTS revision"} {
+		if !strings.Contains(sql, required) {
+			t.Errorf("missing %q", required)
+		}
+	}
+	if strings.Contains(sql, "'PLANNED','QUEUED','SENT','LOGGED_ONLY','FAILED','SUPPRESSED','CANCELLED','DELIVERED'") {
+		t.Fatal("recipients must never be DELIVERED")
 	}
 }
