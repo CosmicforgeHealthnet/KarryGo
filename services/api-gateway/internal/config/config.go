@@ -31,7 +31,8 @@ func Load() (Config, error) {
 	}
 	for _, name := range []string{models.UpstreamCustomer, models.UpstreamTaxi, models.UpstreamDispatch,
 		models.UpstreamHauling, models.UpstreamWallet, models.UpstreamNotification,
-		models.UpstreamSupport, models.UpstreamVendor, models.UpstreamFleet, models.UpstreamPartnerWeb} {
+		models.UpstreamSupport, models.UpstreamVendor, models.UpstreamFleet, models.UpstreamPartnerWeb,
+		models.UpstreamReferral} {
 		if v := strings.TrimSpace(os.Getenv("GATEWAY_UPSTREAM_" + strings.ToUpper(name) + "_URL")); v != "" {
 			c.Origins[name] = v
 		}

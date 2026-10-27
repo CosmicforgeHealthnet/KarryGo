@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Loads the staging test data (deploy/platform/seeds/staging/*.sql): test
-# customers, truck and taxi drivers with trips, wallets and notifications.
+# customers, truck and taxi drivers with trips, wallets and notifications, and
+# pricing's Lagos geography and staging operators.
 #
 # Staging only: it refuses to run unless the services' settings say
 # APP_ENV=staging. Every file is idempotent (fixed ids, insert-if-missing) and
@@ -19,6 +20,7 @@ declare -a PLAN=(
   "taxi.sql:karrygo-taxi-db"
   "payment-wallet.sql:karrygo-payment-wallet-db"
   "notification.sql:karrygo-notification-db"
+  "pricing.sql:karrygo-pricing-db"
 )
 
 for env_file in "$KARRYGO_ROOT/taxi-service/taxi.env" "$KARRYGO_ROOT/hauling-service/hauling.env" "$KARRYGO_ROOT/customer-service/customer.env"; do

@@ -43,6 +43,7 @@ const (
 	UpstreamPartnerWeb   = "partner_web"
 	UpstreamAdmin        = "admin"
 	UpstreamVerification = "verification"
+	UpstreamReferral     = "referral"
 )
 
 // Route is one forwarded prefix.
@@ -73,6 +74,9 @@ func DefaultRoutes() []Route {
 		{"/api/v1/payment-wallet", UpstreamWallet, ScopeMixed},
 		{"/api/v1/notifications/ws", UpstreamNotification, ScopePublic},
 		{"/api/v1/support-disputes", UpstreamSupport, ScopeMixed},
+		// Referral codes and rewards for customers and drivers alike; each is
+		// authenticated by referral-service with its own app's token.
+		{"/api/v1/referrals", UpstreamReferral, ScopeMixed},
 		{"/api/v1/vendor", UpstreamVendor, ScopeVendor},
 		{"/api/v1/commerce", UpstreamVendor, ScopeCustomer},
 		{"/api/v1/partner/v1", UpstreamPartnerWeb, ScopePartner},
