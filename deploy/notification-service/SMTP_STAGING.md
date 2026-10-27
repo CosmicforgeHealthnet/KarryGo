@@ -1,5 +1,11 @@
 # Staging email delivery
 
+> **New Karryam-domain plan:** Use [RESEND_KARRYAM_CUTOVER.md](RESEND_KARRYAM_CUTOVER.md)
+> for the Resend SMTP configuration (`no-reply@karryam.com`), free-plan domain-slot
+> migration, and independent Partner Web OTP sender. The cPanel settings below
+> are historical staging examples; they are **not** the Resend cutover values.
+
+
 Status: code prepared locally. VPS configuration, deployment and actual delivery
 have not been verified. Existing debug settings remain unchanged.
 
