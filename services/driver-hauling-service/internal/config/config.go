@@ -57,6 +57,12 @@ type Config struct {
 	ReferralServiceSecret  []byte
 	ReferralIdentityPepper []byte
 
+	// Pricing shadow: also price every new booking with pricing-service, for
+	// comparison only; it never changes a fare. URL is a bare origin.
+	PricingShadowEnabled bool
+	PricingURL           string
+	PricingSecret        string
+
 	// Internal service clients
 	NotificationURL    string
 	NotificationSecret []byte
@@ -259,6 +265,10 @@ func Load() Config {
 		ReferralServiceURL:     os.Getenv("HAULING_REFERRAL_SERVICE_URL"),
 		ReferralServiceSecret:  []byte(os.Getenv("HAULING_REFERRAL_SERVICE_SECRET")),
 		ReferralIdentityPepper: []byte(os.Getenv("HAULING_REFERRAL_IDENTITY_PEPPER")),
+
+		PricingShadowEnabled: getEnvBool("HAULING_PRICING_SHADOW_ENABLED", false),
+		PricingURL:           os.Getenv("HAULING_PRICING_URL"),
+		PricingSecret:        os.Getenv("HAULING_PRICING_SECRET"),
 
 		NotificationURL:    os.Getenv("HAULING_NOTIFICATION_URL"),
 		NotificationSecret: []byte(os.Getenv("HAULING_NOTIFICATION_SECRET")),

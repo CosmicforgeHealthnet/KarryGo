@@ -148,6 +148,9 @@ type Service struct {
 	// standing enforces customer-service's administrative account standing
 	// on NEW customer bookings. nil enforces nothing.
 	standing *customerstanding.Gate
+	// pricingShadow, when set, prices every new booking centrally too, for
+	// comparison only. See pricing_shadow.go.
+	pricingShadow CentralPricing
 }
 
 // WithCustomerStanding enables DISPATCH_CUSTOMER_STANDING_ENFORCED: every new
@@ -509,6 +512,8 @@ func (s *Service) CreateBookingWithKey(ctx context.Context, customerID, idempote
 		}
 		return BookingView{}, apperrors.Unavailable("We couldn't start looking for a rider. Your wallet was not charged.", err)
 	}
+
+	s.shadowPrice(created, distance)
 
 	// Both endpoints are known now, so the delivery leg's road geometry can be
 	// fetched in the background while a rider is found.

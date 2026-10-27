@@ -75,6 +75,7 @@ import (
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/phonenumber"
+	"cosmicforge/logistics/shared/go/pricingclient"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -361,6 +362,17 @@ func main() {
 	// Customer tracking reuses the Share Journey booking-bound reader: only the
 	// current assignment's point, never the driver's global heartbeat.
 	bookingService.WithBookingLocation(shareService)
+	if cfg.PricingShadowEnabled {
+		central := pricingclient.New(pricingclient.Options{
+			BaseURL: cfg.PricingURL, ServiceName: "driver-hauling-service", Secret: cfg.PricingSecret,
+		})
+		if central.Configured() {
+			bookingService.WithPricingShadow(central)
+			logging.Success("pricing", "shadow pricing on: every new booking is also priced by pricing-service for comparison")
+		} else {
+			logging.Notice("pricing", "HAULING_PRICING_SHADOW_ENABLED is set but HAULING_PRICING_URL or HAULING_PRICING_SECRET is empty: shadow pricing is off")
+		}
+	}
 	authorityHandler := fleetauthority.New(db, fleetauthority.Flags{
 		Enabled: cfg.FleetIntegrationEnabled, KillSwitch: cfg.FleetIntegrationKillSwitch,
 	})

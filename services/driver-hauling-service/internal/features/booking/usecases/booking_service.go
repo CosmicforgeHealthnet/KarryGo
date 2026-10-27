@@ -139,6 +139,9 @@ type BookingService struct {
 	handoverSecret     []byte
 	secureHandover     bookingrepo.SecureHandoverRepository
 	routes             routing.Fetcher
+	// pricingShadow, when set, prices every new booking centrally too, for
+	// comparison only. See pricing_shadow.go.
+	pricingShadow CentralPricing
 
 	// managedSettlement and managedHandoff are the Section 12 boundary -- see
 	// managed_settlement.go. They decide whether a completed corporate job
@@ -405,6 +408,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, input CreateBookingI
 	}
 
 	_ = s.addEvent(ctx, created.ID, "booking_created", bookingmodels.ActorCustomer, input.CustomerID)
+	s.shadowPrice(created, dist)
 	// Both endpoints are known now, so the cargo leg's road geometry can be
 	// fetched while matching runs.
 	s.fetchDropoffRoute(created.ID,

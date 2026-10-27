@@ -53,10 +53,15 @@ type Config struct {
 	// referral-service. Off by default; when on, the URL (bare origin),
 	// secret and pepper are all required. The pepper must be identical in
 	// every service that feeds referral-service.
-	ReferralFeedEnabled           bool
-	ReferralServiceURL            string
-	ReferralServiceSecret         []byte
-	ReferralIdentityPepper        []byte
+	ReferralFeedEnabled    bool
+	ReferralServiceURL     string
+	ReferralServiceSecret  []byte
+	ReferralIdentityPepper []byte
+	// Pricing shadow: also price every new booking with pricing-service, for
+	// comparison only; it never changes a fare. URL is a bare origin.
+	PricingShadowEnabled          bool
+	PricingURL                    string
+	PricingSecret                 string
 	AnalyticsURL                  string
 	AnalyticsSecret               []byte
 	AnalyticsEventDeliveryEnabled bool
@@ -474,6 +479,9 @@ func Load() (Config, error) {
 		ReferralServiceURL:            getEnv("DISPATCH_REFERRAL_SERVICE_URL", ""),
 		ReferralServiceSecret:         []byte(getEnv("DISPATCH_REFERRAL_SERVICE_SECRET", "")),
 		ReferralIdentityPepper:        []byte(getEnv("DISPATCH_REFERRAL_IDENTITY_PEPPER", "")),
+		PricingShadowEnabled:          getEnvBool("DISPATCH_PRICING_SHADOW_ENABLED", false),
+		PricingURL:                    getEnv("DISPATCH_PRICING_URL", ""),
+		PricingSecret:                 getEnv("DISPATCH_PRICING_SECRET", ""),
 		// HMAC secrets trusted for internal service-to-service calls
 		// (name=secret pairs). Used by the internal identity endpoint that
 		// support-dispute-service calls to resolve rider identities.

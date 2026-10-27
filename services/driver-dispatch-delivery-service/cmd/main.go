@@ -40,6 +40,7 @@ import (
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
+	"cosmicforge/logistics/shared/go/pricingclient"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -303,6 +304,17 @@ func main() {
 			log.Fatalf("DISPATCH_CUSTOMER_STANDING_ENFORCED: %v", standingErr)
 		}
 		bookingService.WithCustomerStanding(customerstanding.NewGate(standingClient))
+	}
+	if cfg.PricingShadowEnabled {
+		central := pricingclient.New(pricingclient.Options{
+			BaseURL: cfg.PricingURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.PricingSecret,
+		})
+		if central.Configured() {
+			bookingService.WithPricingShadow(central)
+			log.Printf("pricing shadow on: every new booking is also priced by pricing-service for comparison")
+		} else {
+			log.Printf("DISPATCH_PRICING_SHADOW_ENABLED is set but DISPATCH_PRICING_URL or DISPATCH_PRICING_SECRET is empty: pricing shadow is off")
+		}
 	}
 	tripService.WithSettlementReconciler(bookingService, tripfeature.SettlementRetryPolicy{
 		Lease: cfg.ExternalOperationLease, MaxAttempts: cfg.ExternalOperationRetryLimit,

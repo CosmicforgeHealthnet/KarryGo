@@ -160,12 +160,20 @@ Geography, versioned typed policy, four-eye approval, scheduled activation,
 rollback, market freeze, rollout switches, the calculator and simulation are
 built and tested. The V1 rate books exist as loadable seeds.
 
-There is still **no quote endpoint**: nothing yet issues, binds or reconciles a
-price tag, so no consumer can be pointed at this service. That is the next
-milestone, and it is deliberately after the foundations that cannot be retrofitted
-once real quotes exist — immutability, audit, idempotency, exact arithmetic and
-reversible migrations.
+**Quotes** are built: `POST /internal/pricing/v1/quotes` (issue, idempotent by the
+caller's own reference), `GET /quotes/by-ref`, `POST /quotes/:id/bind` and
+`POST /quotes/:id/reconcile` (re-priced with the quote's ORIGINAL policy
+versions). Quotes, bindings and reconciliations are append-only. The contract and
+signed client are `shared/go/pricingclient`.
 
-After that: the wallet learning to execute pricing's exact split, then Taxi in
-shadow mode, then market-by-market cutover. The rollout gates and the open
-commercial decisions are in the implementation plan that accompanies this work.
+Taxi, dispatch and haulage call it in **shadow mode** behind
+`*_PRICING_SHADOW_ENABLED`: they keep charging their own fare, send it with the
+request, and pricing records the difference. Operators read the comparison at
+`GET /internal/pricing/v1/admin/shadow/summary?hours=168`. A quote is CENTRAL
+only when a rollout switches that market's QUOTE capability to CENTRAL, and even
+then the caller's own flag is the second key; no caller charges a central price
+yet.
+
+Next: the wallet learning to execute pricing's exact split, then market-by-market
+cutover. The rollout gates and the open commercial decisions are in the
+implementation plan that accompanies this work.

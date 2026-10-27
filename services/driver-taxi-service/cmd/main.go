@@ -12,6 +12,8 @@ import (
 	"cosmicforge/logistics/shared/go/journeyshare"
 	"encoding/base64"
 	"errors"
+
+	"cosmicforge/logistics/shared/go/pricingclient"
 	"net/http"
 	"os"
 	"strings"
@@ -301,7 +303,18 @@ func main() {
 	routesFetcher := sharedrouting.New(cfg.RoutesAPIKey)
 	googleRouting := routing.NewGoogleRoutingClient(routesFetcher)
 	routingClient := routing.NewHaversineFallbackClient(googleRouting, 0, 0)
-	pricingProvider := pricing.NewConfigPricingProvider(pricingRates, cfg.PricingRateVersion, routingClient)
+	var pricingProvider pricing.PricingClient = pricing.NewConfigPricingProvider(pricingRates, cfg.PricingRateVersion, routingClient)
+	if cfg.PricingShadowEnabled {
+		central := pricingclient.New(pricingclient.Options{
+			BaseURL: cfg.PricingURL, ServiceName: "driver-taxi-service", Secret: cfg.PricingSecret,
+		})
+		if central.Configured() {
+			pricingProvider = pricing.NewShadowPricingClient(pricingProvider, central)
+			logging.Success("pricing", "shadow pricing on: every quote is also priced by pricing-service for comparison")
+		} else {
+			logging.Notice("pricing", "TAXI_PRICING_SHADOW_ENABLED is set but TAXI_PRICING_URL or TAXI_PRICING_SECRET is empty: shadow pricing is off")
+		}
+	}
 
 	// 24h mirrors the platform convention already documented in
 	// internal/idempotency's own tests; no caller needs a key to outlive one

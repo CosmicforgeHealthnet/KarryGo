@@ -116,6 +116,14 @@ type Config struct {
 	PricingRatesJSON   string
 	PricingRateVersion string
 
+	// PricingShadowEnabled asks the central pricing engine (pricing-service)
+	// for every quote and final fare, in the background, so its answers can be
+	// compared with the fares above. It never changes a fare. PricingURL is a
+	// bare origin; PricingSecret is this service's signing secret there.
+	PricingShadowEnabled bool
+	PricingURL           string
+	PricingSecret        string
+
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a driver identity).
 	ServiceSecrets            string
@@ -314,6 +322,10 @@ func Load() Config {
 
 		PricingRatesJSON:   getEnv("TAXI_PROVISIONAL_RATES", defaultProvisionalRatesJSON),
 		PricingRateVersion: getEnv("TAXI_PRICING_RATE_VERSION", "provisional-dev-v1"),
+
+		PricingShadowEnabled: getEnvBool("TAXI_PRICING_SHADOW_ENABLED", false),
+		PricingURL:           os.Getenv("TAXI_PRICING_URL"),
+		PricingSecret:        os.Getenv("TAXI_PRICING_SECRET"),
 
 		ServiceSecrets:            os.Getenv("TAXI_SERVICE_SECRETS"),
 		AdminReadEnabled:          os.Getenv("TAXI_ADMIN_READ_ENABLED") == "true",

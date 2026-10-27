@@ -78,7 +78,7 @@ func Load() Config {
 
 		ServiceSecrets: serviceauth.ParseSecrets(os.Getenv("PRICING_SERVICE_SECRETS")),
 		QuoteCallers: splitCSV(getEnv("PRICING_QUOTE_CALLERS",
-			"taxi-service,dispatch-delivery-service,driver-hauling-service,api-gateway")),
+			"driver-taxi-service,driver-dispatch-delivery-service,driver-hauling-service,api-gateway")),
 		AdminCallers: splitCSV(getEnv("PRICING_ADMIN_CALLERS", "admin-backoffice-service,pricing-ops-cli")),
 
 		FourEyeRequired: getEnvBool("PRICING_FOUR_EYE_REQUIRED", true),

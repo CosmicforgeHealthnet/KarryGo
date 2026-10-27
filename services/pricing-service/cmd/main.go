@@ -6,11 +6,8 @@
 // trusted route snapshot, the wallet executes the split, and the booking service
 // keeps the trip.
 //
-// At this milestone the service exposes only its health surface. Quote and
-// administration routes arrive with the policy and quote milestones; until then
-// there is nothing here that can price anything, which is deliberate -- the
-// foundations that cannot be retrofitted safely (immutability, audit,
-// idempotency, exact arithmetic) are built first.
+// Booking services ask it for quotes over signed internal routes; operators
+// administer policy through signed admin routes. Nothing here is public.
 package main
 
 import (
@@ -27,6 +24,9 @@ import (
 	policyhttp "cosmicforge/logistics/services/pricing-service/internal/features/policies/http"
 	policyrepos "cosmicforge/logistics/services/pricing-service/internal/features/policies/repositories"
 	policyusecases "cosmicforge/logistics/services/pricing-service/internal/features/policies/usecases"
+	quotehttp "cosmicforge/logistics/services/pricing-service/internal/features/quotes/http"
+	quoterepos "cosmicforge/logistics/services/pricing-service/internal/features/quotes/repositories"
+	quoteusecases "cosmicforge/logistics/services/pricing-service/internal/features/quotes/usecases"
 	rolloutrepos "cosmicforge/logistics/services/pricing-service/internal/features/rollouts/repositories"
 	"cosmicforge/logistics/services/pricing-service/internal/jobs"
 	"cosmicforge/logistics/services/pricing-service/internal/platform/audit"
@@ -106,6 +106,8 @@ func main() {
 	)
 	verifier := serviceauth.NewVerifier(cfg.ServiceSecrets, 5*time.Minute)
 
+	quoteService := quoteusecases.NewService(quoterepos.NewStore(db), policyService, rolloutrepos.NewStore(db))
+
 	onWorkerError := func(name string, err error) { logging.Error("worker", "%s: %v", name, err) }
 	workers := []func(context.Context) error{
 		func(runCtx context.Context) error {
@@ -133,7 +135,8 @@ func main() {
 			"price simulation against any version",
 			"exact whole-kobo arithmetic",
 			"append-only audit trail",
-			"immutable quotes and historical reproducibility (next milestone)",
+			"immutable quotes: issue, bind and reconcile against the original policy versions",
+			"shadow comparison against the fares callers charge",
 		},
 		ReadyChecks: readyChecks,
 		Register: func(group *gin.RouterGroup) {
@@ -149,9 +152,15 @@ func main() {
 				Idempotency:  idempotencyStore,
 				AdminCallers: cfg.AdminCallers,
 			})
-			// Quote routes (issue, bind, reconcile) arrive with the quote
-			// milestone, behind the same signing, nonce and caller checks but a
-			// different allowlist: a booking service may price, never approve.
+			// Same signing and nonce checks, a different allowlist: a booking
+			// service may price, never approve.
+			quotehttp.RegisterRoutes(router, quotehttp.Options{
+				Handler:      quotehttp.NewHandler(quoteService),
+				Verifier:     verifier,
+				NonceStore:   db,
+				QuoteCallers: cfg.QuoteCallers,
+				AdminCallers: cfg.AdminCallers,
+			})
 		},
 		Workers: workers,
 	})
