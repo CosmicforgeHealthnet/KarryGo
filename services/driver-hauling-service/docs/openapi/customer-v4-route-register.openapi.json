@@ -333,6 +333,49 @@
         ]
       }
     },
+    "/api/v1/hauling/customer/bookings/{id}/waiting": {
+      "get": {
+        "operationId": "get_api_v1_hauling_customer_bookings_id_waiting",
+        "x-handler": "cosmicforge/logistics/services/hauling-service/internal/features/booking/http.(*BookingHandler).CustomerWaiting-fm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/hauling/customer/bookings/{id}/location": {
       "get": {
         "operationId": "get_api_v1_hauling_customer_bookings_id_location",

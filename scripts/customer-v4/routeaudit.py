@@ -270,7 +270,8 @@ def gateway_routes() -> list[tuple[str, str]]:
     owners = {"customer": "customer-service", "taxi": "driver-taxi-service", "dispatch": "driver-dispatch-delivery-service",
               "hauling": "driver-hauling-service", "payment_wallet": "payment-wallet-service", "notification": "notification-service",
               "support": "support-dispute-service", "vendor": "vendor-service", "fleet": "fleet-partner-service",
-              "partner_web": "partner-web-service", "admin": "admin-backoffice-service", "verification": "verification-compliance-service"}
+              "partner_web": "partner-web-service", "admin": "admin-backoffice-service", "verification": "verification-compliance-service",
+              "referral": "referral-service"}
     body = source.split("func DefaultRoutes()", 1)[1].split("\n}\n", 1)[0]
     table = []
     for prefix, constant in re.findall(r'\{\s*"([^"]+)"\s*,\s*(Upstream\w+)\s*,', body):
