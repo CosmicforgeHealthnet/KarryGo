@@ -50,7 +50,7 @@ type EdgeConfig struct {
 
 // edgeUpstreams are the upstream names the edge can route to.
 var edgeUpstreams = []string{"customer", "taxi", "dispatch", "hauling", "payment_wallet", "notification",
-	"support", "vendor", "fleet", "admin", "verification"}
+	"support", "vendor", "fleet", "admin", "verification", "referral"}
 
 func loadEdgeConfig() EdgeConfig {
 	origins := map[string]string{}

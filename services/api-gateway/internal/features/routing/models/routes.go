@@ -39,6 +39,7 @@ const (
 	UpstreamFleet        = "fleet"
 	UpstreamAdmin        = "admin"
 	UpstreamVerification = "verification"
+	UpstreamReferral     = "referral"
 )
 
 // Route is one forwarded prefix.
@@ -72,6 +73,9 @@ func DefaultRoutes() []Route {
 		{"/api/v1/vendor", UpstreamVendor, ScopeVendor},
 		{"/api/v1/commerce", UpstreamVendor, ScopeCustomer},
 		{"/api/v1/admin", UpstreamAdmin, ScopeAdmin},
+		// Referral codes and rewards for customers and drivers alike; each is
+		// authenticated by referral-service with its own app's token.
+		{"/api/v1/referrals", UpstreamReferral, ScopeMixed},
 		{"/fleet-partner/", UpstreamFleet, ScopeFleet},
 	}
 }
