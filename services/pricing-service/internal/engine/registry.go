@@ -50,6 +50,7 @@ var registry = map[string]map[int]decoder{
 	KindCommission:        {1: decodeInto[CommissionV1]},
 	KindQuoteLifecycle:    {1: decodeInto[QuoteLifecycleV1]},
 	KindRegulatoryCharges: {1: decodeInto[RegulatoryChargesV1]},
+	KindFuelAdjustment:    {1: decodeInto[FuelAdjustmentV1]},
 }
 
 // KnownKinds lists every supported kind.

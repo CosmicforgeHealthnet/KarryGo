@@ -4,6 +4,7 @@
 package booking
 
 import (
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"time"
 
 	"cosmicforge/logistics/shared/go/dispatchpricing"
@@ -312,6 +313,9 @@ type LocationResponse struct {
 	Accuracy  float64   `json:"accuracy"`
 	UpdatedAt time.Time `json:"updated_at"`
 	State     string    `json:"state"`
+	// When the rider should reach the pickup and the drop-off; absent when it
+	// cannot be estimated.
+	journeyshare.ETAs
 }
 
 type ReviewInput struct {

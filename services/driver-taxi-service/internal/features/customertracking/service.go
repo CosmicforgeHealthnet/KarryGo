@@ -19,6 +19,8 @@ type Postgres struct {
 	DB       *pgxpool.Pool
 	FreshFor time.Duration
 	Now      func() time.Time
+	// ETA estimates pickup and drop-off times; nil leaves them unset.
+	ETA journeyshare.Estimator
 }
 
 // One SQL snapshot binds the point, assigned provider and vehicle to the same
@@ -79,6 +81,7 @@ func (r *Postgres) Read(ctx context.Context, id, customer string) (journeyshare.
 		fresh = 30 * time.Second
 	}
 	p = Safe(p, lat, lng, heading, accuracy, at, now, fresh)
+	p = journeyshare.WithETAs(ctx, p, r.ETA, now)
 	journeyshare.Observe("taxi_location_"+p.Location.State, 0)
 	if at != nil && !now.Before(*at) {
 		// Customer V4 §27.2 ingest lag: provider fix to customer read.

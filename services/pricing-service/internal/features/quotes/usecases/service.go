@@ -280,11 +280,17 @@ func (s *Service) place(ctx context.Context, caller string, request pricingclien
 	if request.Pickup == nil {
 		return models.Place{}, models.ErrNoMarket
 	}
+	return s.Locate(ctx, request.Pickup.Lat, request.Pickup.Lng)
+}
+
+// Locate returns the place whose zone contains a point. The smallest
+// containing circle wins; models.ErrNoMarket means no zone covers it.
+func (s *Service) Locate(ctx context.Context, lat, lng float64) (models.Place, error) {
 	candidates, err := s.store.ZoneCandidates(ctx)
 	if err != nil {
 		return models.Place{}, err
 	}
-	pickup := geo.Point{Lat: request.Pickup.Lat, Lng: request.Pickup.Lng}
+	pickup := geo.Point{Lat: lat, Lng: lng}
 	var best *models.ZoneCandidate
 	for i := range candidates {
 		candidate := candidates[i]

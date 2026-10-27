@@ -14,6 +14,7 @@ import (
 	"errors"
 
 	"cosmicforge/logistics/shared/go/pricingclient"
+	"cosmicforge/logistics/shared/go/pricingclient/fuelrelay"
 	"net/http"
 	"os"
 	"strings"
@@ -304,6 +305,14 @@ func main() {
 	googleRouting := routing.NewGoogleRoutingClient(routesFetcher)
 	routingClient := routing.NewHaversineFallbackClient(googleRouting, 0, 0)
 	var pricingProvider pricing.PricingClient = pricing.NewConfigPricingProvider(pricingRates, cfg.PricingRateVersion, routingClient)
+	// Drivers' fuel price reports go to pricing whenever it is reachable,
+	// whether or not shadow pricing is on.
+	var fuelReporter fuelrelay.Reporter
+	if fuelClient := pricingclient.New(pricingclient.Options{
+		BaseURL: cfg.PricingURL, ServiceName: "driver-taxi-service", Secret: cfg.PricingSecret,
+	}); fuelClient.Configured() {
+		fuelReporter = fuelClient
+	}
 	if cfg.PricingShadowEnabled {
 		central := pricingclient.New(pricingclient.Options{
 			BaseURL: cfg.PricingURL, ServiceName: "driver-taxi-service", Secret: cfg.PricingSecret,
@@ -606,7 +615,12 @@ func main() {
 	taxiOutboxMetrics := outboxmetrics.NewReporter(db, taxioutbox.MetricsInterval,
 		taxioutbox.MetricsSources()...).WithAuthToken(cfg.MetricsAuthToken)
 
-	trackingReader := &customertracking.Postgres{DB: db, FreshFor: cfg.CustomerLocationFreshFor}
+	// Pickup and drop-off ETAs: road routes when TAXI_ROUTES_API_KEY is set,
+	// otherwise a straight-line estimate at city car speeds.
+	trackingReader := &customertracking.Postgres{DB: db, FreshFor: cfg.CustomerLocationFreshFor, ETA: &journeyshare.RouteEstimator{
+		Client: routesFetcher, Mode: sharedrouting.TravelModeDrive,
+		Fallback: journeyshare.StraightLineEstimator{SpeedKmh: 25, RoadFactor: 1.35},
+	}}
 	var adminReadSecret []byte
 	var adminAccessPolicy *adminpolicy.Engine
 	if cfg.AdminReadEnabled {
@@ -688,6 +702,8 @@ func main() {
 			}
 			custodyops.RegisterProvider(group, custodyops.NewRepository(db, "TAXI_GOODS"), authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)
 			providerauthhttp.RegisterProviderAuthRoutes(group, authService, cfg.OTPDebug)
+			group.Group("/provider", sharedauth.BearerMiddleware(authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)).
+				POST(fuelrelay.Path, fuelrelay.Handler(fuelReporter, providerSubject))
 			providerprofilehttp.RegisterProfileRoutes(group, profileService, authService.AccessSigner())
 			provideruploadshttp.RegisterUploadRoutes(group, uploadService, authService.AccessSigner())
 			availabilityhttp.RegisterAvailabilityRoutes(group, availabilityService,
@@ -858,4 +874,13 @@ func (r taxiZoneResolver) ResolveZone(ctx context.Context, point geo.Point) (pri
 		return privateexecution.Zone{}, err
 	}
 	return privateexecution.Zone{ID: zone.ID, MarketID: zone.MarketID}, nil
+}
+
+// providerSubject is the signed-in driver's id.
+func providerSubject(c *gin.Context) (string, bool) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		return "", false
+	}
+	return claims.Subject, true
 }

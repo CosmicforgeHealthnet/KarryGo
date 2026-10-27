@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,10 +22,14 @@ import (
 	"cosmicforge/logistics/services/pricing-service/internal/database"
 	approvalrepos "cosmicforge/logistics/services/pricing-service/internal/features/approvals/repositories"
 	approvalusecases "cosmicforge/logistics/services/pricing-service/internal/features/approvals/usecases"
+	fuelhttp "cosmicforge/logistics/services/pricing-service/internal/features/fuel/http"
+	fuelrepos "cosmicforge/logistics/services/pricing-service/internal/features/fuel/repositories"
+	fuelusecases "cosmicforge/logistics/services/pricing-service/internal/features/fuel/usecases"
 	policyhttp "cosmicforge/logistics/services/pricing-service/internal/features/policies/http"
 	policyrepos "cosmicforge/logistics/services/pricing-service/internal/features/policies/repositories"
 	policyusecases "cosmicforge/logistics/services/pricing-service/internal/features/policies/usecases"
 	quotehttp "cosmicforge/logistics/services/pricing-service/internal/features/quotes/http"
+	quotemodels "cosmicforge/logistics/services/pricing-service/internal/features/quotes/models"
 	quoterepos "cosmicforge/logistics/services/pricing-service/internal/features/quotes/repositories"
 	quoteusecases "cosmicforge/logistics/services/pricing-service/internal/features/quotes/usecases"
 	rolloutrepos "cosmicforge/logistics/services/pricing-service/internal/features/rollouts/repositories"
@@ -107,12 +112,26 @@ func main() {
 	verifier := serviceauth.NewVerifier(cfg.ServiceSecrets, 5*time.Minute)
 
 	quoteService := quoteusecases.NewService(quoterepos.NewStore(db), policyService, rolloutrepos.NewStore(db))
+	fuelService := fuelusecases.NewService(fuelrepos.NewStore(db), quoteLocator{quoteService}, policyService, cfg.FuelIndexWindowDays)
 
 	onWorkerError := func(name string, err error) { logging.Error("worker", "%s: %v", name, err) }
 	workers := []func(context.Context) error{
 		func(runCtx context.Context) error {
 			jobs.Job{Name: "nonce-prune", Interval: cfg.Workers.NoncePruneInterval, Pass: func(passCtx context.Context) error {
 				return servicetrust.PruneNonces(passCtx, db)
+			}}.Run(runCtx, onWorkerError)
+			return nil
+		},
+		func(runCtx context.Context) error {
+			jobs.Job{Name: "fuel-index", Interval: cfg.Workers.FuelIndexInterval, Pass: func(passCtx context.Context) error {
+				if _, err := fuelService.ComputeIndex(passCtx); err != nil {
+					return err
+				}
+				proposed, err := fuelService.Propose(passCtx)
+				if proposed > 0 {
+					logging.Notice("fuel-index", "proposed %d tariff change(s) for approval", proposed)
+				}
+				return err
 			}}.Run(runCtx, onWorkerError)
 			return nil
 		},
@@ -137,6 +156,7 @@ func main() {
 			"append-only audit trail",
 			"immutable quotes: issue, bind and reconcile against the original policy versions",
 			"shadow comparison against the fares callers charge",
+			"drivers' daily fuel index, with tariff changes proposed for approval",
 		},
 		ReadyChecks: readyChecks,
 		Register: func(group *gin.RouterGroup) {
@@ -161,7 +181,27 @@ func main() {
 				QuoteCallers: cfg.QuoteCallers,
 				AdminCallers: cfg.AdminCallers,
 			})
+			fuelhttp.RegisterRoutes(router, fuelhttp.Options{
+				Reporter:   fuelService,
+				Verifier:   verifier,
+				NonceStore: db,
+				Callers:    cfg.FuelCallers,
+			})
 		},
 		Workers: workers,
 	})
+}
+
+// quoteLocator finds a fuel report's market the way quotes find a pickup's.
+type quoteLocator struct{ quotes *quoteusecases.Service }
+
+func (l quoteLocator) Locate(ctx context.Context, lat, lng float64) (fuelusecases.Place, bool, error) {
+	place, err := l.quotes.Locate(ctx, lat, lng)
+	if errors.Is(err, quotemodels.ErrNoMarket) {
+		return fuelusecases.Place{}, false, nil
+	}
+	if err != nil {
+		return fuelusecases.Place{}, false, err
+	}
+	return fuelusecases.Place{MarketID: place.MarketID, MarketCode: place.MarketCode, ZoneID: place.ZoneID}, true, nil
 }

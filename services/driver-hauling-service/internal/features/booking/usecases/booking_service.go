@@ -127,6 +127,7 @@ type BookingService struct {
 	capabilityMatching CapabilityMatchingConfig
 	payments           PaymentClient
 	bookingLocation    BookingLocationReader
+	etaEstimator       journeyshare.Estimator
 	commerceSettlement CommerceDeliverySettlementAuthority
 	notifier           *bookingclients.BookingNotifier
 	matchTimeout       time.Duration // per-provider acceptance window
@@ -139,6 +140,10 @@ type BookingService struct {
 	handoverSecret     []byte
 	secureHandover     bookingrepo.SecureHandoverRepository
 	routes             routing.Fetcher
+	// waiting, when set, times the driver's wait at pickup and drop-off and
+	// charges what runs past the free time. See waiting.go.
+	waiting         WaitingStore
+	waitingDefaults bookingmodels.WaitingPolicy
 	// pricingShadow, when set, prices every new booking centrally too, for
 	// comparison only. See pricing_shadow.go.
 	pricingShadow CentralPricing
@@ -434,6 +439,9 @@ type ProviderLocation struct {
 	Available bool    `json:"available"`
 	// State is FRESH, STALE or UNAVAILABLE by server freshness policy.
 	State string `json:"state"`
+	// When the driver should reach the pickup and the drop-off; absent when
+	// it cannot be estimated (no fresh position, or the stop is behind them).
+	journeyshare.ETAs
 }
 
 // TrackTarget identifies whose live position a customer is entitled to watch
@@ -482,6 +490,13 @@ func (s *BookingService) WithBookingLocation(reader BookingLocationReader) *Book
 	return s
 }
 
+// WithETAEstimator turns on pickup and drop-off ETAs on the customer's
+// location reads.
+func (s *BookingService) WithETAEstimator(est journeyshare.Estimator) *BookingService {
+	s.etaEstimator = est
+	return s
+}
+
 // GetBookingLocation returns the live location of the provider assigned to the
 // customer's booking, sourced from the provider's availability heartbeat. Used
 // to drive the live driver marker on the customer trip map.
@@ -501,11 +516,13 @@ func (s *BookingService) GetBookingLocation(ctx context.Context, bookingID, cust
 	if err != nil {
 		return ProviderLocation{}, err
 	}
+	etas := journeyshare.EstimateETAs(ctx, projection, s.etaEstimator, time.Now().UTC())
+	unavailable.ETAs = etas
 	l := projection.Location
 	if projection.Terminal || !l.Available || l.Lat == nil || l.Lng == nil || l.UpdatedAt == nil {
 		return unavailable, nil
 	}
-	out := ProviderLocation{BookingID: bookingID, Lat: *l.Lat, Lng: *l.Lng, UpdatedAt: l.UpdatedAt.Unix(), Available: true, State: l.State}
+	out := ProviderLocation{BookingID: bookingID, Lat: *l.Lat, Lng: *l.Lng, UpdatedAt: l.UpdatedAt.Unix(), Available: true, State: l.State, ETAs: etas}
 	if l.Heading != nil {
 		out.Heading = *l.Heading
 	}
@@ -1372,6 +1389,7 @@ func (s *BookingService) MarkArrivedAtPickup(ctx context.Context, id, providerID
 		return ArrivedAtPickupResult{}, err
 	}
 	_ = s.addEvent(ctx, id, "driver_arrived_pickup", bookingmodels.ActorProvider, providerID)
+	s.waitingArrived(ctx, id, bookingmodels.WaitingStopPickup)
 	s.notifier.NotifyCustomerArrivedPickup(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	s.notifier.NotifyCustomerPickupVerificationRequired(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	return ArrivedAtPickupResult{
@@ -1446,6 +1464,7 @@ func (s *BookingService) ConfirmPickup(ctx context.Context, id, providerID strin
 		return bookingmodels.PublicBooking{}, err
 	}
 	_ = s.addEvent(ctx, id, "cargo_picked_up", bookingmodels.ActorProvider, providerID)
+	s.waitingLeft(ctx, id, bookingmodels.WaitingStopPickup)
 	s.notifier.NotifyCustomerPickedUp(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	return updated.Public(), nil
 }
@@ -1470,6 +1489,7 @@ func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, co
 		}
 		if consumeErr == nil && consumed {
 			_ = s.addEvent(ctx, id, "cargo_delivered", bookingmodels.ActorProvider, providerID)
+			s.waitingLeft(ctx, id, bookingmodels.WaitingStopDropoff)
 			s.notifier.NotifyCustomerDelivered(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 		}
 		if consumeErr == nil {
@@ -1484,6 +1504,7 @@ func (s *BookingService) ConfirmDelivery(ctx context.Context, id, providerID, co
 		return bookingmodels.PublicBooking{}, err
 	}
 	_ = s.addEvent(ctx, id, "cargo_delivered", bookingmodels.ActorProvider, providerID)
+	s.waitingLeft(ctx, id, bookingmodels.WaitingStopDropoff)
 	s.notifier.NotifyCustomerDelivered(ctx, b.CustomerID, id, map[string]interface{}{"booking_id": id})
 	// Auto-completion is handled by RunAutoCompleteWorker, not a goroutine sleep.
 	return updated.Public(), nil
@@ -1577,6 +1598,7 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 	// settlement below and the Commerce delivery release, because both move
 	// money to the executing provider.
 	if !s.routeCompletedSettlement(ctx, bookingID) {
+		s.settleWaiting(ctx, b, "") // fleet-managed: settled outside the customer's wallet
 		return
 	}
 	if scopes, ok := s.bookings.(commerceMissionScopeReader); ok {
@@ -1585,6 +1607,7 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 			return
 		}
 		if commerce {
+			s.settleWaiting(ctx, b, "") // vendor delivery: not charged waiting time
 			if s.commerceSettlement == nil || b.ProviderID == nil || strings.TrimSpace(*b.ProviderID) == "" {
 				return
 			}
@@ -1596,7 +1619,11 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 			return
 		}
 	}
-	if b.PaymentMethod == bookingmodels.PaymentMethodCash || s.payments == nil {
+	if b.PaymentMethod == bookingmodels.PaymentMethodCash {
+		s.settleWaiting(ctx, b, "cash")
+		return
+	}
+	if s.payments == nil {
 		return
 	}
 	if b.PaymentStatus != bookingmodels.PaymentStatusHeld {
@@ -1624,6 +1651,9 @@ func (s *BookingService) settleOnComplete(ctx context.Context, bookingID string)
 		return
 	}
 	_, _ = s.bookings.SetPayment(ctx, bookingID, bookingmodels.PaymentStatusPaid, "")
+	// The waiting fee is its own wallet payment, charged only after the fare
+	// has settled, so it can never hold up or change the driver's fare.
+	s.settleWaiting(ctx, b, "wallet")
 }
 
 // jobCompletedAt is when the job reached "completed", falling back to its

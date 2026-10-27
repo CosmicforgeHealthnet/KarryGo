@@ -40,6 +40,7 @@ func RegisterPublicRoutes(group *gin.RouterGroup, opts PublicOptions) {
 
 	me := group.Group("/me", accountAuth(opts.CustomerTokenSecret, opts.ProviderTokenSecrets))
 	me.GET("", h.myCode)
+	me.GET("/dashboard", h.dashboard)
 }
 
 type publicHandler struct {
@@ -104,6 +105,15 @@ func denyRequest(c *gin.Context, err error) {
 
 func (h *publicHandler) myCode(c *gin.Context) {
 	view, err := h.service.MyCode(c.Request.Context(), c.GetString(actorTypeKey), c.GetString(actorIDKey))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": view})
+}
+
+func (h *publicHandler) dashboard(c *gin.Context) {
+	view, err := h.service.Dashboard(c.Request.Context(), c.GetString(actorTypeKey), c.GetString(actorIDKey))
 	if err != nil {
 		httpx.Abort(c, err)
 		return

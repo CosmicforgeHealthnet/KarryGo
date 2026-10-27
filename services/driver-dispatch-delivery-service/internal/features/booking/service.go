@@ -142,6 +142,8 @@ type Service struct {
 	// routes fetches road geometry for the live map and the progress bar.
 	// nil disables route fetching; consumers then fall back to straight lines.
 	routes routing.Fetcher
+	// etaEstimator gives pickup and drop-off ETAs on location reads.
+	etaEstimator journeyshare.Estimator
 	// tripLocation is the trip-bound point projection (the same reader the
 	// Share Journey adapter uses). Customer tracking reads only through it.
 	tripLocation TripLocationReader
@@ -206,6 +208,13 @@ func (s *Service) WithClock(now func() time.Time) *Service {
 // to straight-line geometry.
 func (s *Service) WithRoutes(routes routing.Fetcher) *Service {
 	s.routes = routes
+	return s
+}
+
+// WithETAEstimator turns on pickup and drop-off ETAs on the customer's
+// location reads.
+func (s *Service) WithETAEstimator(est journeyshare.Estimator) *Service {
+	s.etaEstimator = est
 	return s
 }
 
@@ -745,6 +754,7 @@ func (s *Service) GetLiveLocation(ctx context.Context, customerID, id string) (L
 		Lng:       *projection.Location.Lng,
 		UpdatedAt: *projection.Location.UpdatedAt,
 		State:     projection.Location.State,
+		ETAs:      journeyshare.EstimateETAs(ctx, projection, s.etaEstimator, s.now()),
 	}
 	if projection.Location.Heading != nil {
 		response.Heading = *projection.Location.Heading

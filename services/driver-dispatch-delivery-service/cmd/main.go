@@ -37,6 +37,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/router"
 	"cosmicforge/logistics/shared/go/customerstanding"
 	"cosmicforge/logistics/shared/go/events"
+	"cosmicforge/logistics/shared/go/journeyshare"
 	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
@@ -291,7 +292,13 @@ func main() {
 		// routesClient is nil unless DISPATCH_ROUTES_API_KEY is set, in which
 		// case routes are never fetched and the apps fall back to
 		// straight-line geometry.
-	).WithNotifier(bookingNotifier).WithRoutes(routing.New(cfg.RoutesAPIKey))
+	).WithNotifier(bookingNotifier).WithRoutes(routing.New(cfg.RoutesAPIKey)).
+		// Pickup and drop-off ETAs: road routes when DISPATCH_ROUTES_API_KEY is
+		// set, otherwise a straight-line estimate at bike speeds.
+		WithETAEstimator(&journeyshare.RouteEstimator{
+			Client: routing.New(cfg.RoutesAPIKey), Mode: routing.TravelModeTwoWheeler,
+			Fallback: journeyshare.StraightLineEstimator{SpeedKmh: 25, RoadFactor: 1.3},
+		})
 	bookingService.WithCommerceSettlement(bookingfeature.NewWalletCommerceSettlementClient(walletClient))
 	// Administrative account standing (customer-service owned). Off by
 	// default; when on, every new customer booking asks customer-service live

@@ -25,6 +25,8 @@ const (
 	PrefixFreeze         = "frz"
 	PrefixRollout        = "rol"
 	PrefixReconciliation = "prc"
+	PrefixFuelReport     = "fr"
+	PrefixFuelProposal   = "fp"
 )
 
 // New returns a new prefixed identifier.

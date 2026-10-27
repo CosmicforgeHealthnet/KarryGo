@@ -19,6 +19,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/config"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/assignment"
 	authhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/http"
+	authmodels "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/models"
 	authrepositories "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/repositories"
 	authusecases "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/auth/usecases"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/authority"
@@ -58,6 +59,8 @@ import (
 	"cosmicforge/logistics/shared/go/mediaclient"
 	"cosmicforge/logistics/shared/go/notifications"
 	"cosmicforge/logistics/shared/go/policyingest"
+	"cosmicforge/logistics/shared/go/pricingclient"
+	"cosmicforge/logistics/shared/go/pricingclient/fuelrelay"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/serviceauth"
 	"cosmicforge/logistics/shared/go/supportcase"
@@ -137,6 +140,23 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client, authSer
 	}
 	profile.RegisterRoutes(engine, authService.TokenUsecase(), profile.NewHandlerWithUploader(profileService, avatarUploader))
 	profile.StartSubscribers(context.Background(), redisClient, profileRepository)
+
+	// Riders' fuel price reports go to pricing whenever it is reachable,
+	// whether or not shadow pricing is on.
+	var fuelReporter fuelrelay.Reporter
+	if fuelClient := pricingclient.New(pricingclient.Options{
+		BaseURL: cfg.PricingURL, ServiceName: "driver-dispatch-delivery-service", Secret: cfg.PricingSecret,
+	}); fuelClient.Configured() {
+		fuelReporter = fuelClient
+	}
+	engine.Group("/api/v1/provider", authhttp.DispatchRiderAuthRequired(authService.TokenUsecase())).
+		POST(fuelrelay.Path, fuelrelay.Handler(fuelReporter, func(c *gin.Context) (string, bool) {
+			if authhttp.Role(c) != authmodels.RoleDispatchProvider {
+				return "", false
+			}
+			id := authhttp.DispatchRiderID(c)
+			return id, id != ""
+		}))
 
 	verificationRepository := verification.NewPostgresRepository(db)
 	verificationUploader, err := verification.NewUploaderFromEnv(cfg.AppEnv, mediaClient)

@@ -40,6 +40,7 @@ func RegisterBookingRoutes(
 	customerGroup.POST("/bookings", handler.CreateBooking)
 	customerGroup.GET("/bookings", handler.ListCustomerBookings)
 	customerGroup.GET("/bookings/:id", handler.GetCustomerBooking)
+	customerGroup.GET("/bookings/:id/waiting", handler.CustomerWaiting)
 	customerGroup.GET("/bookings/:id/location", handler.GetBookingLocation)
 	customerGroup.POST("/bookings/:id/card-payment", handler.InitiateCardPayment)
 	customerGroup.PUT("/bookings/:id/cancel", handler.CancelBooking)
@@ -67,6 +68,8 @@ func RegisterBookingRoutes(
 	providerGroup.POST("/bookings/:id/pickup-credential/resend", handler.ResendPickupCredential)
 	providerGroup.PUT("/bookings/:id/pickup-confirmed", handler.ConfirmPickup)
 	providerGroup.PUT("/bookings/:id/en-route-delivery", handler.MarkEnRouteDelivery)
+	providerGroup.PUT("/bookings/:id/arrived-dropoff", handler.MarkArrivedAtDropoff)
+	providerGroup.GET("/bookings/:id/waiting", handler.ProviderWaiting)
 	providerGroup.PUT("/bookings/:id/delivered", handler.ConfirmDelivery)
 	providerGroup.PUT("/bookings/:id/cancel", handler.CancelByProvider)
 }

@@ -58,6 +58,8 @@ type Projection struct {
 	Location      Location   `json:"location"`
 	Progress      Progress   `json:"progress"`
 	ETA           *time.Time `json:"eta"`
+	PickupETA     *time.Time `json:"pickup_eta,omitempty"`
+	DropoffETA    *time.Time `json:"dropoff_eta,omitempty"`
 	SourceVersion int64      `json:"source_version"`
 	Terminal      bool       `json:"terminal"`
 	CompletedAt   *time.Time `json:"completed_at,omitempty"`
@@ -71,6 +73,8 @@ type PublicSnapshot struct {
 	Location     Location   `json:"location"`
 	Progress     Progress   `json:"progress"`
 	ETA          *time.Time `json:"eta"`
+	PickupETA    *time.Time `json:"pickup_eta,omitempty"`
+	DropoffETA   *time.Time `json:"dropoff_eta,omitempty"`
 	Terminal     bool       `json:"terminal"`
 }
 
@@ -89,6 +93,8 @@ func (p Projection) Public(permissions []string) PublicSnapshot {
 			}
 		case "eta":
 			out.ETA = p.ETA
+			out.PickupETA = p.PickupETA
+			out.DropoffETA = p.DropoffETA
 		}
 	}
 	return out

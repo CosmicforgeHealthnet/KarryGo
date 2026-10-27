@@ -212,6 +212,13 @@ type Config struct {
 	ProviderOnlineTTL   int     // seconds provider stays online without heartbeat
 	MatchMaxRadiusKm    float64 // providers farther than this from pickup are not dispatched
 
+	// Waiting time: the rates used until an admin sets their own through the
+	// signed admin route. Free minutes per stop, then a fee per started block.
+	WaitingEnabled      bool
+	WaitingFreeMinutes  int
+	WaitingBlockMinutes int
+	WaitingBlockFeeKobo int64
+
 	// CommerceQuoteTTL is how long an issued internal commerce delivery quote
 	// stands before a caller must re-ask.
 	CommerceQuoteTTL time.Duration
@@ -329,6 +336,10 @@ func Load() Config {
 
 		BookingMatchTimeout: getEnvInt("HAULING_BOOKING_MATCH_TIMEOUT", 30),
 		BookingSearchWindow: getEnvInt("HAULING_BOOKING_SEARCH_WINDOW", 60),
+		WaitingEnabled:      getEnvBool("HAULING_WAITING_ENABLED", true),
+		WaitingFreeMinutes:  getEnvInt("HAULING_WAITING_FREE_MINUTES", 60),
+		WaitingBlockMinutes: getEnvInt("HAULING_WAITING_BLOCK_MINUTES", 30),
+		WaitingBlockFeeKobo: int64(getEnvInt("HAULING_WAITING_BLOCK_FEE_KOBO", 200000)),
 		ProviderOnlineTTL:   getEnvInt("HAULING_PROVIDER_ONLINE_TTL", 90),
 		MatchMaxRadiusKm:    getEnvFloat("HAULING_MATCH_MAX_RADIUS_KM", 25),
 		CommerceQuoteTTL:    time.Duration(getEnvInt("HAULING_COMMERCE_QUOTE_TTL_SECONDS", 1200)) * time.Second,

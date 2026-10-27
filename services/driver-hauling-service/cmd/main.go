@@ -22,6 +22,7 @@ import (
 
 	bookingclients "cosmicforge/logistics/services/hauling-service/internal/features/booking/clients"
 	bookinghttp "cosmicforge/logistics/services/hauling-service/internal/features/booking/http"
+	bookingmodels "cosmicforge/logistics/services/hauling-service/internal/features/booking/models"
 	bookingpayments "cosmicforge/logistics/services/hauling-service/internal/features/booking/payments"
 	bookingrepo "cosmicforge/logistics/services/hauling-service/internal/features/booking/repositories"
 	bookingusecases "cosmicforge/logistics/services/hauling-service/internal/features/booking/usecases"
@@ -76,6 +77,7 @@ import (
 	"cosmicforge/logistics/shared/go/outboxmetrics"
 	"cosmicforge/logistics/shared/go/phonenumber"
 	"cosmicforge/logistics/shared/go/pricingclient"
+	"cosmicforge/logistics/shared/go/pricingclient/fuelrelay"
 	"cosmicforge/logistics/shared/go/providercompat"
 	"cosmicforge/logistics/shared/go/referralcontract"
 	"cosmicforge/logistics/shared/go/routing"
@@ -362,6 +364,29 @@ func main() {
 	// Customer tracking reuses the Share Journey booking-bound reader: only the
 	// current assignment's point, never the driver's global heartbeat.
 	bookingService.WithBookingLocation(shareService)
+	// Pickup and drop-off ETAs: road routes when HAULING_ROUTES_API_KEY is
+	// set, otherwise a straight-line estimate at truck speeds.
+	bookingService.WithETAEstimator(&journeyshare.RouteEstimator{
+		Client: routesClient, Mode: routing.TravelModeDrive,
+		Fallback: journeyshare.StraightLineEstimator{SpeedKmh: 20, RoadFactor: 1.35},
+	})
+	if cfg.WaitingEnabled {
+		defaults := bookingmodels.WaitingPolicy{
+			FreeMinutes: cfg.WaitingFreeMinutes, BlockMinutes: cfg.WaitingBlockMinutes, BlockFeeKobo: cfg.WaitingBlockFeeKobo,
+		}
+		if err := defaults.Validate(); err != nil {
+			logging.Fatal("configuration", "HAULING_WAITING_* rates are invalid: %v", err)
+		}
+		bookingService.WithWaiting(bookingrepo.NewWaitingRepository(db), defaults)
+	}
+	// Drivers' fuel price reports go to pricing whenever it is reachable,
+	// whether or not shadow pricing is on.
+	var fuelReporter fuelrelay.Reporter
+	if fuelClient := pricingclient.New(pricingclient.Options{
+		BaseURL: cfg.PricingURL, ServiceName: "driver-hauling-service", Secret: cfg.PricingSecret,
+	}); fuelClient.Configured() {
+		fuelReporter = fuelClient
+	}
 	if cfg.PricingShadowEnabled {
 		central := pricingclient.New(pricingclient.Options{
 			BaseURL: cfg.PricingURL, ServiceName: "driver-hauling-service", Secret: cfg.PricingSecret,
@@ -570,8 +595,13 @@ func main() {
 			capability.registerRoutes(group, authService, cfg.ServiceSecrets)
 			availabilityhttp.RegisterAvailabilityRoutes(group, availService, authService, customerSigner)
 			bookinghttp.RegisterBookingRoutes(group, bookingService, authService, customerSigner, providerRepo, truckRepo, redisClient)
+			group.Group("/provider", sharedauth.BearerMiddleware(authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService)).
+				POST(fuelrelay.Path, fuelrelay.Handler(fuelReporter, providerSubject))
 			notificationhttp.RegisterNotificationRoutes(group, notificationClient, authService.AccessSigner(), customerSigner)
 			identityhttp.RegisterIdentityRoutes(group, authService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			if cfg.WaitingEnabled {
+				bookinghttp.RegisterWaitingAdminRoutes(group, bookingService, serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
+			}
 			providerapprovalhttp.RegisterRoutes(group, providerapprovalusecases.NewService(providerapprovalrepositories.NewPostgresRepository(db)), serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute))
 			if len(serviceauth.ParseSecrets(cfg.ServiceSecrets)) > 0 {
 				custodyops.RegisterInternal(group, custodyops.NewRepository(db, "HAULING"), inboundVerifier,
@@ -741,4 +771,13 @@ func logConnectivity(ctx context.Context, databaseURL, redisAddr string, db inte
 	} else {
 		logging.Success("redis", "connected addr=%s", redisAddr)
 	}
+}
+
+// providerSubject is the signed-in driver's id.
+func providerSubject(c *gin.Context) (string, bool) {
+	claims, ok := sharedauth.ClaimsFromContext(c)
+	if !ok {
+		return "", false
+	}
+	return claims.Subject, true
 }

@@ -34,6 +34,10 @@ type Config struct {
 	QuoteCallers []string
 	// AdminCallers may use the policy, rollout and index administration routes.
 	AdminCallers []string
+	// FuelCallers may report drivers' fuel prices. They can change no rate.
+	FuelCallers []string
+	// FuelIndexWindowDays is how many days of reports one fuel index covers.
+	FuelIndexWindowDays int
 
 	// FourEyeRequired keeps creator and approver separate for material
 	// changes. It cannot be false in production.
@@ -66,6 +70,9 @@ type Workers struct {
 	OutboxRelayInterval time.Duration
 	RetentionInterval   time.Duration
 	BatchSize           int
+	// FuelIndexInterval is how often the fuel index is rebuilt and checked
+	// for tariff changes to propose.
+	FuelIndexInterval time.Duration
 }
 
 // Load reads the environment.
@@ -80,6 +87,9 @@ func Load() Config {
 		QuoteCallers: splitCSV(getEnv("PRICING_QUOTE_CALLERS",
 			"driver-taxi-service,driver-dispatch-delivery-service,driver-hauling-service,api-gateway")),
 		AdminCallers: splitCSV(getEnv("PRICING_ADMIN_CALLERS", "admin-backoffice-service,pricing-ops-cli")),
+		FuelCallers: splitCSV(getEnv("PRICING_FUEL_CALLERS",
+			"driver-taxi-service,driver-dispatch-delivery-service,driver-hauling-service")),
+		FuelIndexWindowDays: getEnvInt("PRICING_FUEL_INDEX_WINDOW_DAYS", 3),
 
 		FourEyeRequired: getEnvBool("PRICING_FOUR_EYE_REQUIRED", true),
 
@@ -95,6 +105,7 @@ func Load() Config {
 			OutboxRelayInterval: time.Duration(getEnvInt("PRICING_OUTBOX_RELAY_INTERVAL_SECONDS", 10)) * time.Second,
 			RetentionInterval:   time.Duration(getEnvInt("PRICING_RETENTION_INTERVAL_SECONDS", 3600)) * time.Second,
 			BatchSize:           getEnvInt("PRICING_WORKER_BATCH_SIZE", 100),
+			FuelIndexInterval:   time.Duration(getEnvInt("PRICING_FUEL_INDEX_INTERVAL_SECONDS", 3600)) * time.Second,
 		},
 	}
 }
@@ -117,7 +128,7 @@ func (c Config) Validate() error {
 	// A caller allowlist without a secret for that caller can never succeed,
 	// and is nearly always a deployment mistake rather than an intention.
 	if len(c.ServiceSecrets) > 0 {
-		for _, caller := range append(append([]string{}, c.QuoteCallers...), c.AdminCallers...) {
+		for _, caller := range append(append(append([]string{}, c.QuoteCallers...), c.AdminCallers...), c.FuelCallers...) {
 			if _, ok := c.ServiceSecrets[caller]; !ok {
 				problems = append(problems, fmt.Sprintf(
 					"caller %q is allowed but PRICING_SERVICE_SECRETS has no secret for it", caller))
@@ -145,6 +156,12 @@ func (c Config) Validate() error {
 	}
 	if c.QuoteRetention <= 0 {
 		problems = append(problems, "PRICING_QUOTE_RETENTION_DAYS must be positive")
+	}
+	if c.FuelIndexWindowDays < 1 || c.FuelIndexWindowDays > 30 {
+		problems = append(problems, "PRICING_FUEL_INDEX_WINDOW_DAYS must be between 1 and 30")
+	}
+	if c.Workers.FuelIndexInterval <= 0 {
+		problems = append(problems, "PRICING_FUEL_INDEX_INTERVAL_SECONDS must be positive")
 	}
 	if c.Workers.BatchSize < 1 {
 		problems = append(problems, "PRICING_WORKER_BATCH_SIZE must be at least 1")

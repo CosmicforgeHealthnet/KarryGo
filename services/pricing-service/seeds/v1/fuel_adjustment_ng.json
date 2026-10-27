@@ -1,0 +1,27 @@
+{
+  "kind": "fuel.adjustment",
+  "geography_level": "COUNTRY",
+  "geography_ref": "NG",
+  "schema_version": 1,
+  "change_reason": "Fuel index rules: propose a per-km change when drivers' reported fuel price moves 5% or more from the price today's tariffs were set at. Baselines are PLACEHOLDERS and must be confirmed before approval.",
+  "body": {
+    "schema_version": 1,
+    "fuel_for": {
+      "taxi.tariff": "PETROL",
+      "dispatch.tariff": "PETROL",
+      "haulage.tariff": "DIESEL"
+    },
+    "baseline_kobo_per_litre": {
+      "PETROL": 95000,
+      "DIESEL": 110000
+    },
+    "fuel_share_bps": {
+      "taxi.tariff": 4000,
+      "dispatch.tariff": 3500,
+      "haulage.tariff": 4500
+    },
+    "threshold_bps": 500,
+    "min_reports": 10,
+    "cooldown_days": 7
+  }
+}
