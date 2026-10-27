@@ -2,6 +2,7 @@ import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
+import '../../../../shared/widgets/trip_eta_row.dart';
 import '../../models/taxi_models.dart';
 import '../../state/taxi_booking_controller.dart';
 import '../widgets/taxi_flow_helpers.dart';
@@ -104,6 +105,13 @@ class TaxiActiveTripView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
+          if (controller.pickupEta != null || controller.dropoffEta != null) ...[
+            TripEtaRow(
+              pickupEta: controller.pickupEta,
+              dropoffEta: controller.dropoffEta,
+            ),
+            const SizedBox(height: 18),
+          ],
 
           // The handshake at the kerb: the passenger shows, the driver types.
           if (showCode) ...[

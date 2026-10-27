@@ -1,3 +1,4 @@
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -237,6 +238,37 @@ class AvailabilityController extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return result;
+  }
+
+  // ── Fuel price ────────────────────────────────────────────────────────────
+
+  /// Sends the rider's fuel price with their current location. Returns an
+  /// error message, or null when it was sent (or already sent today).
+  Future<String?> reportFuelPrice(FuelPriceEntry entry) async {
+    final token = _token();
+    if (token == null || token.isEmpty) return 'Please sign in again.';
+    var position = _lastPosition;
+    if (position == null) {
+      try {
+        position = await Geolocator.getCurrentPosition()
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {
+        return 'We need your location to know which area this price is for.';
+      }
+    }
+    final result = await api.reportFuelPrice(
+      accessToken: token,
+      fuelType: entry.fuelType.wire,
+      pricePerLitreKobo: entry.pricePerLitreKobo,
+      lat: position.latitude,
+      lng: position.longitude,
+    );
+    return result.when(
+      success: (_) => null,
+      failure: (error) => error.code == ApiErrorCode.network
+          ? 'Could not connect. Check your connection and try again.'
+          : error.message,
+    );
   }
 
   // ── Go online ─────────────────────────────────────────────────────────────

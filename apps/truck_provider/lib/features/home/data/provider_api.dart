@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../auth/models/provider_auth_models.dart';
 import '../../earnings/models/earnings_models.dart';
 import '../../trips/models/customer_review.dart';
+import '../models/booking_waiting.dart';
 
 class ProviderApi {
   ProviderApi({required ApiCoreConfig config, http.Client? client})
@@ -123,6 +124,35 @@ class ProviderApi {
   Future<ProviderBooking> markEnRouteDelivery({required String accessToken, required String bookingId}) async {
     final data = await _put('/provider/bookings/$bookingId/en-route-delivery', {}, accessToken: accessToken);
     return ProviderBooking.fromJson(data);
+  }
+
+  /// Reports what the driver paid for fuel today. Returns true when it was
+  /// already reported today (the first report stands).
+  Future<bool> reportFuelPrice({
+    required String accessToken,
+    required String fuelType,
+    required int pricePerLitreKobo,
+    required double lat,
+    required double lng,
+  }) async {
+    final data = await _post(
+      '/provider/fuel-prices',
+      {'fuel_type': fuelType, 'price_per_litre_kobo': pricePerLitreKobo, 'lat': lat, 'lng': lng},
+      accessToken: accessToken,
+    );
+    return data['duplicate'] == true;
+  }
+
+  /// Starts the drop-off waiting clock. The booking's status does not change.
+  Future<BookingWaiting> markArrivedAtDropoff({required String accessToken, required String bookingId}) async {
+    final data = await _put('/provider/bookings/$bookingId/arrived-dropoff', {}, accessToken: accessToken);
+    return BookingWaiting.fromJson(data);
+  }
+
+  /// The booking's waiting time and fee so far.
+  Future<BookingWaiting> getWaiting({required String accessToken, required String bookingId}) async {
+    final data = await _get('/provider/bookings/$bookingId/waiting', accessToken: accessToken);
+    return BookingWaiting.fromJson(data);
   }
 
   Future<ProviderBooking> confirmDelivery({

@@ -28,6 +28,9 @@ class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
   final VoidCallback? onAccountDeleted;
 
+  /// Opens the fuel price sheet; the row is hidden when null.
+  final VoidCallback? onReportFuel;
+
   const ProfileScreen({
     super.key,
     required this.profileController,
@@ -37,6 +40,7 @@ class ProfileScreen extends StatefulWidget {
     this.walletController,
     this.onLogout,
     this.onAccountDeleted,
+    this.onReportFuel,
   });
 
   @override
@@ -306,6 +310,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             symbol: JourneySymbol.fleet,
                             onTap: _openBikes,
                           ),
+                          if (widget.onReportFuel != null)
+                            AccountMenuTile(
+                              title: 'Report fuel price',
+                              subtitle: 'What you paid per litre today',
+                              symbol: JourneySymbol.route,
+                              onTap: widget.onReportFuel!,
+                            ),
                           AccountMenuTile(
                             title: 'Settings and support',
                             subtitle: 'Documents, security and app preferences',

@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import '../core/provider_appearance.dart';
 import '../core/theme/karryam_theme.dart';
 import '../core/widgets/karryam_ui.dart';
+import '../features/referrals/data/referral_api.dart';
+import '../features/referrals/state/referral_controller.dart';
 import '../features/home/ui/widgets/provider_app_colors.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +60,7 @@ class _TruckProviderAppState extends State<TruckProviderApp>
   late final ProviderEarningsController _earningsController;
   late final ProviderWithdrawalController _withdrawalController;
   late final ProviderDisputeController _disputeController;
+  late final ProviderReferralController _referralController;
   late final ProviderTripsController _tripsController;
   late final ProviderNotificationController _notificationController;
   late final ProviderAuthApi _authApi;
@@ -156,6 +159,11 @@ class _TruckProviderAppState extends State<TruckProviderApp>
       accessToken: () => _authController.state.session?.accessToken,
     );
 
+    _referralController = ProviderReferralController(
+      api: ReferralApi(config: ApiCoreConfig(baseUrl: config.referralApiBaseUrl)),
+      accessToken: () => _authController.state.session?.accessToken,
+    );
+
     _tripsController = ProviderTripsController(
       api: _providerApi,
       accessToken: () => _authController.state.session?.accessToken,
@@ -247,6 +255,7 @@ class _TruckProviderAppState extends State<TruckProviderApp>
     _earningsController.dispose();
     _withdrawalController.dispose();
     _disputeController.dispose();
+    _referralController.dispose();
     _tripsController.dispose();
     _notificationController.dispose();
     providerAppearance.removeListener(_onAppearanceChanged);
@@ -365,6 +374,7 @@ class _TruckProviderAppState extends State<TruckProviderApp>
               earningsController: _earningsController,
               withdrawalController: _withdrawalController,
               disputeController: _disputeController,
+              referralController: _referralController,
               tripsController: _tripsController,
               notificationController: _notificationController,
               tabRequests: _homeTabRequest,

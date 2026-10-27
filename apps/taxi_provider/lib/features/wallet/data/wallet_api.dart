@@ -5,13 +5,21 @@ import '../../../core/data/driver_client.dart';
 /// The driver's wallet (payment-wallet `GET /provider/earnings`).
 @immutable
 class WalletBalance {
-  const WalletBalance({required this.availableKobo, required this.pendingKobo});
+  const WalletBalance({
+    required this.availableKobo,
+    required this.pendingKobo,
+    this.referralKobo = 0,
+  });
   final int availableKobo;
   final int pendingKobo;
+
+  /// Referral earnings, withdrawn separately from trip earnings.
+  final int referralKobo;
 
   factory WalletBalance.fromJson(Map<String, dynamic> j) => WalletBalance(
     availableKobo: (j['available_kobo'] as num? ?? 0).toInt(),
     pendingKobo: (j['pending_kobo'] as num? ?? 0).toInt(),
+    referralKobo: (j['referral_kobo'] as num? ?? 0).toInt(),
   );
 }
 
@@ -99,20 +107,25 @@ class WalletApi {
 
   /// Requests a payout. [idempotencyKey] must stay the same if the driver
   /// retries the same withdrawal, so a repeated tap cannot pay out twice.
+  /// [referral] pays out referral earnings instead of trip earnings.
   Future<String> withdraw({
     required String bankAccountId,
     required int amountKobo,
     required String pin,
     required String idempotencyKey,
+    bool referral = false,
   }) async {
     final data = asMap(
-      await _client.post('/provider/withdrawals', {
-        'bank_account_id': bankAccountId,
-        'amount_kobo': amountKobo,
-        'currency': 'NGN',
-        'idempotency_key': idempotencyKey,
-        'pin': pin,
-      }),
+      await _client.post(
+        referral ? '/provider/referral-withdrawals' : '/provider/withdrawals',
+        {
+          'bank_account_id': bankAccountId,
+          'amount_kobo': amountKobo,
+          'currency': 'NGN',
+          'idempotency_key': idempotencyKey,
+          'pin': pin,
+        },
+      ),
     );
     return data['status'] as String? ?? 'pending';
   }

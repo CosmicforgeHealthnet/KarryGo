@@ -1,3 +1,4 @@
+import '../../fuel/fuel_prompt.dart';
 import '../../../core/app_mode.dart';
 import '../../missions/ui/delivery_operations_screen.dart';
 import '../../../shared/widgets/journey_icon.dart';
@@ -126,6 +127,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         walletController: widget.walletController,
         onLogout: widget.onLogout,
         onAccountDeleted: widget.onAccountDeleted,
+        onReportFuel: () => showFuelPriceSheet(
+          context,
+          report: widget.availabilityController.reportFuelPrice,
+        ),
       ),
     ];
     _loadActiveTrip();
@@ -412,6 +417,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  /// The first time each day the rider goes online, ask what they paid for
+  /// fuel. Mock mode has no backend to send it to, so it never asks.
+  Future<void> _promptFuelPrice() async {
+    if (AppModeConfig.instance.isMock) return;
+    if (!await FuelPromptSchedule.claimToday() || !mounted) return;
+    await showFuelPriceSheet(
+      context,
+      report: widget.availabilityController.reportFuelPrice,
+      prompted: true,
+    );
+  }
+
   Future<void> _handleGoOnline() async {
     if (widget.availabilityController.isChangingStatus) return;
     final result = await showGoOnlineProcessing(
@@ -423,6 +440,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       success: (_) {
         _tripStateNotifier.value = TripState.online;
         widget.requestsController.loadRequests();
+        _promptFuelPrice();
       },
       failure: (error) async {
         final isLocationError =

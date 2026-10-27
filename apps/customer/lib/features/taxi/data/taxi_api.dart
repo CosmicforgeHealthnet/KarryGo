@@ -158,6 +158,26 @@ class TaxiApi {
     return TaxiBooking.fromJson(data);
   }
 
+  /// When the driver should reach the pickup and the drop-off. Both are null
+  /// when tracking is off or no estimate is possible right now.
+  Future<(DateTime?, DateTime?)> getEtas({
+    required String accessToken,
+    required String bookingId,
+  }) async {
+    final data = await _sendJson(
+      'GET',
+      '/customer/bookings/$bookingId/location',
+      accessToken: accessToken,
+    );
+    final seconds = data['eta_seconds'];
+    DateTime? at(String key) {
+      final secs = seconds is Map ? (seconds[key] as num?)?.toInt() : null;
+      return secs == null ? null : DateTime.now().add(Duration(seconds: secs));
+    }
+
+    return (at('pickup'), at('dropoff'));
+  }
+
   Future<List<TaxiBooking>> listBookings({required String accessToken}) async {
     final data = await _sendJson(
       'GET',

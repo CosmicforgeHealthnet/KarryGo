@@ -471,6 +471,7 @@ class ProviderBooking {
     required this.status,
     required this.createdAt,
     this.pickupVerifiedAt,
+    this.paymentMethod = '',
   });
 
   final String id;
@@ -502,6 +503,10 @@ class ProviderBooking {
   /// The server refuses the pickup until it is set.
   final DateTime? pickupVerifiedAt;
   bool get pickupVerified => pickupVerifiedAt != null;
+
+  /// wallet, card or cash. A cash job's waiting fee is collected by the driver.
+  final String paymentMethod;
+  bool get isCash => paymentMethod == 'cash';
 
   double get fareEstimateNaira => (fareEstimateKobo ?? 0) / 100;
 
@@ -584,6 +589,7 @@ class ProviderBooking {
     status: j['status'] as String,
     createdAt: DateTime.parse(j['created_at'] as String),
     pickupVerifiedAt: DateTime.tryParse(j['pickup_verified_at'] as String? ?? ''),
+    paymentMethod: j['payment_method'] as String? ?? '',
   );
 }
 

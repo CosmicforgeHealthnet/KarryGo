@@ -751,6 +751,23 @@ class TaxiBookingController extends ChangeNotifier {
     _pollBookingStatus();
   }
 
+  /// When the driver should reach the pickup and the drop-off, refreshed with
+  /// the booking poll while a trip is active.
+  DateTime? pickupEta;
+  DateTime? dropoffEta;
+
+  Future<void> _refreshEtas(String token, String bookingId, int generation) async {
+    try {
+      final (pickup, dropoff) = await _api.getEtas(accessToken: token, bookingId: bookingId);
+      if (generation != _stateGeneration) return;
+      pickupEta = pickup;
+      dropoffEta = dropoff;
+      notifyListeners();
+    } on ApiException {
+      // Tracking off or briefly unavailable: keep the last estimate.
+    }
+  }
+
   Future<void> _pollBookingStatus() async {
     if (_pollInFlight) return;
     final token = _accessToken();
@@ -764,6 +781,12 @@ class TaxiBookingController extends ChangeNotifier {
           await _api.getBooking(accessToken: token, bookingId: bookingId);
       if (generation != _stateGeneration) return;
       _applyBookingUpdate(booking);
+      if (booking.status.isActive) {
+        await _refreshEtas(token, bookingId, generation);
+      } else if (pickupEta != null || dropoffEta != null) {
+        pickupEta = dropoffEta = null;
+        notifyListeners();
+      }
     } on ApiException {
       // Transient — the next tick retries rather than tearing down the screen.
     } finally {

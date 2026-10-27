@@ -6,6 +6,7 @@ class ProviderAppConfig {
     required this.notificationWsUrl,
     required this.paymentWalletApiBaseUrl,
     required this.supportApiBaseUrl,
+    required this.referralApiBaseUrl,
   });
 
   // Release builds talk to the live gateway; debug builds default to this dev
@@ -29,6 +30,10 @@ class ProviderAppConfig {
   static const defaultSupportApiBaseUrl =
       kReleaseMode ? '$_gateway/api/v1/support-disputes' : '$_lan:8107/api/v1/support-disputes';
 
+  // referral-service (code, dashboard). Accepts the driver's own login token.
+  static const defaultReferralApiBaseUrl =
+      kReleaseMode ? '$_gateway/api/v1/referrals' : '$_lan:8114/api/v1/referrals';
+
   factory ProviderAppConfig.fromEnvironment() => const ProviderAppConfig(
         haulingApiBaseUrl: String.fromEnvironment(
           'HAULING_API_BASE_URL',
@@ -46,10 +51,15 @@ class ProviderAppConfig {
           'SUPPORT_API_BASE_URL',
           defaultValue: defaultSupportApiBaseUrl,
         ),
+        referralApiBaseUrl: String.fromEnvironment(
+          'REFERRAL_API_BASE_URL',
+          defaultValue: defaultReferralApiBaseUrl,
+        ),
       );
 
   final String haulingApiBaseUrl;
   final String notificationWsUrl;
   final String paymentWalletApiBaseUrl;
   final String supportApiBaseUrl;
+  final String referralApiBaseUrl;
 }

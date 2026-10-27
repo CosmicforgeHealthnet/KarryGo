@@ -35,7 +35,14 @@ class ProviderWithdrawalController extends ChangeNotifier {
   String get amountInput => _amountInput;
   int get amountNaira => int.tryParse(_amountInput) ?? 0;
   int get amountKobo => amountNaira * 100;
-  bool get exceedsBalance => amountKobo > _balance.availableKobo;
+  bool get exceedsBalance => amountKobo > withdrawableKobo;
+
+  /// Whether this flow withdraws referral earnings instead of job earnings.
+  bool _referral = false;
+  bool get isReferral => _referral;
+
+  /// The balance this flow can withdraw.
+  int get withdrawableKobo => _referral ? _balance.referralKobo : _balance.availableKobo;
   bool get canSubmitAmount => amountKobo > 0 && !exceedsBalance;
 
   // ─── Selected payout account ────────────────────────────────────────────────
@@ -81,7 +88,10 @@ class ProviderWithdrawalController extends ChangeNotifier {
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
   /// Resets transient flow state and loads the live balance + saved accounts.
-  Future<void> startNewWithdrawal() async {
+  ///
+  /// [referral] withdraws referral earnings instead of job earnings.
+  Future<void> startNewWithdrawal({bool referral = false}) async {
+    _referral = referral;
     _amountInput = '';
     _selectedAccount = null;
     _result = null;
@@ -358,7 +368,8 @@ class ProviderWithdrawalController extends ChangeNotifier {
 
     _idempotencyKey ??= 'wd-${DateTime.now().microsecondsSinceEpoch}';
     try {
-      _result = await _api.requestWithdrawal(
+      final request = _referral ? _api.requestReferralWithdrawal : _api.requestWithdrawal;
+      _result = await request(
         accessToken: token,
         bankAccountId: account.id,
         amountKobo: amountKobo,

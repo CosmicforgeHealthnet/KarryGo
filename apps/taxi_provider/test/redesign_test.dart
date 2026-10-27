@@ -102,6 +102,7 @@ void main() {
                   taxiApiBaseUrl: 'http://localhost/api/v1/taxi',
                   walletApiBaseUrl: 'http://localhost/api/v1/payment-wallet',
                   supportApiBaseUrl: 'http://localhost/api/v1/support-disputes',
+                  referralApiBaseUrl: 'http://localhost/api/v1/referrals',
                 ),
                 auth: auth,
               ),

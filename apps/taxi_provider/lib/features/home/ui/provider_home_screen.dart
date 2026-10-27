@@ -1,3 +1,4 @@
+import '../../fuel/fuel_prompt.dart';
 import '../../../core/theme/karryam_theme.dart';
 import 'package:flutter/material.dart';
 
@@ -46,6 +47,9 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen>
   );
   @override
   void dispose() {
+    if (widget.controller.onWentOnline == _promptFuelPrice) {
+      widget.controller.onWentOnline = null;
+    }
     WidgetsBinding.instance.removeObserver(this);
     _transition.dispose();
     super.dispose();
@@ -65,6 +69,19 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.controller.initialize();
+    widget.controller.onWentOnline = _promptFuelPrice;
+  }
+
+  /// The first time each day the driver goes online, ask what they paid for
+  /// fuel. Skipped while a trip is on screen.
+  Future<void> _promptFuelPrice() async {
+    if (!mounted || widget.controller.state.activeBooking != null) return;
+    if (!await FuelPromptSchedule.claimToday() || !mounted) return;
+    await showFuelPriceSheet(
+      context,
+      report: widget.controller.reportFuelPrice,
+      prompted: true,
+    );
   }
 
   @override

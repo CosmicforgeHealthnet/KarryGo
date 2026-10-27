@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../referrals/state/referral_controller.dart';
+import '../../referrals/ui/provider_referral_screen.dart';
 import '../../auth/state/provider_auth_controller.dart';
 import '../../disputes/state/provider_dispute_controller.dart';
 import '../../../core/provider_appearance.dart';
@@ -27,6 +29,8 @@ class ProviderProfileScreen extends StatefulWidget {
     required this.profileController,
     required this.disputeController,
     required this.withdrawalController,
+    this.referralController,
+    this.onReportFuel,
   });
 
   final ProviderAuthController authController;
@@ -37,6 +41,10 @@ class ProviderProfileScreen extends StatefulWidget {
 
   /// Backs Payments & Withdrawals (payment-wallet-service bank accounts).
   final ProviderWithdrawalController withdrawalController;
+  final ProviderReferralController? referralController;
+
+  /// Opens the fuel price sheet; the row is hidden when null.
+  final VoidCallback? onReportFuel;
 
   @override
   State<ProviderProfileScreen> createState() => _ProviderProfileScreenState();
@@ -210,6 +218,23 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                           subtitle: 'Bank accounts and payouts',
                           onTap: () => _open(ProviderPaymentsScreen(controller: widget.withdrawalController)),
                         ),
+                        if (widget.onReportFuel != null)
+                          KListRow(
+                            icon: Icons.local_gas_station_outlined,
+                            title: 'Report fuel price',
+                            subtitle: 'What you paid per litre today',
+                            onTap: widget.onReportFuel!,
+                          ),
+                        if (widget.referralController != null)
+                          KListRow(
+                            icon: Icons.card_giftcard_rounded,
+                            title: 'Refer & earn',
+                            subtitle: 'Your code, referrals and rewards',
+                            onTap: () => _open(ProviderReferralScreen(
+                              controller: widget.referralController!,
+                              withdrawalController: widget.withdrawalController,
+                            )),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 20),

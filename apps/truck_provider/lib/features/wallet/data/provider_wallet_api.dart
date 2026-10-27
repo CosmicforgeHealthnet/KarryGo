@@ -104,6 +104,28 @@ class ProviderWalletApi {
     );
     return WithdrawalResult.fromJson(data);
   }
+  /// Withdraws referral earnings. Only referral earnings pay it, from the
+  /// programme's minimum; job earnings use [requestWithdrawal].
+  Future<WithdrawalResult> requestReferralWithdrawal({
+    required String accessToken,
+    required String bankAccountId,
+    required int amountKobo,
+    required String idempotencyKey,
+    required String pin,
+  }) async {
+    final data = await _post(
+      '/provider/referral-withdrawals',
+      {
+        'bank_account_id': bankAccountId,
+        'amount_kobo': amountKobo,
+        'currency': 'NGN',
+        'idempotency_key': idempotencyKey,
+        'pin': pin,
+      },
+      accessToken: accessToken,
+    );
+    return WithdrawalResult.fromJson(data);
+  }
 
   /// Whether the provider already has a transaction PIN set.
   Future<bool> getPinStatus({required String accessToken}) async {

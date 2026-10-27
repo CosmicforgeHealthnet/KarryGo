@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +13,7 @@ import '../../notifications/data/provider_realtime_listener.dart';
 import '../../../core/alerts/request_alert.dart';
 import '../../../core/location/online_location_tracker.dart';
 import '../data/provider_api.dart';
+import '../models/booking_waiting.dart';
 
 /// Lagos city-center fallback used when the device location is unavailable
 /// (permission denied, services off, or a lookup error). Going online must never
@@ -200,8 +202,32 @@ class ProviderHomeController extends ChangeNotifier {
       _startHeartbeat();
       _startPolling();
       _startRealtime();
+      onWentOnline?.call();
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
+  /// Called after the driver goes online from the app; the home screen uses it
+  /// for the once-a-day fuel price prompt.
+  VoidCallback? onWentOnline;
+
+  /// Sends the driver's fuel price with their current location. Returns an
+  /// error message, or null when it was sent (or already sent today).
+  Future<String?> reportFuelPrice(FuelPriceEntry entry) async {
+    if (_token == null) return 'Please sign in again.';
+    try {
+      final pos = await _currentPosition();
+      await _withAuth((t) => _api.reportFuelPrice(
+            accessToken: t,
+            fuelType: entry.fuelType.wire,
+            pricePerLitreKobo: entry.pricePerLitreKobo,
+            lat: pos.$1,
+            lng: pos.$2,
+          ));
+      return null;
+    } catch (e) {
+      return _msg(e);
     }
   }
 
@@ -684,6 +710,34 @@ class ProviderHomeController extends ChangeNotifier {
       _emit(_state.copyWith(isLoading: false, activeBooking: updated));
     } catch (e) {
       _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+    }
+  }
+
+  /// The active booking's waiting time. Null when unavailable: waiting time is
+  /// informational on this screen and never blocks the trip.
+  Future<BookingWaiting?> loadWaiting() async {
+    final booking = _state.activeBooking;
+    if (_token == null || booking == null) return null;
+    try {
+      return await _withAuth((t) => _api.getWaiting(accessToken: t, bookingId: booking.id));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Starts the drop-off waiting clock. Returns null and shows the error on
+  /// failure.
+  Future<BookingWaiting?> markArrivedAtDropoff() async {
+    final booking = _state.activeBooking;
+    if (_token == null || booking == null) return null;
+    _emit(_state.copyWith(isLoading: true, clearError: true));
+    try {
+      final waiting = await _withAuth((t) => _api.markArrivedAtDropoff(accessToken: t, bookingId: booking.id));
+      _emit(_state.copyWith(isLoading: false));
+      return waiting;
+    } catch (e) {
+      _emit(_state.copyWith(isLoading: false, error: _msg(e)));
+      return null;
     }
   }
 

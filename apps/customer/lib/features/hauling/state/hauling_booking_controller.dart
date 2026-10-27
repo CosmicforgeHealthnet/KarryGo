@@ -302,6 +302,19 @@ class HaulingBookingController extends ChangeNotifier {
 
   String? _accessToken() => _auth.state.session?.accessToken;
 
+  /// The active booking's waiting time; null when it can't be read. Waiting
+  /// is informational here, so a failure never surfaces as an error.
+  Future<HaulingWaiting?> loadWaiting() async {
+    final token = _accessToken();
+    final booking = _state.activeBooking;
+    if (token == null || booking == null) return null;
+    try {
+      return await _api.getWaiting(accessToken: token, bookingId: booking.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── Flow entry ────────────────────────────────────────────────────────────
 
   void startHaulingFlow() {

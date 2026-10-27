@@ -3,6 +3,7 @@ library;
 import 'package:flutter/material.dart';
 
 export 'src/code_entry_sheet.dart';
+export 'src/fuel_price_sheet.dart';
 export 'src/verification_code_card.dart';
 
 class CosmicforgeLogisticsColors {

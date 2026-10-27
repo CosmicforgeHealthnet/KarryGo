@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../fuel/fuel_prompt.dart';
+import '../../referrals/state/referral_controller.dart';
 import '../../auth/state/provider_auth_controller.dart';
 import '../../earnings/state/provider_earnings_controller.dart';
 import '../../earnings/ui/provider_earnings_screen.dart';
@@ -32,6 +34,7 @@ class ProviderHomeScreen extends StatefulWidget {
     required this.earningsController,
     required this.withdrawalController,
     required this.disputeController,
+    this.referralController,
     required this.tripsController,
     required this.notificationController,
     this.tabRequests,
@@ -43,6 +46,9 @@ class ProviderHomeScreen extends StatefulWidget {
   final ProviderEarningsController earningsController;
   final ProviderWithdrawalController withdrawalController;
   final ProviderDisputeController disputeController;
+
+  /// The referral dashboard; hidden from Profile when null.
+  final ProviderReferralController? referralController;
   final ProviderTripsController tripsController;
   final ProviderNotificationController notificationController;
 
@@ -61,10 +67,14 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
     super.initState();
     widget.tabRequests?.addListener(_onTabRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onTabRequested());
+    widget.homeController.onWentOnline = _promptFuelPrice;
   }
 
   @override
   void dispose() {
+    if (widget.homeController.onWentOnline == _promptFuelPrice) {
+      widget.homeController.onWentOnline = null;
+    }
     widget.tabRequests?.removeListener(_onTabRequested);
     super.dispose();
   }
@@ -85,6 +95,14 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
       widget.earningsController.load();
     }
     setState(() => _tabIndex = index);
+  }
+
+  /// The first time each day the driver goes online, ask what they paid for
+  /// fuel. Skipped while a trip is on screen.
+  Future<void> _promptFuelPrice() async {
+    if (!mounted || widget.homeController.state.activeBooking != null) return;
+    if (!await FuelPromptSchedule.claimToday() || !mounted) return;
+    await showFuelPriceSheet(context, report: widget.homeController.reportFuelPrice, prompted: true);
   }
 
   void _openNotifications() {
@@ -190,6 +208,8 @@ class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
                 profileController: widget.profileController,
                 disputeController: widget.disputeController,
                 withdrawalController: widget.withdrawalController,
+                referralController: widget.referralController,
+                onReportFuel: () => showFuelPriceSheet(context, report: widget.homeController.reportFuelPrice),
               ),
             ],
           ),

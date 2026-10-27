@@ -31,8 +31,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # cosmicforge_logistics_ui_kit:
-  #   path: ../../packages/ui_kit
+  cosmicforge_logistics_ui_kit:
+    path: ../../packages/ui_kit
 
   cosmicforge_logistics_api_core:
     path: ../../packages/api_core

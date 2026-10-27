@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cosmicforge_logistics_live_tracking/cosmicforge_logistics_live_tracking.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
+import '../../../../shared/widgets/trip_eta_row.dart';
 import '../../../hauling/ui/widgets/hauling_map_widget.dart';
 import '../../../hauling/ui/widgets/live_trip_scope.dart';
 import '../../../hauling/ui/widgets/hauling_trip_sheet_widgets.dart';
@@ -125,6 +126,14 @@ class DispatchActiveTripView extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
+                    if (state.providerLocation?.pickupEta != null ||
+                        state.providerLocation?.dropoffEta != null) ...[
+                      const SizedBox(height: 12),
+                      TripEtaRow(
+                        pickupEta: state.providerLocation?.pickupEta,
+                        dropoffEta: state.providerLocation?.dropoffEta,
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     if (state.providerSnapshot != null)
@@ -229,6 +238,10 @@ class DispatchActiveTripView extends StatelessWidget {
 
   /// Minutes for the rider to reach pickup, from the live location fix.
   int? _etaToPickupMinutes(DispatchBooking booking) {
+    final serverEta = state.providerLocation?.pickupEta;
+    if (serverEta != null) {
+      return (serverEta.difference(DateTime.now()).inSeconds / 60).ceil().clamp(1, 600);
+    }
     final loc = state.providerLocation;
     if (loc == null || !loc.hasFix) return null;
     final km = haulingHaversineKm(

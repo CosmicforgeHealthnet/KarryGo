@@ -76,6 +76,42 @@ class AvailabilityApi {
     };
   }
 
+  // ── POST /api/v1/provider/fuel-prices ────────────────────────────────────
+
+  /// Reports what the rider paid for fuel today. Succeeds with true when it
+  /// was already reported today (the first report stands).
+  Future<ApiResult<bool>> reportFuelPrice({
+    required String accessToken,
+    required String fuelType,
+    required int pricePerLitreKobo,
+    required double lat,
+    required double lng,
+  }) async {
+    final uri = config.uri('/api/v1/provider/fuel-prices');
+    try {
+      final response = await _client
+          .post(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({
+              'fuel_type': fuelType,
+              'price_per_litre_kobo': pricePerLitreKobo,
+              'lat': lat,
+              'lng': lng,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      final body = _tryDecode(response.body);
+      if (response.statusCode == 200 && body != null && body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>? ?? const {};
+        return ApiSuccess(data['duplicate'] == true);
+      }
+      return _failureFromResponse(response);
+    } catch (e) {
+      return _networkFailure(e);
+    }
+  }
+
   // ── GET /api/v1/provider/availability ────────────────────────────────────
 
   Future<ApiResult<ProviderAvailability>> getAvailability({

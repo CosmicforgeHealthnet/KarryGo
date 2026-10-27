@@ -32,6 +32,29 @@ class ProviderApi {
     return AvailabilityState.fromJson(data);
   }
 
+  /// Reports what the driver paid for fuel today. Returns true when it was
+  /// already reported today (the first report stands).
+  Future<bool> reportFuelPrice({
+    required String accessToken,
+    required String fuelType,
+    required int pricePerLitreKobo,
+    required double lat,
+    required double lng,
+  }) async {
+    final data = await _sendJson(
+      'POST',
+      '/provider/fuel-prices',
+      accessToken: accessToken,
+      body: {
+        'fuel_type': fuelType,
+        'price_per_litre_kobo': pricePerLitreKobo,
+        'lat': lat,
+        'lng': lng,
+      },
+    );
+    return data['duplicate'] == true;
+  }
+
   /// Going online is gated server-side on compliance and on having an active
   /// vehicle; a refusal comes back as a plain message to show the driver.
   Future<AvailabilityState> setAvailability({
@@ -103,7 +126,9 @@ class ProviderApi {
     final raw = data['bookings'];
     if (raw is! List) return const [];
     return raw
-        .map((e) => ProviderBooking.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => ProviderBooking.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
         .toList();
   }
 
@@ -157,10 +182,15 @@ class ProviderApi {
     required String bookingId,
     required double actualDistanceKm,
     required int actualDurationMin,
-  }) => _transition(accessToken, bookingId, 'complete', body: {
-    'actual_distance_km': actualDistanceKm,
-    'actual_duration_min': actualDurationMin,
-  });
+  }) => _transition(
+    accessToken,
+    bookingId,
+    'complete',
+    body: {
+      'actual_distance_km': actualDistanceKm,
+      'actual_duration_min': actualDurationMin,
+    },
+  );
 
   Future<ProviderBooking> _transition(
     String accessToken,

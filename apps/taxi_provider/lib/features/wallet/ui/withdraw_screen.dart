@@ -17,9 +17,13 @@ class WithdrawScreen extends StatefulWidget {
     required this.api,
     required this.availableKobo,
     required this.accounts,
+    this.referral = false,
   });
 
   final WalletApi api;
+
+  /// Pays out referral earnings; [availableKobo] is then the referral balance.
+  final bool referral;
   final int availableKobo;
   final List<BankAccount> accounts;
 
@@ -85,6 +89,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         amountKobo: _amountKobo,
         pin: pin,
         idempotencyKey: _idempotencyKey,
+        referral: widget.referral,
       );
       if (!mounted) return;
       await showDialog<void>(
@@ -135,8 +140,10 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   Widget build(BuildContext context) {
     final colors = KarryamColors.of(context);
     return KarryamPage(
-      title: 'Withdraw',
-      subtitle: 'Available: ${formatNaira(widget.availableKobo)}',
+      title: widget.referral ? 'Cash out referrals' : 'Withdraw',
+      subtitle: widget.referral
+          ? 'Referral earnings: ${formatNaira(widget.availableKobo)}'
+          : 'Available: ${formatNaira(widget.availableKobo)}',
       bottom: KarryamButton(
         label: 'Withdraw',
         busy: _busy,

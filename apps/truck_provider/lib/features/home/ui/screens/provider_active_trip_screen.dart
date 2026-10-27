@@ -11,10 +11,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/format/money_format.dart';
 import '../../../../core/widgets/karryam_ui.dart';
 import '../../../auth/models/provider_auth_models.dart';
+import '../../models/booking_waiting.dart';
 import '../../state/provider_home_controller.dart';
 import '../widgets/provider_app_colors.dart';
 import '../widgets/provider_home_map.dart';
 import '../widgets/provider_request_card.dart';
+import '../widgets/waiting_timer_card.dart';
 
 /// Full-screen active delivery: the map with a status-driven sheet that
 /// always offers exactly the next step. "Complete delivery" opens the proof
@@ -136,6 +138,8 @@ class _ProviderActiveTripScreenState extends State<ProviderActiveTripScreen> {
                   onEnRouteDelivery: widget.controller.markEnRouteDelivery,
                   onEndTrip: () => setState(() => _showCompletion = true),
                   onCancel: _confirmCancel,
+                  loadWaiting: widget.controller.loadWaiting,
+                  onArrivedAtDropoff: widget.controller.markArrivedAtDropoff,
                 ),
               ),
             ],
@@ -165,6 +169,8 @@ class _TripSheet extends StatelessWidget {
     required this.onEnRouteDelivery,
     required this.onEndTrip,
     required this.onCancel,
+    required this.loadWaiting,
+    required this.onArrivedAtDropoff,
   });
 
   final ScrollController scrollController;
@@ -182,6 +188,8 @@ class _TripSheet extends StatelessWidget {
   final VoidCallback onEnRouteDelivery;
   final VoidCallback onEndTrip;
   final VoidCallback onCancel;
+  final Future<BookingWaiting?> Function() loadWaiting;
+  final Future<BookingWaiting?> Function() onArrivedAtDropoff;
 
   /// Cargo is aboard: from here the trip can only be completed, never
   /// cancelled from the app.
@@ -268,6 +276,10 @@ class _TripSheet extends StatelessWidget {
                       onResend: onResendPickupCredential,
                       canResend: !isResendingPickupCredential,
                     ),
+                ],
+                if (const {'arrived_at_pickup', 'picked_up', 'en_route_delivery'}.contains(status)) ...[
+                  const SizedBox(height: 16),
+                  WaitingTimerCard(status: status, load: loadWaiting, onArrivedAtDropoff: onArrivedAtDropoff),
                 ],
                 const SizedBox(height: 16),
                 KCard(
@@ -703,6 +715,14 @@ class _CompletionScreenState extends State<_CompletionScreen> {
                             KInfoRow('Trip fare', formatNairaShort(booking.fareNaira), bold: true),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      WaitingTimerCard(
+                        status: booking.status,
+                        load: widget.controller.loadWaiting,
+                        onArrivedAtDropoff: widget.controller.markArrivedAtDropoff,
+                        feeNote: true,
+                        isCash: booking.isCash,
                       ),
                       const SizedBox(height: 22),
                       const _StepTitle(

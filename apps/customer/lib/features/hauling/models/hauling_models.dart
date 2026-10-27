@@ -561,12 +561,31 @@ class ProviderLocation {
     this.heading,
     this.speed,
     this.accuracy,
+    this.pickupEta,
+    this.dropoffEta,
   });
 
   final double lat;
   final double lng;
   final bool available;
   final int updatedAt;
+
+  /// When the driver should reach the pickup and the drop-off, from the
+  /// server's estimate. Null when it can't be estimated right now.
+  final DateTime? pickupEta;
+  final DateTime? dropoffEta;
+
+  /// Reads `pickup_eta_seconds` / `dropoff_eta_seconds` into local times.
+  /// Seconds-from-now are used rather than the server's clock times so a
+  /// phone with the wrong clock still shows the right countdown.
+  static (DateTime?, DateTime?) etasFromJson(Map<String, dynamic> json) {
+    DateTime? at(String key) {
+      final secs = (json[key] as num?)?.toInt();
+      return secs == null ? null : DateTime.now().add(Duration(seconds: secs));
+    }
+
+    return (at('pickup_eta_seconds'), at('dropoff_eta_seconds'));
+  }
 
   /// Compass bearing in degrees, when the driver's device reported one. Null
   /// means the marker's rotation has to be derived from movement instead.
@@ -579,7 +598,10 @@ class ProviderLocation {
   final double? accuracy;
 
   factory ProviderLocation.fromJson(Map<String, dynamic> json) {
+    final (pickupEta, dropoffEta) = etasFromJson(json);
     return ProviderLocation(
+      pickupEta: pickupEta,
+      dropoffEta: dropoffEta,
       lat: (json['lat'] as num?)?.toDouble() ?? 0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0,
       available: json['available'] as bool? ?? false,
@@ -627,5 +649,80 @@ class VerificationCodeResult {
       expiresAt: expiresRaw != null ? DateTime.tryParse(expiresRaw) : null,
       attemptsRemaining: (json['attempts_remaining'] as num?)?.toInt() ?? 0,
     );
+  }
+}
+
+/// The driver's waiting at one stop, as the hauling service computes it.
+class HaulingWaitingStop {
+  const HaulingWaitingStop({
+    required this.stop,
+    this.arrivedAt,
+    this.freeUntil,
+    required this.feeKobo,
+    required this.running,
+  });
+
+  final String stop;
+  final DateTime? arrivedAt;
+  final DateTime? freeUntil;
+  final int feeKobo;
+  final bool running;
+
+  bool get reached => arrivedAt != null;
+
+  factory HaulingWaitingStop.fromJson(Map<String, dynamic> j) => HaulingWaitingStop(
+        stop: j['stop'] as String? ?? '',
+        arrivedAt: DateTime.tryParse(j['arrived_at'] as String? ?? '')?.toLocal(),
+        freeUntil: DateTime.tryParse(j['free_until'] as String? ?? '')?.toLocal(),
+        feeKobo: (j['fee_kobo'] as num?)?.toInt() ?? 0,
+        running: j['running'] as bool? ?? false,
+      );
+}
+
+/// Waiting time at pickup and drop-off. Past the free time, the driver's wait
+/// is charged per started block.
+class HaulingWaiting {
+  const HaulingWaiting({
+    required this.freeMinutes,
+    required this.blockMinutes,
+    required this.blockFeeKobo,
+    required this.stops,
+    required this.totalFeeKobo,
+    required this.feeStatus,
+  });
+
+  final int freeMinutes;
+  final int blockMinutes;
+  final int blockFeeKobo;
+  final List<HaulingWaitingStop> stops;
+  final int totalFeeKobo;
+  final String feeStatus;
+
+  HaulingWaitingStop? get running {
+    for (final s in stops) {
+      if (s.running) return s;
+    }
+    return null;
+  }
+
+  factory HaulingWaiting.fromJson(Map<String, dynamic> j) => HaulingWaiting(
+        freeMinutes: (j['free_minutes'] as num?)?.toInt() ?? 0,
+        blockMinutes: (j['block_minutes'] as num?)?.toInt() ?? 0,
+        blockFeeKobo: (j['block_fee_kobo'] as num?)?.toInt() ?? 0,
+        stops: (j['stops'] as List? ?? const [])
+            .whereType<Map>()
+            .map((m) => HaulingWaitingStop.fromJson(Map<String, dynamic>.from(m)))
+            .toList(),
+        totalFeeKobo: (j['total_fee_kobo'] as num?)?.toInt() ?? 0,
+        feeStatus: j['fee_status'] as String? ?? '',
+      );
+
+  /// Same rule as the server: free time, then every started block.
+  int feeFor(Duration waited) {
+    if (blockMinutes <= 0) return 0;
+    final over = waited - Duration(minutes: freeMinutes);
+    if (over <= Duration.zero) return 0;
+    final block = blockMinutes * 60;
+    return ((over.inSeconds + block - 1) ~/ block) * blockFeeKobo;
   }
 }

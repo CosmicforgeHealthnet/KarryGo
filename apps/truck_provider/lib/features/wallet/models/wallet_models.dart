@@ -8,9 +8,13 @@ class WalletBalance {
     required this.escrowKobo,
     required this.pendingKobo,
     required this.currency,
+    this.referralKobo = 0,
   });
 
   final int availableKobo;
+
+  /// Referral earnings, withdrawn separately from job earnings.
+  final int referralKobo;
   final int escrowKobo;
   final int pendingKobo;
   final String currency;
@@ -31,6 +35,7 @@ class WalletBalance {
         escrowKobo: (j['escrow_kobo'] as num? ?? 0).toInt(),
         pendingKobo: (j['pending_kobo'] as num? ?? 0).toInt(),
         currency: j['currency'] as String? ?? 'NGN',
+        referralKobo: (j['referral_kobo'] as num? ?? 0).toInt(),
       );
 }
 

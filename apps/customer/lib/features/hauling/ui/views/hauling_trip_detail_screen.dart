@@ -5,6 +5,7 @@ import '../../data/places_api.dart';
 import '../../models/hauling_models.dart';
 import '../../state/hauling_booking_controller.dart';
 import '../hauling_flow_screen.dart';
+import '../widgets/hauling_trip_sheet_widgets.dart' show formatHaulingFare;
 import '../widgets/hauling_trip_widgets.dart';
 
 /// Read-only details for a terminal booking (completed / cancelled / unmatched),
@@ -66,6 +67,18 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
     super.initState();
     _fetchProvider();
     _fetchReview();
+    _fetchWaiting();
+  }
+
+  HaulingWaiting? _waiting;
+
+  Future<void> _fetchWaiting() async {
+    final token = widget.controller.accessTokenForWallet;
+    if (token == null || booking.status == HaulingBookingStatus.unmatched) return;
+    try {
+      final w = await widget.controller.api.getWaiting(accessToken: token, bookingId: booking.id);
+      if (mounted) setState(() => _waiting = w);
+    } catch (_) {}
   }
 
   @override
@@ -335,6 +348,26 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
                     ),
                   ],
                 ),
+                if ((_waiting?.totalFeeKobo ?? 0) > 0) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _waitingLabel(_waiting!.feeStatus),
+                        style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
+                      ),
+                      Text(
+                        '₦${formatHaulingFare(_waiting!.totalFeeKobo)}',
+                        style: const TextStyle(
+                          color: CustomerFigmaColors.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -835,3 +868,10 @@ class _RecommendButton extends StatelessWidget {
     );
   }
 }
+
+String _waitingLabel(String status) => switch (status) {
+      'PAID' => 'Waiting fee (paid from wallet):',
+      'OWED' => 'Waiting fee (owed):',
+      'CASH' => 'Waiting fee (paid in cash):',
+      _ => 'Waiting fee:',
+    };

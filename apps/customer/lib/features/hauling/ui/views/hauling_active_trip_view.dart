@@ -7,10 +7,12 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cosmicforge_logistics_live_tracking/cosmicforge_logistics_live_tracking.dart';
 
 import '../../../../shared/widgets/figma_customer_widgets.dart';
+import '../../../../shared/widgets/trip_eta_row.dart';
 import '../../models/hauling_models.dart';
 import '../../state/hauling_booking_controller.dart';
 import '../widgets/hauling_map_widget.dart';
 import '../widgets/hauling_trip_sheet_widgets.dart';
+import '../widgets/hauling_waiting_card.dart';
 import '../widgets/live_trip_scope.dart';
 
 /// Live trip screen (Figma 1772 "Driver Assigned…" / 1773 "Trip has started."):
@@ -125,6 +127,14 @@ class HaulingActiveTripView extends StatelessWidget {
                       const SizedBox(height: 10),
                       HaulingVehicleLine(truck: state.truckSnapshot!),
                     ],
+                    if (state.providerLocation?.pickupEta != null ||
+                        state.providerLocation?.dropoffEta != null) ...[
+                      const SizedBox(height: 12),
+                      TripEtaRow(
+                        pickupEta: state.providerLocation?.pickupEta,
+                        dropoffEta: state.providerLocation?.dropoffEta,
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     if (state.providerSnapshot != null)
@@ -146,6 +156,12 @@ class HaulingActiveTripView extends StatelessWidget {
                       showTruck: _tripStarted,
                     ),
                     const SizedBox(height: 20),
+
+                    if (booking.status == HaulingBookingStatus.arrivedAtPickup ||
+                        booking.status == HaulingBookingStatus.enRouteDelivery) ...[
+                      HaulingWaitingCard(status: booking.status, load: controller.loadWaiting),
+                      const SizedBox(height: 12),
+                    ],
 
                     if (booking.status == HaulingBookingStatus.arrivedAtPickup) ...[
                       _PickupVerificationSection(
@@ -245,6 +261,10 @@ class HaulingActiveTripView extends StatelessWidget {
 
   /// Minutes for the driver to reach pickup, from the live location fix.
   int? _etaToPickupMinutes(HaulageBooking booking) {
+    final serverEta = state.providerLocation?.pickupEta;
+    if (serverEta != null) {
+      return (serverEta.difference(DateTime.now()).inSeconds / 60).ceil().clamp(1, 600);
+    }
     final loc = state.providerLocation;
     if (loc == null || !loc.hasFix) return null;
     final km = haulingHaversineKm(

@@ -10,9 +10,12 @@ import 'widgets/wallet_widgets.dart';
 
 /// Step 1 — enter the withdrawal amount on a custom keypad (Figma 2281).
 class ProviderWithdrawalFormScreen extends StatefulWidget {
-  const ProviderWithdrawalFormScreen({super.key, required this.controller});
+  const ProviderWithdrawalFormScreen({super.key, required this.controller, this.referral = false});
 
   final ProviderWithdrawalController controller;
+
+  /// Withdraws referral earnings instead of job earnings.
+  final bool referral;
 
   @override
   State<ProviderWithdrawalFormScreen> createState() => _ProviderWithdrawalFormScreenState();
@@ -22,7 +25,7 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => widget.controller.startNewWithdrawal());
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.controller.startNewWithdrawal(referral: widget.referral));
   }
 
   void _next() {
@@ -44,11 +47,18 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
             bottom: false,
             child: Column(
               children: [
-                const WalletFlowAppBar(title: 'Withdrawal Form', subtitle: 'Move earnings to your bank'),
+                WalletFlowAppBar(
+                  title: c.isReferral ? 'Cash out referrals' : 'Withdrawal Form',
+                  subtitle: c.isReferral ? 'Move referral earnings to your bank' : 'Move earnings to your bank',
+                ),
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _AvailableBalanceCard(naira: c.balance.availableNaira, loading: c.loading),
+                  child: _AvailableBalanceCard(
+                    naira: c.withdrawableKobo / 100,
+                    loading: c.loading,
+                    label: c.isReferral ? 'Referral earnings' : 'Available Balance',
+                  ),
                 ),
                 const SizedBox(height: 22),
                 Padding(
@@ -91,9 +101,10 @@ class _ProviderWithdrawalFormScreenState extends State<ProviderWithdrawalFormScr
 }
 
 class _AvailableBalanceCard extends StatelessWidget {
-  const _AvailableBalanceCard({required this.naira, required this.loading});
+  const _AvailableBalanceCard({required this.naira, required this.loading, required this.label});
   final double naira;
   final bool loading;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +113,7 @@ class _AvailableBalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Available Balance', style: TextStyle(fontSize: 13, color: Color(0xCCFFFFFF))),
+          Text(label, style: const TextStyle(fontSize: 13, color: Color(0xCCFFFFFF))),
           const SizedBox(height: 6),
           Text(
             loading ? '₦ ...' : '₦ ${formatNaira(naira)}',

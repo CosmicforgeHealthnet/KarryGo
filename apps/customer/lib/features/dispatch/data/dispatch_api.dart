@@ -208,10 +208,13 @@ class DispatchApi {
         '/bookings/$bookingId/location',
         accessToken: accessToken,
       );
+      final (pickupEta, dropoffEta) = ProviderLocation.etasFromJson(data);
       return ProviderLocation(
         lat: (data['lat'] as num?)?.toDouble() ?? 0,
         lng: (data['lng'] as num?)?.toDouble() ?? 0,
         available: true,
+        pickupEta: pickupEta,
+        dropoffEta: dropoffEta,
       );
     } on ApiException catch (e) {
       if (e.statusCode == 404) {

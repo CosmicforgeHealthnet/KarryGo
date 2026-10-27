@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cosmicforge_logistics_api_core/cosmicforge_logistics_api_core.dart';
+import 'package:cosmicforge_logistics_ui_kit/cosmicforge_logistics_ui_kit.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -56,8 +57,9 @@ class ProviderHomeState {
       online: online ?? this.online,
       isTogglingOnline: isTogglingOnline ?? this.isTogglingOnline,
       offers: offers ?? this.offers,
-      activeBooking:
-          clearActiveBooking ? null : (activeBooking ?? this.activeBooking),
+      activeBooking: clearActiveBooking
+          ? null
+          : (activeBooking ?? this.activeBooking),
       isActionLoading: isActionLoading ?? this.isActionLoading,
       error: clearError ? null : (error ?? this.error),
       notice: clearNotice ? null : (notice ?? this.notice),
@@ -133,7 +135,9 @@ class ProviderHomeController extends ChangeNotifier {
   /// Best-effort device position. Never throws and never blocks: a driver
   /// with location off still gets to go online, just pinned to the fallback
   /// until a real fix arrives.
-  Future<({double lat, double lng, double heading, double speed, double accuracy})>
+  Future<
+    ({double lat, double lng, double heading, double speed, double accuracy})
+  >
   _position() async {
     final streamed = _location.recentPosition;
     if (streamed != null) {
@@ -212,15 +216,43 @@ class ProviderHomeController extends ChangeNotifier {
 
   // ─── Online / offline ──────────────────────────────────────────────────────
 
+  /// Called after the driver goes online from the app; the home screen uses it
+  /// for the once-a-day fuel price prompt.
+  VoidCallback? onWentOnline;
+
+  /// Sends the driver's fuel price with their current location. Returns an
+  /// error message, or null when it was sent (or already sent today).
+  Future<String?> reportFuelPrice(FuelPriceEntry entry) async {
+    final token = _token();
+    if (token == null) return 'Please sign in again.';
+    try {
+      final pos = await _position();
+      await _api.reportFuelPrice(
+        accessToken: token,
+        fuelType: entry.fuelType.wire,
+        pricePerLitreKobo: entry.pricePerLitreKobo,
+        lat: pos.lat,
+        lng: pos.lng,
+      );
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'We could not send your fuel price. Please try again.';
+    }
+  }
+
   Future<void> setOnline(bool online) async {
     final token = _token();
     if (token == null) return;
 
-    _emit(_state.copyWith(
-      isTogglingOnline: true,
-      clearError: true,
-      clearNotice: true,
-    ));
+    _emit(
+      _state.copyWith(
+        isTogglingOnline: true,
+        clearError: true,
+        clearNotice: true,
+      ),
+    );
     try {
       final pos = await _position();
       final next = await _api.setAvailability(
@@ -236,6 +268,7 @@ class ProviderHomeController extends ChangeNotifier {
       if (next.online) {
         _startHeartbeat();
         _startPolling();
+        onWentOnline?.call();
       } else {
         _stopHeartbeat();
       }
@@ -256,12 +289,15 @@ class ProviderHomeController extends ChangeNotifier {
     _sendHeartbeat();
     // Keeps the app running with the screen off; a fix also covers a beat
     // the timer missed while the OS held it back.
-    _location.start(onFix: () {
-      final last = _lastHeartbeatAt;
-      if (last == null || DateTime.now().difference(last) > const Duration(seconds: 20)) {
-        _sendHeartbeat();
-      }
-    });
+    _location.start(
+      onFix: () {
+        final last = _lastHeartbeatAt;
+        if (last == null ||
+            DateTime.now().difference(last) > const Duration(seconds: 20)) {
+          _sendHeartbeat();
+        }
+      },
+    );
   }
 
   void _stopHeartbeat() {
@@ -400,13 +436,17 @@ class ProviderHomeController extends ChangeNotifier {
       final hadActive = _state.activeBooking;
       final endedElsewhere = hadActive != null && active == null;
 
-      _emit(_state.copyWith(
-        offers: offers,
-        activeBooking: active,
-        clearActiveBooking: active == null,
-        notice: endedElsewhere ? 'That trip was ended by the customer.' : null,
-        clearNotice: !endedElsewhere,
-      ));
+      _emit(
+        _state.copyWith(
+          offers: offers,
+          activeBooking: active,
+          clearActiveBooking: active == null,
+          notice: endedElsewhere
+              ? 'That trip was ended by the customer.'
+              : null,
+          clearNotice: !endedElsewhere,
+        ),
+      );
     } on ApiException {
       // Transient: the next tick retries rather than tearing down the screen.
     } finally {
@@ -443,7 +483,8 @@ class ProviderHomeController extends ChangeNotifier {
   );
 
   Future<bool> cancelTrip({String reason = 'driver_cancelled'}) => _actOnActive(
-    (token, id) => _api.cancel(accessToken: token, bookingId: id, reason: reason),
+    (token, id) =>
+        _api.cancel(accessToken: token, bookingId: id, reason: reason),
   );
 
   Future<bool> completeTrip() {
@@ -477,11 +518,13 @@ class ProviderHomeController extends ChangeNotifier {
       await _auth.handleAuthFailure();
       return false;
     }
-    _emit(_state.copyWith(
-      isActionLoading: true,
-      clearError: true,
-      clearNotice: true,
-    ));
+    _emit(
+      _state.copyWith(
+        isActionLoading: true,
+        clearError: true,
+        clearNotice: true,
+      ),
+    );
     try {
       final booking = await action();
       _bump();
@@ -507,19 +550,23 @@ class ProviderHomeController extends ChangeNotifier {
       if (known.isNotEmpty) booking = booking.withStops(known.first.stops);
     }
     if (booking.status.isTerminal) {
-      _emit(_state.copyWith(
-        isActionLoading: false,
-        clearActiveBooking: true,
-        offers: _state.offers.where((o) => o.id != booking.id).toList(),
-      ));
+      _emit(
+        _state.copyWith(
+          isActionLoading: false,
+          clearActiveBooking: true,
+          offers: _state.offers.where((o) => o.id != booking.id).toList(),
+        ),
+      );
       return;
     }
-    _emit(_state.copyWith(
-      isActionLoading: false,
-      activeBooking: booking.status.isActive ? booking : null,
-      clearActiveBooking: !booking.status.isActive,
-      offers: _state.offers.where((o) => o.id != booking.id).toList(),
-    ));
+    _emit(
+      _state.copyWith(
+        isActionLoading: false,
+        activeBooking: booking.status.isActive ? booking : null,
+        clearActiveBooking: !booking.status.isActive,
+        offers: _state.offers.where((o) => o.id != booking.id).toList(),
+      ),
+    );
   }
 
   // ─── Parcel opt-in ─────────────────────────────────────────────────────────

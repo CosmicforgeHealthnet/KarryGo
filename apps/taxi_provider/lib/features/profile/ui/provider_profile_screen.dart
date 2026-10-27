@@ -1,3 +1,5 @@
+import '../../fuel/fuel_prompt.dart';
+import '../../referrals/ui/referral_screen.dart';
 import '../../../core/theme/appearance_controller.dart';
 import '../../../core/widgets/driver_state_art.dart';
 import '../../../core/theme/karryam_theme.dart';
@@ -152,6 +154,26 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                         'Wallet',
                         'Balance, bank accounts and withdrawals',
                         () => _open(WalletScreen(api: widget.services.wallet)),
+                      ),
+                      _menu(
+                        Icons.local_gas_station_outlined,
+                        'Report fuel price',
+                        'What you paid per litre today',
+                        () => showFuelPriceSheet(
+                          context,
+                          report: widget.homeController.reportFuelPrice,
+                        ),
+                      ),
+                      _menu(
+                        Icons.card_giftcard_rounded,
+                        'Refer & earn',
+                        'Your code, referrals and rewards',
+                        () => _open(
+                          ReferralScreen(
+                            api: widget.services.referrals,
+                            wallet: widget.services.wallet,
+                          ),
+                        ),
                       ),
                       _menu(
                         Icons.badge_outlined,

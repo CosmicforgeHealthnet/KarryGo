@@ -210,6 +210,19 @@ class HaulingApi {
   }
 
   /// Live location of the assigned provider for a booking (driver map marker).
+  /// The driver's waiting time and fee so far on this booking.
+  Future<HaulingWaiting> getWaiting({
+    required String accessToken,
+    required String bookingId,
+  }) async {
+    final data = await _sendJson(
+      'GET',
+      '/customer/bookings/$bookingId/waiting',
+      accessToken: accessToken,
+    );
+    return HaulingWaiting.fromJson(data);
+  }
+
   Future<ProviderLocation> getBookingLocation({
     required String accessToken,
     required String bookingId,

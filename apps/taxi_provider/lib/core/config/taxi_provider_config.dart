@@ -18,6 +18,7 @@ class TaxiProviderConfig {
     required this.taxiApiBaseUrl,
     required this.walletApiBaseUrl,
     required this.supportApiBaseUrl,
+    required this.referralApiBaseUrl,
   });
 
   /// The taxi service's whole API base. Provider and customer surfaces both
@@ -33,6 +34,7 @@ class TaxiProviderConfig {
     );
     const wallet = String.fromEnvironment('PAYMENT_WALLET_API_BASE_URL');
     const support = String.fromEnvironment('SUPPORT_API_BASE_URL');
+    const referral = String.fromEnvironment('REFERRAL_API_BASE_URL');
     return TaxiProviderConfig(
       taxiApiBaseUrl: taxi,
       walletApiBaseUrl: wallet.isNotEmpty
@@ -41,6 +43,9 @@ class TaxiProviderConfig {
       supportApiBaseUrl: support.isNotEmpty
           ? support
           : siblingBaseUrl(taxi, '/api/v1/support-disputes', 8107),
+      referralApiBaseUrl: referral.isNotEmpty
+          ? referral
+          : siblingBaseUrl(taxi, '/api/v1/referrals', 8114),
     );
   }
 
@@ -55,4 +60,5 @@ class TaxiProviderConfig {
   final String taxiApiBaseUrl;
   final String walletApiBaseUrl;
   final String supportApiBaseUrl;
+  final String referralApiBaseUrl;
 }
