@@ -162,3 +162,27 @@ func writeSMTPLine(writer *bufio.Writer, line string) {
 	_, _ = writer.WriteString(line + "\r\n")
 	_ = writer.Flush()
 }
+
+func TestSMTPReadyRefusesPlaintextToRemoteHost(t *testing.T) {
+	base := config.SMTPConfig{Host: "smtp.resend.com", Port: 465, Username: "resend", Password: "re_not_a_real_key", From: "Karryam <no-reply@karryam.com>", Timeout: time.Second}
+	for _, mode := range []string{"", "tls", "starttls", "TLS"} {
+		cfg := base
+		cfg.TLSMode = mode
+		if err := NewSMTPEmailSender(cfg).Ready(); err != nil {
+			t.Fatalf("mode %q: unexpected error %v", mode, err)
+		}
+	}
+	cfg := base
+	cfg.TLSMode = "none"
+	if err := NewSMTPEmailSender(cfg).Ready(); err == nil {
+		t.Fatal("plain SMTP to a remote provider must be refused")
+	}
+	for _, host := range []string{"127.0.0.1", "localhost", "::1", "[::1]"} {
+		local := base
+		local.Host = host
+		local.TLSMode = "none"
+		if err := NewSMTPEmailSender(local).Ready(); err != nil {
+			t.Fatalf("loopback %q: %v", host, err)
+		}
+	}
+}
