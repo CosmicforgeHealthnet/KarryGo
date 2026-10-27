@@ -54,10 +54,21 @@ func (s *SMTPPartnerEmailSender) normalizedConfig() config.PartnerSMTPConfig {
 	cfg := s.cfg
 	cfg.Host = strings.TrimSpace(cfg.Host)
 	cfg.Username = strings.TrimSpace(cfg.Username)
-	if cfg.From == "" {
-		cfg.From = cfg.Username
+	// PARTNER_SMTP_FROM may be a bare address or "Name <address>". Only a
+	// username that is itself an address can stand in for it: providers such
+	// as Resend authenticate with a fixed username ("resend") that is not a
+	// sender, and using it would put an invalid MAIL FROM on the wire.
+	from := strings.TrimSpace(cfg.From)
+	if from == "" {
+		from = cfg.Username
 	}
-	cfg.From = strings.TrimSpace(cfg.From)
+	cfg.From = ""
+	if parsed, err := mail.ParseAddress(from); err == nil {
+		cfg.From = parsed.Address
+		if parsed.Name != "" {
+			cfg.FromName = parsed.Name
+		}
+	}
 	if strings.TrimSpace(cfg.FromName) == "" {
 		cfg.FromName = "KarryGo"
 	}
