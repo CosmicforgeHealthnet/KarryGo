@@ -1,5 +1,11 @@
 # Staging email delivery
 
+> **Current staging-first Resend procedure:** Use [RESEND_KARRYAM_CUTOVER.md](RESEND_KARRYAM_CUTOVER.md)
+> for the already-verified `karryam.com` domain, protected SMTP configuration
+> and independent Partner Web OTP sender. The cPanel settings below are historical
+> examples only and must **not** be used for the Resend cutover.
+
+
 Status: code prepared locally. VPS configuration, deployment and actual delivery
 have not been verified. Existing debug settings remain unchanged.
 
