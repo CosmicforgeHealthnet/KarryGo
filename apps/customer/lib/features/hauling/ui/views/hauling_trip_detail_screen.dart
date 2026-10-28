@@ -358,7 +358,7 @@ class _HaulingTripDetailScreenState extends State<HaulingTripDetailScreen> {
                         style: const TextStyle(color: CustomerFigmaColors.muted, fontSize: 13),
                       ),
                       Text(
-                        '₦${formatHaulingFare(_waiting!.totalFeeKobo)}',
+                        formatHaulingFare(_waiting!.totalFeeKobo),
                         style: const TextStyle(
                           color: CustomerFigmaColors.text,
                           fontSize: 14,

@@ -65,7 +65,7 @@ class _HaulingWaitingCardState extends State<HaulingWaitingCard> {
     final freeUntil = stop.freeUntil;
     final inFreeTime = freeUntil != null && now.isBefore(freeUntil);
     final where = stop.stop == 'DROPOFF' ? 'drop-off' : 'pickup';
-    final rate = '₦${formatHaulingFare(w.blockFeeKobo)} per ${w.blockMinutes} min';
+    final rate = '${formatHaulingFare(w.blockFeeKobo)} per ${w.blockMinutes} min';
     final note = inFreeTime
         ? 'Free for ${freeUntil.difference(now).inMinutes + 1} more min. After that, waiting costs $rate.'
         : 'Waiting is now charged at $rate, added to your trip.';
@@ -96,7 +96,7 @@ class _HaulingWaitingCardState extends State<HaulingWaitingCard> {
           if (fee > 0) ...[
             const SizedBox(width: 10),
             Text(
-              '₦${formatHaulingFare(fee)}',
+              formatHaulingFare(fee),
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF805500)),
             ),
           ],
