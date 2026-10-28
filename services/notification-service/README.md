@@ -94,10 +94,11 @@ subject to staging certification.
 
 ## SMTP and authentication email
 
-For the upcoming **karryam.com** Resend domain migration (including the independent
-Partner Web OTP sender, domain-slot cutover and CosmicForge Admin boundaries),
-see [Karryam Resend cutover plan](../../deploy/notification-service/RESEND_KARRYAM_CUTOVER.md).
-The migration is not active simply because these instructions exist.
+The owner reports that **karryam.com** is already verified for Resend sending
+and receiving, with root inbound MX configured. The staging-first SMTP rollout,
+independent Partner Web OTP sender and CosmicForge Admin shared-webhook cutover
+are **not yet operational**. See the [Karryam Resend staging runbook](../../deploy/notification-service/RESEND_KARRYAM_CUTOVER.md).
+Do not make DNS or provider changes simply because this documentation exists.
 
 
 Vendor and Dispatch send email requests to this service over authenticated internal HTTP.
