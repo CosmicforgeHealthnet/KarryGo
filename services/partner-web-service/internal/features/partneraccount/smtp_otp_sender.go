@@ -3,7 +3,9 @@ package partneraccount
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -153,6 +155,13 @@ func sendSMTPMessage(ctx context.Context, cfg config.PartnerSMTPConfig, toEmail 
 }
 
 func partnerOTPEmailMessage(fromName string, fromEmail string, toEmail string, otpCode string) []byte {
+	return partnerOTPEmailMessageAt(fromName, fromEmail, toEmail, otpCode, time.Now())
+}
+
+// partnerOTPEmailMessageAt builds the RFC 5322 message. Date and Message-ID
+// are set here so receiving providers (and Resend SMTP) never see a message
+// without them; missing Date headers raise spam scores.
+func partnerOTPEmailMessageAt(fromName string, fromEmail string, toEmail string, otpCode string, now time.Time) []byte {
 	from := (&mail.Address{Name: fromName, Address: fromEmail}).String()
 	to := (&mail.Address{Address: toEmail}).String()
 	body := fmt.Sprintf("Your KarryGo verification code is %s. It expires in 10 minutes.", otpCode)
@@ -160,10 +169,26 @@ func partnerOTPEmailMessage(fromName string, fromEmail string, toEmail string, o
 	var msg bytes.Buffer
 	fmt.Fprintf(&msg, "From: %s\r\n", from)
 	fmt.Fprintf(&msg, "To: %s\r\n", to)
+	fmt.Fprintf(&msg, "Date: %s\r\n", now.UTC().Format(time.RFC1123Z))
+	fmt.Fprintf(&msg, "Message-ID: %s\r\n", partnerMessageID(fromEmail))
 	fmt.Fprintf(&msg, "Subject: %s\r\n", partnerOTPSubject)
 	fmt.Fprint(&msg, "MIME-Version: 1.0\r\n")
 	fmt.Fprint(&msg, "Content-Type: text/plain; charset=UTF-8\r\n")
 	fmt.Fprint(&msg, "\r\n")
 	fmt.Fprintf(&msg, "%s\r\n", body)
 	return msg.Bytes()
+}
+
+// partnerMessageID returns <random@sender-domain>; the sender domain keeps the
+// identifier aligned with the From address.
+func partnerMessageID(fromEmail string) string {
+	domain := "karryam.invalid"
+	if at := strings.LastIndex(fromEmail, "@"); at >= 0 && at < len(fromEmail)-1 {
+		domain = strings.ToLower(strings.TrimSpace(fromEmail[at+1:]))
+	}
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("<%d.partner-otp@%s>", time.Now().UnixNano(), domain)
+	}
+	return fmt.Sprintf("<%s.partner-otp@%s>", hex.EncodeToString(buf), domain)
 }

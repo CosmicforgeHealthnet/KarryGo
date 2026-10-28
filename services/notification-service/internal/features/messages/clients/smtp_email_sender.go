@@ -30,11 +30,29 @@ func (s *SMTPEmailSender) Ready() error {
 		return fmt.Errorf("smtp sender address is invalid")
 	}
 	switch strings.ToLower(s.cfg.TLSMode) {
-	case "", "tls", "starttls", "none":
+	case "", "tls", "starttls":
 		return nil
+	case "none":
+		// Plain SMTP is only for a local relay/catcher. A remote provider
+		// (e.g. smtp.resend.com, whose password is an API key) must use TLS;
+		// net/smtp would refuse to send the credentials anyway, so fail here
+		// with a clear reason instead of on every delivery.
+		if isLoopbackSMTPHost(s.cfg.Host) {
+			return nil
+		}
+		return fmt.Errorf("smtp TLS mode none is only allowed for a loopback host")
 	default:
 		return fmt.Errorf("smtp TLS mode is invalid")
 	}
+}
+
+func isLoopbackSMTPHost(host string) bool {
+	host = strings.Trim(strings.ToLower(strings.TrimSpace(host)), "[]")
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *SMTPEmailSender) SendEmail(ctx context.Context, message EmailMessage) (ProviderResult, error) {
