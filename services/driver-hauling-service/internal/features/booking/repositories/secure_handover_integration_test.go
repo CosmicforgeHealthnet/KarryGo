@@ -102,6 +102,28 @@ func TestDeliveryReceiverContactChangeInvalidatesCredential(t *testing.T) {
 	}
 }
 
+// The delivery credential is owned by the receiver, not the person who booked;
+// the driver must be able to consume it when the two differ.
+func TestDeliveryCredentialOwnedByReceiverIsConsumable(t *testing.T) {
+	repo, pool := secureHandoverTestRepository(t)
+	bookingID, _, providerID := seedSecureHandoverBooking(t, pool)
+	receiverID := uuid.NewString()
+	if _, err := pool.Exec(context.Background(), `UPDATE haulage_bookings SET receiver_customer_id=$2,status='en_route_delivery' WHERE id=$1`, bookingID, receiverID); err != nil {
+		t.Fatal(err)
+	}
+	secret := []byte("postgres-secure-handover-secret")
+	rec, err := handover.NewSecureCodeRecord(secret, "hauling", handover.StepDelivery, uuid.NewString(), 1, bookingID, providerID, receiverID, 0, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(context.Background(), `INSERT INTO hauling_handover_challenges(challenge_ref,booking_id,stage,assigned_provider_id,owner_id,otp_hash,qr_token_hash,version,status,expires_at) VALUES($1,$2,'delivery',$3,$4,$5,$6,1,'ACTIVE',$7)`, rec.ChallengeRef, bookingID, providerID, receiverID, rec.Hash, rec.QRHash, rec.ExpiresAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, consumed, err := repo.ConsumeHandoverChallenge(context.Background(), bookingID, handover.StepDelivery, providerID, rec.Code, secret, "", ""); err != nil || !consumed {
+		t.Fatalf("receiver-owned delivery credential: consumed=%v err=%v", consumed, err)
+	}
+}
+
 func TestSecureHandoverPostgresOTPVsQROneConsumeAndNoPlaintext(t *testing.T) {
 	repo, pool := secureHandoverTestRepository(t)
 	bookingID, customerID, providerID := seedSecureHandoverBooking(t, pool)

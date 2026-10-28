@@ -74,8 +74,8 @@ func (r *PostgresBookingRepository) ConsumeHandoverChallenge(ctx context.Context
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var customerID, providerID, bookingStatus string
-	err = tx.QueryRow(ctx, `SELECT customer_id::text,COALESCE(provider_id::text,''),status FROM haulage_bookings WHERE id=$1 FOR UPDATE`, bookingID).Scan(&customerID, &providerID, &bookingStatus)
+	var customerID, receiverID, providerID, bookingStatus string
+	err = tx.QueryRow(ctx, `SELECT customer_id::text,COALESCE(receiver_customer_id::text,''),COALESCE(provider_id::text,''),status FROM haulage_bookings WHERE id=$1 FOR UPDATE`, bookingID).Scan(&customerID, &receiverID, &providerID, &bookingStatus)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return bookingmodels.Booking{}, false, apperrors.NotFound("Booking could not be found.", err)
 	}
@@ -113,7 +113,13 @@ func (r *PostgresBookingRepository) ConsumeHandoverChallenge(ctx context.Context
 	if status != "ACTIVE" {
 		return bookingmodels.Booking{}, false, apperrors.Conflict("This handover credential is no longer active.", nil)
 	}
-	if rec.ProviderID != providerID || rec.OwnerID != customerID {
+	// The pickup credential belongs to the booking customer; the delivery
+	// credential is issued to the receiver, who may be someone else.
+	owner := customerID
+	if stage == handover.StepDelivery {
+		owner = receiverID
+	}
+	if rec.ProviderID != providerID || owner == "" || rec.OwnerID != owner {
 		_, _ = tx.Exec(ctx, `UPDATE hauling_handover_challenges SET status='INVALIDATED',updated_at=now() WHERE challenge_ref=$1 AND status='ACTIVE'`, rec.ChallengeRef)
 		if err = tx.Commit(ctx); err != nil {
 			return bookingmodels.Booking{}, false, err
