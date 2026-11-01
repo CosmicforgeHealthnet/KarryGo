@@ -131,3 +131,84 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .faq-summary, .interaction-arrow, .final-cta-form, .final-cta-button { transition: none; }
 }
+/* Cross-fade full page loads between the landing page and the waitlist. */
+@view-transition { navigation: auto; }
+
+/* Scroll progress and scroll reveals are CSS-only: browsers without scroll
+   timelines simply show the finished, static page. */
+.scroll-progress { display: none; }
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-progress {
+      display: block;
+      transform-origin: left;
+      animation: scroll-progress linear both;
+      animation-timeline: scroll(root);
+    }
+    .scroll-reveal {
+      animation: scroll-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+    @media (min-width: 1024px) {
+      .hero-parallax {
+        animation: hero-parallax linear both;
+        animation-timeline: scroll(root);
+        animation-range: 0 100vh;
+      }
+    }
+  }
+}
+@keyframes scroll-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes scroll-reveal { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes hero-parallax { to { transform: translateY(56px); } }
+
+/* Hero: headline words, ambient glow, floating art and moving routes. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy > h1 { animation: none; }
+  .hero-copy > :nth-child(6) { animation-delay: 350ms; }
+  .hero-word {
+    display: inline-block;
+    animation: hero-reveal 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(70ms + var(--i) * 45ms);
+  }
+  .hero-trust-item {
+    animation: hero-reveal 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(450ms + var(--i) * 90ms);
+  }
+  .hero-glow { animation: hero-glow 14s ease-in-out infinite alternate; }
+  .hero-float { animation: hero-float 7s ease-in-out 1s infinite alternate; }
+  .hero-route {
+    stroke-dasharray: 0.14 1;
+    animation: hero-route var(--dur, 5s) linear var(--delay, 1s) infinite both;
+  }
+  .hero-node {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: hero-node 2.8s ease-out var(--delay, 1s) infinite both;
+  }
+  .brand-logo { animation: brand-logo 550ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .nav-sheet { animation: nav-sheet 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .nav-underline { transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), width 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .driver-route { stroke-dasharray: 1; animation: driver-route linear both; animation-timeline: view(); animation-range: entry 10% cover 50%; }
+}
+@keyframes hero-glow { from { transform: translate3d(-4%, 3%, 0); opacity: 0.65; } to { transform: translate3d(5%, -4%, 0); opacity: 1; } }
+@keyframes hero-float { from { transform: translateY(0); } to { transform: translateY(-9px); } }
+@keyframes hero-route { from { stroke-dashoffset: 0.14; opacity: 1; } 90% { opacity: 1; } to { stroke-dashoffset: -1; opacity: 0; } }
+@keyframes hero-node { from { transform: scale(0.4); opacity: 0.85; } to { transform: scale(1.9); opacity: 0; } }
+@keyframes brand-logo { from { opacity: 0; transform: translateX(-10px); clip-path: inset(0 100% 0 0); } to { opacity: 1; transform: translateX(0); clip-path: inset(0 0 0 0); } }
+@keyframes nav-sheet { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes driver-route { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.hero-routes { display: block; }
+
+/* Driver app cards. */
+.driver-card { transition: transform 250ms ease, border-color 250ms ease, background-color 250ms ease; }
+.driver-arrow { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .driver-card:hover { transform: translateY(-4px); border-color: rgba(0, 194, 168, 0.55); background-color: rgba(255, 255, 255, 0.09); }
+  .driver-download:hover .driver-arrow { transform: translateY(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-routes { display: none; }
+  .driver-card, .driver-arrow { transition: none; }
+}

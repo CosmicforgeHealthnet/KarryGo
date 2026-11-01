@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ArrowRight, Menu, X } from "lucide-react";
 
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { label: "Home", id: "home" },
   { label: "Services", id: "services" },
   { label: "For Providers", id: "providers" },
+  { label: "Driver App", id: "driver-app" },
   { label: "For Businesses", id: "businesses" },
   { label: "About", id: "about" },
 ];
@@ -16,6 +17,8 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState("home");
+  const navListRef = useRef<HTMLUListElement>(null);
+  const [underline, setUnderline] = useState({ x: 0, width: 0 });
 
   useEffect(() => {
     const onScroll = () => {
@@ -33,6 +36,20 @@ export default function Navbar() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Slide one shared underline to the active link; fonts and resizes move links.
+  useEffect(() => {
+    const list = navListRef.current;
+    if (!list) return;
+    const measure = () => {
+      const link = list.querySelector<HTMLElement>('[aria-current="page"]');
+      if (link) setUnderline({ x: link.offsetLeft, width: link.offsetWidth });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [active]);
 
   // Mobile menu: lock page scroll, close on Escape, close if viewport grows to desktop
   useEffect(() => {
@@ -67,6 +84,10 @@ export default function Navbar() {
           : "bg-transparent border-b border-transparent"
       }`}
     >
+      <span
+        aria-hidden
+        className="scroll-progress absolute inset-x-0 bottom-0 h-0.5 bg-aurora"
+      />
       <nav className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12 h-16 lg:h-20 flex items-center justify-between lg:grid lg:grid-cols-[1fr_auto_1fr]">
         {/* Logo */}
         <a
@@ -80,16 +101,19 @@ export default function Navbar() {
             width={100}
             height={60}
             priority
-            className="h-7 sm:h-8 lg:h-10 w-auto select-none"
+            className="brand-logo h-7 sm:h-8 lg:h-10 w-auto select-none"
           />
         </a>
 
         {/* Center nav */}
-        <ul className="hidden lg:flex items-center gap-8 xl:gap-10 text-[13px] font-medium">
+        <ul
+          ref={navListRef}
+          className="relative hidden lg:flex items-center gap-4 xl:gap-10 text-[13px] font-medium"
+        >
           {NAV_ITEMS.map(({ label, id }) => {
             const isActive = active === id;
             return (
-              <li key={id} className="relative">
+              <li key={id}>
                 <a
                   href={`#${id}`}
                   aria-current={isActive ? "page" : undefined}
@@ -101,12 +125,14 @@ export default function Navbar() {
                 >
                   {label}
                 </a>
-                {isActive && (
-                  <span className="absolute -bottom-1 left-0 right-0 h-px bg-aurora/70" />
-                )}
               </li>
             );
           })}
+          <li
+            aria-hidden
+            className="nav-underline absolute -bottom-1 left-0 h-px bg-aurora/70"
+            style={{ width: underline.width, transform: `translateX(${underline.x}px)` }}
+          />
         </ul>
 
         {/* Right */}
@@ -137,7 +163,7 @@ export default function Navbar() {
 
       {/* Mobile sheet */}
       {open && (
-        <div className="lg:hidden border-t border-white/5 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain">
+        <div className="nav-sheet lg:hidden border-t border-white/5 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain">
           <ul className="px-5 sm:px-8 py-5 flex flex-col gap-1 text-white/90">
             {NAV_ITEMS.map(({ label, id }) => (
               <li key={id}>

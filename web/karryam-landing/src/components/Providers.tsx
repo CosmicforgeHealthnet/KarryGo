@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
 
 const vars = (o: Record<string, string | number>) => o as React.CSSProperties;
 
@@ -124,9 +124,10 @@ export default function Providers() {
             Join as a driver, rider or vendor and be part of a growing movement.
           </p>
 
+          <div className="mt-8 flex flex-wrap items-center gap-3">
           <a
             href="/waitlist"
-            className="prv-rise group mt-8 inline-flex items-center gap-2 rounded-full bg-aurora px-6 py-3 text-[13px] font-semibold text-midnight shadow-sm hover:brightness-110 transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
+            className="prv-rise group inline-flex items-center gap-2 rounded-full bg-aurora px-6 py-3 text-[13px] font-semibold text-midnight shadow-sm hover:brightness-110 transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
             style={vars({ "--d": "0.3s" })}
           >
             Join as a Provider
@@ -136,6 +137,15 @@ export default function Providers() {
               className="transition-transform duration-300 group-hover:translate-x-1"
             />
           </a>
+          <a
+            href="#driver-app"
+            className="prv-rise inline-flex items-center gap-2 rounded-full border border-aurora px-6 py-3 text-[13px] font-semibold text-aurora-ink transition-colors hover:bg-aurora hover:text-midnight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
+            style={vars({ "--d": "0.4s" })}
+          >
+            <Download aria-hidden size={14} strokeWidth={2.5} />
+            Download the driver app
+          </a>
+          </div>
         </div>
 
         {/* Image */}
