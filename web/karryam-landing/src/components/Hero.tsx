@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { ArrowRight, Globe2, Layers, ShieldCheck } from "lucide-react";
+import { ArrowRight, Download, Globe2, Layers, ShieldCheck } from "lucide-react";
+import HeroRoutes from "@/components/HeroRoutes";
 
 const TRUST = [
   { icon: ShieldCheck, title: "Secure", sub: "& Trusted" },
@@ -7,7 +8,21 @@ const TRUST = [
   { icon: Layers, title: "Scalable", sub: "Platform" },
 ];
 
+const HEADLINE = ["One platform for", "how people, goods", "and businesses"];
+
+const headlineWord = (word: string, index: number, accent = false) => (
+  <span
+    key={`${word}-${index}`}
+    className={`hero-word${accent ? " text-aurora" : ""}`}
+    style={{ "--i": index } as React.CSSProperties}
+  >
+    {word}
+  </span>
+);
+
 export default function Hero() {
+  let wordIndex = 0;
+
   return (
     <section
       id="home"
@@ -17,6 +32,10 @@ export default function Hero() {
       <div
         aria-hidden
         className="absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_80%,rgba(0,194,168,0.06),transparent_70%)] lg:bg-[radial-gradient(ellipse_60%_60%_at_70%_50%,rgba(0,194,168,0.06),transparent_70%)]"
+      />
+      <div
+        aria-hidden
+        className="hero-glow absolute inset-0 bg-[radial-gradient(ellipse_45%_45%_at_68%_48%,rgba(0,194,168,0.12),transparent_70%)]"
       />
       <div
         aria-hidden
@@ -40,10 +59,17 @@ export default function Hero() {
           </p>
 
           <h1 className="mt-4 sm:mt-5 text-[clamp(1.9rem,6vw,2.75rem)] lg:text-[clamp(2rem,3.1vw,3.25rem)] font-bold leading-[1.1] tracking-tight">
-            One platform for
-            <br className="hidden lg:block" /> how people, goods
-            <br className="hidden lg:block" /> and businesses{" "}
-            <span className="text-aurora">move.</span>
+            {HEADLINE.map((line, lineIndex) => (
+              <span key={line}>
+                {line.split(" ").map((word) => (
+                  <span key={word}>
+                    {headlineWord(word, wordIndex++)}{" "}
+                  </span>
+                ))}
+                {lineIndex < HEADLINE.length - 1 && <br className="hidden lg:block" />}
+              </span>
+            ))}
+            {headlineWord("move.", wordIndex++, true)}
           </h1>
 
           <p className="mt-4 sm:mt-5 max-w-[26rem] text-sm leading-relaxed text-white/70">
@@ -78,10 +104,22 @@ export default function Hero() {
             </button>
           </form>
 
+          <a
+            href="#driver-app"
+            className="group mt-4 inline-flex w-fit items-center gap-2 text-[13px] font-medium text-white/80 transition-colors hover:text-aurora focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora"
+          >
+            <Download aria-hidden size={14} strokeWidth={2.25} className="text-aurora" />
+            Driving with us? Get the driver app
+          </a>
+
           {/* Trust row */}
           <ul className="mt-6 sm:mt-8 flex flex-wrap items-center gap-x-5 sm:gap-x-7 gap-y-3">
-            {TRUST.map(({ icon: Icon, title, sub }) => (
-              <li key={title} className="flex items-center gap-2.5">
+            {TRUST.map(({ icon: Icon, title, sub }, index) => (
+              <li
+                key={title}
+                className="hero-trust-item flex items-center gap-2.5"
+                style={{ "--i": index } as React.CSSProperties}
+              >
                 <span className="grid h-8 w-8 place-items-center rounded-full border border-aurora/40 bg-aurora/10 text-aurora">
                   <Icon size={15} strokeWidth={2} />
                 </span>
@@ -97,6 +135,8 @@ export default function Hero() {
 
         {/* Right: hero image, blended into the background */}
         <div className="hero-art lg:col-span-7 relative">
+          <div className="hero-parallax">
+            <div className="hero-float relative mx-auto w-full max-w-[640px] lg:max-w-none lg:w-[108%] lg:-ml-[4%]">
           <Image
             src="/images/hero-movement-map-v2.png"
             alt="Karryam app connecting Ride, Send, Truck, Food and Shop with providers, vendors, fleets and API partners"
@@ -104,8 +144,11 @@ export default function Hero() {
             height={941}
             priority
             sizes="(min-width: 1024px) 58vw, 100vw"
-            className="relative mx-auto w-full max-w-[640px] h-auto lg:max-w-none lg:w-[108%] lg:-ml-[4%] select-none"
+            className="relative w-full h-auto select-none"
           />
+              <HeroRoutes />
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -825,6 +825,40 @@ The exact setting names per app are in each app's config file
 `apps/dispatch_provider/lib/core/config.dart`). The websocket address is
 `wss://api-gateway.staging.karryam.com/api/v1/notifications/ws`.
 
+### Publishing the driver apps
+
+The landing page offers the Taxi, Truck and Dispatch driver APKs from
+`downloads.staging.karryam.com`.
+
+**One-time server setup:** point the DNS record at the server, then follow the
+commands at the top of `deploy/platform/nginx/downloads.staging.karryam.com.conf`.
+
+**Each release:**
+
+```bash
+scripts/release/build-driver-apks.sh            # clean build of the current commit
+scripts/release/publish-driver-apks.sh ~/.karrygo/driver-apks/<commit>
+```
+
+Install each app from the live address on a real phone before announcing it.
+
+**Turning the buttons on:** set these in the Vercel project, then redeploy,
+because they are fixed at build time:
+
+```text
+NEXT_PUBLIC_DRIVER_DOWNLOADS_BASE_URL=https://downloads.staging.karryam.com
+NEXT_PUBLIC_DRIVER_APPS_READY=taxi,truck,dispatch
+```
+
+An app left out of the ready list shows "Coming soon". If the size of an APK
+changes noticeably, update it in `web/karryam-landing/src/lib/driverApps.ts`.
+
+**Signing:** these builds use this Mac's Android debug key for now. Updates must
+be built on this Mac or with a copy of `~/.android/debug.keystore`. Moving to a
+permanent key later means every driver uninstalls and reinstalls once. If the
+Google Maps Android key has app restrictions, it must allow the SHA-1 the build
+script prints.
+
 ---
 
 ## W. Reference: every service at a glance

@@ -1,4 +1,4 @@
-import { Apple, ArrowRight, Play } from "lucide-react";
+import { Apple, ArrowRight, Download, Play } from "lucide-react";
 
 export default function FinalCta() {
   return (
@@ -20,7 +20,7 @@ export default function FinalCta() {
       />
 
       <div className="relative mx-auto max-w-[1440px] px-6 lg:px-12 grid lg:grid-cols-12 gap-10 lg:gap-8 items-center">
-        <div className="lg:col-span-6">
+        <div className="scroll-reveal lg:col-span-6">
           <h2 className="text-[clamp(1.9rem,3vw,3rem)] font-bold leading-[1.1] tracking-tight">
             Be part of <span className="text-aurora">what&apos;s next.</span>
           </h2>
@@ -57,7 +57,7 @@ export default function FinalCta() {
           </form>
         </div>
 
-        <div className="lg:col-span-6 flex flex-wrap items-center gap-3 lg:justify-end">
+        <div className="scroll-reveal lg:col-span-6 flex flex-wrap items-center gap-3 lg:justify-end">
           <span
             aria-disabled="true"
             className="inline-flex items-center gap-3 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 backdrop-blur"
@@ -85,6 +85,14 @@ export default function FinalCta() {
               </span>
             </span>
           </span>
+
+          <a
+            href="#driver-app"
+            className="inline-flex w-full items-center gap-2 text-[13px] font-medium text-white/80 transition-colors hover:text-aurora focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-aurora lg:justify-end"
+          >
+            <Download aria-hidden size={14} strokeWidth={2.25} className="text-aurora" />
+            Driver? Get the Android app
+          </a>
         </div>
       </div>
     </section>
