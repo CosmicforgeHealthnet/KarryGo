@@ -1,11 +1,14 @@
 # Karryam root-domain Resend cutover (staging-first)
 
-**Current security architecture (4 November 2026):** SMTP activation is now a
-VPS-initiated pull request/receipt mechanism. Application keys and release-audit
-credentials remain on the VPS; never provision the Resend key in GitHub Secrets.
-The existing key path is `/opt/karrygo/notification-service/.secrets/resend-smtp-key`.
-Follow [SMTP_ACTIVATION.md](SMTP_ACTIVATION.md), which supersedes historical
-GitHub-secret/SSH instructions below. All approval, CI and restore gates remain.
+**Current staging procedure (4 November 2026):** An authorized VPS operator
+activates Notification SMTP directly using the tested, local
+`scripts/release/smtp_local.py` command. It reuses the existing SMTP authentication,
+protected backups, same-image recreate, health verification and automatic rollback.
+No new GitHub App, worker, receipt credential or restore-certification workflow is
+needed for the staging-only configuration change. The existing Resend key remains
+on the VPS at `/opt/karrygo/notification-service/.secrets/resend-smtp-key`.
+See [SMTP_ACTIVATION.md](SMTP_ACTIVATION.md). Production and other services retain
+their independent release requirements.
 
 Status (28 October 2026): **Resend `karryam.com` sending/receiving verification and Hostinger root inbound MX have been reported complete by the owner.** This document does not repeat or change DNS or Resend setup. **KarryGo SMTP rollout, CosmicForge Admin Mail infrastructure, the shared webhook and live acceptance tests have not been completed.** Scope: staging-first deployment of KarryGo automated OTP/transactional senders on `no-reply@karryam.com` and separate CosmicForge Admin human-managed inboxes.
 
@@ -19,18 +22,16 @@ Status (28 October 2026): **Resend `karryam.com` sending/receiving verification 
 
 ## New sender and provider settings
 
-**4 November activation automation:** use the existing manual
-`deploy-platform.yml` workflow on `staging`, with `services=notification-service`
-and `operation=smtp-inspect`, `smtp-activate` or `smtp-rollback`. All existing
-release approval, exact-SHA CI, protected credential and restore certification
-requirements still apply. See [SMTP_ACTIVATION.md](SMTP_ACTIVATION.md). This is
-configuration automation, not proof of a completed live cutover. Partner Web
-remains blocked by the existing release gate until its separate Gateway split
-is approved. Do not change the shared webhook for KarryGo activation.
+**Staging activation:** follow the direct authorized-VPS procedure in
+[SMTP_ACTIVATION.md](SMTP_ACTIVATION.md) for Notification Service only.
+This new staging-only operator action does not require the previous
+GitHub request/receipt SMTP worker; it is not proof of inbox delivery.
+All existing production and other-service gates remain in effect.
+Do not change the shared webhook for KarryGo activation.
 
 **Two Resend keys already exist:** `KarryGo Notifications` (sending-only, restricted to `karryam.com`) and `CosmicForge Admin Mail` (CA API access). Use **the same KarryGo sending-only key** for Notification Service and Partner Web SMTP, separately stored as `NOTIFICATION_SMTP_PASSWORD` and `PARTNER_SMTP_PASSWORD`. Never give either service CA's full-access key. The owner has chosen to reuse the two respective keys in staging and eventual production; isolate application databases, workers, secrets access and test recipients by environment. Resend SMTP: host `smtp.resend.com`, port `465` (implicit TLS), username `resend`. Never create new keys, commit values, log them or paste them in chat.
 
-Configure these values using the **approved GitHub Actions deployment and protected secret source** for the staging Notification Service (do not give a coding agent direct VPS/SSH access). The following are example values, not proof that the deployed environment is configured:
+For **staging Notification Service only**, the operator-run script applies these values from the existing protected VPS Resend key, after read-only checks and a protected backup. The following are reference values, not proof that the deployed environment is configured:
 
 ```dotenv
 NOTIFICATION_EMAIL_PROVIDER=smtp
@@ -89,7 +90,7 @@ All addresses `no-reply@karryam.com`, `support@karryam.com`, `info@karryam.com`,
 
 If TLS, sender identity, delivery, webhook classification, or staging API health checks fail, leave CA Mail flags OFF and stop the pilot. Restore only the approved application configuration; **do not delete, recreate or alter the verified Resend domains or root MX** as a rollback. Do not redirect the shared webhook or change production settings without separate cutover approval. Never treat an HTTP 202 or SMTP handoff as inbox delivery.
 
-**KarryGo staging activation sequence:** deploy reviewed application code from `staging` through the existing release gate; run the approved SMTP inspection/activation operations; run controlled end-to-end tests. Preserve the existing shared webhook and all CA Mail settings. Corporate mailbox infrastructure and any future webhook cutover are separate work requiring separate authorization. A code push alone does not activate SMTP.
+**KarryGo staging activation sequence:** review passing `staging` CI; update the existing VPS source checkout; run the local `smtp_local.py inspect` and authorized `activate` commands; run controlled end-to-end OTP delivery tests. Preserve the existing shared webhook and all CA Mail settings. Corporate mailbox infrastructure and any future webhook cutover are separate work requiring separate authorization. A code push alone does not activate SMTP.
 
 Official SMTP reference: https://resend.com/docs/send-with-smtp
 
