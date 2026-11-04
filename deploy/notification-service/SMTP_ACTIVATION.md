@@ -17,7 +17,7 @@ touch Partner Web, Dispatch, Gateway, Admin Mail, shared Resend webhook or DNS.
 - Protected sending-only Resend key exists at
   `/opt/karrygo/notification-service/.secrets/resend-smtp-key`.
   Keep it in place. Do not print, copy or rotate it for this activation.
-- A read-only KarryGo checkout exists at `/opt/karrygo-smtp-source` on
+- A reviewed KarryGo checkout exists at `/opt/karrygo-smtp-source` on
   the VPS. Update that checkout to the reviewed staging commit before using
   the new command; a GitHub push alone does not reconfigure the container.
 - GitHub CI passed for the previous staging commit. **Check CI again for the
