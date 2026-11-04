@@ -33,6 +33,15 @@ def api():
 
 
 class VPSGates(unittest.TestCase):
+    def test_application_key_cannot_be_mistaken_for_github_audit_credential(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit"
+            with patch.object(runtime, "private"), patch.object(runtime, "private_service_directory"):
+                path.write_text("re_test_only")
+                with self.assertRaises(ValueError): worker.read_token(path)
+                path.write_text("github_pat_test_only")
+                self.assertEqual(worker.read_token(path), "github_pat_test_only")
+
     def test_ambiguous_container_environment_cannot_masquerade_as_staging(self):
         item = {"Config": {"Env": ["APP_ENV=production", "APP_ENV=staging"]}}
         with self.assertRaises(ValueError): runtime.env_of(item)

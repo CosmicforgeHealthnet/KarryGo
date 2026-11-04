@@ -37,7 +37,8 @@ def read_token(path):
     runtime.private(path)
     runtime.private_service_directory(path.parent)
     result = path.read_text().strip()
-    gate.require(result and not re.search(r"\s", result), "missing VPS credential")
+    gate.require(re.fullmatch(r"(?:github_pat_|ghp_|ghs_)[A-Za-z0-9_]+", result),
+                 "VPS GitHub credential has an unexpected type")
     return result
 
 
