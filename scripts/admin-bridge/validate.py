@@ -141,7 +141,20 @@ def main():
     for name in ("deploy-platform.yml", "deploy-vendor-service.yml"):
         workflow = yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
         assert set(workflow["on"]) == {"workflow_dispatch"}
-        assert set(workflow["on"]["workflow_dispatch"]["inputs"]) == {"release_sha", "services", "restore_run_id"}
+        inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+        expected_inputs = {"release_sha", "services", "restore_run_id"}
+        if name == "deploy-platform.yml":
+            expected_inputs |= {"operation", "backup_run_id"}
+            assert inputs["operation"]["options"] == ["deploy", "smtp-inspect", "smtp-activate", "smtp-rollback"]
+            assert inputs["operation"]["default"] == "deploy"
+            smtp = workflow["jobs"]["smtp"]
+            assert smtp["environment"] == "staging"
+            assert "github.ref == 'refs/heads/staging'" in smtp["if"]
+            smtp_steps = smtp["steps"]
+            authorize = next(i for i, s in enumerate(smtp_steps) if s.get("run") == "python scripts/release/gate.py --kind smtp")
+            activate = next(i for i, s in enumerate(smtp_steps) if s.get("run") == "python scripts/release/smtp_activate.py")
+            assert authorize < activate
+        assert set(inputs) == expected_inputs
         job = workflow["jobs"]["release"]
         assert job["environment"] == "staging"
         steps = job["steps"]
