@@ -75,6 +75,7 @@ jobs:
       RESTORE_MANIFEST: ${{ inputs.restore_manifest }}
       GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
       SMTP_OPERATION: certify
+      SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
     steps:
       - uses: actions/checkout@v4
         with:

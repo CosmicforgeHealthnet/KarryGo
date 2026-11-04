@@ -128,11 +128,14 @@ class RequestAndReceipt(unittest.TestCase):
         env = {"GITHUB_REPOSITORY": gate.REPOSITORY, "GITHUB_REF": "refs/heads/staging",
                "GITHUB_EVENT_NAME": "workflow_dispatch", "RELEASE_SHA": SHA, "GITHUB_SHA": SHA,
                "GITHUB_WORKFLOW_SHA": SHA, "RELEASE_SERVICES": "notification-service", "GITHUB_RUN_ATTEMPT": "1",
-               "GITHUB_RUN_ID": "100", "SMTP_OPERATION": "activate", "RESTORE_RUN_ID": "200"}
+               "GITHUB_RUN_ID": "100", "SMTP_OPERATION": "activate", "RESTORE_RUN_ID": "200",
+               "SMTP_RECEIPT_LOGIN": "vps-receipt"}
         with patch.dict(os.environ, env):
             item = client.request(); worker.validate_request(item)
             self.assertEqual(set(item), worker.FIELDS)
             self.assertNotIn("password", item)
+            with patch.dict(os.environ, {"SMTP_RECEIPT_LOGIN": ""}):
+                with self.assertRaises(ValueError): client.request()
             with patch.dict(os.environ, {"RESTORE_RUN_ID": "unavailable"}):
                 with self.assertRaises(ValueError): client.request()
 

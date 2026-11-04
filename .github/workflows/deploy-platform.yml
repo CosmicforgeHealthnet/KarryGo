@@ -98,6 +98,7 @@ jobs:
       GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
       SMTP_OPERATION: ${{ inputs.operation == 'smtp-inspect' && 'inspect' || inputs.operation == 'smtp-activate' && 'activate' || 'rollback' }}
       SMTP_BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
     steps:
       - uses: actions/checkout@v4
         with:

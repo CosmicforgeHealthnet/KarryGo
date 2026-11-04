@@ -15,8 +15,14 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
 
+def validate_writer(writer):
+    gate.require(writer and writer != "github-actions[bot]" and re.fullmatch(r"[A-Za-z0-9_-]+(?:\[bot\])?", writer),
+                 "VPS receipt identity must be configured before publishing requests")
+
+
 def request():
     require = gate.require
+    validate_writer(os.environ.get("SMTP_RECEIPT_LOGIN"))
     require(os.environ.get("GITHUB_REPOSITORY") == gate.REPOSITORY and
             os.environ.get("GITHUB_REF") == "refs/heads/staging" and
             os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "manual canonical staging request required")
@@ -45,8 +51,7 @@ def receipt_payload(item):
 
 
 def wait(item, api, writer, timeout=480):
-    gate.require(writer and writer != "github-actions[bot]" and re.fullmatch(r"[A-Za-z0-9_-]+(?:\[bot\])?", writer),
-                 "VPS receipt identity must be configured")
+    validate_writer(writer)
     payload = receipt_payload(item)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
