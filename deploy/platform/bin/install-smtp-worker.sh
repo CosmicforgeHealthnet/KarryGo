@@ -12,6 +12,10 @@ identity="$3"
 [ "$identity" != 'github-actions[bot]' ] || exit 1
 [ "$(git -C "$checkout" rev-parse HEAD)" = "$revision" ] || exit 1
 [ "$(git -C "$checkout" branch --show-current)" = staging ] || exit 1
+# Validate the target before installing even the worker's code or unit files.
+# Execute only the audited blob at the explicitly approved revision.
+preflight="$(git -C "$checkout" show "$revision:deploy/platform/bin/audit-smtp-prerequisites.py" | python3)"
+printf '%s\n' "$preflight" | python3 -c 'import json,sys; p=json.load(sys.stdin); sys.exit(0 if p["staging_env_file"] and p["staging_container"] and p["healthy"] else "Staging file/container and healthy service must be confirmed before installation")'
 target=/usr/local/lib/karrygo-smtp
 [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Existing executor directory: inspect and review an upgrade; refusing overwrite' >&2; exit 1; }
 [ "$(realpath /usr/local/lib)" = /usr/local/lib ] || exit 1

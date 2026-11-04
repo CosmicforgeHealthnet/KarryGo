@@ -33,6 +33,10 @@ def api():
 
 
 class VPSGates(unittest.TestCase):
+    def test_ambiguous_container_environment_cannot_masquerade_as_staging(self):
+        item = {"Config": {"Env": ["APP_ENV=production", "APP_ENV=staging"]}}
+        with self.assertRaises(ValueError): runtime.env_of(item)
+
     def test_certification_still_requires_real_restore_attestation(self):
         value = api()
         value.run["path"] = ".github/workflows/certify-staging-restore.yml"

@@ -124,7 +124,9 @@ def container(name):
 
 
 def env_of(item):
-    return dict(entry.split("=", 1) for entry in item["Config"]["Env"] if "=" in entry)
+    entries = [entry.split("=", 1) for entry in item["Config"]["Env"] if "=" in entry]
+    require(len({entry[0] for entry in entries}) == len(entries))
+    return dict(entries)
 
 
 def facts(item, settings, password):

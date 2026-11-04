@@ -66,7 +66,9 @@ sudo bash /path/to/reviewed-checkout/deploy/platform/bin/install-smtp-worker.sh 
   /path/to/reviewed-checkout <approved-current-staging-sha> <vps-receipt-identity>
 ```
 
-It installs the fixed worker into `/usr/local/lib/karrygo-smtp`, root-owned and
+Before writing anything, the installer independently requires a healthy container
+and `APP_ENV=staging` in both the file and running container. It installs the
+fixed worker into `/usr/local/lib/karrygo-smtp`, root-owned and
 not writable by `deploy`, pins `approved-revision`, and installs only the new
 worker's systemd units. The existing `deploy` Docker access is used locally;
 GitHub gets no Docker/socket or filesystem access. It does not install a public
