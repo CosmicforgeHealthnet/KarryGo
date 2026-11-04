@@ -73,12 +73,17 @@ func TestSMTPRejectsMissingConfigWithoutSuccess(t *testing.T) {
 }
 
 type fakeSMTPServer struct {
-	listener net.Listener
-	port     int
-	messageC chan string
+	listener  net.Listener
+	port      int
+	messageC  chan string
+	rcptReply string
 }
 
 func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
+	return newFakeSMTPServerWithReply(t, "250 2.1.5 ok")
+}
+
+func newFakeSMTPServerWithReply(t *testing.T, reply string) *fakeSMTPServer {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -92,7 +97,7 @@ func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
 	if err != nil {
 		t.Fatalf("parse fake SMTP port: %v", err)
 	}
-	server := &fakeSMTPServer{listener: listener, port: port, messageC: make(chan string, 1)}
+	server := &fakeSMTPServer{listener: listener, port: port, messageC: make(chan string, 1), rcptReply: reply}
 	t.Cleanup(func() { _ = listener.Close() })
 	go server.serve()
 	return server
@@ -145,7 +150,7 @@ func (s *fakeSMTPServer) serve() {
 		case strings.HasPrefix(strings.ToUpper(line), "MAIL FROM"):
 			writeSMTPLine(writer, "250 2.1.0 ok")
 		case strings.HasPrefix(strings.ToUpper(line), "RCPT TO"):
-			writeSMTPLine(writer, "250 2.1.5 ok")
+			writeSMTPLine(writer, s.rcptReply)
 		case strings.EqualFold(line, "DATA"):
 			inData = true
 			writeSMTPLine(writer, "354 go ahead")
@@ -154,6 +159,30 @@ func (s *fakeSMTPServer) serve() {
 			return
 		default:
 			writeSMTPLine(writer, "250 ok")
+		}
+	}
+}
+
+func TestSMTPProviderErrorsKeepStatusWithoutSensitiveReply(t *testing.T) {
+	for _, test := range []struct {
+		reply string
+		retry bool
+	}{
+		{"450 rider@example.com otp=123456 smtp-password temporary failure", true},
+		{"550 rider@example.com otp=123456 smtp-password permanent failure", false},
+	} {
+		server := newFakeSMTPServerWithReply(t, test.reply)
+		result, err := NewSMTPEmailSender(testSMTPConfig(server.port)).SendEmail(context.Background(), EmailMessage{To: "rider@example.com"})
+		if err == nil || result.Retryable != test.retry || result.ProviderMessageID != nil {
+			t.Fatalf("incorrect failure classification: %+v %v", result, err)
+		}
+		if !strings.Contains(err.Error(), test.reply[:3]) {
+			t.Fatal("SMTP status was lost")
+		}
+		for _, sensitive := range []string{"rider@example.com", "123456", "smtp-password"} {
+			if strings.Contains(err.Error(), sensitive) {
+				t.Fatal("provider reply leaked sensitive information")
+			}
 		}
 	}
 }

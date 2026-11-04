@@ -15,6 +15,16 @@ on:
         description: Approved successful staging restore certification run for this SHA
         required: true
         type: string
+      operation:
+        description: Deploy images, or narrowly inspect/activate/roll back Notification SMTP
+        required: false
+        default: deploy
+        type: choice
+        options: [deploy, smtp-inspect, smtp-activate, smtp-rollback]
+      backup_run_id:
+        description: Original SMTP activation run ID (SMTP rollback only)
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -22,7 +32,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1 && (inputs.operation == '' || inputs.operation == 'deploy')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: staging
@@ -72,3 +82,47 @@ jobs:
           STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/release/execute.py deploy
+  smtp:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1 && (inputs.operation == 'smtp-inspect' || inputs.operation == 'smtp-activate' || inputs.operation == 'smtp-rollback')
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_SERVICES: ${{ inputs.services }}
+      RESTORE_RUN_ID: ${{ inputs.restore_run_id }}
+      GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+      SMTP_OPERATION: ${{ inputs.operation == 'smtp-inspect' && 'inspect' || inputs.operation == 'smtp-activate' && 'activate' || 'rollback' }}
+      SMTP_BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify existing protection, separate approval, exact SHA, CI and restore
+        env:
+          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
+        run: python scripts/release/gate.py --kind smtp
+      - name: Preserve authorization before host access (no SMTP credentials)
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smtp-authorization-${{ github.run_id }}
+          path: release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+      - name: Reauthorize, apply protected configuration, verify and restore on failure
+        env:
+          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
+          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          STAGING_DEPLOY_USER: ${{ secrets.STAGING_DEPLOY_USER }}
+          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+          KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD: ${{ secrets.KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD }}
+        run: python scripts/release/smtp_activate.py

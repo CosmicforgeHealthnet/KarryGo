@@ -26,7 +26,7 @@ var (
 )
 
 // SMTPPartnerEmailSender delivers partner signup OTPs directly through the
-// configured cPanel SMTP mailbox. It never logs or exposes SMTP credentials or
+// configured SMTP provider. It never logs or exposes SMTP credentials or
 // plaintext OTPs.
 type SMTPPartnerEmailSender struct {
 	cfg config.PartnerSMTPConfig
@@ -151,7 +151,10 @@ func sendSMTPMessage(ctx context.Context, cfg config.PartnerSMTPConfig, toEmail 
 	if err := writer.Close(); err != nil {
 		return err
 	}
-	return client.Quit()
+	// DATA's final 250 reply commits delivery. A failed QUIT must not turn an
+	// accepted OTP into an error (the caller deletes its challenge on error).
+	_ = client.Quit()
+	return nil
 }
 
 func partnerOTPEmailMessage(fromName string, fromEmail string, toEmail string, otpCode string) []byte {

@@ -17,6 +17,8 @@ import (
 
 type SMTPEmailSender struct{ cfg config.SMTPConfig }
 
+var errSMTPRequiredSTARTTLS = errors.New("smtp server does not support required STARTTLS")
+
 func NewSMTPEmailSender(cfg config.SMTPConfig) *SMTPEmailSender { return &SMTPEmailSender{cfg: cfg} }
 
 func (s *SMTPEmailSender) Ready() error {
@@ -59,8 +61,13 @@ func (s *SMTPEmailSender) SendEmail(ctx context.Context, message EmailMessage) (
 	failure := func(err error) (ProviderResult, error) {
 		retry := true
 		var reply *textproto.Error
-		if errors.As(err, &reply) && reply.Code >= 500 {
-			retry = false
+		// Provider replies can echo recipient addresses or authentication input.
+		// Attempts and dead letters persist this error, so retain only the status.
+		if errors.As(err, &reply) {
+			retry = reply.Code < 500
+			err = fmt.Errorf("smtp request failed (status %d)", reply.Code)
+		} else if !errors.Is(err, errSMTPRequiredSTARTTLS) {
+			err = errors.New("smtp transport failed")
 		}
 		return ProviderResult{Provider: "smtp", Retryable: retry}, err
 	}
@@ -142,7 +149,7 @@ func (s *SMTPEmailSender) connect(ctx context.Context) (*smtp.Client, error) {
 	if mode == "" || mode == "starttls" {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
 			_ = client.Close()
-			return nil, fmt.Errorf("smtp server does not support required STARTTLS")
+			return nil, errSMTPRequiredSTARTTLS
 		}
 		if err := client.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {
 			_ = client.Close()

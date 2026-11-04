@@ -1,6 +1,9 @@
 package messageclients
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type ProviderResult struct {
 	Provider          string
@@ -18,6 +21,8 @@ type PushMessage struct {
 }
 
 type EmailMessage struct {
+	DeliveryID    string
+	CreatedAt     time.Time
 	To            string
 	Subject       string
 	Body          string

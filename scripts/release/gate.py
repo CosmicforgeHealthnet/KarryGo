@@ -162,7 +162,8 @@ def current(api, sha, context, kind):
     require(str(context.get("run_attempt")) == "1", "reruns require a fresh release decision")
     require(api.get("git/ref/heads/staging")["object"]["sha"] == sha, "stale/non-staging release SHA")
     run = api.get("actions/runs/" + str(context["run_id"]))
-    path = "certify-staging-restore.yml" if kind == "certify" else "deploy-" + ("vendor-service" if kind == "vendor" else "platform") + ".yml"
+    path = ("certify-staging-restore.yml" if kind == "certify" else
+            "deploy-" + ("vendor-service" if kind == "vendor" else "platform") + ".yml")
     require(run.get("path", "").split("@")[0] == ".github/workflows/" + path
             and run.get("event") == "workflow_dispatch" and run.get("head_sha") == sha,
             "workflow reuse/foreign run forbidden")
@@ -208,6 +209,8 @@ def restore(api, run_id, sha, services, env_id, now, configured_reviewers):
 
 
 def authorize(api, context, sha, raw_services, kind, restore_id, proof=None):
+    if kind == "smtp":
+        require(raw_services == "notification-service", "SMTP activation is Notification-only; Partner cutover remains blocked")
     services = selected(raw_services, "vendor" if kind == "vendor" else "platform") if kind != "certify" else raw_services.split(",")
     if kind == "certify":
         # Certification cannot authorize separately blocked transitions either.
@@ -232,7 +235,7 @@ def authorize(api, context, sha, raw_services, kind, restore_id, proof=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--kind", choices=["platform", "vendor", "certify"], required=True)
+    parser.add_argument("--kind", choices=["platform", "vendor", "certify", "smtp"], required=True)
     parser.add_argument("--output", default="release-evidence.json")
     args = parser.parse_args()
     context = {k: os.environ.get("GITHUB_" + k.upper(), "") for k in
