@@ -151,9 +151,11 @@ def main():
             assert smtp["environment"] == "staging"
             assert "github.ref == 'refs/heads/staging'" in smtp["if"]
             smtp_steps = smtp["steps"]
-            authorize = next(i for i, s in enumerate(smtp_steps) if s.get("run") == "python scripts/release/gate.py --kind smtp")
-            activate = next(i for i, s in enumerate(smtp_steps) if s.get("run") == "python scripts/release/smtp_activate.py")
-            assert authorize < activate
+            prepare = next(i for i, s in enumerate(smtp_steps) if s.get("run") == "python scripts/release/smtp_activate.py request")
+            receipt = next(i for i, s in enumerate(smtp_steps) if s.get("run") == "python scripts/release/smtp_activate.py wait")
+            assert prepare < receipt
+            assert "secrets." not in str(smtp)
+            assert smtp["permissions"]["deployments"] == "read"
         assert set(inputs) == expected_inputs
         job = workflow["jobs"]["release"]
         assert job["environment"] == "staging"

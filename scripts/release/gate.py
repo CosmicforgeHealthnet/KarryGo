@@ -111,7 +111,7 @@ class GitHub:
         raise ValueError("pagination exceeded; cannot establish complete evidence")
 
 
-def environment(api):
+def environment(api, credential_source="github"):
     info = api.get("environments/staging")
     reviewers = [r for r in info.get("protection_rules", []) if r.get("type") == "required_reviewers"]
     require(len(reviewers) == 1 and reviewers[0].get("reviewers")
@@ -125,7 +125,12 @@ def environment(api):
     require(policies and all(p.get("name") == "staging" and p.get("type") == "branch" for p in policies),
             "non-staging branch/tag allowed by environment")
     names = {s["name"] for s in api.pages("environments/staging/secrets", "secrets")}
-    require(CREDENTIALS <= names, "missing environment-scoped release credentials")
+    require(credential_source in {"github", "vps"}, "invalid credential source")
+    if credential_source == "github":
+        require(CREDENTIALS <= names, "missing environment-scoped release credentials")
+    else:
+        require(not {"RELEASE_AUDIT_TOKEN", "KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD"} & names,
+                "VPS-only credentials must not be stored in GitHub")
     owner_type = api.get("")["owner"]["type"]
     require(owner_type in {"User", "Organization"}, "unknown repository ownership")
     paths = ["actions/secrets"]
@@ -133,7 +138,10 @@ def environment(api):
         paths.append("actions/organization-secrets")
     for path in paths:
         inherited = {s["name"] for s in api.pages(path, "secrets")}
-        require(not (CREDENTIALS | {"VPS_HOST", "VPS_USER", "VPS_SSH_KEY"}) & inherited,
+        forbidden = CREDENTIALS | {"VPS_HOST", "VPS_USER", "VPS_SSH_KEY"}
+        if credential_source == "vps":
+            forbidden |= {"KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD"}
+        require(not forbidden & inherited,
                 "repository/organization deployment credential bypass")
     config = api.get("environments/staging/variables/STAGING_RELEASE_INITIATORS")
     actors = json.loads(config["value"])
@@ -208,7 +216,10 @@ def restore(api, run_id, sha, services, env_id, now, configured_reviewers):
     return {"run_id": run_id, "artifact_id": item["id"], "digest": digest, "proof": proof}
 
 
-def authorize(api, context, sha, raw_services, kind, restore_id, proof=None):
+def authorize(api, context, sha, raw_services, kind, restore_id, proof=None, credential_source="github"):
+    if credential_source == "vps":
+        require(kind in {"smtp", "certify"} and raw_services == "notification-service",
+                "VPS authorization is Notification-only")
     if kind == "smtp":
         require(raw_services == "notification-service", "SMTP activation is Notification-only; Partner cutover remains blocked")
     services = selected(raw_services, "vendor" if kind == "vendor" else "platform") if kind != "certify" else raw_services.split(",")
@@ -218,7 +229,7 @@ def authorize(api, context, sha, raw_services, kind, restore_id, proof=None):
             selected(service, "vendor" if service == "vendor-service" else "platform")
         require(len(set(services)) == len(services), "duplicate certification service")
     current(api, sha, context, kind)
-    info, actors = environment(api)
+    info, actors = environment(api, credential_source)
     require(context["actor"] in actors, "unauthorized release initiator")
     permission = api.get(f"collaborators/{urllib.parse.quote(context['actor'], safe='')}/permission")["permission"]
     require(permission in {"admin", "maintain"}, "release initiator lacks maintain/admin permission")

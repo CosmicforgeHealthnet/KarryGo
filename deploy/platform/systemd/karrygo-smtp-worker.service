@@ -1,0 +1,28 @@
+[Unit]
+Description=KarryGo approved staging Notification SMTP request worker
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+SupplementaryGroups=docker
+UMask=0077
+WorkingDirectory=/usr/local/lib/karrygo-smtp
+ExecStart=/usr/bin/python3 -I /usr/local/lib/karrygo-smtp/entry.py
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=DOCKER_CONFIG=/run/karrygo-smtp/docker
+RuntimeDirectory=karrygo-smtp
+RuntimeDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/karrygo/notification-service
+ReadOnlyPaths=/opt/karrygo/platform /opt/karrygo/notification-service/.secrets
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -90,6 +90,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      deployments: read
     env:
       RELEASE_SHA: ${{ inputs.release_sha }}
       RELEASE_SERVICES: ${{ inputs.services }}
@@ -105,24 +106,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Verify existing protection, separate approval, exact SHA, CI and restore
-        env:
-          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
-        run: python scripts/release/gate.py --kind smtp
-      - name: Preserve authorization before host access (no SMTP credentials)
+      - name: Prepare Notification-only non-secret request (VPS independently authorizes)
+        run: python scripts/release/smtp_activate.py request
+      - name: Publish request for the outgoing-only VPS worker
         uses: actions/upload-artifact@v4
         with:
-          name: staging-smtp-authorization-${{ github.run_id }}
-          path: release-evidence.json
+          name: staging-smtp-request
+          path: smtp-request.json
           if-no-files-found: error
           retention-days: 90
           overwrite: false
-      - name: Reauthorize, apply protected configuration, verify and restore on failure
+      - name: Require authenticated VPS completion receipt
         env:
-          RELEASE_AUDIT_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN }}
-          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
-          STAGING_DEPLOY_USER: ${{ secrets.STAGING_DEPLOY_USER }}
-          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
-          STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
-          KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD: ${{ secrets.KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD }}
-        run: python scripts/release/smtp_activate.py
+          GITHUB_TOKEN: ${{ github.token }}
+          SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
+        run: python scripts/release/smtp_activate.py wait
+      - name: Preserve non-secret VPS completion receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smtp-receipt-${{ github.run_id }}
+          path: smtp-receipt.json
+          if-no-files-found: error
+          retention-days: 90

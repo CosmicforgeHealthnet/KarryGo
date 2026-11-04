@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll approved GitHub Notification SMTP requests (outgoing only)
+
+[Timer]
+OnBootSec=30
+OnUnitInactiveSec=30
+AccuracySec=5
+Unit=karrygo-smtp-worker.service
+
+[Install]
+WantedBy=timers.target

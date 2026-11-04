@@ -48,14 +48,13 @@ class SMTPAuthorization(unittest.TestCase):
         self.assertNotIn("secrets.VPS_", str(workflow))
         self.assertNotIn("continue-on-error", str(workflow))
 
-    def test_missing_protected_smtp_secret_never_starts_ssh(self):
-        env = {"RELEASE_SHA": SHA, "RELEASE_SERVICES": "notification-service", "RESTORE_RUN_ID": "200",
-               "SMTP_OPERATION": "activate", "GITHUB_RUN_ID": "100"}
-        with patch.dict(os.environ, env), patch.object(gate, "authorize"), \
-             patch.object(gate, "GitHub", return_value=self.fake()), patch.object(subprocess, "run") as process:
-            with self.assertRaisesRegex(ValueError, "missing staging environment"):
-                smtp_activate.main()
-            process.assert_not_called()
+    def test_no_application_or_audit_secrets_or_shell_access_in_smtp_job(self):
+        workflow = yaml.load(Path(".github/workflows/deploy-platform.yml").read_text(), Loader=yaml.BaseLoader)
+        smtp = workflow["jobs"]["smtp"]
+        self.assertNotIn("secrets.", str(smtp))
+        self.assertNotIn("STAGING_DEPLOY_", str(smtp))
+        self.assertNotIn("KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD", str(smtp))
+        self.assertEqual(smtp["permissions"], {"contents": "read", "actions": "read", "deployments": "read"})
 
 
 class SMTPConfiguration(unittest.TestCase):
@@ -108,12 +107,13 @@ class SMTPConfiguration(unittest.TestCase):
             env.write_bytes(original)
             (root / "release.env").write_text("IMAGE=image@sha256:abc\n")
             item = {"Image": "sha256:abc", "State": {"Health": {"Status": "healthy"}}, "Config": {"Env": ["APP_ENV=staging"]}}
-            request = {"operation": "activate", "run_id": "100", "password": "re_test_only"}
+            request = {"operation": "activate", "run_id": "100"}
             with patch.object(runtime, "ENV", env), patch.object(runtime, "BACKUPS", root / ".smtp-backups"), \
                  patch.object(runtime, "APPLY", Path(__file__)), patch.object(runtime, "private", return_value=env.stat()), \
                  patch.object(runtime, "private_directory"), \
                  patch.object(runtime, "private_service_directory"), \
                  patch.object(runtime, "smtp_auth"), \
+                 patch.object(runtime, "read_resend_key", return_value="re_test_only"), \
                  patch.object(runtime, "atomic", side_effect=lambda p, data, info: p.write_bytes(data)), \
                  patch.object(runtime, "apply") as apply, patch.object(runtime, "verify") as verify, \
                  patch.object(runtime, "container", return_value=item), \

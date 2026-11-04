@@ -1,7 +1,7 @@
 """Runs on approved staging host. Fixed paths, protected backups, no raw output.
 
-No SMTP send or DNS/provider/webhook change. Partner is inspection-only until
-the existing Gateway split deployment hold is separately resolved.
+No SMTP send or DNS/provider/webhook change. This library is invoked only by
+the locally installed Notification worker after independent authorization.
 """
 import contextlib
 import hashlib
@@ -13,22 +13,19 @@ import smtplib
 import ssl
 import stat
 import subprocess
-import sys
 import tempfile
 
 ROOT = Path("/opt/karrygo")
 ENV = ROOT / "notification-service/notification.service.env"
 BACKUPS = ROOT / "notification-service/.smtp-backups"
 APPLY = ROOT / "platform/bin/apply-env.sh"
+RESEND_KEY = ROOT / "notification-service/.secrets/resend-smtp-key"
 SETTINGS = {
     "NOTIFICATION_EMAIL_PROVIDER": "smtp", "NOTIFICATION_SMTP_HOST": "smtp.resend.com",
     "NOTIFICATION_SMTP_PORT": "465", "NOTIFICATION_SMTP_TLS_MODE": "tls",
     "NOTIFICATION_SMTP_TIMEOUT_SECONDS": "15", "NOTIFICATION_SMTP_USERNAME": "resend",
     "NOTIFICATION_EMAIL_FROM": "Karryam <no-reply@karryam.com>",
 }
-PARTNER = {"PARTNER_SMTP_HOST": "smtp.resend.com", "PARTNER_SMTP_PORT": "465",
-           "PARTNER_SMTP_TLS_MODE": "tls", "PARTNER_SMTP_USERNAME": "resend",
-           "PARTNER_SMTP_FROM": "no-reply@karryam.com", "PARTNER_SMTP_FROM_NAME": "Karryam"}
 
 
 def require(value):
@@ -58,6 +55,20 @@ def private_service_directory(path):
     no_symlinks(path)
     info = path.stat()
     require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid() and not stat.S_IMODE(info.st_mode) & 0o027)
+
+
+def read_resend_key():
+    private(RESEND_KEY)
+    private_service_directory(RESEND_KEY.parent)
+    password = RESEND_KEY.read_text().rstrip("\r\n")
+    require(re.fullmatch(r"re_[A-Za-z0-9_-]+", password))
+    return password
+
+
+def unrelated(data):
+    # Exact bytes of every unrelated assignment/comment must survive.
+    names = "|".join([*SETTINGS, "NOTIFICATION_SMTP_PASSWORD"])
+    return re.sub(r"(?m)^[ \t]*(?:export[ \t]+)?(?:" + names + r")[ \t]*=.*(?:\n|$)", "", data)
 
 
 def value(data, name):
@@ -139,11 +150,15 @@ def apply():
     require(result.returncode == 0)
 
 
-def verify(expected, image):
+def verify(expected, image, baseline=None):
     current = container("karrygo-notification-service")
     require(current and current["Image"] == image and facts(current, SETTINGS, "NOTIFICATION_SMTP_PASSWORD")["healthy"])
     loaded = env_of(current)
     require(all(loaded.get(k, "") == v for k, v in expected.items()))
+    if baseline is not None:
+        changed = set(expected)
+        require({k: v for k, v in loaded.items() if k not in changed} ==
+                {k: v for k, v in baseline.items() if k not in changed})
 
 
 def transaction(request, item):
@@ -175,11 +190,12 @@ def transaction(request, item):
     directory = BACKUPS / source_id
     no_symlinks(directory)
     if operation == "activate":
-        password = request["password"]
-        require(re.fullmatch(r"re_[A-Za-z0-9_-]+", password))
+        require("password" not in request)
+        password = read_resend_key()
         smtp_auth(password)
         expected = {**SETTINGS, "NOTIFICATION_SMTP_PASSWORD": password}
         new = patch_env(text, expected).encode("utf-8")
+        require(unrelated(text).rstrip("\n") == unrelated(new.decode()).rstrip("\n"))
         directory.mkdir(mode=0o700)  # Never overwrite a backup from another run.
         atomic(directory / "before.env", old, info)
         manifest = {"before": hashlib.sha256(old).hexdigest(), "after": hashlib.sha256(new).hexdigest(), "image": item["Image"]}
@@ -201,7 +217,9 @@ def transaction(request, item):
     atomic(ENV, new, info)
     try:
         apply()
-        verify(expected, item["Image"])
+        verify(expected, item["Image"], env_of(item))
+        if operation == "activate":
+            smtp_auth(expected["NOTIFICATION_SMTP_PASSWORD"])
     except Exception:
         atomic(ENV, old, info)
         apply()
@@ -212,45 +230,5 @@ def transaction(request, item):
     return source_id
 
 
-def main():
-    import fcntl  # Linux host only. Keep pure functions importable for local tests.
-    request = json.loads(sys.stdin.read(16384))
-    require(request.get("operation") in {"inspect", "activate", "rollback"})
-    no_symlinks(ENV)
-    # Lock the service directory inode; read-only inspection creates no files.
-    lock = os.open(ENV.parent, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        item = container("karrygo-notification-service")
-        partner = container("karrygo-partner-web-service")
-        partner_facts = facts(partner, PARTNER, "PARTNER_SMTP_PASSWORD")
-        # Discover the actual Compose env_file, rather than assuming template
-        # paths reflect an already completed Partner/Gateway split.
-        partner_facts["registered_env_file"] = False
-        if partner:
-            labels = partner["Config"].get("Labels") or {}
-            files = labels.get("com.docker.compose.project.config_files", "").split(",")
-            if files == [str(ROOT / "platform/compose/partner-web-service.yml")]:
-                partner_facts["registered_env_file"] = "/opt/karrygo/partner-web-service/partner.env" in Path(files[0]).read_text()
-        report = {"ok": False, "operation": request["operation"], "notification": facts(item, SETTINGS, "NOTIFICATION_SMTP_PASSWORD"),
-                  "partner": partner_facts, "backup_run_id": ""}
-        try:
-            private(ENV)
-            report["backup_run_id"] = transaction(request, item)
-            report["notification"] = facts(container("karrygo-notification-service"), SETTINGS, "NOTIFICATION_SMTP_PASSWORD")
-            report["ok"] = True
-        finally:
-            with contextlib.suppress(Exception):
-                report["notification"] = facts(container("karrygo-notification-service"), SETTINGS, "NOTIFICATION_SMTP_PASSWORD")
-            print(json.dumps(report))
-        return 0
-    finally:
-        os.close(lock)
-
-
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception:
-        # No exception message/traceback, env, provider reply or container logs.
-        raise SystemExit(1) from None
+    raise SystemExit("Use the installed, authorized VPS request worker")

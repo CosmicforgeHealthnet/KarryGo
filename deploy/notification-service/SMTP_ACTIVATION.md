@@ -1,61 +1,177 @@
-# Staging Notification SMTP configuration through GitHub
+# VPS-only Notification SMTP cutover
 
-Use the existing **Deploy platform (explicit approved release)** workflow,
-`.github/workflows/deploy-platform.yml`, dispatched at `staging`. No new SSH
-access, unprotected deployment workflow, Resend domain, API adapter, DNS write,
-webhook change or corporate mailbox setup is involved.
+This procedure supersedes the previous GitHub-secret/SSH SMTP activation path.
+The Resend key already exists on the VPS at
+`/opt/karrygo/notification-service/.secrets/resend-smtp-key`; do not recreate it,
+copy it to GitHub, place it in a request, or print it. Its SMTP authentication
+and the current healthy legacy service are owner-confirmed facts until an
+authorized live inspection independently confirms them.
 
-## Prerequisites and credential provenance
+## Trust and data flow
 
-The existing `scripts/release/gate.py` remains authoritative. It requires the
-current exact staging SHA, all seven acceptance workflows with successful jobs,
-an approved actual staging restore certification for Notification at that SHA
-(less than 24 hours old), a maintain/admin initiator on the existing allowlist,
-and a separate configured individual reviewer. Staging must prevent self-review
-and admin bypass and allow only the exact staging branch.
+1. The existing manual staging workflow publishes `smtp-request.json` using
+   `actions/upload-artifact`. It contains a SHA, run ID, operation, nonce and
+   restore/backup run identifiers, never application credentials or executable
+   code. Only the Notification service is allowed.
+2. A fixed, root-owned VPS systemd worker polls GitHub using an outbound HTTPS
+   connection. It has no listening port and is not a GitHub runner. It never
+   downloads/executes scripts from a request or updates its installed code.
+3. The worker verifies artifact digest/provenance, current staging SHA, original
+   dispatch actor, active first-attempt run, exact workflow path, actual reviewer
+   protection and independent approval, initiator permissions/allowlist, all
+   seven existing acceptance workflows, and the existing actual-restore proof.
+   `gate.py` remains authoritative. Partner/Gateway/Dispatch/Admin holds remain.
+4. Only after reauthorization does the worker read the VPS key and patch SMTP.
+   It checks `APP_ENV=staging` in both the file and container. It uses protected
+   backups and existing `apply-env.sh notification-service`; only the existing
+   application container is recreated, on the recorded existing image.
+5. A separate least-privilege VPS credential publishes a GitHub deployment
+   **receipt** (`task=karrygo-smtp`, `production_environment=false`). The Actions
+   job has only read permissions and waits for the configured independent
+   receipt identity, exact run/nonce/request digest and a success status. A
+   queued request or timeout is never reported as completed activation.
 
-Existing environment-only secrets remain mandatory: `RELEASE_AUDIT_TOKEN`,
-`STAGING_DEPLOY_HOST`, `STAGING_DEPLOY_USER`, `STAGING_DEPLOY_SSH_KEY` and
-`STAGING_DEPLOY_KNOWN_HOSTS`. The gate intentionally rejects inherited legacy
-`VPS_*` and release credentials. Do not delete/move credentials or alter release
-protection without the separately authorized release-security procedure.
+The SMTP/certification job receives no SSH keys, SMTP credentials or audit token.
+Its built-in `GITHUB_TOKEN` reads GitHub request/receipt metadata only. Existing
+image-release paths for other services are outside this cutover and retain their
+original authorization requirements; no legacy credential is silently removed.
 
-For activation only, securely provision the **existing KarryGo Notifications**
-sending-only key into the protected staging environment secret
-`KARRYGO_NOTIFICATIONS_RESEND_SMTP_PASSWORD`. Confirm its name, sending access
-and restriction to the existing `karryam.com` domain in the existing provider
-account/vault. The key format alone cannot prove access scope. Never supply the
-Centralized Admin key, generate a replacement when the existing key is available,
-paste a key into a workflow input/chat, or print it. This workflow cannot retrieve
-encrypted GitHub secret values for an operator. Inspection/rollback do not require
-this SMTP secret. No repository/organization copy of this secret is allowed.
+## One-time authorized VPS administration
 
-## Operations
+No restricted executor or audit/restore evidence path has been confirmed live.
+Repository `server-setup.sh` provisions general deploy SSH; that is not the
+outgoing-only executor. First inspect existing automation using the approved VPS
+administration channel. Do not grant a coding agent or Actions runner shell
+access to bootstrap around the release gate.
 
-Supply `release_sha=<current full staging SHA>`,
-`services=notification-service`, `restore_run_id=<actual approved certification>`
-and one of these operations. Do not fabricate restore evidence or substitute
-a disposable test restore for the existing operator certification.
+Read-only preflight (run on the VPS using authorized administration):
 
-| Operation | Behavior |
+```bash
+python3 /path/to/reviewed-checkout/deploy/platform/bin/audit-smtp-prerequisites.py
+systemctl list-unit-files --no-pager | rg 'karrygo.*(smtp|release|deploy)'
+```
+
+The preflight emits paths, ownership/permission booleans, staging/health booleans
+and candidate audit/restore filenames. It never prints env values, keys or backup
+contents. Investigate candidates privately; proposed paths below are not claims
+that credentials or restore evidence already exist.
+
+If no suitable executor exists, install the reviewed source through authorized
+VPS administration. This installer refuses to overwrite an existing executor;
+an upgrade requires explicit administrative review. It does not start the timer,
+change SMTP, restart Notification, or provision any credential:
+
+```bash
+sudo bash /path/to/reviewed-checkout/deploy/platform/bin/install-smtp-worker.sh \
+  /path/to/reviewed-checkout <approved-current-staging-sha> <vps-receipt-identity>
+```
+
+It installs the fixed worker into `/usr/local/lib/karrygo-smtp`, root-owned and
+not writable by `deploy`, pins `approved-revision`, and installs only the new
+worker's systemd units. The existing `deploy` Docker access is used locally;
+GitHub gets no Docker/socket or filesystem access. It does not install a public
+endpoint, self-hosted Actions runner or new SSH key. A later source SHA requires
+a separately reviewed administrative update to the root-owned code/pin.
+
+Privately locate/reuse existing authorized credentials where available, or
+provision the missing **release** credentials through the authorized VPS vault
+procedure. No values belong in chat, GitHub Secrets, artifacts or command argv:
+
+| VPS-only path | Required scope |
 | --- | --- |
-| `deploy` (existing default) | Existing immutable-image release; no SMTP configuration mutation |
-| `smtp-inspect` | Protected host/container inspection; outputs booleans for presence, staging, health, matching settings and password presence; no secret values or sends |
-| `smtp-activate` | Authenticates to Resend over certificate-verified TLS on the host, backs up and patches Notification env, calls existing apply-env, checks actual loaded values and health; restores previous config on failure |
-| `smtp-rollback` | Also supply `backup_run_id=<original activation run>`; restores protected backup using apply-env; refuses intervening env changes or a changed running image |
+| `/opt/karrygo/notification-service/.secrets/resend-smtp-key` | Existing authenticated Resend sending key; preserve it |
+| `/opt/karrygo/platform/.secrets/release-audit-token` | Read-only repository metadata, Actions/artifacts, environments/approvals and secret **names** required by the existing gate; no source writes or approval authority |
+| `/opt/karrygo/platform/.secrets/release-receipt-token` | Canonical repository Deployments write/Metadata read only; no Actions, source, secrets or environment write permission |
 
-The SMTP job cannot select Partner, Dispatch, Gateway, Admin, another service,
-`all`, another branch or production. It shares `staging-release-runtime`
-concurrency with existing deployments and takes a nonblocking host directory
-lock. Authorization is checked again immediately before SSH. SSH pins existing
-known hosts and uses batch mode. Only schema-checked boolean facts and numeric
-run IDs are printed; raw host output, errors and application logs are suppressed.
-The SMTP password travels on encrypted stdin, never process argv or evidence.
+Credential files must be regular, non-symlink files owned by `deploy`, mode 600,
+inside protected directories (700 or appropriately protected 750). Keep any
+actual database backups/restore data on the VPS. The receipt writer must use a
+dedicated identity distinct from the initiator and `github-actions[bot]`; an
+appropriately scoped existing service identity or GitHub App installation token
+may be used. Token renewal remains a protected VPS administration responsibility.
+Do not repurpose a developer's broad CLI token or broaden the read-only audit
+credential merely to publish receipts.
 
-## Exact environment delta
+Set the non-secret staging environment variable `STAGING_SMTP_RECEIPT_LOGIN` to
+the exact identity installed in the worker's root-owned `receipt-identity` file.
+In GitHub: **KarryGo → Settings → Environments → staging → Environment variables**.
+No application-secret setting is needed in GitHub. The existing gate also
+rejects inherited legacy `VPS_*` release credentials; resolve their ownership
+and retirement through authorized release-security administration, preserving
+other consumers. Do not just delete shared credentials to pass a check.
 
-The only edited file is
-`/opt/karrygo/notification-service/notification.service.env`:
+After credential metadata, root ownership, installed code and policy are reviewed,
+enable only the worker:
+
+```bash
+sudo systemctl enable --now karrygo-smtp-worker.timer
+```
+
+This starts no cutover by itself. Requests still require every release gate.
+The worker writes mode-600 run receipts under
+`/opt/karrygo/notification-service/.smtp-requests` and will never replay a claimed
+run, including after a crash. Inspect/recover uncertain operations through
+authorized administration and dispatch a fresh approved run; never delete a
+claim to force a retry. Disable this timer to stop consuming future requests.
+
+## Independent approval, CI and actual restore certification
+
+In **Settings → Environments → staging**, configure explicit individual required
+reviewers, prevent self-review, disallow admin bypass and retain the exact
+`staging` branch policy. The initiator must remain on the existing
+`STAGING_RELEASE_INITIATORS` allowlist with maintain/admin permission. This agent
+cannot nominate an independent reviewer or approve its own deployment.
+
+All seven workflows named in `scripts/release/gate.py:ACCEPTANCE` must finish
+successfully, with their required jobs successful, for the exact current SHA.
+The original staging restore certification remains mandatory and valid for only
+24 hours. SMTP authentication is not restore evidence.
+
+For real Notification backup/restore proof:
+
+- Locate the actual Notification database, an actual staging backup, its
+  manifest and operator-owned validation SELECTs. Known conventions are
+  `/opt/karrygo/backups/<timestamp>/` and
+  `/etc/karrygo/restore-validation/<actual-db-container>.json`; these are not proof
+  that the files exist. The read-only preflight locates additional candidates.
+- Use the existing scoped backup/restore procedure. Do not run unscoped
+  `backup.sh` with no arguments for this task: it backs up unrelated services
+  and performs retention cleanup. If a fresh backup is necessary, authorized
+  administration must take only the actual Notification source backup and
+  record its validation with the existing `scripts/release/restore.py record`.
+- Verify that real backup with `scripts/release/restore.py verify --archive ...
+  --manifest ... --output ...`. It restores into a fresh network-isolated
+  disposable container and validates hashes, database major version and named
+  read-only assertions. Never restore clean SQL into a live database.
+- Build the existing schema-1 release proof from the actual resulting evidence:
+  exact current SHA, environment `staging`, actual completion time/digests,
+  matching database versions, actual protected backup location and validation
+  summary under `services.notification-service`. An operator must truthfully
+  attest the real restore and live runtime/consumer compatibility. Do not invent
+  hashes, successful commands, timestamps or attestations. Do not upload backup
+  data or settings; only the reviewed non-secret proof is a workflow input.
+
+Dispatch the existing `certify-staging-restore.yml` with that exact SHA, service
+`notification-service` and the genuine proof. Its Notification-only job uses the
+same outgoing VPS request/receipt path; after independent authorization it
+uploads the existing `staging-restore-evidence` artifact. If this workflow is not
+registered in GitHub (404), an authorized repository administrator must register
+it through the approved default-branch workflow process. This task does not
+modify `main` or bypass registration/approval policy.
+
+## Cutover and rollback
+
+Dispatch existing `deploy-platform.yml` on **staging** with:
+
+- `release_sha`: exact approved current staging SHA;
+- `services`: `notification-service`;
+- `restore_run_id`: actual successful approved certification for that SHA;
+- `operation`: `smtp-activate` (`smtp-inspect` and `smtp-rollback` are also supported);
+- for manual rollback only, `backup_run_id`: original activation run ID.
+
+The worker authenticates to `smtp.resend.com:465` using TLS and the existing
+local key. It preserves mode-600 `before.env` and `manifest.json` in the mode-700
+`.smtp-backups/<activation-run-id>` directory, then atomically changes only:
 
 ```dotenv
 NOTIFICATION_EMAIL_PROVIDER=smtp
@@ -64,97 +180,32 @@ NOTIFICATION_SMTP_PORT=465
 NOTIFICATION_SMTP_TLS_MODE=tls
 NOTIFICATION_SMTP_TIMEOUT_SECONDS=15
 NOTIFICATION_SMTP_USERNAME=resend
-NOTIFICATION_SMTP_PASSWORD=<protected existing KarryGo sending key>
 NOTIFICATION_EMAIL_FROM="Karryam <no-reply@karryam.com>"
 ```
 
-Unrelated env bytes, ownership and mode 600 are preserved. Symlinks, duplicate
-target assignments, non-staging envs/containers, unhealthy current containers,
-insecure parent permissions and mismatched release/current images fail closed.
-Backups are owner-only files under the mode-700 directory
-`/opt/karrygo/notification-service/.smtp-backups/<activation-run-id>/`.
-`before.env` and `manifest.json` stay on the host; neither is uploaded to Actions.
-Keep them for rollback. `before-rollback.env` protects the state before a manual
-rollback attempt. A failed automatic restore leaves the backup intact and the
-job failed; use the approved recovery procedure, not a broad restart.
+`NOTIFICATION_SMTP_PASSWORD` is read locally from the existing key file. Ownership
+and unrelated env bytes are preserved; after `apply-env.sh` the actual image,
+health, SMTP fields and every unrelated loaded setting are checked. TLS/auth is
+checked again after recreation. A configuration, health or SMTP failure restores
+the original environment and recreates/verifies the previous configuration.
+Keep the backup through acceptance. Manual rollback refuses intervening env
+changes or a different image. Failed/uncertain restore requires protected local
+inspection; no false success receipt is published. A GitHub receipt outage does
+not undo an otherwise healthy service; retain the local receipt and inspect it
+through authorized administration rather than guessing activation state.
 
-The existing `/opt/karrygo/platform/bin/apply-env.sh notification-service`
-recreates only its application container. No images are built/pulled by the SMTP
-operation, no migrations run, and Redis/database volumes are untouched. Deploy
-the SMTP code fixes first through the normal image release when required.
+## Real acceptance and boundaries
 
-## Partner Web and caller configuration
+After the VPS success receipt, use a dedicated approved staging test account and
+the existing owner test inbox. Verify actual inbox From `no-reply@karryam.com`,
+receipt headers, valid OTP completion, invalid/expired-code rejection and resend
+behavior. Do not use a debug code or a placeholder exposed by an inbox tool.
+Legacy `noreply@cosmicforgetech.com` receipt is a failed sender check. HTTP 201/202,
+a queued request, SMTP authentication and even a success receipt alone do not
+prove inbox delivery or completed authentication.
 
-The repository register/Compose declares
-`/opt/karrygo/partner-web-service/partner.env`; this is **not proof of its deployed
-path or that the split service is running**. SMTP inspection inventories the
-container and recognizes the registered Compose env path only when supported by
-its actual Compose label/file. The existing release gate explicitly forbids
-Partner deployment because the legacy Gateway must first stop partner billing
-and webhook workers. This task does not remove that hold or recreate Partner.
-
-After its separately approved split/cutover, use its approved configuration path
-to apply these values with the same protected KarryGo sending key:
-
-```dotenv
-PARTNER_SMTP_HOST=smtp.resend.com
-PARTNER_SMTP_PORT=465
-PARTNER_SMTP_TLS_MODE=tls
-PARTNER_SMTP_USERNAME=resend
-PARTNER_SMTP_PASSWORD=<protected existing KarryGo sending key>
-PARTNER_SMTP_FROM=no-reply@karryam.com
-PARTNER_SMTP_FROM_NAME=Karryam
-```
-
-Customer, Vendor, Dispatch, Taxi and Hauling need their own existing Notification
-URL/HMAC secret and corresponding `NOTIFICATION_SERVICE_SECRETS` entries. Missing
-caller credentials cannot be repaired by installing an SMTP key. Inspect them
-without printing values. Preserve all debug/test-login flags; acceptance must
-use genuine email OTP delivery with debug bypass inactive. Never enable bypasses
-to make a test pass. The Dispatch legacy cPanel adapter remains source-only:
-current main selects the Notification client or an unavailable client.
-
-## Acceptance and honest evidence
-
-The host SMTP TLS/auth probe sends nothing. Container health and matching env
-are prerequisite checks, not container egress or inbox proof. Existing SMTP
-`sent` means SMTP handoff; provider ID `smtp` is not a Resend tracking ID.
-
-For dedicated staging accounts, test Customer signup/login/resend/verification,
-Vendor registration/login/step-up, Dispatch/Taxi/Hauling email auth, Partner signup
-after its hold is cleared, and an existing non-OTP transaction. Record owning
-service acceptance, persisted message/delivery identifiers, queue attempt/status,
-provider evidence, inbox receipt/headers and completed OTP auth. Test wrong and
-expired codes, resend invalidation and failure behavior; inspect logs using
-redacted checks without publishing codes or recipients. No actual recipient
-address or inbox access means these tests remain pending. Do not send customer
-traffic or deliberately break shared live SMTP to test failures; use isolated
-fake SMTP/provider fault tests.
-
-Notification retries use a per-delivery hashed `Resend-Idempotency-Key` and stable
-Date/MIME/Message-ID; distinct resend messages have distinct delivery IDs. Resend
-supports this SMTP header ([official SMTP reference](https://resend.com/docs/send-with-smtp)).
-Real provider deduplication remains an external acceptance test; retention limits,
-changed binaries/templates during retries and ambiguous handoffs prevent a claim
-of indefinite exactly-once delivery. Partner no longer deletes an accepted
-challenge just because the server fails QUIT after accepting DATA.
-
-## Production procedure (not authorized for execution)
-
-First finish all staging acceptance above and clear the independent Partner hold.
-Read-only inventory the actual production topology/env paths, health, image
-digests, SMTP settings/key provenance and caller HMAC wiring using the approved
-production inspection mechanism. Production was not inspected by this staging
-workflow, which deliberately refuses production.
-
-Obtain separate production release authorization and the existing production
-approval/restore evidence; no automatic production path is added here. Reuse the
-root domain, the same approved sending-only key and the exact SMTP values above.
-Back up each actual production env with owner-only permissions, deploy approved
-immutable images, change only SMTP settings and recreate only each approved app
-with its existing environment-application mechanism. Verify health, loaded config,
-TLS/auth and controlled inbox/OTP acceptance. Do not enable debug OTP, alter
-corporate Mail, change DNS or touch the shared webhook. On failure, restore each
-protected env backup and prior approved image through the existing rollback
-procedure, verify health and retain evidence. Never roll an old full env over
-intervening unrelated changes.
+Notification's `sent` state means SMTP handoff, not inbox confirmation. Existing
+retry idempotency code is retained; real provider behavior still needs acceptance.
+Partner Web remains independently restricted and is neither inspected nor changed
+by this worker. No DNS, Resend domain/webhook, Centralized Admin, corporate Mail,
+production or unrelated application service is changed by this procedure.

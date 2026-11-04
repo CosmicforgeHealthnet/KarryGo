@@ -1,5 +1,12 @@
 # Karryam root-domain Resend cutover (staging-first)
 
+**Current security architecture (4 November 2026):** SMTP activation is now a
+VPS-initiated pull request/receipt mechanism. Application keys and release-audit
+credentials remain on the VPS; never provision the Resend key in GitHub Secrets.
+The existing key path is `/opt/karrygo/notification-service/.secrets/resend-smtp-key`.
+Follow [SMTP_ACTIVATION.md](SMTP_ACTIVATION.md), which supersedes historical
+GitHub-secret/SSH instructions below. All approval, CI and restore gates remain.
+
 Status (28 October 2026): **Resend `karryam.com` sending/receiving verification and Hostinger root inbound MX have been reported complete by the owner.** This document does not repeat or change DNS or Resend setup. **KarryGo SMTP rollout, CosmicForge Admin Mail infrastructure, the shared webhook and live acceptance tests have not been completed.** Scope: staging-first deployment of KarryGo automated OTP/transactional senders on `no-reply@karryam.com` and separate CosmicForge Admin human-managed inboxes.
 
 ## Source-of-truth architecture
