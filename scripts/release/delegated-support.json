@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "mode": "delegated_operator",
+  "services": [
+    "support-dispute-service"
+  ],
+  "initiators": [
+    "CosmicforgeHealthnet"
+  ],
+  "authority_reference": "Owner delegated completion of Karryam staging integration to David Odimayo; David explicitly instructed proceeding without a separate deployment reviewer in the task on 2026-11-04."
+}

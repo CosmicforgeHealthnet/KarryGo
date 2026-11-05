@@ -111,13 +111,14 @@ class GitHub:
         raise ValueError("pagination exceeded; cannot establish complete evidence")
 
 
-def environment(api, credential_source="github"):
+def environment(api, credential_source="github", independent_review=True):
     info = api.get("environments/staging")
     reviewers = [r for r in info.get("protection_rules", []) if r.get("type") == "required_reviewers"]
-    require(len(reviewers) == 1 and reviewers[0].get("reviewers")
-            and reviewers[0].get("prevent_self_review") is True, "required separate reviewers missing")
-    require(all(r.get("type") == "User" and isinstance(r.get("reviewer", {}).get("id"), int)
-                for r in reviewers[0]["reviewers"]), "explicit individual reviewer identities required")
+    if independent_review:
+        require(len(reviewers) == 1 and reviewers[0].get("reviewers")
+                and reviewers[0].get("prevent_self_review") is True, "required separate reviewers missing")
+        require(all(r.get("type") == "User" and isinstance(r.get("reviewer", {}).get("id"), int)
+                    for r in reviewers[0]["reviewers"]), "explicit individual reviewer identities required")
     require(info.get("can_admins_bypass") is False, "administrator bypass enabled/unknown")
     require(info.get("deployment_branch_policy") == {"protected_branches": False, "custom_branch_policies": True},
             "environment requires exact staging branch policy")
@@ -150,7 +151,10 @@ def environment(api, credential_source="github"):
     return info, actors
 
 
-def approval(api, run_id, env_id, actor, configured_reviewers):
+def approval(api, run_id, env_id, actor, configured_reviewers, independent_review=True):
+    if not independent_review:
+        # Explicit source-controlled delegation, never an invented approval.
+        return []
     history = api.get(f"actions/runs/{run_id}/approvals")
     reviews = [r for r in history if any(e.get("id") == env_id for e in r.get("environments", []))]
     require(reviews and not any(r.get("state") == "rejected" for r in reviews), "missing/rejected approval")
@@ -192,7 +196,7 @@ def acceptance(api, sha):
     return result
 
 
-def restore(api, run_id, sha, services, env_id, now, configured_reviewers):
+def restore(api, run_id, sha, services, env_id, now, configured_reviewers, independent_review=True):
     require(re.fullmatch(r"[1-9][0-9]*", run_id), "restore certification run required")
     run = api.get(f"actions/runs/{run_id}")
     require(run.get("path", "").split("@")[0] == ".github/workflows/certify-staging-restore.yml"
@@ -200,7 +204,7 @@ def restore(api, run_id, sha, services, env_id, now, configured_reviewers):
             and run.get("event") == "workflow_dispatch" and run.get("status") == "completed"
             and run.get("conclusion") == "success" and run.get("run_attempt") == 1,
             "invalid restore certification provenance")
-    approval(api, run_id, env_id, run["actor"]["login"], configured_reviewers)
+    approval(api, run_id, env_id, run["actor"]["login"], configured_reviewers, independent_review)
     artifacts = api.pages(f"actions/runs/{run_id}/artifacts", "artifacts")
     items = [a for a in artifacts if a.get("name") == "staging-restore-evidence" and not a.get("expired")]
     require(len(items) == 1, "missing/ambiguous restore artifact")
@@ -216,6 +220,40 @@ def restore(api, run_id, sha, services, env_id, now, configured_reviewers):
     return {"run_id": run_id, "artifact_id": item["id"], "digest": digest, "proof": proof}
 
 
+def release_authorization(services, actor):
+    """A pinned, narrow deployment delegation; not a source data-access grant."""
+    file = Path("scripts/release/delegated-support.json")
+    if not file.is_file():
+        return {"mode": "independent_review"}
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "duplicate release delegation field")
+            result[key] = value
+        return result
+
+    policy = json.loads(file.read_text(), object_pairs_hook=unique)
+    require(isinstance(policy, dict) and set(policy) == {
+        "schema", "mode", "services", "initiators", "authority_reference"
+    }, "invalid release delegation fields")
+    require(type(policy["schema"]) is int and policy["schema"] == 1 and policy["mode"] == "delegated_operator",
+            "invalid release delegation schema/mode")
+    require(policy["services"] == ["support-dispute-service"],
+            "delegation is limited to Support/Dispute")
+    actors = policy["initiators"]
+    require(isinstance(actors, list) and actors
+            and all(isinstance(a, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", a)
+                    for a in actors) and len(actors) == len(set(actors)), "invalid delegated initiators")
+    require(isinstance(policy["authority_reference"], str)
+            and 0 < len(policy["authority_reference"].strip()) <= 500,
+            "missing delegation authority reference")
+    if services and set(services) <= set(policy["services"]):
+        require(actor in actors, "actor lacks explicit Support deployment delegation")
+        return policy
+    return {"mode": "independent_review"}
+
+
 def authorize(api, context, sha, raw_services, kind, restore_id, proof=None, credential_source="github"):
     if credential_source == "vps":
         require(kind in {"smtp", "certify"} and raw_services == "notification-service",
@@ -229,17 +267,20 @@ def authorize(api, context, sha, raw_services, kind, restore_id, proof=None, cre
             selected(service, "vendor" if service == "vendor-service" else "platform")
         require(len(set(services)) == len(services), "duplicate certification service")
     current(api, sha, context, kind)
-    info, actors = environment(api, credential_source)
+    authorization = release_authorization(services, context["actor"])
+    independent_review = authorization["mode"] == "independent_review"
+    info, actors = environment(api, credential_source, independent_review=independent_review)
     require(context["actor"] in actors, "unauthorized release initiator")
     permission = api.get(f"collaborators/{urllib.parse.quote(context['actor'], safe='')}/permission")["permission"]
     require(permission in {"admin", "maintain"}, "release initiator lacks maintain/admin permission")
-    configured_reviewers = next(r["reviewers"] for r in info["protection_rules"] if r["type"] == "required_reviewers")
-    reviewers = approval(api, context["run_id"], info["id"], context["actor"], configured_reviewers)
+    configured_reviewers = next((r["reviewers"] for r in info["protection_rules"] if r["type"] == "required_reviewers"), [])
+    reviewers = approval(api, context["run_id"], info["id"], context["actor"], configured_reviewers, independent_review)
     checks = acceptance(api, sha)
     now = dt.datetime.now(dt.timezone.utc)
-    evidence = validate_restore(proof, sha, services, now) if kind == "certify" else restore(api, restore_id, sha, services, info["id"], now, configured_reviewers)
+    evidence = validate_restore(proof, sha, services, now) if kind == "certify" else restore(api, restore_id, sha, services, info["id"], now, configured_reviewers, independent_review)
     return {"schema": 1, "release_sha": sha, "services": services, "kind": kind,
-            "initiator": context["actor"], "approvers": reviewers, "environment_id": info["id"],
+            "initiator": context["actor"], "authorization": authorization,
+            "approvers": reviewers, "environment_id": info["id"],
             "environment_protection": info,
             "run_id": context["run_id"], "authorized_at": now.isoformat(), "acceptance": checks, "restore": evidence}
 
