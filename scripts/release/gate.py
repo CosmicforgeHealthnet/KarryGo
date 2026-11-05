@@ -88,7 +88,7 @@ class GitHub:
         self.opener = urllib.request.build_opener(Redirect)
 
     def raw(self, path):
-        request = urllib.request.Request("https://api.github.com/repos/" + REPOSITORY + "/" + path,
+        request = urllib.request.Request("https://api.github.com/repos/" + REPOSITORY + ("/" + path if path else ""),
                     headers={"Authorization": "Bearer " + self.token, "Accept": "application/vnd.github+json",
                              "X-GitHub-Api-Version": "2022-11-28"})
         with self.opener.open(request, timeout=30) as response:

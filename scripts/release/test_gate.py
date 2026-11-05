@@ -95,6 +95,21 @@ def context():
             "actor": "initiator", "triggering_actor": "initiator"}
 
 
+class GitHubMetadataURL(unittest.TestCase):
+    def test_repository_root_has_no_trailing_slash_and_subpaths_are_preserved(self):
+        for suffix in ("", "environments/staging", "actions/secrets?per_page=100"):
+            with self.subTest(path=suffix):
+                client = gate.GitHub("test-only")
+                with patch.object(client.opener, "open") as opened:
+                    opened.return_value.__enter__.return_value.read.return_value = b"{}"
+                    self.assertEqual(client.get(suffix), {})
+                    request = opened.call_args.args[0]
+                    expected = "https://api.github.com/repos/" + gate.REPOSITORY
+                    if suffix:
+                        expected += "/" + suffix
+                    self.assertEqual(request.full_url, expected)
+
+
 class Gates(unittest.TestCase):
     def authorize(self, api=None, ctx=None, sha=SHA, services=SERVICE, kind="platform", restore_id="200"):
         return gate.authorize(api or Fake(), ctx or context(), sha, services, kind, restore_id)
