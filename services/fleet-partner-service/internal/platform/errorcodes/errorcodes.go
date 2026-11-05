@@ -35,6 +35,7 @@ const (
 const (
 	OrganizationOnboardingIncomplete apperrors.Code = "organization_onboarding_incomplete"
 	OrganizationAlreadySubmitted     apperrors.Code = "organization_already_submitted"
+	OrganizationRegistrationExists   apperrors.Code = "organization_registration_exists"
 	OrganizationVerificationPending  apperrors.Code = "organization_verification_pending"
 	OrganizationChangesRequired      apperrors.Code = "organization_changes_required"
 	OrganizationActivationBlocked    apperrors.Code = "organization_activation_blocked"

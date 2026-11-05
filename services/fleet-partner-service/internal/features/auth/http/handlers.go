@@ -43,6 +43,12 @@ func NewHandler(service *authusecases.Service, contactSecret []byte, policies ..
 
 	if len(policies) > 0 {
 		refreshPolicy = policies[0]
+		// The marker shares the configured policy (Secure, SameSite, trusted
+		// origins) and differs only in name and path. Loading it from a
+		// separate env prefix let the two cookies drift apart.
+		markerPolicy = refreshPolicy
+		markerPolicy.Name = "karrygo_has_session"
+		markerPolicy.Path = "/"
 	}
 	if len(policies) > 1 {
 		markerPolicy = policies[1]

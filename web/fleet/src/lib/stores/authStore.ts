@@ -129,7 +129,7 @@ export const useAuthStore = create<AuthStore>()(
           const organization = get().organizations.find((org) => org.membershipId === membershipId);
           set({
             accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
+            refreshToken: response.refreshToken ?? null,
             sessionId: response.sessionId,
             accessExpiresAt: response.accessExpiresAt,
             refreshExpiresAt: response.refreshExpiresAt,

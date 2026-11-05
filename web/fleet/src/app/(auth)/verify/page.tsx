@@ -1,4 +1,4 @@
-﻿// src/app/(auth)/verify/page.tsx
+// src/app/(auth)/verify/page.tsx
 
 "use client";
 
@@ -10,10 +10,17 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { organizationService } from "@/lib/services/organizationService";
 import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
+import { classifyAuthError } from "@/lib/auth/authErrors";
 
 const CODE_LENGTH = 6;
-const RESEND_SECONDS = 30;
-const EXPIRY_SECONDS = 300;
+// Fallbacks only: the server's own timings arrive in the URL from /auth/start.
+const DEFAULT_RESEND_SECONDS = 60;
+const DEFAULT_EXPIRY_SECONDS = 600;
+
+function positiveSeconds(raw: string | null, fallback: number): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 && n <= 3600 ? Math.floor(n) : fallback;
+}
 const MAX_ATTEMPTS = 5;
 
 type SubmitState =
@@ -27,11 +34,13 @@ function VerifyContent() {
   const searchParams = useSearchParams();
   const challengeId = searchParams.get("challengeId") || "";
   const destination = searchParams.get("destination") ?? "your contact";
+  const [resendSeconds, setResendSeconds] = useState(() => positiveSeconds(searchParams.get("resendIn"), DEFAULT_RESEND_SECONDS));
+  const [expirySeconds, setExpirySeconds] = useState(() => positiveSeconds(searchParams.get("expiresIn"), DEFAULT_EXPIRY_SECONDS));
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [state, setState] = useState<SubmitState>({ status: "idle" });
-  const [resendIn, setResendIn] = useState(RESEND_SECONDS);
-  const [expiresIn, setExpiresIn] = useState(EXPIRY_SECONDS);
+  const [resendIn, setResendIn] = useState(resendSeconds);
+  const [expiresIn, setExpiresIn] = useState(expirySeconds);
   const [attempts, setAttempts] = useState(0);
   const [justResent, setJustResent] = useState(false);
   const [resendError, setResendError] = useState(false);
@@ -152,17 +161,19 @@ function VerifyContent() {
       setState({ status: "error", kind: "access_denied" });
       setLoading(false);
       triggerShake();
-    } catch (err: any) {
-      const isNetworkError = !err?.response;
-      const message: string = err?.response?.data?.error?.message || err?.message || "";
-      const lowerMessage = message.toLowerCase();
+    } catch (err) {
+      const failure = classifyAuthError(err);
+      const code = failure.code ?? "";
+      const isNetworkError = failure.kind === "network";
 
       if (isNetworkError) {
         setState({ status: "error", kind: "network" });
-      } else if (lowerMessage.includes("expired")) {
+      } else if (code === "otp_challenge_expired" || code === "otp_challenge_consumed" || code === "otp_challenge_not_found") {
         setState({ status: "error", kind: "expired" });
-      } else if (lowerMessage.includes("too many") || lowerMessage.includes("locked")) {
+      } else if (code === "otp_attempt_limit_exceeded" || failure.kind === "rate_limited") {
         setState({ status: "error", kind: "locked" });
+      } else if (failure.kind === "configuration" || failure.kind === "unavailable" || failure.kind === "server_error") {
+        setState({ status: "error", kind: "access_denied" });
       } else {
         const nextAttempts = attempts + 1;
         setAttempts(nextAttempts);
@@ -172,7 +183,7 @@ function VerifyContent() {
         });
       }
 
-      setError(message || null);
+      setError(failure.message);
       setLoading(false);
       triggerShake();
       if (!isNetworkError) {
@@ -250,9 +261,13 @@ function VerifyContent() {
 
     setResendError(false);
     try {
-      await authService.resendOTP({ challengeId });
-      setResendIn(RESEND_SECONDS);
-      setExpiresIn(EXPIRY_SECONDS);
+      const resent = await authService.resendOTP({ challengeId });
+      const nextResend = positiveSeconds(String(resent?.resendAfterSeconds ?? ""), resendSeconds);
+      const nextExpiry = positiveSeconds(String(resent?.expiresInSeconds ?? ""), expirySeconds);
+      setResendSeconds(nextResend);
+      setExpirySeconds(nextExpiry);
+      setResendIn(nextResend);
+      setExpiresIn(nextExpiry);
       setAttempts(0);
       setState({ status: "idle" });
       setDigits(Array(CODE_LENGTH).fill(""));
@@ -405,7 +420,7 @@ function VerifyContent() {
         {resendError && (
           <p role="alert" className="mt-2 flex items-center justify-center gap-1.5 text-[12px] font-medium text-red">
             <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-            Couldn't resend the code. Please try again.
+            Couldn&apos;t resend the code. Please try again.
           </p>
         )}
       </form>
