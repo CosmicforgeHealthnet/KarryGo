@@ -27,7 +27,7 @@ type Config struct {
 	PartnerAuth PartnerAuthConfig
 	// PartnerOTP holds web signup OTP settings.
 	PartnerOTP PartnerOTPConfig
-	// PartnerSMTP holds cPanel SMTP settings for partner OTP email.
+	// PartnerSMTP holds SMTP provider settings for partner OTP email.
 	PartnerSMTP PartnerSMTPConfig
 	// Pricing holds the fare engine parameters.
 	Pricing PricingConfig

@@ -15,6 +15,16 @@ on:
         description: Approved successful staging restore certification run for this SHA
         required: true
         type: string
+      operation:
+        description: Deploy images, or narrowly inspect/activate/roll back Notification SMTP
+        required: false
+        default: deploy
+        type: choice
+        options: [deploy, smtp-inspect, smtp-activate, smtp-rollback]
+      backup_run_id:
+        description: Original SMTP activation run ID (SMTP rollback only)
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -22,7 +32,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1 && (inputs.operation == '' || inputs.operation == 'deploy')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: staging
@@ -72,3 +82,50 @@ jobs:
           STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/release/execute.py deploy
+  smtp:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1 && (inputs.operation == 'smtp-inspect' || inputs.operation == 'smtp-activate' || inputs.operation == 'smtp-rollback')
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_SERVICES: ${{ inputs.services }}
+      RESTORE_RUN_ID: ${{ inputs.restore_run_id }}
+      GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+      SMTP_OPERATION: ${{ inputs.operation == 'smtp-inspect' && 'inspect' || inputs.operation == 'smtp-activate' && 'activate' || 'rollback' }}
+      SMTP_BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare Notification-only non-secret request (VPS independently authorizes)
+        run: python scripts/release/smtp_activate.py request
+      - name: Publish request for the outgoing-only VPS worker
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smtp-request
+          path: smtp-request.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+      - name: Require authenticated VPS completion receipt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
+        run: python scripts/release/smtp_activate.py wait
+      - name: Preserve non-secret VPS completion receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-smtp-receipt-${{ github.run_id }}
+          path: smtp-receipt.json
+          if-no-files-found: error
+          retention-days: 90

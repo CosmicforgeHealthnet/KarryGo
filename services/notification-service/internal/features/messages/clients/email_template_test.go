@@ -11,7 +11,40 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestRetryPayloadAndProviderIdempotencyRemainStable(t *testing.T) {
+	message := EmailMessage{DeliveryID: "delivery-1\r\nBcc: injected@example.com", CreatedAt: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC), To: "test@example.com", Subject: "OTP", Body: "Test message"}
+	first, err := formatEmail("Karryam <no-reply@karryam.com>", message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := formatEmail("Karryam <no-reply@karryam.com>", message)
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatal("retry changed the provider payload")
+	}
+	parsed, err := mail.ReadMessage(bytes.NewReader(first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := parsed.Header.Get("Resend-Idempotency-Key")
+	if !strings.HasPrefix(key, "karrygo/") || len(key) != 72 || parsed.Header.Get("Bcc") != "" {
+		t.Fatal("missing or unsafe idempotency key")
+	}
+	if !strings.HasSuffix(parsed.Header.Get("Message-ID"), "@karryam.com>") {
+		t.Fatal("missing sender-aligned Message-ID")
+	}
+	message.DeliveryID = "delivery-2"
+	third, err := formatEmail("Karryam <no-reply@karryam.com>", message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _ := mail.ReadMessage(bytes.NewReader(third))
+	if other.Header.Get("Resend-Idempotency-Key") == key {
+		t.Fatal("a distinct delivery reused the retry key")
+	}
+}
 
 func TestBrandedEmailPreservesPlainTextAndEmbedsLogo(t *testing.T) {
 	message := EmailMessage{

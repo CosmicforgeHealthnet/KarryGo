@@ -5,11 +5,51 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	messageclients "cosmicforge/logistics/services/notification-service/internal/features/messages/clients"
 	messagemodels "cosmicforge/logistics/services/notification-service/internal/features/messages/models"
 	"cosmicforge/logistics/shared/go/notifications"
 )
+
+type retryingEmail struct{ messages []messageclients.EmailMessage }
+
+func (s *retryingEmail) SendEmail(_ context.Context, message messageclients.EmailMessage) (messageclients.ProviderResult, error) {
+	s.messages = append(s.messages, message)
+	if len(s.messages) == 1 {
+		return messageclients.ProviderResult{Provider: "smtp", Retryable: true}, errors.New("smtp transport failed")
+	}
+	return messageclients.ProviderResult{Provider: "smtp"}, nil
+}
+
+func TestSMTPRetryUsesPersistedDeliveryIdentityAndMessageTime(t *testing.T) {
+	repo := newFakeRepository()
+	queue := &fakeQueue{}
+	service := newTestService(repo, queue)
+	sender := &retryingEmail{}
+	service.email = sender
+	result, err := service.Send(context.Background(), notifications.Request{
+		IDempotencyKey: "email-retry", SourceService: "customer-service", EventType: "customer.auth.otp",
+		Recipient: notifications.Recipient{Type: "customer", ID: "test-account", Email: "test@example.com"},
+		Channels:  []string{notifications.ChannelEmail}, Title: "Test", Body: "Test notification",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := repo.messages[result.MessageID]
+	message.CreatedAt = time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	repo.messages[result.MessageID] = message
+	id := queue.enqueued[0]
+	for i := 0; i < 3; i++ {
+		if err := service.ProcessDelivery(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(sender.messages) != 2 || sender.messages[0].DeliveryID != id || sender.messages[1].DeliveryID != id ||
+		!sender.messages[0].CreatedAt.Equal(message.CreatedAt) || !sender.messages[1].CreatedAt.Equal(message.CreatedAt) {
+		t.Fatal("retry identity/time changed or final delivery was sent again")
+	}
+}
 
 type failingRealtime struct{}
 

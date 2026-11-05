@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   certify:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1 && inputs.services != 'notification-service'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: staging
@@ -57,6 +57,57 @@ jobs:
         with:
           name: restore-certification-authorization
           path: release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+  certify-notification:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging' && github.run_attempt == 1 && inputs.services == 'notification-service'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_SERVICES: ${{ inputs.services }}
+      RESTORE_MANIFEST: ${{ inputs.restore_manifest }}
+      GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+      SMTP_OPERATION: certify
+      SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare non-secret operator restore proof request
+        run: python scripts/release/smtp_activate.py request
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-smtp-request
+          path: smtp-request.json
+          if-no-files-found: error
+          overwrite: false
+      - name: Require VPS authorization and actual restore-proof validation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SMTP_RECEIPT_LOGIN: ${{ vars.STAGING_SMTP_RECEIPT_LOGIN }}
+        run: python scripts/release/smtp_activate.py wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-restore-evidence
+          path: restore-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notification-vps-certification-receipt
+          path: smtp-receipt.json
           if-no-files-found: error
           retention-days: 90
           overwrite: false

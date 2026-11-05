@@ -24,7 +24,9 @@ jobs:
       - name: Authorization denial paths, workflow surfaces and genuine disposable restore
         run: python -m unittest discover -s scripts/release -p 'test_*.py' -v
       - name: Shell syntax
-        run: bash -n deploy/platform/bin/backup.sh deploy/platform/bin/deploy-service.sh deploy/platform/bin/rollback.sh
+        run: bash -n deploy/platform/bin/backup.sh deploy/platform/bin/deploy-service.sh deploy/platform/bin/rollback.sh deploy/platform/bin/install-smtp-worker.sh
+      - name: Validate outgoing-only worker systemd units (no execution)
+        run: systemd-analyze verify deploy/platform/systemd/karrygo-smtp-worker.service deploy/platform/systemd/karrygo-smtp-worker.timer
       - uses: actions/upload-artifact@v4
         with:
           name: disposable-restore-test-evidence

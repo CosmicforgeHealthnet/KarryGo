@@ -54,6 +54,8 @@ const HEADER_HEIGHT_PX = 70;
 const SUPPORT_EMAIL = "support@karrygo.com";
 
 type LoadState = "loading" | "ready" | "error";
+
+const CREATE_COMPANY_PATH = "/setup/create-company";
 type StepIconStatus = "completed" | "current" | "pending";
 
 function clearSessionRoutingCookies() {
@@ -124,9 +126,11 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   const [stageStatusError, setStageStatusError] = useState(false);
   const mobileDrawerRef = useRef<HTMLDivElement>(null);
   const hasLoadedOnce = useRef(false);
+  // True for a freshly signed-up account that has no company yet.
+  const needsCompany = useRef(false);
 
   const { _hasHydrated, accessToken, logout } = useAuthStore();
-  const { organization, setOrganization } = useOrganizationStore();
+  const { organization, setOrganization, clearOrganization } = useOrganizationStore();
   const { stageStatuses, setStageStatuses } = useOnboardingStore();
 
   const loadStageStatuses = useCallback(
@@ -173,10 +177,22 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         router.replace("/sign-in");
         return;
       }
+      // A new account has no organization membership until it creates its
+      // company, so /organizations/current answers 403. That is the normal
+      // first step of onboarding, not a failure.
+      if (error?.response?.status === 403 && error?.response?.data?.error?.code === "forbidden") {
+        needsCompany.current = true;
+        clearOrganization();
+        setLoadState("ready");
+        if (window.location.pathname !== CREATE_COMPANY_PATH) {
+          router.replace(CREATE_COMPANY_PATH);
+        }
+        return;
+      }
       console.error("Failed to fetch organization:", error);
       setLoadState("error");
     }
-  }, [router, setOrganization, loadStageStatuses]);
+  }, [router, setOrganization, clearOrganization, loadStageStatuses]);
 
   useEffect(() => {
     if (!_hasHydrated) return;
@@ -194,6 +210,12 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   // a step and moving to the next one reflects immediately in the sidebar
   // without requiring a full page reload.
   useEffect(() => {
+    // Once the company has been created, load it on the next step.
+    if (needsCompany.current && pathname !== CREATE_COMPANY_PATH) {
+      needsCompany.current = false;
+      loadOrganization();
+      return;
+    }
     if (!hasLoadedOnce.current || !organization?.organizationId) return;
     loadStageStatuses(organization.organizationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps

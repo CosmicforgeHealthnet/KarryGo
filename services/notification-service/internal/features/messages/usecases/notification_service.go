@@ -375,6 +375,8 @@ func (s *NotificationService) deliverEmail(ctx context.Context, delivery message
 		return s.finishDelivery(ctx, delivery, "smtp", nil, messagemodels.StatusSkipped, &errMessage)
 	}
 	result, err := s.email.SendEmail(ctx, messageclients.EmailMessage{
+		DeliveryID:    delivery.ID,
+		CreatedAt:     message.CreatedAt,
 		To:            *message.RecipientEmail,
 		Subject:       message.Title,
 		Body:          message.Body,

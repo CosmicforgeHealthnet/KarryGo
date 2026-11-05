@@ -7,6 +7,20 @@ in production (no path, trailing slash, wildcard or credentials). Development/te
 defaults to `http://localhost:3000`. Set the real corporate web origins explicitly;
 do not copy an assumed production hostname. Startup rejects invalid policy.
 
+Every web origin that serves the Fleet app must be listed, including temporary
+hosts. The staging app is currently served at `https://fleet-karryam.vercel.app`
+(no custom domain yet), so staging needs, for example:
+
+```text
+FLEET_PARTNER_AUTH_WEB_ORIGINS=https://fleet.karrygo.com,https://fleet-karryam.vercel.app
+```
+
+A browser on an unlisted origin gets `403 untrusted_origin` from every auth POST
+(start, verify, resend, refresh, logout). The Next.js app proxies `/api/*` and
+`/fleet-partner/v1/*` to this service and forwards the browser's `Origin`
+unchanged, so the origin to list is the one in the browser's address bar. When
+the custom domain goes live, add it and remove the Vercel host afterwards.
+
 `FLEET_PARTNER_AUTH_COOKIE_NAME` defaults to `karrygo_fleet_refresh`;
 `FLEET_PARTNER_AUTH_COOKIE_SAMESITE` defaults to `lax` (`strict`/`none` supported).
 `FLEET_PARTNER_AUTH_COOKIE_SECURE` defaults true outside development/test and

@@ -21,7 +21,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (orgStatus === "DRAFT" && !pathname.startsWith("/setup")) {
+  // The org-status cookie is readable by the page and can outlive the
+  // session (e.g. a server-side logout). Only honour it while signed in,
+  // otherwise /setup -> /sign-in -> /setup loops forever.
+  if (hasSession && orgStatus === "DRAFT" && !pathname.startsWith("/setup")) {
     return NextResponse.redirect(new URL("/setup", request.url));
   }
 
@@ -34,6 +37,10 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|images|fonts).*)",
+    // /api and /fleet-partner are proxied straight to the backend (see
+    // next.config.ts). Page redirects must never apply to them: redirecting
+    // POST /fleet-partner/v1/auth/refresh or /logout to a page broke token
+    // refresh and server-side logout.
+    "/((?!api|fleet-partner|_next/static|_next/image|favicon.ico|images|fonts).*)",
   ],
 };

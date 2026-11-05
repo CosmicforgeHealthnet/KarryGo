@@ -2,6 +2,7 @@ package messageclients
 
 import (
 	"bytes"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/base64"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
+	"net/mail"
 	"net/textproto"
 	"regexp"
 	"strings"
@@ -90,6 +92,20 @@ func formatEmail(from string, message EmailMessage) ([]byte, error) {
 	related := multipart.NewWriter(&relatedBody)
 	var alternatives bytes.Buffer
 	alternative := multipart.NewWriter(&alternatives)
+	// A delivery keeps one provider idempotency key through queue retries.
+	// Keep MIME boundaries and Date stable too: an accepted send with a lost
+	// reply must retry the same payload, rather than conflict with that key.
+	var deliveryKey string
+	if message.DeliveryID != "" {
+		digest := sha256.Sum256([]byte("karrygo-email/" + message.DeliveryID))
+		deliveryKey = fmt.Sprintf("%x", digest)
+		if err := related.SetBoundary("related-" + deliveryKey[:48]); err != nil {
+			return nil, err
+		}
+		if err := alternative.SetBoundary("alternative-" + deliveryKey[:48]); err != nil {
+			return nil, err
+		}
+	}
 	for _, content := range []struct{ kind, body string }{
 		{"text/plain", message.Body}, {"text/html", string(html)},
 	} {
@@ -140,14 +156,26 @@ func formatEmail(from string, message EmailMessage) ([]byte, error) {
 	if err := related.Close(); err != nil {
 		return nil, err
 	}
+	createdAt := message.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
 	headers := []string{
 		"From: " + cleanEmailHeader(from), "To: " + cleanEmailHeader(message.To),
 		"Subject: " + mime.QEncoding.Encode("UTF-8", emailSubject(message)),
-		"Date: " + time.Now().Format(time.RFC1123Z),
+		"Date: " + createdAt.UTC().Format(time.RFC1123Z),
 		"MIME-Version: 1.0",
 		"Content-Type: " + mime.FormatMediaType("multipart/related", map[string]string{
 			"boundary": related.Boundary(), "type": "multipart/alternative",
 		}),
+	}
+	if deliveryKey != "" {
+		headers = append(headers, "Resend-Idempotency-Key: karrygo/"+deliveryKey)
+		if sender, err := mail.ParseAddress(from); err == nil {
+			if at := strings.LastIndex(sender.Address, "@"); at >= 0 {
+				headers = append(headers, "Message-ID: <"+deliveryKey+"@"+sender.Address[at+1:]+">")
+			}
+		}
 	}
 	return append([]byte(strings.Join(headers, "\r\n")+"\r\n\r\n"), relatedBody.Bytes()...), nil
 }

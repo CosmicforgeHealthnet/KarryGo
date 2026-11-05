@@ -87,3 +87,28 @@ func TestMaskEmail(t *testing.T) {
 		t.Fatalf("MaskEmail single char = %q", got)
 	}
 }
+
+func TestViolationsNamesTheFieldAtFault(t *testing.T) {
+	cases := []struct {
+		email, phone string
+		want         []string
+	}{
+		{"owner@example.com", "+2348012345678", nil},
+		{"", "+2348012345678", []string{"email"}},
+		{"owner@example.com", "", []string{"phone"}},
+		{"nope", "+2348012345678", []string{"email"}},
+		{"owner@example.com", "+12", []string{"phone"}},
+		{"", "", []string{"email", "phone"}},
+	}
+	for _, c := range cases {
+		got := Violations(c.email, c.phone, "234")
+		if len(got) != len(c.want) {
+			t.Fatalf("Violations(%q,%q) = %+v, want fields %v", c.email, c.phone, got, c.want)
+		}
+		for i := range got {
+			if got[i].Field != c.want[i] {
+				t.Fatalf("Violations(%q,%q)[%d] = %q, want %q", c.email, c.phone, i, got[i].Field, c.want[i])
+			}
+		}
+	}
+}
