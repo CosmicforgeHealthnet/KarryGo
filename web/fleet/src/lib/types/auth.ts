@@ -67,7 +67,8 @@ export interface SelectOrganizationRequest {
 
 export interface SelectOrganizationResponse {
   accessToken: string;
-  refreshToken: string;
+  // The refresh token travels only in the HttpOnly cookie.
+  refreshToken?: string;
   accessExpiresAt: string;
   refreshExpiresAt: string;
   sessionId: string;

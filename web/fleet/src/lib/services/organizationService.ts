@@ -119,12 +119,12 @@ export interface UpdateRepresentativeRequest {
 
 export const organizationService = {
   async createOrganization(data: CreateOrganizationRequest): Promise<CreateOrganizationResponse> {
-    const response = await apiClient.post<CreateOrganizationResponse>('/organizations', data, {
+    const response = await apiClient.post<{ data: CreateOrganizationResponse }>('/organizations', data, {
       headers: {
         'Idempotency-Key': crypto.randomUUID(),
       },
     });
-    return response.data;
+    return response.data.data;
   },
 
   async getCurrentOrganization(): Promise<Organization> {
@@ -138,11 +138,11 @@ export const organizationService = {
   },
 
   async markStageComplete(organizationId: string, stage: string): Promise<{ stage: string; status: string }> {
-    const response = await apiClient.put<{ stage: string; status: string }>(
+    const response = await apiClient.put<{ data: { stage: string; status: string } }>(
       `/organizations/${organizationId}/stages/${stage}`,
       { status: 'COMPLETE' }
     );
-    return response.data;
+    return response.data.data;
   },
 
   // ---- Representatives ----
@@ -184,27 +184,27 @@ export const organizationService = {
   },
 
   async getVerificationStatus(organizationId: string): Promise<VerificationStatusResponse> {
-    const response = await apiClient.get<VerificationStatusResponse>(`/organizations/${organizationId}/verification`);
-    return response.data;
+    const response = await apiClient.get<{ data: VerificationStatusResponse }>(`/organizations/${organizationId}/verification`);
+    return response.data.data;
   },
 
   async getWalletProvisioning(organizationId: string): Promise<WalletProvisioningResponse> {
-    const response = await apiClient.get<WalletProvisioningResponse>(`/organizations/${organizationId}/wallet-provisioning`);
-    return response.data;
+    const response = await apiClient.get<{ data: WalletProvisioningResponse }>(`/organizations/${organizationId}/wallet-provisioning`);
+    return response.data.data;
   },
 
   async retryWalletProvisioning(organizationId: string): Promise<{ status: string }> {
-    const response = await apiClient.post<{ status: string }>(`/organizations/${organizationId}/wallet-provisioning/retry`);
-    return response.data;
+    const response = await apiClient.post<{ data: { status: string } }>(`/organizations/${organizationId}/wallet-provisioning/retry`);
+    return response.data.data;
   },
 
   async submitOrganization(organizationId: string): Promise<SubmitResponse> {
-    const response = await apiClient.post<SubmitResponse>(`/organizations/${organizationId}/submit`, {}, {
+    const response = await apiClient.post<{ data: SubmitResponse }>(`/organizations/${organizationId}/submit`, {}, {
       headers: {
         'Idempotency-Key': crypto.randomUUID(),
       },
     });
-    return response.data;
+    return response.data.data;
   },
 
   // ---- Capabilities ----
@@ -247,11 +247,11 @@ export const organizationService = {
   },
 
   async attachDocument(organizationId: string, documentType: string, fileId: string): Promise<{ documentId: string; status: string }> {
-    const response = await apiClient.post<{ documentId: string; status: string }>(
+    const response = await apiClient.post<{ data: { documentId: string; status: string } }>(
       `/organizations/${organizationId}/documents`,
       { documentType, fileId }
     );
-    return response.data;
+    return response.data.data;
   },
 
   // ---- Document Upload (Private Media Contract) ----

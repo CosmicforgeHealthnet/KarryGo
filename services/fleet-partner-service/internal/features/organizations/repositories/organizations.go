@@ -16,12 +16,14 @@ import (
 	_ "time/tzdata" // embed IANA tzdata so timezone validation works on Windows and slim containers
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 )
 
@@ -147,6 +149,11 @@ func (r *OrganizationRepository) Create(ctx context.Context, q database.Querier,
 		org.CountryCode, org.Timezone, org.DefaultCurrency, capabilities, org.Version,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_fleet_partner_org_registration" {
+			return errorcodes.Conflict(errorcodes.OrganizationRegistrationExists,
+				"A company with this registration number is already registered in this country.")
+		}
 		return fmt.Errorf("organizations: create: %w", err)
 	}
 	return nil

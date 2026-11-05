@@ -13,10 +13,15 @@ import {
   LogoutResponse,
 } from '@/lib/types/auth';
 
+// The service wraps every success body as { data: ..., meta: { requestId } }.
+interface Envelope<T> {
+  data: T;
+}
+
 export const authService = {
   async startOTP(data: StartOTPRequest): Promise<StartOTPResponse> {
-    const response = await apiClient.post<StartOTPResponse>('/auth/start', data);
-    return response.data;
+    const response = await apiClient.post<Envelope<StartOTPResponse>>('/auth/start', data);
+    return response.data.data;
   },
 
   async verifyOTP(data: VerifyOTPRequest): Promise<VerifyOTPResponse> {
@@ -25,13 +30,13 @@ export const authService = {
   },
 
   async resendOTP(data: ResendOTPRequest): Promise<ResendOTPResponse> {
-    const response = await apiClient.post<ResendOTPResponse>('/auth/resend', data);
-    return response.data;
+    const response = await apiClient.post<Envelope<ResendOTPResponse>>('/auth/resend', data);
+    return response.data.data;
   },
 
   async selectOrganization(data: SelectOrganizationRequest): Promise<SelectOrganizationResponse> {
-    const response = await apiClient.post<SelectOrganizationResponse>('/auth/select-organization', data);
-    return response.data;
+    const response = await apiClient.post<Envelope<SelectOrganizationResponse>>('/auth/select-organization', data);
+    return response.data.data;
   },
 
   async logout(): Promise<LogoutResponse> {

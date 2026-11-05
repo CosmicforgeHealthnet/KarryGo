@@ -126,3 +126,27 @@ func MaskEmail(normalized string) string {
 	}
 	return local[:1] + strings.Repeat("*", 3) + "@" + domain
 }
+
+// Violation names one invalid half of the identity pair, so a caller can tell
+// the user which field to fix instead of blaming both.
+type Violation struct {
+	Field   string
+	Message string
+}
+
+// Violations checks each half of the pair independently and reports every
+// problem found. It returns nil when NormalizePair would succeed.
+func Violations(email string, phone string, defaultCountryCode string) []Violation {
+	var out []Violation
+	if strings.TrimSpace(email) == "" {
+		out = append(out, Violation{Field: "email", Message: "Email address is required."})
+	} else if _, _, err := NormalizeEmail(email); err != nil {
+		out = append(out, Violation{Field: "email", Message: "Enter a valid email address."})
+	}
+	if strings.TrimSpace(phone) == "" {
+		out = append(out, Violation{Field: "phone", Message: "Phone number is required."})
+	} else if _, _, err := NormalizePhone(phone, defaultCountryCode); err != nil {
+		out = append(out, Violation{Field: "phone", Message: "Enter a valid phone number with its country code."})
+	}
+	return out
+}

@@ -164,9 +164,14 @@ type StartResult struct {
 func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, error) {
 	pair, err := contact.NormalizePair(input.Email, input.Phone, s.opts.DefaultCountryCode)
 	if err != nil {
-		return StartResult{}, apperrors.Validation("Enter a valid email address and phone number.", []apperrors.FieldViolation{
-			{Field: "email", Message: "A valid email address and phone number are both required."},
-		})
+		fields := []apperrors.FieldViolation{}
+		for _, v := range contact.Violations(input.Email, input.Phone, s.opts.DefaultCountryCode) {
+			fields = append(fields, apperrors.FieldViolation{Field: v.Field, Message: v.Message})
+		}
+		if len(fields) == 0 {
+			fields = append(fields, apperrors.FieldViolation{Field: "email", Message: "A valid email address and phone number are both required."})
+		}
+		return StartResult{}, apperrors.Validation("Enter a valid email address and phone number.", fields)
 	}
 
 	purpose := input.Purpose
