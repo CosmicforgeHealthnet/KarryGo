@@ -1,0 +1,145 @@
+name: Activate Fleet temporary origin (staging only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-release-runtime
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
+    steps:
+      - name: Require authorized staging initiator
+        shell: bash
+        env:
+          AUTHORIZED_INITIATORS: ${{ vars.STAGING_RELEASE_INITIATORS }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              allowed = json.loads(os.environ.get('AUTHORIZED_INITIATORS', ''))
+          except (ValueError, TypeError):
+              allowed = None
+          if not isinstance(allowed, list) or not allowed or os.environ['ACTOR'] not in allowed:
+              sys.exit('Not an authorized staging release initiator')
+          print('Staging release initiator authorized')
+          PY
+
+      - name: Amend only Fleet staging trusted origins; health-check and roll back on failure
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.STAGING_DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ -n "${DEPLOY_HOST}" && -n "${DEPLOY_USER}" && -n "${DEPLOY_SSH_KEY}" && -n "${DEPLOY_KNOWN_HOSTS}" ]] || { echo 'Missing staging deployment credentials'; exit 1; }
+          [[ "${DEPLOY_HOST}" =~ ^[A-Za-z0-9.-]+$ && "${DEPLOY_USER}" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'Invalid deployment host/user'; exit 1; }
+          private_dir="$(mktemp -d)"
+          trap 'rm -rf "${private_dir}"' EXIT
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > "${private_dir}/id_key"
+          printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > "${private_dir}/known_hosts"
+          chmod 600 "${private_dir}/id_key" "${private_dir}/known_hosts"
+          ssh -T -i "${private_dir}/id_key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=${private_dir}/known_hosts" -o ConnectTimeout=12 "${DEPLOY_USER}@${DEPLOY_HOST}" bash -se <<'REMOTE'
+          set -euo pipefail
+          umask 077
+          env_file=/opt/karrygo/fleet-partner-service/fleet.service.env
+          apply=/opt/karrygo/platform/bin/apply-env.sh
+          [[ -f "$env_file" && ! -L "$env_file" ]] || { echo 'Fleet env file missing or unsafe'; exit 1; }
+          [[ "$(stat -c %a "$env_file")" == 600 && "$(stat -c %u "$env_file")" == "$(id -u)" ]] || { echo 'Fleet env file ownership or mode invalid'; exit 1; }
+          [[ -f "$apply" && ! -L "$apply" ]] || { echo 'Existing apply-env.sh unavailable'; exit 1; }
+          backup="$(mktemp "${env_file}.origin-backup.XXXXXXXX")"
+          cp -p -- "$env_file" "$backup"
+          changed=0
+          rollback() {
+            result=$?
+            trap - EXIT
+            if [[ "$result" != 0 && "$changed" == 1 ]]; then
+              echo 'Activation failed; restoring previous Fleet config'
+              cp -p -- "$backup" "$env_file"
+              if ! "$apply" fleet-partner-service; then
+                echo 'WARNING: rollback apply also failed; manual operator intervention required' >&2
+              fi
+            fi
+            exit "$result"
+          }
+          trap rollback EXIT
+          changed=1
+          python3 - "$env_file" <<'PY'
+          import os, pathlib, sys, tempfile
+          path = pathlib.Path(sys.argv[1])
+          data = path.read_text()
+          lines = data.splitlines(keepends=True)
+          prefix = 'FLEET_PARTNER_AUTH_WEB_ORIGINS='
+          selected = [i for i, line in enumerate(lines) if line.startswith(prefix)]
+          if len(selected) != 1:
+              sys.exit('Expected exactly one Fleet trusted-origins setting; no changes made')
+          idx = selected[0]
+          line = lines[idx]
+          ending = line[len(line.rstrip('\r\n')):]
+          raw = line[len(prefix):].rstrip('\r\n')
+          quote = raw[0] if raw[:1] in ('"', "'") else ''
+          if quote:
+              if len(raw) < 2 or raw[-1] != quote:
+                  sys.exit('Invalid existing origins quoting; no changes made')
+              raw = raw[1:-1]
+          origins = [item.strip() for item in raw.split(',') if item.strip()]
+          new_origin = 'https://fleet-karryam.vercel.app'
+          if new_origin in origins:
+              print('Temporary Fleet origin is already configured')
+              sys.exit(0)
+          origins.append(new_origin)
+          lines[idx] = prefix + quote + ','.join(origins) + quote + ending
+          fd, tmp = tempfile.mkstemp(prefix='.fleet-origin-', dir=str(path.parent))
+          try:
+              os.fchmod(fd, 0o600)
+              with os.fdopen(fd, 'w') as output:
+                  output.write(''.join(lines))
+                  output.flush()
+                  os.fsync(output.fileno())
+              os.replace(tmp, path)
+          finally:
+              if os.path.exists(tmp):
+                  os.unlink(tmp)
+          print('Added temporary Fleet origin to staging policy (other origins retained)')
+          PY
+          "$apply" fleet-partner-service
+          echo 'Fleet service healthy; origin policy applied'
+          REMOTE
+
+      - name: Verify the temporary origin passes auth security without sending OTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          status="$(curl -sS --retry 2 --retry-delay 3 --max-time 30 -o "$body" -w '%{http_code}' \
+            -X POST 'https://fleet-karryam.vercel.app/api/auth/start' \
+            -H 'Content-Type: application/json' \
+            -H 'Origin: https://fleet-karryam.vercel.app' \
+            --data '{"email":"not-an-email","phone":"0"}')"
+          if [[ "$status" != 422 ]]; then
+            echo "Fleet origin verification failed: HTTP $status (expected 422); no OTP requested"
+            exit 1
+          fi
+          python3 - "$body" <<'PY'
+          import json, sys
+          try:
+              payload = json.load(open(sys.argv[1]))
+          except (OSError, ValueError):
+              sys.exit('Unexpected response body; origin verification failed')
+          if payload.get('error', {}).get('code') != 'validation_failed':
+              sys.exit('Unexpected backend error code; origin verification failed')
+          print('TRUSTED: staging Fleet API accepted the temporary browser origin; no OTP was sent')
+          PY
