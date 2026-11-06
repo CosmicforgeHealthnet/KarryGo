@@ -47,10 +47,11 @@ var ErrConfiguration = errors.New("invalid Support admin event snapshot configur
 // SnapshotHandler is default-off. Disabled, it answers 503 without reading
 // any credential or row.
 type SnapshotHandler struct {
-	DB      *pgxpool.Pool
-	Secret  []byte
-	Enabled bool
-	MaxSkew time.Duration
+	DB         *pgxpool.Pool
+	Secret     []byte
+	Enabled    bool
+	MaxSkew    time.Duration
+	CheckEvent func(context.Context, pgx.Tx, adminevents.SourceEvent) error
 }
 
 func (h *SnapshotHandler) Register(root *gin.Engine) { root.GET(SnapshotPath, h.Serve) }
@@ -62,7 +63,7 @@ func fail(c *gin.Context, status int, code string) {
 func (h *SnapshotHandler) Serve(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
-	if !h.Enabled || h.DB == nil || len(h.Secret) < 32 {
+	if !h.Enabled || h.DB == nil || len(h.Secret) < 32 || h.CheckEvent == nil {
 		fail(c, 503, "snapshot_disabled")
 		return
 	}
@@ -147,7 +148,7 @@ func parseQuery(raw string) (string, int, error) {
 // Page builds one validated snapshot page after cursor (exclusive).
 func (h *SnapshotHandler) Page(ctx context.Context, cursor string, limit int) (adminevents.SnapshotPage, error) {
 	var page adminevents.SnapshotPage
-	if limit < 1 || limit > MaxPageSize {
+	if h.CheckEvent == nil || limit < 1 || limit > MaxPageSize {
 		return page, ErrConfiguration
 	}
 	tx, err := h.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -196,6 +197,11 @@ func (h *SnapshotHandler) Page(ctx context.Context, cursor string, limit int) (a
 		return adminevents.SnapshotPage{}, adminevents.ErrUnknown
 	}
 	for _, ev := range page.Events {
+		if h.CheckEvent != nil {
+			if err := h.CheckEvent(ctx, tx, ev); err != nil {
+				return adminevents.SnapshotPage{}, err
+			}
+		}
 		if _, err := adapter.Minimize(ev); err != nil {
 			return adminevents.SnapshotPage{}, err
 		}
@@ -235,7 +241,7 @@ var otherSecretFiles = []string{
 
 // SnapshotFromEnvironment is default-off: with
 // SUPPORT_DISPUTE_ADMIN_EVENTS_SNAPSHOT_ENABLED unset no file or table is read.
-func SnapshotFromEnvironment(ctx context.Context, db *pgxpool.Pool) (*SnapshotHandler, error) {
+func SnapshotFromEnvironment(ctx context.Context, db *pgxpool.Pool, guards ...ScopeGuard) (*SnapshotHandler, error) {
 	h := &SnapshotHandler{DB: db}
 	if os.Getenv(Prefix+"_ADMIN_EVENTS_SNAPSHOT_ENABLED") != "true" {
 		return h, nil
@@ -264,6 +270,10 @@ func SnapshotFromEnvironment(ctx context.Context, db *pgxpool.Pool) (*SnapshotHa
 	if err := db.QueryRow(ctx, `SELECT to_regclass('admin_owner_read_nonces') IS NOT NULL AND to_regclass('admin_event_outbox') IS NOT NULL AND to_regprocedure('support_admin_case_event(uuid)') IS NOT NULL`).Scan(&ready); err != nil || !ready {
 		return nil, ErrConfiguration
 	}
+	if len(guards) != 1 || !guards[0].Configured() {
+		return nil, ErrConfiguration
+	}
+	h.CheckEvent = guards[0].Check
 	h.Secret, h.Enabled = secret, true
 	return h, nil
 }

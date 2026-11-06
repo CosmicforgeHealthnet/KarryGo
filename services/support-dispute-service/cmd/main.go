@@ -152,13 +152,17 @@ func main() {
 	if adminErr != nil {
 		logging.Fatal("configuration", "Support private command configuration invalid")
 	}
-	adminSnapshot, adminErr := adminfeed.SnapshotFromEnvironment(ctx, db)
+	scopeGuard := adminfeed.ScopeGuard{Owner: supportAdmin}
+	adminSnapshot, adminErr := adminfeed.SnapshotFromEnvironment(ctx, db, scopeGuard)
 	if adminErr != nil {
 		logging.Fatal("configuration", "Support admin event snapshot configuration invalid")
 	}
-	adminRelay, adminErr := adminevents.RelayFromEnvironment(db, adminfeed.Prefix, adminfeed.SourceService)
+	adminRelay, adminErr := adminevents.RelayWithGuardFromEnvironment(db, adminfeed.Prefix, adminfeed.SourceService, scopeGuard.Export)
 	if adminErr != nil {
 		logging.Fatal("configuration", "Support admin event relay configuration invalid")
+	}
+	if (adminSnapshot.Enabled || adminRelay != nil) && !scopeGuard.Configured() {
+		logging.Fatal("configuration", "Support event feed requires signed owner allocation authority and policy")
 	}
 	if adminRelay != nil {
 		workers = append(workers, adminRelay.Run)

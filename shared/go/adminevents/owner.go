@@ -57,9 +57,21 @@ VALUES ($1,$2,1,$3,$4,$5,'PENDING',now(),0,now()) ON CONFLICT (id) DO NOTHING`, 
 }
 
 // rawPublisher delivers the stored SourceEvent bytes (not an outbox envelope).
-type rawPublisher struct{ inner *outbox.HTTPPublisher }
+// ExportGuard rejects an owner event before the HTTP publisher can sign or send it.
+// It must not mutate the immutable outbox payload or its event identity.
+type ExportGuard func(context.Context, outbox.Record) error
+
+type rawPublisher struct {
+	inner *outbox.HTTPPublisher
+	guard ExportGuard
+}
 
 func (p rawPublisher) Publish(ctx context.Context, r outbox.Record) error {
+	if p.guard != nil {
+		if err := p.guard(ctx, r); err != nil {
+			return err
+		}
+	}
 	return p.inner.Publish(ctx, r)
 }
 
@@ -67,6 +79,12 @@ func (p rawPublisher) Publish(ctx context.Context, r outbox.Record) error {
 // <PREFIX>_ADMIN_EVENTS_ENABLED unset nothing is read and nil is returned.
 // The relay signs as the owner's own service name with a dedicated secret.
 func RelayFromEnvironment(db outbox.Querier, prefix, serviceName string) (*outbox.Worker, error) {
+	return RelayWithGuardFromEnvironment(db, prefix, serviceName, nil)
+}
+
+// RelayWithGuardFromEnvironment preserves the default-off relay and adds an
+// owner-supplied authorization gate before disclosure. Other owners are unchanged.
+func RelayWithGuardFromEnvironment(db outbox.Querier, prefix, serviceName string, guard ExportGuard) (*outbox.Worker, error) {
 	if os.Getenv(prefix+"_ADMIN_EVENTS_ENABLED") != "true" {
 		return nil, nil
 	}
@@ -87,5 +105,5 @@ func RelayFromEnvironment(db outbox.Querier, prefix, serviceName string) (*outbo
 	if err != nil {
 		return nil, err
 	}
-	return outbox.NewWorker(store, rawPublisher{pub}, outbox.WorkerConfig{}), nil
+	return outbox.NewWorker(store, rawPublisher{inner: pub, guard: guard}, outbox.WorkerConfig{}), nil
 }

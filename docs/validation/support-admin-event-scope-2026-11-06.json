@@ -1,0 +1,36 @@
+{
+  "status": "VALIDATED_NOT_DEPLOYED",
+  "environment": "isolated-disposable-postgresql",
+  "base_source_commit": "00800825db714c50da5edd1c9bac0c5fa39c5aac",
+  "test_commands": [
+    "go test -count=1 -json ./... (Support module)",
+    "go test -count=1 -json ./adminevents (shared module)"
+  ],
+  "tests": {
+    "pass": 76,
+    "fail": 0,
+    "skip": 0
+  },
+  "test_result_cache_disabled": true,
+  "live_data_used": false,
+  "existing_containers_changed": [],
+  "temporary_resources_removed": true,
+  "protected_proof": "/srv/cosmicforge/staging/backups/support-scope-tests-4e3a748d3a/result.json",
+  "verified_behaviors": [
+    "Signed allocation required for event export",
+    "Explicit feed purpose required in signed policy",
+    "Revoked allocations and changed canonical links rejected",
+    "Tampered metadata cannot replace signature verification",
+    "Ambiguous scopes are not chosen",
+    "Outbox event ID and type must agree with immutable payload",
+    "Historical events and business ownership unchanged",
+    "Migration down/up and reapplication supported",
+    "Shared relay rejects before signing/network and preserves exact payload bytes"
+  ],
+  "pending": [
+    "Exact-commit GitHub acceptance",
+    "Restore certification and Support-only release",
+    "Approved feed policy and dedicated workload credential activation",
+    "End-to-end real-data certification and Central Admin Web acceptance"
+  ]
+}

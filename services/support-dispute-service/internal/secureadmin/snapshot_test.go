@@ -29,13 +29,15 @@ func TestSupportAdminEventSnapshotBackfill(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		h.importContext("cases", c.ID)
 		created = append(created, c.ID)
 	}
 	sort.Strings(created)
 	secret := bytes.Repeat([]byte("s"), 32)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	handler := &adminfeed.SnapshotHandler{DB: h.pool, Secret: secret, Enabled: true}
+	guard := eventGuard(t, h, true)
+	handler := &adminfeed.SnapshotHandler{DB: h.pool, Secret: secret, Enabled: true, CheckEvent: guard.Check}
 	handler.Register(router)
 	do := func(query string, key []byte, caller string, nonce string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, adminfeed.SnapshotPath+query, nil)
@@ -130,7 +132,8 @@ func TestSupportAdminEventSnapshotBackfill(t *testing.T) {
 }
 
 func TestSupportAdminEventSnapshotConfiguration(t *testing.T) {
-	pool := newHarness(t, nil).pool
+	fixture := newHarness(t, nil)
+	pool := fixture.pool
 	dir := t.TempDir()
 	write := func(name string, key []byte) string {
 		path := dir + "/" + name
@@ -160,7 +163,10 @@ func TestSupportAdminEventSnapshotConfiguration(t *testing.T) {
 		t.Fatal("snapshot key shared with the resource key")
 	}
 	t.Setenv("SUPPORT_DISPUTE_ADMIN_RESOURCE_SECRET_FILE", write("resource", bytes.Repeat([]byte("r"), 32)))
-	h, err = adminfeed.SnapshotFromEnvironment(ctx, pool)
+	if _, err = adminfeed.SnapshotFromEnvironment(ctx, pool); err == nil {
+		t.Fatal("snapshot enabled without a scope guard")
+	}
+	h, err = adminfeed.SnapshotFromEnvironment(ctx, pool, eventGuard(t, fixture, true))
 	if err != nil || !h.Enabled || !bytes.Equal(h.Secret, snapshotKey) {
 		t.Fatalf("valid configuration refused: %v", err)
 	}
