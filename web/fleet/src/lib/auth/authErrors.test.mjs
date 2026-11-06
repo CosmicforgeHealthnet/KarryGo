@@ -44,3 +44,20 @@ test("no response at all is a network error and is retryable", () => {
   assert.equal(r.retryable, true);
   assert.equal(classifyAuthError({ code: "ECONNABORTED" }).kind, "network");
 });
+
+test("a rejection with no request id in the body falls back to the response header", () => {
+  // The origin check answers before the error envelope adds a request id.
+  const body = { code: "untrusted_origin", message: "Trusted browser origin required." };
+  const plain = classifyAuthError({ response: { status: 403, data: { error: body }, headers: { "x-request-id": "req-123" } } });
+  assert.equal(plain.requestId, "req-123");
+
+  // Axios hands back an AxiosHeaders object with a get() accessor.
+  const headers = { get: (name) => (name === "x-correlation-id" ? "corr-9" : undefined) };
+  const viaGet = classifyAuthError({ response: { status: 403, data: { error: body }, headers } });
+  assert.equal(viaGet.requestId, "corr-9");
+
+  const bodyWins = classifyAuthError({
+    response: { status: 422, data: { error: { code: "validation_failed", requestId: "body-1" } }, headers: { "x-request-id": "hdr-1" } },
+  });
+  assert.equal(bodyWins.requestId, "body-1");
+});

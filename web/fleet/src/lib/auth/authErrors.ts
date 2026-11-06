@@ -92,6 +92,18 @@ function fieldKind(violations: ServerFieldViolation[]): AuthErrorKind | null {
   return null;
 }
 
+// Some rejections (the origin check runs before the error envelope is built)
+// carry no request id in the body, but every response has one in a header.
+function headerRequestId(headers: Record<string, unknown> | undefined): string | undefined {
+  if (!headers) return undefined;
+  const get = (headers as { get?: (name: string) => unknown }).get;
+  for (const name of ["x-request-id", "x-correlation-id"]) {
+    const value = typeof get === "function" ? get.call(headers, name) : headers[name];
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
 export function classifyAuthError(err: unknown): AuthError {
   const e = (err ?? {}) as HttpLikeError;
   const response = e.response;
@@ -104,7 +116,7 @@ export function classifyAuthError(err: unknown): AuthError {
   const status = response.status ?? 0;
   const body = typeof response.data === "object" && response.data ? response.data.error : undefined;
   const code = body?.code;
-  const requestId = body?.requestId ?? body?.request_id;
+  const requestId = body?.requestId ?? body?.request_id ?? headerRequestId(response.headers);
   const meta = { code, requestId, status };
 
   if (code === "untrusted_origin") return build("configuration", meta);

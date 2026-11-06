@@ -21,6 +21,30 @@ A browser on an unlisted origin gets `403 untrusted_origin` from every auth POST
 unchanged, so the origin to list is the one in the browser's address bar. When
 the custom domain goes live, add it and remove the Vercel host afterwards.
 
+### Activating a new origin on staging
+
+Verified 2026-11-06: the live staging backend trusts `https://fleet.karrygo.com`
+only, so the Vercel host still gets `403 untrusted_origin`. The setting lives in
+the host-owned file `/opt/karrygo/fleet-partner-service/fleet.service.env` (not
+in the repository; mode 600). As the `deploy` user on the staging server:
+
+```bash
+grep '^FLEET_PARTNER_AUTH_WEB_ORIGINS=' /opt/karrygo/fleet-partner-service/fleet.service.env
+nano /opt/karrygo/fleet-partner-service/fleet.service.env   # append ,https://fleet-karryam.vercel.app
+/opt/karrygo/platform/bin/apply-env.sh fleet-partner-service
+```
+
+Keep every existing origin; only append. `apply-env.sh` recreates the API and
+worker on the image already deployed (no new release) and waits for healthy; a
+`docker restart` would not pick up the change. Then, from anywhere:
+
+```bash
+scripts/fleet/check-auth-origin.sh https://fleet-karryam.vercel.app
+```
+
+It posts an invalid body, so it never sends an OTP: `TRUSTED` (422) means the
+origin is live, `REJECTED` (403) means it is still missing.
+
 `FLEET_PARTNER_AUTH_COOKIE_NAME` defaults to `karrygo_fleet_refresh`;
 `FLEET_PARTNER_AUTH_COOKIE_SAMESITE` defaults to `lax` (`strict`/`none` supported).
 `FLEET_PARTNER_AUTH_COOKIE_SECURE` defaults true outside development/test and
