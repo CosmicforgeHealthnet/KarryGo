@@ -74,5 +74,3 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
     RETURN jsonb_build_object('market',COALESCE(native_market,''),'zone',COALESCE(native_zone,''),'organization','','tenant','');
 END $fn$;
-
-
