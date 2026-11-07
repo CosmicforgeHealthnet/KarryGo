@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/shared/go/admincampaign"
+	"cosmicforge/logistics/shared/go/adminevents"
 )
 
 // Campaign revision states (admincampaign.States). DELIVERED is never
@@ -108,6 +109,7 @@ type Counts struct {
 
 // Revision is the persisted view of one revision.
 type Revision struct {
+	AdminScope     *adminevents.Scope
 	CampaignID     string
 	Revision       int64
 	Intent         admincampaign.Intent

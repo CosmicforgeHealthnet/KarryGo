@@ -32,7 +32,11 @@ var (
 	ErrInactive = errors.New("campaign revision is not active")
 )
 
-type Repository struct{ db *pgxpool.Pool }
+type Repository struct {
+	db          *pgxpool.Pool
+	CheckEvent  func(context.Context, pgx.Tx, adminevents.SourceEvent) error
+	ExportReady func() bool
+}
 
 func New(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
 
@@ -591,11 +595,17 @@ func Event(rev campaignmodels.Revision) (adminevents.SourceEvent, error) {
 	if len(rev.Intent.Markets) == 1 {
 		scope.Market = rev.Intent.Markets[0]
 	}
+	if rev.AdminScope != nil {
+		scope = *rev.AdminScope
+	}
 	return adminevents.NewSourceEvent(campaignmodels.SourceService, adminevents.NotificationCampaignStat, "campaign_revision",
 		rev.CampaignID+":"+strconv.FormatInt(rev.Revision, 10), rev.Version, rev.UpdatedAt, scope, rev.Intent.CorrelationID, payload, false)
 }
 
 func emit(ctx context.Context, tx pgx.Tx, rev campaignmodels.Revision) error {
+	if err := applyEventScope(ctx, tx, &rev); err != nil {
+		return err
+	}
 	ev, err := Event(rev)
 	if err != nil {
 		return err
@@ -606,6 +616,9 @@ func emit(ctx context.Context, tx pgx.Tx, rev campaignmodels.Revision) error {
 // Snapshot pages every revision in (campaign_id, revision) order after the
 // opaque cursor "<campaign_id>:<revision>".
 func (r *Repository) Snapshot(ctx context.Context, cursor string, limit int) ([]campaignmodels.Revision, string, time.Time, error) {
+	if r.CheckEvent == nil || r.ExportReady == nil || !r.ExportReady() {
+		return nil, "", time.Time{}, errors.New("authorized snapshot unavailable")
+	}
 	afterID, afterRev := "", int64(0)
 	if cursor != "" {
 		id, rev, ok := strings.Cut(cursor, ":")
@@ -646,6 +659,22 @@ func (r *Repository) Snapshot(ctx context.Context, cursor string, limit int) ([]
 		last := out[len(out)-1]
 		next = last.CampaignID + ":" + strconv.FormatInt(last.Revision, 10)
 	}
+	rows.Close()
+	for index := range out {
+		if err := applyEventScope(ctx, tx, &out[index]); err != nil {
+			return nil, "", time.Time{}, err
+		}
+		ev, err := Event(out[index])
+		if err != nil {
+			return nil, "", time.Time{}, err
+		}
+		if err := r.CheckEvent(ctx, tx, ev); err != nil {
+			return nil, "", time.Time{}, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, "", time.Time{}, err
+	}
 	return out, next, watermark.UTC(), nil
 }
 
@@ -675,4 +704,23 @@ func (r *Repository) inTx(ctx context.Context, fn func(pgx.Tx) error) error {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func applyEventScope(ctx context.Context, tx pgx.Tx, rev *campaignmodels.Revision) error {
+	// Ordinary sending remains compatible before the feed migration. Export
+	// activation separately requires the scope function and signed authority.
+	var ready bool
+	if err := tx.QueryRow(ctx, `SELECT to_regprocedure('notification_admin_event_scope(text)') IS NOT NULL`).Scan(&ready); err != nil {
+		return err
+	}
+	if !ready {
+		return nil
+	}
+	var scope adminevents.Scope
+	ref := rev.CampaignID + ":" + strconv.FormatInt(rev.Revision, 10)
+	if err := tx.QueryRow(ctx, `SELECT notification_admin_event_scope($1)`, ref).Scan(&scope); err != nil {
+		return err
+	}
+	rev.AdminScope = &scope
+	return nil
 }

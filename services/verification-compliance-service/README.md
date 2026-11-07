@@ -112,3 +112,28 @@ Backfill: `GET /internal/verification/v1/admin-events/snapshot?cursor=&limit=`
 
 Tests: real-PostgreSQL suites serialize on one advisory lock (`internal/testdb`),
 so `go test ./...` is safe with `VERIFICATION_COMPLIANCE_TEST_DATABASE_URL` set.
+
+
+### Scoped admin event export
+
+Migration `000005_admin_event_authorization_scope` selects an unambiguous current
+owner allocation for each vendor case. It does not assign business ownership,
+seed grants, alter cases, or rewrite historical outbox payloads. SQL only selects
+a candidate: the event relay and snapshot handler recheck the Ed25519 signature,
+current context revision, revocation, expiry, source binding, exact scope and the
+signed `hq_event_sync` purpose of `verification.vendor_cases.read` before export.
+
+Both export paths remain off by default. Enabling either requires the existing
+owner policy and owner-context authority configuration. A snapshot key must be
+different from configured owner reader, context publisher, command and relay
+keys. Snapshots validate all returned events in one read-only repeatable-read
+transaction; a missing or revoked allocation rejects the page rather than
+claiming complete coverage. Previously queued unscoped events remain unchanged
+and are denied by the relay guard; recover through the approved backfill/replay
+workflow instead of editing stored event identities or payloads.
+
+Before staging activation, verify the forward migration and source allocations,
+install a signed source policy including the feed purpose, use separate private
+credentials, and complete the Bridge/HQ acceptance checks. A passing disposable
+suite is not evidence that the source has been activated or that staff have
+received data-access permissions.

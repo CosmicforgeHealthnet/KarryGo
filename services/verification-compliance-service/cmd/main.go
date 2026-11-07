@@ -146,13 +146,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("verification secure admin command configuration invalid: %v", err)
 	}
-	snapshot, err := adminsnapshot.FromEnvironment(db)
+	scopeGuard := adminsnapshot.ScopeGuard{Owner: verificationAdmin}
+	snapshot, err := adminsnapshot.FromEnvironment(db, scopeGuard)
 	if err != nil {
 		log.Fatalf("verification admin event snapshot configuration invalid: %v", err)
 	}
-	relay, err := adminevents.RelayFromEnvironment(db, adminresources.Prefix, "verification-compliance-service")
+	relay, err := adminevents.RelayWithGuardFromEnvironment(db, adminresources.Prefix, "verification-compliance-service", scopeGuard.Export)
 	if err != nil {
 		log.Fatalf("verification admin event relay configuration invalid: %v", err)
+	}
+	if (snapshot.Enabled || relay != nil) && !scopeGuard.Configured() {
+		log.Fatal("verification event feed requires signed owner allocation authority and policy")
 	}
 	if relay != nil {
 		workers = append(workers, relay.Run)

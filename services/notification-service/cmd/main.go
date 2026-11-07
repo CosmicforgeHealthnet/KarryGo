@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/services/notification-service/internal/config"
 	"cosmicforge/logistics/services/notification-service/internal/database"
+	"cosmicforge/logistics/services/notification-service/internal/features/adminfeed"
 	campaignclients "cosmicforge/logistics/services/notification-service/internal/features/campaigns/clients"
 	campaignhttp "cosmicforge/logistics/services/notification-service/internal/features/campaigns/http"
 	campaignrepositories "cosmicforge/logistics/services/notification-service/internal/features/campaigns/repositories"
@@ -77,7 +78,13 @@ func main() {
 	notificationService.StartConsumers(ctx, cfg.WorkerConcurrency)
 
 	// Section 17 campaign fulfilment + Section 22 owner events.
+	notificationAdmin, feedGuard, err := adminfeed.Runtime(ctx, db)
+	if err != nil {
+		logging.Fatal("admin-events", "invalid signed owner feed configuration")
+	}
 	campaignRepo := campaignrepositories.New(db)
+	campaignRepo.CheckEvent = feedGuard.Check
+	campaignRepo.ExportReady = feedGuard.Configured
 	campaignService := &campaignusecases.Service{Repo: campaignRepo}
 	var workers []func(context.Context) error
 	var campaignSecret, snapshotSecret []byte
@@ -105,7 +112,7 @@ func main() {
 			logging.Fatal("admin-events", "NOTIFICATION_ADMIN_EVENTS_SNAPSHOT_SECRET_FILE: %v", err)
 		}
 	}
-	relay, err := adminevents.RelayFromEnvironment(db, "NOTIFICATION", "notification-service")
+	relay, err := adminevents.RelayWithGuardFromEnvironment(db, "NOTIFICATION", "notification-service", feedGuard.Export)
 	if err != nil {
 		logging.Fatal("admin-events", "%v", err)
 	}
@@ -135,6 +142,7 @@ func main() {
 			registerNotificationMetricsRoute(group, db, hub, serviceauth.Secrets(cfg.ServiceSecrets))
 		},
 		RegisterRoot: func(engine *gin.Engine) {
+			notificationAdmin.RegisterOn(engine.Group(""))
 			campaignhttp.RegisterCampaignRoutes(engine, campaignService, campaignhttp.Boundary(cfg.CampaignsEnabled, campaignSecret, campaignRepo))
 			campaignhttp.RegisterSnapshotRoute(engine, campaignService, campaignhttp.Boundary(cfg.AdminEventsSnapshotEnabled, snapshotSecret, campaignRepo))
 		},

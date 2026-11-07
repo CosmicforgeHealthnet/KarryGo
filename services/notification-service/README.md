@@ -206,3 +206,42 @@ delivery is marked (`RefreshMessageStatusSQL`).
 
 Tests: `NOTIFICATION_TEST_DATABASE_URL=<disposable db> go test ./...` (each
 campaign test applies the real migrations into its own schema).
+
+
+## Scoped administrative campaign feed
+
+The campaign event feed and snapshot remain off by default. Migration
+`010_admin_event_authorization_scope.sql` adds the existing shared owner-context
+and audit schemas and a candidate scope selector. It seeds no policy, role,
+staff grant or business data. Ordinary sending and the immutable campaign
+intent contract are unchanged.
+
+To activate the feed, configure `NOTIFICATION_ADMIN_CONTEXT_PUBLISH_ENABLED`,
+its dedicated `_SECRET_FILE`, `NOTIFICATION_ADMIN_CONTEXT_KEYS_FILE`,
+`NOTIFICATION_ADMIN_ACCESS_POLICY_FILE` and `_KEYS_FILE`. Publish actual signed
+owner allocations through the existing owner-context mechanism at
+`/internal/notification/v1/admin/authorization-contexts`; the binding preparation
+route is `/internal/notification/v1/admin/authorization-contexts/bindings/campaign-revisions/{campaign-id}:{revision}`.
+No new staff resource API is enabled: campaign reads retain their existing
+readback contract.
+
+The policy must approve `hq.campaigns.readback`, owner `notification-service`,
+source contract `karryam.campaign-intent.v1` and purpose `hq_event_sync` for the
+exact allocation scope. Each allocation binds to the real immutable intent
+digest and creation epoch. One-market/at-most-one-zone facts are checked against
+the intent; a campaign aggregating several markets cannot be relabelled as one
+market. Organization and tenant require a signed administrative allocation;
+they are never guessed from a campaign title, requesting staff or environment.
+
+Live events require `NOTIFICATION_ADMIN_EVENTS_ENABLED`, its fixed Bridge
+origin and dedicated secret. Backfill requires
+`NOTIFICATION_ADMIN_EVENTS_SNAPSHOT_ENABLED` and its different dedicated secret.
+Publisher, sender, relay and snapshot credentials must be separate. Snapshots
+check current feed-purpose policy even with no rows, and validate every returned
+event against signed, unexpired, unrevoked source contexts within one read-only
+repeatable-read transaction. Missing authorization fails the page instead of
+reporting a successful zero. Historical outbox events are not rewritten;
+recover unscoped history through approved backfill/replay.
+
+These changes do not enable campaign writes, certify a dataset, create a staff
+grant, confirm delivery or activate any staging service by themselves.

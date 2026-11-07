@@ -80,6 +80,7 @@ func (emailProvider) SendEmail(context.Context, messageclients.EmailMessage) (me
 }
 
 type harness struct {
+	feed     *campaigntest.FeedAuthority
 	t        *testing.T
 	db       *pgxpool.Pool
 	repo     *campaignrepositories.Repository
@@ -95,6 +96,9 @@ func newHarness(t *testing.T, push messageclients.PushSender) *harness {
 	t.Helper()
 	db := campaigntest.Pool(t)
 	repo := campaignrepositories.New(db)
+	feed := campaigntest.NewFeedAuthority(t, db)
+	repo.CheckEvent = feed.Guard.Check
+	repo.ExportReady = feed.Guard.Configured
 	queue := &recordingQueue{}
 	provider := &pushProvider{}
 	if push == nil {
@@ -105,7 +109,7 @@ func newHarness(t *testing.T, push messageclients.PushSender) *harness {
 		RealtimeSender: messageclients.NewWebSocketHub(), Queue: queue, RealtimeTokenSecret: []byte("realtime"), MaxAttempts: 3,
 	})
 	consent := campaigntest.NewConsent()
-	return &harness{t: t, db: db, repo: repo, service: &campaignusecases.Service{Repo: repo}, consent: consent, queue: queue, pipeline: pipeline, push: provider,
+	return &harness{feed: feed, t: t, db: db, repo: repo, service: &campaignusecases.Service{Repo: repo}, consent: consent, queue: queue, pipeline: pipeline, push: provider,
 		engine: &campaignusecases.Engine{Repo: repo, Consent: consent, Sender: pipeline, Owner: "test-engine", Retry: time.Millisecond}}
 }
 
@@ -545,6 +549,7 @@ func TestLoggingProviderIsLoggedOnlyNeverSent(t *testing.T) {
 	key, rev, hash := h.template()
 	i := campaigntest.Intent(key, rev, hash, []string{"NG-LAG"}, []string{"push"})
 	h.accept(i)
+	h.feed.Approve(i.CampaignID + ":1")
 	s := h.run(i, 20)
 	if h.recipients(i)[c+"/push"] != "LOGGED_ONLY" || s.SentCount != 0 || s.LoggedOnlyCount != 1 || s.EligibleCount != 1 {
 		t.Fatalf("logging provider: %+v %v", s, h.recipients(i))
@@ -701,6 +706,7 @@ func TestOwnerEventsMatchTheAdapterAndSnapshot(t *testing.T) {
 	i := campaigntest.Intent(key, rev, hash, []string{"NG-LAG"}, []string{"push"})
 	i.CorrelationID = "corr-1"
 	h.accept(i)
+	h.feed.Approve(i.CampaignID + ":1")
 	final := h.run(i, 20)
 	rows, err := h.db.Query(ctx, `SELECT payload FROM admin_event_outbox WHERE aggregate_id=$1 ORDER BY created_at, (payload->>'entity_version')::bigint`, i.CampaignID+":1")
 	if err != nil {
@@ -754,6 +760,7 @@ func TestOwnerEventsMatchTheAdapterAndSnapshot(t *testing.T) {
 	// Paging with a cursor.
 	second := campaigntest.Intent(key, rev, hash, []string{"NG-LAG"}, []string{"push"})
 	h.accept(second)
+	h.feed.Approve(second.CampaignID + ":1")
 	first, err := h.service.Snapshot(ctx, "", 1)
 	if err != nil || first.Complete || first.NextCursor == "" {
 		t.Fatalf("first page: %+v %v", first, err)

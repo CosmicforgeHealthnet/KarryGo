@@ -32,6 +32,7 @@ var (
 )
 
 type api struct {
+	feed   *campaigntest.FeedAuthority
 	t      *testing.T
 	engine *gin.Engine
 }
@@ -54,12 +55,15 @@ func build(t *testing.T, campaignsOn, snapshotOn bool) (api, *campaignrepositori
 	gin.SetMode(gin.TestMode)
 	db := campaigntest.Pool(t)
 	repo := campaignrepositories.New(db)
+	feed := campaigntest.NewFeedAuthority(t, db)
+	repo.CheckEvent = feed.Guard.Check
+	repo.ExportReady = feed.Guard.Configured
 	service := &campaignusecases.Service{Repo: repo}
 	e := gin.New()
 	e.Use(httpx.ErrorHandler())
 	campaignhttp.RegisterCampaignRoutes(e, service, campaignhttp.Boundary(campaignsOn, secret, repo))
 	campaignhttp.RegisterSnapshotRoute(e, service, campaignhttp.Boundary(snapshotOn, snapSecret, repo))
-	return api{t, e}, repo
+	return api{t: t, engine: e, feed: feed}, repo
 }
 
 func TestCampaignRoutesSecurityIdempotencyAndConflicts(t *testing.T) {
@@ -106,7 +110,8 @@ func TestCampaignRoutesSecurityIdempotencyAndConflicts(t *testing.T) {
 	if code, out := a.call(caller, secret, uuid.NewString(), http.MethodPost, admincampaign.IntentPath+"/"+intent.CampaignID+"/cancellations", cancel); code != http.StatusOK || out["data"].(map[string]any)["state"] != "CANCELLED" {
 		t.Fatalf("cancel: %d %v", code, out)
 	}
-	// Snapshot uses its own dedicated secret.
+	// Snapshot uses its own dedicated secret and signed owner allocation.
+	a.feed.Approve(intent.CampaignID + ":1")
 	if code, _ := a.call(caller, secret, uuid.NewString(), http.MethodGet, campaignhttp.SnapshotPath, nil); code != http.StatusUnauthorized {
 		t.Fatalf("snapshot with campaign secret: %d", code)
 	}

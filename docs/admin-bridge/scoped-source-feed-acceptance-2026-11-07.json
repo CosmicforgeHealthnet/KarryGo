@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "status": "CODE_ACCEPTANCE_PASSED_LIVE_ACTIVATION_NOT_CERTIFIED",
+  "source_base_commit": "2ef54597c135e2f3bbedef163c3e12296de2a706",
+  "line_endings": "LF as checked out in Linux CI",
+  "checks": [
+    {
+      "exit_code": 0,
+      "existing_containers_changed": [],
+      "live_data_used": false,
+      "temporary_resources_removed": true,
+      "tests": {
+        "pass": 68,
+        "fail": 0,
+        "skip": 0
+      },
+      "proof_directory": "/srv/cosmicforge/staging/backups/notification-scope-tests-9dc176a5f2",
+      "test_run": "notification-scope-tests-9dc176a5f2",
+      "source_sha256": {
+        "services/notification-service/cmd/main.go": "134a507fb1b84ba109e74b7b82ab906ad2d16b619bffa8e2021e0edb52f25f61",
+        "services/notification-service/internal/features/campaigns/http/routes_integration_test.go": "1fb160b06e72c71dc9555dd841dd98926eb2a9c391b092c4b19a103762d3e208",
+        "services/notification-service/internal/features/campaigns/models/models.go": "411fb9a06d6d35d9beef6c0f3956093593d95dfa3d3a6eee1df9983ece3dc371",
+        "services/notification-service/internal/features/campaigns/repositories/postgres.go": "7e2c3f5a6f8095b61bb363bb65e3edc12db4a1f1eb46c4ed57df360edb409513",
+        "services/notification-service/internal/features/campaigns/usecases/campaign_integration_test.go": "84a75a0bc3168661128b5efb448d0b71dc6d1d9844f0a21d85931f519b929183",
+        "services/notification-service/internal/features/adminfeed/feed_test.go": "c79a0b742405cf4b0daf824df58b4ef32d836d910da6baed079dcc00a32c0235",
+        "services/notification-service/internal/features/adminfeed/runtime.go": "8b5b3a4dbe7b74fde524477d88fbf3624692882c1829dbb5aa3e957fc5d961ab",
+        "services/notification-service/internal/features/adminfeed/scope.go": "75df800aae82d06d34f5214f47ce5c26416188204f238a91cd41e497ded4c50d",
+        "services/notification-service/internal/features/adminfeed/secrets.go": "7ce67a0cda55be46bc76b35582b6e84d4e6c9e4939e2829bcab0bfa90c23f1e9",
+        "services/notification-service/internal/features/adminfeed/secrets_test.go": "fcad545d630cfb8d1a17e0f4ebbdee56484d454138d6d11ded43f588c48b6742",
+        "services/notification-service/internal/features/adminfeed/source.go": "79156cfad646c1c3c0818ad6b00ab5cbedde9de0ae6217810d5729653ac10eee",
+        "services/notification-service/internal/features/campaigns/campaigntest/feed.go": "84dba2c8aae2186fe4afb095a8fb25697c45dff73db962980b1dca63b31343f1",
+        "services/notification-service/migrations/010_admin_event_authorization_scope.sql": "e2d2ee3ec316e4fb649ef87b6a057d8350859f05a13b0d4737c5b5118cb0306a"
+      }
+    },
+    {
+      "exit_code": 0,
+      "existing_containers_changed": [],
+      "live_data_used": false,
+      "temporary_resources_removed": true,
+      "tests": {
+        "pass": 60,
+        "fail": 0,
+        "skip": 0
+      },
+      "proof_directory": "/srv/cosmicforge/staging/backups/verification-scope-tests-291efb47cf",
+      "test_run": "verification-scope-tests-291efb47cf",
+      "source_sha256": {
+        "services/verification-compliance-service/cmd/main.go": "4a1a942e5e5a2ac13718f4e3a5a71c98cde4cdb7a12916609149ce178af21ff3",
+        "services/verification-compliance-service/internal/features/adminsnapshot/snapshot.go": "e0bd4c25b706db5989839f25dd3e4469f4751f070d59787160d3a62da8a139cb",
+        "services/verification-compliance-service/internal/features/adminsnapshot/snapshot_test.go": "2ce6937e1c1ac6cd7d8e92dc2ce78db0b8bb0570b590313f2071a1b2c40ff6c2",
+        "services/verification-compliance-service/internal/features/adminsnapshot/scope.go": "965204443c8ae36dd7dedb75da4f256313a9c82a8c5a8c6ccc0a102e8207cb17",
+        "services/verification-compliance-service/migrations/000005_admin_event_authorization_scope.down.sql": "3d963b8f811b9e78b586aea8e8d6fa73c1c2a5c3c6c5d1fecb0eb25583f093f7",
+        "services/verification-compliance-service/migrations/000005_admin_event_authorization_scope.up.sql": "1378025243130fc9562ab3c4d74be62df7dc0b458037b2672505ac2ba1593548"
+      }
+    },
+    {
+      "exit_code": 0,
+      "existing_containers_changed": [],
+      "live_data_used": false,
+      "temporary_resources_removed": true,
+      "tests": {
+        "pass": 7,
+        "fail": 0,
+        "skip": 0
+      },
+      "proof_directory": "/srv/cosmicforge/staging/backups/notification-scope-tests-b754fabe12",
+      "test_run": "notification-scope-tests-b754fabe12",
+      "source_sha256": {
+        "services/notification-service/cmd/main.go": "134a507fb1b84ba109e74b7b82ab906ad2d16b619bffa8e2021e0edb52f25f61",
+        "services/notification-service/internal/features/campaigns/http/routes_integration_test.go": "1fb160b06e72c71dc9555dd841dd98926eb2a9c391b092c4b19a103762d3e208",
+        "services/notification-service/internal/features/campaigns/models/models.go": "411fb9a06d6d35d9beef6c0f3956093593d95dfa3d3a6eee1df9983ece3dc371",
+        "services/notification-service/internal/features/campaigns/repositories/postgres.go": "d2ddac7c5b6d793c7b4beab3a0d8736280ec181c2989461d4ce9db115ea8e1a8",
+        "services/notification-service/internal/features/campaigns/usecases/campaign_integration_test.go": "84a75a0bc3168661128b5efb448d0b71dc6d1d9844f0a21d85931f519b929183",
+        "services/notification-service/internal/features/adminfeed/feed_test.go": "98a6d50747889d425be428a69f5fb049b6f99599b8f9b9d2707f9a704330d637",
+        "services/notification-service/internal/features/adminfeed/runtime.go": "dad5012b04095e73d4568523a1db8e7a1ba5b0e9cd787803281d5e6ecde99163",
+        "services/notification-service/internal/features/adminfeed/scope.go": "75df800aae82d06d34f5214f47ce5c26416188204f238a91cd41e497ded4c50d",
+        "services/notification-service/internal/features/adminfeed/secrets.go": "7ce67a0cda55be46bc76b35582b6e84d4e6c9e4939e2829bcab0bfa90c23f1e9",
+        "services/notification-service/internal/features/adminfeed/secrets_test.go": "fcad545d630cfb8d1a17e0f4ebbdee56484d454138d6d11ded43f588c48b6742",
+        "services/notification-service/internal/features/adminfeed/source.go": "79156cfad646c1c3c0818ad6b00ab5cbedde9de0ae6217810d5729653ac10eee",
+        "services/notification-service/internal/features/campaigns/campaigntest/feed.go": "84dba2c8aae2186fe4afb095a8fb25697c45dff73db962980b1dca63b31343f1",
+        "services/notification-service/migrations/010_admin_event_authorization_scope.sql": "e2d2ee3ec316e4fb649ef87b6a057d8350859f05a13b0d4737c5b5118cb0306a"
+      }
+    }
+  ],
+  "not_claimed": [
+    "live source activation",
+    "staff grants",
+    "genuine MFA resource acceptance",
+    "HQ dataset approval or subscription activation",
+    "production deployment"
+  ]
+}
