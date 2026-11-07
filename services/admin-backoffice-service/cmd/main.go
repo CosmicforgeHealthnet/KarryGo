@@ -125,16 +125,16 @@ func run() error {
 	}
 	app.ConfigureDomainFlags(cfg.Features)
 	if len(cfg.OwnerResources) > 0 {
-		approved, e := adminpolicy.LoadFiles(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
-		if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
-			return errors.New("invalid owner-approved resource policy")
-		}
-		if approved != nil {
-			if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
-				return errors.New("resource access policy revision refused")
-			}
-		}
 		for _, owner := range cfg.OwnerResources {
+			approved, e := owner.LoadPolicy(cfg.AccessPolicyFile, cfg.AccessPolicyKeysFile, adminpolicyenv.Environment, time.Now())
+			if e != nil && !errors.Is(e, adminpolicy.ErrBlocked) {
+				return errors.New("invalid owner-approved resource policy")
+			}
+			if approved != nil {
+				if e = adminpolicy.PinRevision(ctx, pool, "admin_policy_revisions", approved); e != nil {
+					return errors.New("resource access policy revision refused")
+				}
+			}
 			encoded, e := os.ReadFile(owner.SecretFile)
 			if e != nil {
 				return errors.New("owner resource secret file unavailable")
