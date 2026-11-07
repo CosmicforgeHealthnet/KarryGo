@@ -220,8 +220,46 @@ def restore(api, run_id, sha, services, env_id, now, configured_reviewers, indep
     return {"run_id": run_id, "artifact_id": item["id"], "digest": digest, "proof": proof}
 
 
+def scoped_feed_release_authorization(services, actor):
+    """Owner-delegated, expiring release of exactly the two scoped feed services."""
+    allowed = ["notification-service", "verification-compliance-service"]
+    if sorted(services) != allowed:
+        return None
+    file = Path("scripts/release/delegated-scoped-feeds.json")
+    if not file.is_file():
+        return None
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "duplicate scoped-feed delegation field")
+            result[key] = value
+        return result
+
+    policy = json.loads(file.read_text(), object_pairs_hook=unique)
+    require(isinstance(policy, dict) and set(policy) == {
+        "schema", "mode", "services", "initiators", "authority_reference", "expires_at"
+    }, "invalid scoped-feed delegation fields")
+    require(type(policy["schema"]) is int and policy["schema"] == 1
+            and policy["mode"] == "delegated_operator" and policy["services"] == allowed,
+            "scoped-feed delegation is limited to the exact two-service release")
+    require(policy["initiators"] == ["CosmicforgeHealthnet"] and actor == "CosmicforgeHealthnet",
+            "actor lacks explicit scoped-feed deployment delegation")
+    require(isinstance(policy["authority_reference"], str)
+            and 0 < len(policy["authority_reference"].strip()) <= 500,
+            "missing scoped-feed delegation authority")
+    expires = dt.datetime.fromisoformat(policy["expires_at"].replace("Z", "+00:00"))
+    now = dt.datetime.now(dt.timezone.utc)
+    require(expires.tzinfo is not None and now < expires <= now + dt.timedelta(days=7),
+            "scoped-feed deployment delegation expired or exceeds seven days")
+    return policy
+
+
 def release_authorization(services, actor):
     """A pinned, narrow deployment delegation; not a source data-access grant."""
+    scoped = scoped_feed_release_authorization(services, actor)
+    if scoped is not None:
+        return scoped
     file = Path("scripts/release/delegated-support.json")
     if not file.is_file():
         return {"mode": "independent_review"}

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "mode": "delegated_operator",
+  "services": [
+    "notification-service",
+    "verification-compliance-service"
+  ],
+  "initiators": [
+    "CosmicforgeHealthnet"
+  ],
+  "authority_reference": "Cosmicforge owner delegated completion of all Karryam staging integration to David on 2026-11-04; David explicitly instructed proceeding without a separate deployment reviewer and reconfirmed completing all connections on 2026-11-07. No data-access grant or production authorization.",
+  "expires_at": "2026-11-08T22:00:00Z"
+}
