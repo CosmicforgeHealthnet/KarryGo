@@ -144,6 +144,8 @@ func TestEmailVariantsAndPreviews(t *testing.T) {
 			Subject: "Your Karryam verification code", Body: "Your Karryam verification code is 731209. It expires shortly."}, "731209", "Verify it's you."},
 		{"fleet", EmailMessage{SourceService: "fleet-partner-service", EventType: "corporate.auth.otp",
 			Subject: "Your Karryam verification code", Body: "Your verification code is 052814. It expires in 10 minutes."}, "052814", "Verify it's you."},
+		{"fleet-template-with-colon", EmailMessage{SourceService: "fleet-partner-service", EventType: "corporate.auth.otp",
+			Subject: "Your Karryam verification code", Body: "Your verification code is: 052814. It expires in 10 minutes."}, "052814", "Verify it's you."},
 		{"confirmation", EmailMessage{SourceService: "vendor-service", EventType: "vendor.auth.step_up.otp",
 			Subject: "Confirm this action", Body: "Your confirmation code is 102938. It expires shortly."}, "102938", "Confirm your action."},
 		{"notification", EmailMessage{Subject: "Your account update", Body: "Your account details have been updated.\nOpen the app to review your details."}, "", "Your account update"},
