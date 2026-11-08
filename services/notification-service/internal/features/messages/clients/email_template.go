@@ -24,7 +24,7 @@ var emailLogo []byte
 var emailTemplateSource string
 
 var emailTemplate = template.Must(template.New("karryam-email").Parse(emailTemplateSource))
-var verificationCode = regexp.MustCompile(`(?i)\b(?:verification|confirmation) code is ([0-9]{4,8})\b`)
+var verificationCode = regexp.MustCompile(`(?i)\b(?:verification|confirmation) code is[:\s]+([0-9]{4,8})\b`)
 
 type emailView struct {
 	Subject, Heading, Intro, Body, Code, Account, Preheader string
