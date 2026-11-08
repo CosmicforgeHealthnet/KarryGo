@@ -340,6 +340,16 @@ func (s *NotificationService) resolveRequest(ctx context.Context, request notifi
 			{Field: "title", Message: "Title or body is required."},
 		})
 	}
+	// A subject alone is not a deliverable email. In particular an OTP
+	// request with a missing template used to queue a completely blank body.
+	// Reject it before persisting or acknowledging the notification.
+	for _, channel := range resolved.channels {
+		if channel == notifications.ChannelEmail && strings.TrimSpace(resolved.body) == "" {
+			return resolvedRequest{}, apperrors.Validation("Email content is required.", []apperrors.FieldViolation{
+				{Field: "body", Message: "Email body must not be empty."},
+			})
+		}
+	}
 	return resolved, nil
 }
 
