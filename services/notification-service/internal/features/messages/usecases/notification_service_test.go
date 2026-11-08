@@ -44,6 +44,27 @@ func TestSendUsesTemplateDefaultChannelsWhenChannelsAreOmitted(t *testing.T) {
 	}
 }
 
+func TestEmailWithMissingTemplateAndEmptyBodyIsRejected(t *testing.T) {
+	repo := newFakeRepository()
+	queue := &fakeQueue{}
+	service := newTestService(repo, queue)
+	_, err := service.Send(context.Background(), notifications.Request{
+		IDempotencyKey: "fleet:otp:missing-template",
+		SourceService: "fleet-partner-service",
+		EventType: "corporate.auth.otp",
+		Recipient: notifications.Recipient{
+			Type: "corporate_user", ID: "owner@example.com", Email: "owner@example.com",
+		},
+		Channels: []string{notifications.ChannelEmail},
+		TemplateKey: "corporate_auth_otp",
+		Title: "Your verification code",
+		TemplateData: map[string]interface{}{"code": "052814"},
+	})
+	if err == nil || len(repo.messages) != 0 || len(queue.enqueued) != 0 {
+		t.Fatal("email missing rendered body must be rejected before it can be queued")
+	}
+}
+
 func TestSendPersistsOnlyDerivedRouteIntent(t *testing.T) {
 	repo := newFakeRepository()
 	service := newTestService(repo, &fakeQueue{})
