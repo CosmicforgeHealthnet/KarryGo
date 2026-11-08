@@ -129,3 +129,18 @@ func TestCampaignMigrationEmbedsOutboxAndHasNoDeliveredRecipientState(t *testing
 		t.Fatal("recipients must never be DELIVERED")
 	}
 }
+
+func TestCorporateOTPTemplateIsProvisionedByProductionMigration(t *testing.T) {
+	content, err := os.ReadFile("011_corporate_auth_otp_template.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(content)
+	for _, requirement := range []string{
+		"'corporate.auth.otp'", "{{code}}", "{{expires_in_minutes}}", "ON CONFLICT",
+	} {
+		if !strings.Contains(sql, requirement) {
+			t.Fatalf("corporate OTP migration missing %q", requirement)
+		}
+	}
+}
