@@ -1,8 +1,12 @@
 package config
 
 import (
+	"cosmicforge/logistics/shared/go/serviceauth"
+	"errors"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"cosmicforge/logistics/shared/go/redisx"
@@ -78,4 +82,44 @@ func getEnvBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return value == "true" || value == "1" || value == "TRUE"
+}
+
+// Validate prevents a staging/production deployment from inheriting local-only
+// credentials. It reports configuration names, never credential values.
+func (c Config) Validate() error {
+	if c.AppEnv != "staging" && c.AppEnv != "production" {
+		return nil
+	}
+	u, err := url.Parse(c.DatabaseURL)
+	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Hostname() == "" || u.User == nil {
+		return errors.New("ANALYTICS_DATABASE_URL must identify the private Analytics database")
+	}
+	password, ok := u.User.Password()
+	if !ok || len(password) < 24 || password == "cosmicforge_logistics" {
+		return errors.New("ANALYTICS_DATABASE_URL requires an explicit database credential")
+	}
+	if strings.TrimSpace(c.Redis.Addr) == "" || len(c.Redis.Password) < 24 {
+		return errors.New("Analytics requires an explicit private Redis address and credential")
+	}
+	secrets := serviceauth.ParseSecrets(c.ServiceSecrets)
+	if len(secrets) == 0 {
+		return errors.New("ANALYTICS_SERVICE_SECRETS is required")
+	}
+	seen := map[string]bool{}
+	for _, secret := range secrets {
+		value := string(secret)
+		if len(secret) < 32 || strings.Contains(strings.ToLower(value), "development-") || seen[value] {
+			return errors.New("ANALYTICS_SERVICE_SECRETS requires distinct non-development credentials of at least 32 bytes")
+		}
+		seen[value] = true
+	}
+	for _, list := range []string{c.AllowedCallers, c.NetworkEventCallers, c.NetworkReadCallers, c.AdminCaller} {
+		for _, caller := range strings.Split(list, ",") {
+			caller = strings.TrimSpace(caller)
+			if caller == "" || len(secrets[caller]) < 32 {
+				return errors.New("Every configured Analytics caller requires its own service credential")
+			}
+		}
+	}
+	return nil
 }

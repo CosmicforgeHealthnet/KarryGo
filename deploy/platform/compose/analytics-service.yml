@@ -1,0 +1,84 @@
+# Analytics stays private. Only its app joins the enrolled source-reader network;
+# neither PostgreSQL nor Redis is reachable by the Bridge or source services.
+name: karrygo-analytics-service
+services:
+  app:
+    image: ${IMAGE:?IMAGE must name an immutable certified image}
+    container_name: karrygo-analytics-service
+    user: "100:101"
+    env_file: [/opt/karrygo/analytics-service/analytics.env]
+    environment:
+      APP_ENV: staging
+      HTTP_ADDR: ":8111"
+    networks: [analytics-private, source-readers]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    volumes:
+      - /etc/cosmicforge/staging/karryam-analytics/runtime:/run/analytics-secrets:ro
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8111/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    logging: {driver: json-file, options: {max-size: 20m, max-file: "3"}}
+  db:
+    image: postgres:16-alpine
+    container_name: karrygo-analytics-db
+    env_file: [/opt/karrygo/analytics-service/db.env]
+    networks: [analytics-private]
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
+    tmpfs: ["/var/run/postgresql:rw,nosuid,nodev,size=1m", "/tmp:rw,noexec,nosuid,nodev,size=16m"]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+  redis:
+    image: redis:7-alpine
+    container_name: karrygo-analytics-redis
+    user: "999:1000"
+    env_file: [/opt/karrygo/analytics-service/redis.env]
+    command: [sh, -c, 'exec redis-server --appendonly no --save "" --requirepass "$$REDIS_PASSWORD"']
+    networks: [analytics-private]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 96m
+    cpus: 0.25
+    tmpfs: ["/data:rw,nosuid,nodev,size=32m", "/tmp:rw,noexec,nosuid,nodev,size=8m"]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+networks:
+  analytics-private:
+    internal: true
+  source-readers:
+    external: true
+    name: cf-staging-karryam-owner-readonly
+volumes:
+  db-data:
+    name: karrygo-analytics-db-data

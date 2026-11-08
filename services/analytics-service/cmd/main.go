@@ -24,6 +24,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		panic(err)
+	}
 	ctx := context.Background()
 	db, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {

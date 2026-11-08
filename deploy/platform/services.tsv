@@ -31,3 +31,5 @@ support-dispute-service           | shared                                   | s
 referral-service                  | shared                                   | referral-service          | karrygo-referral-service          | 8114 | referral.env     | builtin | -
 pricing-service                   | shared                                   | pricing-service           | karrygo-pricing-service           | 8115 | pricing.env      | builtin | -
 admin-backoffice-service          | shared                                   | admin-backoffice-service  | karrygo-admin-backoffice-service  | 8110 | admin.env        | bridge  | ADMIN_BACKOFFICE_DATABASE_URL
+
+analytics-service                  | shared                                   | analytics-service         | karrygo-analytics-service         | 8111 | analytics.env    | builtin | -
