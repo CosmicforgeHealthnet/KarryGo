@@ -161,7 +161,7 @@ func loadPartnerSMTPConfig() PartnerSMTPConfig {
 		Username: username,
 		Password: os.Getenv("PARTNER_SMTP_PASSWORD"),
 		From:     getEnv("PARTNER_SMTP_FROM", username),
-		FromName: getEnv("PARTNER_SMTP_FROM_NAME", "KarryGo"),
+		FromName: getEnv("PARTNER_SMTP_FROM_NAME", "Karryam"),
 		TLSMode:  tlsMode,
 	}
 }

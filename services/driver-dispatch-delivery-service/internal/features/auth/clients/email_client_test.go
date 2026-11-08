@@ -40,7 +40,7 @@ func TestCpanelEmailClientSendEmailUsesGenericSMTPMessage(t *testing.T) {
 
 	message := server.message(t)
 	for _, want := range []string{
-		"From: sender@example.com",
+		"From: \"Karryam\" <sender@example.com>",
 		"To: rider@example.com",
 		"Subject: Verification approved",
 		"Content-Type: multipart/alternative",
@@ -72,8 +72,8 @@ func TestCpanelEmailClientSendOTPMaintainsOTPTemplate(t *testing.T) {
 	}
 	message := server.message(t)
 	for _, want := range []string{
-		"Subject: Your KarryGo Verification Code",
-		"Your KarryGo OTP code is: 654321",
+		"Subject: Your Karryam Verification Code",
+		"Your Karryam OTP code is: 654321",
 		"This code expires in 10 minutes.",
 	} {
 		if !strings.Contains(message, want) {

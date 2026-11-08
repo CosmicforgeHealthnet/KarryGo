@@ -27,6 +27,9 @@ func TestOTPResendDoesNotReusePreviousNotification(t *testing.T) {
 	if !strings.Contains(recorder.requests[1].Body, "654321") || strings.Contains(recorder.requests[1].IDempotencyKey, "owner@example.com") {
 		t.Fatal("wrong code or identifier in delivery key")
 	}
+	if recorder.requests[1].Title != "Your Karryam Vendor verification code" || strings.Contains(recorder.requests[1].Body, "KarryGo") || !strings.Contains(recorder.requests[1].Body, "never share it") {
+		t.Fatal("vendor login branding or security copy incorrect")
+	}
 	if err := notifier.SendOTP(context.Background(), "phone", "+2348000000000", "login", "123456"); err == nil {
 		t.Fatal("email transport claimed SMS support")
 	}

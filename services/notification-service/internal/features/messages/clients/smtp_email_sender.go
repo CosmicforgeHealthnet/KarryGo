@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/notification-service/internal/config"
+	"cosmicforge/logistics/shared/go/emailbrand"
 )
 
 type SMTPEmailSender struct{ cfg config.SMTPConfig }
@@ -28,7 +29,7 @@ func (s *SMTPEmailSender) Ready() error {
 	if s.cfg.Port < 1 || s.cfg.Port > 65535 {
 		return fmt.Errorf("smtp port is invalid")
 	}
-	if _, err := mail.ParseAddress(s.cfg.From); err != nil {
+	if _, err := emailbrand.Sender(s.cfg.From); err != nil {
 		return fmt.Errorf("smtp sender address is invalid")
 	}
 	switch strings.ToLower(s.cfg.TLSMode) {
@@ -78,7 +79,7 @@ func (s *SMTPEmailSender) SendEmail(ctx context.Context, message EmailMessage) (
 	if err != nil {
 		return ProviderResult{Provider: "smtp", Retryable: false}, fmt.Errorf("recipient email is invalid")
 	}
-	from, _ := mail.ParseAddress(s.cfg.From)
+	from, _ := emailbrand.Sender(s.cfg.From)
 	payload, err := formatEmail(from.String(), message)
 	if err != nil {
 		return ProviderResult{Provider: "smtp", Retryable: false}, err

@@ -58,11 +58,11 @@ func (n *OTPNotifier) SendOTP(ctx context.Context, identifierType, identifierVal
 		return apperrors.Unavailable("Verification code delivery is not yet available for phone numbers. Please use email, or contact your administrator.", nil)
 	}
 
-	title := "Your KarryGo Vendor verification code"
-	body := fmt.Sprintf("Your KarryGo Vendor verification code is %s. It expires shortly and is for KarryGo Vendor sign-in only — never share it.", otp)
+	title := "Your Karryam Vendor verification code"
+	body := fmt.Sprintf("Your Karryam Vendor verification code is %s. It expires shortly and is for Karryam Vendor sign-in only — never share it.", otp)
 	if purpose == "step_up" {
 		title = "Confirm this action"
-		body = fmt.Sprintf("Your KarryGo Vendor confirmation code is %s. It expires shortly and confirms a sensitive account action — never share it.", otp)
+		body = fmt.Sprintf("Your Karryam Vendor confirmation code is %s. It expires shortly and confirms a sensitive account action — never share it.", otp)
 	}
 
 	_, err := n.client.Send(ctx, notifications.Request{

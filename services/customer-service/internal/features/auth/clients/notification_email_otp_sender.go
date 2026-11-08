@@ -40,7 +40,7 @@ func (s *NotificationEmailOTPSender) SendOTP(ctx context.Context, destination OT
 			Email: destination.Value,
 		},
 		Channels: []string{notifications.ChannelEmail},
-		Title:    "Your Cosmicforge Logistics verification code",
+		Title:    "Your Karryam verification code",
 		Body:     fmt.Sprintf("Your verification code is %s. It expires shortly.", otp),
 		Priority: notifications.PriorityHigh,
 	})

@@ -1,0 +1,33 @@
+name: Karryam email branding
+on:
+  pull_request:
+  push:
+    branches: [staging]
+permissions:
+  contents: read
+jobs:
+  email-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: '**/go.sum'
+      - name: Build and vet email owners
+        run: |
+          go build ./services/notification-service/... ./services/partner-web-service/...
+          go vet ./shared/go/emailbrand ./services/notification-service/... ./services/partner-web-service/...
+      - name: Email branding, SMTP, authentication, retries and idempotency
+        run: |
+          go test -race -count=1 -timeout=300s \
+            ./shared/go/emailbrand \
+            ./services/notification-service/... \
+            ./services/partner-web-service/... \
+            ./services/customer-service/internal/features/auth/... \
+            ./services/vendor-service/internal/features/auth/... \
+            ./services/driver-dispatch-delivery-service/internal/features/auth/... \
+            ./services/driver-taxi-service/internal/features/provider_auth/... \
+            ./services/driver-hauling-service/internal/features/provider_auth/... \
+            ./services/fleet-partner-service/internal/features/auth/...

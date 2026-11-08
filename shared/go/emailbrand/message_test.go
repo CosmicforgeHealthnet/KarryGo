@@ -1,4 +1,4 @@
-package messageclients
+package emailbrand
 
 import (
 	"bytes"
@@ -15,12 +15,12 @@ import (
 )
 
 func TestRetryPayloadAndProviderIdempotencyRemainStable(t *testing.T) {
-	message := EmailMessage{DeliveryID: "delivery-1\r\nBcc: injected@example.com", CreatedAt: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC), To: "test@example.com", Subject: "OTP", Body: "Test message"}
-	first, err := formatEmail("Karryam <no-reply@karryam.com>", message)
+	message := Message{DeliveryID: "delivery-1\r\nBcc: injected@example.com", CreatedAt: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC), To: "test@example.com", Subject: "OTP", Body: "Test message"}
+	first, err := Format("Karryam <no-reply@karryam.com>", message)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := formatEmail("Karryam <no-reply@karryam.com>", message)
+	second, err := Format("Karryam <no-reply@karryam.com>", message)
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatal("retry changed the provider payload")
 	}
@@ -36,7 +36,7 @@ func TestRetryPayloadAndProviderIdempotencyRemainStable(t *testing.T) {
 		t.Fatal("missing sender-aligned Message-ID")
 	}
 	message.DeliveryID = "delivery-2"
-	third, err := formatEmail("Karryam <no-reply@karryam.com>", message)
+	third, err := Format("Karryam <no-reply@karryam.com>", message)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,12 +47,12 @@ func TestRetryPayloadAndProviderIdempotencyRemainStable(t *testing.T) {
 }
 
 func TestBrandedEmailPreservesPlainTextAndEmbedsLogo(t *testing.T) {
-	message := EmailMessage{
+	message := Message{
 		To: "owner@example.com", Subject: "Your Karryam verification code",
 		Body:          "Your verification code is 012345. It expires shortly.",
 		SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
 	}
-	raw, err := formatEmail("Karryam <noreply@example.com>", message)
+	raw, err := Format("Karryam <noreply@example.com>", message)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,9 +101,9 @@ func TestBrandedEmailPreservesPlainTextAndEmbedsLogo(t *testing.T) {
 }
 
 func TestEmailHeadersAndHTMLCannotInjectMarkup(t *testing.T) {
-	message := EmailMessage{To: "owner@example.com", Subject: "Karryam \u2014 update\r\nBcc: other@example.com",
+	message := Message{To: "owner@example.com", Subject: "Karryam \u2014 update\r\nBcc: other@example.com",
 		Body: `<script>alert("unsafe")</script><img src="https://tracker.example">`}
-	raw, err := formatEmail("Karryam <noreply@example.com>", message)
+	raw, err := Format("Karryam <noreply@example.com>", message)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestEmailHeadersAndHTMLCannotInjectMarkup(t *testing.T) {
 }
 
 func TestVendorAuthenticationSubjectUsesCurrentBrand(t *testing.T) {
-	message := EmailMessage{SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
+	message := Message{SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
 		Subject: "Your KarryGo Vendor verification code", Body: "Your verification code is 123456."}
 	if got := emailContent(message).Subject; got != "Your Karryam Vendor verification code" {
 		t.Fatalf("legacy brand in subject: %q", got)
@@ -135,23 +135,23 @@ func TestVendorAuthenticationSubjectUsesCurrentBrand(t *testing.T) {
 func TestEmailVariantsAndPreviews(t *testing.T) {
 	cases := []struct {
 		name          string
-		message       EmailMessage
+		message       Message
 		code, heading string
 	}{
-		{"vendor", EmailMessage{SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
+		{"vendor", Message{SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
 			Subject: "Your Karryam verification code", Body: "Your KarryGo Vendor verification code is 024816. It expires shortly."}, "024816", "Verify it's you."},
-		{"rider", EmailMessage{SourceService: "driver-dispatch-delivery-service", EventType: "dispatch.auth.otp",
+		{"rider", Message{SourceService: "driver-dispatch-delivery-service", EventType: "dispatch.auth.otp",
 			Subject: "Your Karryam verification code", Body: "Your Karryam verification code is 731209. It expires shortly."}, "731209", "Verify it's you."},
-		{"fleet", EmailMessage{SourceService: "fleet-partner-service", EventType: "corporate.auth.otp",
+		{"fleet", Message{SourceService: "fleet-partner-service", EventType: "corporate.auth.otp",
 			Subject: "Your Karryam verification code", Body: "Your verification code is 052814. It expires in 10 minutes."}, "052814", "Verify it's you."},
-		{"fleet-template-with-colon", EmailMessage{SourceService: "fleet-partner-service", EventType: "corporate.auth.otp",
+		{"fleet-template-with-colon", Message{SourceService: "fleet-partner-service", EventType: "corporate.auth.otp",
 			Subject: "Your Karryam verification code", Body: "Your verification code is: 052814. It expires in 10 minutes."}, "052814", "Verify it's you."},
-		{"confirmation", EmailMessage{SourceService: "vendor-service", EventType: "vendor.auth.step_up.otp",
+		{"confirmation", Message{SourceService: "vendor-service", EventType: "vendor.auth.step_up.otp",
 			Subject: "Confirm this action", Body: "Your confirmation code is 102938. It expires shortly."}, "102938", "Confirm your action."},
-		{"notification", EmailMessage{Subject: "Your account update", Body: "Your account details have been updated.\nOpen the app to review your details."}, "", "Your account update"},
-		{"unrelated-code", EmailMessage{SourceService: "vendor-service", EventType: "order.updated",
+		{"notification", Message{Subject: "Your account update", Body: "Your account details have been updated.\nOpen the app to review your details."}, "", "Your account update"},
+		{"unrelated-code", Message{SourceService: "vendor-service", EventType: "order.updated",
 			Subject: "Order update", Body: "Your verification code is 123456."}, "", "Order update"},
-		{"missing-code", EmailMessage{SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
+		{"missing-code", Message{SourceService: "vendor-service", EventType: "vendor.auth.login.otp",
 			Subject: "Verification update", Body: "Request another code in the app."}, "", "Verification update"},
 	}
 	for _, item := range cases {

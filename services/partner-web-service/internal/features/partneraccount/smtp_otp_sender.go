@@ -1,7 +1,6 @@
 package partneraccount
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -16,9 +15,10 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/partner-web-service/internal/config"
+	"cosmicforge/logistics/shared/go/emailbrand"
 )
 
-const partnerOTPSubject = "Your KarryGo verification code"
+const partnerOTPSubject = "Your Karryam verification code"
 
 var (
 	ErrPartnerEmailNotConfigured  = errors.New("partner email not configured")
@@ -45,9 +45,18 @@ func (s *SMTPPartnerEmailSender) SendPartnerOTP(ctx context.Context, toEmail str
 		return ErrPartnerEmailNotConfigured
 	}
 
-	message := partnerOTPEmailMessage(cfg.FromName, cfg.From, toEmail, otpCode)
+	recipient, err := mail.ParseAddress(toEmail)
+	if err != nil || strings.ContainsAny(toEmail, "\r\n") {
+		return ErrPartnerEmailDeliveryFailed
+	}
+	toEmail = recipient.Address
+	message, err := partnerOTPEmailMessage(cfg.FromName, cfg.From, toEmail, otpCode)
+	if err != nil {
+		return ErrPartnerEmailDeliveryFailed
+	}
 	if err := sendSMTPMessage(ctx, cfg, toEmail, message); err != nil {
-		return fmt.Errorf("%w: %v", ErrPartnerEmailDeliveryFailed, err)
+		// SMTP replies may echo credentials, recipients or message content.
+		return ErrPartnerEmailDeliveryFailed
 	}
 	return nil
 }
@@ -65,15 +74,10 @@ func (s *SMTPPartnerEmailSender) normalizedConfig() config.PartnerSMTPConfig {
 		from = cfg.Username
 	}
 	cfg.From = ""
-	if parsed, err := mail.ParseAddress(from); err == nil {
+	if parsed, err := emailbrand.Sender(from); err == nil {
 		cfg.From = parsed.Address
-		if parsed.Name != "" {
-			cfg.FromName = parsed.Name
-		}
 	}
-	if strings.TrimSpace(cfg.FromName) == "" {
-		cfg.FromName = "KarryGo"
-	}
+	cfg.FromName = "Karryam"
 	cfg.TLSMode = strings.ToLower(strings.TrimSpace(cfg.TLSMode))
 	if cfg.TLSMode == "" {
 		if cfg.Port == 587 {
@@ -157,29 +161,20 @@ func sendSMTPMessage(ctx context.Context, cfg config.PartnerSMTPConfig, toEmail 
 	return nil
 }
 
-func partnerOTPEmailMessage(fromName string, fromEmail string, toEmail string, otpCode string) []byte {
+func partnerOTPEmailMessage(fromName string, fromEmail string, toEmail string, otpCode string) ([]byte, error) {
 	return partnerOTPEmailMessageAt(fromName, fromEmail, toEmail, otpCode, time.Now())
 }
 
 // partnerOTPEmailMessageAt builds the RFC 5322 message. Date and Message-ID
 // are set here so receiving providers (and Resend SMTP) never see a message
 // without them; missing Date headers raise spam scores.
-func partnerOTPEmailMessageAt(fromName string, fromEmail string, toEmail string, otpCode string, now time.Time) []byte {
-	from := (&mail.Address{Name: fromName, Address: fromEmail}).String()
-	to := (&mail.Address{Address: toEmail}).String()
-	body := fmt.Sprintf("Your KarryGo verification code is %s. It expires in 10 minutes.", otpCode)
-
-	var msg bytes.Buffer
-	fmt.Fprintf(&msg, "From: %s\r\n", from)
-	fmt.Fprintf(&msg, "To: %s\r\n", to)
-	fmt.Fprintf(&msg, "Date: %s\r\n", now.UTC().Format(time.RFC1123Z))
-	fmt.Fprintf(&msg, "Message-ID: %s\r\n", partnerMessageID(fromEmail))
-	fmt.Fprintf(&msg, "Subject: %s\r\n", partnerOTPSubject)
-	fmt.Fprint(&msg, "MIME-Version: 1.0\r\n")
-	fmt.Fprint(&msg, "Content-Type: text/plain; charset=UTF-8\r\n")
-	fmt.Fprint(&msg, "\r\n")
-	fmt.Fprintf(&msg, "%s\r\n", body)
-	return msg.Bytes()
+func partnerOTPEmailMessageAt(fromName string, fromEmail string, toEmail string, otpCode string, now time.Time) ([]byte, error) {
+	return emailbrand.Format(fromEmail, emailbrand.Message{
+		To: toEmail, Subject: partnerOTPSubject,
+		Body:      fmt.Sprintf("Your Karryam verification code is %s. It expires in 10 minutes.", otpCode),
+		CreatedAt: now, MessageID: partnerMessageID(fromEmail),
+		SourceService: "partner-web-service", EventType: "partner.auth.otp",
+	})
 }
 
 // partnerMessageID returns <random@sender-domain>; the sender domain keeps the

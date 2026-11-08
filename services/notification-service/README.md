@@ -116,28 +116,41 @@ Logging email requires an explicit `NOTIFICATION_EMAIL_PROVIDER=logging` and
 `APP_ENV=development` or `test`. Staging/production never treat the logging sender
 as delivered email. Push configuration and other callers are unchanged.
 
-SMTP messages include an HTML Karryam layout and an unchanged plain-text fallback.
+SMTP messages include an HTML Karryam layout and a plain-text fallback.
 The transparent logo from `web/karryam-landing/public/images/logo.png` is embedded
 as an inline MIME image; displaying it does not require a public asset URL.
 The layout supports small screens and a dark color scheme in compatible clients.
-Vendor authentication and Dispatch authentication events use a prominent code
-panel; Vendor step-up events use action-confirmation copy. Other notifications
-retain their supplied subject and body inside the shared layout. If an existing
+Customer, Vendor, Dispatch, Taxi, Hauling, Fleet and Partner authentication
+events use a prominent code panel; Vendor step-up events use action-confirmation
+copy. Other notifications retain their supplied content inside the shared layout.
+Legacy KarryGo / Cosmicforge Logistics brand copy is normalized only in emails,
+including messages rendered from existing database templates. If an existing
 authentication body cannot be recognized, it falls back to the full message
-rather than hiding or inventing a code. Expiry wording stays non-numeric because
-the current notification contract does not carry the configured OTP lifetime.
-Message text is HTML-escaped, and subjects are MIME-encoded.
+rather than hiding or inventing a code. Both alternatives retain the producer's
+expiry and security wording. Message text is HTML-escaped, and subjects are
+MIME-encoded. The From display name is always Karryam; the configured authorized
+sender address is retained. No sender address is guessed when configuration is
+missing or invalid.
+
+The existing renderer and byte-identical logo now live in `shared/go/emailbrand`,
+also used by Partner Web's separate SMTP transport. Notification's
+`email_template.go` forwards the persisted delivery ID and creation time
+unchanged; Resend idempotency keys, retry boundaries and Message-ID derivation
+remain unchanged. This in-message logo does not configure an inbox avatar.
 
 Generate standalone sample previews without SMTP or real accounts:
 
 ```bash
 NOTIFICATION_EMAIL_PREVIEW_DIR="$PWD/build/email-previews" \
-  go test ./internal/features/messages/clients -run TestEmailVariantsAndPreviews
+  go test ../../shared/go/emailbrand -run TestEmailVariantsAndPreviews
 ```
 
 These are browser previews, not certification of rendering in every mail client.
-Only Notification needs rebuilding to apply this layout; no database migration,
-new API fields, or mobile build is required.
+Notification and Partner Web need rebuilding to use the shared renderer; email
+producer copy changes also require their service builds. No database migration,
+new API fields, or mobile build is required. See the
+[branding audit](../../docs/karryam-email-branding-audit-2026-11-08.md) for the
+sender inventory, provider-avatar limitations and verification boundaries.
 
 ## Section 17 campaign fulfilment (owner side)
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"cosmicforge/logistics/services/notification-service/internal/config"
 	"net"
+	"net/mail"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,12 +17,22 @@ func testSMTPConfig(port int) config.SMTPConfig {
 }
 func TestSMTPSendsEmailAndSanitizesHeaders(t *testing.T) {
 	server := newFakeSMTPServer(t)
-	sender := NewSMTPEmailSender(testSMTPConfig(server.port))
+	cfg := testSMTPConfig(server.port)
+	cfg.From = "Cosmicforge Logistics <no-reply@karryam.com>"
+	sender := NewSMTPEmailSender(cfg)
 	result, err := sender.SendEmail(context.Background(), EmailMessage{To: "rider@example.com", Subject: "Code\r\nBcc: injected@example.com", Body: "Your verification code is 123456"})
 	if err != nil || result.Provider != "smtp" {
 		t.Fatalf("send: %+v %v", result, err)
 	}
 	message := server.message(t)
+	parsed, err := mail.ReadMessage(strings.NewReader(message))
+	if err != nil {
+		t.Fatal(err)
+	}
+	from, err := mail.ParseAddress(parsed.Header.Get("From"))
+	if err != nil || from.Name != "Karryam" || from.Address != "no-reply@karryam.com" {
+		t.Fatal("SMTP sent incorrect brand identity")
+	}
 	if !strings.Contains(message, "Your verification code is 123456") || strings.Contains(message, "\nBcc:") || strings.Contains(message, "smtp-password") {
 		t.Fatal("unsafe or incomplete email")
 	}

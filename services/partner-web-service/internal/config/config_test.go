@@ -15,7 +15,7 @@ func TestPartnerSMTPDefaultsToImplicitTLS(t *testing.T) {
 	if cfg.Port != 465 || cfg.TLSMode != "tls" {
 		t.Fatalf("smtp defaults = port %d tls %q, want 465/tls", cfg.Port, cfg.TLSMode)
 	}
-	if cfg.From != "no-reply@example.com" || cfg.FromName != "KarryGo" {
+	if cfg.From != "no-reply@example.com" || cfg.FromName != "Karryam" {
 		t.Fatalf("from defaults = %q/%q", cfg.From, cfg.FromName)
 	}
 }

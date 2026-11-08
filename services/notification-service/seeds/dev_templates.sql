@@ -229,7 +229,7 @@ INSERT INTO notification_templates (key, locale, title, body, default_channels) 
 
     -- Corporate auth OTP
     ('corporate.auth.otp', 'en-NG',
-     'Your KarryGo verification code',
+     'Your Karryam verification code',
      'Your verification code is: {{code}}. It expires in {{expires_in_minutes}} minutes.',
      '["email"]')
 ON CONFLICT (key, locale) DO UPDATE SET

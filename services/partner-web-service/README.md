@@ -15,3 +15,14 @@ outbound identity requires prior enrollment with the wallet owner.
 
 Never start old gateway and new partner service workers simultaneously.
 See docs/migrations/partner-web-gateway-split.md for cutover and rollback.
+
+## Automated email branding
+
+Partner signup keeps its existing direct SMTP transport and TLS requirements.
+Messages use the shared `shared/go/emailbrand` Karryam layout, the original
+inline logo and text/plain plus text/html alternatives. The sender display
+name is Karryam, including when an older `PARTNER_SMTP_FROM_NAME` or display-form
+`PARTNER_SMTP_FROM` contains a legacy name. The configured authorized address
+and address-shaped SMTP username fallback are preserved. The 10-minute expiry,
+signup challenge handling and successful DATA/failed QUIT behavior are unchanged.
+No SMTP option configures a recipient's Gmail avatar.

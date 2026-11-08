@@ -36,7 +36,7 @@ func (s *EmailOTPSender) SendLoginCode(ctx context.Context, identifierType, iden
 			Email: identifier,
 		},
 		Channels: []string{notifications.ChannelEmail},
-		Title:    "Your KarryGo driver sign-in code",
+		Title:    "Your Karryam driver sign-in code",
 		Body:     fmt.Sprintf("Your sign-in code is %s. It expires in a few minutes. If you did not ask for it, ignore this email.", code),
 		Priority: notifications.PriorityHigh,
 	})

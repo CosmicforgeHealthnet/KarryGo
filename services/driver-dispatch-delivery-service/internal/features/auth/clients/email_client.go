@@ -2,6 +2,7 @@ package authclients
 
 import (
 	"context"
+	"cosmicforge/logistics/shared/go/emailbrand"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -49,9 +50,9 @@ type CpanelEmailClient struct {
 
 // SendOTP sends the OTP code using the generic cPanel SMTP sender.
 func (c *CpanelEmailClient) SendOTP(ctx context.Context, to, code string) error {
-	subject := "Your KarryGo Verification Code"
+	subject := "Your Karryam Verification Code"
 	body := fmt.Sprintf(
-		"Your KarryGo OTP code is: %s\r\n\r\nThis code expires in 10 minutes. Do not share it with anyone.",
+		"Your Karryam OTP code is: %s\r\n\r\nThis code expires in 10 minutes. Do not share it with anyone.",
 		code,
 	)
 	return c.SendEmail(ctx, to, subject, body, "")
@@ -107,6 +108,9 @@ func (c *CpanelEmailClient) SendEmail(ctx context.Context, to, subject, textBody
 }
 
 func buildEmailMessage(from, to, subject, textBody, htmlBody string) string {
+	if sender, err := emailbrand.Sender(from); err == nil {
+		from = sender.String()
+	}
 	headers := []string{
 		"From: " + sanitizeHeader(from),
 		"To: " + sanitizeHeader(to),
