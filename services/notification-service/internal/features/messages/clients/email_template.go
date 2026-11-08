@@ -45,7 +45,8 @@ func emailContent(message EmailMessage) emailView {
 	isVendorOTP := message.SourceService == "vendor-service" &&
 		strings.HasPrefix(message.EventType, "vendor.auth.") && strings.HasSuffix(message.EventType, ".otp")
 	isDispatchOTP := message.SourceService == "driver-dispatch-delivery-service" && message.EventType == "dispatch.auth.otp"
-	if !isVendorOTP && !isDispatchOTP {
+	isCorporateOTP := message.SourceService == "fleet-partner-service" && message.EventType == "corporate.auth.otp"
+	if !isVendorOTP && !isDispatchOTP && !isCorporateOTP {
 		return view
 	}
 	match := verificationCode.FindStringSubmatch(message.Body)
