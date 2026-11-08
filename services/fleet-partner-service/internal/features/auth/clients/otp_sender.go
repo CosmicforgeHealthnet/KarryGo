@@ -110,9 +110,13 @@ func (s *NotificationSender) SendOTP(ctx context.Context, message OTPMessage) (s
 		},
 		// Email only — corporate OTP is never sent by SMS in this release.
 		Channels:    []string{notifications.ChannelEmail},
-		TemplateKey: "corporate_auth_otp",
+		TemplateKey: "corporate.auth.otp",
 		Locale:      message.Locale,
-		Title:       "Your KarryGo verification code",
+		Title:       "Your Karryam verification code",
+		// A non-empty fallback is mandatory: template rows may not yet be
+		// installed in an existing notification-service database. Never queue
+		// an OTP email without the code in its plain-text and HTML content.
+		Body: fmt.Sprintf("Your verification code is %s. It expires in %d minutes. Never share this code.", message.Code, int(message.ExpiresIn.Minutes())),
 		Priority:    notifications.PriorityHigh,
 		TemplateData: map[string]interface{}{
 			"code":               message.Code,
