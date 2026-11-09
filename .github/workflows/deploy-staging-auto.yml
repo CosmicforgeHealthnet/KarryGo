@@ -1,0 +1,162 @@
+name: Deploy staging (automatic)
+# Staging only. Every push to staging builds and deploys the services whose code
+# changed. No second-person approval and no restore certification: staging is a
+# pre-launch test server. Two safety nets stay:
+#   1. the service's database is backed up on the server right before deploying;
+#   2. deploy-service.sh waits for the new version to be healthy and puts the
+#      previous version back automatically if it is not.
+# The strict, approved flow (deploy-platform.yml) is kept for production use.
+#
+# Never deployed automatically (they need a reviewed manual step, see
+# scripts/release/gate.py FORBIDDEN): api-gateway, partner-web-service,
+# admin-backoffice-service, driver-dispatch-delivery-service, analytics-service.
+# vendor-service has its own workflow.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: Comma-separated service keys to deploy now (e.g. fleet-partner-service)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: staging-release-runtime
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: staging
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide which services to deploy
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          REQUESTED: ${{ inputs.services }}
+        run: |
+          set -euo pipefail
+          blocked=" api-gateway partner-web-service admin-backoffice-service driver-dispatch-delivery-service analytics-service "
+          allowed=$(grep -vE '^\s*(#|$)' deploy/platform/services.tsv | cut -d'|' -f1 | tr -d ' ' \
+            | while read -r k; do case "$blocked" in *" $k "*) ;; *) echo "$k";; esac; done)
+          picked=""
+          if [ "$EVENT" = workflow_dispatch ]; then
+            for s in $(echo "$REQUESTED" | tr ',' ' '); do
+              echo "$allowed" | grep -qx "$s" || { echo "::error::$s cannot be deployed by this workflow"; exit 1; }
+              picked="$picked $s"
+            done
+          else
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \
+               || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              BEFORE="HEAD~1"
+            fi
+            changed=$(git diff --name-only "$BEFORE" HEAD)
+            if echo "$changed" | grep -qE '^(shared/go/|services/Dockerfile$|go\.work)'; then
+              picked="$allowed"   # shared code changed: every service is affected
+            else
+              for k in $allowed; do
+                echo "$changed" | grep -q "^services/$k/" && picked="$picked $k"
+              done
+            fi
+          fi
+          picked=$(echo $picked)
+          echo "services=$picked" >> "$GITHUB_OUTPUT"
+          echo "Deploying: ${picked:-nothing}"
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.pick.outputs.services != ''
+      - uses: docker/login-action@v3
+        if: steps.pick.outputs.services != ''
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push images (tagged with the commit)
+        if: steps.pick.outputs.services != ''
+        env:
+          SERVICES: ${{ steps.pick.outputs.services }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for s in $SERVICES; do
+            df=$(grep -E "^$s[[:space:]]*\|" deploy/platform/services.tsv | cut -d'|' -f2 | tr -d ' ')
+            [ "$df" = shared ] && df=services/Dockerfile
+            echo "== building $s ($df)"
+            docker buildx build --push --file "$df" \
+              --build-arg SERVICE_DIR="$s" \
+              --build-arg BUILD_COMMIT_SHA="$SHA" \
+              --build-arg BUILD_VERSION="staging-$SHA" \
+              --label org.opencontainers.image.revision="$SHA" \
+              --tag "ghcr.io/cosmicforgehealthnet/$s:$SHA" .
+          done
+
+      - name: Back up, deploy and health-check on the server
+        if: steps.pick.outputs.services != ''
+        env:
+          SERVICES: ${{ steps.pick.outputs.services }}
+          SHA: ${{ github.sha }}
+          HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          USER_: ${{ secrets.STAGING_DEPLOY_USER }}
+          KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          scratch=$(mktemp -d)
+          printf '%s\n' "$KEY" > "$scratch/key"; chmod 600 "$scratch/key"
+          printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
+          opts=(-i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$scratch/known_hosts")
+          target="$USER_@$HOST"
+          remote="/opt/karrygo/releases/$SHA/${GITHUB_RUN_ID}"
+
+          mkdir -p "$scratch/bundle/platform/compose"
+          cp -r deploy/platform/bin "$scratch/bundle/platform/bin"
+          cp deploy/platform/services.tsv "$scratch/bundle/platform/"
+          for n in common $SERVICES; do cp "deploy/platform/compose/$n.yml" "$scratch/bundle/platform/compose/"; done
+
+          ssh "${opts[@]}" "$target" "mkdir -p '$remote'"
+          scp "${opts[@]}" -r "$scratch/bundle/." "$target:$remote/"
+          ssh "${opts[@]}" "$target" "docker login ghcr.io -u '$GITHUB_ACTOR' --password-stdin" <<< "$GHCR_TOKEN"
+          trap 'ssh "${opts[@]}" "$target" "docker logout ghcr.io" || true; rm -rf "$scratch"' EXIT
+
+          for s in $SERVICES; do
+            echo "== $s"
+            ssh "${opts[@]}" "$target" bash -s -- "$remote" "$s" "ghcr.io/cosmicforgehealthnet/$s:$SHA" <<'REMOTE'
+          set -euo pipefail
+          remote="$1"; svc="$2"; image="$3"
+          cd "$remote/platform"
+          source bin/lib.sh
+          load_service "$svc"
+          # Pre-deploy database backup (kept 7 days).
+          dir=/opt/karrygo/backups/predeploy; mkdir -p "$dir"
+          # Every service's database container is karrygo-<home minus -service>-db.
+          db="karrygo-${SVC_HOME%-service}-db"
+          if [ "$(docker inspect -f '{{.State.Running}}' "$db" 2>/dev/null)" = true ]; then
+            out="$dir/$svc-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+            docker exec "$db" sh -c 'pg_dumpall -U "$POSTGRES_USER"' | gzip > "$out"
+            test -s "$out"
+            echo "backed up database to $out"
+          else
+            echo "no database container for $svc; skipping backup"
+          fi
+          find "$dir" -name '*.sql.gz' -mtime +7 -delete || true
+          docker pull -q "$image" >/dev/null
+          bash bin/deploy-service.sh "$svc" "$image"
+          REMOTE
+          done
+
+          # Keep the disk from filling: drop unused images older than 7 days.
+          ssh "${opts[@]}" "$target" "docker image prune -af --filter until=168h >/dev/null && df -h / | tail -1"
