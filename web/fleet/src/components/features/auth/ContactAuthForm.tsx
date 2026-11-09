@@ -9,8 +9,8 @@ import { PHONE_COUNTRIES, findPhoneCountry } from "@/lib/auth/contact";
 import { useContactAuthForm } from "@/lib/hooks/useContactAuthForm";
 
 const INPUT =
-  "w-full rounded-lg border bg-[var(--surface)] py-3 text-[16px] text-[var(--ink-950)] outline-none transition placeholder:text-[var(--ink-500)]/60 focus:border-[var(--primary)] focus:shadow-[0_0_0_3px_rgba(0,194,168,0.12)] disabled:opacity-50";
-const LABEL = "mb-2 block text-[13px] font-medium uppercase tracking-wide text-[var(--ink-500)]";
+  "h-[58px] w-full rounded-[12px] border bg-[var(--field-bg)] text-[20px] text-[var(--ink-950)] outline-none transition placeholder:text-[var(--ink-400)] focus:border-[var(--label-accent)] focus:shadow-[0_0_0_4px_rgba(0,194,168,0.14)] disabled:opacity-50";
+const LABEL = "mb-3 block text-[clamp(14px,1.1vw,18px)] font-bold text-[var(--ink-950)]";
 
 interface ContactAuthFormProps {
   idPrefix: string;
@@ -44,13 +44,13 @@ export function ContactAuthForm({ idPrefix, invitationToken }: ContactAuthFormPr
     formError && !["invalid_email", "missing_email", "invalid_phone", "missing_phone"].includes(formError.kind);
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="mt-9 space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="mt-[clamp(28px,5vh,52px)] space-y-[clamp(18px,3vh,28px)]">
       <div>
         <label htmlFor={emailId} className={LABEL}>
           Work email
         </label>
         <div className="relative flex items-center">
-          <Mail className="pointer-events-none absolute left-3.5 h-[18px] w-[18px] text-[var(--ink-500)]" />
+          <Mail className="pointer-events-none absolute left-4 h-[22px] w-[22px] text-[var(--ink-500)]" />
           <input
             id={emailId}
             type="email"
@@ -63,7 +63,7 @@ export function ContactAuthForm({ idPrefix, invitationToken }: ContactAuthFormPr
             disabled={submitting}
             aria-invalid={!!fieldErrors.email}
             aria-describedby={fieldErrors.email ? `${emailId}-error` : undefined}
-            className={`${INPUT} pl-11 pr-4 ${fieldErrors.email ? "border-[var(--red)]" : "border-[var(--line)]"}`}
+            className={`${INPUT} pl-[56px] pr-4 ${fieldErrors.email ? "border-[var(--red)]" : "border-[var(--field-border)]"}`}
           />
         </div>
         {fieldErrors.email && (
@@ -87,16 +87,16 @@ export function ContactAuthForm({ idPrefix, invitationToken }: ContactAuthFormPr
             onChange={(e) => handleCountryChange(e.target.value)}
             disabled={submitting}
             autoComplete="tel-country-code"
-            className={`${INPUT} border-[var(--line)] px-3 sm:w-[150px] sm:shrink-0`}
+            className={`${INPUT} border-[var(--field-border)] px-3 sm:w-[132px] sm:shrink-0`}
           >
             {PHONE_COUNTRIES.map((c) => (
               <option key={c.iso} value={c.iso}>
-                {c.flag} {c.iso} +{c.dialCode}
+                {c.flag} +{c.dialCode}
               </option>
             ))}
           </select>
           <div className="relative flex flex-1 items-center">
-            <Phone className="pointer-events-none absolute left-3.5 h-[18px] w-[18px] text-[var(--ink-500)]" />
+            <Phone className="pointer-events-none absolute left-4 h-[22px] w-[22px] text-[var(--ink-500)]" />
             <input
               id={phoneId}
               type="tel"
@@ -109,19 +109,18 @@ export function ContactAuthForm({ idPrefix, invitationToken }: ContactAuthFormPr
               disabled={submitting}
               aria-invalid={!!fieldErrors.phone}
               aria-describedby={`${phoneId}-hint`}
-              className={`${INPUT} pl-11 pr-4 ${fieldErrors.phone ? "border-[var(--red)]" : "border-[var(--line)]"}`}
+              className={`${INPUT} pl-[56px] pr-4 ${fieldErrors.phone ? "border-[var(--red)]" : "border-[var(--field-border)]"}`}
             />
           </div>
         </div>
-        <p
-          id={`${phoneId}-hint`}
-          className={`mt-1.5 text-[13px] ${fieldErrors.phone ? "text-[var(--red)]" : "text-[var(--ink-500)]"}`}
-        >
-          {fieldErrors.phone ??
-            (normalizedPhone
-              ? `We'll use ${normalizedPhone}.`
-              : `${selected.name} (+${selected.dialCode}). For another country, pick it above or type the full number starting with +.`)}
-        </p>
+        {(fieldErrors.phone || normalizedPhone) && (
+          <p
+            id={`${phoneId}-hint`}
+            className={`mt-2 text-[13px] ${fieldErrors.phone ? "text-[var(--red)]" : "text-[var(--ink-500)]"}`}
+          >
+            {fieldErrors.phone ?? `We'll use ${normalizedPhone}.`}
+          </p>
+        )}
       </div>
 
       {showFormError && formError && (
@@ -149,10 +148,11 @@ export function ContactAuthForm({ idPrefix, invitationToken }: ContactAuthFormPr
         type="submit"
         disabled={submitting || !canSubmit}
         aria-busy={submitting}
-        className="flex w-full items-center justify-center gap-2 rounded-md bg-[var(--primary)] px-4 py-3.5 text-[15px] font-semibold text-white transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+        className="!mt-[clamp(32px,6.5vh,64px)] flex h-[clamp(56px,7.4vh,70px)] w-full items-center justify-center gap-2.5 rounded-[12px] bg-[var(--label-accent)] px-5 text-[21px] font-bold text-[var(--surface)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
       >
+        {submitting && <RotateCw className="h-5 w-5 animate-spin" />}
         {submitting ? "Sending code…" : "Continue"}
-        {!submitting && <ArrowRight className="h-4 w-4" />}
+        {!submitting && <ArrowRight className="h-[22px] w-[22px]" />}
       </button>
     </form>
   );

@@ -93,7 +93,7 @@ function StageTracker({ status }: { status: WalletStatus }) {
             {isFailed ? "Provisioning hit a snag" : status === "Provisioned" ? "All set" : "Setting up your wallet"}
           </p>
         </div>
-        <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-line bg-white">
+        <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-line bg-surface">
           <svg viewBox="0 0 36 36" className="absolute h-full w-full -rotate-90">
             <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--line)" strokeWidth="3" />
             <circle
@@ -141,7 +141,7 @@ function StageTracker({ status }: { status: WalletStatus }) {
                     </span>
                   )}
                   {isActive && (
-                    <span className="whitespace-nowrap rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-white">
+                    <span className="whitespace-nowrap rounded-full bg-label-accent px-2.5 py-0.5 text-[10px] font-semibold text-surface">
                       Current Step
                     </span>
                   )}
@@ -160,12 +160,12 @@ function StageTracker({ status }: { status: WalletStatus }) {
                   <div
                     className={`relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
                       isDone
-                        ? "bg-gradient-to-br from-green to-green/80 text-white"
+                        ? "bg-green-bg text-label-accent"
                         : isFailedHere
-                        ? "bg-gradient-to-br from-red to-red/80 text-white"
+                        ? "bg-red-bg text-red"
                         : isActive
-                        ? "bg-gradient-to-br from-primary to-accent text-white"
-                        : "border-2 border-line bg-white text-ink-300"
+                        ? "bg-label-accent text-surface"
+                        : "border-2 border-line bg-surface text-ink-300"
                     }`}
                     style={
                       isDone || isFailedHere || isActive
@@ -284,7 +284,7 @@ export default function WalletProvisioningPage() {
 
   if (!data) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-surface/50 py-14">
         <div className="rounded-full bg-surface-2 p-4">
           <Wallet className="h-8 w-8 text-ink-400" />
         </div>
@@ -292,9 +292,9 @@ export default function WalletProvisioningPage() {
         <p className="mt-1 text-sm text-ink-500">Unable to load wallet provisioning status.</p>
         <button
           onClick={() => router.push("/setup")}
-          className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90"
+          className="btn btn-primary btn-sm mt-3.5"
         >
-          Back to Setup
+          Back to overview
         </button>
       </div>
     );
@@ -308,11 +308,7 @@ export default function WalletProvisioningPage() {
     <div className="w-full space-y-6 sm:space-y-8">
       {/* ===== HEADER ===== */}
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Wallet Provisioning</span>
-        </p>
-        <h1 className="mt-1 text-ink-950">Wallet Provisioning</h1>
+        <h1 className="text-ink-950">Wallet Provisioning</h1>
         <p className="mt-1.5 text-ink-600">Company wallet setup and provisioning status.</p>
       </div>
 
@@ -322,12 +318,12 @@ export default function WalletProvisioningPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* ===== MAIN: STAGE TRACKER + FACTS STRIP ===== */}
         <div className="space-y-6 xl:col-span-2">
-          <div className="rounded-lg border border-line bg-white p-6">
+          <div className="rounded-lg border border-line bg-surface p-6">
             <StageTracker status={data.status} />
           </div>
 
           {hasMeta && (
-            <div className="rounded-lg border border-line bg-white p-5">
+            <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(11,31,68,0.05)] sm:p-6">
               <div className="flex flex-wrap items-center gap-2">
                 {data.startedAt && (
                   <span className="rounded-full bg-surface-2 px-3 py-1 text-xs text-ink-600">
@@ -357,7 +353,7 @@ export default function WalletProvisioningPage() {
 
         {/* ===== SIDEBAR: SUPPORTING INFO (quiet, deliberately secondary) ===== */}
         <div className="space-y-4">
-          <div className="rounded-lg border border-line bg-white p-5">
+          <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(11,31,68,0.05)] sm:p-6">
             <h3 className="text-sm font-semibold text-ink-950">What this unlocks</h3>
             <ul className="mt-3.5 space-y-2.5">
               {BENEFITS.map((benefit) => (
@@ -380,10 +376,10 @@ export default function WalletProvisioningPage() {
       </div>
 
       {/* ===== NAVIGATION ===== */}
-      <div className="flex flex-col-reverse items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col-reverse items-stretch gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={handleBack}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2"
+          className="btn btn-secondary btn-lg"
         >
           <ChevronLeft className="h-4 w-4" />
           Back
@@ -393,8 +389,8 @@ export default function WalletProvisioningPage() {
           <button
             onClick={handleRetry}
             disabled={isRetrying}
-            className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-              isRetrying ? "cursor-not-allowed bg-ink-400" : "bg-primary hover:bg-primary-hover"
+            className={`btn btn-primary btn-lg ${
+              isRetrying ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
             {isRetrying ? (
@@ -414,7 +410,7 @@ export default function WalletProvisioningPage() {
         {isComplete && (
           <button
             onClick={handleNext}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-green px-6 py-2 text-sm font-medium text-white transition hover:bg-green/90"
+            className="btn btn-success btn-lg"
           >
             Continue
             <ChevronRight className="h-4 w-4" />

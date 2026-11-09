@@ -108,8 +108,9 @@ function VerifyContent() {
         setOrgStatusCookie("DRAFT");
         setState({ status: "success" });
         setLoading(false);
+        const hasCompany = (data.organizations || []).length > 0;
         setTimeout(() => {
-          router.push("/setup");
+          router.push(hasCompany ? "/setup" : "/setup/create-company");
         }, 800);
         return;
       }
@@ -391,7 +392,7 @@ function VerifyContent() {
         <button
           type="submit"
           disabled={submitting || code.length !== CODE_LENGTH || expired || locked || success}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 bg-primary hover:bg-primary-hover"
+          className="mt-4 flex h-[clamp(56px,7.4vh,70px)] w-full items-center justify-center gap-2.5 rounded-[12px] bg-label-accent px-5 text-[21px] font-bold text-surface transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? (
             <>

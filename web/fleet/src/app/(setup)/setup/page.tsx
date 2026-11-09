@@ -1,621 +1,143 @@
-﻿// src/app/(setup)/setup/page.tsx
-
+﻿// src/app/(setup)/setup/page.tsx — Setup home: where you are, and one button
+// to carry on from where you stopped.
 "use client";
 
-import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertOctagon,
-  FileCheck,
-  ListChecks,
-  Send,
-  ArrowLeft,
-} from "lucide-react";
-import { useOrganizationStore } from "@/lib/stores/organizationStore";
-import { useOnboardingStore } from "@/lib/stores/onboardingStore";
-import { organizationService } from "@/lib/services/organizationService";
+import { ArrowRight, Check, ChevronRight, Clock, Loader2, RefreshCw } from "lucide-react";
+import { useSetupStatus } from "./useSetupStatus";
+import { SETUP_STEPS, CREATE_COMPANY_PATH, firstOpenStep, isStepComplete } from "./steps";
 
-type ChecklistItem = {
-  id: string;
-  label: string;
-  complete: boolean;
-  required: boolean;
-  status: "Complete" | "Incomplete" | "Pending" | "Blocked";
-  notes: string | null;
-};
-
-type SubmitState = {
-  canSubmit: boolean;
-  isSubmitted: boolean;
-  isApproved: boolean;
-  isRejected: boolean;
-  checklist: ChecklistItem[];
-  submissionDate: string | null;
-  reviewDate: string | null;
-  reviewerNotes: string | null;
-  loading: boolean;
-  error: string | null;
-};
-
-type StatusStyle = {
-  bg: string;
-  text: string;
-  icon: React.ReactNode;
-};
-
-const STATUS_STYLES: Record<string, StatusStyle> = {
-  Complete: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-4 w-4" /> },
-  Incomplete: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-4 w-4" /> },
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-4 w-4" /> },
-  Blocked: { bg: "bg-red-bg", text: "text-red", icon: <AlertOctagon className="h-4 w-4" /> },
-};
-
-const STAGE_TO_CHECKLIST: Record<string, { id: string; label: string; required: boolean }> = {
-  OWNER_CONTACT: { id: "C-001", label: "Company created", required: true },
-  BUSINESS_PROFILE: { id: "C-002", label: "Company profile filled", required: true },
-  AUTHORIZED_REPRESENTATIVE: { id: "C-003", label: "Authorized representative added", required: true },
-  OPERATING_CAPABILITIES: { id: "C-004", label: "Operating capabilities configured", required: true },
-  HEADQUARTERS: { id: "C-005", label: "Headquarters address set", required: true },
-  BUSINESS_DOCUMENTS: { id: "C-006", label: "Business documents uploaded", required: true },
-};
-
-const REQUIRED_STAGES = [
-  "OWNER_CONTACT",
-  "BUSINESS_PROFILE",
-  "AUTHORIZED_REPRESENTATIVE",
-  "OPERATING_CAPABILITIES",
-  "HEADQUARTERS",
-  "BUSINESS_DOCUMENTS",
-];
-
-const VERIFICATION_STATUS_MAP: Record<string, { label: string; isSubmitted: boolean; isApproved: boolean; isRejected: boolean }> = {
-  SUBMITTED: { label: "Awaiting Review", isSubmitted: true, isApproved: false, isRejected: false },
-  UNDER_REVIEW: { label: "Under Review", isSubmitted: true, isApproved: false, isRejected: false },
-  APPROVED: { label: "Approved", isSubmitted: true, isApproved: true, isRejected: false },
-  REJECTED: { label: "Rejected", isSubmitted: true, isApproved: false, isRejected: true },
-  CHANGES_REQUIRED: { label: "Changes Required", isSubmitted: true, isApproved: false, isRejected: true },
-};
-
-export default function SubmitForReviewPage() {
+export default function SetupHomePage() {
   const router = useRouter();
-  const { organization } = useOrganizationStore();
-  const { setStageStatuses } = useOnboardingStore();
+  const { organization, loading, error, stages, submitted, workSteps, doneCount, allDone, reload } = useSetupStatus();
+  const hasCompany = !!organization?.organizationId;
 
-  const [state, setState] = useState<SubmitState>({
-    canSubmit: false,
-    isSubmitted: false,
-    isApproved: false,
-    isRejected: false,
-    checklist: [],
-    submissionDate: null,
-    reviewDate: null,
-    reviewerNotes: null,
-    loading: true,
-    error: null,
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isReconciling, setIsReconciling] = useState(false);
-
-  useEffect(() => {
-    async function fetchOnboardingStatus() {
-      if (!organization?.organizationId) {
-        setState((prev) => ({ ...prev, loading: false, error: "No organization found." }));
-        return;
-      }
-
-      try {
-        const response = await organizationService.getOnboardingStatus(organization.organizationId);
-
-        const checklist: ChecklistItem[] = REQUIRED_STAGES.map((stageName) => {
-          const stage = response.stages.find((s) => s.stage === stageName);
-          const meta = STAGE_TO_CHECKLIST[stageName];
-
-          const isComplete = stage?.status === "COMPLETE";
-          const isBlocked = stage?.status === "BLOCKED";
-          const isInProgress = stage?.status === "IN_PROGRESS";
-          const isNotStarted = stage?.status === "NOT_STARTED" || !stage;
-
-          let status: "Complete" | "Incomplete" | "Pending" | "Blocked" = "Pending";
-          let notes: string | null = null;
-
-          if (isComplete) {
-            status = "Complete";
-          } else if (isBlocked) {
-            status = "Blocked";
-            notes = stage?.blockingIssues?.join(", ") || "Blocked";
-          } else if (isInProgress) {
-            status = "Pending";
-            notes = "In progress";
-          } else if (isNotStarted) {
-            status = "Incomplete";
-            notes = "Not started";
-          }
-
-          return {
-            id: meta?.id || `C-${stageName}`,
-            label: meta?.label || stageName.replace(/_/g, " "),
-            complete: isComplete,
-            required: meta?.required ?? true,
-            status,
-            notes,
-          };
-        });
-
-        const verificationStatus = response.verification?.status || "NOT_SUBMITTED";
-        const verificationMap = VERIFICATION_STATUS_MAP[verificationStatus] || {
-          label: "Not Submitted",
-          isSubmitted: false,
-          isApproved: false,
-          isRejected: false,
-        };
-
-        const canSubmit = response.allowedNextActions?.includes("SUBMIT_FOR_VERIFICATION") ?? false;
-
-        const isSubmitted = verificationMap.isSubmitted || response.organizationStatus === "BUSINESS_SUBMITTED";
-        const isApproved = verificationMap.isApproved || response.organizationStatus === "APPROVED" || response.organizationStatus === "ACTIVE";
-        const isRejected = verificationMap.isRejected || response.organizationStatus === "REJECTED";
-
-        const activationStage = response.stages.find((s) => s.stage === "ACTIVATION");
-        const isActivationComplete = activationStage?.status === "COMPLETE";
-
-        if (isSubmitted && !isActivationComplete && !isReconciling) {
-          setIsReconciling(true);
-
-          try {
-            await organizationService.markStageComplete(organization.organizationId, "ACTIVATION");
-
-            const refreshedResponse = await organizationService.getOnboardingStatus(organization.organizationId);
-
-            const updatedChecklist: ChecklistItem[] = REQUIRED_STAGES.map((stageName) => {
-              const stage = refreshedResponse.stages.find((s) => s.stage === stageName);
-              const meta = STAGE_TO_CHECKLIST[stageName];
-
-              const isComplete = stage?.status === "COMPLETE";
-              const isBlocked = stage?.status === "BLOCKED";
-              const isInProgress = stage?.status === "IN_PROGRESS";
-              const isNotStarted = stage?.status === "NOT_STARTED" || !stage;
-
-              let status: "Complete" | "Incomplete" | "Pending" | "Blocked" = "Pending";
-              let notes: string | null = null;
-
-              if (isComplete) {
-                status = "Complete";
-              } else if (isBlocked) {
-                status = "Blocked";
-                notes = stage?.blockingIssues?.join(", ") || "Blocked";
-              } else if (isInProgress) {
-                status = "Pending";
-                notes = "In progress";
-              } else if (isNotStarted) {
-                status = "Incomplete";
-                notes = "Not started";
-              }
-
-              return {
-                id: meta?.id || `C-${stageName}`,
-                label: meta?.label || stageName.replace(/_/g, " "),
-                complete: isComplete,
-                required: meta?.required ?? true,
-                status,
-                notes,
-              };
-            });
-
-            const refreshedIssueCount = refreshedResponse.verification?.issues?.length ?? 0;
-
-            setState({
-              canSubmit: false,
-              isSubmitted: true,
-              isApproved: isApproved,
-              isRejected: isRejected,
-              checklist: updatedChecklist,
-              submissionDate: refreshedResponse.verification?.submissionVersion
-                ? new Date().toISOString()
-                : null,
-              reviewDate: null,
-              reviewerNotes: refreshedIssueCount > 0
-                ? `${refreshedIssueCount} issue(s) need attention`
-                : null,
-              loading: false,
-              error: null,
-            });
-
-            const statusMap: Record<string, string> = {};
-            refreshedResponse.stages.forEach((stage: any) => {
-              const stepId = STAGE_TO_CHECKLIST[stage.stage]?.id;
-              if (stepId) {
-                statusMap[stepId] = stage.status;
-              }
-            });
-            setStageStatuses(statusMap);
-
-            setIsReconciling(false);
-            return;
-          } catch (reconcileError) {
-            setIsReconciling(false);
-          }
-        }
-
-        const statusMap: Record<string, string> = {};
-        response.stages.forEach((stage: any) => {
-          const stepId = STAGE_TO_CHECKLIST[stage.stage]?.id;
-          if (stepId) {
-            statusMap[stepId] = stage.status;
-          }
-        });
-        setStageStatuses(statusMap);
-
-        const issueCount = response.verification?.issues?.length ?? 0;
-
-        setState({
-          canSubmit: canSubmit && !isSubmitted && !isApproved,
-          isSubmitted,
-          isApproved,
-          isRejected,
-          checklist,
-          submissionDate: response.verification?.submissionVersion ? new Date().toISOString() : null,
-          reviewDate: null,
-          reviewerNotes: issueCount > 0
-            ? `${issueCount} issue(s) need attention`
-            : null,
-          loading: false,
-          error: null,
-        });
-
-      } catch (err: any) {
-        const message = err?.response?.data?.error?.message || err?.message || "Failed to load submission status.";
-        setState((prev) => ({ ...prev, loading: false, error: message }));
-      }
-    }
-
-    fetchOnboardingStatus();
-  }, [organization?.organizationId, setStageStatuses, isReconciling]);
-
-  const handleSubmit = async () => {
-    if (!state.canSubmit || !organization?.organizationId) return;
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-    setSubmitSuccess(false);
-
-    try {
-      await organizationService.submitOrganization(organization.organizationId);
-      await organizationService.markStageComplete(organization.organizationId, 'ACTIVATION');
-
-      setState((prev) => ({
-        ...prev,
-        isSubmitted: true,
-        canSubmit: false,
-        submissionDate: new Date().toISOString(),
-      }));
-
-      setSubmitSuccess(true);
-      toast("Company submitted for review successfully! 🎉");
-
-      setTimeout(() => {
-        router.push("/");
-      }, 2000);
-
-    } catch (err: any) {
-      const message = err?.response?.data?.error?.message || err?.message || "Failed to submit. Please try again.";
-      setSubmitError(message);
-      toast(`Error: ${message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleBack = () => {
-    router.push("/setup");
-  };
-
-  if (state.loading || isReconciling) {
+  if (loading) {
     return (
-      <div className="py-12 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        <p className="mt-3 text-sm text-ink-600">
-          {isReconciling ? "Syncing submission status..." : "Loading submission status..."}
-        </p>
+      <div className="flex justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (state.error) {
+  if (error) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-red/20 bg-red-bg/30 py-14 px-4">
-        <div className="rounded-full bg-red-bg p-4">
-          <AlertCircle className="h-8 w-8 text-red" />
-        </div>
-        <h3 className="mt-4 text-[15px] font-semibold text-ink-950">Something went wrong</h3>
-        <p className="mt-1.5 text-sm text-ink-500 text-center max-w-md">{state.error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-primary/90"
-        >
+      <div className="rounded-2xl border border-line bg-surface p-8 text-center">
+        <p className="text-[15px] font-bold text-ink-950">We couldn&apos;t load your progress</p>
+        <p className="mt-1 text-sm text-ink-500">{error}</p>
+        <button onClick={reload} className="btn btn-primary btn-md mt-5">
+          <RefreshCw />
           Try again
         </button>
       </div>
     );
   }
 
-  if (!organization) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
-        <div className="rounded-full bg-surface-2 p-4">
-          <FileCheck className="h-8 w-8 text-ink-400" />
-        </div>
-        <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No organization found</h3>
-        <p className="mt-1 text-sm text-ink-500">Please create a company first.</p>
-        <button
-          onClick={() => router.push("/setup/create-company")}
-          className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90"
-        >
-          Create Company
-        </button>
-      </div>
-    );
-  }
-
-  const isComplete = state.isApproved;
-  const isSubmitted = state.isSubmitted;
-  const isRejected = state.isRejected;
-
-  const blockers = state.checklist
-    .filter((item) => item.required && !item.complete)
-    .map((item) => item.notes || item.label);
-
-  const completedCount = state.checklist.filter((i) => i.complete).length;
-  const totalItems = state.checklist.length;
-
-  const formatDate = (date: string | null): string => {
-    if (!date) return "N/A";
-    const d = new Date(date);
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  };
+  const next = firstOpenStep(stages, hasCompany);
+  const nextPath = hasCompany ? next.path : CREATE_COMPANY_PATH;
+  const percent = Math.round((doneCount / workSteps.length) * 100);
+  const companyName = organization && "legalName" in organization ? (organization as { legalName?: string }).legalName : undefined;
 
   return (
-    <div className="w-full space-y-6">
+    <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Submit for Review</span>
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">
-          Submit for Review
-        </h1>
-        <p className="mt-1.5 text-sm text-ink-600">
-          Review your readiness checklist and submit your company for verification.
+        <h1 className="text-ink-950">{companyName ? `Set up ${companyName}` : "Set up your company"}</h1>
+        <p className="mt-2 text-ink-600">
+          Complete these steps so we can verify your company. Your progress is saved as you go.
         </p>
       </div>
 
-      {submitSuccess && (
-        <div className="rounded-2xl border border-green/30 bg-green-bg/40 p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-green-bg p-2 flex-shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-green" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold text-green">Submitted Successfully! 🎉</h4>
-              <p className="mt-1 text-sm text-green/80">
-                Your company has been submitted for review. You will be redirected to the dashboard shortly.
-              </p>
-              {state.submissionDate && (
-                <p className="mt-1 text-xs text-green/60">
-                  Submitted on {formatDate(state.submissionDate)}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isSubmitted && !isComplete && !isRejected && !submitSuccess && (
-        <div className="rounded-2xl border border-amber/20 bg-amber-bg/30 p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-amber-bg p-2 flex-shrink-0">
-              <Clock className="h-5 w-5 text-amber" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-amber">Awaiting Review</h4>
-              <p className="mt-1 text-sm text-amber/80">
-                Your company has been submitted for review. The verification team will review your application.
-              </p>
-              {state.submissionDate && (
-                <p className="mt-1 text-xs text-amber/60">
-                  Submitted on {formatDate(state.submissionDate)}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isRejected && (
-        <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-red-bg p-2 flex-shrink-0">
-              <AlertOctagon className="h-5 w-5 text-red" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-red">Changes Required</h4>
-              <p className="mt-1 text-sm text-red/80">
-                Your submission needs attention. Please address the issues below and re-submit.
-              </p>
-              {state.reviewerNotes && (
-                <p className="mt-1 text-xs text-red/60">{state.reviewerNotes}</p>
-              )}
-              <button
-                onClick={() => router.push("/setup")}
-                className="mt-3 rounded-lg bg-red px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red/90"
-              >
-                Fix Issues
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isComplete && (
-        <div className="rounded-2xl border border-green/20 bg-green-bg/30 p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-green-bg p-2 flex-shrink-0">
-              <CheckCircle2 className="h-5 w-5 text-green" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-green">Company Approved! 🎉</h4>
-              <p className="mt-1 text-sm text-green/80">
-                Your company has been verified and approved. You can now start using the Fleet OS platform.
-              </p>
-              <button
-                onClick={() => router.push("/")}
-                className="mt-3 rounded-lg bg-green px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-green/90"
-              >
-                Go to Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-line bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-line bg-surface-2/50">
-          <div className="flex items-center gap-2">
-            <ListChecks className="h-4 w-4 text-ink-400" />
-            <span className="text-sm font-semibold text-ink-950">Readiness Checklist</span>
-            <span className="text-xs text-ink-400">
-              {completedCount}/{totalItems} complete
+      {/* Progress and the one main action */}
+      <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(11,31,68,0.05)] sm:p-6">
+        {submitted ? (
+          <div className="flex items-start gap-4">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-amber-bg text-amber">
+              <Clock className="h-5 w-5" />
             </span>
-          </div>
-        </div>
-        <div className="divide-y divide-line">
-          {state.checklist.map((item) => {
-            const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Pending;
-
-            return (
-              <div key={item.id} className="flex items-center gap-4 p-4">
-                <div className="flex-shrink-0">
-                  <div className={`rounded-full p-2 ${statusStyle.bg} ${statusStyle.text}`}>
-                    {statusStyle.icon}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`font-medium ${item.complete ? "text-ink-950" : "text-ink-700"}`}>
-                      {item.label}
-                    </span>
-                    <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
-                      {item.status}
-                    </span>
-                    {item.required && (
-                      <span className="text-[9px] text-red font-medium">Required</span>
-                    )}
-                  </div>
-                  {item.notes && (
-                    <div className="mt-0.5 text-xs text-ink-500">{item.notes}</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {blockers.length > 0 && !isSubmitted && !isComplete && !submitSuccess && (
-        <div className="rounded-2xl border border-red/20 bg-red-bg/30 p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-red-bg p-2 flex-shrink-0">
-              <AlertOctagon className="h-5 w-5 text-red" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold text-red">Blockers</h4>
-              <ul className="mt-2 space-y-1">
-                {blockers.map((blocker, index) => (
-                  <li key={index} className="text-sm text-red/80 flex items-start gap-2">
-                    <span className="text-red text-base">•</span>
-                    <span>{blocker}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {submitError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {submitError}
-        </div>
-      )}
-
-      {!isSubmitted && !isComplete && !submitSuccess && (
-        <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-[15px] font-semibold text-ink-950">Ready to Submit?</h3>
-              <p className="mt-0.5 text-sm text-ink-600">
-                {state.canSubmit
-                  ? "All required steps are complete. You can now submit your company for review."
-                  : "Complete all required steps before submitting for review."}
+              <p className="text-[17px] font-bold text-ink-950">Your company is being reviewed</p>
+              <p className="mt-1 text-sm text-ink-600">
+                You&apos;ve submitted everything. You can&apos;t change your details while the review is in progress.
               </p>
             </div>
-            <button
-              onClick={handleSubmit}
-              disabled={!state.canSubmit || isSubmitting}
-              className={`flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold text-white shadow-sm transition ${
-                state.canSubmit && !isSubmitting
-                  ? "bg-primary shadow-primary/20 hover:bg-primary/90"
-                  : "bg-ink-400 cursor-not-allowed"
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Submit for Review
-                </>
-              )}
-            </button>
           </div>
-        </div>
-      )}
-
-      <button
-        onClick={handleBack}
-        className="inline-flex items-center gap-2 rounded-xl border border-line px-6 py-2.5 text-sm font-medium text-ink-700 hover:bg-white transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Setup
-      </button>
-
-      <div className="flex items-center gap-3 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm text-ink-400">
-        <FileCheck className="h-4 w-4" />
-        {organization?.organizationId ? `Organization: ${organization.organizationId}` : "Submit for Review"}
+        ) : (
+          <>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[13px] font-bold text-label-accent">
+                  {allDone ? "All steps done" : `${doneCount} of ${workSteps.length} steps done`}
+                </p>
+                <p className="mt-1 text-[18px] font-bold text-ink-950">
+                  {allDone ? "Ready to submit for review" : hasCompany ? `Next: ${next.label}` : "Start with your company details"}
+                </p>
+              </div>
+              <span className="text-[13px] font-bold text-ink-500">{percent}%</span>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-3">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+            </div>
+            <button onClick={() => router.push(nextPath)} className="btn btn-primary btn-lg mt-5 w-full sm:w-auto">
+              {allDone ? "Review & submit" : doneCount === 0 && !hasCompany ? "Start setup" : "Continue setup"}
+              <ArrowRight />
+            </button>
+          </>
+        )}
       </div>
+
+      {/* Every step, with its status; tap to open */}
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgba(11,31,68,0.05)]">
+        {SETUP_STEPS.map((step, index) => {
+          const done = isStepComplete(step, stages);
+          const isReview = step.stages.length === 0;
+          const locked = !hasCompany && index > 0;
+          const href = index === 0 && !hasCompany ? CREATE_COMPANY_PATH : step.path;
+          const status = done ? "Done" : isReview ? (allDone ? "Ready" : "Not yet") : step === next && hasCompany ? "Up next" : "To do";
+          const row = (
+            <div className={`flex items-center gap-4 px-5 py-4 ${locked ? "opacity-60" : ""}`}>
+              <span
+                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-bold ${
+                  done ? "bg-label-accent text-surface" : "border border-field-border text-ink-500"
+                }`}
+              >
+                {done ? <Check className="h-4 w-4" strokeWidth={3} /> : index + 1}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-bold text-ink-950">{step.label}</span>
+                <span className="mt-0.5 block truncate text-[13px] text-ink-500">{step.description}</span>
+              </span>
+              <span
+                className={`hidden flex-shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold sm:inline-flex ${
+                  done
+                    ? "bg-primary-bg text-label-accent"
+                    : status === "Up next" || status === "Ready"
+                    ? "bg-ink-950 text-surface"
+                    : "bg-surface-3 text-ink-500"
+                }`}
+              >
+                {status}
+              </span>
+              {!locked && <ChevronRight className="h-5 w-5 flex-shrink-0 text-ink-400" />}
+            </div>
+          );
+          return (
+            <div key={step.id} className={index > 0 ? "border-t border-line" : ""}>
+              {locked || submitted ? (
+                row
+              ) : (
+                <Link href={href} className="block transition hover:bg-surface-2">
+                  {row}
+                </Link>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-center text-[13px] text-ink-500">
+        Need help? <a href="mailto:support@karrygo.com" className="font-bold text-label-accent hover:underline">Contact support</a>
+      </p>
     </div>
   );
-}
-
-function toast(message: string) {
-  if (typeof window !== 'undefined') {
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 right-4 z-50 rounded-xl bg-ink-950 px-6 py-3 text-sm text-white shadow-lg animate-in slide-in-from-bottom-4 duration-300 max-w-md';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add('animate-out', 'slide-out-to-bottom-4', 'duration-300');
-      setTimeout(() => toast.remove(), 300);
-    }, 4000);
-  }
 }

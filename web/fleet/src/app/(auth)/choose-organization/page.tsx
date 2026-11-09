@@ -42,10 +42,10 @@ export default function ChooseOrganizationPage() {
 
     return (
       <div>
-        <h1 className="font-display text-[40px] font-light leading-tight tracking-[-0.02em] text-ink-950">
+        <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.03em] text-[var(--ink-950)]">
           Choose organization
         </h1>
-        <p className="mt-3 text-[16px] text-ink-600">
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-600">
           Select the company you want to work in.
         </p>
 
@@ -67,7 +67,7 @@ export default function ChooseOrganizationPage() {
               <button
                 type="button"
                 onClick={() => router.push("/setup")}
-                className="mt-4 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13.5px] font-semibold text-white transition hover:bg-primary-hover"
+                className="mt-4 flex items-center gap-1.5 rounded-[12px] bg-label-accent px-4 py-2.5 text-[13.5px] font-bold text-surface transition hover:brightness-110"
               >
                 Continue onboarding
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -88,10 +88,10 @@ export default function ChooseOrganizationPage() {
 
   return (
     <div>
-      <h1 className="font-display text-[40px] font-light leading-tight tracking-[-0.02em] text-ink-950">
+      <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.03em] text-[var(--ink-950)]">
         Choose organization
       </h1>
-      <p className="mt-3 text-[16px] text-ink-600">
+      <p className="mt-3 text-[15px] leading-relaxed text-ink-600">
         Select the company you want to work in.
       </p>
 

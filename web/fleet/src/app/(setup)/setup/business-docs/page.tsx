@@ -1,4 +1,4 @@
-﻿// src/app/(setup)/setup/business-docs/page.tsx
+// src/app/(setup)/setup/business-docs/page.tsx
 
 "use client";
 
@@ -25,6 +25,10 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { organizationService } from "@/lib/services/organizationService";
+import { IconTile } from "@/components/onboarding/IconTile";
+import { StepFooter } from "@/components/onboarding/StepFooter";
+import { nextPath, previousPath } from "../steps";
+
 
 type DocType = "Registration" | "Tax" | "Insurance" | "License" | "Compliance" | "Other";
 type DocStatus = "Uploaded" | "Pending" | "Verified" | "Rejected" | "Expired";
@@ -111,59 +115,6 @@ const ALLOWED_FILE_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-function IconTile({
-  icon,
-  theme = "brand",
-  muted = false,
-}: {
-  icon: React.ReactNode;
-  theme?: "brand" | "accent" | "amber" | "red" | "green";
-  muted?: boolean;
-}) {
-  if (muted) {
-    return (
-      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink-400">
-        <span className="[&>svg]:h-6 [&>svg]:w-6">{icon}</span>
-      </div>
-    );
-  }
-
-  const gradient =
-    theme === "brand"
-      ? "from-primary to-accent"
-      : theme === "accent"
-      ? "from-accent to-accent-hover"
-      : theme === "amber"
-      ? "from-amber to-amber"
-      : theme === "red"
-      ? "from-red to-red"
-      : "from-green to-green";
-
-  return (
-    <div
-      className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-white ring-1 ring-white/20 ${gradient}`}
-      style={{
-        boxShadow:
-          "inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -9px 14px rgba(0,0,0,0.3), 0 10px 18px -6px rgba(0,0,0,0.4)",
-      }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: "radial-gradient(130% 110% at 25% 12%, rgba(255,255,255,0.55), transparent 55%)",
-          mixBlendMode: "overlay",
-        }}
-      />
-      <span
-        className="relative [&>svg]:h-6 [&>svg]:w-6"
-        style={{ filter: "drop-shadow(0 1.5px 1.5px rgba(0,0,0,0.35)) drop-shadow(0 -1px 0 rgba(255,255,255,0.25))" }}
-      >
-        {icon}
-      </span>
-    </div>
-  );
-}
 
 function formatDate(date: string | null): string {
   if (!date) return "N/A";
@@ -218,7 +169,7 @@ function DocumentCard({
         doc?.status === "Rejected"
           ? "border-red/30 bg-red-bg/20"
           : doc
-          ? "border-line bg-white"
+          ? "border-line bg-surface"
           : "border-dashed border-line bg-surface-2/40"
       }`}
     >
@@ -264,10 +215,10 @@ function DocumentCard({
         <button
           onClick={() => onUpload(slot.type)}
           disabled={isUploading}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition ${
+          className={`btn btn-sm ${
             doc
-              ? "border border-line text-ink-700 hover:bg-surface-2"
-              : "bg-primary text-white hover:bg-primary-hover"
+              ? "btn-secondary"
+              : "btn-primary"
           } ${isUploading ? "cursor-not-allowed opacity-60" : ""}`}
         >
           {isUploading ? (
@@ -503,9 +454,7 @@ export default function BusinessDocumentsPage() {
       setStageComplete("documents");
       setSaveSuccess(true);
 
-      setTimeout(() => {
-        router.push("/setup/submit");
-      }, 1000);
+      router.push(nextPath("documents"));
     } catch (err: any) {
       const message = err?.message || "Failed to save.";
       setSaveError(message);
@@ -514,7 +463,7 @@ export default function BusinessDocumentsPage() {
     }
   };
 
-  const handleBack = () => router.push("/setup/headquarters");
+  const handleBack = () => router.push(previousPath("documents"));
 
   const docByType = (type: DocType) => data.find((d) => d.type === type);
   const completedCount = REQUIRED_SLOTS.filter((slot) => {
@@ -548,7 +497,7 @@ export default function BusinessDocumentsPage() {
           <p className="mt-1.5 text-sm text-ink-500">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-primary/90"
+            className="btn btn-primary btn-md mt-5"
           >
             Try again
           </button>
@@ -568,12 +517,8 @@ export default function BusinessDocumentsPage() {
       />
 
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Business Documents</span>
-        </p>
-        <h1 className="mt-1 text-ink-950">Business Documents</h1>
-        <p className="mt-1.5 text-ink-600">Upload the documents required to verify your company.</p>
+        <h1 className="text-ink-950">Documents</h1>
+        <p className="mt-1.5 text-ink-600">Upload these four documents so we can verify your company. PDF, JPG or PNG.</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
@@ -653,49 +598,12 @@ export default function BusinessDocumentsPage() {
         </div>
       )}
 
-      {saveSuccess && (
-        <div className="flex items-center gap-2 rounded-xl border border-green/20 bg-green-bg/40 px-4 py-3 text-sm text-green">
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          Documents saved successfully! Redirecting...
-        </div>
-      )}
-
-      <div className="flex flex-col-reverse items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          onClick={handleBack}
-          disabled={isContinuing || isSaving}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back
-        </button>
-        <button
-          onClick={handleContinue}
-          disabled={!allComplete || isContinuing || isSaving}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-            !allComplete || isContinuing || isSaving
-              ? "cursor-not-allowed bg-ink-400"
-              : "bg-primary hover:bg-primary-hover"
-          }`}
-        >
-          {isContinuing ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : saveSuccess ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Saved!
-            </>
-          ) : (
-            <>
-              Continue
-              <ChevronRight className="h-4 w-4" />
-            </>
-          )}
-        </button>
-      </div>
+      <StepFooter
+        onBack={handleBack}
+        onPrimary={handleContinue}
+        primaryDisabled={!allComplete || isSaving}
+        primaryLoading={isContinuing}
+      />
     </div>
   );
 }

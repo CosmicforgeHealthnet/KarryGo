@@ -1,10 +1,12 @@
 'use client';
 
 import { Moon, Sun } from 'lucide-react';
-import { useTheme } from './ThemeProvider';
+import { useOptionalTheme } from './ThemeProvider';
 
 export function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
+  const ctx = useOptionalTheme();
+  if (!ctx) return <span className="h-9 w-9 flex-shrink-0" aria-hidden="true" />;
+  const { theme, toggleTheme } = ctx;
 
   return (
     <button

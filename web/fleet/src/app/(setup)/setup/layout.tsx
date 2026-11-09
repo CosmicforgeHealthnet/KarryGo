@@ -1,61 +1,33 @@
-// src/app/(setup)/layout.tsx
+// src/app/(setup)/setup/layout.tsx
 
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import {
-  CheckCircle2,
-  Circle,
-  Home,
-  Building2,
-  User,
-  Briefcase,
-  FileText,
-  FileCheck,
-  ChevronRight,
-  X,
-  Menu,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
-} from "lucide-react";
+import { Check, ChevronRight, LayoutGrid, LogOut, X, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { organizationService } from "@/lib/services/organizationService";
-
-const ONBOARDING_STEPS = [
-  { id: "create-company", label: "Create Company", path: "/setup/create-company", icon: <Building2 className="h-4 w-4" /> },
-  { id: "profile", label: "Company Profile", path: "/setup/profile", icon: <User className="h-4 w-4" /> },
-  { id: "capabilities", label: "Capabilities", path: "/setup/capabilities", icon: <Briefcase className="h-4 w-4" /> },
-  { id: "documents", label: "Business Documents", path: "/setup/business-docs", icon: <FileText className="h-4 w-4" /> },
-  { id: "submit", label: "Submit for Review", path: "/setup/submit", icon: <FileCheck className="h-4 w-4" /> },
-];
-
-const REVISITABLE_STEPS = ["profile", "capabilities", "documents"];
-const ONE_TIME_STEPS = ["create-company", "submit"];
-
-const STAGE_TO_STEP: Record<string, string> = {
-  OWNER_CONTACT: "create-company",
-  BUSINESS_PROFILE: "profile",
-  OPERATING_CAPABILITIES: "capabilities",
-  BUSINESS_DOCUMENTS: "documents",
-  ACTIVATION: "submit",
-};
+import { KarryamLogo } from "@/components/brand/KarryamLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  SETUP_STEPS,
+  SETUP_HOME,
+  CREATE_COMPANY_PATH,
+  stepForPath,
+  isStepComplete,
+  type SetupStep,
+} from "./steps";
 
 const HEADER_HEIGHT_PX = 70;
 
 // TODO: replace with the real support contact channel (mailbox, help-desk
-// URL, or in-app chat trigger) once one exists — this is a placeholder so
-// the button is at least honest about what clicking it does.
+// URL, or in-app chat trigger) once one exists.
 const SUPPORT_EMAIL = "support@karrygo.com";
 
 type LoadState = "loading" | "ready" | "error";
-
-const CREATE_COMPANY_PATH = "/setup/create-company";
 type StepIconStatus = "completed" | "current" | "pending";
 
 function clearSessionRoutingCookies() {
@@ -64,7 +36,7 @@ function clearSessionRoutingCookies() {
 }
 
 interface StepRowProps {
-  step: (typeof ONBOARDING_STEPS)[number];
+  step: SetupStep;
   index: number;
   iconStatus: StepIconStatus;
   isActivePage: boolean;
@@ -75,14 +47,7 @@ interface StepRowProps {
 
 function StepRow({ step, index, iconStatus, isActivePage, isClickable, onSelect, variant }: StepRowProps) {
   const isDisabled = !isClickable;
-
-  const rowClasses = `flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition ${
-    isActivePage
-      ? "bg-primary-bg text-primary shadow-sm"
-      : iconStatus === "completed"
-      ? "text-green hover:bg-surface-2"
-      : "text-ink-500 hover:bg-surface-2"
-  } ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`;
+  const done = iconStatus === "completed";
 
   return (
     <button
@@ -90,30 +55,25 @@ function StepRow({ step, index, iconStatus, isActivePage, isClickable, onSelect,
       onClick={onSelect}
       disabled={isDisabled}
       aria-current={isActivePage ? "step" : undefined}
-      aria-disabled={isDisabled}
-      className={rowClasses}
+      className={`relative flex w-full items-center gap-3.5 rounded-xl px-3 py-2.5 text-left transition ${
+        isActivePage ? "bg-surface shadow-[0_1px_3px_rgba(11,31,68,0.08)] ring-1 ring-line" : isDisabled ? "" : "hover:bg-surface"
+      } ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
     >
-      {variant === "desktop" ? (
-        <span
-          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-            isActivePage
-              ? "bg-primary text-white"
-              : iconStatus === "completed"
-              ? "bg-green-bg text-green"
-              : "bg-surface-2 text-ink-400"
-          }`}
-        >
-          {iconStatus === "completed" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-        </span>
-      ) : iconStatus === "completed" ? (
-        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green" />
-      ) : isActivePage ? (
-        <div className="h-4 w-4 flex-shrink-0 rounded-full bg-primary" />
-      ) : (
-        <Circle className="h-4 w-4 flex-shrink-0 text-ink-300" />
-      )}
-      <span className="flex-1">{step.label}</span>
-      {variant === "mobile" && isClickable && <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-ink-400" />}
+      <span
+        className={`relative z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-bold ${
+          done
+            ? "bg-label-accent text-surface"
+            : isActivePage
+            ? "bg-ink-950 text-surface"
+            : "border border-field-border bg-surface text-ink-500"
+        }`}
+      >
+        {done ? <Check className="h-4 w-4" strokeWidth={3} /> : index + 1}
+      </span>
+      <span className={`min-w-0 flex-1 text-[14px] font-bold ${isDisabled && !done ? "text-ink-400" : "text-ink-950"}`}>
+        {step.label}
+      </span>
+      {variant === "mobile" && isClickable && <ChevronRight className="h-4 w-4 flex-shrink-0 text-ink-400" />}
     </button>
   );
 }
@@ -130,9 +90,20 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   const needsCompany = useRef(false);
 
   const { _hasHydrated, accessToken, logout } = useAuthStore();
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Ends the session (server + cookies) and returns to sign-in. Progress is
+  // already saved, so the user can sign back in and carry on.
+  const signOut = async () => {
+    setSigningOut(true);
+    await logout();
+    useOrganizationStore.getState().clearOrganization();
+    router.replace("/sign-in");
+  };
   const { organization, setOrganization, clearOrganization } = useOrganizationStore();
   const { stageStatuses, setStageStatuses } = useOnboardingStore();
 
+  // Keyed by backend stage name (OWNER_CONTACT, HEADQUARTERS, ...).
   const loadStageStatuses = useCallback(
     async (organizationId: string) => {
       setStageStatusError(false);
@@ -140,10 +111,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         const status = await organizationService.getOnboardingStatus(organizationId);
         const statusMap: Record<string, string> = {};
         status.stages.forEach((stage) => {
-          const stepId = STAGE_TO_STEP[stage.stage];
-          if (stepId) {
-            statusMap[stepId] = stage.status;
-          }
+          statusMap[stage.stage] = stage.status;
         });
         setStageStatuses(statusMap);
       } catch (e) {
@@ -160,12 +128,14 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       const org = await organizationService.getCurrentOrganization();
       setOrganization(org);
 
-      // A single, immediate decision made from the data we just fetched —
-      // not a separate effect reacting to state that may be stale by the
-      // time it re-runs.
       if (org.status !== "DRAFT") {
         router.replace("/");
         return;
+      }
+
+      // The company exists: the create form is done, open the saved details.
+      if (window.location.pathname === CREATE_COMPANY_PATH) {
+        router.replace(SETUP_STEPS[0].path);
       }
 
       setLoadState("ready");
@@ -183,10 +153,12 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       if (error?.response?.status === 403 && error?.response?.data?.error?.code === "forbidden") {
         needsCompany.current = true;
         clearOrganization();
-        setLoadState("ready");
         if (window.location.pathname !== CREATE_COMPANY_PATH) {
+          // Stay on the loader until Create Company is showing.
           router.replace(CREATE_COMPANY_PATH);
+          return;
         }
+        setLoadState("ready");
         return;
       }
       console.error("Failed to fetch organization:", error);
@@ -201,15 +173,17 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       return;
     }
     loadOrganization();
-    // Intentionally run only when hydration/auth state changes — not on
-    // every render of loadOrganization, which would refetch constantly.
+    // Intentionally run only when hydration/auth state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, _hasHydrated, router]);
 
-  // Refresh step statuses on navigation between setup steps, so completing
-  // a step and moving to the next one reflects immediately in the sidebar
-  // without requiring a full page reload.
+  // Refresh step statuses on navigation, so finishing a step shows at once.
   useEffect(() => {
+    // Redirected here because there is no company yet: show the form.
+    if (needsCompany.current && pathname === CREATE_COMPANY_PATH) {
+      setLoadState("ready");
+      return;
+    }
     // Once the company has been created, load it on the next step.
     if (needsCompany.current && pathname !== CREATE_COMPANY_PATH) {
       needsCompany.current = false;
@@ -227,20 +201,15 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
 
   useEffect(() => {
     if (!isMobileMenuOpen) return;
-
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsMobileMenuOpen(false);
     };
     document.addEventListener("keydown", handleEscape);
-
-    // Move focus into the drawer when it opens, and don't fight the user
-    // if they've already focused something inside it themselves.
     const frame = requestAnimationFrame(() => {
       if (mobileDrawerRef.current && !mobileDrawerRef.current.contains(document.activeElement)) {
         mobileDrawerRef.current.querySelector<HTMLElement>("button")?.focus();
       }
     });
-
     return () => {
       document.removeEventListener("keydown", handleEscape);
       cancelAnimationFrame(frame);
@@ -262,19 +231,15 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   if (loadState === "error") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-line bg-white p-6 text-center shadow-sm">
+        <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 text-center shadow-sm">
           <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-red-bg">
             <AlertTriangle className="h-5 w-5 text-red" />
           </div>
-          <h2 className="text-[15px] font-semibold text-ink-950">Couldn't load your account</h2>
+          <h2 className="text-[15px] font-semibold text-ink-950">Couldn&apos;t load your account</h2>
           <p className="mt-1 text-[13px] text-ink-500">
             Something went wrong reaching the server. Check your connection and try again.
           </p>
-          <button
-            type="button"
-            onClick={loadOrganization}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-primary-hover"
-          >
+          <button type="button" onClick={loadOrganization} className="btn btn-primary btn-md mt-4 w-full">
             <RefreshCw className="h-3.5 w-3.5" />
             Try again
           </button>
@@ -293,103 +258,114 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const isOnboardingHome = pathname === "/setup";
+  const hasCompany = !!organization?.organizationId;
+  const isOnboardingHome = pathname === SETUP_HOME;
+  const activeStep = stepForPath(pathname);
+  const workSteps = SETUP_STEPS.filter((s) => s.stages.length > 0);
+  const completedCount = workSteps.filter((s) => isStepComplete(s, stageStatuses)).length;
+  const activeIndex = activeStep ? SETUP_STEPS.indexOf(activeStep) : -1;
 
-  const getIconStatus = (stepId: string): StepIconStatus => {
-    const apiStatus = stageStatuses[stepId];
-    if (apiStatus === "COMPLETE") return "completed";
-    if (apiStatus === "IN_PROGRESS") return "current";
-    return "pending";
+  const iconStatusFor = (step: SetupStep): StepIconStatus =>
+    isStepComplete(step, stageStatuses) ? "completed" : step === activeStep ? "current" : "pending";
+  // Before the company exists only the first step can open; after, any step.
+  const isStepClickable = (step: SetupStep) => step === activeStep || hasCompany || step === SETUP_STEPS[0];
+  const pathFor = (step: SetupStep) => (step === SETUP_STEPS[0] && !hasCompany ? CREATE_COMPANY_PATH : step.path);
+  const openStep = (step: SetupStep) => {
+    if (!isStepClickable(step) || step === activeStep) return;
+    router.push(pathFor(step));
   };
 
-  const isStepClickable = (stepId: string, isActivePage: boolean): boolean => {
-    if (isActivePage) return true;
+  const header = (
+    <header
+      className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-surface/80 px-4 backdrop-blur-xl sm:px-6"
+      style={{ height: HEADER_HEIGHT_PX }}
+    >
+      <Link href={SETUP_HOME} aria-label="Setup overview" className="flex items-center">
+        <KarryamLogo height={26} />
+      </Link>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <button type="button" onClick={signOut} disabled={signingOut} className="btn btn-secondary btn-sm" aria-label="Sign out">
+          {signingOut ? <Loader2 className="animate-spin" /> : <LogOut />}
+          <span className="hidden sm:inline">Sign out</span>
+        </button>
+      </div>
+    </header>
+  );
 
-    const status = stageStatuses[stepId];
-    const isCompleted = status === "COMPLETE";
-    const isInProgress = status === "IN_PROGRESS";
-
-    if (isCompleted && ONE_TIME_STEPS.includes(stepId)) return false;
-    if (isCompleted && REVISITABLE_STEPS.includes(stepId)) return true;
-    if (isInProgress) return true;
-
-    return false;
-  };
-
-  const handleStepClick = (stepId: string, path: string, isActivePage: boolean) => {
-    if (!isStepClickable(stepId, isActivePage)) return;
-    router.push(path);
-  };
-
-  const completedCount = ONBOARDING_STEPS.filter((s) => stageStatuses[s.id] === "COMPLETE").length;
-  const totalSteps = ONBOARDING_STEPS.length;
+  const stepList = (variant: "mobile" | "desktop") => (
+    <>
+      <Link
+        href={SETUP_HOME}
+        className={`flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-[14px] font-bold transition ${
+          isOnboardingHome ? "bg-surface text-ink-950 ring-1 ring-line" : "text-ink-700 hover:bg-surface"
+        }`}
+      >
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-3 text-ink-700">
+          <LayoutGrid className="h-4 w-4" />
+        </span>
+        Overview
+      </Link>
+      <div className="relative mt-2">
+        <span className="absolute bottom-6 left-[27px] top-6 w-px bg-line" aria-hidden="true" />
+        <div className="relative space-y-1">
+          {SETUP_STEPS.map((step, index) => (
+            <StepRow
+              key={step.id}
+              step={step}
+              index={index}
+              iconStatus={iconStatusFor(step)}
+              isActivePage={step === activeStep}
+              isClickable={isStepClickable(step)}
+              onSelect={() => openStep(step)}
+              variant={variant}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
 
   if (isOnboardingHome) {
     return (
-      <div className="min-h-screen bg-surface-2">
-        <header
-          className="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-line"
-          style={{ height: HEADER_HEIGHT_PX }}
-        >
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2">
-              <Image
-                src="/images/fleet-logo.png"
-                alt="KarryGo Fleet OS"
-                width={36}
-                height={36}
-                className="rounded-xl object-contain"
-              />
-              <span className="font-display text-xl font-bold tracking-tight text-ink-950">KarryGo</span>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2" />
-        </header>
-        <main className="max-w-5xl mx-auto px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+      <div className="onboarding min-h-screen bg-surface-2">
+        {header}
+        <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:py-12">{children}</main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-2">
-      <header
-        className="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-line"
-        style={{ height: HEADER_HEIGHT_PX }}
-      >
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/images/fleet-logo.png"
-              alt="KarryGo Fleet OS"
-              width={36}
-              height={36}
-              className="rounded-xl object-contain"
-            />
-            <span className="font-display text-xl font-bold tracking-tight text-ink-950">KarryGo</span>
-          </Link>
-          <span className="hidden sm:inline text-xs font-medium text-ink-400 bg-surface-2 px-2.5 py-1 rounded-full">
-            Onboarding
-          </span>
-        </div>
+    <div className="onboarding min-h-screen bg-surface-2">
+      {header}
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push("/setup")}
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
-          >
-            <Home className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Home</span>
-          </button>
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Open onboarding steps menu"
-            aria-expanded={isMobileMenuOpen}
-            className="lg:hidden flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-white/70 shadow-sm hover:bg-white transition-colors"
-          >
-            <Menu className="h-4 w-4 text-ink-600" />
-          </button>
-        </div>
-      </header>
+      {activeStep && (
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="sticky z-10 flex w-full items-center gap-3 border-b border-line bg-surface px-4 py-3 text-left lg:hidden"
+          style={{ top: HEADER_HEIGHT_PX }}
+          aria-label="Show all setup steps"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12px] font-bold text-label-accent">
+              Step {activeIndex + 1} of {SETUP_STEPS.length} · {activeStep.label}
+            </span>
+            <span className="mt-1.5 flex gap-1" aria-hidden="true">
+              {SETUP_STEPS.map((step, index) => (
+                <span
+                  key={step.id}
+                  className={`h-1 flex-1 rounded-full ${
+                    isStepComplete(step, stageStatuses) || index === activeIndex ? "bg-primary" : "bg-surface-3"
+                  }`}
+                />
+              ))}
+            </span>
+          </span>
+          <span className="text-[12px] font-bold text-ink-700">All steps</span>
+          <ChevronRight className="h-4 w-4 text-ink-400" />
+        </button>
+      )}
 
       {isMobileMenuOpen && (
         <div
@@ -403,112 +379,71 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         ref={mobileDrawerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Onboarding steps"
-        className={`fixed top-0 right-0 z-40 h-full w-72 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:hidden ${
-          isMobileMenuOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+        aria-label="Setup steps"
+        className={`fixed right-0 top-0 z-40 h-full w-80 max-w-[88vw] transform bg-surface-2 shadow-xl transition-transform duration-300 ease-in-out lg:hidden ${
+          isMobileMenuOpen ? "translate-x-0" : "pointer-events-none translate-x-full"
         }`}
       >
-        <div
-          className="flex items-center justify-between px-4 border-b border-line"
-          style={{ height: HEADER_HEIGHT_PX }}
-        >
-          <span className="font-semibold text-ink-950">Onboarding Steps</span>
+        <div className="flex items-center justify-between border-b border-line px-4" style={{ height: HEADER_HEIGHT_PX }}>
+          <span className="font-bold text-ink-950">
+            {completedCount} of {workSteps.length} steps done
+          </span>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
-            aria-label="Close onboarding steps menu"
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 transition-colors"
+            aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-surface"
           >
             <X className="h-4 w-4 text-ink-600" />
           </button>
         </div>
-        <div className="p-4 space-y-1">
-          {ONBOARDING_STEPS.map((step, index) => {
-            const isActivePage = pathname === step.path;
-            return (
-              <StepRow
-                key={step.id}
-                step={step}
-                index={index}
-                iconStatus={getIconStatus(step.id)}
-                isActivePage={isActivePage}
-                isClickable={isStepClickable(step.id, isActivePage)}
-                onSelect={() => handleStepClick(step.id, step.path, isActivePage)}
-                variant="mobile"
-              />
-            );
-          })}
-        </div>
+        <div className="p-3">{stepList("mobile")}</div>
       </div>
 
       <div className="flex">
         <aside
-          className="hidden lg:block w-72 flex-shrink-0 border-r border-line bg-white/50 sticky overflow-y-auto p-5"
-          style={{
-            top: HEADER_HEIGHT_PX,
-            height: `calc(100vh - ${HEADER_HEIGHT_PX}px)`,
-          }}
+          className="no-scrollbar sticky hidden w-[300px] flex-shrink-0 flex-col overflow-y-auto border-r border-line bg-surface-2 px-5 py-8 lg:flex"
+          style={{ top: HEADER_HEIGHT_PX, height: `calc(100vh - ${HEADER_HEIGHT_PX}px)` }}
         >
-          <div className="mb-4">
-            <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-400">
-              Onboarding Progress
-            </div>
-            <div className="mt-2 h-1.5 w-full rounded-full bg-surface-2 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-500"
-                style={{
-                  width: `${Math.min((completedCount / totalSteps) * 100, 100)}%`,
-                }}
-              />
-            </div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-500">
-              <span>{completedCount}/{totalSteps} complete</span>
-              {stageStatusError && (
-                <button
-                  type="button"
-                  onClick={() => organization?.organizationId && loadStageStatuses(organization.organizationId)}
-                  className="flex items-center gap-1 text-red hover:underline"
-                  title="Progress may be out of date — click to retry"
-                >
-                  <AlertTriangle className="h-3 w-3" />
-                  Retry
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            {ONBOARDING_STEPS.map((step, index) => {
-              const isActivePage = pathname === step.path;
-              return (
-                <StepRow
-                  key={step.id}
-                  step={step}
-                  index={index}
-                  iconStatus={getIconStatus(step.id)}
-                  isActivePage={isActivePage}
-                  isClickable={isStepClickable(step.id, isActivePage)}
-                  onSelect={() => handleStepClick(step.id, step.path, isActivePage)}
-                  variant="desktop"
-                />
-              );
-            })}
-          </div>
-
-          <div className="mt-6 rounded-xl border border-line bg-white p-4">
-            <div className="text-xs font-medium text-ink-500">Need help?</div>
-            <p className="mt-1 text-xs text-ink-400">
-              Contact support if you need assistance with the onboarding process.
+          <div className="px-3">
+            <p className="text-[15px] font-bold text-ink-950">
+              {completedCount} of {workSteps.length} steps done
             </p>
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
-            >
-              Contact Support →
+            <div className="mt-3 flex gap-1.5" aria-hidden="true">
+              {workSteps.map((step) => (
+                <span
+                  key={step.id}
+                  className={`h-1.5 flex-1 rounded-full ${isStepComplete(step, stageStatuses) ? "bg-primary" : "bg-surface-3"}`}
+                />
+              ))}
+            </div>
+            {stageStatusError && (
+              <button
+                type="button"
+                onClick={() => organization?.organizationId && loadStageStatuses(organization.organizationId)}
+                className="mt-2 flex items-center gap-1 text-xs text-red hover:underline"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Progress may be out of date. Retry
+              </button>
+            )}
+          </div>
+
+          <nav className="mt-6" aria-label="Setup steps">
+            {stepList("desktop")}
+          </nav>
+
+          <div className="mt-auto rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[13px] font-bold text-ink-950">Need help?</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-500">Our team can help you finish setting up.</p>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-2 inline-block text-[13px] font-bold text-label-accent hover:underline">
+              Contact support
             </a>
           </div>
         </aside>
 
-        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-8 lg:px-12 lg:pt-12">
+          <div className="mx-auto w-full max-w-[860px]">{children}</div>
+        </main>
       </div>
     </div>
   );

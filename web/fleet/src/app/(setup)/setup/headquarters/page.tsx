@@ -20,7 +20,10 @@ import {
 import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
+import { StepFooter } from "@/components/onboarding/StepFooter";
+import { nextPath, previousPath } from "../steps";
 import { organizationService } from "@/lib/services/organizationService";
+import { IconTile } from "@/components/onboarding/IconTile";
 
 type FormData = {
   // Address
@@ -58,7 +61,7 @@ const inputClass = (hasError: boolean) =>
   `w-full rounded-xl border px-4 py-2.5 text-sm text-ink-950 outline-none transition-colors ${
     hasError
       ? "border-red focus:border-red focus:ring-2 focus:ring-red/10"
-      : "border-line focus:border-primary focus:ring-2 focus:ring-primary/10"
+      : "border-field-border focus:border-label-accent focus:ring-4 focus:ring-primary/15"
   }`;
 
 const REQUIRED_FIELDS: (keyof FormData)[] = [
@@ -102,27 +105,6 @@ function validateField(name: keyof FormData, value: string): string | undefined 
   }
 }
 
-function IconTile({ icon }: { icon: React.ReactNode }) {
-  return (
-    <div
-      className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary to-accent text-white ring-1 ring-white/20"
-      style={{
-        boxShadow:
-          "inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -9px 14px rgba(0,0,0,0.3), 0 10px 18px -6px rgba(0,0,0,0.4)",
-      }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: "radial-gradient(130% 110% at 25% 12%, rgba(255,255,255,0.55), transparent 55%)",
-          mixBlendMode: "overlay",
-        }}
-      />
-      <span className="relative [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
-    </div>
-  );
-}
 
 export default function HeadquartersPage() {
   const router = useRouter();
@@ -262,9 +244,7 @@ export default function HeadquartersPage() {
       setStageComplete("headquarters");
 
       setSaveSuccess(true);
-      setTimeout(() => {
-        router.push("/setup/business-docs");
-      }, 1000);
+      router.push(nextPath("address"));
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || "Failed to save headquarters information.";
       setSaveError(message);
@@ -273,7 +253,7 @@ export default function HeadquartersPage() {
     }
   };
 
-  const handleBack = () => router.push("/setup/capabilities");
+  const handleBack = () => router.push(previousPath("address"));
 
   const isComplete = completedRequired === REQUIRED_FIELDS.length;
   const hasErrors = Object.values(errors).some((e) => !!e);
@@ -296,13 +276,9 @@ export default function HeadquartersPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Headquarters</span>
-        </p>
-        <h1 className="mt-1 text-ink-950">Headquarters</h1>
+        <h1 className="text-ink-950">Business address</h1>
         <p className="mt-1.5 text-ink-600">
-          Provide your company's registered address and contact information.
+          Where your company is registered, and how customers and partners can reach you.
         </p>
       </div>
 
@@ -319,7 +295,7 @@ export default function HeadquartersPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <IconTile icon={<MapPin />} />
           <div>
@@ -332,7 +308,7 @@ export default function HeadquartersPage() {
 
         <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <MapPin className="h-3 w-3 text-ink-400" />
               Street Address <span className="text-red">*</span>
             </label>
@@ -352,7 +328,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               City <span className="text-red">*</span>
             </label>
             <div className="mt-1">
@@ -371,7 +347,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               State <span className="text-red">*</span>
             </label>
             <div className="mt-1">
@@ -395,7 +371,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               Postal Code <span className="text-red">*</span>
             </label>
             <div className="mt-1">
@@ -414,7 +390,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Globe className="h-3 w-3 text-ink-400" />
               Country <span className="text-red">*</span>
             </label>
@@ -439,7 +415,7 @@ export default function HeadquartersPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <IconTile icon={<Mail />} />
           <div>
@@ -452,7 +428,7 @@ export default function HeadquartersPage() {
 
         <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Mail className="h-3 w-3 text-ink-400" />
               Business Email <span className="text-red">*</span>
             </label>
@@ -472,7 +448,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Phone className="h-3 w-3 text-ink-400" />
               Business Phone <span className="text-red">*</span>
             </label>
@@ -492,7 +468,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Globe className="h-3 w-3 text-ink-400" />
               Website
             </label>
@@ -508,7 +484,7 @@ export default function HeadquartersPage() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <FileText className="h-3 w-3 text-ink-400" />
               Business Description
             </label>
@@ -531,49 +507,12 @@ export default function HeadquartersPage() {
         </div>
       )}
 
-      {saveSuccess && (
-        <div className="flex items-center gap-2 rounded-xl border border-green/20 bg-green-bg/40 px-4 py-3 text-sm text-green">
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          Headquarters saved successfully! Redirecting...
-        </div>
-      )}
-
-      <div className="flex flex-col items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          onClick={handleBack}
-          disabled={isSaving || saveSuccess}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous Step
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-            !canSubmit
-              ? "cursor-not-allowed bg-ink-400"
-              : "bg-primary hover:bg-primary-hover"
-          }`}
-        >
-          {isSaving ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : saveSuccess ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Saved!
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              Save & Continue
-            </>
-          )}
-        </button>
-      </div>
+      <StepFooter
+        onBack={handleBack}
+        onPrimary={handleSubmit}
+        primaryDisabled={!canSubmit}
+        primaryLoading={isSaving || saveSuccess}
+      />
     </div>
   );
 }

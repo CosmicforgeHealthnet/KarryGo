@@ -18,9 +18,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Handle initial theme setup
   useEffect(() => {
-    const stored = localStorage.getItem('theme') as Theme | null;
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initialTheme = stored || (prefersDark ? 'dark' : 'light');
+    // Light by default; dark only when the user has chosen it in the app.
+    const initialTheme: Theme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
     
     setTheme(initialTheme);
     document.documentElement.setAttribute('data-theme', initialTheme);
@@ -34,25 +33,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('theme', newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
   };
-
-  // Listen for system theme changes
-  useEffect(() => {
-    if (!mounted) return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const handleChange = (e: MediaQueryListEvent) => {
-      // Only change if user hasn't manually set a preference
-      if (!localStorage.getItem('theme')) {
-        const newTheme = e.matches ? 'dark' : 'light';
-        setTheme(newTheme);
-        document.documentElement.setAttribute('data-theme', newTheme);
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [mounted]);
 
   // Prevent hydration mismatch
   if (!mounted) {
@@ -72,4 +52,9 @@ export function useTheme() {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
+}
+// Same as useTheme, but null during the first render (before the provider
+// mounts) instead of throwing, for controls that can render early.
+export function useOptionalTheme() {
+  return useContext(ThemeContext) ?? null;
 }

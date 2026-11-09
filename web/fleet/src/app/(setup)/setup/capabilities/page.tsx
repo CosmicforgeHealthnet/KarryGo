@@ -1,4 +1,4 @@
-﻿// src/app/(setup)/setup/capabilities/page.tsx
+// src/app/(setup)/setup/capabilities/page.tsx
 
 "use client";
 
@@ -28,6 +28,10 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { organizationService } from "@/lib/services/organizationService";
+import { IconTile } from "@/components/onboarding/IconTile";
+import { StepFooter } from "@/components/onboarding/StepFooter";
+import { nextPath, previousPath } from "../steps";
+
 
 type Capability = {
   id: string;
@@ -85,20 +89,6 @@ const CATEGORY_THEME: Record<string, { bg: string; text: string }> = {
   Support: { bg: "bg-green-bg", text: "text-green" },
 };
 
-function IconTile({ icon, muted = false }: { icon: React.ReactNode; muted?: boolean }) {
-  if (muted) {
-    return (
-      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-400">
-        {icon}
-      </div>
-    );
-  }
-  return (
-    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-white">
-      {icon}
-    </div>
-  );
-}
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
@@ -112,7 +102,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       }`}
     >
       <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+        className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow-sm transition-transform ${
           checked ? "translate-x-5" : "translate-x-0.5"
         }`}
       />
@@ -200,9 +190,7 @@ export default function CapabilitiesPage() {
       setStageComplete("capabilities");
 
       setSaveSuccess(true);
-      setTimeout(() => {
-        router.push("/setup/headquarters");
-      }, 1000);
+      router.push(nextPath("services"));
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || "Failed to save capabilities.";
       setSaveError(message);
@@ -211,7 +199,7 @@ export default function CapabilitiesPage() {
     }
   };
 
-  const handleBack = () => router.push("/setup/authorized-representative");
+  const handleBack = () => router.push(previousPath("services"));
 
   const enabledCount = capabilities.filter((c) => c.enabled).length;
 
@@ -232,13 +220,9 @@ export default function CapabilitiesPage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Operating Capabilities</span>
-        </p>
-        <h1 className="mt-1 text-ink-950">Operating Capabilities</h1>
+        <h1 className="text-ink-950">Services you offer</h1>
         <p className="mt-1.5 text-ink-600">
-          Enable the logistics capabilities your company will offer.
+          Choose every service your company will provide. You can change this later.
         </p>
       </div>
 
@@ -255,7 +239,7 @@ export default function CapabilitiesPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <IconTile icon={<Package />} />
           <div>
@@ -306,49 +290,12 @@ export default function CapabilitiesPage() {
         </div>
       )}
 
-      {saveSuccess && (
-        <div className="flex items-center gap-2 rounded-xl border border-green/20 bg-green-bg/40 px-4 py-3 text-sm text-green">
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          Capabilities saved successfully! Redirecting...
-        </div>
-      )}
-
-      <div className="flex flex-col items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          onClick={handleBack}
-          disabled={isSaving || saveSuccess}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous Step
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={isSaving || saveSuccess}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-            isSaving || saveSuccess
-              ? "cursor-not-allowed bg-ink-400"
-              : "bg-primary hover:bg-primary-hover"
-          }`}
-        >
-          {isSaving ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : saveSuccess ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Saved!
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              Save & Continue
-            </>
-          )}
-        </button>
-      </div>
+      <StepFooter
+        onBack={handleBack}
+        onPrimary={handleSave}
+        primaryDisabled={false}
+        primaryLoading={isSaving || saveSuccess}
+      />
     </div>
   );
 }

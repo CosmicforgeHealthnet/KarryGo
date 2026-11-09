@@ -22,6 +22,10 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { organizationService, type Representative } from "@/lib/services/organizationService";
+import { IconTile } from "@/components/onboarding/IconTile";
+import { StepFooter } from "@/components/onboarding/StepFooter";
+import { nextPath, previousPath } from "../steps";
+
 
 type FormData = {
   fullName: string;
@@ -66,7 +70,7 @@ const inputClass = (hasError: boolean) =>
   `w-full rounded-xl border px-4 py-2.5 text-sm text-ink-950 outline-none transition-colors ${
     hasError
       ? "border-red focus:border-red focus:ring-2 focus:ring-red/10"
-      : "border-line focus:border-primary focus:ring-2 focus:ring-primary/10"
+      : "border-field-border focus:border-label-accent focus:ring-4 focus:ring-primary/15"
   }`;
 
 const REQUIRED_FIELDS: (keyof FormData)[] = ["fullName", "roleTitle", "email", "phone", "authorityType"];
@@ -97,35 +101,6 @@ function validateField(name: keyof FormData, value: string): string | undefined 
   }
 }
 
-function IconTile({ icon, theme = "brand" }: { icon: React.ReactNode; theme?: "brand" | "accent" }) {
-  const gradient = theme === "brand" ? "from-primary to-accent" : "from-accent to-accent-hover";
-  return (
-    <div
-      className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-white ring-1 ring-white/20 ${gradient}`}
-      style={{
-        boxShadow:
-          "inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -9px 14px rgba(0,0,0,0.3), 0 10px 18px -6px rgba(0,0,0,0.4)",
-      }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: "radial-gradient(130% 110% at 25% 12%, rgba(255,255,255,0.55), transparent 55%)",
-          mixBlendMode: "overlay",
-        }}
-      />
-      <span
-        className="relative [&>svg]:h-6 [&>svg]:w-6"
-        style={{ filter: "drop-shadow(0 1.5px 1.5px rgba(0,0,0,0.35)) drop-shadow(0 -1px 0 rgba(255,255,255,0.25))" }}
-      >
-        {React.isValidElement(icon)
-          ? React.cloneElement(icon as React.ReactElement<{ strokeWidth?: number }>, { strokeWidth: 2.25 })
-          : icon}
-      </span>
-    </div>
-  );
-}
 
 export default function AuthorizedRepresentativePage() {
   const router = useRouter();
@@ -272,9 +247,7 @@ export default function AuthorizedRepresentativePage() {
       setStageComplete('authorized-representative');
 
       setSaveSuccess(true);
-      setTimeout(() => {
-        router.push('/setup/capabilities');
-      }, 1000);
+      router.push(nextPath("representative"));
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || "Failed to save representative information.";
       setSaveError(message);
@@ -283,7 +256,7 @@ export default function AuthorizedRepresentativePage() {
     }
   };
 
-  const handleBack = () => router.push('/setup/profile');
+  const handleBack = () => router.push(previousPath("representative"));
 
   const isComplete = completedRequired === REQUIRED_FIELDS.length;
   const hasErrors = Object.values(errors).some((e) => !!e);
@@ -314,7 +287,7 @@ export default function AuthorizedRepresentativePage() {
           <p className="mt-1.5 text-sm text-ink-500">{error}</p>
           <button
             onClick={() => router.push("/setup")}
-            className="mt-5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-primary/90"
+            className="btn btn-primary btn-md mt-5"
           >
             Go to Onboarding Home
           </button>
@@ -326,11 +299,7 @@ export default function AuthorizedRepresentativePage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Authorized Representative</span>
-        </p>
-        <h1 className="mt-1 text-ink-950">Authorized Representative</h1>
+        <h1 className="text-ink-950">Authorized representative</h1>
         <p className="mt-1.5 text-ink-600">
           Provide details of the authorized representative with legal authority for your organization.
         </p>
@@ -349,7 +318,7 @@ export default function AuthorizedRepresentativePage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <IconTile icon={<UserCheck />} theme="brand" />
           <div>
@@ -362,7 +331,7 @@ export default function AuthorizedRepresentativePage() {
 
         <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <User className="h-3 w-3 text-ink-400" />
               Full Name <span className="text-red">*</span>
             </label>
@@ -385,7 +354,7 @@ export default function AuthorizedRepresentativePage() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Briefcase className="h-3 w-3 text-ink-400" />
               Role Title <span className="text-red">*</span>
             </label>
@@ -408,7 +377,7 @@ export default function AuthorizedRepresentativePage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Mail className="h-3 w-3 text-ink-400" />
               Email <span className="text-red">*</span>
             </label>
@@ -431,7 +400,7 @@ export default function AuthorizedRepresentativePage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <Phone className="h-3 w-3 text-ink-400" />
               Phone <span className="text-red">*</span>
             </label>
@@ -454,7 +423,7 @@ export default function AuthorizedRepresentativePage() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
               <FileText className="h-3 w-3 text-ink-400" />
               Authority Type <span className="text-red">*</span>
             </label>
@@ -490,49 +459,12 @@ export default function AuthorizedRepresentativePage() {
         </div>
       )}
 
-      {saveSuccess && (
-        <div className="flex items-center gap-2 rounded-xl border border-green/20 bg-green-bg/40 px-4 py-3 text-sm text-green">
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          Representative saved successfully! Redirecting...
-        </div>
-      )}
-
-      <div className="flex flex-col items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          onClick={handleBack}
-          disabled={isSubmitting || saveSuccess}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous Step
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-            !canSubmit
-              ? "cursor-not-allowed bg-ink-400"
-              : "bg-primary hover:bg-primary-hover"
-          }`}
-        >
-          {isSubmitting ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : saveSuccess ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Saved!
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              {existingReps.length > 0 ? "Update" : "Save"} & Continue
-            </>
-          )}
-        </button>
-      </div>
+      <StepFooter
+        onBack={handleBack}
+        onPrimary={handleSubmit}
+        primaryDisabled={!canSubmit}
+        primaryLoading={isSubmitting || saveSuccess}
+      />
     </div>
   );
 }

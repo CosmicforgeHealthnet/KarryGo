@@ -90,10 +90,10 @@ function ReverifyContent() {
         Back
       </button>
 
-      <h1 className="font-display text-[40px] font-light leading-tight tracking-[-0.02em] text-ink-950">
+      <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.03em] text-[var(--ink-950)]">
         Confirm it&apos;s you
       </h1>
-      <p className="mt-3 text-[16px] text-ink-600">
+      <p className="mt-3 text-[15px] leading-relaxed text-ink-600">
         This action needs a fresh verification:{" "}
         <span className="font-medium text-ink-950">{action}</span>
       </p>
@@ -143,7 +143,7 @@ function ReverifyContent() {
         <button
           type="submit"
           disabled={submitting || code.length !== 6 || expired || locked}
-          className="mt-7 w-full rounded-md bg-primary px-4 py-3.5 text-[15px] font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-7 h-[clamp(56px,7.4vh,70px)] w-full rounded-[12px] bg-label-accent px-5 text-[21px] font-bold text-surface transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? "Verifying…" : "Confirm"}
         </button>

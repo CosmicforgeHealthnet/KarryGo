@@ -13,27 +13,26 @@ function SignUpContent() {
 
   return (
     <div>
-      <h1 className="font-display text-[40px] font-light leading-tight tracking-[-0.02em] text-ink-950">
+      <span className="inline-flex rounded-[10px] bg-primary-bg px-3.5 py-2 text-[clamp(14px,1.08vw,18px)] font-bold text-label-accent">
+        Get started
+      </span>
+      <h1 className="mt-4 text-[clamp(34px,3vw,50px)] font-bold leading-[1.1] tracking-[-0.035em] text-[var(--ink-950)]">
         Create your account
       </h1>
-      <p className="mt-3 text-[16px] text-ink-600">
+      <p className="mt-5 text-[clamp(15px,1.08vw,18px)] leading-relaxed text-ink-600">
         Enter your email and phone number to get started. You&apos;ll set up
         your company details next.
       </p>
 
       <ContactAuthForm idPrefix="signup" invitationToken={invitationToken} />
 
-      <p className="mt-6 text-center text-[13.5px] text-ink-500">
+      <p className="mt-[38px] text-center text-[clamp(14px,1.15vw,19px)] text-ink-500">
         Already have an account?{" "}
-        <Link href="/sign-in" className="font-semibold text-primary hover:underline">
+        <Link href="/sign-in" className="font-bold text-label-accent hover:underline">
           Sign in
         </Link>
       </p>
 
-      <p className="mt-6 text-[13.5px] leading-relaxed text-ink-500">
-        We&apos;ll send a one-time code to confirm it&apos;s you. Your contact
-        details are never shared with other organizations.
-      </p>
 
     </div>
   );

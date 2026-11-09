@@ -6,7 +6,7 @@
   /* ========================================
      LIGHT MODE (DEFAULT)
      ======================================== */
-  --background: #ffffff;
+  --background: #F5F7F3;
   --foreground: #0B1F44;
 
   /* ========================================
@@ -29,19 +29,19 @@
   /* ===== PRIMARY ACTIONS ===== */
   --primary: #00C2A8;
   --primary-hover: #00A990;
-  --primary-bg: #E6FAF7;
+  --primary-bg: #E6F9F6;
 
   /* ===== ACCENT ===== */
   --accent: #00C2A8;
   --accent-hover: #0B1F44;
-  --accent-bg: #E6FAF7;
+  --accent-bg: #E6F9F6;
 
   /* ===== BRAND (dark/structural) ===== */
   --brand: #0B1F44;
   --brand-hover: #2D3A5B;
 
   /* ===== LINKS ===== */
-  --links: #0B1F44;
+  --links: #007D6D;
 
   /* ===== NAVY SCALE ===== */
   --navy-950: #0B1F44;
@@ -50,26 +50,34 @@
 
   /* ===== TEXT / INK ===== */
   --ink-950: #0B1F44;
-  --ink-900: #2D3A5B;
+  --ink-900: #0B1F44;
   --ink-800: #2D3A5B;
   --ink-700: #2D3A5B;
-  --ink-600: #A7B0BB;
-  --ink-500: #A7B0BB;
-  --ink-400: #A7B0BB;
+  --ink-600: #2D3A5B;
+  --ink-500: #4A5672;
+  --ink-400: #7A8496;
 
   /* ===== SURFACES ===== */
-  --line: #E5E9EE;
-  --surface: #ffffff;
-  --surface-2: #F8FAFB;
-  --surface-3: #EEF2F5;
+  --line: #E1E8E3;
+  --surface: #FFFFFF;
+  --surface-2: #F5F7F3;
+  --surface-3: #EFF3EF;
+
+  /* ===== ACTIONS (Karryam brand rule: navy on light, teal on dark) ===== */
+  --action: #0B1F44;
+  --action-hover: #1A2E57;
+  --on-action: #FFFFFF;
+  --label-accent: #007D6D;
+  --field-border: #CED2DA;
+  --field-bg: #FFFFFF;
 
   /* ===== STATUS COLORS ===== */
-  --green: #00C2A8;
-  --green-bg: #E6FAF7;
-  --amber: #D99A24;
+  --green: #007D6D;
+  --green-bg: #E6F9F6;
+  --amber: #B54708;
   --amber-bg: #FFF6E3;
-  --red: #D64545;
-  --red-bg: #FFF0F0;
+  --red: #B42318;
+  --red-bg: #FFF2F0;
 
   /* ===== HERO BANNER (dashboard welcome card) =====
      Gradients (background-image) can't be CSS-transitioned directly, so
@@ -92,62 +100,70 @@
    ======================================== */
 [data-theme="dark"] {
   /* Backgrounds */
-  --background: #0A0F1E;
-  --foreground: #F0F4FF;
+  --background: #0E151C;
+  --foreground: #E9F1F4;
 
   /* Brand colors - adjusted for dark */
-  --midnight: #0A0F1E;
+  --midnight: #0E151C;
   --indigo-gray: #2A3A5C;
 
   /* Surfaces */
-  --surface: #111827;
-  --surface-2: #1A2338;
-  --surface-3: #2A3A5C;
-  --line: rgba(255, 255, 255, 0.08);
+  --surface: #17212B;
+  --surface-2: #0E151C;
+  --surface-3: #202D39;
+  --line: #2A3945;
 
   /* Text / Ink - lighter for dark bg */
-  --ink-950: #F0F4FF;
-  --ink-900: #E8EDF8;
-  --ink-800: #D0D9E8;
-  --ink-700: #B0BDD0;
-  --ink-600: #A7B0BB;
-  --ink-500: #8A9BB0;
-  --ink-400: #6B7A99;
+  --ink-950: #E9F1F4;
+  --ink-900: #E9F1F4;
+  --ink-800: #D3DEE4;
+  --ink-700: #B1C1CB;
+  --ink-600: #B1C1CB;
+  --ink-500: #98A9B4;
+  --ink-400: #7C8E9A;
+
+  /* Actions */
+  --action: #00C2A8;
+  --action-hover: #19D4BC;
+  --on-action: #0B1F44;
+  --label-accent: #64DBC9;
+  --field-border: #344452;
+  --field-bg: #0E151C;
 
   /* Primary - slightly brighter for dark bg */
   --primary: #00C2A8;
-  --primary-hover: #00D4B8;
-  --primary-bg: rgba(0, 194, 168, 0.15);
+  --primary-hover: #19D4BC;
+  --primary-bg: rgba(0, 194, 168, 0.14);
 
   /* Accent */
   --accent: #00C2A8;
   --accent-hover: #00D4B8;
-  --accent-bg: rgba(0, 194, 168, 0.12);
+  --accent-bg: rgba(0, 194, 168, 0.14);
 
   /* Brand */
-  --brand: #0A0F1E;
-  --brand-hover: #1A2338;
-  --links: #00C2A8;
+  --brand: #0B1F44;
+  --brand-hover: #17212B;
+  --links: #64DBC9;
 
   /* Sidebar - keep dark but adjust */
-  --sidebar-bg: #0A0F1E;
-  --sidebar-hover: #1A2338;
+  --sidebar-bg: #17212B;
+  --sidebar-hover: #202D39;
   --sidebar-selected: #00C2A8;
-  --sidebar-text: #F0F4FF;
-  --sidebar-text-secondary: #8A9BB0;
+  --sidebar-text: #E9F1F4;
+  --sidebar-text-secondary: #B1C1CB;
 
   /* Status colors - brighter for dark bg */
-  --green: #00C2A8;
-  --green-bg: rgba(0, 194, 168, 0.15);
-  --amber: #F59E0B;
-  --amber-bg: rgba(245, 158, 11, 0.15);
-  --red: #EF4444;
-  --red-bg: rgba(239, 68, 68, 0.15);
+  --green: #64DBC9;
+  --green-bg: rgba(0, 194, 168, 0.14);
+  --amber: #FDB022;
+  --amber-bg: rgba(253, 176, 34, 0.12);
+  --red: #FF8A80;
+  --red-bg: rgba(255, 138, 128, 0.12);
 
   /* Navy scale */
-  --navy-950: #0A0F1E;
-  --navy-900: #111827;
-  --navy-850: #1A2338;
+  --navy-950: #0E151C;
+  --navy-900: #17212B;
+  --navy-850: #202D39;
 
   /* ===== HERO BANNER (dashboard welcome card) ===== */
   --hero-border: rgba(255, 255, 255, 0.08);
@@ -182,6 +198,13 @@
 
   --color-links: var(--links);
 
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-on-action: var(--on-action);
+  --color-label-accent: var(--label-accent);
+  --color-field-border: var(--field-border);
+  --color-field-bg: var(--field-bg);
+
   --color-navy-950: var(--navy-950);
   --color-navy-900: var(--navy-900);
   --color-navy-850: var(--navy-850);
@@ -213,8 +236,8 @@
   --color-hero-border: var(--hero-border);
 
   --font-sans: var(--font-inter);
-  --font-mono: var(--font-jetbrains-mono);
-  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-inter);
+  --font-display: var(--font-inter);
 }
 
 body {
@@ -341,13 +364,15 @@ p {
   color: white;
 }
 
-/* Better form elements */
-input,
-textarea,
-select,
-button {
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
-  font-size: inherit;
+/* Better form elements. In the base layer so Tailwind size classes win. */
+@layer base {
+  input,
+  textarea,
+  select,
+  button {
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    font-size: inherit;
+  }
 }
 
 /* Ensure cards and containers look polished */
@@ -514,3 +539,60 @@ main {
     transition-duration: 0s !important;
   }
 }
+/* ========================================
+   ONBOARDING (Karryam vendor style: Inter throughout, bold navy headings)
+   ======================================== */
+.onboarding h1, .onboarding h2, .onboarding h3 {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.onboarding h1 { font-size: clamp(1.6rem, 4vw, 2rem); line-height: 1.15; }
+/* The global h2/h3/p sizes are unlayered and would beat Tailwind size
+   classes; inside onboarding the page's own classes decide. */
+.onboarding p, .auth p { font-size: revert-layer; }
+.auth h1, .auth h2 { font-family: var(--font-sans), system-ui, sans-serif; font-size: revert-layer; }
+.onboarding h2 { font-size: 1.25rem; line-height: 1.3; }
+.onboarding h3 { font-size: 0.9375rem; line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; }
+.onboarding input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.onboarding select,
+.onboarding textarea {
+  background-color: var(--field-bg);
+  color: var(--ink-950);
+  min-height: 46px;
+}
+.onboarding input::placeholder, .onboarding textarea::placeholder { color: var(--ink-400); opacity: 1; }
+.onboarding select option { background: var(--surface); color: var(--ink-950); }
+
+/* ========================================
+   BUTTONS: one system for sign-in and onboarding.
+   Components layer, so a utility class on the element can still adjust it.
+   ======================================== */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    border-radius: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, filter 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  .btn svg { width: 1.05em; height: 1.05em; }
+  .btn-lg { height: 52px; padding: 0 28px; font-size: 15px; }
+  .btn-md { height: 44px; padding: 0 20px; font-size: 14px; }
+  .btn-sm { height: 36px; padding: 0 14px; font-size: 13px; border-radius: 10px; }
+  .btn-primary { background: var(--label-accent); color: var(--surface); }
+  .btn-primary:not(:disabled):hover { filter: brightness(1.08); }
+  .btn-secondary { background: var(--surface); color: var(--ink-950); border: 1px solid var(--field-border); }
+  .btn-secondary:not(:disabled):hover { background: var(--surface-2); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-success { background: var(--green); color: var(--surface); }
+}
+
+/* Scrolls, but without a visible scrollbar (setup step list). */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

@@ -8,29 +8,28 @@ import { ContactAuthForm } from "@/components/features/auth/ContactAuthForm";
 export default function SignInPage() {
   return (
     <div>
-      <h1 className="font-display text-[40px] font-light leading-tight tracking-[-0.02em] text-[var(--ink-950)]">
-        Sign in
+      <span className="inline-flex rounded-[10px] bg-[var(--primary-bg)] px-3.5 py-2 text-[clamp(14px,1.08vw,18px)] font-bold text-[var(--label-accent)]">
+        Welcome back
+      </span>
+      <h1 className="mt-4 text-[clamp(34px,3vw,50px)] font-bold leading-[1.1] tracking-[-0.035em] text-[var(--ink-950)]">
+        Sign in to Karryam
       </h1>
-      <p className="mt-3 text-[16px] text-[var(--ink-500)]">
+      <p className="mt-5 text-[clamp(15px,1.08vw,18px)] leading-relaxed text-[var(--ink-600)]">
         Enter the email and phone number on file for your account.
       </p>
 
       <ContactAuthForm idPrefix="signin" />
 
-      <p className="mt-6 text-center text-[13.5px] text-[var(--ink-500)]">
-        New to KarryGo?{" "}
+      <p className="mt-[38px] text-center text-[clamp(14px,1.15vw,19px)] text-[var(--ink-500)]">
+        New to Karryam?{" "}
         <Link
           href="/sign-up"
-          className="font-semibold text-[var(--primary)] hover:underline"
+          className="font-bold text-[var(--label-accent)] hover:underline"
         >
           Create an account
         </Link>
       </p>
 
-      <p className="mt-6 text-[13.5px] leading-relaxed text-[var(--ink-500)]">
-        We&apos;ll send a one-time code to confirm it&apos;s you. Your contact
-        details are never shared with other organizations.
-      </p>
 
       
     </div>

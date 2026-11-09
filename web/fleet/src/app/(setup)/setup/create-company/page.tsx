@@ -1,13 +1,10 @@
-﻿// src/app/(setup)/setup/create-company/page.tsx
+// src/app/(setup)/setup/create-company/page.tsx
 
 "use client";
 
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  RefreshCw,
-  Save,
-  ChevronLeft,
   Building2,
   User,
   MapPin,
@@ -23,6 +20,9 @@ import {
 import { useOnboardingStore } from "@/lib/stores/onboardingStore";
 import { organizationService } from "@/lib/services/organizationService";
 import { useAuthStore } from "@/lib/stores/authStore";
+import { StepFooter } from "@/components/onboarding/StepFooter";
+import { nextPath } from "../steps";
+import { IconTile } from "@/components/onboarding/IconTile";
 
 type CompanyFormData = {
   legalName: string;
@@ -136,41 +136,6 @@ function validateAll(data: CompanyFormData): Partial<Record<FieldName, string>> 
   return errors;
 }
 
-function IconTile({
-  icon,
-  theme = "brand",
-}: {
-  icon: React.ReactNode;
-  theme?: "brand" | "accent";
-}) {
-  const gradient = theme === "brand" ? "from-primary to-accent" : "from-accent to-accent-hover";
-  return (
-    <div
-      className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-white ring-1 ring-white/20 ${gradient}`}
-      style={{
-        boxShadow:
-          "inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -9px 14px rgba(0,0,0,0.3), 0 10px 18px -6px rgba(0,0,0,0.4)",
-      }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: "radial-gradient(130% 110% at 25% 12%, rgba(255,255,255,0.55), transparent 55%)",
-          mixBlendMode: "overlay",
-        }}
-      />
-      <span
-        className="relative [&>svg]:h-6 [&>svg]:w-6"
-        style={{ filter: "drop-shadow(0 1.5px 1.5px rgba(0,0,0,0.35)) drop-shadow(0 -1px 0 rgba(255,255,255,0.25))" }}
-      >
-        {React.isValidElement(icon)
-          ? React.cloneElement(icon as React.ReactElement<{ strokeWidth?: number }>, { strokeWidth: 2.25 })
-          : icon}
-      </span>
-    </div>
-  );
-}
 
 function SectionCard({
   icon,
@@ -186,12 +151,12 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-5">
+    <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(11,31,68,0.05)] sm:p-6">
       <div className="flex items-start gap-3">
         <IconTile icon={icon} theme={theme} />
         <div>
-          <h3 className="text-sm font-semibold text-ink-950">{title}</h3>
-          <p className="text-xs text-ink-500">{description}</p>
+          <h3 className="text-[15px] font-semibold text-ink-950">{title}</h3>
+          <p className="mt-0.5 text-[13px] text-ink-500">{description}</p>
         </div>
       </div>
       <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">{children}</div>
@@ -219,7 +184,7 @@ function Field({
   const showError = touched && !!error;
   return (
     <div className={span2 ? "sm:col-span-2" : ""}>
-      <label className="flex items-center gap-1 text-xs font-medium uppercase tracking-[0.06em] text-ink-500">
+      <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
         {icon}
         {label}
         {required && <span className="text-red">*</span>}
@@ -239,7 +204,7 @@ const inputClass = (hasError: boolean) =>
   `w-full rounded-xl border px-4 py-2.5 text-sm text-ink-950 outline-none transition-colors ${
     hasError
       ? "border-red focus:border-red focus:ring-2 focus:ring-red/10"
-      : "border-line focus:border-primary focus:ring-2 focus:ring-primary/10"
+      : "border-field-border focus:border-label-accent focus:ring-4 focus:ring-primary/15"
   }`;
 
 export default function CreateCompanyPage() {
@@ -338,9 +303,13 @@ export default function CreateCompanyPage() {
       setSubmitSuccess(true);
       setSubmitError(null);
 
-      setTimeout(() => {
-        router.push("/setup/profile");
-      }, 1000);
+      // Everything "Company details" needs was entered here, so the step is done.
+      try {
+        await organizationService.markStageComplete(response.organizationId, "BUSINESS_PROFILE");
+      } catch (e) {
+        console.error("Failed to mark company details complete:", e);
+      }
+      router.push(nextPath("company"));
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || "Failed to create company. Please try again.";
       setSubmitError(message);
@@ -351,8 +320,6 @@ export default function CreateCompanyPage() {
     }
   };
 
-  const handleBack = () => router.push("/setup");
-
   const isComplete = completedRequired === REQUIRED_FIELDS.length;
   const hasErrors = Object.values(errors).some((e) => !!e);
   const isReady = _hasHydrated && !isSubmitting && !submitSuccess && isComplete && !hasErrors;
@@ -361,11 +328,7 @@ export default function CreateCompanyPage() {
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-24 sm:space-y-8">
       {/* Header */}
       <div>
-        <p className="text-xs font-medium text-ink-500">
-          Onboarding <span className="mx-1 text-ink-400">/</span>{" "}
-          <span className="text-ink-700">Create Company</span>
-        </p>
-        <h1 className="mt-1 text-ink-950">Create Company</h1>
+        <h1 className="text-ink-950">Company details</h1>
         <p className="mt-1.5 text-ink-600">
           Tell us about your company and who we should contact about it. You can update most of this later.
         </p>
@@ -556,79 +519,13 @@ export default function CreateCompanyPage() {
         </div>
       )}
 
-      {/* Submit Success */}
-      {submitSuccess && (
-        <div className="flex items-center gap-2 rounded-xl border border-green/20 bg-green-bg/40 px-4 py-3 text-sm text-green">
-          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-          Company created successfully! Redirecting to profile...
-        </div>
-      )}
-
-      {/* Navigation */}
-      <div className="flex flex-col-reverse items-center gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          onClick={handleBack}
-          disabled={isSubmitting || submitSuccess}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-700 hover:bg-surface-2 disabled:opacity-50"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back to Onboarding
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={!isReady}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2 text-sm font-medium text-white transition ${
-            !isReady
-              ? "cursor-not-allowed bg-ink-400"
-              : "bg-primary hover:bg-primary-hover"
-          }`}
-        >
-          {isSubmitting ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Creating company...
-            </>
-          ) : submitSuccess ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Created!
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              Create Company
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Sticky Mobile Action Bar */}
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-white/90 px-4 py-3 backdrop-blur-xl sm:hidden">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <span className="flex items-center gap-1.5 text-xs text-ink-500">
-            {isComplete && !hasErrors ? (
-              <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-green" />
-                Ready to create
-              </>
-            ) : (
-              <>{REQUIRED_FIELDS.length - completedRequired} field(s) left</>
-            )}
-          </span>
-          <button
-            onClick={handleSubmit}
-            disabled={!isReady}
-            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white ${
-              !isReady
-                ? "bg-ink-400"
-                : "bg-primary hover:bg-primary-hover"
-            }`}
-          >
-            {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Create
-          </button>
-        </div>
-      </div>
+      <StepFooter
+        onPrimary={handleSubmit}
+        primaryLabel="Create company & continue"
+        primaryDisabled={!isReady}
+        primaryLoading={isSubmitting || submitSuccess}
+        loadingLabel={submitSuccess ? "Opening next step…" : "Creating company…"}
+      />
     </div>
   );
 }
