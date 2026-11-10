@@ -25,6 +25,10 @@ const (
 	NextStepOrganizationSelection = "ORGANIZATION_SELECTION_REQUIRED"
 	NextStepReady                 = "READY"
 	NextStepStepUpGranted         = "STEP_UP_GRANTED"
+	// Safe outcomes visible only after the user proves control of the email.
+	// Neither outcome creates an identity or issues authentication tokens.
+	NextStepContactMismatch       = "CONTACT_MISMATCH"
+	NextStepAccountUnavailable    = "ACCOUNT_UNAVAILABLE"
 )
 
 // VerifyInput is a code submission.
@@ -168,6 +172,22 @@ func (s *Service) completeVerification(ctx context.Context, tx pgx.Tx, challenge
 			StepUpReference: challenge.ID,
 			StepUpExpiresAt: s.opts.Now().Add(s.opts.StepUpTTL),
 		}, nil
+	}
+
+	// Start intentionally returns the same 202 response regardless of
+	// whether either contact was already registered. After successful email
+	// verification we can safely tell the requester that the pair cannot be
+	// used, without disclosing which contact matched or granting a session.
+	// Recheck inside the locked challenge transaction: identity state may
+	// have changed between OTP creation and verification.
+	existing, pairErr := s.opts.Identities.ResolvePair(ctx, tx, pair.EmailNormalized, pair.PhoneE164)
+	switch {
+	case errors.Is(pairErr, authrepos.ErrIdentityPairConflict):
+		return VerifyResult{NextStep: NextStepContactMismatch}, nil
+	case pairErr == nil && !existing.Usable(s.opts.Now()):
+		return VerifyResult{NextStep: NextStepAccountUnavailable}, nil
+	case pairErr != nil && !errors.Is(pairErr, authrepos.ErrNotFound):
+		return VerifyResult{}, pairErr
 	}
 
 	identity, err := s.resolveOrCreateIdentity(ctx, tx, challenge, pair)
