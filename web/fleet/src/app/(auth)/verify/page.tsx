@@ -27,7 +27,7 @@ type SubmitState =
   | { status: "idle" }
   | { status: "submitting" }
   | { status: "success" }
-  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" | "network" };
+  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" | "network" | "contact_mismatch" | "account_unavailable" };
 
 function VerifyContent() {
   const router = useRouter();
@@ -63,7 +63,10 @@ function VerifyContent() {
   const submitting = state.status === "submitting";
   const success = state.status === "success";
   const expired = expiresIn === 0;
-  const locked = state.status === "error" && state.kind === "locked";
+  // Terminal account outcomes must not invite another OTP attempt.
+  const locked = state.status === "error" && (
+    state.kind === "locked" || state.kind === "contact_mismatch" || state.kind === "account_unavailable"
+  );
   const hasError = state.status === "error";
 
   function triggerShake() {
@@ -159,6 +162,15 @@ function VerifyContent() {
         return;
       }
 
+      if (data?.nextStep === "CONTACT_MISMATCH" || data?.nextStep === "ACCOUNT_UNAVAILABLE") {
+        setState({
+          status: "error",
+          kind: data.nextStep === "CONTACT_MISMATCH" ? "contact_mismatch" : "account_unavailable",
+        });
+        setLoading(false);
+        return;
+      }
+
       setState({ status: "error", kind: "access_denied" });
       setLoading(false);
       triggerShake();
@@ -167,7 +179,11 @@ function VerifyContent() {
       const code = failure.code ?? "";
       const isNetworkError = failure.kind === "network";
 
-      if (isNetworkError) {
+      if (code === "identity_pair_conflict") {
+        setState({ status: "error", kind: "contact_mismatch" });
+      } else if (code === "identity_suspended") {
+        setState({ status: "error", kind: "account_unavailable" });
+      } else if (isNetworkError) {
         setState({ status: "error", kind: "network" });
       } else if (code === "otp_challenge_expired" || code === "otp_challenge_consumed" || code === "otp_challenge_not_found") {
         setState({ status: "error", kind: "expired" });
@@ -298,7 +314,7 @@ function VerifyContent() {
       <div className="mb-6 flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <Mail className="h-[18px] w-[18px] shrink-0 text-primary" />
         <p className="text-[14px] leading-relaxed text-ink-600">
-          Code sent to{" "}
+          Verification email requested for{" "}
           <span className="font-semibold text-ink-950">{destination}</span>
         </p>
       </div>
@@ -354,6 +370,10 @@ function VerifyContent() {
                 "This code has expired. Request a new one."}
               {state.kind === "access_denied" &&
                 "Access denied. Contact your organization administrator."}
+              {state.kind === "contact_mismatch" &&
+                "These details do not match one account. Use your registered email and phone number, or contact Karryam support."}
+              {state.kind === "account_unavailable" &&
+                "This account is not available. Contact Karryam support to continue."}
               {state.kind === "locked" &&
                 "Too many attempts. Request a new code to try again."}
               {state.kind === "network" &&
