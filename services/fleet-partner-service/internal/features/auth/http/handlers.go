@@ -150,6 +150,8 @@ func (h *Handler) start(c *gin.Context) {
 		"maskedDestination":  result.MaskedDestination,
 		"expiresInSeconds":   result.ExpiresInSeconds,
 		"resendAfterSeconds": result.ResendAfterSeconds,
+		"expiresAt":          result.ExpiresAt,
+		"resendAvailableAt":  result.ResendAvailableAt,
 	})
 }
 
@@ -233,6 +235,8 @@ func (h *Handler) resend(c *gin.Context) {
 		"maskedDestination":  result.MaskedDestination,
 		"expiresInSeconds":   result.ExpiresInSeconds,
 		"resendAfterSeconds": result.ResendAfterSeconds,
+		"expiresAt":          result.ExpiresAt,
+		"resendAvailableAt":  result.ResendAvailableAt,
 	})
 }
 
