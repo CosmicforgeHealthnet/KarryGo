@@ -154,6 +154,10 @@ type StartResult struct {
 	MaskedDestination  string
 	ExpiresInSeconds   int
 	ResendAfterSeconds int
+	// Absolute server deadlines keep the mobile browser countdown accurate
+	// across refreshes and background-tab timer throttling.
+	ExpiresAt          time.Time
+	ResendAvailableAt  time.Time
 }
 
 // Start begins a passwordless authentication challenge.
@@ -267,6 +271,8 @@ func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, err
 		MaskedDestination:  contact.MaskEmail(pair.EmailNormalized),
 		ExpiresInSeconds:   int(s.opts.OTPExpiry.Seconds()),
 		ResendAfterSeconds: int(s.opts.OTPResendCooldown.Seconds()),
+		ExpiresAt:          challenge.ExpiresAt,
+		ResendAvailableAt:  challenge.ResendAvailableAt,
 	}, nil
 }
 
