@@ -6,11 +6,9 @@ import { ArrowRight, Menu, X } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Home", id: "home" },
-  { label: "Services", id: "services" },
-  { label: "For Providers", id: "providers" },
-  { label: "Driver App", id: "driver-app" },
-  { label: "For Businesses", id: "businesses" },
   { label: "About", id: "about" },
+  { label: "Services", id: "services" },
+  { label: "FAQs", id: "faq" },
 ];
 
 export default function Navbar() {
@@ -26,9 +24,13 @@ export default function Navbar() {
 
       // scroll-spy: last section whose top has passed the header
       let current = "home";
+      let nearest = -Infinity;
       for (const { id } of NAV_ITEMS) {
-        const el = document.getElementById(id);
-        if (el && el.getBoundingClientRect().top <= 120) current = id;
+        const top = document.getElementById(id)?.getBoundingClientRect().top;
+        if (top !== undefined && top <= 120 && top > nearest) {
+          nearest = top;
+          current = id;
+        }
       }
       setActive(current);
     };
@@ -80,8 +82,8 @@ export default function Navbar() {
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
         scrolled || open
-          ? "bg-midnight/85 backdrop-blur-xl border-b border-white/5"
-          : "bg-transparent border-b border-transparent"
+          ? "bg-white/90 backdrop-blur-xl border-b border-midnight/5 shadow-[0_1px_12px_rgba(11,31,68,0.06)]"
+          : "bg-white border-b border-transparent"
       }`}
     >
       <span
@@ -96,7 +98,7 @@ export default function Navbar() {
           aria-label="Karryam home"
         >
           <Image
-            src="/images/logo.png"
+            src="/images/logo-navy.png"
             alt="Karryam"
             width={100}
             height={60}
@@ -108,7 +110,7 @@ export default function Navbar() {
         {/* Center nav */}
         <ul
           ref={navListRef}
-          className="relative hidden lg:flex items-center gap-4 xl:gap-10 text-[13px] font-medium"
+          className="relative hidden lg:flex items-center gap-10 xl:gap-14 text-[15px] font-medium"
         >
           {NAV_ITEMS.map(({ label, id }) => {
             const isActive = active === id;
@@ -119,8 +121,8 @@ export default function Navbar() {
                   aria-current={isActive ? "page" : undefined}
                   className={`py-2 whitespace-nowrap transition-colors ${
                     isActive
-                      ? "text-aurora"
-                      : "text-white/75 hover:text-white"
+                      ? "text-[#00A38C]"
+                      : "text-midnight/75 hover:text-midnight"
                   }`}
                 >
                   {label}
@@ -130,7 +132,7 @@ export default function Navbar() {
           })}
           <li
             aria-hidden
-            className="nav-underline absolute -bottom-1 left-0 h-px bg-aurora/70"
+            className="nav-underline absolute -bottom-2 left-0 h-[2px] rounded-full bg-aurora"
             style={{ width: underline.width, transform: `translateX(${underline.x}px)` }}
           />
         </ul>
@@ -138,21 +140,15 @@ export default function Navbar() {
         {/* Right */}
         <div className="flex items-center gap-3 lg:gap-6 justify-self-end">
           <a
-            href="/login"
-            className="hidden sm:inline text-[13px] font-medium text-white/80 hover:text-white transition-colors"
-          >
-            Login
-          </a>
-          <a
             href="/waitlist"
-            className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap bg-aurora text-midnight font-semibold text-[13px] px-4 lg:px-5 py-2.5 rounded-full shadow-[0_0_24px_-4px_rgba(0,194,168,0.6)] hover:brightness-110 transition"
+            className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap bg-aurora text-midnight font-semibold text-[14px] px-6 py-3 rounded-full hover:brightness-105 transition"
           >
             Join the Waitlist
             <ArrowRight size={14} strokeWidth={2.5} />
           </a>
           <button
             onClick={() => setOpen(!open)}
-            className="lg:hidden text-white p-2 -mr-2"
+            className="lg:hidden text-midnight p-2 -mr-2"
             aria-label="Toggle menu"
             aria-expanded={open}
           >
@@ -163,15 +159,15 @@ export default function Navbar() {
 
       {/* Mobile sheet */}
       {open && (
-        <div className="nav-sheet lg:hidden border-t border-white/5 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain">
-          <ul className="px-5 sm:px-8 py-5 flex flex-col gap-1 text-white/90">
+        <div className="nav-sheet lg:hidden bg-white border-t border-midnight/5 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain">
+          <ul className="px-5 sm:px-8 py-5 flex flex-col gap-1 text-midnight">
             {NAV_ITEMS.map(({ label, id }) => (
               <li key={id}>
                 <a
                   href={`#${id}`}
                   onClick={() => setOpen(false)}
                   className={`block py-3 text-base ${
-                    active === id ? "text-aurora" : ""
+                    active === id ? "text-[#00A38C] font-semibold" : ""
                   }`}
                 >
                   {label}

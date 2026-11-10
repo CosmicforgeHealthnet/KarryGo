@@ -62,7 +62,7 @@ export default function OneAccount() {
       ref={sectionRef}
       data-inview={inView}
       id="account"
-      className="relative bg-midnight text-white overflow-hidden py-14 sm:py-20"
+      className="relative bg-white px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-10"
     >
       <style>{`
         @keyframes acc-rise {
@@ -165,6 +165,16 @@ export default function OneAccount() {
         }
       `}</style>
 
+      {/* Rounded navy card on the white page, with depth instead of a flat fill. */}
+      <div
+        className="relative mx-auto max-w-[1520px] overflow-hidden rounded-[28px] py-14 text-white shadow-[0_30px_80px_-40px_rgba(11,31,68,0.55)] sm:rounded-[36px] sm:py-20 lg:rounded-[44px]"
+        style={{ background: "linear-gradient(135deg, #0B1F44 0%, #10285A 55%, #1A3570 100%)" }}
+      >
+      {/* Soft teal glow behind the product image. */}
+      <div
+        aria-hidden
+        className="acc-glow absolute right-[8%] top-1/2 h-[70%] w-[45%] -translate-y-1/2 rounded-full bg-[#00C2A8]/15 blur-[90px]"
+      />
       <div
         aria-hidden
         className="absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_75%,rgba(0,194,168,0.05),transparent_70%)] lg:bg-[radial-gradient(ellipse_55%_60%_at_75%_50%,rgba(0,194,168,0.05),transparent_70%)]"
@@ -247,6 +257,7 @@ export default function OneAccount() {
             className="acc-img relative mx-auto w-full max-w-[640px] lg:max-w-none h-auto select-none"
           />
         </div>
+      </div>
       </div>
     </section>
   );

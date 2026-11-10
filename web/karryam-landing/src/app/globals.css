@@ -212,3 +212,16 @@ body {
   .hero-routes { display: none; }
   .driver-card, .driver-arrow { transition: none; }
 }
+
+/* Hero photo: fade its top and left edges into the white page, so no seam
+   shows where the photo begins. */
+@media (min-width: 1024px) {
+.hero-photo {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16%), linear-gradient(to bottom, transparent, #000 14%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 16%), linear-gradient(to bottom, transparent, #000 14%);
+  mask-composite: intersect;
+}
+}
+/* Lift the photo's near-white (254) background to pure white after scaling. */
+.hero-photo img { filter: brightness(1.012); }
