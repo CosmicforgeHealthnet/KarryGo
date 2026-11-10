@@ -93,15 +93,8 @@ func (s *Service) Verify(ctx context.Context, input VerifyInput) (VerifyResult, 
 		}
 
 		now := s.opts.Now()
-		switch {
-		case challenge.Status == models.ChallengeStatusConsumed:
-			return errorcodes.Unauthorized(errorcodes.OTPChallengeConsumed, "This verification code has already been used.")
-		case challenge.Status == models.ChallengeStatusLocked || challenge.FailedAttempts >= challenge.MaximumAttempts:
-			return errorcodes.Unauthorized(errorcodes.OTPAttemptLimitExceeded, "Too many incorrect attempts. Request a new code.")
-		case challenge.Status != models.ChallengeStatusPending:
-			return errorcodes.Unauthorized(errorcodes.OTPChallengeExpired, "This verification request is no longer valid.")
-		case !now.Before(challenge.ExpiresAt):
-			return errorcodes.Unauthorized(errorcodes.OTPChallengeExpired, "This verification code has expired. Request a new one.")
+		if err := challengeVerificationError(challenge, now); err != nil {
+			return err
 		}
 
 		// Constant-time comparison of the keyed digest.
