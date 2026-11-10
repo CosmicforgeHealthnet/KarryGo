@@ -16,6 +16,7 @@ const (
 	OTPDeliveryUnavailable        apperrors.Code = "otp_delivery_unavailable"
 	OTPChallengeNotFound          apperrors.Code = "otp_challenge_not_found"
 	OTPChallengeExpired           apperrors.Code = "otp_challenge_expired"
+	OTPChallengeSuperseded        apperrors.Code = "otp_challenge_superseded"
 	OTPChallengeConsumed          apperrors.Code = "otp_challenge_consumed"
 	OTPInvalid                    apperrors.Code = "otp_invalid"
 	OTPAttemptLimitExceeded       apperrors.Code = "otp_attempt_limit_exceeded"
