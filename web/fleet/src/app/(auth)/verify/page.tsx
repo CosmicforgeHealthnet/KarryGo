@@ -11,6 +11,8 @@ import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { organizationService } from "@/lib/services/organizationService";
 import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
 import { classifyAuthError } from "@/lib/auth/authErrors";
+import { challengeFailure } from "@/lib/auth/challengeErrors";
+import { otpDeadline, remainingSeconds } from "@/lib/auth/challengeTiming";
 
 const CODE_LENGTH = 6;
 // Fallbacks only: the server's own timings arrive in the URL from /auth/start.
@@ -27,12 +29,12 @@ type SubmitState =
   | { status: "idle" }
   | { status: "submitting" }
   | { status: "success" }
-  | { status: "error"; kind: "invalid" | "expired" | "access_denied" | "locked" | "network" | "contact_mismatch" | "account_unavailable" };
+  | { status: "error"; kind: "invalid" | "expired" | "replaced" | "consumed" | "missing" | "access_denied" | "locked" | "network" | "contact_mismatch" | "account_unavailable" };
 
 function VerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const challengeId = searchParams.get("challengeId") || "";
+  const [challengeId, setChallengeId] = useState(() => searchParams.get("challengeId") || "");
   const destination = searchParams.get("destination") ?? "your contact";
   const [resendSeconds, setResendSeconds] = useState(() => positiveSeconds(searchParams.get("resendIn"), DEFAULT_RESEND_SECONDS));
   const [expirySeconds, setExpirySeconds] = useState(() => positiveSeconds(searchParams.get("expiresIn"), DEFAULT_EXPIRY_SECONDS));
@@ -43,19 +45,26 @@ function VerifyContent() {
   const [expiresIn, setExpiresIn] = useState(expirySeconds);
   const [attempts, setAttempts] = useState(0);
   const [justResent, setJustResent] = useState(false);
-  const [resendError, setResendError] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [errorReference, setErrorReference] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const expiryDeadlineRef = useRef(otpDeadline(searchParams.get("expiresAt"), expirySeconds));
+  const resendDeadlineRef = useRef(otpDeadline(searchParams.get("resendAt"), resendSeconds));
 
   const { setAuth, setLoading, setError } = useAuthStore();
   const { setOrganization } = useOrganizationStore();
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setResendIn((s) => Math.max(0, s - 1));
-      setExpiresIn((s) => Math.max(0, s - 1));
-    }, 1000);
+    // Compute against absolute deadlines, since mobile browsers throttle
+    // or suspend interval callbacks when the page is in the background.
+    const update = () => {
+      setResendIn(remainingSeconds(resendDeadlineRef.current));
+      setExpiresIn(remainingSeconds(expiryDeadlineRef.current));
+    };
+    update();
+    const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -67,6 +76,9 @@ function VerifyContent() {
   const locked = state.status === "error" && (
     state.kind === "locked" || state.kind === "contact_mismatch" || state.kind === "account_unavailable"
   );
+  const restartRequired = state.status === "error" &&
+    (state.kind === "replaced" || state.kind === "consumed" || state.kind === "missing");
+  const blockVerify = locked || restartRequired || (state.status === "error" && state.kind === "expired");
   const hasError = state.status === "error";
 
   function triggerShake() {
@@ -84,6 +96,7 @@ function VerifyContent() {
       setState({ status: "error", kind: "expired" });
       return;
     }
+    if (blockVerify) return;
 
     if (!challengeId) {
       setState({ status: "error", kind: "access_denied" });
@@ -93,6 +106,7 @@ function VerifyContent() {
     if (submitting || success) return;
 
     setState({ status: "submitting" });
+    setErrorReference(null);
     setLoading(true);
     setError(null);
 
@@ -176,34 +190,20 @@ function VerifyContent() {
       triggerShake();
     } catch (err) {
       const failure = classifyAuthError(err);
-      const code = failure.code ?? "";
-      const isNetworkError = failure.kind === "network";
-
-      if (code === "identity_pair_conflict") {
-        setState({ status: "error", kind: "contact_mismatch" });
-      } else if (code === "identity_suspended") {
-        setState({ status: "error", kind: "account_unavailable" });
-      } else if (isNetworkError) {
-        setState({ status: "error", kind: "network" });
-      } else if (code === "otp_challenge_expired" || code === "otp_challenge_consumed" || code === "otp_challenge_not_found") {
-        setState({ status: "error", kind: "expired" });
-      } else if (code === "otp_attempt_limit_exceeded" || failure.kind === "rate_limited") {
-        setState({ status: "error", kind: "locked" });
-      } else if (failure.kind === "configuration" || failure.kind === "unavailable" || failure.kind === "server_error") {
-        setState({ status: "error", kind: "access_denied" });
-      } else {
+      const reason = challengeFailure(failure.code, failure.kind);
+      setErrorReference([failure.code, failure.requestId].filter(Boolean).join(" · ") || null);
+      if (reason === "invalid") {
         const nextAttempts = attempts + 1;
         setAttempts(nextAttempts);
-        setState({
-          status: "error",
-          kind: nextAttempts >= MAX_ATTEMPTS ? "locked" : "invalid",
-        });
+        setState({ status: "error", kind: nextAttempts >= MAX_ATTEMPTS ? "locked" : "invalid" });
+      } else {
+        setState({ status: "error", kind: reason });
       }
 
       setError(failure.message);
       setLoading(false);
       triggerShake();
-      if (!isNetworkError) {
+      if (reason === "invalid") {
         clearAndRefocus();
       }
     }
@@ -269,36 +269,67 @@ function VerifyContent() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (locked || submitting || success || code.length !== CODE_LENGTH) return;
+    if (blockVerify || expired || submitting || success || code.length !== CODE_LENGTH) return;
     submitCode(code);
   }
 
   async function handleResend() {
-    if (resendIn > 0 || submitting || success) return;
+    if (resendIn > 0 || submitting || success || restartRequired) return;
 
-    setResendError(false);
+    setResendError(null);
+    setErrorReference(null);
     try {
       const resent = await authService.resendOTP({ challengeId });
-      const nextResend = positiveSeconds(String(resent?.resendAfterSeconds ?? ""), resendSeconds);
-      const nextExpiry = positiveSeconds(String(resent?.expiresInSeconds ?? ""), expirySeconds);
+      if (!resent?.challengeId) {
+        setResendError("The server did not return a new verification request. Please start again.");
+        return;
+      }
+      const nextResend = positiveSeconds(String(resent.resendAfterSeconds ?? ""), resendSeconds);
+      const nextExpiry = positiveSeconds(String(resent.expiresInSeconds ?? ""), expirySeconds);
+      resendDeadlineRef.current = otpDeadline(resent.resendAvailableAt, nextResend);
+      expiryDeadlineRef.current = otpDeadline(resent.expiresAt, nextExpiry);
       setResendSeconds(nextResend);
       setExpirySeconds(nextExpiry);
-      setResendIn(nextResend);
-      setExpiresIn(nextExpiry);
+      setResendIn(remainingSeconds(resendDeadlineRef.current));
+      setExpiresIn(remainingSeconds(expiryDeadlineRef.current));
+
+      // An expired challenge is replaced with a new ID by the backend.
+      // Always send that new ID during verification and on page refresh.
+      setChallengeId(resent.challengeId);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("challengeId", resent.challengeId);
+      params.set("expiresIn", String(nextExpiry));
+      params.set("resendIn", String(nextResend));
+      if (resent.expiresAt) params.set("expiresAt", resent.expiresAt);
+      else params.delete("expiresAt");
+      if (resent.resendAvailableAt) params.set("resendAt", resent.resendAvailableAt);
+      else params.delete("resendAt");
+      router.replace(`/verify?${params.toString()}`);
+
       setAttempts(0);
       setState({ status: "idle" });
       setDigits(Array(CODE_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
       setJustResent(true);
       setTimeout(() => setJustResent(false), 3000);
-    } catch {
-      setResendError(true);
-      setTimeout(() => setResendError(false), 4000);
+    } catch (err) {
+      const failure = classifyAuthError(err);
+      const reason = challengeFailure(failure.code, failure.kind);
+      if (reason === "replaced" || reason === "consumed" || reason === "missing") {
+        setState({ status: "error", kind: reason });
+      } else if (reason === "expired") {
+        // Older servers cannot resend expired codes; restart is necessary.
+        setState({ status: "error", kind: "missing" });
+      }
+      const detail = [failure.code, failure.requestId].filter(Boolean).join(" · ");
+      setResendError(`${reason === "replaced" || reason === "consumed" || reason === "missing" || reason === "expired"
+        ? "This verification request is no longer active. Start again."
+        : failure.message}${detail ? ` (Reference: ${detail})` : ""}`);
     }
   }
 
   const attemptsRemaining = MAX_ATTEMPTS - attempts;
-  const boxIsLocked = submitting || expired || locked || success;
+  const boxIsLocked = submitting || expired || blockVerify || success;
 
   return (
     <div>
@@ -368,6 +399,12 @@ function VerifyContent() {
                 `That code isn't right. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.`}
               {state.kind === "expired" &&
                 "This code has expired. Request a new one."}
+              {state.kind === "replaced" &&
+                "A newer verification request replaced this code. Start again to use the latest code."}
+              {state.kind === "consumed" &&
+                "This verification code was already used. Start again if you still need to sign in."}
+              {state.kind === "missing" &&
+                "This verification request was not found. Start again to request a new code."}
               {state.kind === "access_denied" &&
                 "Access denied. Contact your organization administrator."}
               {state.kind === "contact_mismatch" &&
@@ -379,6 +416,9 @@ function VerifyContent() {
               {state.kind === "network" &&
                 "Couldn't reach the server. Check your connection and try again."}
             </p>
+          )}
+          {state.status === "error" && errorReference && (
+            <p className="mt-1 text-[11px] text-ink-500">Reference: {errorReference}</p>
           )}
 
           {state.status === "success" && (
@@ -411,7 +451,7 @@ function VerifyContent() {
 
         <button
           type="submit"
-          disabled={submitting || code.length !== CODE_LENGTH || expired || locked || success}
+          disabled={submitting || code.length !== CODE_LENGTH || expired || blockVerify || success}
           className="mt-4 flex h-[clamp(56px,7.4vh,70px)] w-full items-center justify-center gap-2.5 rounded-[12px] bg-label-accent px-5 text-[21px] font-bold text-surface transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? (
@@ -429,19 +469,29 @@ function VerifyContent() {
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={handleResend}
-          disabled={resendIn > 0 || submitting || success}
-          className="mt-3 w-full text-center text-[13px] font-semibold text-primary transition hover:text-primary-hover disabled:cursor-not-allowed disabled:text-ink-500"
-        >
-          {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
-        </button>
+        {restartRequired ? (
+          <button
+            type="button"
+            onClick={() => router.replace("/sign-in")}
+            className="mt-3 w-full text-center text-[13px] font-semibold text-primary hover:underline"
+          >
+            Start new verification
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resendIn > 0 || submitting || success}
+            className="mt-3 w-full text-center text-[13px] font-semibold text-primary transition hover:text-primary-hover disabled:cursor-not-allowed disabled:text-ink-500"
+          >
+            {resendIn > 0 ? `Resend code in ${resendIn}s` : expired ? "Request new code" : "Resend code"}
+          </button>
+        )}
 
         {resendError && (
           <p role="alert" className="mt-2 flex items-center justify-center gap-1.5 text-[12px] font-medium text-red">
             <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-            Couldn&apos;t resend the code. Please try again.
+            {resendError}
           </p>
         )}
       </form>
