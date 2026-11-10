@@ -44,6 +44,40 @@ func TestSendUsesTemplateDefaultChannelsWhenChannelsAreOmitted(t *testing.T) {
 	}
 }
 
+func TestFleetOTPBypassesPreferencesButMarketingEmailIsSuppressed(t *testing.T) {
+	repo := newFakeRepository()
+	repo.channelDisabled = true
+	queue := &fakeQueue{}
+	service := newTestService(repo, queue)
+	for _, tc := range []struct {
+		key, source, eventType, body, wantStatus string
+	}{
+		{"fleet:otp", "fleet-partner-service", "corporate.auth.otp", "Your verification code is 012345.", messagemodels.StatusSent},
+		{"fleet:marketing", "fleet-partner-service", "corporate.marketing.campaign", "Our latest campaign", messagemodels.StatusSuppressed},
+	} {
+		result, err := service.Send(context.Background(), notifications.Request{
+			IDempotencyKey: tc.key,
+			SourceService: tc.source, EventType: tc.eventType,
+			Recipient: notifications.Recipient{Type: "corporate_user", ID: "owner@example.com", Email: "owner@example.com"},
+			Channels: []string{notifications.ChannelEmail},
+			Title: "Karryam message", Body: tc.body,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		deliveryID := queue.enqueued[len(queue.enqueued)-1]
+		if err := service.ProcessDelivery(context.Background(), deliveryID); err != nil {
+			t.Fatal(err)
+		}
+		if got := repo.deliveries[deliveryID].Status; got != tc.wantStatus {
+			t.Fatalf("%s: got status %s, want %s; message %s", tc.key, got, tc.wantStatus, result.MessageID)
+		}
+	}
+	if got := len(service.email.(*fakeEmailSender).messages); got != 1 {
+		t.Fatalf("expected only essential Fleet OTP to be sent, got %d emails", got)
+	}
+}
+
 func TestEmailWithMissingTemplateAndEmptyBodyIsRejected(t *testing.T) {
 	repo := newFakeRepository()
 	queue := &fakeQueue{}
@@ -143,6 +177,7 @@ type fakeRepository struct {
 	messages   map[string]messagemodels.Message
 	deliveries map[string]messagemodels.Delivery
 	devices    []messagemodels.Device
+	channelDisabled bool
 }
 
 func newFakeRepository() *fakeRepository {
@@ -256,7 +291,7 @@ func (r *fakeRepository) GetTemplate(ctx context.Context, key string, locale str
 }
 
 func (r *fakeRepository) IsChannelEnabled(ctx context.Context, recipientType string, recipientID string, channel string) (bool, error) {
-	return true, nil
+	return !r.channelDisabled, nil
 }
 
 func (r *fakeRepository) UpsertDevice(ctx context.Context, device messagemodels.Device) (messagemodels.Device, error) {
