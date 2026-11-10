@@ -233,8 +233,16 @@ func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, err
 		return StartResult{}, resolveErr
 	}
 
-	// Step-up binds to the caller's existing identity and session.
-	if purpose == models.PurposeStepUp && input.IdentityID != "" {
+	// A sensitive-action step-up is never an account-recovery flow. It must
+	// match the authenticated, usable identity exactly. In particular, an
+	// account conflict or suspension cannot be promoted to a step-up grant
+	// simply by verifying an OTP at an unrelated address.
+	if purpose == models.PurposeStepUp {
+		if input.IdentityID == "" || resolveErr != nil || existing == nil ||
+			existing.ID != input.IdentityID || !existing.Usable(s.opts.Now()) {
+			return StartResult{}, errorcodes.Forbidden(errorcodes.IdentitySuspended,
+				"Sensitive-action verification is unavailable. Please sign in again or contact support.")
+		}
 		identityID = &input.IdentityID
 	}
 
