@@ -12,6 +12,8 @@ export interface StartOTPResponse {
   maskedDestination: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
+  expiresAt?: string;
+  resendAvailableAt?: string;
 }
 
 export interface VerifyOTPRequest {
@@ -38,7 +40,7 @@ export interface Organization {
 
 export interface VerifyOTPResponse {
   data: {
-    nextStep: 'ONBOARDING_REQUIRED' | 'ORGANIZATION_SELECTION_REQUIRED' | 'READY' | 'STEP_UP_GRANTED';
+    nextStep: 'ONBOARDING_REQUIRED' | 'ORGANIZATION_SELECTION_REQUIRED' | 'READY' | 'STEP_UP_GRANTED' | 'CONTACT_MISMATCH' | 'ACCOUNT_UNAVAILABLE';
     identityId: string;
     tokens?: Tokens;
     organizations?: Organization[];
@@ -59,6 +61,8 @@ export interface ResendOTPResponse {
   maskedDestination: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
+  expiresAt?: string;
+  resendAvailableAt?: string;
 }
 
 export interface SelectOrganizationRequest {
