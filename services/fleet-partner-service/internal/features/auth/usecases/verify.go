@@ -181,13 +181,12 @@ func (s *Service) completeVerification(ctx context.Context, tx pgx.Tx, challenge
 	// Recheck inside the locked challenge transaction: identity state may
 	// have changed between OTP creation and verification.
 	existing, pairErr := s.opts.Identities.ResolvePair(ctx, tx, pair.EmailNormalized, pair.PhoneE164)
-	switch {
-	case errors.Is(pairErr, authrepos.ErrIdentityPairConflict):
-		return VerifyResult{NextStep: NextStepContactMismatch}, nil
-	case pairErr == nil && !existing.Usable(s.opts.Now()):
-		return VerifyResult{NextStep: NextStepAccountUnavailable}, nil
-	case pairErr != nil && !errors.Is(pairErr, authrepos.ErrNotFound):
-		return VerifyResult{}, pairErr
+	outcome, gateErr := verifiedPairOutcome(existing, pairErr, s.opts.Now())
+	if gateErr != nil {
+		return VerifyResult{}, gateErr
+	}
+	if outcome != "" {
+		return VerifyResult{NextStep: outcome}, nil
 	}
 
 	identity, err := s.resolveOrCreateIdentity(ctx, tx, challenge, pair)
@@ -281,6 +280,28 @@ func (s *Service) resolveOrCreateIdentity(ctx context.Context, tx pgx.Tx, challe
 
 	default:
 		return nil, err
+	}
+}
+
+
+// verifiedPairOutcome decides whether an email-verified user can proceed
+// without revealing which of the two contact fields caused a mismatch.
+// It intentionally returns a terminal, token-free result rather than an
+// error, so the consumed OTP challenge commits and cannot be reused.
+func verifiedPairOutcome(existing *models.Identity, resolveErr error, now time.Time) (string, error) {
+	switch {
+	case errors.Is(resolveErr, authrepos.ErrIdentityPairConflict):
+		return NextStepContactMismatch, nil
+	case errors.Is(resolveErr, authrepos.ErrNotFound):
+		return "", nil
+	case resolveErr != nil:
+		return "", resolveErr
+	case existing == nil:
+		return "", errors.New("auth: identity resolution returned no identity")
+	case !existing.Usable(now):
+		return NextStepAccountUnavailable, nil
+	default:
+		return "", nil
 	}
 }
 
