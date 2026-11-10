@@ -117,6 +117,8 @@ export function useContactAuthForm({ invitationToken }: UseContactAuthFormOption
       const params = new URLSearchParams({ challengeId: response.challengeId, destination });
       if (response.expiresInSeconds) params.set("expiresIn", String(response.expiresInSeconds));
       if (response.resendAfterSeconds) params.set("resendIn", String(response.resendAfterSeconds));
+      if (response.expiresAt) params.set("expiresAt", response.expiresAt);
+      if (response.resendAvailableAt) params.set("resendAt", response.resendAvailableAt);
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
       const error = classifyAuthError(err);
