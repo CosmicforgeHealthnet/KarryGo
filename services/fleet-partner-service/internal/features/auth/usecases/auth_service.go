@@ -158,9 +158,10 @@ type StartResult struct {
 
 // Start begins a passwordless authentication challenge.
 //
-// Both email and phone are mandatory. The response is identical whether or
-// not an account exists, so it cannot be used to enumerate accounts. An
-// identity is never created here — only after the code is verified.
+// Both email and phone are mandatory. The response must not reveal whether
+// either contact already exists. Real OTP challenges (not fake success IDs)
+// are created for syntactically valid requests, and an identity is never
+// created until its email OTP has been verified.
 func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, error) {
 	pair, err := contact.NormalizePair(input.Email, input.Phone, s.opts.DefaultCountryCode)
 	if err != nil {
@@ -199,8 +200,10 @@ func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, err
 
 	s.opts.Metrics.IncCounter("fleet_partner_auth_start_requests_total", map[string]string{"purpose": purpose}, 1)
 
-	// Resolve the pair. A conflict is recorded as a security event but the
-	// caller still receives the generic response.
+	// Resolve the pair. Conflicting or restricted identities must not get
+	// fabricated challenges that never email a code. Deliver a real email OTP,
+	// then show a non-disclosing failure only after the email is verified.
+	// A conflict never binds the new challenge to an existing identity.
 	var identityID *string
 	existing, resolveErr := s.opts.Identities.ResolvePair(ctx, s.opts.Pool, pair.EmailNormalized, pair.PhoneE164)
 	switch {
@@ -211,8 +214,8 @@ func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, err
 				IdentityID: &existing.ID, EmailHash: &emailHash, PhoneHash: &phoneHash,
 				RequestID: input.RequestID, CorrelationID: input.CorrelationID,
 			})
-			// Generic response: do not disclose suspension.
-			return s.genericResult(pair), nil
+			// Do not disclose account status in the unauthenticated response.
+			// Verification will return ACCOUNT_UNAVAILABLE without issuing tokens.
 		}
 		identityID = &existing.ID
 	case errors.Is(resolveErr, authrepos.ErrIdentityPairConflict):
@@ -221,8 +224,9 @@ func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, err
 			EmailHash: &emailHash, PhoneHash: &phoneHash, IPHash: optional(input.IPHash),
 			RequestID: input.RequestID, CorrelationID: input.CorrelationID,
 		})
-		// Generic response: a conflict must not reveal which half matched.
-		return s.genericResult(pair), nil
+		// Do not disclose which contact matched. The OTP goes only to the
+		// supplied email; after that email is verified, return CONTACT_MISMATCH.
+		identityID = nil
 	case errors.Is(resolveErr, authrepos.ErrNotFound):
 		identityID = nil // new signup; identity is created after verification
 	default:
@@ -256,19 +260,6 @@ func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, err
 		ExpiresInSeconds:   int(s.opts.OTPExpiry.Seconds()),
 		ResendAfterSeconds: int(s.opts.OTPResendCooldown.Seconds()),
 	}, nil
-}
-
-// genericResult returns an indistinguishable response for cases where no
-// challenge was actually created (suspended identity, pair conflict). It
-// carries a random challenge ID that will simply never verify.
-func (s *Service) genericResult(pair contact.Pair) StartResult {
-	return StartResult{
-		ChallengeID:        ids.New("ach"),
-		DeliveryChannel:    "EMAIL",
-		MaskedDestination:  contact.MaskEmail(pair.EmailNormalized),
-		ExpiresInSeconds:   int(s.opts.OTPExpiry.Seconds()),
-		ResendAfterSeconds: int(s.opts.OTPResendCooldown.Seconds()),
-	}
 }
 
 func (s *Service) buildChallenge(pair contact.Pair, emailHash string, phoneHash string, purpose string, identityID *string, input StartInput) (*models.Challenge, string, error) {
