@@ -110,6 +110,8 @@ func (s *Service) Resend(ctx context.Context, input ResendInput) (StartResult, e
 		MaskedDestination:  maskStored(challenge.EmailNormalized),
 		ExpiresInSeconds:   int(s.opts.OTPExpiry.Seconds()),
 		ResendAfterSeconds: int(s.opts.OTPResendCooldown.Seconds()),
+		ExpiresAt:          expiresAt,
+		ResendAvailableAt:  resendAt,
 	}, nil
 }
 
