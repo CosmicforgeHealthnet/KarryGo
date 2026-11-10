@@ -166,12 +166,18 @@ func (s *NotificationService) ProcessDelivery(ctx context.Context, deliveryID st
 		return err
 	}
 
-	enabled, err := s.repository.IsChannelEnabled(ctx, message.RecipientType, message.RecipientID, delivery.Channel)
-	if err != nil {
-		return err
-	}
-	if !enabled {
-		return s.finishDelivery(ctx, delivery, "preferences", nil, messagemodels.StatusSuppressed, nil)
+	// An authentication OTP is an essential security message, not a
+	// subscription or marketing notification. An opt-out must not silently
+	// suppress login codes. Limit this exception to the explicit Fleet OTP
+	// event and its email channel; all other email preferences still apply.
+	if !isFleetAuthenticationOTP(message, delivery.Channel) {
+		enabled, err := s.repository.IsChannelEnabled(ctx, message.RecipientType, message.RecipientID, delivery.Channel)
+		if err != nil {
+			return err
+		}
+		if !enabled {
+			return s.finishDelivery(ctx, delivery, "preferences", nil, messagemodels.StatusSuppressed, nil)
+		}
 	}
 
 	switch delivery.Channel {
@@ -187,6 +193,13 @@ func (s *NotificationService) ProcessDelivery(ctx context.Context, deliveryID st
 		errMessage := "unsupported notification channel"
 		return s.finishDelivery(ctx, delivery, "notification-service", nil, messagemodels.StatusSkipped, &errMessage)
 	}
+}
+
+func isFleetAuthenticationOTP(message messagemodels.Message, channel string) bool {
+	return channel == notifications.ChannelEmail &&
+		message.SourceService == "fleet-partner-service" &&
+		message.EventType == "corporate.auth.otp" &&
+		message.RecipientType == "corporate_user"
 }
 
 type RegisterDeviceInput struct {
