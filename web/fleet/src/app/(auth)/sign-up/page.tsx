@@ -33,6 +33,11 @@ function SignUpContent() {
         </Link>
       </p>
 
+      <p className="mt-5 text-center text-[13.5px] leading-relaxed text-ink-500">
+        Already registered? Use your original email and phone number to sign in.
+        We never create a second Fleet account for the same verified contact details.
+        If your phone number has changed, contact support.
+      </p>
 
     </div>
   );
