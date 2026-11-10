@@ -46,12 +46,42 @@ func (s *Service) Resend(ctx context.Context, input ResendInput) (StartResult, e
 	}
 
 	now := s.opts.Now()
-	if challenge.Status != models.ChallengeStatusPending {
-		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeExpired, "This verification request is no longer valid.")
+	// A replaced or consumed challenge cannot be resurrected; the user must
+	// start from the current sign-in flow instead of mailing codes for an old ID.
+	switch challenge.Status {
+	case models.ChallengeStatusSuperseded:
+		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeSuperseded,
+			"A newer verification request replaced this one. Start again.")
+	case models.ChallengeStatusConsumed, models.ChallengeStatusVerified:
+		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeConsumed,
+			"This verification request has already been used. Start again.")
+	case models.ChallengeStatusLocked:
+		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPAttemptLimitExceeded,
+			"Too many incorrect attempts. Start again.")
+	case models.ChallengeStatusPending, models.ChallengeStatusExpired:
+		// Accepted states, handled below.
+	default:
+		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeExpired,
+			"This verification request is no longer valid. Start again.")
 	}
 	if now.Before(challenge.ResendAvailableAt) {
 		return StartResult{}, errorcodes.TooManyRequests(errorcodes.OTPResendTooSoon,
 			"Please wait before requesting another code.")
+	}
+	// An expired normal signup/sign-in challenge can be recovered without
+	// sending its now-invalid digest again. Start creates a NEW challenge ID
+	// and enforces per-email, per-phone and per-IP OTP limits. Never recover
+	// an expired invitation/step-up challenge or an old shared link.
+	if challenge.Status == models.ChallengeStatusExpired || !now.Before(challenge.ExpiresAt) {
+		if challenge.Purpose != models.PurposeSignUpOrLogin ||
+			now.After(challenge.ExpiresAt.Add(30*time.Minute)) {
+			return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeExpired,
+				"This verification request has expired. Start again.")
+		}
+		return s.Start(ctx, StartInput{
+			Email: challenge.EmailNormalized, Phone: challenge.PhoneE164,
+			IPHash: input.IPHash, RequestID: input.RequestID, CorrelationID: input.CorrelationID,
+		})
 	}
 
 	code, err := auth.GenerateNumericOTP(s.opts.OTPLength)
