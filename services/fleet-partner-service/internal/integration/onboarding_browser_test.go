@@ -51,5 +51,10 @@ func TestOnboardingV2BrowserWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Onboarding browser workflow: %v\n%s", err, output)
 	}
+	var complete int
+	err = h.pool.QueryRow(context.Background(), `SELECT count(*) FROM fleet_partner_organization_onboarding_stages s JOIN fleet_partner_organizations o ON o.id=s.organization_id WHERE o.status='BUSINESS_SUBMITTED' AND s.stage IN ('OWNER_CONTACT','BUSINESS_PROFILE','HEADQUARTERS','AUTHORIZED_REPRESENTATIVE','OPERATING_CAPABILITIES','BUSINESS_DOCUMENTS') AND s.status='COMPLETE'`).Scan(&complete)
+	if err != nil || complete != 6 {
+		t.Fatalf("submitted customer's durable activation prerequisites: complete=%d error=%v", complete, err)
+	}
 	t.Log(string(output))
 }

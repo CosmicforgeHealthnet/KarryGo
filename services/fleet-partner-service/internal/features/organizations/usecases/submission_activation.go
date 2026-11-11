@@ -56,10 +56,6 @@ func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.Verifi
 		return nil, err
 	}
 	stages := status.Stages
-	_, err = s.opts.Onboarding.ListStages(ctx, input.Tenant.OrganizationID)
-	if err != nil {
-		return nil, err
-	}
 	if missing := MissingStages(stages); len(missing) > 0 {
 		return nil, errorcodes.UnprocessableEntity(errorcodes.OrganizationOnboardingIncomplete,
 			"Complete every required onboarding step before submitting.")
@@ -104,6 +100,15 @@ func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.Verifi
 		}
 		if len(MissingStages(actual.Stages)) > 0 {
 			return errorcodes.UnprocessableEntity(errorcodes.OrganizationOnboardingIncomplete, "Saved company information is incomplete. Reload the review to see what is missing.")
+		}
+		// Preserve the durable customer-stage projection consumed by the
+		// existing activation worker, using only the facts just validated.
+		for _, stage := range actual.Stages {
+			if contains(requiredForSubmission, stage.Stage) {
+				if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.Tenant.OrganizationID, stage.Stage, stage.Status, stage.MissingFields, stage.BlockingIssues); err != nil {
+					return err
+				}
+			}
 		}
 		// Read the immutable snapshot under the same lock held by every customer save.
 		profile, err := scoped.opts.Onboarding.GetProfile(ctx, input.Tenant.OrganizationID)
