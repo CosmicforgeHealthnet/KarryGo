@@ -344,13 +344,12 @@ export default function CompanyProfilePage() {
       const updated = await organizationService.updateOrganization(data.organizationId, {
         legalName: editData.legalName || data.legalName,
         tradingName: editData.tradingName || data.tradingName || "",
-        registrationNumber: "",
+        // The organization API does not return the registration number in
+        // this summary response; omit it instead of overwriting it with "".
         countryCode: editData.countryCode || data.countryCode,
-        organizationType: "",
         timezone: editData.timezone || data.timezone,
         defaultCurrency: editData.defaultCurrency || data.defaultCurrency,
-        ownerName: "",
-      });
+      }, data.version);
 
       setData(updated);
       setOrganization(updated);
