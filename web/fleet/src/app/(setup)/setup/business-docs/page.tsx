@@ -451,7 +451,7 @@ export default function BusinessDocumentsPage() {
         organization.organizationId,
         'BUSINESS_DOCUMENTS'
       );
-      setStageComplete("documents");
+      setStageComplete("BUSINESS_DOCUMENTS");
       setSaveSuccess(true);
 
       router.push(nextPath("documents"));
