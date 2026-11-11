@@ -1,0 +1,41 @@
+name: Fleet authentication staging evidence (read only)
+on:
+  workflow_dispatch:
+    inputs:
+      test_email:
+        description: Authorized test inbox; no message bodies or secrets are read
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: staging-release-runtime
+  cancel-in-progress: false
+jobs:
+  evidence:
+    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read Fleet runtime, constraints and test delivery statuses
+        shell: bash
+        env:
+          HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          USER_: ${{ secrets.STAGING_DEPLOY_USER }}
+          KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+          TEST_EMAIL: ${{ inputs.test_email }}
+        run: |
+          set -euo pipefail
+          [[ "$HOST" =~ ^[A-Za-z0-9.-]+$ && "$USER_" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$TEST_EMAIL" =~ ^[A-Za-z0-9._+@-]+$ ]]
+          umask 077
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+          printf '%s\n' "$KEY" > "$scratch/key"
+          printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
+          ssh -T -i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$scratch/known_hosts" -o ConnectTimeout=12 "$USER_@$HOST" bash -se -- "$TEST_EMAIL" < scripts/fleet/staging-auth-evidence.sh
