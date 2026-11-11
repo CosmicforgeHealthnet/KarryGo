@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.11'
           cache-dependency-path: services/fleet-partner-service/go.sum
       - uses: actions/setup-node@v4
         with:
@@ -55,7 +55,7 @@ jobs:
       - name: Browser to API to PostgreSQL workflow (email sender fixture)
         env:
           FLEET_AUTH_BROWSER_TEST: '1'
-        run: go test ./services/fleet-partner-service/internal/integration -run '^TestAuthV2BrowserWorkflow$' -count=1 -v
+        run: go test -tags fleet_auth_browser ./services/fleet-partner-service/internal/integration -run '^TestAuthV2BrowserWorkflow$' -count=1 -v
       - uses: actions/upload-artifact@v4
         if: always()
         with:

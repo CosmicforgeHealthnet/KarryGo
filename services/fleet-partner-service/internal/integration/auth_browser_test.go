@@ -1,3 +1,5 @@
+//go:build fleet_auth_browser
+
 package integration_test
 
 import (

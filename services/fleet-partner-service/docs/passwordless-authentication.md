@@ -44,3 +44,5 @@ The notification adapter sends only EMAIL through existing corporate.auth.otp te
 ## Verification
 
 See `docs/implementation/fleet-auth-v2-audit.md` and `fleet-auth-v2-final-closure.md` at repository root for audit/deployment evidence. `.github/workflows/fleet-auth-v2.yml` runs auth security/contract tests, PostgreSQL regressions, frontend checks/build and an actual Chromium → Next.js proxy → Fleet API → PostgreSQL workflow. The local browser test uses a test-only sender fixture and is distinct from live staging mail acceptance.
+
+The browser harness is compiled with `-tags fleet_auth_browser` and requires `FLEET_AUTH_BROWSER_TEST=1`. The dedicated auth CI workflow runs it mandatorily; the default Go-only suite does not report it as an unexpected skip. Fleet runtime and these CI gates use Go 1.26.11 to include the November 2026 net/http security fix (GO-2026-6859).
