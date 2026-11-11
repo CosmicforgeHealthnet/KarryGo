@@ -132,8 +132,12 @@ export const organizationService = {
     return response.data.data;
   },
 
-  async updateOrganization(organizationId: string, data: Partial<CreateOrganizationRequest>): Promise<Organization> {
-    const response = await apiClient.put<{ data: Organization }>(`/organizations/${organizationId}`, data);
+  async updateOrganization(organizationId: string, data: Partial<CreateOrganizationRequest>, expectedVersion?: number): Promise<Organization> {
+    const response = await apiClient.put<{ data: Organization }>(
+      `/organizations/${organizationId}`,
+      data,
+      expectedVersion && expectedVersion >= 1 ? { headers: { 'If-Match': String(expectedVersion) } } : undefined
+    );
     return response.data.data;
   },
 
