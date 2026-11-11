@@ -38,6 +38,8 @@ type Entry struct {
 // generated is the mechanically extracted table. Do not edit directly --
 // edit overrides below, or the source manifest, and regenerate.
 var generated = []Entry{
+	{Method: "GET", Path: "/fleet-partner/v1/identity/profile", RiskClass: ratelimit.RiskSensitive},
+	{Method: "DELETE", Path: "/fleet-partner/v1/organizations/:organizationId/documents/:documentId", RiskClass: ratelimit.RiskSensitive},
 	{Method: "DELETE", Path: "/fleet-partner/v1/sessions/:sessionId", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/v1/approvals/requests", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/approvals/requests/:approvalId", RiskClass: ratelimit.RiskStandard},

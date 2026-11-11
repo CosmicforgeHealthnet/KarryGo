@@ -5,9 +5,11 @@ import { persist } from 'zustand/middleware';
 
 export interface Organization {
   organizationId: string;
+  registrationNumber: string;
+  organizationType: string;
   legalName: string;
   tradingName: string;
-  status: 'DRAFT' | 'PENDING' | 'BUSINESS_SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED' | 'CHANGES_REQUIRED';
+  status: 'PENDING_REVIEW' | 'DRAFT' | 'PENDING' | 'BUSINESS_SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED' | 'CHANGES_REQUIRED';
   countryCode: string;
   timezone: string;
   defaultCurrency: string;

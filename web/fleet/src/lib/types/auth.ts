@@ -39,6 +39,7 @@ export interface Organization {
   membershipId: string;
   organizationId: string;
   organizationName: string;
+  organizationStatus?: string;
   status: string;
   isOwner: boolean;
 }

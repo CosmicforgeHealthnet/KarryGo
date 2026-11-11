@@ -68,13 +68,20 @@ export function stepForPath(pathname: string): SetupStep | undefined {
   return SETUP_STEPS.find((s) => s.path === pathname);
 }
 
-export function isStepComplete(step: SetupStep, stages: StageStatuses): boolean {
-  return step.stages.length > 0 && step.stages.every((s) => stages[s] === "COMPLETE");
+export function isStepComplete(
+  step: SetupStep,
+  stages: StageStatuses,
+): boolean {
+  return (
+    step.stages.length > 0 && step.stages.every((s) => stages[s] === "COMPLETE")
+  );
 }
 
 export function nextPath(id: string): string {
   const i = SETUP_STEPS.findIndex((s) => s.id === id);
-  return i >= 0 && i < SETUP_STEPS.length - 1 ? SETUP_STEPS[i + 1].path : SETUP_HOME;
+  return i >= 0 && i < SETUP_STEPS.length - 1
+    ? SETUP_STEPS[i + 1].path
+    : SETUP_HOME;
 }
 
 export function previousPath(id: string): string {
@@ -83,7 +90,14 @@ export function previousPath(id: string): string {
 }
 
 // Where "Continue setup" goes: the first step that is not finished.
-export function firstOpenStep(stages: StageStatuses, hasCompany: boolean): SetupStep {
+export function firstOpenStep(
+  stages: StageStatuses,
+  hasCompany: boolean,
+): SetupStep {
   if (!hasCompany) return SETUP_STEPS[0];
-  return SETUP_STEPS.find((s) => s.stages.length > 0 && !isStepComplete(s, stages)) ?? SETUP_STEPS[SETUP_STEPS.length - 1];
+  return (
+    SETUP_STEPS.find(
+      (s) => s.stages.length > 0 && !isStepComplete(s, stages),
+    ) ?? SETUP_STEPS[SETUP_STEPS.length - 1]
+  );
 }

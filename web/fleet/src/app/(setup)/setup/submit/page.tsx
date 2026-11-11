@@ -1,136 +1,222 @@
-﻿// src/app/(setup)/setup/submit/page.tsx — Review & submit: the last step.
 "use client";
-
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { AlertCircle, Check, CheckCircle2, Clock, Info, Loader2, RefreshCw } from "lucide-react";
-import { organizationService } from "@/lib/services/organizationService";
-import { StepFooter } from "@/components/onboarding/StepFooter";
-import { useSetupStatus, apiErrorMessage } from "../useSetupStatus";
-import { previousPath, isStepComplete } from "../steps";
-
-export default function ReviewAndSubmitPage() {
-  const router = useRouter();
-  const { organization, loading, error, stages, canSubmit, submitted, setSubmitted, workSteps, doneCount, allDone, reload } =
-    useSetupStatus();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const handleSubmit = async () => {
-    if (!organization?.organizationId || !canSubmit) return;
-    setIsSubmitting(true);
-    setSubmitError(null);
-    try {
-      await organizationService.submitOrganization(organization.organizationId);
-      setSubmitted(true);
-    } catch (err) {
-      setSubmitError(apiErrorMessage(err, "We couldn't submit your company. Please try again."));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-2xl border border-line bg-surface p-8 text-center">
-        <p className="text-[15px] font-bold text-ink-950">We couldn&apos;t load your progress</p>
-        <p className="mt-1 text-sm text-ink-500">{error}</p>
-        <button onClick={reload} className="btn btn-primary btn-md mt-5">
-          <RefreshCw />
-          Try again
-        </button>
-      </div>
-    );
-  }
-
-  if (submitted) {
-    return (
-      <div className="rounded-2xl border border-line bg-surface p-8 text-center shadow-[0_1px_2px_rgba(11,31,68,0.05)] sm:p-12">
-        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-bg text-label-accent">
-          <CheckCircle2 className="h-8 w-8" />
-        </span>
-        <h1 className="mt-5 text-ink-950">Submitted for review</h1>
-        <p className="mx-auto mt-2 max-w-md text-ink-600">
-          Thanks. Our team is now reviewing your company. You can&apos;t change your details while the review is in
-          progress.
-        </p>
-        <button onClick={() => router.push("/")} className="btn btn-primary btn-lg mt-7">
-          Go to dashboard
-        </button>
-      </div>
-    );
-  }
-
-  const remaining = workSteps.length - doneCount;
-
+import { useRef, useState, type FormEvent } from "react";
+import { useOnboarding } from "../onboarding-context";
+import { organizationService as api } from "@/lib/services/organizationService";
+import {
+  Section,
+  StepForm,
+  SaveFooter,
+  TextValue,
+  humanize,
+} from "../onboarding-ui";
+import type { BusinessAddress } from "@/lib/services/organizationService";
+function Address({ value }: { value?: BusinessAddress }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-ink-950">Review & submit</h1>
-        <p className="mt-2 text-ink-600">
-          {allDone
-            ? "Everything is in place. Submit your company and our team will review it."
-            : `Finish ${remaining} more ${remaining === 1 ? "step" : "steps"} before you can submit.`}
-        </p>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgba(11,31,68,0.05)]">
-        {workSteps.map((step, index) => {
-          const done = isStepComplete(step, stages);
-          return (
-            <div key={step.id} className={`flex items-center gap-4 px-5 py-4 ${index > 0 ? "border-t border-line" : ""}`}>
-              <span
-                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${
-                  done ? "bg-label-accent text-surface" : "bg-amber-bg text-amber"
-                }`}
-              >
-                {done ? <Check className="h-4 w-4" strokeWidth={3} /> : <Clock className="h-4 w-4" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-bold text-ink-950">{step.label}</span>
-                <span className="mt-0.5 block text-[13px] text-ink-500">{done ? "Done" : "Not finished yet"}</span>
-              </span>
-              <Link href={step.path} className={`btn btn-sm ${done ? "btn-secondary" : "btn-primary"}`}>
-                {done ? "Edit" : "Finish"}
-              </Link>
-            </div>
-          );
-        })}
-      </div>
-
-      {allDone && (
-        <div className="flex gap-3 rounded-2xl bg-primary-bg p-4 text-[14px] text-ink-800">
-          <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-label-accent" />
-          <p>
-            Once you submit, you won&apos;t be able to change your details while our team reviews your company.
+    <p className="break-words text-sm">
+      {value
+        ? [
+            value.street ?? value.streetAddress ?? value.addressLine1,
+            value.city,
+            value.state,
+            value.postalCode,
+            value.country ?? value.countryCode,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        : "Not provided"}
+    </p>
+  );
+}
+export default function Review() {
+  const { data, reload, reloadSaved, editable } = useOnboarding();
+  const org = data.organization!;
+  const profile = data.profile;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const guard = useRef(false);
+  const edit = (path: string) =>
+    editable ? `/setup/${path}?return=review` : undefined;
+  const missing = (data.status?.stages ?? []).filter(
+    (s) =>
+      [
+        "OWNER_CONTACT",
+        "BUSINESS_PROFILE",
+        "HEADQUARTERS",
+        "AUTHORIZED_REPRESENTATIVE",
+        "OPERATING_CAPABILITIES",
+        "BUSINESS_DOCUMENTS",
+      ].includes(s.stage) && s.status !== "COMPLETE",
+  );
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (guard.current || !editable) return;
+    guard.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.submitOrganization(org.organizationId, org.version);
+      await reload();
+    } catch (err) {
+      setError(err);
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <StepForm
+      title="Review & submit"
+      description="Review your saved company information. Submitting starts verification; it does not approve or activate the company."
+      onSubmit={submit}
+      error={error}
+      onReload={() => {
+        void reloadSaved().catch(setError);
+      }}
+    >
+      {!editable && (
+        <Section title="Submission status">
+          <p role="status" className="font-semibold">
+            {humanize(org.status)}
           </p>
-        </div>
+          {data.status?.verification && (
+            <p className="mt-2 text-sm">
+              Verification: {humanize(data.status.verification.status)}
+            </p>
+          )}
+          <p className="mt-2 text-sm text-ink-600">
+            Your information is saved. We will update this status when the
+            verification service responds.
+          </p>
+        </Section>
       )}
-
-      {submitError && (
-        <p className="flex items-center gap-2 rounded-xl bg-red-bg px-4 py-3 text-sm text-red">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {submitError}
+      <Section title="Company details" edit={edit("profile")}>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          {Object.entries({
+            "Legal name": org.legalName,
+            "Trading name": org.tradingName,
+            "Registration number": org.registrationNumber,
+            "Company type": org.organizationType
+              ? humanize(org.organizationType)
+              : "",
+            Country: org.countryCode,
+            Timezone: org.timezone,
+            Currency: org.defaultCurrency,
+          }).map(([label, value]) => (
+            <TextValue key={label} label={label} value={value} />
+          ))}
+        </dl>
+      </Section>
+      <Section title="Owner and business contacts" edit={edit("headquarters")}>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <TextValue
+            label="Your registered email"
+            value={data.identity.email}
+          />
+          <TextValue
+            label="Your registered phone"
+            value={data.identity.phone}
+          />
+          <TextValue label="Business email" value={profile?.businessEmail} />
+          <TextValue label="Business phone" value={profile?.businessPhone} />
+          <TextValue label="Website" value={profile?.website} />
+          <TextValue
+            label="Business description"
+            value={profile?.businessDescription}
+          />
+        </dl>
+        <p className="mt-3 text-xs text-ink-500">
+          Account contacts and company contacts are stored separately.
         </p>
+      </Section>
+      <Section title="Business addresses" edit={edit("headquarters")}>
+        <div className="space-y-4">
+          <div>
+            <h3 className="mb-1 text-xs text-ink-500">Registered address</h3>
+            <Address value={profile?.registeredAddress} />
+          </div>
+          <div>
+            <h3 className="mb-1 text-xs text-ink-500">Operating address</h3>
+            <Address value={profile?.operatingAddress} />
+          </div>
+        </div>
+      </Section>
+      <Section
+        title="Authorized representative"
+        edit={edit("authorized-representative")}
+      >
+        {data.representatives.length ? (
+          data.representatives.map((rep) => (
+            <dl
+              key={rep.id}
+              className="mb-4 grid gap-4 border-b border-line pb-4 sm:grid-cols-2"
+            >
+              <TextValue label="Name" value={rep.fullName} />
+              <TextValue label="Position" value={rep.roleTitle} />
+              <TextValue label="Email" value={rep.email} />
+              <TextValue label="Phone" value={rep.phone} />
+              <TextValue
+                label="Authority"
+                value={humanize(rep.authorityType)}
+              />
+              <TextValue label="Record status" value={humanize(rep.status)} />
+            </dl>
+          ))
+        ) : (
+          <p className="text-sm">Not provided</p>
+        )}
+      </Section>
+      <Section title="Logistics services" edit={edit("capabilities")}>
+        <ul className="list-disc space-y-2 pl-5 text-sm">
+          {Object.keys(data.capabilities).map((code) => (
+            <li key={code}>
+              {humanize(code)} · {humanize(data.capabilities[code])}
+            </li>
+          ))}
+        </ul>
+        {Object.keys(data.capabilities).length === 0 && (
+          <p className="text-sm">No services selected</p>
+        )}
+      </Section>
+      <Section title="Business documents" edit={edit("business-docs")}>
+        <ul className="space-y-3 text-sm">
+          {data.status!.requiredDocumentTypes.map((type) => (
+            <li key={type}>
+              <span className="font-semibold">{humanize(type)}</span>:{" "}
+              {data.documents
+                .filter((d) => d.documentType === type)
+                .map((d) => humanize(d.status))
+                .join(", ") || "Missing"}
+            </li>
+          ))}
+        </ul>
+      </Section>
+      {editable && missing.length > 0 && (
+        <Section title="Information still required">
+          <ul className="list-disc space-y-2 pl-5 text-sm">
+            {missing.map((s) => (
+              <li key={s.stage}>
+                {humanize(s.stage)}:{" "}
+                {(s.missingFields?.length
+                  ? s.missingFields
+                  : ["Complete this section"]
+                )
+                  .map(humanize)
+                  .join(", ")}
+              </li>
+            ))}
+          </ul>
+        </Section>
       )}
-
-      <StepFooter
-        onBack={() => router.push(previousPath("review"))}
-        onPrimary={handleSubmit}
-        primaryLabel="Submit for review"
-        primaryDisabled={!allDone || !canSubmit}
-        primaryLoading={isSubmitting}
-        loadingLabel="Submitting…"
+      <SaveFooter
+        step="review"
+        busy={busy}
+        editable={editable}
+        disabled={
+          missing.length > 0 ||
+          !data.status?.allowedNextActions.includes("SUBMIT_FOR_VERIFICATION")
+        }
+        label="Submit company for review"
       />
-    </div>
+    </StepForm>
   );
 }

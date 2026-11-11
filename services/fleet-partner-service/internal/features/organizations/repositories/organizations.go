@@ -88,6 +88,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, q database.Querier,
             timezone = $5,
             default_currency = $6,
             operating_capabilities = $7,
+            organization_type = $11,
             version = version + 1,
             updated_at = now()
         WHERE id = $8 AND version = $9 AND status = $10`,
@@ -98,10 +99,11 @@ func (r *OrganizationRepository) Update(ctx context.Context, q database.Querier,
 		org.Timezone,
 		org.DefaultCurrency,
 		// We need to marshal capabilities
-		org.OperatingCapabilities,
+		json.RawMessage(mustJSONCapabilities(org.OperatingCapabilities)),
 		org.ID,
 		org.Version,
-		models.OrganizationStatusDraft, // Only allow updates in DRAFT status
+		org.Status, // Protected by the use case and compare-and-swap.
+		org.OrganizationType,
 	)
 	if err != nil {
 		return fmt.Errorf("organizations: update: %w", err)
@@ -143,10 +145,10 @@ func (r *OrganizationRepository) Create(ctx context.Context, q database.Querier,
 	_, err = q.Exec(ctx, `
 		INSERT INTO fleet_partner_organizations
 			(id, status, legal_name, trading_name, registration_number, country_code,
-			 timezone, default_currency, operating_capabilities, version, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10, now(), now())`,
+			 timezone, default_currency, operating_capabilities, version, organization_type, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10, $11, now(), now())`,
 		org.ID, org.Status, org.LegalName, org.TradingName, org.RegistrationNumber,
-		org.CountryCode, org.Timezone, org.DefaultCurrency, capabilities, org.Version,
+		org.CountryCode, org.Timezone, org.DefaultCurrency, capabilities, org.Version, org.OrganizationType,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -164,7 +166,7 @@ func (r *OrganizationRepository) GetByID(ctx context.Context, organizationID str
 	row := r.db.QueryRow(ctx, `
 		SELECT id, status, legal_name, COALESCE(trading_name, ''), registration_number,
 			country_code, timezone, default_currency, operating_capabilities,
-			version, created_at, updated_at, archived_at
+			version, created_at, updated_at, archived_at, organization_type
 		FROM fleet_partner_organizations
 		WHERE id = $1`,
 		organizationID,
@@ -249,7 +251,7 @@ func scanOrganization(row pgx.Row) (*models.Organization, error) {
 	err := row.Scan(
 		&org.ID, &org.Status, &org.LegalName, &org.TradingName, &org.RegistrationNumber,
 		&org.CountryCode, &org.Timezone, &org.DefaultCurrency, &capabilities,
-		&org.Version, &org.CreatedAt, &org.UpdatedAt, &org.ArchivedAt,
+		&org.Version, &org.CreatedAt, &org.UpdatedAt, &org.ArchivedAt, &org.OrganizationType,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -261,4 +263,12 @@ func scanOrganization(row pgx.Row) (*models.Organization, error) {
 		_ = json.Unmarshal(capabilities, &org.OperatingCapabilities)
 	}
 	return &org, nil
+}
+
+func mustJSONCapabilities(values []string) []byte {
+	if values == nil {
+		values = []string{}
+	}
+	encoded, _ := json.Marshal(values)
+	return encoded
 }

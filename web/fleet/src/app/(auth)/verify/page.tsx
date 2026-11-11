@@ -3,6 +3,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from "react";
+import { organizationDestination } from "@/lib/auth/organizationDestination";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Mail, ShieldCheck, ShieldAlert, Lock, RotateCw, CheckCircle2, WifiOff } from "lucide-react";
 import { authService } from "@/lib/services/authService";
@@ -155,7 +156,7 @@ function VerifyContent() {
           setState({ status: "success" });
           setLoading(false);
           setTimeout(() => {
-            router.push(org.status === "DRAFT" ? "/setup" : "/");
+            router.push(organizationDestination(org.status));
           }, 800);
           return;
         } catch {

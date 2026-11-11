@@ -124,7 +124,7 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (*TokenPair, 
 				_ = s.opts.Sessions.Revoke(ctx, tx, session.ID, "membership_unavailable")
 				return errorcodes.Forbidden(errorcodes.SessionRevoked, "Your organization access has changed. Please sign in again.")
 			}
-			if membership.Status != "ACTIVE" || membership.OrganizationStatus == "SUSPENDED" || membership.OrganizationStatus == "CLOSED" {
+			if membership.Status != "ACTIVE" || membership.OrganizationStatus == "SUSPENDED" || membership.OrganizationStatus == "CLOSED" || membership.OrganizationStatus == "ARCHIVED" {
 				_ = s.opts.Sessions.Revoke(ctx, tx, session.ID, "membership_or_organization_not_active")
 				return errorcodes.Forbidden(errorcodes.SessionRevoked, "Your organization access has changed. Please sign in again.")
 			}
@@ -347,7 +347,7 @@ func (s *Service) SelectOrganization(ctx context.Context, input SelectOrganizati
 			}
 			return err
 		}
-		if membership.Status != "ACTIVE" || membership.OrganizationStatus == "SUSPENDED" || membership.OrganizationStatus == "CLOSED" {
+		if membership.Status != "ACTIVE" || membership.OrganizationStatus == "SUSPENDED" || membership.OrganizationStatus == "CLOSED" || membership.OrganizationStatus == "ARCHIVED" {
 			return errorcodes.Forbidden(errorcodes.SessionRevoked, "Your organization access is not active.")
 		}
 		// Recheck expiry after authority read-back; keep both locks until commit.

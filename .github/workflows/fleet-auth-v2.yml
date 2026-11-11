@@ -44,21 +44,27 @@ jobs:
       - name: Auth security and contracts
         run: go test ./services/fleet-partner-service/internal/features/auth/... ./services/fleet-partner-service/internal/platform/contact/... ./services/fleet-partner-service/internal/section28contract/...
       - name: Real PostgreSQL auth and organization regression
-        run: go test ./services/fleet-partner-service/internal/integration -run 'TestAuth|TestPasswordless|TestBothEmail|TestOTP|TestIncorrectOTP|TestExpiredAndConsumed|TestResendCooldown|TestConcurrentVerification|TestIdentityPairConflict|TestStartIsEnumerationSafe|TestRefresh|TestLogout|TestSuspendedIdentity|TestMultipleMemberships|TestSingleMembership|TestSuspendedOrganization|TestStepUp|TestRateLimit|TestChallengeExpiry|TestOrganization|TestInvitation|TestStaff' -count=1 -v
+        run: go test ./services/fleet-partner-service/internal/integration -run 'TestAuth|TestPasswordless|TestBothEmail|TestOTP|TestIncorrectOTP|TestExpiredAndConsumed|TestResendCooldown|TestConcurrentVerification|TestIdentityPairConflict|TestStartIsEnumerationSafe|TestRefresh|TestLogout|TestSuspendedIdentity|TestMultipleMemberships|TestSingleMembership|TestSuspendedOrganization|TestStepUp|TestRateLimit|TestChallengeExpiry|TestOrganization|TestOnboarding|TestInvitation|TestStaff' -count=1 -v
       - name: Frontend tests and build
         working-directory: web/fleet
         run: |
           npm test
           npm run build
           npm run typecheck
-          npx eslint 'src/components/features/auth/*.tsx' src/lib/hooks/useContactAuthForm.ts src/lib/services/authService.ts src/lib/api/client.ts src/lib/auth/authErrors.ts 'src/app/(auth)/sign-in/page.tsx' 'src/app/(auth)/verify/page.tsx' scripts/auth-e2e.mjs
+          npx eslint 'src/components/features/auth/*.tsx' src/lib/hooks/useContactAuthForm.ts src/lib/services/authService.ts src/lib/api/client.ts src/lib/auth/authErrors.ts 'src/app/(auth)/sign-in/page.tsx' 'src/app/(auth)/verify/page.tsx' scripts/auth-e2e.mjs 'src/app/(setup)/setup' src/lib/services/organizationService.ts scripts/onboarding-e2e.mjs
       - name: Browser to API to PostgreSQL workflow (email sender fixture)
         env:
           FLEET_AUTH_BROWSER_TEST: '1'
         run: go test -tags fleet_auth_browser ./services/fleet-partner-service/internal/integration -run '^TestAuthV2BrowserWorkflow$' -count=1 -v
+      - name: Full onboarding browser workflow (PostgreSQL and signed media test authority)
+        env:
+          FLEET_AUTH_BROWSER_TEST: '1'
+        run: go test -tags fleet_auth_browser ./services/fleet-partner-service/internal/integration -run '^TestOnboardingV2BrowserWorkflow$' -count=1 -timeout 12m -v
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: fleet-auth-v2-browser
-          path: .codex-cache/fleet-auth-v2-browser
+          path: |
+            .codex-cache/fleet-auth-v2-browser
+            .codex-cache/fleet-onboarding-browser
           include-hidden-files: true

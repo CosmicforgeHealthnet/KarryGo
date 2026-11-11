@@ -13,7 +13,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
-  const isAuthRoute = PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + "/"));
+  const isAuthRoute = PUBLIC_ROUTES.filter(route => route !== "/choose-organization").some((route) => pathname === route || pathname.startsWith(route + "/"));
 
   if (!hasSession && !isPublicRoute) {
     const redirectUrl = new URL("/sign-in", request.url);
@@ -24,7 +24,7 @@ export function middleware(request: NextRequest) {
   // The org-status cookie is readable by the page and can outlive the
   // session (e.g. a server-side logout). Only honour it while signed in,
   // otherwise /setup -> /sign-in -> /setup loops forever.
-  if (hasSession && orgStatus === "DRAFT" && !pathname.startsWith("/setup")) {
+  if (hasSession && orgStatus === "DRAFT" && !pathname.startsWith("/setup") && pathname !== "/choose-organization") {
     return NextResponse.redirect(new URL("/setup", request.url));
   }
 

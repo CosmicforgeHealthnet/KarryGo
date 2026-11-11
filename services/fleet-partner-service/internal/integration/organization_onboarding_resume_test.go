@@ -38,7 +38,7 @@ func TestOrganizationOnboardingCreatesResumableDraftAndFailsClosedOnMissingPrere
 	input := orgusecases.CreateDraftInput{
 		IdentityID: "identity_section31_owner", OwnerName: "Synthetic Owner",
 		LegalName: "Section 31 Resumable Logistics", RegistrationNumber: "S31-ONBOARD-RESUME",
-		CountryCode: "NG", OrganizationType: "LOGISTICS_COMPANY", Timezone: "Africa/Lagos",
+		CountryCode: "NG", OrganizationType: "PRIVATE_LIMITED", Timezone: "Africa/Lagos",
 		DefaultCurrency: "NGN", RequestID: "request-section31-onboarding", CorrelationID: "correlation-section31-onboarding",
 	}
 	organization, err := service.CreateDraft(context.Background(), input)

@@ -1,152 +1,70 @@
-﻿// src/app/(auth)/choose-organization/page.tsx
-
 "use client";
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Building2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
-
-export default function ChooseOrganizationPage() {
+import type { Organization } from "@/lib/types/auth";
+import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
+import { organizationDestination } from "@/lib/auth/organizationDestination";
+import { organizationService } from "@/lib/services/organizationService";
+import { ErrorNotice, humanize } from "../../(setup)/setup/onboarding-ui";
+export default function ChooseOrganization() {
   const router = useRouter();
-  const { organizations, selectedOrganization, selectOrganization, isLoading, setLoading, setError } = useAuthStore();
+  const organizations = useAuthStore((s) => s.organizations);
+  const hydrated = useAuthStore((s) => s._hasHydrated);
   const [selecting, setSelecting] = useState<string | null>(null);
-
-  const hasActiveOrg = organizations.some((org) => org.status === "active");
-
+  const [error, setError] = useState<unknown>(null);
   useEffect(() => {
-    if (organizations.length === 0) {
-      router.push("/setup");
-    }
-  }, [organizations, router]);
-
-  async function handleSelect(org: any) {
-    if (org.status !== "active" || selecting) return;
+    if (hydrated && organizations.length === 0) router.replace("/setup");
+  }, [hydrated, organizations.length, router]);
+  async function select(org: Organization) {
+    if (selecting) return;
     setSelecting(org.membershipId);
-    setLoading(true);
     setError(null);
-
     try {
-      await selectOrganization(org.membershipId);
-      router.push("/");
-    } catch {
-      setError("Failed to select organization. Please try again.");
+      await useAuthStore.getState().selectOrganization(org.membershipId);
+      const current = await organizationService.getCurrentOrganization();
+      setOrgStatusCookie(current.status);
+      router.push(organizationDestination(current.status));
+    } catch (err) {
+      setError(err);
       setSelecting(null);
-    } finally {
-      setLoading(false);
     }
   }
-
-  if (!hasActiveOrg) {
-    const pendingOrg = organizations.find((org) => org.status === "pending");
-
-    return (
-      <div>
-        <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.03em] text-[var(--ink-950)]">
-          Choose organization
-        </h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-ink-600">
-          Select the company you want to work in.
-        </p>
-
-        <div className="mt-8 rounded-xl border border-line bg-surface-2 px-5 py-6">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-surface p-2 shadow-sm">
-              <Building2 className="h-5 w-5 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[15px] font-semibold text-ink-950">
-                {pendingOrg
-                  ? `${pendingOrg.organizationName} is still being set up`
-                  : "Your organization is still being set up"}
-              </p>
-              <p className="mt-1 text-[14px] leading-relaxed text-ink-600">
-                Finish onboarding to activate it. You&apos;ll be able to enter
-                it here once it&apos;s approved.
-              </p>
-              <button
-                type="button"
-                onClick={() => router.push("/setup")}
-                className="mt-4 flex items-center gap-1.5 rounded-[12px] bg-label-accent px-4 py-2.5 text-[13.5px] font-bold text-surface transition hover:brightness-110"
-              >
-                Continue onboarding
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {organizations.some((org) => org.status === "suspended") && (
-          <p className="mt-6 text-[13.5px] leading-relaxed text-ink-500">
-            Suspended memberships can&apos;t be entered. Contact your
-            organization administrator for access.
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.03em] text-[var(--ink-950)]">
-        Choose organization
-      </h1>
-      <p className="mt-3 text-[15px] leading-relaxed text-ink-600">
-        Select the company you want to work in.
+    <div className="mx-auto w-full max-w-xl space-y-5 p-5">
+      <h1 className="text-2xl font-bold text-ink-950">Choose your company</h1>
+      <p className="text-sm text-ink-600">
+        Continue company setup, review your submission or open an active
+        company.
       </p>
-
-      <div className="mt-8 divide-y divide-line border-y border-line">
+      {error != null && <ErrorNotice error={error} />}
+      <ul className="space-y-3">
         {organizations.map((org) => {
-          const disabled = org.status !== "active";
-          const isSelecting = selecting === org.membershipId;
-          const statusLabel: Record<string, string> = {
-            active: "Active",
-            suspended: "Suspended",
-            pending: "Pending verification",
-          };
-          const statusStyle: Record<string, string> = {
-            active: "bg-green-bg text-green",
-            suspended: "bg-red-bg text-red",
-            pending: "bg-amber-bg text-amber",
-          };
-
+          const eligible = !["SUSPENDED", "ARCHIVED", "CLOSED"].includes(
+            (org.organizationStatus ?? org.status).toUpperCase(),
+          );
           return (
-            <button
-              key={org.membershipId}
-              type="button"
-              onClick={() => handleSelect(org)}
-              disabled={disabled || selecting !== null}
-              className={`flex w-full items-center justify-between gap-4 py-4 text-left transition ${
-                disabled
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer hover:bg-surface-2"
-              }`}
-            >
-              <div className="min-w-0">
-                <div className="truncate text-[17px] font-semibold text-ink-950">
+            <li key={org.membershipId}>
+              <button
+                className="w-full rounded-xl border border-line bg-surface p-4 text-left text-ink-950 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+                disabled={!!selecting || !eligible}
+                onClick={() => select(org)}
+              >
+                <span className="block font-semibold">
                   {org.organizationName}
-                </div>
-                <div className="mt-0.5 text-[14px] text-ink-600">
-                  {org.isOwner ? "Owner" : "Member"}
-                </div>
-              </div>
-
-              <div className="flex flex-shrink-0 items-center gap-3">
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${statusStyle[org.status] || "bg-surface-2 text-ink-500"}`}
-                >
-                  {isSelecting ? "Entering…" : statusLabel[org.status] || org.status}
                 </span>
-              </div>
-            </button>
+                <span className="mt-1 block text-sm text-ink-500">
+                  {selecting === org.membershipId
+                    ? "Opening company…"
+                    : org.organizationStatus
+                      ? humanize(org.organizationStatus)
+                      : `Membership ${humanize(org.status)}`}
+                </span>
+              </button>
+            </li>
           );
         })}
-      </div>
-
-      <p className="mt-6 text-[13.5px] leading-relaxed text-ink-500">
-        Suspended or pending memberships can&apos;t be entered. Contact your
-        organization administrator for access.
-      </p>
+      </ul>
     </div>
   );
 }

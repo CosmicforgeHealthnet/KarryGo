@@ -109,6 +109,7 @@ func (h *Handler) RegisterAuthenticatedRoutes(group *gin.RouterGroup) {
 	group.POST("/auth/select-organization", h.cookie.Boundary(), h.selectOrganization)
 	group.POST("/auth/step-up/start", h.cookie.Boundary(), h.stepUpStart)
 	group.POST("/auth/step-up/verify", h.cookie.Boundary(), h.stepUpVerify)
+	group.GET("/identity/profile", h.currentProfile)
 	group.GET("/sessions", h.listSessions)
 	group.DELETE("/sessions/:sessionId", h.revokeSession)
 }
@@ -216,11 +217,12 @@ func verifyResponse(result authusecases.VerifyResult) gin.H {
 		organizations := make([]gin.H, 0, len(result.Organizations))
 		for _, membership := range result.Organizations {
 			organizations = append(organizations, gin.H{
-				"membershipId":     membership.ID,
-				"organizationId":   membership.OrganizationID,
-				"organizationName": membership.OrganizationName,
-				"status":           membership.Status,
-				"isOwner":          membership.IsOwner,
+				"membershipId":       membership.ID,
+				"organizationId":     membership.OrganizationID,
+				"organizationName":   membership.OrganizationName,
+				"status":             membership.Status,
+				"organizationStatus": membership.OrganizationStatus,
+				"isOwner":            membership.IsOwner,
 			})
 		}
 		body["organizations"] = organizations
@@ -448,4 +450,19 @@ func (h *Handler) ipHash(c *gin.Context) string {
 
 func (h *Handler) userAgentHash(c *gin.Context) string {
 	return contact.Hash(h.contactSecret, c.Request.UserAgent())
+}
+
+func (h *Handler) currentProfile(c *gin.Context) {
+	claims, ok := auth.ClaimsFromContext(c)
+	if !ok {
+		respond.Error(c, apperrors.Unauthorized("Sign in to view your account details.", nil))
+		return
+	}
+	result, err := h.service.CurrentProfile(c.Request.Context(), claims.Subject, claims.SessionID, httpx.GetRequestID(c))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	respond.OK(c, result)
 }

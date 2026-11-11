@@ -16,6 +16,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
+	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 // SubmitInput submits the organization for verification.
@@ -31,7 +32,7 @@ type SubmitInput struct {
 // the submission is durably recorded, and to UNDER_REVIEW only after the
 // external service confirms acceptance (or a consumed verification event does).
 // A timeout leaves UNKNOWN_OUTCOME for the reconciliation worker to resolve by
-// read-back — never an assumed success.
+// read-back â€” never an assumed success.
 func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.VerificationRequest, error) {
 	organization, err := s.opts.Organizations.GetByID(ctx, input.Tenant.OrganizationID)
 	if err != nil {
@@ -50,7 +51,12 @@ func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.Verifi
 			"This organization cannot be submitted in its current state.")
 	}
 
-	stages, err := s.opts.Onboarding.ListStages(ctx, input.Tenant.OrganizationID)
+	status, err := s.GetOnboardingStatus(ctx, input.Tenant.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	stages := status.Stages
+	_, err = s.opts.Onboarding.ListStages(ctx, input.Tenant.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +71,7 @@ func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.Verifi
 	}
 	readyFiles := make([]string, 0, len(documents))
 	for _, document := range documents {
-		if document.Status == models.DocumentStatusReady {
+		if document.Status == models.DocumentStatusReady && (document.ExpiresAt == nil || document.ExpiresAt.After(s.opts.Now())) {
 			readyFiles = append(readyFiles, document.FileID)
 		}
 	}
@@ -81,6 +87,47 @@ func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.Verifi
 
 	var request *models.VerificationRequest
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.Tenant.OrganizationID); err != nil {
+			return err
+		}
+		scoped := s.transactionService(tx)
+		organization, err = scoped.opts.Organizations.GetByID(ctx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		if input.ExpectedVersion > 0 && organization.Version != input.ExpectedVersion {
+			return apperrors.Conflict("Company details changed elsewhere. Reload the review before submitting.", nil)
+		}
+		actual, err := scoped.GetOnboardingStatus(ctx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		if len(MissingStages(actual.Stages)) > 0 {
+			return errorcodes.UnprocessableEntity(errorcodes.OrganizationOnboardingIncomplete, "Saved company information is incomplete. Reload the review to see what is missing.")
+		}
+		// Read the immutable snapshot under the same lock held by every customer save.
+		profile, err := scoped.opts.Onboarding.GetProfile(ctx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		representatives, err := scoped.opts.Onboarding.ListRepresentatives(ctx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		documents, err = scoped.opts.Onboarding.ListDocuments(ctx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		capabilities, err = scoped.opts.Onboarding.ListCapabilities(ctx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		readyFiles = []string{}
+		for _, doc := range documents {
+			if doc.Status == models.DocumentStatusReady && (doc.ExpiresAt == nil || doc.ExpiresAt.After(s.opts.Now())) {
+				readyFiles = append(readyFiles, doc.FileID)
+			}
+		}
 		version, err := s.opts.Onboarding.NextSubmissionVersion(ctx, tx, input.Tenant.OrganizationID)
 		if err != nil {
 			return err
@@ -88,7 +135,9 @@ func (s *Service) Submit(ctx context.Context, input SubmitInput) (*models.Verifi
 		request = &models.VerificationRequest{
 			SubmissionVersion: version,
 			SubmissionSnapshot: map[string]any{
-				"legalName":          organization.LegalName,
+				"legalName":   organization.LegalName,
+				"tradingName": organization.TradingName, "organizationType": organization.OrganizationType,
+				"profile": profile, "representatives": representatives, "documents": documents,
 				"registrationNumber": organization.RegistrationNumber,
 				"countryCode":        organization.CountryCode,
 				"timezone":           organization.Timezone,
@@ -358,7 +407,7 @@ func (s *Service) TryActivate(ctx context.Context, organizationID string, correl
 	}
 
 	// The local assessment says the onboarding stages are done. The durable
-	// gate says whether the platform currently vouches for this organization —
+	// gate says whether the platform currently vouches for this organization â€”
 	// verification approved and fresh, no restriction, required documents in
 	// order. Both must hold, and the gate's answer is the one that is recorded.
 	gateSubject := enforcement.Company(organizationID, eligibilitymodels.OperationCompanyActivation)

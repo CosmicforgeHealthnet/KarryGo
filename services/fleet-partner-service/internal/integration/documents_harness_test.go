@@ -60,6 +60,7 @@ const (
 
 // mediaObjectRecord is the stub authority's view of one object.
 type mediaObjectRecord struct {
+	UploadToken   string
 	ID            string
 	Organization  string
 	OwnerType     string
@@ -175,7 +176,7 @@ func (m *mediaTestServer) route(w http.ResponseWriter, r *http.Request) {
 		m.handleDeletionState(w, objectIDFrom(path, "/deletion"))
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/retention"):
 		m.handleRetention(w, r, objectIDFrom(path, "/retention"))
-	case r.Method == http.MethodGet && strings.HasSuffix(path, "/content"):
+	case (r.Method == http.MethodGet || r.Method == http.MethodPost) && strings.HasSuffix(path, "/content"):
 		m.handleContent(w, r, objectIDFrom(path, "/content"))
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/objects/"):
 		m.handleReadObject(w, strings.TrimPrefix(path, "/objects/"))
@@ -214,16 +215,18 @@ func (m *mediaTestServer) handleAuthorizeUpload(w http.ResponseWriter, r *http.R
 	m.objects[objectID] = &mediaObjectRecord{
 		ID: objectID, Organization: r.Header.Get("X-Organization-ID"),
 		OwnerType: body.OwnerType, OwnerRef: body.OwnerReference,
+		UploadToken:  "upl_" + randomHex(),
 		UploadStatus: "AUTHORIZED", SafetyStatus: "PENDING", DeletionState: "ACTIVE",
 		SourceVersion: 1,
 	}
 	m.grants[authID] = objectID
+	uploadToken := m.objects[objectID].UploadToken
 	m.mu.Unlock()
 
 	m.writeData(w, map[string]any{
 		"uploadAuthorizationId": authID,
 		"mediaObjectId":         objectID,
-		"uploadToken":           "upl_" + randomHex(),
+		"uploadToken":           uploadToken,
 		"uploadPath":            "/objects/" + objectID + "/content",
 		"expiresAt":             time.Now().UTC().Add(15 * time.Minute).Format(time.RFC3339),
 		"maxSizeBytes":          int64(1 << 20),
@@ -293,6 +296,11 @@ func (m *mediaTestServer) handleAuthorizeDownload(w http.ResponseWriter, objectI
 }
 
 func (m *mediaTestServer) handleContent(w http.ResponseWriter, r *http.Request, objectID string) {
+	if r.Method == http.MethodPost {
+		m.handleUploadContent(w, r, objectID)
+		return
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	token := r.Header.Get("X-Download-Token")
@@ -688,4 +696,34 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	log.SetOutput(io.MultiWriter(buffer, os.Stderr))
 	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 	return buffer
+}
+
+// Upload handler is a test authority for the real signed Fleet media client.
+// It validates the authorization, bytes, declared MIME/size and checksum.
+func (m *mediaTestServer) handleUploadContent(w http.ResponseWriter, r *http.Request, objectID string) {
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(400)
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	object, ok := m.objects[objectID]
+	if !ok || m.grants[r.Header.Get("X-Upload-Authorization-ID")] != objectID || r.Header.Get("X-Upload-Token") != object.UploadToken {
+		w.WriteHeader(403)
+		return
+	}
+	sum := sha256.Sum256(content)
+	if len(content) == 0 || len(content) > 1<<20 || !bytes.HasPrefix(content, []byte("%PDF-")) || r.Header.Get("X-Declared-Content-Type") != "application/pdf" || r.Header.Get("X-Declared-Size") != strconv.Itoa(len(content)) || r.Header.Get("X-Declared-Checksum-SHA256") != hex.EncodeToString(sum[:]) {
+		w.WriteHeader(422)
+		return
+	}
+	object.UploadStatus = "COMPLETED"
+	object.SafetyStatus = "SAFE"
+	object.DetectedMIME = "application/pdf"
+	object.SizeBytes = int64(len(content))
+	object.Checksum = hex.EncodeToString(sum[:])
+	object.Content = content
+	object.SourceVersion++
+	m.writeData(w, m.viewLocked(object))
 }

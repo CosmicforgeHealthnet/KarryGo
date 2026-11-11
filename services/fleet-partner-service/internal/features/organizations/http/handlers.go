@@ -2,6 +2,8 @@
 package http
 
 import (
+	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -11,6 +13,7 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/httpx"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	orgmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
@@ -65,6 +68,7 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.GET("/organizations/:organizationId/onboarding-status", h.onboardingStatus)
 	group.POST("/organizations/:organizationId/documents", h.attachDocument)
 	group.GET("/organizations/:organizationId/documents", h.listDocuments)
+	group.DELETE("/organizations/:organizationId/documents/:documentId", h.removeDocument)
 	group.POST("/organizations/:organizationId/submit", h.submit)
 	group.GET("/organizations/:organizationId/verification", h.verificationStatus)
 	group.GET("/organizations/:organizationId/wallet-provisioning", h.walletStatus)
@@ -158,6 +162,7 @@ func (h *Handler) createOrganization(c *gin.Context) {
 	claims, _ := auth.ClaimsFromContext(c)
 
 	organization, err := h.organizations.CreateDraft(c.Request.Context(), orgusecases.CreateDraftInput{
+		IdempotencyKey:     c.GetHeader("Idempotency-Key"),
 		IdentityID:         claims.Subject,
 		OwnerName:          request.OwnerName,
 		LegalName:          request.LegalName,
@@ -167,6 +172,7 @@ func (h *Handler) createOrganization(c *gin.Context) {
 		OrganizationType:   request.OrganizationType,
 		Timezone:           request.Timezone,
 		DefaultCurrency:    request.DefaultCurrency,
+		RequestID:          httpx.GetRequestID(c), CorrelationID: middleware.GetCorrelationID(c),
 	})
 	if err != nil {
 		respond.Error(c, err)
@@ -208,6 +214,7 @@ type updateRepresentativeRequest struct {
 	AuthorityType           string     `json:"authorityType"`
 	AuthorityDocumentFileID *string    `json:"authorityDocumentFileId"`
 	Status                  string     `json:"status"`
+	IsOnboardingOwner       *bool      `json:"isOnboardingOwner"`
 	EffectiveTo             *time.Time `json:"effectiveTo"`
 }
 
@@ -355,6 +362,7 @@ func (h *Handler) updateOrganization(c *gin.Context) {
 	}
 
 	organization, err := h.organizations.UpdateOrganization(c.Request.Context(), orgusecases.UpdateOrganizationInput{
+		OrganizationType:   request.OrganizationType,
 		OrganizationID:     tenantCtx.OrganizationID,
 		LegalName:          request.LegalName,
 		TradingName:        request.TradingName,
@@ -372,14 +380,16 @@ func (h *Handler) updateOrganization(c *gin.Context) {
 	}
 
 	respond.OK(c, gin.H{
-		"organizationId":  organization.ID,
-		"legalName":       organization.LegalName,
-		"tradingName":     organization.TradingName,
-		"status":          organization.Status,
-		"countryCode":     organization.CountryCode,
-		"timezone":        organization.Timezone,
-		"defaultCurrency": organization.DefaultCurrency,
-		"version":         organization.Version,
+		"organizationId":     organization.ID,
+		"legalName":          organization.LegalName,
+		"tradingName":        organization.TradingName,
+		"registrationNumber": organization.RegistrationNumber,
+		"organizationType":   organization.OrganizationType,
+		"status":             organization.Status,
+		"countryCode":        organization.CountryCode,
+		"timezone":           organization.Timezone,
+		"defaultCurrency":    organization.DefaultCurrency,
+		"version":            organization.Version,
 	})
 }
 
@@ -398,6 +408,19 @@ func (h *Handler) createRepresentative(c *gin.Context) {
 		return
 	}
 
+	var identityReference *string
+	if request.IdentityReference != nil && !request.IsOnboardingOwner {
+		respond.Error(c, apperrors.BadRequest("Another person's representative record cannot be linked to your account.", nil))
+		return
+	}
+	if request.IsOnboardingOwner {
+		claims, ok := auth.ClaimsFromContext(c)
+		if !ok {
+			respond.Error(c, apperrors.Unauthorized("Sign in again to select yourself as representative.", nil))
+			return
+		}
+		identityReference = &claims.Subject
+	}
 	rep, err := h.organizations.CreateRepresentative(c.Request.Context(), orgusecases.CreateRepresentativeInput{
 		OrganizationID:          tenantCtx.OrganizationID,
 		FullName:                request.FullName,
@@ -406,7 +429,7 @@ func (h *Handler) createRepresentative(c *gin.Context) {
 		Phone:                   request.Phone,
 		AuthorityType:           request.AuthorityType,
 		AuthorityDocumentFileID: request.AuthorityDocumentFileID,
-		IdentityReference:       request.IdentityReference,
+		IdentityReference:       identityReference,
 		IsOnboardingOwner:       request.IsOnboardingOwner,
 		RequestID:               tenantCtx.RequestID,
 		CorrelationID:           tenantCtx.CorrelationID,
@@ -416,12 +439,7 @@ func (h *Handler) createRepresentative(c *gin.Context) {
 		return
 	}
 
-	respond.Created(c, gin.H{
-		"representativeId": rep.ID,
-		"fullName":         rep.FullName,
-		"roleTitle":        rep.RoleTitle,
-		"status":           rep.Status,
-	})
+	respond.Created(c, representativeResponse(rep))
 }
 
 func (h *Handler) listRepresentatives(c *gin.Context) {
@@ -469,9 +487,19 @@ func (h *Handler) updateRepresentative(c *gin.Context) {
 		return
 	}
 
+	var identityReference *string
+	if request.IsOnboardingOwner != nil && *request.IsOnboardingOwner {
+		claims, ok := auth.ClaimsFromContext(c)
+		if !ok {
+			respond.Error(c, apperrors.Unauthorized("Sign in again to select yourself as representative.", nil))
+			return
+		}
+		identityReference = &claims.Subject
+	}
 	rep, err := h.organizations.UpdateRepresentative(c.Request.Context(), orgusecases.UpdateRepresentativeInput{
-		OrganizationID:          tenantCtx.OrganizationID,
-		RepresentativeID:        repID,
+		OrganizationID:    tenantCtx.OrganizationID,
+		RepresentativeID:  repID,
+		IdentityReference: identityReference, IsOnboardingOwner: request.IsOnboardingOwner,
 		FullName:                request.FullName,
 		RoleTitle:               request.RoleTitle,
 		Email:                   request.Email,
@@ -489,12 +517,7 @@ func (h *Handler) updateRepresentative(c *gin.Context) {
 		return
 	}
 
-	respond.OK(c, gin.H{
-		"representativeId": repID,
-		"fullName":         rep.FullName,
-		"roleTitle":        rep.RoleTitle,
-		"status":           rep.Status,
-	})
+	respond.OK(c, representativeResponse(rep))
 }
 
 type markStageRequest struct {
@@ -583,7 +606,7 @@ func (h *Handler) getProfile(c *gin.Context) {
 
 	// Handle nil profile (no profile exists yet)
 	if profile == nil {
-		respond.OK(c, gin.H{})
+		respond.OK(c, nil)
 		return
 	}
 
@@ -732,14 +755,16 @@ func (h *Handler) currentOrganization(c *gin.Context) {
 		return
 	}
 	respond.OK(c, gin.H{
-		"organizationId":  organization.ID,
-		"legalName":       organization.LegalName,
-		"tradingName":     organization.TradingName,
-		"status":          organization.Status,
-		"countryCode":     organization.CountryCode,
-		"timezone":        organization.Timezone,
-		"defaultCurrency": organization.DefaultCurrency,
-		"version":         organization.Version,
+		"organizationId":     organization.ID,
+		"legalName":          organization.LegalName,
+		"tradingName":        organization.TradingName,
+		"registrationNumber": organization.RegistrationNumber,
+		"organizationType":   organization.OrganizationType,
+		"status":             organization.Status,
+		"countryCode":        organization.CountryCode,
+		"timezone":           organization.Timezone,
+		"defaultCurrency":    organization.DefaultCurrency,
+		"version":            organization.Version,
 	})
 }
 
@@ -765,12 +790,16 @@ func (h *Handler) onboardingStatus(c *gin.Context) {
 		})
 	}
 	body := gin.H{
-		"organizationId":      status.OrganizationID,
-		"organizationStatus":  status.OrganizationStatus,
-		"organizationVersion": status.OrganizationVersion,
-		"stages":              stages,
-		"allowedNextActions":  status.AllowedNextActions,
-		"updatedAt":           status.UpdatedAt,
+		"organizationId":        status.OrganizationID,
+		"organizationStatus":    status.OrganizationStatus,
+		"organizationVersion":   status.OrganizationVersion,
+		"stages":                stages,
+		"supportedCapabilities": orgmodels.SupportedCapabilities,
+		"authorityTypes":        orgmodels.SupportedAuthorityTypes,
+		"organizationTypes":     orgmodels.SupportedOrganizationTypes,
+		"requiredDocumentTypes": orgmodels.RequiredDocumentTypes,
+		"allowedNextActions":    status.AllowedNextActions,
+		"updatedAt":             status.UpdatedAt,
 	}
 	if status.Verification != nil {
 		body["verification"] = gin.H{
@@ -780,15 +809,16 @@ func (h *Handler) onboardingStatus(c *gin.Context) {
 		}
 	}
 	if status.Wallet != nil {
-		// Only the provisioning state — never a balance.
+		// Only the provisioning state â€” never a balance.
 		body["walletProvisioning"] = gin.H{"status": status.Wallet.Status}
 	}
 	respond.OK(c, body)
 }
 
 type attachDocumentRequest struct {
-	DocumentType string `json:"documentType"`
-	FileID       string `json:"fileId"`
+	ReplaceDocumentID string `json:"replaceDocumentId"`
+	DocumentType      string `json:"documentType"`
+	FileID            string `json:"fileId"`
 }
 
 func (h *Handler) attachDocument(c *gin.Context) {
@@ -805,7 +835,7 @@ func (h *Handler) attachDocument(c *gin.Context) {
 		return
 	}
 	document, err := h.organizations.AttachDocument(c.Request.Context(), orgusecases.AttachDocumentInput{
-		Tenant: tenantCtx, DocumentType: request.DocumentType, FileID: request.FileID,
+		Tenant: tenantCtx, DocumentType: request.DocumentType, FileID: request.FileID, ReplaceDocumentID: request.ReplaceDocumentID,
 	})
 	if err != nil {
 		respond.Error(c, err)
@@ -897,6 +927,10 @@ func (h *Handler) walletStatus(c *gin.Context) {
 	_, onboarding := h.organizations.Repositories()
 	wallet, err := onboarding.GetWalletProvisioning(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
+		if errors.Is(err, orgrepos.ErrNotFound) {
+			respond.OK(c, gin.H{"status": orgmodels.WalletStatusNotRequested, "attempts": 0})
+			return
+		}
 		respond.Error(c, err)
 		return
 	}
@@ -1328,3 +1362,21 @@ func expectedVersionFrom(c *gin.Context) (int64, error) {
 
 var _ = orgmodels.StageActivation
 var _ = http.StatusOK
+
+func representativeResponse(rep *orgmodels.Representative) gin.H {
+	return gin.H{"id": rep.ID, "representativeId": rep.ID, "organizationId": rep.OrganizationID, "fullName": rep.FullName, "roleTitle": rep.RoleTitle, "email": rep.Email, "phone": rep.Phone, "authorityType": rep.AuthorityType, "authorityDocumentFileId": rep.AuthorityDocumentFileID, "identityReference": rep.IdentityReference, "isOnboardingOwner": rep.IsOnboardingOwner, "status": rep.Status, "version": rep.Version, "effectiveFrom": rep.EffectiveFrom, "effectiveTo": rep.EffectiveTo, "createdAt": rep.CreatedAt, "updatedAt": rep.UpdatedAt}
+}
+func (h *Handler) removeDocument(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, t) {
+		return
+	}
+	if !h.authorize(c, t, "organization.update") {
+		return
+	}
+	if err := h.organizations.RemoveDocument(c.Request.Context(), t, c.Param("documentId")); err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, gin.H{"documentId": c.Param("documentId"), "status": "REMOVED"})
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"cosmicforge/logistics/shared/go/apperrors"
 	"github.com/jackc/pgx/v5"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
@@ -342,4 +343,18 @@ func scanSessionRows(rows pgx.Rows) (*models.Session, error) {
 		return nil, fmt.Errorf("auth: scan session: %w", err)
 	}
 	return &session, nil
+}
+
+// OrganizationForSession projects trusted scope for tenant middleware. The
+// caller identity, active session and expiry are rechecked in the same lookup.
+func (r *SessionRepository) OrganizationForSession(ctx context.Context, sessionID, identityID string) (string, error) {
+	var organizationID string
+	err := r.db.QueryRow(ctx, `SELECT COALESCE(organization_id,'') FROM fleet_partner_corporate_sessions WHERE id=$1 AND identity_id=$2 AND status='ACTIVE' AND revoked_at IS NULL AND refresh_expires_at>now()`, sessionID, identityID).Scan(&organizationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", apperrors.Unauthorized("This session is no longer available. Sign in again.", nil)
+	}
+	if err != nil {
+		return "", fmt.Errorf("auth: resolve session organization: %w", err)
+	}
+	return organizationID, nil
 }

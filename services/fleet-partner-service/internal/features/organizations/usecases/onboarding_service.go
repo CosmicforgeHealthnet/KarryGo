@@ -2,8 +2,10 @@ package usecases
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -18,6 +20,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -77,6 +80,7 @@ type UpdateOrganizationInput struct {
 	LegalName          string
 	TradingName        string
 	RegistrationNumber string
+	OrganizationType   string
 	CountryCode        string
 	Timezone           string
 	DefaultCurrency    string
@@ -103,7 +107,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 	}
 
 	// Only allow updates in DRAFT status
-	if organization.Status != models.OrganizationStatusDraft {
+	if !AcceptsOnboardingEdits(organization.Status) {
 		return nil, apperrors.Conflict(
 			"Company can only be edited while in DRAFT status. Current status: "+organization.Status,
 			nil,
@@ -121,6 +125,18 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 		return nil, apperrors.Conflict("The company details changed elsewhere. Reload and retry.", nil)
 	}
 
+	if input.OrganizationType == "" {
+		input.OrganizationType = organization.OrganizationType
+	}
+	if input.Timezone == "" {
+		input.Timezone = organization.Timezone
+	}
+	if input.DefaultCurrency == "" {
+		input.DefaultCurrency = organization.DefaultCurrency
+	}
+	if input.OrganizationType != "" && !contains(models.SupportedOrganizationTypes, input.OrganizationType) {
+		return nil, fieldError("organizationType", "Choose a supported company type.")
+	}
 	// Preserve the operating capabilities if they exist
 	capabilities := organization.OperatingCapabilities
 	if capabilities == nil {
@@ -134,6 +150,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 		LegalName:             input.LegalName,
 		TradingName:           input.TradingName,
 		RegistrationNumber:    registrationNumber,
+		OrganizationType:      input.OrganizationType,
 		CountryCode:           input.CountryCode,
 		Timezone:              input.Timezone,
 		DefaultCurrency:       input.DefaultCurrency,
@@ -143,6 +160,9 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 
 	// Update in database
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.OrganizationID); err != nil {
+			return err
+		}
 		if err := s.opts.Organizations.Update(ctx, tx, updatedOrg); err != nil {
 			return err
 		}
@@ -188,7 +208,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 		return nil, err
 	}
 
-	return updatedOrg, nil
+	return s.opts.Organizations.GetByID(ctx, updatedOrg.ID)
 }
 
 // OrganizationStatus returns an organization's name and status. It backs the
@@ -227,6 +247,7 @@ func (s *Service) BranchName(ctx context.Context, organizationID string, branchI
 
 // CreateDraftInput creates an organization draft.
 type CreateDraftInput struct {
+	IdempotencyKey     string
 	IdentityID         string
 	OwnerName          string
 	LegalName          string
@@ -246,23 +267,91 @@ type CreateDraftInput struct {
 // The organization is never activated here: it starts in DRAFT and must pass
 // every activation gate.
 func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (*models.Organization, error) {
+	input.LegalName = strings.TrimSpace(input.LegalName)
+	input.TradingName = strings.TrimSpace(input.TradingName)
+	input.OwnerName = strings.TrimSpace(input.OwnerName)
 	if input.LegalName == "" || input.CountryCode == "" {
 		return nil, apperrors.Validation("Legal name and country are required.", []apperrors.FieldViolation{
 			{Field: "legalName", Message: "Required."}})
 	}
 
+	input.RegistrationNumber = strings.TrimSpace(input.RegistrationNumber)
+	input.CountryCode = strings.ToUpper(strings.TrimSpace(input.CountryCode))
+	if input.OrganizationType != "" && !contains(models.SupportedOrganizationTypes, input.OrganizationType) {
+		return nil, fieldError("organizationType", "Choose a supported company type.")
+	}
 	organization := &models.Organization{
 		ID:                 ids.New(ids.PrefixOrganization),
 		Status:             models.OrganizationStatusDraft,
 		LegalName:          input.LegalName,
 		TradingName:        input.TradingName,
 		RegistrationNumber: input.RegistrationNumber,
+		OrganizationType:   input.OrganizationType,
 		CountryCode:        input.CountryCode,
 		Timezone:           input.Timezone,
 		DefaultCurrency:    input.DefaultCurrency,
 	}
 
 	err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		complete := func() error { return nil }
+		if input.IdempotencyKey != "" {
+			scope := "identity:" + input.IdentityID
+			endpoint := "POST /organizations"
+			fingerprintBody, _ := json.Marshal(map[string]any{"legalName": input.LegalName, "tradingName": input.TradingName, "registrationNumber": input.RegistrationNumber, "countryCode": input.CountryCode, "organizationType": input.OrganizationType, "timezone": input.Timezone, "defaultCurrency": input.DefaultCurrency, "ownerName": input.OwnerName})
+			fingerprint := idempotency.Fingerprint("POST", "/organizations", fingerprintBody)
+			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, scope+endpoint+input.IdempotencyKey); err != nil {
+				return err
+			}
+			var storedFingerprint, storedStatus string
+			var body []byte
+			err := tx.QueryRow(ctx, `SELECT request_fingerprint,status,response_body FROM fleet_partner_idempotency_keys WHERE organization_id=$1 AND endpoint=$2 AND idempotency_key=$3 AND expires_at>now()`, scope, endpoint, input.IdempotencyKey).Scan(&storedFingerprint, &storedStatus, &body)
+			if err == nil {
+				if storedFingerprint != fingerprint {
+					return apperrors.Conflict("This request key was used for different company details. Start a new company request.", nil)
+				}
+				if storedStatus != idempotency.StatusCompleted {
+					return apperrors.Conflict("This company request is still in progress. Retry shortly.", nil)
+				}
+				var id string
+				if err := json.Unmarshal(body, &id); err != nil {
+					return err
+				}
+				organization, err = s.transactionService(tx).opts.Organizations.GetByID(ctx, id)
+				return err
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO fleet_partner_idempotency_keys(organization_id,endpoint,idempotency_key,request_fingerprint,status,expires_at) VALUES($1,$2,$3,$4,'IN_PROGRESS',now()+interval '24 hours') ON CONFLICT(organization_id,endpoint,idempotency_key) DO UPDATE SET request_fingerprint=excluded.request_fingerprint,status='IN_PROGRESS',response_body=NULL,response_status=NULL,expires_at=excluded.expires_at`, scope, endpoint, input.IdempotencyKey, fingerprint); err != nil {
+				return err
+			}
+			complete = func() error {
+				body, _ := json.Marshal(organization.ID)
+				return idempotency.NewStore(tx, 0).Complete(ctx, scope, endpoint, input.IdempotencyKey, 201, body)
+			}
+		}
+
+		if input.RegistrationNumber != "" {
+			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "fleet-registration:"+input.CountryCode+":"+input.RegistrationNumber); err != nil {
+				return err
+			}
+			var existingID string
+			err := tx.QueryRow(ctx, `SELECT o.id FROM fleet_partner_organizations o JOIN fleet_partner_organization_users u ON u.organization_id=o.id WHERE o.country_code=$1 AND o.registration_number=$2 AND u.identity_id=$3 AND u.is_owner AND u.status='ACTIVE'`, input.CountryCode, input.RegistrationNumber, input.IdentityID).Scan(&existingID)
+			if err == nil {
+				existing, err := s.transactionService(tx).opts.Organizations.GetByID(ctx, existingID)
+				if err != nil {
+					return err
+				}
+				if existing.LegalName != input.LegalName || existing.TradingName != input.TradingName || existing.OrganizationType != input.OrganizationType || existing.Timezone != input.Timezone || existing.DefaultCurrency != input.DefaultCurrency {
+					return apperrors.Conflict("This company already exists. Open its saved company details to edit it.", nil)
+				}
+				organization = existing
+				return complete()
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+		}
 		if err := s.opts.Organizations.Create(ctx, tx, organization); err != nil {
 			return err
 		}
@@ -300,12 +389,15 @@ func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (*mod
 		if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
 			return err
 		}
-		return s.opts.Events.Publish(ctx, tx, "organization.created.v1", "organization",
+		if err := s.opts.Events.Publish(ctx, tx, "organization.created.v1", "organization",
 			organization.ID, 1, organization.ID, input.CorrelationID, map[string]any{
 				"organizationId": organization.ID,
 				"legalName":      input.LegalName,
 				"countryCode":    input.CountryCode,
-			})
+			}); err != nil {
+			return err
+		}
+		return complete()
 	})
 	if err != nil {
 		return nil, err
@@ -373,7 +465,11 @@ func (s *Service) GetOnboardingStatus(ctx context.Context, organizationID string
 		return nil, err
 	}
 
-	status.AllowedNextActions = allowedActions(organization.Status, stages)
+	status.Stages, err = s.assessStages(ctx, organization, stages)
+	if err != nil {
+		return nil, err
+	}
+	status.AllowedNextActions = allowedActions(organization.Status, status.Stages)
 	return status, nil
 }
 
@@ -520,11 +616,12 @@ func eventForStatus(status string) string {
 
 // AttachDocumentInput attaches a media-file-service file.
 type AttachDocumentInput struct {
-	Tenant       tenant.Context
-	DocumentType string
-	FileID       string
-	IssuedAt     *time.Time
-	ExpiresAt    *time.Time
+	Tenant            tenant.Context
+	ReplaceDocumentID string
+	DocumentType      string
+	FileID            string
+	IssuedAt          *time.Time
+	ExpiresAt         *time.Time
 }
 
 // ---- Representatives ----
@@ -546,39 +643,12 @@ type CreateRepresentativeInput struct {
 
 // CreateRepresentative creates an authorized representative for the organization.
 func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresentativeInput) (*models.Representative, error) {
-	// Validate required fields
-	if input.FullName == "" {
-		return nil, apperrors.Validation("Full name is required.", []apperrors.FieldViolation{
-			{Field: "fullName", Message: "Required."},
-		})
-	}
-	if input.RoleTitle == "" {
-		return nil, apperrors.Validation("Role title is required.", []apperrors.FieldViolation{
-			{Field: "roleTitle", Message: "Required."},
-		})
-	}
-	if input.Email == "" {
-		return nil, apperrors.Validation("Email is required.", []apperrors.FieldViolation{
-			{Field: "email", Message: "Required."},
-		})
-	}
-	if input.Phone == "" {
-		return nil, apperrors.Validation("Phone is required.", []apperrors.FieldViolation{
-			{Field: "phone", Message: "Required."},
-		})
-	}
-	if input.AuthorityType == "" {
-		return nil, apperrors.Validation("Authority type is required.", []apperrors.FieldViolation{
-			{Field: "authorityType", Message: "Required."},
-		})
-	}
-
 	// Check if organization exists and is in DRAFT status
 	org, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
-	if org.Status != models.OrganizationStatusDraft {
+	if !AcceptsOnboardingEdits(org.Status) {
 		return nil, apperrors.Conflict("Representatives can only be added while the organization is in DRAFT status.", nil)
 	}
 
@@ -598,7 +668,29 @@ func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresen
 		EffectiveFrom:           s.opts.Now(),
 	}
 
+	if err := normalizeRepresentative(rep); err != nil {
+		return nil, err
+	}
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.OrganizationID); err != nil {
+			return err
+		}
+		if err := linkRepresentative(ctx, tx, input.OrganizationID, rep); err != nil {
+			return err
+		}
+		existing, err := s.transactionService(tx).opts.Onboarding.ListRepresentatives(ctx, input.OrganizationID)
+		if err != nil {
+			return err
+		}
+		for _, record := range existing {
+			if record.Status == "ACTIVE" && (record.Email == rep.Email || (rep.IsOnboardingOwner && record.IsOnboardingOwner)) {
+				if record.Email == rep.Email && record.Phone == rep.Phone && record.FullName == rep.FullName && record.RoleTitle == rep.RoleTitle && record.AuthorityType == rep.AuthorityType && record.IsOnboardingOwner == rep.IsOnboardingOwner {
+					rep = &record
+					return nil
+				}
+				return apperrors.Conflict("This representative already exists. Reload and edit the saved record.", nil)
+			}
+		}
 		if err := s.opts.Onboarding.CreateRepresentative(ctx, tx, input.OrganizationID, rep); err != nil {
 			return err
 		}
@@ -617,10 +709,8 @@ func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresen
 			ResourceType:   "representative",
 			ResourceID:     rep.ID,
 			NewValues: map[string]any{
-				"fullName":      input.FullName,
-				"roleTitle":     input.RoleTitle,
-				"email":         input.Email,
-				"authorityType": input.AuthorityType,
+				"contactUpdated": true,
+				"authorityType":  input.AuthorityType,
 			},
 			RequestID:     input.RequestID,
 			CorrelationID: input.CorrelationID,
@@ -636,7 +726,7 @@ func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresen
 	}
 
 	s.metricsStage(models.StageAuthorizedRepresentative, models.StageStatusComplete)
-	return rep, nil
+	return s.representativeByID(ctx, input.OrganizationID, rep.ID)
 }
 
 // ListRepresentatives returns all representatives for an organization.
@@ -661,6 +751,8 @@ type UpdateRepresentativeInput struct {
 	AuthorityType           string
 	AuthorityDocumentFileID *string
 	Status                  string
+	IdentityReference       *string
+	IsOnboardingOwner       *bool
 	EffectiveTo             *time.Time
 	ExpectedVersion         int64
 	RequestID               string
@@ -669,40 +761,51 @@ type UpdateRepresentativeInput struct {
 
 // UpdateRepresentative updates an existing representative.
 func (s *Service) UpdateRepresentative(ctx context.Context, input UpdateRepresentativeInput) (*models.Representative, error) {
-	// Validate required fields
-	if input.FullName == "" {
-		return nil, apperrors.Validation("Full name is required.", []apperrors.FieldViolation{
-			{Field: "fullName", Message: "Required."},
-		})
-	}
-	if input.RoleTitle == "" {
-		return nil, apperrors.Validation("Role title is required.", []apperrors.FieldViolation{
-			{Field: "roleTitle", Message: "Required."},
-		})
-	}
-
 	// Check if organization exists and is in DRAFT status
 	org, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
-	if org.Status != models.OrganizationStatusDraft {
+	if !AcceptsOnboardingEdits(org.Status) {
 		return nil, apperrors.Conflict("Representatives can only be updated while the organization is in DRAFT status.", nil)
 	}
 
-	// Build the representative object for update
-	rep := &models.Representative{
-		FullName:                input.FullName,
-		RoleTitle:               input.RoleTitle,
-		Email:                   input.Email,
-		Phone:                   input.Phone,
-		AuthorityType:           input.AuthorityType,
-		AuthorityDocumentFileID: input.AuthorityDocumentFileID,
-		Status:                  input.Status,
-		EffectiveTo:             input.EffectiveTo,
+	rep, err := s.representativeByID(ctx, input.OrganizationID, input.RepresentativeID)
+	if err != nil {
+		return nil, err
+	}
+	if input.ExpectedVersion <= 0 {
+		return nil, apperrors.Conflict("Reload the representative before saving. Its record version is required.", nil)
+	}
+	rep.FullName = input.FullName
+	rep.RoleTitle = input.RoleTitle
+	rep.Email = input.Email
+	rep.Phone = input.Phone
+	rep.AuthorityType = input.AuthorityType
+	if input.Status != "" {
+		rep.Status = input.Status
+	}
+	if input.AuthorityDocumentFileID != nil {
+		rep.AuthorityDocumentFileID = input.AuthorityDocumentFileID
+	}
+	if input.EffectiveTo != nil {
+		rep.EffectiveTo = input.EffectiveTo
+	}
+	if input.IsOnboardingOwner != nil {
+		rep.IsOnboardingOwner = *input.IsOnboardingOwner
+		rep.IdentityReference = input.IdentityReference
+	}
+	if err := normalizeRepresentative(rep); err != nil {
+		return nil, err
 	}
 
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.OrganizationID); err != nil {
+			return err
+		}
+		if err := linkRepresentative(ctx, tx, input.OrganizationID, rep); err != nil {
+			return err
+		}
 		if err := s.opts.Onboarding.UpdateRepresentative(ctx, tx, input.OrganizationID, input.RepresentativeID, rep, input.ExpectedVersion); err != nil {
 			return err
 		}
@@ -716,9 +819,8 @@ func (s *Service) UpdateRepresentative(ctx context.Context, input UpdateRepresen
 			ResourceType:   "representative",
 			ResourceID:     input.RepresentativeID,
 			NewValues: map[string]any{
-				"fullName":  input.FullName,
-				"roleTitle": input.RoleTitle,
-				"status":    input.Status,
+				"contactUpdated": true,
+				"status":         input.Status,
 			},
 			RequestID:     input.RequestID,
 			CorrelationID: input.CorrelationID,
@@ -729,7 +831,7 @@ func (s *Service) UpdateRepresentative(ctx context.Context, input UpdateRepresen
 		return nil, err
 	}
 
-	return rep, nil
+	return s.representativeByID(ctx, input.OrganizationID, input.RepresentativeID)
 }
 
 // ---- Capabilities ----
@@ -760,7 +862,7 @@ func (s *Service) SetCapabilities(ctx context.Context, input SetCapabilitiesInpu
 	if err != nil {
 		return nil, err
 	}
-	if org.Status != models.OrganizationStatusDraft {
+	if !AcceptsOnboardingEdits(org.Status) {
 		return nil, apperrors.Conflict("Capabilities can only be updated while the organization is in DRAFT status.", nil)
 	}
 
@@ -772,21 +874,28 @@ func (s *Service) SetCapabilities(ctx context.Context, input SetCapabilitiesInpu
 
 	validCapabilities := []string{}
 	for _, cap := range input.Capabilities {
-		if supported[cap] {
+		if !supported[cap] {
+			return nil, fieldError("capabilities", "Choose only supported logistics services.")
+		}
+		if !contains(validCapabilities, cap) {
 			validCapabilities = append(validCapabilities, cap)
 		}
 	}
 
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.OrganizationID); err != nil {
+			return err
+		}
 		if err := s.opts.Onboarding.ReplaceCapabilities(ctx, tx, input.OrganizationID, validCapabilities); err != nil {
 			return err
 		}
 
-		// Mark OPERATING_CAPABILITIES stage as COMPLETE if capabilities exist
+		stageStatus := models.StageStatusInProgress
 		if len(validCapabilities) > 0 {
-			if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.OrganizationID, models.StageOperatingCapabilities, models.StageStatusComplete, nil, nil); err != nil {
-				return err
-			}
+			stageStatus = models.StageStatusComplete
+		}
+		if err := s.opts.Onboarding.UpsertStage(ctx, tx, input.OrganizationID, models.StageOperatingCapabilities, stageStatus, nil, nil); err != nil {
+			return err
 		}
 
 		// Record audit entry
@@ -860,7 +969,7 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 	if err != nil {
 		return nil, err
 	}
-	if org.Status != models.OrganizationStatusDraft {
+	if !AcceptsOnboardingEdits(org.Status) {
 		return nil, apperrors.Conflict("Profile can only be updated while the organization is in DRAFT status.", nil)
 	}
 
@@ -877,7 +986,50 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 		BusinessDescription: input.BusinessDescription,
 	}
 
+	existing, err := s.GetProfile(ctx, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		if input.ExpectedVersion <= 0 {
+			return nil, apperrors.Conflict("A saved business profile exists. Reload it before saving so your changes do not overwrite another edit.", nil)
+		}
+		if profile.BusinessType == nil {
+			profile.BusinessType = existing.BusinessType
+		}
+		if profile.IncorporationDate == nil {
+			profile.IncorporationDate = existing.IncorporationDate
+		}
+		if profile.TaxReference == nil {
+			profile.TaxReference = existing.TaxReference
+		}
+		if profile.RegisteredAddress == nil {
+			profile.RegisteredAddress = existing.RegisteredAddress
+		}
+		if profile.OperatingAddress == nil {
+			profile.OperatingAddress = existing.OperatingAddress
+		}
+		if profile.BusinessEmail == nil {
+			profile.BusinessEmail = existing.BusinessEmail
+		}
+		if profile.BusinessPhone == nil {
+			profile.BusinessPhone = existing.BusinessPhone
+		}
+		if profile.Website == nil {
+			profile.Website = existing.Website
+		}
+		if profile.BusinessDescription == nil {
+			profile.BusinessDescription = existing.BusinessDescription
+		}
+	}
+	if err := validateProfile(profile); err != nil {
+		return nil, err
+	}
+
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.OrganizationID); err != nil {
+			return err
+		}
 		if err := s.opts.Onboarding.UpsertProfile(ctx, tx, input.OrganizationID, profile, input.ExpectedVersion); err != nil {
 			return err
 		}
@@ -896,8 +1048,7 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 			ResourceType:   "profile",
 			ResourceID:     input.OrganizationID,
 			NewValues: map[string]any{
-				"businessEmail": input.BusinessEmail,
-				"businessPhone": input.BusinessPhone,
+				"contactUpdated": true,
 			},
 			RequestID:     input.RequestID,
 			CorrelationID: input.CorrelationID,
@@ -908,7 +1059,7 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 		return nil, err
 	}
 
-	return profile, nil
+	return s.opts.Onboarding.GetProfile(ctx, input.OrganizationID)
 }
 
 // AttachDocument validates file ownership and readiness with
@@ -929,7 +1080,7 @@ type RequestDocumentUploadAuthorizationInput struct {
 
 // RequestDocumentUploadAuthorization requests a single-use upload grant from media service.
 func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input RequestDocumentUploadAuthorizationInput) (*platformclients.MediaUploadGrant, error) {
-	if input.DocumentType == "" {
+	if !contains(models.RequiredDocumentTypes, input.DocumentType) {
 		return nil, apperrors.Validation("Document type is required.", []apperrors.FieldViolation{
 			{Field: "documentType", Message: "Required."},
 		})
@@ -940,6 +1091,13 @@ func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input 
 		})
 	}
 
+	org, err := s.opts.Organizations.GetByID(ctx, input.Tenant.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	if !AcceptsOnboardingEdits(org.Status) {
+		return nil, apperrors.Conflict("Documents cannot be changed while the company is under review.", nil)
+	}
 	// Default upload purpose if not provided
 	purpose := input.UploadPurpose
 	if purpose == "" {
@@ -958,6 +1116,14 @@ func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input 
 		maxSize = 25 * 1024 * 1024 // 25MB
 	}
 
+	if maxSize > 25*1024*1024 {
+		return nil, fieldError("maxSizeBytes", "The maximum file size is 25 MB.")
+	}
+	for _, mime := range mimeTypes {
+		if !contains([]string{"application/pdf", "image/jpeg", "image/png", "image/webp"}, mime) {
+			return nil, fieldError("allowedMimeTypes", "Upload a PDF, JPEG, PNG or WebP file.")
+		}
+	}
 	grant, err := s.opts.Contracts.Media.AuthorizeUpload(ctx, platformclients.CallMeta{
 		OrganizationID: input.Tenant.OrganizationID,
 		RequestID:      input.Tenant.RequestID,
@@ -973,7 +1139,7 @@ func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input 
 		RetentionClass:   "STANDARD",
 	})
 	if err != nil {
-		return nil, err
+		return nil, mediaUploadError(err)
 	}
 
 	return &grant, nil
@@ -993,6 +1159,10 @@ type CompleteDocumentUploadInput struct {
 
 // CompleteDocumentUpload completes the upload with the file bytes.
 func (s *Service) CompleteDocumentUpload(ctx context.Context, input CompleteDocumentUploadInput) (*platformclients.MediaObjectState, error) {
+	if len(input.Content) > 25*1024*1024 || input.DeclaredSize != int64(len(input.Content)) {
+		return nil, fieldError("file", "The declared file size must match the upload and be no more than 25 MB.")
+	}
+
 	if input.MediaObjectID == "" {
 		return nil, apperrors.Validation("Media object ID is required.", []apperrors.FieldViolation{
 			{Field: "mediaObjectId", Message: "Required."},
@@ -1026,14 +1196,14 @@ func (s *Service) CompleteDocumentUpload(ctx context.Context, input CompleteDocu
 		CorrelationID:  input.Tenant.CorrelationID,
 	}, grant, input.DeclaredMIME, input.DeclaredChecksum, input.Content)
 	if err != nil {
-		return nil, err
+		return nil, mediaUploadError(err)
 	}
 
 	return &state, nil
 }
 
 func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput) (*models.Document, error) {
-	if input.FileID == "" || input.DocumentType == "" {
+	if input.FileID == "" || !contains(models.RequiredDocumentTypes, input.DocumentType) {
 		return nil, apperrors.Validation("A document type and file are required.", []apperrors.FieldViolation{
 			{Field: "fileId", Message: "Required."}})
 	}
@@ -1049,7 +1219,7 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 		return nil, errorcodes.Unavailable(errorcodes.OrganizationOnboardingIncomplete,
 			"Document verification is unavailable right now. Please try again shortly.")
 	}
-	if metadata.OwnerID != input.Tenant.OrganizationID {
+	if metadata.OwnerID != input.Tenant.OrganizationID || metadata.OwnerType != "organization" {
 		// Never reveal that the file exists under another organization.
 		return nil, apperrors.NotFound("File not found.", nil)
 	}
@@ -1066,6 +1236,33 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 		SourceVersion: metadata.SourceVersion,
 	}
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.lockEditable(ctx, tx, input.Tenant.OrganizationID); err != nil {
+			return err
+		}
+		current, err := s.opts.Onboarding.ListDocumentsTx(ctx, tx, input.Tenant.OrganizationID)
+		if err != nil {
+			return err
+		}
+		for _, record := range current {
+			if record.FileID == input.FileID && record.DocumentType == input.DocumentType {
+				document = &record
+				return nil
+			}
+		}
+		if input.ReplaceDocumentID != "" {
+			found := false
+			for _, record := range current {
+				if record.ID == input.ReplaceDocumentID && record.DocumentType == input.DocumentType {
+					found = true
+				}
+			}
+			if !found {
+				return apperrors.NotFound("Document to replace was not found.", nil)
+			}
+			if err := s.opts.Onboarding.RemoveDocument(ctx, tx, input.Tenant.OrganizationID, input.ReplaceDocumentID); err != nil {
+				return err
+			}
+		}
 		if err := s.opts.Onboarding.AttachDocument(ctx, tx, input.Tenant.OrganizationID, document); err != nil {
 			return err
 		}
@@ -1079,7 +1276,7 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 		}
 		present := make(map[string]bool, len(existing))
 		for _, d := range existing {
-			if d.Status != models.DocumentStatusRejected && d.Status != models.DocumentStatusExpired {
+			if d.Status == models.DocumentStatusReady && (d.ExpiresAt == nil || d.ExpiresAt.After(s.opts.Now())) {
 				present[d.DocumentType] = true
 			}
 		}
@@ -1116,8 +1313,35 @@ func (s *Service) Repositories() (*orgrepos.OrganizationRepository, *orgrepos.On
 
 // MarkStage records progress for one stage.
 func (s *Service) MarkStage(ctx context.Context, organizationID string, stage string, status string, missing []string, blocking []string) error {
+	if !contains(requiredForSubmission, stage) {
+		return apperrors.Forbidden("This stage is managed by the verification or provisioning service.", nil)
+	}
 	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		return s.opts.Onboarding.UpsertStage(ctx, tx, organizationID, stage, status, missing, blocking)
+		if err := s.lockEditable(ctx, tx, organizationID); err != nil {
+			return err
+		}
+		scoped := s.transactionService(tx)
+		org, err := scoped.opts.Organizations.GetByID(ctx, organizationID)
+		if err != nil {
+			return err
+		}
+		stages, err := scoped.opts.Onboarding.ListStages(ctx, organizationID)
+		if err != nil {
+			return err
+		}
+		stages, err = scoped.assessStages(ctx, org, stages)
+		if err != nil {
+			return err
+		}
+		for _, actual := range stages {
+			if actual.Stage == stage {
+				if status == models.StageStatusComplete && actual.Status != models.StageStatusComplete {
+					return apperrors.Validation("Save the missing information before completing this step.", []apperrors.FieldViolation{{Field: stage, Message: strings.Join(actual.MissingFields, ", ")}})
+				}
+				return s.opts.Onboarding.UpsertStage(ctx, tx, organizationID, stage, actual.Status, actual.MissingFields, actual.BlockingIssues)
+			}
+		}
+		return fieldError("stage", "Unknown onboarding step.")
 	})
 }
 

@@ -93,6 +93,7 @@ type FileMetadata struct {
 	OwnerID       string
 	Purpose       string
 	UploadState   string
+	DeletionState string
 	ScanState     string
 	ContentType   string
 	SizeBytes     int64
@@ -101,8 +102,8 @@ type FileMetadata struct {
 
 // Ready reports whether the file may be attached to a business record.
 func (f FileMetadata) Ready() bool {
-	return f.UploadState == "COMPLETED" &&
-		(f.ScanState == "PENDING" || f.ScanState == "CLEAN" || f.ScanState == "NOT_REQUIRED")
+	return (f.DeletionState == "" || f.DeletionState == "ACTIVE") && f.UploadState == "COMPLETED" &&
+		(f.ScanState == "SAFE" || f.ScanState == "CLEAN" || f.ScanState == "NOT_REQUIRED")
 }
 
 // MediaContract is the file metadata and ownership capability.

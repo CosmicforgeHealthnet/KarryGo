@@ -21,6 +21,14 @@ SELECT count(*) AS legacy_malformed_phone_count FROM fleet_partner_corporate_ide
 SELECT count(*) AS test_identity_count FROM fleet_partner_corporate_identities WHERE lower(email_normalized)=lower(:'test_email');
 SELECT purpose,status,delivery_status,count(*) FROM fleet_partner_auth_otp_challenges WHERE lower(email_normalized)=lower(:'test_email') GROUP BY 1,2,3 ORDER BY 1,2,3;
 SELECT count(*) AS test_active_sessions FROM fleet_partner_corporate_sessions WHERE identity_id IN (SELECT id FROM fleet_partner_corporate_identities WHERE lower(email_normalized)=lower(:'test_email')) AND status='ACTIVE';
+SELECT organization_id,status,version,is_owner FROM fleet_partner_organization_users WHERE identity_id IN (SELECT id FROM fleet_partner_corporate_identities WHERE lower(email_normalized)=lower(:'test_email'));
+SELECT o.id,o.status,o.version,o.organization_type FROM fleet_partner_organizations o JOIN fleet_partner_organization_users u ON u.organization_id=o.id JOIN fleet_partner_corporate_identities i ON i.id=u.identity_id WHERE lower(i.email_normalized)=lower(:'test_email');
+SELECT p.organization_id,p.version,(p.registered_address<>p.operating_address) AS distinct_operating_address FROM fleet_partner_organization_profiles p JOIN fleet_partner_organization_users u ON u.organization_id=p.organization_id JOIN fleet_partner_corporate_identities i ON i.id=u.identity_id WHERE lower(i.email_normalized)=lower(:'test_email');
+SELECT r.organization_id,r.status,r.authority_type,r.version,r.is_onboarding_owner FROM fleet_partner_organization_authorized_representatives r JOIN fleet_partner_organization_users u ON u.organization_id=r.organization_id JOIN fleet_partner_corporate_identities i ON i.id=u.identity_id WHERE lower(i.email_normalized)=lower(:'test_email');
+SELECT c.organization_id,c.capability,c.status FROM fleet_partner_organization_capabilities c JOIN fleet_partner_organization_users u ON u.organization_id=c.organization_id JOIN fleet_partner_corporate_identities i ON i.id=u.identity_id WHERE lower(i.email_normalized)=lower(:'test_email');
+SELECT d.organization_id,d.document_type,d.status,d.created_at FROM fleet_partner_organization_documents d JOIN fleet_partner_organization_users u ON u.organization_id=d.organization_id JOIN fleet_partner_corporate_identities i ON i.id=u.identity_id WHERE lower(i.email_normalized)=lower(:'test_email');
+SELECT v.organization_id,v.status,v.submission_version FROM fleet_partner_organization_verification_requests v JOIN fleet_partner_organization_users u ON u.organization_id=v.organization_id JOIN fleet_partner_corporate_identities i ON i.id=u.identity_id WHERE lower(i.email_normalized)=lower(:'test_email');
+
 COMMIT;
 SQL
 echo 'FLEET_NOTIFICATION_EVIDENCE'

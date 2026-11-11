@@ -1,539 +1,170 @@
-// src/app/(setup)/setup/headquarters/page.tsx
-
 "use client";
-
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
+import { useOnboarding, useOnboardingDraft } from "../onboarding-context";
+import { organizationService as api } from "@/lib/services/organizationService";
 import {
-  RefreshCw,
-  Save,
-  ChevronLeft,
-  CheckCircle2,
-  Loader2,
-  MapPin,
-  Building,
-  Mail,
-  Phone,
-  Globe,
-  FileText,
-} from "lucide-react";
-import { useAuthStore } from "@/lib/stores/authStore";
-import { useOrganizationStore } from "@/lib/stores/organizationStore";
-import { useOnboardingStore } from "@/lib/stores/onboardingStore";
-import { StepFooter } from "@/components/onboarding/StepFooter";
-import { nextPath, previousPath } from "../steps";
-import { organizationService } from "@/lib/services/organizationService";
-import { IconTile } from "@/components/onboarding/IconTile";
-
-type FormData = {
-  // Address
-  street: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  // Contact
-  businessEmail: string;
-  businessPhone: string;
-  website: string;
-  businessDescription: string;
-};
-
-const COUNTRIES = [
-  { value: "NG", label: "Nigeria" },
-  { value: "GH", label: "Ghana" },
-  { value: "KE", label: "Kenya" },
-  { value: "ZA", label: "South Africa" },
-  { value: "EG", label: "Egypt" },
-  { value: "MA", label: "Morocco" },
-  { value: "OTHER", label: "Other" },
-];
-
-const NIGERIA_STATES = [
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
-  "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu",
-  "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi",
-  "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun",
-  "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
-];
-
-const inputClass = (hasError: boolean) =>
-  `w-full rounded-xl border px-4 py-2.5 text-sm text-ink-950 outline-none transition-colors ${
-    hasError
-      ? "border-red focus:border-red focus:ring-2 focus:ring-red/10"
-      : "border-field-border focus:border-label-accent focus:ring-4 focus:ring-primary/15"
-  }`;
-
-const REQUIRED_FIELDS: (keyof FormData)[] = [
-  "street",
-  "city",
-  "state",
-  "postalCode",
-  "country",
-  "businessEmail",
-  "businessPhone",
-];
-
-function validateField(name: keyof FormData, value: string): string | undefined {
-  switch (name) {
-    case "street":
-      if (!value.trim()) return "Street address is required";
-      return undefined;
-    case "city":
-      if (!value.trim()) return "City is required";
-      return undefined;
-    case "state":
-      if (!value.trim()) return "State is required";
-      return undefined;
-    case "postalCode":
-      if (!value.trim()) return "Postal code is required";
-      return undefined;
-    case "country":
-      if (!value) return "Country is required";
-      return undefined;
-    case "businessEmail":
-      if (!value.trim()) return "Business email is required";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email address";
-      return undefined;
-    case "businessPhone":
-      if (!value.trim()) return "Business phone is required";
-      const phoneClean = value.replace(/[\s()-]/g, "");
-      if (phoneClean.length < 7) return "Enter a valid phone number";
-      return undefined;
-    default:
-      return undefined;
-  }
-}
-
-
-export default function HeadquartersPage() {
-  const router = useRouter();
-  const { _hasHydrated } = useAuthStore();
-  const { organization } = useOrganizationStore();
-  const { setStageComplete } = useOnboardingStore();
-
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  // Existing profile updates require If-Match. A missing version would turn
-  // the write into an insert-if-missing and silently discard saved changes.
-  const [savedProfile, setSavedProfile] = useState<any>(null);
-
-  const [formData, setFormData] = useState<FormData>({
-    street: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "NG",
-    businessEmail: "",
-    businessPhone: "",
-    website: "",
-    businessDescription: "",
-  });
-
-  const [touched, setTouched] = useState<Partial<Record<keyof FormData, boolean>>>({});
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-
-  const completedRequired = REQUIRED_FIELDS.filter((field) => !validateField(field, formData[field])).length;
-
-  useEffect(() => {
-    if (!_hasHydrated) return;
-
-    const fetchProfile = async () => {
-      if (!organization?.organizationId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const profile = await organizationService.getProfile(organization.organizationId);
-        setSavedProfile(profile ?? null);
-        if (profile) {
-          setFormData({
-            street: profile.registeredAddress?.street || "",
-            city: profile.registeredAddress?.city || "",
-            state: profile.registeredAddress?.state || "",
-            postalCode: profile.registeredAddress?.postalCode || "",
-            country: profile.registeredAddress?.country || "NG",
-            businessEmail: profile.businessEmail || "",
-            businessPhone: profile.businessPhone || "",
-            website: profile.website || "",
-            businessDescription: profile.businessDescription || "",
-          });
-        }
-      } catch (err) {
-        console.error("Failed to fetch profile:", err);
-      } finally {
-        setLoading(false);
-      }
+  Field,
+  Section,
+  StepForm,
+  SaveFooter,
+  useStepNavigation,
+} from "../onboarding-ui";
+import { AddressGroup, normalizeAddress } from "../address-group";
+export default function Headquarters() {
+  const { data, reload, reloadSaved, editable } = useOnboarding();
+  const org = data.organization!;
+  const profile = data.profile;
+  const [form, change, clear] = useOnboardingDraft("address", () => {
+    const registeredAddress = normalizeAddress(
+      profile?.registeredAddress,
+      org.countryCode,
+    );
+    const operatingAddress = normalizeAddress(
+      profile?.operatingAddress,
+      org.countryCode,
+    );
+    return {
+      registeredAddress,
+      operatingAddress,
+      same:
+        !profile ||
+        JSON.stringify(registeredAddress) === JSON.stringify(operatingAddress),
+      businessEmail:
+        profile?.businessEmail ??
+        (data.identity.isOrganizationOwner ? data.identity.email : ""),
+      businessPhone:
+        profile?.businessPhone ??
+        (data.identity.isOrganizationOwner ? data.identity.phone : ""),
+      website: profile?.website ?? "",
+      businessDescription: profile?.businessDescription ?? "",
+      version: profile?.version,
     };
-
-    fetchProfile();
-  }, [_hasHydrated, organization?.organizationId]);
-
-  const setField = (name: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    const err = validateField(name, value);
-    setErrors((prev) => {
-      if (err) {
-        return { ...prev, [name]: err };
-      }
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-  };
-
-  const handleBlur = (name: keyof FormData) => {
-    setTouched((prev) => ({ ...prev, [name]: true }));
-    const err = validateField(name, formData[name]);
-    setErrors((prev) => {
-      if (err) {
-        return { ...prev, [name]: err };
-      }
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-  };
-
-  const handleSubmit = async () => {
-    const allErrors: Partial<Record<keyof FormData, string>> = {};
-    REQUIRED_FIELDS.forEach((field) => {
-      const err = validateField(field, formData[field]);
-      if (err) allErrors[field] = err;
-    });
-    setErrors(allErrors);
-    setTouched(
-      REQUIRED_FIELDS.reduce((acc, field) => ({ ...acc, [field]: true }), {} as Record<keyof FormData, boolean>)
-    );
-
-    if (Object.keys(allErrors).length > 0) {
-      setSaveError("Please fix all highlighted fields before continuing.");
-      return;
-    }
-
-    if (!organization?.organizationId) {
-      setSaveError("Organization not found.");
-      return;
-    }
-
-    setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const guard = useRef(false);
+  const go = useStepNavigation("address");
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (guard.current || !editable) return;
+    guard.current = true;
+    setBusy(true);
+    setError(null);
     try {
-      if (savedProfile && (!Number.isSafeInteger(savedProfile.version) || savedProfile.version < 1)) {
-        throw new Error("Could not load the current profile version. Reload this step before saving.");
-      }
-      await organizationService.updateProfile(organization.organizationId, {
-        // Preserve fields owned by other profile screens rather than clearing
-        // them with an incomplete PUT payload.
-        businessType: savedProfile?.businessType ?? null,
-        incorporationDate: savedProfile?.incorporationDate ?? null,
-        taxReference: savedProfile?.taxReference ?? null,
-        registeredAddress: {
-          street: formData.street.trim(),
-          city: formData.city.trim(),
-          state: formData.state.trim(),
-          postalCode: formData.postalCode.trim(),
-          country: formData.country,
+      await api.updateProfile(
+        org.organizationId,
+        {
+          registeredAddress: form.registeredAddress,
+          operatingAddress: form.same
+            ? form.registeredAddress
+            : form.operatingAddress,
+          businessEmail: form.businessEmail,
+          businessPhone: form.businessPhone,
+          website: form.website,
+          businessDescription: form.businessDescription,
         },
-        operatingAddress: {
-          street: formData.street.trim(),
-          city: formData.city.trim(),
-          state: formData.state.trim(),
-          postalCode: formData.postalCode.trim(),
-          country: formData.country,
-        },
-        businessEmail: formData.businessEmail.trim() || null,
-        businessPhone: formData.businessPhone.trim() || null,
-        website: formData.website.trim() || null,
-        businessDescription: formData.businessDescription.trim() || null,
-      }, savedProfile?.version);
-      const latest = await organizationService.getProfile(organization.organizationId);
-      setSavedProfile(latest);
-      setStageComplete("HEADQUARTERS");
-
-      setSaveSuccess(true);
-      router.push(nextPath("address"));
-    } catch (err: any) {
-      const responseError = err?.response?.data?.error;
-      const status = err?.response?.status;
-      const requestId = responseError?.requestId ?? err?.response?.headers?.["x-request-id"];
-      let message = responseError?.message || err?.message || "Failed to save headquarters information.";
-      if (status === 409) {
-        message = "These details were changed elsewhere. Reload and review the latest saved address before trying again.";
-      } else if (status === 401) {
-        message = "Your session expired. Please sign in again.";
-      }
-      setSaveError(requestId ? `${message} Reference: ${requestId}` : message);
+        form.version,
+      );
+      await reload();
+      clear();
+      go();
+    } catch (err) {
+      setError(err);
     } finally {
-      setIsSaving(false);
+      guard.current = false;
+      setBusy(false);
     }
-  };
-
-  const handleBack = () => router.push(previousPath("address"));
-
-  const isComplete = completedRequired === REQUIRED_FIELDS.length;
-  const hasErrors = Object.values(errors).some((e) => !!e);
-  const canSubmit = !isSaving && !saveSuccess && isComplete && !hasErrors;
-
-  if (loading) {
-    return (
-      <div className="mx-auto w-full max-w-4xl space-y-6">
-        <div className="space-y-2">
-          <div className="h-7 w-48 animate-pulse rounded bg-surface-2 sm:w-56" />
-          <div className="h-4 w-full max-w-md animate-pulse rounded bg-surface-2" />
-        </div>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
   }
-
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-ink-950">Business address</h1>
-        <p className="mt-1.5 text-ink-600">
-          Where your company is registered, and how customers and partners can reach you.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <p className="flex-shrink-0 text-sm font-medium text-ink-700">
-          <span className="font-mono tabular-nums text-ink-950">{completedRequired}</span>
-          <span className="text-ink-400"> / {REQUIRED_FIELDS.length}</span> required fields complete
-        </p>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2 sm:max-w-xs">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${(completedRequired / REQUIRED_FIELDS.length) * 100}%` }}
+    <StepForm
+      title="Business address"
+      description="Save your company's registered address, operating address and business contacts."
+      onSubmit={save}
+      error={error}
+      onReload={() => {
+        void reloadSaved().catch(setError);
+      }}
+    >
+      <fieldset disabled={!editable || busy} className="space-y-6">
+        <Section title="Registered business address">
+          <AddressGroup
+            prefix="registered"
+            value={form.registeredAddress}
+            onChange={(value) => change({ ...form, registeredAddress: value })}
           />
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
-        <div className="flex items-start gap-4">
-          <IconTile icon={<MapPin />} />
-          <div>
-            <h2 className="text-[15px] font-semibold text-ink-950">Registered Address</h2>
-            <p className="text-sm text-ink-500">
-              This is the official address of your company.
+        </Section>
+        <Section title="Operating address">
+          <label className="flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={form.same}
+              onChange={(e) => change({ ...form, same: e.target.checked })}
+            />
+            Same as registered business address
+          </label>
+          {!form.same && (
+            <div className="mt-4">
+              <AddressGroup
+                prefix="operating"
+                value={form.operatingAddress}
+                onChange={(value) =>
+                  change({ ...form, operatingAddress: value })
+                }
+              />
+            </div>
+          )}
+        </Section>
+        <Section title="Business contact information">
+          {!profile?.businessEmail && !profile?.businessPhone && (
+            <p className="mb-4 text-sm text-ink-600">
+              We&apos;ve filled this using your registered details. You can
+              change it if your business uses different contact information.
             </p>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              name="businessEmail"
+              label="Business email"
+              type="email"
+              required
+              value={form.businessEmail}
+              onChange={(e) =>
+                change({ ...form, businessEmail: e.target.value })
+              }
+            />
+            <Field
+              name="businessPhone"
+              label="Business phone"
+              type="tel"
+              required
+              value={form.businessPhone}
+              placeholder="+2348012345678"
+              hint="Include the country code. This changes only the business contact."
+              onChange={(e) =>
+                change({ ...form, businessPhone: e.target.value })
+              }
+            />
+            <Field
+              name="website"
+              label="Website (optional)"
+              type="url"
+              value={form.website}
+              placeholder="https://example.com"
+              onChange={(e) => change({ ...form, website: e.target.value })}
+            />
+            <Field
+              name="businessDescription"
+              label="Business description (optional)"
+              maxLength={2000}
+              value={form.businessDescription}
+              onChange={(e) =>
+                change({ ...form, businessDescription: e.target.value })
+              }
+            />
           </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <MapPin className="h-3 w-3 text-ink-400" />
-              Street Address <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={formData.street}
-                onChange={(e) => setField("street", e.target.value)}
-                onBlur={() => handleBlur("street")}
-                placeholder="123 Marina Road, Suite 4B"
-                className={inputClass(!!(touched.street && errors.street))}
-              />
-            </div>
-            {touched.street && errors.street && (
-              <p className="mt-1 text-xs text-red">{errors.street}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              City <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) => setField("city", e.target.value)}
-                onBlur={() => handleBlur("city")}
-                placeholder="Lagos"
-                className={inputClass(!!(touched.city && errors.city))}
-              />
-            </div>
-            {touched.city && errors.city && (
-              <p className="mt-1 text-xs text-red">{errors.city}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              State <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <select
-                value={formData.state}
-                onChange={(e) => setField("state", e.target.value)}
-                onBlur={() => handleBlur("state")}
-                className={inputClass(!!(touched.state && errors.state))}
-              >
-                <option value="">Select state...</option>
-                {NIGERIA_STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {touched.state && errors.state && (
-              <p className="mt-1 text-xs text-red">{errors.state}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              Postal Code <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={formData.postalCode}
-                onChange={(e) => setField("postalCode", e.target.value)}
-                onBlur={() => handleBlur("postalCode")}
-                placeholder="101241"
-                className={inputClass(!!(touched.postalCode && errors.postalCode))}
-              />
-            </div>
-            {touched.postalCode && errors.postalCode && (
-              <p className="mt-1 text-xs text-red">{errors.postalCode}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Globe className="h-3 w-3 text-ink-400" />
-              Country <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <select
-                value={formData.country}
-                onChange={(e) => setField("country", e.target.value)}
-                onBlur={() => handleBlur("country")}
-                className={inputClass(!!(touched.country && errors.country))}
-              >
-                {COUNTRIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {touched.country && errors.country && (
-              <p className="mt-1 text-xs text-red">{errors.country}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
-        <div className="flex items-start gap-4">
-          <IconTile icon={<Mail />} />
-          <div>
-            <h2 className="text-[15px] font-semibold text-ink-950">Contact Information</h2>
-            <p className="text-sm text-ink-500">
-              How customers and partners can reach your company.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Mail className="h-3 w-3 text-ink-400" />
-              Business Email <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="email"
-                value={formData.businessEmail}
-                onChange={(e) => setField("businessEmail", e.target.value)}
-                onBlur={() => handleBlur("businessEmail")}
-                placeholder="info@company.com"
-                className={inputClass(!!(touched.businessEmail && errors.businessEmail))}
-              />
-            </div>
-            {touched.businessEmail && errors.businessEmail && (
-              <p className="mt-1 text-xs text-red">{errors.businessEmail}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Phone className="h-3 w-3 text-ink-400" />
-              Business Phone <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="tel"
-                value={formData.businessPhone}
-                onChange={(e) => setField("businessPhone", e.target.value)}
-                onBlur={() => handleBlur("businessPhone")}
-                placeholder="+234 800 000 0000"
-                className={inputClass(!!(touched.businessPhone && errors.businessPhone))}
-              />
-            </div>
-            {touched.businessPhone && errors.businessPhone && (
-              <p className="mt-1 text-xs text-red">{errors.businessPhone}</p>
-            )}
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Globe className="h-3 w-3 text-ink-400" />
-              Website
-            </label>
-            <div className="mt-1">
-              <input
-                type="url"
-                value={formData.website}
-                onChange={(e) => setField("website", e.target.value)}
-                placeholder="www.company.com"
-                className={inputClass(false)}
-              />
-            </div>
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <FileText className="h-3 w-3 text-ink-400" />
-              Business Description
-            </label>
-            <div className="mt-1">
-              <textarea
-                value={formData.businessDescription}
-                onChange={(e) => setField("businessDescription", e.target.value)}
-                rows={3}
-                placeholder="Describe what your company does..."
-                className={inputClass(false)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {saveError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
-          {saveError}
-        </div>
-      )}
-
-      <StepFooter
-        onBack={handleBack}
-        onPrimary={handleSubmit}
-        primaryDisabled={!canSubmit}
-        primaryLoading={isSaving || saveSuccess}
-      />
-    </div>
+        </Section>
+      </fieldset>
+      <SaveFooter step="address" busy={busy} editable={editable} />
+    </StepForm>
   );
 }

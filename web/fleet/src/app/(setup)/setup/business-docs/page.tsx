@@ -1,609 +1,271 @@
-// src/app/(setup)/setup/business-docs/page.tsx
-
 "use client";
-
-import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
+import { useOnboarding } from "../onboarding-context";
+import { organizationService as api } from "@/lib/services/organizationService";
 import {
-  RefreshCw,
-  Clock,
-  CheckCircle2,
-  X,
-  AlertCircle,
-  Upload,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Landmark,
-  ShieldCheck,
-  BadgeCheck,
-  FileWarning,
-  Paperclip,
-  Loader2,
-} from "lucide-react";
-import { useAuthStore } from "@/lib/stores/authStore";
-import { useOrganizationStore } from "@/lib/stores/organizationStore";
-import { useOnboardingStore } from "@/lib/stores/onboardingStore";
-import { organizationService } from "@/lib/services/organizationService";
-import { IconTile } from "@/components/onboarding/IconTile";
-import { StepFooter } from "@/components/onboarding/StepFooter";
-import { nextPath, previousPath } from "../steps";
-
-
-type DocType = "Registration" | "Tax" | "Insurance" | "License" | "Compliance" | "Other";
-type DocStatus = "Uploaded" | "Pending" | "Verified" | "Rejected" | "Expired";
-
-type BusinessDocument = {
-  id: string;
-  name: string;
-  type: DocType;
-  status: DocStatus;
-  fileName: string;
-  fileSize: string;
-  uploadedAt: string;
-  uploadedBy: string;
-  expiryDate: string | null;
-  notes: string | null;
-};
-
-type RequiredSlot = {
-  type: DocType;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-};
-
-const REQUIRED_SLOTS: RequiredSlot[] = [
-  {
-    type: "Registration",
-    label: "Business Registration",
-    description: "Certificate of incorporation or registration",
-    icon: <Landmark />,
-  },
-  {
-    type: "Tax",
-    label: "Tax ID Certificate",
-    description: "Proof of tax registration",
-    icon: <FileText />,
-  },
-  {
-    type: "Insurance",
-    label: "Insurance Policy",
-    description: "Current liability or cargo insurance policy",
-    icon: <ShieldCheck />,
-  },
-  {
-    type: "License",
-    label: "Operating License",
-    description: "License to operate in your region",
-    icon: <BadgeCheck />,
-  },
-];
-
-const DOC_TYPE_MAP: Record<DocType, string> = {
-  Registration: "CERTIFICATE_OF_INCORPORATION",
-  Tax: "TAX_CLEARANCE",
-  Insurance: "INSURANCE_POLICY",
-  License: "OPERATING_LICENSE",
-  Compliance: "COMPLIANCE_DOCUMENT",
-  Other: "OTHER_DOCUMENT",
-};
-
-const STATUS_MAP: Record<string, DocStatus> = {
-  ATTACHED: "Uploaded",
-  READY: "Pending",
-  VERIFIED: "Verified",
-  REJECTED: "Rejected",
-  EXPIRED: "Expired",
-  REMOVED: "Expired",
-};
-
-const STATUS_STYLES: Record<DocStatus, { bg: string; text: string; icon: React.ReactNode }> = {
-  Uploaded: { bg: "bg-blue-bg", text: "text-blue", icon: <Upload className="h-3.5 w-3.5" /> },
-  Pending: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-3.5 w-3.5" /> },
-  Verified: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  Rejected: { bg: "bg-red-bg", text: "text-red", icon: <X className="h-3.5 w-3.5" /> },
-  Expired: { bg: "bg-surface-2", text: "text-ink-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-};
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_FILE_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
-
-
-function formatDate(date: string | null): string {
-  if (!date) return "N/A";
-  return new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-function mapDocType(docType: string): DocType {
-  const mapping: Record<string, DocType> = {
-    CERTIFICATE_OF_INCORPORATION: "Registration",
-    TAX_CLEARANCE: "Tax",
-    INSURANCE_POLICY: "Insurance",
-    OPERATING_LICENSE: "License",
-  };
-  return mapping[docType] || "Other";
-}
-
-function mapStatus(status: string): DocStatus {
-  return STATUS_MAP[status] || "Uploaded";
-}
-
-function DocumentCard({
-  slot,
-  doc,
-  onUpload,
-  onDelete,
-  isUploading,
-  confirmingDelete,
-  onRequestDelete,
-  onCancelDelete,
-}: {
-  slot: RequiredSlot;
-  doc: BusinessDocument | undefined;
-  onUpload: (type: DocType) => void;
-  onDelete: (id: string) => void;
-  isUploading: boolean;
-  confirmingDelete: boolean;
-  onRequestDelete: () => void;
-  onCancelDelete: () => void;
-}) {
-  const style = doc ? STATUS_STYLES[doc.status] : null;
-  const tileTheme = !doc ? undefined : doc.status === "Rejected" ? "red" : doc.status === "Verified" ? "green" : "brand";
-
+  Section,
+  StepForm,
+  SaveFooter,
+  humanize,
+  useStepNavigation,
+} from "../onboarding-ui";
+const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+const localError = (message: string) => ({
+  response: { data: { error: { message } } },
+});
+export default function Documents() {
+  const { data, reload, reloadSaved, editable } = useOnboarding();
+  const id = data.organization!.organizationId;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [pending, setPending] = useState<
+    Record<string, { fileId: string; replaceId?: string }>
+  >({});
+  const guard = useRef(false);
+  const go = useStepNavigation("documents");
+  async function attach(type: string, fileId: string, replaceId?: string) {
+    await api.attachDocument(id, type, fileId, replaceId);
+    setPending((p) => {
+      const next = { ...p };
+      delete next[type];
+      return next;
+    });
+    await reload();
+  }
+  async function upload(type: string, file: File, replaceId?: string) {
+    if (guard.current) return;
+    guard.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      if (!allowed.includes(file.type))
+        throw localError("Choose a PDF, JPEG, PNG or WebP file.");
+      if (file.size > 25 * 1024 * 1024 || file.size === 0)
+        throw localError("Choose a nonempty file up to 25 MB.");
+      const grant = await api.requestUploadAuthorization(id, {
+        documentType: type,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (
+        file.size > grant.maxSizeBytes ||
+        !grant.allowedMimeTypes.includes(file.type)
+      )
+        throw localError(
+          "This file does not meet the upload authorization's type or size limits.",
+        );
+      const hash = await crypto.subtle.digest(
+        "SHA-256",
+        await file.arrayBuffer(),
+      );
+      const checksum = Array.from(new Uint8Array(hash), (b) =>
+        b.toString(16).padStart(2, "0"),
+      ).join("");
+      await api.completeDocumentUpload(id, {
+        ...grant,
+        declaredMime: file.type,
+        declaredSize: file.size,
+        declaredChecksum: checksum,
+        file,
+      });
+      setPending((p) => ({
+        ...p,
+        [type]: { fileId: grant.mediaObjectId, replaceId },
+      }));
+      await attach(type, grant.mediaObjectId, replaceId);
+    } catch (err) {
+      setError(err);
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  }
+  async function retryAttachment(type: string) {
+    if (guard.current) return;
+    guard.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await attach(type, pending[type].fileId, pending[type].replaceId);
+    } catch (err) {
+      setError(err);
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  }
+  async function remove(documentId: string) {
+    if (guard.current) return;
+    guard.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.removeDocument(id, documentId);
+      await reload();
+      setConfirm(null);
+    } catch (err) {
+      setError(err);
+    } finally {
+      guard.current = false;
+      setBusy(false);
+    }
+  }
+  async function proceed(e: FormEvent) {
+    e.preventDefault();
+    if (guard.current) return;
+    setBusy(true);
+    try {
+      const current = await reload();
+      if (
+        current.status?.stages.find((s) => s.stage === "BUSINESS_DOCUMENTS")
+          ?.status !== "COMPLETE"
+      )
+        throw localError(
+          "Upload every required document and wait for the server to confirm each file is ready.",
+        );
+      go();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <div
-      className={`rounded-2xl border p-5 transition-colors ${
-        doc?.status === "Rejected"
-          ? "border-red/30 bg-red-bg/20"
-          : doc
-          ? "border-line bg-surface"
-          : "border-dashed border-line bg-surface-2/40"
-      }`}
+    <StepForm
+      title="Business documents"
+      description="Upload the documents required for company review. Files must finish upload and safety checks before they count as ready."
+      onSubmit={proceed}
+      error={error}
+      onReload={() => {
+        void reloadSaved().catch(setError);
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <IconTile icon={slot.icon} theme={tileTheme as "brand" | "red" | "green" | undefined} muted={!doc} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-ink-950 sm:text-base">{slot.label}</span>
-              {doc && style && (
-                <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${style.bg} ${style.text}`}>
-                  {style.icon}
-                  {doc.status}
-                </span>
+      {data.status!.requiredDocumentTypes.map((type) => {
+        const docs = data.documents.filter((d) => d.documentType === type);
+        return (
+          <Section key={type} title={humanize(type)}>
+            <div className="space-y-4">
+              {docs.length === 0 && (
+                <p className="text-sm text-ink-500">No document attached.</p>
+              )}
+              {docs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="rounded-xl border border-line p-3 text-sm"
+                >
+                  <p className="font-semibold">
+                    Status: {humanize(doc.status)}
+                  </p>
+                  {doc.status === "READY" && (
+                    <p className="mt-1 text-xs text-ink-500">
+                      Ready for company review. Company approval is still
+                      required.
+                    </p>
+                  )}
+                  <p className="mt-2 break-all text-xs text-ink-500">
+                    File reference: {doc.fileId}
+                  </p>
+                  {doc.createdAt && (
+                    <p className="mt-1 text-xs text-ink-500">
+                      Attached {new Date(doc.createdAt).toLocaleDateString()}
+                    </p>
+                  )}
+                  {doc.expiresAt && (
+                    <p className="text-xs text-ink-500">
+                      Expires {new Date(doc.expiresAt).toLocaleDateString()}
+                    </p>
+                  )}
+                  {editable && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <label className="btn btn-secondary cursor-pointer">
+                        Replace
+                        <span className="sr-only"> {humanize(type)}</span>
+                        <input
+                          type="file"
+                          className="sr-only"
+                          accept={allowed.join(",")}
+                          disabled={busy}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void upload(type, file, doc.id);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {confirm === doc.id ? (
+                        <>
+                          <span>Remove this attachment?</span>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => remove(doc.id)}
+                            className="font-semibold text-red"
+                          >
+                            Confirm removal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirm(null)}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setConfirm(doc.id)}
+                          className="text-red"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {editable && docs.length === 0 && (
+                <label className="btn btn-secondary cursor-pointer">
+                  Upload {humanize(type)}
+                  <input
+                    type="file"
+                    className="sr-only"
+                    accept={allowed.join(",")}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void upload(type, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+              {pending[type] && (
+                <div
+                  role="status"
+                  className="rounded-xl bg-surface-2 p-3 text-sm"
+                >
+                  The file was uploaded. Its attachment has not yet been
+                  confirmed.{" "}
+                  <button
+                    type="button"
+                    className="font-semibold text-label-accent"
+                    disabled={busy}
+                    onClick={() => retryAttachment(type)}
+                  >
+                    Check readiness and attach
+                  </button>
+                </div>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-ink-500 sm:text-sm">{slot.description}</p>
-
-            {doc ? (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
-                <span className="flex items-center gap-1">
-                  <Paperclip className="h-3 w-3 text-ink-400" />
-                  {doc.fileName} <span className="text-ink-400">({doc.fileSize})</span>
-                </span>
-                <span>Uploaded {formatDate(doc.uploadedAt)}</span>
-                {doc.expiryDate && <span>Expires {formatDate(doc.expiryDate)}</span>}
-              </div>
-            ) : (
-              <p className="mt-2 text-xs font-medium text-ink-400">Not yet uploaded</p>
-            )}
-
-            {doc?.notes && doc.status === "Rejected" && (
-              <div className="mt-2 flex items-start gap-1.5 text-xs text-red">
-                <FileWarning className="h-3.5 w-3.5 flex-shrink-0 mt-[1px]" />
-                <span>{doc.notes}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
-        <button
-          onClick={() => onUpload(slot.type)}
-          disabled={isUploading}
-          className={`btn btn-sm ${
-            doc
-              ? "btn-secondary"
-              : "btn-primary"
-          } ${isUploading ? "cursor-not-allowed opacity-60" : ""}`}
-        >
-          {isUploading ? (
-            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Upload className="h-3.5 w-3.5" />
-          )}
-          {doc ? (doc.status === "Rejected" ? "Re-upload" : "Replace") : "Upload"}
-        </button>
-
-        {doc && !confirmingDelete && (
-          <button
-            onClick={onRequestDelete}
-            className="text-xs font-medium text-ink-400 hover:text-red transition-colors"
-          >
-            Remove
-          </button>
-        )}
-        {doc && confirmingDelete && (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-ink-500">Remove this document?</span>
-            <button onClick={() => onDelete(doc.id)} className="font-semibold text-red hover:underline">
-              Remove
-            </button>
-            <button onClick={onCancelDelete} className="font-medium text-ink-500 hover:underline">
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-async function computeChecksum(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-export default function BusinessDocumentsPage() {
-  const router = useRouter();
-  const { _hasHydrated } = useAuthStore();
-  const { organization } = useOrganizationStore();
-  const { setStageComplete } = useOnboardingStore();
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<BusinessDocument[]>([]);
-  const [uploadingType, setUploadingType] = useState<DocType | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [selectedDocumentType, setSelectedDocumentType] = useState<DocType | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isContinuing, setIsContinuing] = useState(false);
-
-  useEffect(() => {
-    if (!_hasHydrated) return;
-
-    const fetchDocuments = async () => {
-      if (!organization?.organizationId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await organizationService.listDocuments(organization.organizationId);
-        const docs = Array.isArray(response) ? response : [];
-
-        const mappedDocs: BusinessDocument[] = docs.map((doc: any) => ({
-          id: doc.id || `doc_${Date.now()}`,
-          name: doc.documentType || "Document",
-          type: mapDocType(doc.documentType || ""),
-          status: mapStatus(doc.status || "ATTACHED"),
-          fileName: doc.fileId || "document.pdf",
-          fileSize: formatFileSize(0),
-          uploadedAt: doc.createdAt || new Date().toISOString(),
-          uploadedBy: "You",
-          expiryDate: doc.expiresAt || null,
-          notes: doc.verificationReference || null,
-        }));
-
-        setData(mappedDocs);
-        setError(null);
-      } catch (err: any) {
-        const message = err?.response?.data?.error?.message || err?.message || "Failed to load documents.";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDocuments();
-  }, [_hasHydrated, organization?.organizationId]);
-
-  const handleUploadClick = (type: DocType) => {
-    setSelectedDocumentType(type);
-    setUploadError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const docType = selectedDocumentType;
-
-    e.target.value = "";
-
-    if (!file || !docType || !organization?.organizationId) {
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setUploadError(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`);
-      return;
-    }
-
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      setUploadError("Invalid file type. Please upload PDF, JPG, PNG, or DOC files.");
-      return;
-    }
-
-    setUploadingType(docType);
-    setUploadError(null);
-    setUploadProgress(0);
-
-    const idempotencyKey = crypto.randomUUID();
-
-    try {
-      setUploadProgress(10);
-      const grant = await organizationService.requestUploadAuthorization(
-        organization.organizationId,
-        {
-          documentType: DOC_TYPE_MAP[docType],
-          uploadPurpose: "COMPANY_DOCUMENT",
-          allowedMimeTypes: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
-          maxSizeBytes: MAX_FILE_SIZE,
-          idempotencyKey,
-        }
-      );
-      setUploadProgress(30);
-
-      const checksum = await computeChecksum(file);
-      setUploadProgress(50);
-
-      const result = await organizationService.completeDocumentUpload(
-        organization.organizationId,
-        {
-          mediaObjectId: grant.mediaObjectId,
-          authorizationId: grant.authorizationId,
-          uploadToken: grant.uploadToken,
-          declaredMime: file.type || "application/octet-stream",
-          declaredSize: file.size,
-          declaredChecksum: checksum,
-          file: file,
-        }
-      );
-      setUploadProgress(80);
-
-      const attachResponse = await organizationService.attachDocument(
-        organization.organizationId,
-        DOC_TYPE_MAP[docType],
-        result.mediaObjectId
-      );
-      setUploadProgress(100);
-
-      const newDoc: BusinessDocument = {
-        id: attachResponse.documentId || `doc_${Date.now()}`,
-        name: docType,
-        type: docType,
-        status: "Uploaded",
-        fileName: file.name,
-        fileSize: formatFileSize(file.size),
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: "You",
-        expiryDate: null,
-        notes: null,
-      };
-
-      setData((prev) => {
-        const filtered = prev.filter((d) => d.type !== docType);
-        return [...filtered, newDoc];
-      });
-
-      setSelectedDocumentType(null);
-    } catch (err: any) {
-      const message = err?.response?.data?.error?.message || err?.message || "Failed to upload document.";
-      setUploadError(message);
-    } finally {
-      setUploadingType(null);
-      setUploadProgress(0);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    setData((prev) => prev.filter((doc) => doc.id !== id));
-    setConfirmingDeleteId(null);
-  };
-
-  const handleContinue = async () => {
-    if (!organization?.organizationId) {
-      setSaveError("Organization not found.");
-      return;
-    }
-
-    const allComplete = REQUIRED_SLOTS.every((slot) => {
-      const doc = data.find((d) => d.type === slot.type);
-      return doc && doc.status !== "Rejected" && doc.status !== "Expired";
-    });
-
-    if (!allComplete) {
-      setSaveError("Please upload all required documents before continuing.");
-      return;
-    }
-
-    setIsContinuing(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-
-    try {
-      await organizationService.markStageComplete(
-        organization.organizationId,
-        'BUSINESS_DOCUMENTS'
-      );
-      setStageComplete("BUSINESS_DOCUMENTS");
-      setSaveSuccess(true);
-
-      router.push(nextPath("documents"));
-    } catch (err: any) {
-      const message = err?.message || "Failed to save.";
-      setSaveError(message);
-    } finally {
-      setIsContinuing(false);
-    }
-  };
-
-  const handleBack = () => router.push(previousPath("documents"));
-
-  const docByType = (type: DocType) => data.find((d) => d.type === type);
-  const completedCount = REQUIRED_SLOTS.filter((slot) => {
-    const doc = docByType(slot.type);
-    return doc && doc.status !== "Rejected" && doc.status !== "Expired";
-  }).length;
-  const allComplete = completedCount === REQUIRED_SLOTS.length;
-
-  if (loading) {
-    return (
-      <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
-        <div className="space-y-2">
-          <div className="h-7 w-56 animate-pulse rounded bg-surface-2" />
-          <div className="h-4 w-full max-w-md animate-pulse rounded bg-surface-2" />
-        </div>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error && data.length === 0) {
-    return (
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-red/20 bg-red-bg/30 px-4 py-16 text-center">
-          <div className="rounded-full bg-red-bg p-4">
-            <AlertCircle className="h-8 w-8 text-red" />
-          </div>
-          <h3 className="mt-4 text-[15px] font-semibold text-ink-950">Unable to load documents</h3>
-          <p className="mt-1.5 text-sm text-ink-500">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="btn btn-primary btn-md mt-5"
-          >
-            Try again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={handleFileChange}
-        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-      />
-
-      <div>
-        <h1 className="text-ink-950">Documents</h1>
-        <p className="mt-1.5 text-ink-600">Upload these four documents so we can verify your company. PDF, JPG or PNG.</p>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <p className="flex-shrink-0 text-sm font-medium text-ink-700">
-          <span className="font-mono tabular-nums text-ink-950">{completedCount}</span>
-          <span className="text-ink-400"> / {REQUIRED_SLOTS.length}</span> documents ready
-        </p>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2 sm:max-w-xs">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${(completedCount / REQUIRED_SLOTS.length) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
-        {REQUIRED_SLOTS.map((slot) => {
-          const doc = docByType(slot.type);
-          const isUploading = uploadingType === slot.type;
-
-          return (
-            <DocumentCard
-              key={slot.type}
-              slot={slot}
-              doc={doc}
-              onUpload={handleUploadClick}
-              onDelete={handleDelete}
-              isUploading={isUploading}
-              confirmingDelete={confirmingDeleteId === doc?.id}
-              onRequestDelete={() => doc && setConfirmingDeleteId(doc.id)}
-              onCancelDelete={() => setConfirmingDeleteId(null)}
-            />
-          );
-        })}
-      </div>
-
-      {uploadingType && uploadProgress > 0 && uploadProgress < 100 && (
-        <div className="rounded-xl border border-blue/20 bg-blue-bg/40 p-4 sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <Loader2 className="h-4 w-4 animate-spin text-blue" />
-            <span className="text-sm text-ink-600">Uploading... {uploadProgress}%</span>
-          </div>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-blue transition-all"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {uploadError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {uploadError}
-        </div>
-      )}
-
-      {!allComplete && (
-        <div className="rounded-2xl border border-amber/20 bg-amber-bg/40 p-5">
-          <div className="flex items-start gap-3">
-            <IconTile icon={<AlertCircle />} theme="amber" />
-            <div className="min-w-0">
-              <h4 className="text-sm font-semibold text-amber">Some documents still need attention</h4>
-              <p className="mt-1 text-sm text-amber/80">
-                Upload or re-upload the missing and rejected documents above before continuing to submit.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {saveError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {saveError}
-        </div>
-      )}
-
-      <StepFooter
-        onBack={handleBack}
-        onPrimary={handleContinue}
-        primaryDisabled={!allComplete || isSaving}
-        primaryLoading={isContinuing}
-      />
-    </div>
+          </Section>
+        );
+      })}
+      <p className="text-xs text-ink-500">
+        PDF, JPEG, PNG or WebP · Up to 25 MB per file. Removing an attachment
+        retains the underlying records for audit.
+      </p>
+      <SaveFooter step="documents" busy={busy} editable={editable} />
+    </StepForm>
   );
 }

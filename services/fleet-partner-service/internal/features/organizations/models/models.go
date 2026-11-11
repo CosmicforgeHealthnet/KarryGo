@@ -42,6 +42,7 @@ type Organization struct {
 	Status                string
 	LegalName             string
 	TradingName           string
+	OrganizationType      string
 	RegistrationNumber    string
 	CountryCode           string
 	Timezone              string

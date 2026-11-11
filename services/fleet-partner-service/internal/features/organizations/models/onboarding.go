@@ -65,6 +65,11 @@ const (
 	CapabilityPrivateLogistics   = "PRIVATE_LOGISTICS"
 )
 
+// SupportedAuthorityTypes matches the persisted legal authority contract.
+var SupportedAuthorityTypes = []string{"DIRECTOR", "OFFICER", "POWER_OF_ATTORNEY", "OWNER", "OTHER"}
+
+var SupportedOrganizationTypes = []string{"PRIVATE_LIMITED", "PUBLIC_LIMITED", "SOLE_PROPRIETORSHIP", "PARTNERSHIP", "LLC", "OTHER"}
+
 // SupportedCapabilities is the full catalogue.
 var SupportedCapabilities = []string{
 	CapabilityPackageDelivery, CapabilityTaxi, CapabilityHauling, CapabilityCourierLastMile,

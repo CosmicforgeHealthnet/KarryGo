@@ -80,10 +80,10 @@ const initialState: OnboardingState = {
 
 export const useOnboardingStore = create<OnboardingStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
-      setOrganizationId: (id: string) => set({ organizationId: id }),
+      setOrganizationId: (id: string) => set((state)=>state.organizationId===id?{organizationId:id}:{...initialState,organizationId:id}),
 
       setCurrentStep: (step: number) => set({ currentStep: step }),
 

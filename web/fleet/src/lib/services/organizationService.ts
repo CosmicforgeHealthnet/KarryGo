@@ -1,7 +1,7 @@
 // lib/services/organizationService.ts
 
-import apiClient from '@/lib/api/client';
-import type { Organization } from '@/lib/stores/organizationStore';
+import apiClient from "@/lib/api/client";
+import type { Organization } from "@/lib/stores/organizationStore";
 
 // NOTE: The Organization type is defined in organizationStore.ts and imported
 // here. Do not redeclare it — that caused a status-type mismatch across the app.
@@ -44,7 +44,9 @@ export interface Document {
   documentType: string;
   fileId: string;
   status: string;
-  uploadedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt?: string;
 }
 
 export interface SubmitResponse {
@@ -57,6 +59,10 @@ export interface OnboardingStatusResponse {
   organizationId: string;
   organizationStatus: string;
   organizationVersion: number;
+  supportedCapabilities: string[];
+  authorityTypes: string[];
+  organizationTypes: string[];
+  requiredDocumentTypes: string[];
   stages: Array<{
     stage: string;
     status: string;
@@ -107,6 +113,7 @@ export interface CreateRepresentativeRequest {
 }
 
 export interface UpdateRepresentativeRequest {
+  isOnboardingOwner?: boolean;
   fullName: string;
   roleTitle: string;
   email: string;
@@ -118,50 +125,72 @@ export interface UpdateRepresentativeRequest {
 }
 
 export const organizationService = {
-  async createOrganization(data: CreateOrganizationRequest): Promise<CreateOrganizationResponse> {
-    const response = await apiClient.post<{ data: CreateOrganizationResponse }>('/organizations', data, {
-      headers: {
-        'Idempotency-Key': crypto.randomUUID(),
+  async createOrganization(
+    data: CreateOrganizationRequest,
+    idempotencyKey = crypto.randomUUID(),
+  ): Promise<CreateOrganizationResponse> {
+    const response = await apiClient.post<{ data: CreateOrganizationResponse }>(
+      "/organizations",
+      data,
+      {
+        headers: {
+          "Idempotency-Key": idempotencyKey,
+        },
       },
-    });
+    );
     return response.data.data;
   },
 
   async getCurrentOrganization(): Promise<Organization> {
-    const response = await apiClient.get<{ data: Organization }>('/organizations/current');
+    const response = await apiClient.get<{ data: Organization }>(
+      "/organizations/current",
+    );
     return response.data.data;
   },
 
-  async updateOrganization(organizationId: string, data: Partial<CreateOrganizationRequest>, expectedVersion?: number): Promise<Organization> {
+  async updateOrganization(
+    organizationId: string,
+    data: Partial<CreateOrganizationRequest>,
+    expectedVersion?: number,
+  ): Promise<Organization> {
     const response = await apiClient.put<{ data: Organization }>(
       `/organizations/${organizationId}`,
       data,
-      expectedVersion && expectedVersion >= 1 ? { headers: { 'If-Match': String(expectedVersion) } } : undefined
+      expectedVersion && expectedVersion >= 1
+        ? { headers: { "If-Match": String(expectedVersion) } }
+        : undefined,
     );
     return response.data.data;
   },
 
-  async markStageComplete(organizationId: string, stage: string): Promise<{ stage: string; status: string }> {
-    const response = await apiClient.put<{ data: { stage: string; status: string } }>(
-      `/organizations/${organizationId}/stages/${stage}`,
-      { status: 'COMPLETE' }
-    );
+  async markStageComplete(
+    organizationId: string,
+    stage: string,
+  ): Promise<{ stage: string; status: string }> {
+    const response = await apiClient.put<{
+      data: { stage: string; status: string };
+    }>(`/organizations/${organizationId}/stages/${stage}`, {
+      status: "COMPLETE",
+    });
     return response.data.data;
   },
 
   // ---- Representatives ----
 
-  async createRepresentative(organizationId: string, data: CreateRepresentativeRequest): Promise<Representative> {
+  async createRepresentative(
+    organizationId: string,
+    data: CreateRepresentativeRequest,
+  ): Promise<Representative> {
     const response = await apiClient.post<{ data: Representative }>(
       `/organizations/${organizationId}/representatives`,
-      data
+      data,
     );
     return response.data.data;
   },
 
   async listRepresentatives(organizationId: string): Promise<Representative[]> {
     const response = await apiClient.get<{ data: Representative[] }>(
-      `/organizations/${organizationId}/representatives`
+      `/organizations/${organizationId}/representatives`,
     );
     return response.data.data;
   },
@@ -170,106 +199,170 @@ export const organizationService = {
     organizationId: string,
     representativeId: string,
     data: UpdateRepresentativeRequest,
-    expectedVersion: number
+    expectedVersion: number,
   ): Promise<Representative> {
     if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
-      throw new Error('A current representative version is required before saving changes.');
+      throw new Error(
+        "A current representative version is required before saving changes.",
+      );
     }
     const response = await apiClient.put<{ data: Representative }>(
       `/organizations/${organizationId}/representatives/${representativeId}`,
       data,
-      { headers: { 'If-Match': String(expectedVersion) } }
+      { headers: { "If-Match": String(expectedVersion) } },
     );
     return response.data.data;
   },
 
   // ---- Onboarding Status ----
 
-  async getOnboardingStatus(organizationId: string): Promise<OnboardingStatusResponse> {
+  async getOnboardingStatus(
+    organizationId: string,
+  ): Promise<OnboardingStatusResponse> {
     const response = await apiClient.get<{ data: OnboardingStatusResponse }>(
-      `/organizations/${organizationId}/onboarding-status`
+      `/organizations/${organizationId}/onboarding-status`,
     );
     return response.data.data;
   },
 
-  async getVerificationStatus(organizationId: string): Promise<VerificationStatusResponse> {
-    const response = await apiClient.get<{ data: VerificationStatusResponse }>(`/organizations/${organizationId}/verification`);
+  async getVerificationStatus(
+    organizationId: string,
+  ): Promise<VerificationStatusResponse> {
+    const response = await apiClient.get<{ data: VerificationStatusResponse }>(
+      `/organizations/${organizationId}/verification`,
+    );
     return response.data.data;
   },
 
-  async getWalletProvisioning(organizationId: string): Promise<WalletProvisioningResponse> {
-    const response = await apiClient.get<{ data: WalletProvisioningResponse }>(`/organizations/${organizationId}/wallet-provisioning`);
+  async getWalletProvisioning(
+    organizationId: string,
+  ): Promise<WalletProvisioningResponse> {
+    const response = await apiClient.get<{ data: WalletProvisioningResponse }>(
+      `/organizations/${organizationId}/wallet-provisioning`,
+    );
     return response.data.data;
   },
 
-  async retryWalletProvisioning(organizationId: string): Promise<{ status: string }> {
-    const response = await apiClient.post<{ data: { status: string } }>(`/organizations/${organizationId}/wallet-provisioning/retry`);
+  async retryWalletProvisioning(
+    organizationId: string,
+  ): Promise<{ status: string }> {
+    const response = await apiClient.post<{ data: { status: string } }>(
+      `/organizations/${organizationId}/wallet-provisioning/retry`,
+    );
     return response.data.data;
   },
 
-  async submitOrganization(organizationId: string): Promise<SubmitResponse> {
-    const response = await apiClient.post<{ data: SubmitResponse }>(`/organizations/${organizationId}/submit`, {}, {
-      headers: {
-        'Idempotency-Key': crypto.randomUUID(),
+  async submitOrganization(
+    organizationId: string,
+    expectedVersion?: number,
+  ): Promise<SubmitResponse> {
+    const response = await apiClient.post<{ data: SubmitResponse }>(
+      `/organizations/${organizationId}/submit`,
+      {},
+      {
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          ...(expectedVersion ? { "If-Match": String(expectedVersion) } : {}),
+        },
       },
-    });
+    );
     return response.data.data;
   },
 
   // ---- Capabilities ----
 
-  async getCapabilities(organizationId: string): Promise<Record<string, string>> {
+  async getCapabilities(
+    organizationId: string,
+  ): Promise<Record<string, string>> {
     const response = await apiClient.get<{ data: Record<string, string> }>(
-      `/organizations/${organizationId}/capabilities`
+      `/organizations/${organizationId}/capabilities`,
     );
     return response.data.data || {};
   },
 
-  async updateCapabilities(organizationId: string, capabilities: string[]): Promise<{ capabilities: string[] }> {
+  async updateCapabilities(
+    organizationId: string,
+    capabilities: string[],
+  ): Promise<{ capabilities: string[] }> {
     const response = await apiClient.put<{ data: { capabilities: string[] } }>(
       `/organizations/${organizationId}/capabilities`,
-      { capabilities }
+      { capabilities },
     );
     return response.data.data;
   },
 
   // ---- Profile (Headquarters) ----
 
-  async getProfile(organizationId: string): Promise<any> {
-    const response = await apiClient.get<{ data: any }>(
-      `/organizations/${organizationId}/profile`
+  async getProfile(organizationId: string): Promise<BusinessProfile | null> {
+    const response = await apiClient.get<{ data: BusinessProfile | null }>(
+      `/organizations/${organizationId}/profile`,
     );
     return response.data.data || null;
   },
 
-  async updateProfile(organizationId: string, data: any, expectedVersion?: number): Promise<any> {
+  async updateProfile(
+    organizationId: string,
+    data: Partial<BusinessProfile>,
+    expectedVersion?: number,
+  ): Promise<BusinessProfile> {
     // First profile creation uses the backend's insert path (no If-Match).
     // Existing profiles must send their persisted version; otherwise the
     // backend's insert-on-conflict path silently discards the edit.
-    if (expectedVersion !== undefined && (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1)) {
-      throw new Error('A valid profile version is required before saving existing details.');
+    if (
+      expectedVersion !== undefined &&
+      (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1)
+    ) {
+      throw new Error(
+        "A valid profile version is required before saving existing details.",
+      );
     }
-    const response = await apiClient.put<{ data: any }>(
+    const response = await apiClient.put<{ data: BusinessProfile }>(
       `/organizations/${organizationId}/profile`,
       data,
-      expectedVersion === undefined ? undefined : { headers: { 'If-Match': String(expectedVersion) } }
+      expectedVersion === undefined
+        ? undefined
+        : { headers: { "If-Match": String(expectedVersion) } },
     );
     return response.data.data;
   },
 
   async listDocuments(organizationId: string): Promise<Document[]> {
-    const response = await apiClient.get<{ data: Document[] }>(`/organizations/${organizationId}/documents`);
-    return response.data.data;
-  },
-
-  async attachDocument(organizationId: string, documentType: string, fileId: string): Promise<{ documentId: string; status: string }> {
-    const response = await apiClient.post<{ data: { documentId: string; status: string } }>(
+    const response = await apiClient.get<{ data: Document[] }>(
       `/organizations/${organizationId}/documents`,
-      { documentType, fileId }
     );
     return response.data.data;
   },
 
+  async attachDocument(
+    organizationId: string,
+    documentType: string,
+    fileId: string,
+    replaceDocumentId?: string,
+  ): Promise<{ documentId: string; status: string }> {
+    const response = await apiClient.post<{
+      data: { documentId: string; status: string };
+    }>(`/organizations/${organizationId}/documents`, {
+      documentType,
+      fileId,
+      replaceDocumentId,
+    });
+    return response.data.data;
+  },
+
+  async removeDocument(
+    organizationId: string,
+    documentId: string,
+  ): Promise<void> {
+    await apiClient.delete(
+      `/organizations/${organizationId}/documents/${documentId}`,
+    );
+  },
+  async getIdentityProfile(): Promise<IdentityProfile> {
+    const result = await apiClient.get<{ data: IdentityProfile }>(
+      "/identity/profile",
+    );
+    return result.data.data;
+  },
   // ---- Document Upload (Private Media Contract) ----
 
   async requestUploadAuthorization(
@@ -280,7 +373,7 @@ export const organizationService = {
       allowedMimeTypes?: string[];
       maxSizeBytes?: number;
       idempotencyKey: string;
-    }
+    },
   ): Promise<{
     authorizationId: string;
     mediaObjectId: string;
@@ -310,9 +403,9 @@ export const organizationService = {
       },
       {
         headers: {
-          'Idempotency-Key': data.idempotencyKey,
+          "Idempotency-Key": data.idempotencyKey,
         },
-      }
+      },
     );
     return response.data.data;
   },
@@ -327,22 +420,54 @@ export const organizationService = {
       declaredSize: number;
       declaredChecksum: string;
       file: File;
-    }
+    },
   ) {
     const formData = new FormData();
-    formData.append('mediaObjectId', data.mediaObjectId);
-    formData.append('authorizationId', data.authorizationId);
-    formData.append('uploadToken', data.uploadToken);
-    formData.append('declaredMime', data.declaredMime);
-    formData.append('declaredSize', String(data.declaredSize));
-    formData.append('declaredChecksum', data.declaredChecksum);
-    formData.append('file', data.file);
+    formData.append("mediaObjectId", data.mediaObjectId);
+    formData.append("authorizationId", data.authorizationId);
+    formData.append("uploadToken", data.uploadToken);
+    formData.append("declaredMime", data.declaredMime);
+    formData.append("declaredSize", String(data.declaredSize));
+    formData.append("declaredChecksum", data.declaredChecksum);
+    formData.append("file", data.file);
 
     const response = await apiClient.post(
       `/organizations/${organizationId}/documents/upload-content`,
       formData,
-      { headers: { 'Content-Type': undefined } }
+      { headers: { "Content-Type": undefined } },
     );
     return response.data.data;
   },
 };
+export interface IdentityProfile {
+  identityId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  emailVerifiedAt: string | null;
+  isOrganizationOwner: boolean;
+}
+export interface BusinessAddress {
+  [key: string]: unknown;
+  street?: string;
+  streetAddress?: string;
+  addressLine1?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  countryCode?: string;
+}
+export interface BusinessProfile {
+  organizationId: string;
+  businessType?: string;
+  incorporationDate?: string;
+  taxReference?: string;
+  registeredAddress: BusinessAddress;
+  operatingAddress: BusinessAddress;
+  businessEmail?: string;
+  businessPhone?: string;
+  website?: string;
+  businessDescription?: string;
+  version: number;
+}

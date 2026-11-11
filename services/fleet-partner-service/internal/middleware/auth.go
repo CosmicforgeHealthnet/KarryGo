@@ -159,7 +159,35 @@ func ResolveTenant(resolver tenant.MembershipResolver, sessions SessionStatusChe
 			}
 		}
 
-		membership, err := resolver.ResolveMembership(c.Request.Context(), claims.Subject)
+		var membership tenant.Membership
+		var err error
+		if scopedSession, ok := sessions.(interface {
+			OrganizationForSession(context.Context, string, string) (string, error)
+		}); ok {
+			organizationID, scopeErr := scopedSession.OrganizationForSession(c.Request.Context(), claims.SessionID, claims.Subject)
+			if scopeErr != nil {
+				if appErr := apperrors.From(scopeErr); appErr.Status < 500 {
+					httpx.Abort(c, appErr)
+				} else {
+					httpx.Abort(c, apperrors.Unavailable("Organization scope could not be verified.", scopeErr))
+				}
+				return
+			}
+			if organizationID != "" {
+				scopedResolver, ok := resolver.(interface {
+					ResolveForOrganization(context.Context, string, string) (tenant.Membership, error)
+				})
+				if !ok {
+					httpx.Abort(c, apperrors.Unavailable("Organization selection could not be resolved.", nil))
+					return
+				}
+				membership, err = scopedResolver.ResolveForOrganization(c.Request.Context(), claims.Subject, organizationID)
+			} else {
+				membership, err = resolver.ResolveMembership(c.Request.Context(), claims.Subject)
+			}
+		} else {
+			membership, err = resolver.ResolveMembership(c.Request.Context(), claims.Subject)
+		}
 		if err != nil {
 			switch err {
 			case tenant.ErrResolverUnconfigured:

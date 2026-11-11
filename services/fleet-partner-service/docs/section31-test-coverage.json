@@ -252,7 +252,7 @@
       "cases": ["Fresh database replay 000001 to current tip", "Sequential numbering", "Up/down pairing", "Destructive migration guard", "Latest rollback/reapply", "Recent-range replay", "Upgrade with historical data", "Compatibility fixture after upgrade", "Bounded-backfill framework", "Backfill resume where applicable", "No tenant leakage during migration/backfill", "Supported PostgreSQL version", "Index-safety policy", "Enum/check evolution", "Legacy provider compatibility after migration"],
       "evidence": [
         {"kind":"existing","testName":"TestMigrationReplay_EmptySchemaAppliesCleanly","path":"internal/section30contract/migration_replay_test.go"},
-        {"kind":"existing","testName":"TestMigrationReplay_LatestMigrationRollbackAndReapply","path":"internal/section30contract/migration_replay_test.go"},
+        {"kind":"existing","testName":"TestMigrationReplay_LatestMigrationRollbackAndReapply","path":"internal/section30contract/onboarding_migration_test.go"},
         {"kind":"existing","testName":"TestMigrationReplay_ExistingDataSurvivesUpgrade","path":"internal/section30contract/migration_replay_test.go"},
         {"kind":"existing","testName":"TestInventory_NumberingAndPairingIsClean","path":"internal/section30contract/migration_policy_test.go"},
         {"kind":"existing","testName":"TestProviderApps_ParseAdditiveProviderModeContract","path":"internal/section30contract/compatibility_contract_test.go"}

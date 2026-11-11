@@ -40,7 +40,7 @@ func (r *OnboardingRepository) UpsertProfile(ctx context.Context, q database.Que
 	}
 
 	if expectedVersion == 0 {
-		_, err = q.Exec(ctx, `
+		tag, err := q.Exec(ctx, `
 			INSERT INTO fleet_partner_organization_profiles
 				(organization_id, business_type, incorporation_date, tax_reference, registered_address,
 				 operating_address, business_email, business_phone, website, business_description,
@@ -52,6 +52,9 @@ func (r *OnboardingRepository) UpsertProfile(ctx context.Context, q database.Que
 			profile.Website, profile.BusinessDescription)
 		if err != nil {
 			return fmt.Errorf("organizations: insert profile: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return concurrency.ErrVersionMismatch
 		}
 		return nil
 	}
@@ -135,7 +138,7 @@ func (r *OnboardingRepository) ListRepresentatives(ctx context.Context, organiza
 	}
 	defer rows.Close()
 
-	var reps []models.Representative
+	reps := []models.Representative{}
 	for rows.Next() {
 		var rep models.Representative
 		if err := rows.Scan(&rep.ID, &rep.OrganizationID, &rep.FullName, &rep.RoleTitle,
@@ -154,11 +157,11 @@ func (r *OnboardingRepository) UpdateRepresentative(ctx context.Context, q datab
 	tag, err := q.Exec(ctx, `
 		UPDATE fleet_partner_organization_authorized_representatives SET
 			full_name = $3, role_title = $4, email = $5, phone = $6, authority_type = $7,
-			authority_document_file_id = $8, status = $9, effective_to = $10,
+			authority_document_file_id = $8, status = $9, effective_to = $10, identity_reference = $12, is_onboarding_owner = $13,
 			version = version + 1, updated_at = now()
 		WHERE organization_id = $1 AND id = $2 AND version = $11`,
 		organizationID, repID, rep.FullName, rep.RoleTitle, rep.Email, rep.Phone,
-		rep.AuthorityType, rep.AuthorityDocumentFileID, rep.Status, rep.EffectiveTo, expectedVersion)
+		rep.AuthorityType, rep.AuthorityDocumentFileID, rep.Status, rep.EffectiveTo, expectedVersion, rep.IdentityReference, rep.IsOnboardingOwner)
 	if err != nil {
 		return fmt.Errorf("organizations: update representative: %w", err)
 	}
@@ -340,7 +343,7 @@ func (r *OnboardingRepository) ListDocuments(ctx context.Context, organizationID
 	}
 	defer rows.Close()
 
-	var documents []models.Document
+	documents := []models.Document{}
 	for rows.Next() {
 		var document models.Document
 		if err := rows.Scan(&document.ID, &document.OrganizationID, &document.DocumentType,
@@ -368,7 +371,7 @@ func (r *OnboardingRepository) ListDocumentsTx(ctx context.Context, q database.Q
 	}
 	defer rows.Close()
 
-	var documents []models.Document
+	documents := []models.Document{}
 	for rows.Next() {
 		var document models.Document
 		if err := rows.Scan(&document.ID, &document.OrganizationID, &document.DocumentType,
@@ -387,7 +390,7 @@ func (r *OnboardingRepository) ListDocumentsTx(ctx context.Context, q database.Q
 func (r *OnboardingRepository) RemoveDocument(ctx context.Context, q database.Querier, organizationID string, documentID string) error {
 	tag, err := q.Exec(ctx, `
 		UPDATE fleet_partner_organization_documents SET status = 'REMOVED', updated_at = now()
-		WHERE organization_id = $1 AND id = $2 AND status <> 'REMOVED'`, organizationID, documentID)
+		WHERE organization_id = $1 AND id = $2`, organizationID, documentID)
 	if err != nil {
 		return fmt.Errorf("organizations: remove document: %w", err)
 	}
@@ -403,7 +406,7 @@ func (r *OnboardingRepository) UpdateDocumentStatus(ctx context.Context, q datab
 	_, err := q.Exec(ctx, `
 		UPDATE fleet_partner_organization_documents SET
 			status = $3, source_version = $4, last_event_id = $5, synced_at = now(), updated_at = now()
-		WHERE organization_id = $1 AND file_id = $2 AND source_version <= $4`,
+		WHERE organization_id = $1 AND file_id = $2 AND source_version <= $4 AND status <> 'REMOVED'`,
 		organizationID, fileID, status, sourceVersion, eventID)
 	if err != nil {
 		return fmt.Errorf("organizations: update document status: %w", err)

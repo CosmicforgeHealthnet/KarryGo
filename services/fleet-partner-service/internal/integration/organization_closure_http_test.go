@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"cosmicforge/logistics/shared/go/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -55,6 +56,7 @@ func closureRouter(t *testing.T, pool *pgxpool.Pool, orgID, organizationUserID s
 		accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), sessions)
 
 	engine := gin.New()
+	engine.Use(httpx.RequestID())
 	engine.Use(respond.ErrorHandler())
 	engine.Use(func(c *gin.Context) {
 		c.Set(middleware.TenantContextKey, tenant.Context{

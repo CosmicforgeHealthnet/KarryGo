@@ -1,15 +1,21 @@
 // lib/stores/authStore.ts
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { AuthState, Organization, Tokens } from '@/lib/types/auth';
-import { authService } from '@/lib/services/authService';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { AuthState, Organization, Tokens } from "@/lib/types/auth";
+import { useOrganizationStore } from "./organizationStore";
+import { useOnboardingStore } from "./onboardingStore";
+import { authService } from "@/lib/services/authService";
 
 interface AuthStore extends AuthState {
   _hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
-  setAuth: (tokens: Tokens, identityId: string, organizations: Organization[]) => void;
-  setTokensOnly: (tokens: Omit<Tokens, 'refreshToken'>) => void;
+  setAuth: (
+    tokens: Tokens,
+    identityId: string,
+    organizations: Organization[],
+  ) => void;
+  setTokensOnly: (tokens: Omit<Tokens, "refreshToken">) => void;
   setOrganizations: (organizations: Organization[]) => void;
   selectOrganization: (membershipId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -57,7 +63,10 @@ function scheduleRefresh(accessExpiresAt: string | null) {
   const expiresAtMs = new Date(accessExpiresAt).getTime();
   if (Number.isNaN(expiresAtMs)) return;
 
-  const delay = Math.max(expiresAtMs - Date.now() - REFRESH_BUFFER_MS, MIN_REFRESH_DELAY_MS);
+  const delay = Math.max(
+    expiresAtMs - Date.now() - REFRESH_BUFFER_MS,
+    MIN_REFRESH_DELAY_MS,
+  );
 
   refreshTimer = setTimeout(async () => {
     // Dynamic import avoids a circular top-level import between this file
@@ -65,7 +74,7 @@ function scheduleRefresh(accessExpiresAt: string | null) {
     // getState()/setTokensOnly()). By the time this callback actually
     // runs, both modules are fully evaluated, so this is safe.
     try {
-      const { refreshAccessToken } = await import('@/lib/api/client');
+      const { refreshAccessToken } = await import("@/lib/api/client");
       await refreshAccessToken();
       // On success, setTokensOnly (below) reschedules the next refresh.
     } catch {
@@ -82,7 +91,10 @@ export const useAuthStore = create<AuthStore>()(
       _hasHydrated: false,
 
       setHasHydrated: (v: boolean) => {
-        set({ _hasHydrated: v });
+        set({
+          _hasHydrated: v,
+          isAuthenticated: v && Boolean(get().accessToken && get().sessionId),
+        });
         // On rehydrate (page load), pick up wherever the persisted
         // accessExpiresAt left off, so a fresh page load still schedules
         // a proactive refresh instead of only relying on the next 401.
@@ -91,7 +103,15 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      setAuth: (tokens: Tokens, identityId: string, organizations: Organization[]) => {
+      setAuth: (
+        tokens: Tokens,
+        identityId: string,
+        organizations: Organization[],
+      ) => {
+        if (get().identityId !== identityId) {
+          useOrganizationStore.getState().clearOrganization();
+          useOnboardingStore.getState().resetOnboarding();
+        }
         set({
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken ?? null,
@@ -103,12 +123,13 @@ export const useAuthStore = create<AuthStore>()(
           isAuthenticated: true,
           isLoading: false,
           error: null,
-          selectedOrganization: organizations.length === 1 ? organizations[0] : null,
+          selectedOrganization:
+            organizations.length === 1 ? organizations[0] : null,
         });
         scheduleRefresh(tokens.accessExpiresAt);
       },
 
-      setTokensOnly: (tokens: Omit<Tokens, 'refreshToken'>) => {
+      setTokensOnly: (tokens: Omit<Tokens, "refreshToken">) => {
         set({
           accessToken: tokens.accessToken,
           sessionId: tokens.sessionId,
@@ -125,8 +146,14 @@ export const useAuthStore = create<AuthStore>()(
       selectOrganization: async (membershipId: string) => {
         try {
           set({ isLoading: true, error: null });
-          const response = await authService.selectOrganization({ membershipId });
-          const organization = get().organizations.find((org) => org.membershipId === membershipId);
+          const response = await authService.selectOrganization({
+            membershipId,
+          });
+          useOrganizationStore.getState().clearOrganization();
+          useOnboardingStore.getState().resetOnboarding();
+          const organization = get().organizations.find(
+            (org) => org.membershipId === membershipId,
+          );
           set({
             accessToken: response.accessToken,
             refreshToken: response.refreshToken ?? null,
@@ -138,22 +165,26 @@ export const useAuthStore = create<AuthStore>()(
           });
           scheduleRefresh(response.accessExpiresAt);
         } catch (error) {
-          set({ error: 'Failed to select organization', isLoading: false });
+          set({ error: "Failed to select organization", isLoading: false });
           throw error;
         }
       },
 
-    logout: async () => {
-  clearScheduledRefresh();
-  try {
-    await authService.logout();
-  } catch {
-  } finally {
-    document.cookie = "karrygo_has_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "karrygo_org_status=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    set({ ...initialState, _hasHydrated: true });
-  }
-},
+      logout: async () => {
+        clearScheduledRefresh();
+        try {
+          await authService.logout();
+        } catch {
+        } finally {
+          document.cookie =
+            "karrygo_has_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          document.cookie =
+            "karrygo_org_status=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          useOrganizationStore.getState().clearOrganization();
+          useOnboardingStore.getState().resetOnboarding();
+          set({ ...initialState, _hasHydrated: true });
+        }
+      },
       refreshSession: async (): Promise<boolean> => {
         const token = get().accessToken;
         if (!token) {
@@ -169,7 +200,7 @@ export const useAuthStore = create<AuthStore>()(
       setError: (error: string | null) => set({ error }),
     }),
     {
-      name: 'auth-storage',
+      name: "auth-storage",
       partialize: (state) => ({
         accessToken: state.accessToken,
         sessionId: state.sessionId,
@@ -182,6 +213,6 @@ export const useAuthStore = create<AuthStore>()(
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
-    }
-  )
+    },
+  ),
 );

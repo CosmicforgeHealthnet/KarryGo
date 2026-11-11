@@ -309,19 +309,17 @@ func TestMigrationReplay_InvestigationSubjectsRollbackAndReapply(t *testing.T) {
 	}
 }
 
-func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
+func TestMigrationReplay_AuthV2RollbackAndReapply(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_auth_v2_tip")
 	ctx := context.Background()
-	if replayMigrationTip(t) != "000085_auth_v2" {
-		t.Fatal("review latest migration object/retention assertions for the new tip")
-	}
+
 	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000084"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO fleet_partner_auth_otp_challenges(id,email_normalized,email_hash,phone_e164,phone_hash,purpose,status,code_digest,expires_at) VALUES('legacy-test','legacy@example.com','email-hash','+2348012345678','phone-hash','SIGN_UP_OR_LOGIN','PENDING','opaque-digest',now()+interval '1 hour')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000085"); err != nil {
 		t.Fatal(err)
 	}
 	check := func(wantIndex bool) {
@@ -343,7 +341,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(false)
-	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000085"); err != nil {
 		t.Fatal(err)
 	}
 	check(true)

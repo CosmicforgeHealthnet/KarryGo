@@ -1,0 +1,1644 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Karryam Fleet onboarding",
+    "version": "2.0.0",
+    "description": "Tenant-isolated onboarding, separate identity/business/representative contact records, existing email OTP authentication. See accompanying implementation contract for upload and stage details."
+  },
+  "security": [
+    {
+      "CorporateBearer": []
+    }
+  ],
+  "paths": {
+    "/fleet-partner/v1/identity/profile": {
+      "get": {
+        "summary": "Current session\u2019s own account contacts. No identity selector. Cache-Control: no-store.",
+        "parameters": [],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/IdentityProfile"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations": {
+      "post": {
+        "summary": "Atomic draft and owner creation; identity-scoped Idempotency-Key replays same result.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Company"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Company"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/current": {
+      "get": {
+        "summary": "Current authorized organization includes registration number and persisted legal company type.",
+        "parameters": [],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Company"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}": {
+      "put": {
+        "summary": "Versioned legal update. Omitted registration/type/timezone/currency preserve saved information.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Persisted version; omit only for first profile creation."
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Company"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Company"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/profile": {
+      "get": {
+        "summary": "Saved business profile or data:null.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Profile"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      },
+      "put": {
+        "summary": "Existing record requires If-Match; preserve omitted fields. First creation omits version.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Persisted version; omit only for first profile creation."
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Profile"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Profile"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/representatives": {
+      "get": {
+        "summary": "Persisted representatives in this tenant. Empty list is [].",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create distinct representative or replay matching saved record. Self identity derives from caller and actual owner membership.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Representative"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Representative"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/representatives/{representativeId}": {
+      "put": {
+        "summary": "Selected representative update requires If-Match; preserve status/document/end date when omitted; return full saved record/version.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "representativeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Persisted version; omit only for first profile creation."
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Representative"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Representative"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/capabilities": {
+      "get": {
+        "summary": "Persisted capability/status map. Failed read must block destructive replacement.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace selections; reject unsupported codes. Body: {capabilities:string[]}.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/onboarding-status": {
+      "get": {
+        "summary": "Completion derived from saved prerequisites with missingFields, allowedNextActions, supportedCapabilities, authorityTypes, organizationTypes, requiredDocumentTypes, verification and wallet states.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/stages/{stage}": {
+      "put": {
+        "summary": "Compatibility: recompute customer stage from saved data; internal verification/wallet/activation completion forbidden.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/documents": {
+      "get": {
+        "summary": "Actual attachments and statuses, createdAt/updatedAt. No invented metadata.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      },
+      "post": {
+        "summary": "Body {documentType,fileId,replaceDocumentId?}. Require owned, completed, safety-confirmed media. Replacement soft-removes only selected same-type attachment atomically.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/documents/{documentId}": {
+      "delete": {
+        "summary": "Authorized audited idempotent soft removal retains records/media. Later media events cannot resurrect attachment.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/documents/upload-authorization": {
+      "post": {
+        "summary": "Idempotency-Key required. Body {documentType,allowedMimeTypes?,maxSizeBytes?}; existing Media Service; PDF/JPEG/PNG/WebP maximum 25MB.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/documents/upload-content": {
+      "post": {
+        "summary": "Multipart upload grant/token, MIME, declared size, SHA256 checksum and file; existing signed Media Service validates bytes.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/submit": {
+      "post": {
+        "summary": "Idempotency-Key and If-Match; lock tenant, recheck actual prerequisites/all required ready document types, record immutable snapshot, dispatch existing verification. No auto approval.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/verification": {
+      "get": {
+        "summary": "Actual verification status and safe issues.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/wallet-provisioning": {
+      "get": {
+        "summary": "Actual provisioning status/attempts. Missing record means not requested; no wallet balances.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/wallet-provisioning/retry": {
+      "post": {
+        "summary": "Retry through existing company approval and authorization gates.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Persisted outcome in data/meta envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {},
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Expired/revoked session"
+          },
+          "403": {
+            "description": "Permission or internal stage denied"
+          },
+          "404": {
+            "description": "No record in current tenant"
+          },
+          "409": {
+            "description": "Duplicate or concurrent modification"
+          },
+          "422": {
+            "description": "Field validation/missing prerequisites"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CorporateBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "IdentityProfile": {
+        "type": "object",
+        "properties": {
+          "identityId": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "emailVerifiedAt": {
+            "type": "string"
+          },
+          "isOrganizationOwner": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Company": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "tradingName": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "organizationType": {
+            "type": "string"
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "defaultCurrency": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "businessType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "incorporationDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "taxReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "businessEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "businessPhone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "businessDescription": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registeredAddress": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "postalCode": {
+                "type": "string"
+              },
+              "country": {
+                "type": "string"
+              }
+            }
+          },
+          "operatingAddress": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "postalCode": {
+                "type": "string"
+              },
+              "country": {
+                "type": "string"
+              }
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "Representative": {
+        "type": "object",
+        "required": [
+          "fullName",
+          "roleTitle",
+          "email",
+          "phone",
+          "authorityType"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "representativeId": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "roleTitle": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "identityReference": {
+            "type": "string"
+          },
+          "authorityDocumentFileId": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string"
+          },
+          "effectiveTo": {
+            "type": "string"
+          },
+          "isOnboardingOwner": {
+            "type": "boolean"
+          },
+          "authorityType": {
+            "enum": [
+              "DIRECTOR",
+              "OFFICER",
+              "POWER_OF_ATTORNEY",
+              "OWNER",
+              "OTHER"
+            ]
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "ENDED"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

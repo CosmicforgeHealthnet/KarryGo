@@ -193,7 +193,7 @@ func (c *MediaFileClient) GetFile(ctx context.Context, meta CallMeta, fileID str
 	}
 	return FileMetadata{
 		FileID: state.MediaObjectID, OwnerType: state.OwnerType, OwnerID: state.OwnerReference,
-		Purpose: state.UploadPurpose, UploadState: state.UploadStatus, ScanState: state.SafetyStatus,
+		Purpose: state.UploadPurpose, UploadState: state.UploadStatus, ScanState: state.SafetyStatus, DeletionState: state.DeletionState,
 		ContentType: state.DetectedMIME, SizeBytes: state.SizeBytes, SourceVersion: state.SourceVersion,
 	}, nil
 }

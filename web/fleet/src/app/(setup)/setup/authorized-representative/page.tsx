@@ -1,484 +1,254 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
+import { useOnboarding, useOnboardingDraft } from "../onboarding-context";
 import {
-  RefreshCw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  User,
-  Mail,
-  Phone,
-  Briefcase,
-  FileText,
-  Loader2,
-  Save,
-  UserCheck,
-} from "lucide-react";
-import { useAuthStore } from "@/lib/stores/authStore";
-import { useOrganizationStore } from "@/lib/stores/organizationStore";
-import { useOnboardingStore } from "@/lib/stores/onboardingStore";
-import { organizationService, type Representative } from "@/lib/services/organizationService";
-import { IconTile } from "@/components/onboarding/IconTile";
-import { StepFooter } from "@/components/onboarding/StepFooter";
-import { nextPath, previousPath } from "../steps";
-
-
-type FormData = {
-  fullName: string;
-  roleTitle: string;
-  email: string;
-  phone: string;
-  authorityType: string;
-};
-
-const AUTHORITY_TYPES = [
-  { value: "LEGAL_REPRESENTATIVE", label: "Legal Representative" },
-  { value: "BENEFICIAL_OWNER", label: "Beneficial Owner" },
-  { value: "DIRECTOR", label: "Director" },
-  { value: "CEO", label: "CEO / Managing Director" },
-  { value: "CFO", label: "CFO / Finance Director" },
-  { value: "COMPANY_SECRETARY", label: "Company Secretary" },
-  { value: "AUTHORIZED_SIGNATORY", label: "Authorized Signatory" },
-  { value: "OTHER", label: "Other" },
-];
-
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending Review",
-  ACTIVE: "Active",
-  SUSPENDED: "Suspended",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-  CLOSED: "Closed",
-};
-
-const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-  DRAFT: { bg: "bg-amber-bg", text: "text-amber" },
-  PENDING: { bg: "bg-amber-bg", text: "text-amber" },
-  ACTIVE: { bg: "bg-green-bg", text: "text-green" },
-  SUSPENDED: { bg: "bg-red-bg", text: "text-red" },
-  APPROVED: { bg: "bg-green-bg", text: "text-green" },
-  REJECTED: { bg: "bg-red-bg", text: "text-red" },
-  CLOSED: { bg: "bg-surface-2", text: "text-ink-500" },
-};
-
-const inputClass = (hasError: boolean) =>
-  `w-full rounded-xl border px-4 py-2.5 text-sm text-ink-950 outline-none transition-colors ${
-    hasError
-      ? "border-red focus:border-red focus:ring-2 focus:ring-red/10"
-      : "border-field-border focus:border-label-accent focus:ring-4 focus:ring-primary/15"
-  }`;
-
-const REQUIRED_FIELDS: (keyof FormData)[] = ["fullName", "roleTitle", "email", "phone", "authorityType"];
-
-function validateField(name: keyof FormData, value: string): string | undefined {
-  switch (name) {
-    case "fullName":
-      if (!value.trim()) return "Full name is required";
-      if (value.trim().length < 2) return "Full name must be at least 2 characters";
-      return undefined;
-    case "roleTitle":
-      if (!value.trim()) return "Role title is required";
-      return undefined;
-    case "email":
-      if (!value.trim()) return "Email is required";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email address";
-      return undefined;
-    case "phone":
-      if (!value.trim()) return "Phone number is required";
-      const phoneClean = value.replace(/[\s()-]/g, "");
-      if (phoneClean.length < 7) return "Enter a valid phone number";
-      return undefined;
-    case "authorityType":
-      if (!value) return "Authority type is required";
-      return undefined;
-    default:
-      return undefined;
-  }
-}
-
-
-export default function AuthorizedRepresentativePage() {
-  const router = useRouter();
-  const { _hasHydrated } = useAuthStore();
-  const { organization } = useOrganizationStore();
-  const { setStageComplete } = useOnboardingStore();
-
-  const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [existingReps, setExistingReps] = useState<Representative[]>([]);
-
-  const [formData, setFormData] = useState<FormData>({
-    fullName: "",
-    roleTitle: "",
-    email: "",
-    phone: "",
-    authorityType: "",
+  organizationService as api,
+  type Representative,
+} from "@/lib/services/organizationService";
+import {
+  Field,
+  SelectField,
+  Section,
+  StepForm,
+  SaveFooter,
+  humanize,
+  useStepNavigation,
+} from "../onboarding-ui";
+export default function RepresentativePage() {
+  const { data, reload, reloadSaved, editable } = useOnboarding();
+  const org = data.organization!;
+  const identity = data.identity;
+  const reps = data.representatives;
+  // One saved record is unambiguous. Multiple records require explicit selection.
+  const initial = reps.length === 1 ? reps[0] : undefined;
+  const fromRecord = (rep?: Representative) => ({
+    id: rep?.id ?? "",
+    version: rep?.version,
+    choice: rep
+      ? rep.identityReference === identity.identityId
+        ? "self"
+        : "other"
+      : "",
+    fullName: rep?.fullName ?? "",
+    roleTitle: rep?.roleTitle ?? "",
+    email: rep?.email ?? "",
+    phone: rep?.phone ?? "",
+    authorityType: rep?.authorityType ?? "",
+    status: rep?.status ?? "ACTIVE",
   });
-
-  const [touched, setTouched] = useState<Partial<Record<keyof FormData, boolean>>>({});
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-
-  const completedRequired = REQUIRED_FIELDS.filter((field) => !validateField(field, formData[field])).length;
-
-  useEffect(() => {
-    if (!_hasHydrated) return;
-
-    const fetchData = async () => {
-      if (!organization?.organizationId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const reps = await organizationService.listRepresentatives(organization.organizationId);
-        
-        // ✅ SAFETY: ensure reps is always an array
-        const repsArray = Array.isArray(reps) ? reps : [];
-        setExistingReps(repsArray);
-
-        // If there's an existing representative, pre-fill the form
-        if (repsArray.length > 0) {
-          const rep = repsArray.find((item) => item.isOnboardingOwner) ?? repsArray[0];
-          setFormData({
-            fullName: rep.fullName || "",
-            roleTitle: rep.roleTitle || "",
-            email: rep.email || "",
-            phone: rep.phone || "",
-            authorityType: rep.authorityType || "",
-          });
-        }
-      } catch (err) {
-        console.error("Failed to fetch representatives:", err);
-        setExistingReps([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [_hasHydrated, organization?.organizationId]);
-
-  const setField = (name: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    const err = validateField(name, value);
-    setErrors((prev) => {
-      if (err) {
-        return { ...prev, [name]: err };
-      }
-      const next = { ...prev };
-      delete next[name];
-      return next;
+  const [form, change, clear] = useOnboardingDraft("representative", () =>
+    fromRecord(initial),
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const guard = useRef(false);
+  const go = useStepNavigation("representative");
+  function choose(choice: string) {
+    change({
+      ...form,
+      choice,
+      ...(choice === "self"
+        ? {
+            fullName:
+              identity.fullName ||
+              (form.choice === "self" ? form.fullName : ""),
+            email: identity.email,
+            phone: identity.phone,
+          }
+        : { fullName: "", email: "", phone: "" }),
     });
-  };
-
-  const handleBlur = (name: keyof FormData) => {
-    setTouched((prev) => ({ ...prev, [name]: true }));
-    const err = validateField(name, formData[name]);
-    setErrors((prev) => {
-      if (err) {
-        return { ...prev, [name]: err };
-      }
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-  };
-
-  const handleSubmit = async () => {
-    // Validate all fields
-    const allErrors: Partial<Record<keyof FormData, string>> = {};
-    REQUIRED_FIELDS.forEach((field) => {
-      const err = validateField(field, formData[field]);
-      if (err) allErrors[field] = err;
-    });
-    setErrors(allErrors);
-    setTouched(
-      REQUIRED_FIELDS.reduce((acc, field) => ({ ...acc, [field]: true }), {} as Record<keyof FormData, boolean>)
-    );
-
-    if (Object.keys(allErrors).length > 0) {
-      setSaveError("Please fix all highlighted fields before continuing.");
-      return;
-    }
-
-    if (!organization?.organizationId) {
-      setSaveError("Organization not found.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-
+  }
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (guard.current || !editable) return;
+    guard.current = true;
+    setBusy(true);
+    setError(null);
     try {
-      // If existing representative, update; otherwise create
-      if (existingReps.length > 0) {
-        const rep = existingReps.find((item) => item.isOnboardingOwner) ?? existingReps[0];
-        await organizationService.updateRepresentative(
-          organization.organizationId,
-          rep.id,
-          {
-            fullName: formData.fullName.trim(),
-            roleTitle: formData.roleTitle.trim(),
-            email: formData.email.trim(),
-            phone: formData.phone.trim(),
-            authorityType: formData.authorityType,
-            status: rep.status,
-            authorityDocumentFileId: rep.authorityDocumentFileId,
-          },
-          rep.version
+      const values = {
+        fullName: form.fullName,
+        roleTitle: form.roleTitle,
+        email: form.email,
+        phone: form.phone,
+        authorityType: form.authorityType,
+        isOnboardingOwner: form.choice === "self",
+      };
+      let saved: Representative;
+      if (form.id)
+        saved = await api.updateRepresentative(
+          org.organizationId,
+          form.id,
+          { ...values, status: form.status },
+          form.version!,
         );
-      } else {
-        await organizationService.createRepresentative(organization.organizationId, {
-          fullName: formData.fullName.trim(),
-          roleTitle: formData.roleTitle.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          authorityType: formData.authorityType,
-          isOnboardingOwner: true,
-        });
-      }
-
-      // Mark the stage as complete in the store
-      setStageComplete('AUTHORIZED_REPRESENTATIVE');
-
-      setSaveSuccess(true);
-      router.push(nextPath("representative"));
-    } catch (err: any) {
-      const responseError = err?.response?.data?.error;
-      const status = err?.response?.status;
-      const requestId = responseError?.requestId ?? err?.response?.headers?.["x-request-id"];
-      let message = responseError?.message || err?.message || "Failed to save representative information.";
-      if (status === 409) {
-        message = "This information was changed elsewhere. Reload the page, review the latest details and try again.";
-      } else if (status === 401) {
-        message = "Your session has expired. Please sign in again.";
-      } else if (status === 403) {
-        message = "Your account cannot edit this organization's representative. Check your role or contact support.";
-      }
-      setSaveError(requestId ? `${message} Reference: ${requestId}` : message);
+      else saved = await api.createRepresentative(org.organizationId, values);
+      // Preserve the confirmed ID/version even if the following read encounters a network failure.
+      change({ ...form, id: saved.id, version: saved.version });
+      const current = await reload();
+      if (
+        !current.representatives.some(
+          (r) => r.id === saved.id && r.version === saved.version,
+        )
+      )
+        throw new Error("The saved representative could not be confirmed.");
+      if (
+        current.status?.stages.find(
+          (s) => s.stage === "AUTHORIZED_REPRESENTATIVE",
+        )?.status !== "COMPLETE"
+      )
+        throw {
+          response: {
+            data: {
+              error: {
+                message:
+                  "The record was saved. An active authorized representative is required before continuing.",
+              },
+            },
+          },
+        };
+      clear();
+      go();
+    } catch (err) {
+      setError(err);
     } finally {
-      setIsSubmitting(false);
+      guard.current = false;
+      setBusy(false);
     }
-  };
-
-  const handleBack = () => router.push(previousPath("representative"));
-
-  const isComplete = completedRequired === REQUIRED_FIELDS.length;
-  const hasErrors = Object.values(errors).some((e) => !!e);
-  const canSubmit = !isSubmitting && !saveSuccess && isComplete && !hasErrors;
-
-  if (loading) {
-    return (
-      <div className="mx-auto w-full max-w-4xl space-y-6">
-        <div className="space-y-2">
-          <div className="h-7 w-56 animate-pulse rounded bg-surface-2" />
-          <div className="h-4 w-96 animate-pulse rounded bg-surface-2" />
-        </div>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
   }
-
-  if (error) {
-    return (
-      <div className="mx-auto w-full max-w-4xl">
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-red/20 bg-red-bg/30 px-4 py-16 text-center">
-          <div className="rounded-full bg-red-bg p-4">
-            <AlertCircle className="h-8 w-8 text-red" />
-          </div>
-          <h3 className="mt-4 text-[15px] font-semibold text-ink-950">Unable to load page</h3>
-          <p className="mt-1.5 text-sm text-ink-500">{error}</p>
-          <button
-            onClick={() => router.push("/setup")}
-            className="btn btn-primary btn-md mt-5"
-          >
-            Go to Onboarding Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-ink-950">Authorized representative</h1>
-        <p className="mt-1.5 text-ink-600">
-          Provide details of the authorized representative with legal authority for your organization.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <p className="flex-shrink-0 text-sm font-medium text-ink-700">
-          <span className="font-mono tabular-nums text-ink-950">{completedRequired}</span>
-          <span className="text-ink-400"> / {REQUIRED_FIELDS.length}</span> required fields complete
-        </p>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2 sm:max-w-xs">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${(completedRequired / REQUIRED_FIELDS.length) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
-        <div className="flex items-start gap-4">
-          <IconTile icon={<UserCheck />} theme="brand" />
-          <div>
-            <h2 className="text-[15px] font-semibold text-ink-950">Representative Details</h2>
-            <p className="text-sm text-ink-500">
-              This person must have legal authority to act on behalf of the organization.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <User className="h-3 w-3 text-ink-400" />
-              Full Name <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={formData.fullName}
-                onChange={(e) => setField("fullName", e.target.value)}
-                onBlur={() => handleBlur("fullName")}
-                placeholder="e.g. John Doe"
-                className={inputClass(!!(touched.fullName && errors.fullName))}
-              />
-            </div>
-            {touched.fullName && errors.fullName && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-red">
-                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                {errors.fullName}
-              </p>
-            )}
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Briefcase className="h-3 w-3 text-ink-400" />
-              Role Title <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={formData.roleTitle}
-                onChange={(e) => setField("roleTitle", e.target.value)}
-                onBlur={() => handleBlur("roleTitle")}
-                placeholder="e.g. Chief Executive Officer"
-                className={inputClass(!!(touched.roleTitle && errors.roleTitle))}
-              />
-            </div>
-            {touched.roleTitle && errors.roleTitle && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-red">
-                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                {errors.roleTitle}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Mail className="h-3 w-3 text-ink-400" />
-              Email <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setField("email", e.target.value)}
-                onBlur={() => handleBlur("email")}
-                placeholder="representative@company.com"
-                className={inputClass(!!(touched.email && errors.email))}
-              />
-            </div>
-            {touched.email && errors.email && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-red">
-                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                {errors.email}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <Phone className="h-3 w-3 text-ink-400" />
-              Phone <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setField("phone", e.target.value)}
-                onBlur={() => handleBlur("phone")}
-                placeholder="+234 800 000 0000"
-                className={inputClass(!!(touched.phone && errors.phone))}
-              />
-            </div>
-            {touched.phone && errors.phone && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-red">
-                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                {errors.phone}
-              </p>
-            )}
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-900 [&>svg]:hidden">
-              <FileText className="h-3 w-3 text-ink-400" />
-              Authority Type <span className="text-red">*</span>
-            </label>
-            <div className="mt-1">
-              <select
-                value={formData.authorityType}
-                onChange={(e) => setField("authorityType", e.target.value)}
-                onBlur={() => handleBlur("authorityType")}
-                className={inputClass(!!(touched.authorityType && errors.authorityType))}
+    <StepForm
+      title="Authorized representative"
+      description="Choose the person legally authorized to act for this company. Review their contact details before saving."
+      onSubmit={save}
+      error={error}
+      onReload={() => {
+        void reloadSaved().catch(setError);
+      }}
+    >
+      <fieldset disabled={!editable || busy} className="space-y-6">
+        {reps.length > 1 && (
+          <Section title="Choose the record to edit">
+            <SelectField
+              name="representativeId"
+              label="Saved representative"
+              required
+              value={form.id}
+              onChange={(e) =>
+                change(fromRecord(reps.find((r) => r.id === e.target.value)))
+              }
+            >
+              <option value="">Select a representative</option>
+              {reps.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.fullName} · {r.roleTitle} · {humanize(r.status)}
+                </option>
+              ))}
+            </SelectField>
+          </Section>
+        )}
+        <Section title="Who is the authorized representative of this company?">
+          <div className="space-y-3">
+            {[
+              ["self", "I am the authorized representative."],
+              ["other", "Someone else represents the company."],
+            ].map(([value, label]) => (
+              <label
+                key={value}
+                className="flex items-center gap-3 rounded-xl border border-line p-3 text-sm"
               >
-                <option value="">Select authority type...</option>
-                {AUTHORITY_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
+                <input
+                  type="radio"
+                  name="representativeChoice"
+                  value={value}
+                  checked={form.choice === value}
+                  required
+                  onChange={() => choose(value)}
+                  disabled={value === "self" && !identity.isOrganizationOwner}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          {!identity.isOrganizationOwner && (
+            <p className="mt-3 text-xs text-ink-500">
+              Your current membership is not the company owner. Select the
+              legally authorized person.
+            </p>
+          )}
+        </Section>
+        {form.choice && (
+          <Section title="Representative details">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                name="fullName"
+                label="Full name"
+                required
+                maxLength={200}
+                value={form.fullName}
+                onChange={(e) => change({ ...form, fullName: e.target.value })}
+              />
+              <Field
+                name="roleTitle"
+                label="Role title"
+                required
+                maxLength={200}
+                value={form.roleTitle}
+                onChange={(e) => change({ ...form, roleTitle: e.target.value })}
+              />
+              <Field
+                name="email"
+                label="Email"
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => change({ ...form, email: e.target.value })}
+              />
+              <Field
+                name="phone"
+                label="Phone"
+                type="tel"
+                required
+                placeholder="+2348012345678"
+                hint="Include the country code. No SMS verification is required."
+                value={form.phone}
+                onChange={(e) => change({ ...form, phone: e.target.value })}
+              />
+              <SelectField
+                name="authorityType"
+                label="Authority type"
+                required
+                value={form.authorityType}
+                onChange={(e) =>
+                  change({ ...form, authorityType: e.target.value })
+                }
+              >
+                <option value="">Choose authority type</option>
+                {data.status!.authorityTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {humanize(t)}
                   </option>
                 ))}
-              </select>
+              </SelectField>
+              {form.id && (
+                <p className="self-end pb-3 text-xs text-ink-500">
+                  Record status: {humanize(form.status)}
+                </p>
+              )}
             </div>
-            {touched.authorityType && errors.authorityType && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-red">
-                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                {errors.authorityType}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {saveError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red/20 bg-red-bg/40 px-4 py-3 text-sm text-red">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {saveError}
-        </div>
-      )}
-
-      <StepFooter
-        onBack={handleBack}
-        onPrimary={handleSubmit}
-        primaryDisabled={!canSubmit}
-        primaryLoading={isSubmitting || saveSuccess}
+            <p className="mt-4 text-xs text-ink-500">
+              Representative contacts are saved separately from account login
+              details. Supporting authority evidence may be requested during
+              company review.
+            </p>
+          </Section>
+        )}
+      </fieldset>
+      <SaveFooter
+        step="representative"
+        busy={busy}
+        editable={editable}
+        disabled={!form.choice || (reps.length > 1 && !form.id)}
       />
-    </div>
+    </StepForm>
   );
 }

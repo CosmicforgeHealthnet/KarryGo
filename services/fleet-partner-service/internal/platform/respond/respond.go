@@ -13,6 +13,8 @@
 package respond
 
 import (
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
+	"errors"
 	"log"
 	"net/http"
 
@@ -78,6 +80,9 @@ func List(c *gin.Context, data any, nextCursor string) {
 func Error(c *gin.Context, err error) {
 	if c.Writer.Written() {
 		return
+	}
+	if errors.Is(err, concurrency.ErrVersionMismatch) {
+		err = apperrors.Conflict("This record changed elsewhere. Reload the saved record before retrying.", nil)
 	}
 	appErr := apperrors.From(err)
 	requestID := httpx.GetRequestID(c)

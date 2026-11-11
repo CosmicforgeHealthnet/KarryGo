@@ -25,6 +25,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -149,10 +150,17 @@ func SecureHeaders() gin.HandlerFunc {
 // BodySizeLimit rejects request bodies above the configured maximum.
 func BodySizeLimit(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.ContentLength > maxBytes {
+		limit := maxBytes
+		// A single explicit multipart onboarding route has a bounded file envelope.
+		// All other routes retain the configured JSON request limit.
+		if c.Request.Method == "POST" && c.FullPath() == "/fleet-partner/v1/organizations/:organizationId/documents/upload-content" {
+			limit = 26 << 20
+		}
+		if c.Request.ContentLength > limit {
 			httpx.Abort(c, apperrors.New(413, apperrors.CodeBadRequest, "Request body is too large.", nil))
 			return
 		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		c.Next()
 	}
 }
