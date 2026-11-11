@@ -376,7 +376,7 @@ export default function CompanyProfilePage() {
     try {
       // Mark BUSINESS_PROFILE as complete
       await organizationService.markStageComplete(data.organizationId, 'BUSINESS_PROFILE');
-      setStageComplete('profile');
+      setStageComplete('BUSINESS_PROFILE');
     } catch (error) {
       console.error('Failed to mark stage complete:', error);
       // Still navigate even if marking fails
