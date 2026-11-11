@@ -1441,7 +1441,10 @@
             "type": "string"
           },
           "emailVerifiedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "isOrganizationOwner": {
             "type": "boolean"
@@ -1605,16 +1608,25 @@
             "type": "string"
           },
           "identityReference": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "authorityDocumentFileId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "effectiveFrom": {
             "type": "string"
           },
           "effectiveTo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "isOnboardingOwner": {
             "type": "boolean"

@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/models"
+	authrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"errors"
 	"github.com/jackc/pgx/v5"
@@ -20,6 +21,9 @@ type IdentityProfile struct {
 
 func (s *Service) CurrentProfile(ctx context.Context, id, sessionID, requestID string) (*IdentityProfile, error) {
 	session, err := s.opts.Sessions.GetByID(ctx, sessionID)
+	if errors.Is(err, authrepos.ErrNotFound) {
+		return nil, apperrors.Unauthorized("This session is no longer available. Sign in again.", nil)
+	}
 	if err != nil {
 		return nil, err
 	}

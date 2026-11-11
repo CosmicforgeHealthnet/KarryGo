@@ -52,7 +52,7 @@ func TestOnboardingRepresentativeWireContract(t *testing.T) {
 
 // Fully wired identity/session/tenant/permission boundary, real PostgreSQL, and
 // the real HMAC-signed media client against a test authority. No runtime bypass.
-func buildOnboardingRouter(t *testing.T) (*gin.Engine, *authHarness) {
+func buildOnboardingRouter(t *testing.T, configureMedia ...func(*mediaTestServer)) (*gin.Engine, *authHarness) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	var org *orgusecases.Service
@@ -61,6 +61,9 @@ func buildOnboardingRouter(t *testing.T) (*gin.Engine, *authHarness) {
 		pool := opts.Pool
 		publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 		media := newMediaTestServer(t)
+		for _, configure := range configureMedia {
+			configure(media)
+		}
 		org = orgusecases.NewService(orgusecases.Options{Pool: pool, Organizations: orgrepos.NewOrganizationRepository(pool), Onboarding: orgrepos.NewOnboardingRepository(pool), Branches: orgrepos.NewBranchRepository(pool), Settings: orgrepos.NewSettingsRepository(pool), Events: publisher, Contracts: platformclients.ContractSet{Media: platformclients.NewMediaFileClient(platformclients.Options{ServiceName: "media-file-service", BaseURL: media.URL(), Secret: []byte(documentMediaSecret), Timeout: time.Second * 5}), Verification: platformclients.UnconfiguredVerification{Service: "verification-compliance-service"}}})
 		staff = staffusecases.NewService(staffusecases.Options{Pool: pool, Members: staffrepos.NewMemberRepository(pool), Roles: staffrepos.NewRoleRepository(pool), Invitations: staffrepos.NewInvitationRepository(pool), Organizations: org, Sessions: opts.Sessions, Sender: opts.Sender, Events: publisher, InvitationSecret: []byte("invitation-test-secret")})
 		org.SetMembershipCreator(staff)
@@ -129,6 +132,15 @@ func TestOnboardingV2PersistedJourneyAndBoundaries(t *testing.T) {
 		t.Fatal(updated)
 	}
 	call("PUT", base, company, 1, 409)
+	badRegionalSettings := map[string]any{"legalName": "Updated Company", "countryCode": "NG", "timezone": "Not/AZone", "defaultCurrency": "NGN"}
+	call("PUT", base, badRegionalSettings, 2, 422)
+	badRegionalSettings["timezone"] = "Africa/Lagos"
+	badRegionalSettings["defaultCurrency"] = "INVALID"
+	call("PUT", base, badRegionalSettings, 2, 422)
+	badRegionalSettings["defaultCurrency"] = "NGN"
+	badRegionalSettings["countryCode"] = "NGA"
+	call("PUT", base, badRegionalSettings, 2, 422)
+
 	address := map[string]any{"street": "1 Test Road", "city": "Lagos", "state": "Lagos", "country": "NG"}
 	operating := map[string]any{"street": "2 Depot Road", "city": "Abuja", "state": "FCT", "country": "NG"}
 	profile := documentData(t, call("PUT", base+"/profile", map[string]any{"registeredAddress": address, "operatingAddress": operating, "businessEmail": "business@example.com", "businessPhone": "+2348012345699", "taxReference": "TAX-RETAIN"}, 0, 200))
@@ -210,13 +222,22 @@ func TestOnboardingV2ConcurrentCompanyCreation(t *testing.T) {
 }
 
 func TestOnboardingV2RepresentativeSelectionAndStatus(t *testing.T) {
-	router, h := buildOnboardingRouter(t)
+	router, h := buildOnboardingRouter(t, func(media *mediaTestServer) {
+		media.mu.Lock()
+		defer media.mu.Unlock()
+		media.objects["mobj_foreign_authority"] = &mediaObjectRecord{ID: "mobj_foreign_authority", Organization: "org_other_tenant", OwnerType: "organization", OwnerRef: "org_other_tenant", UploadStatus: "COMPLETED", SafetyStatus: "SAFE", DeletionState: "ACTIVE", SourceVersion: 1}
+	})
 	token := onboardingLogin(t, router, h, "history-onboarding@example.com", "+2348012345604")
 	code, body := onboardCall(t, router, token, "POST", "/organizations", map[string]any{"legalName": "Representative History", "registrationNumber": "RC-REP-HISTORY", "organizationType": "LLC", "countryCode": "NG", "timezone": "Africa/Lagos", "defaultCurrency": "NGN", "ownerName": "Owner"}, 0)
 	if code != 201 {
 		t.Fatal(body)
 	}
 	base := "/organizations/" + documentData(t, body)["organizationId"].(string) + "/representatives"
+	foreignEvidence := map[string]any{"fullName": "Invalid Evidence Owner", "roleTitle": "Director", "email": "evidence-owner@example.com", "phone": "+2348012345697", "authorityType": "DIRECTOR", "authorityDocumentFileId": "mobj_foreign_authority"}
+	code, body = onboardCall(t, router, token, "POST", base, foreignEvidence, 0)
+	if code != 404 {
+		t.Fatal("foreign representative evidence was accepted", code, body)
+	}
 	records := []map[string]any{}
 	for i := 0; i < 2; i++ {
 		payload := map[string]any{"fullName": fmt.Sprintf("Representative %d", i), "roleTitle": "Officer", "email": fmt.Sprintf("rep%d@example.com", i), "phone": fmt.Sprintf("+234801234561%d", i), "authorityType": "OFFICER", "isOnboardingOwner": false}

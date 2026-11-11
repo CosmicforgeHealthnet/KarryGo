@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
@@ -32,10 +33,10 @@ func fieldError(field, message string) error {
 func normalizeRepresentative(rep *models.Representative) error {
 	rep.FullName = strings.TrimSpace(rep.FullName)
 	rep.RoleTitle = strings.TrimSpace(rep.RoleTitle)
-	if rep.FullName == "" || len(rep.FullName) > 200 {
+	if rep.FullName == "" || utf8.RuneCountInString(rep.FullName) > 200 {
 		return fieldError("fullName", "Enter a full name of up to 200 characters.")
 	}
-	if rep.RoleTitle == "" || len(rep.RoleTitle) > 200 {
+	if rep.RoleTitle == "" || utf8.RuneCountInString(rep.RoleTitle) > 200 {
 		return fieldError("roleTitle", "Enter a role title of up to 200 characters.")
 	}
 	email, _, err := contact.NormalizeEmail(rep.Email)
@@ -65,7 +66,7 @@ func (s *Service) lockEditable(ctx context.Context, tx pgx.Tx, organizationID st
 		return err
 	}
 	if !AcceptsOnboardingEdits(status) {
-		return apperrors.Conflict("This company is under review and cannot be edited. Return to the review page for its current status.", nil)
+		return apperrors.Conflict("This company cannot be edited in its current status. Return to the review page for its current status.", nil)
 	}
 	return nil
 }
@@ -263,4 +264,52 @@ func mediaUploadError(err error) error {
 		}
 	}
 	return errorcodes.Unavailable(errorcodes.OrganizationOnboardingIncomplete, "The document service is unavailable. Your saved documents are unchanged; try again shortly.")
+}
+
+func validateCompanyFields(legalName, registration, country, timezone, currency, companyType string) error {
+	if strings.TrimSpace(legalName) == "" || utf8.RuneCountInString(legalName) > 200 {
+		return fieldError("legalName", "Enter a legal company name of up to 200 characters.")
+	}
+	if strings.TrimSpace(registration) == "" || utf8.RuneCountInString(registration) > 200 {
+		return fieldError("registrationNumber", "Enter the company's registration number.")
+	}
+	if len(country) != 2 || country[0] < 'A' || country[0] > 'Z' || country[1] < 'A' || country[1] > 'Z' {
+		return fieldError("countryCode", "Choose a two-letter country code.")
+	}
+	if err := repos.ValidateTimezone(timezone); err != nil {
+		return fieldError("timezone", "Enter a valid IANA timezone, such as Africa/Lagos.")
+	}
+	if err := repos.ValidateCurrency(currency); err != nil {
+		return fieldError("defaultCurrency", "Enter a three-letter uppercase currency code.")
+	}
+	if companyType != "" && !contains(models.SupportedOrganizationTypes, companyType) {
+		return fieldError("organizationType", "Choose a supported company type.")
+	}
+	return nil
+}
+func (s *Service) validateRepresentativeDocument(ctx context.Context, orgID string, fileID *string, requestID, correlationID string) error {
+	if fileID == nil {
+		return nil
+	}
+	if strings.TrimSpace(*fileID) == "" {
+		return fieldError("authorityDocumentFileId", "Choose a valid supporting document reference.")
+	}
+	if s.opts.Contracts.Media == nil || !s.opts.Contracts.Media.Configured() {
+		return mediaUploadError(platformclients.ErrNotConfigured)
+	}
+	file, err := s.opts.Contracts.Media.GetFile(ctx, platformclients.CallMeta{OrganizationID: orgID, RequestID: requestID, CorrelationID: correlationID}, *fileID)
+	if err != nil {
+		var remote *platformclients.Error
+		if errors.As(err, &remote) && (remote.Outcome == platformclients.OutcomeNotFound || remote.Outcome == platformclients.OutcomeForbidden) {
+			return apperrors.NotFound("Supporting document not found.", nil)
+		}
+		return mediaUploadError(err)
+	}
+	if file.OwnerID != orgID || file.OwnerType != "organization" {
+		return apperrors.NotFound("Supporting document not found.", nil)
+	}
+	if !file.Ready() {
+		return apperrors.Conflict("The supporting document is not ready. Wait for upload and safety checks before saving.", nil)
+	}
+	return nil
 }

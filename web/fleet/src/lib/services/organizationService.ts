@@ -90,12 +90,12 @@ export interface Representative {
   email: string;
   phone: string;
   authorityType: string;
-  authorityDocumentFileId?: string;
-  identityReference?: string;
+  authorityDocumentFileId?: string | null;
+  identityReference?: string | null;
   isOnboardingOwner: boolean;
   status: string;
   effectiveFrom: string;
-  effectiveTo?: string;
+  effectiveTo?: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -460,14 +460,14 @@ export interface BusinessAddress {
 }
 export interface BusinessProfile {
   organizationId: string;
-  businessType?: string;
-  incorporationDate?: string;
-  taxReference?: string;
+  businessType?: string | null;
+  incorporationDate?: string | null;
+  taxReference?: string | null;
   registeredAddress: BusinessAddress;
   operatingAddress: BusinessAddress;
-  businessEmail?: string;
-  businessPhone?: string;
-  website?: string;
-  businessDescription?: string;
+  businessEmail?: string | null;
+  businessPhone?: string | null;
+  website?: string | null;
+  businessDescription?: string | null;
   version: number;
 }

@@ -93,12 +93,6 @@ type UpdateOrganizationInput struct {
 // Only allowed when the organization is in DRAFT status.
 func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizationInput) (*models.Organization, error) {
 	// Validate required fields
-	if input.LegalName == "" || input.CountryCode == "" {
-		return nil, apperrors.Validation("Legal name and country are required.", []apperrors.FieldViolation{
-			{Field: "legalName", Message: "Required."},
-			{Field: "countryCode", Message: "Required."},
-		})
-	}
 
 	// Get the current organization
 	organization, err := s.opts.Organizations.GetByID(ctx, input.OrganizationID)
@@ -136,6 +130,14 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 	}
 	if input.OrganizationType != "" && !contains(models.SupportedOrganizationTypes, input.OrganizationType) {
 		return nil, fieldError("organizationType", "Choose a supported company type.")
+	}
+	input.LegalName = strings.TrimSpace(input.LegalName)
+	input.TradingName = strings.TrimSpace(input.TradingName)
+	input.CountryCode = strings.ToUpper(strings.TrimSpace(input.CountryCode))
+	input.Timezone = strings.TrimSpace(input.Timezone)
+	input.DefaultCurrency = strings.ToUpper(strings.TrimSpace(input.DefaultCurrency))
+	if err := validateCompanyFields(input.LegalName, registrationNumber, input.CountryCode, input.Timezone, input.DefaultCurrency, input.OrganizationType); err != nil {
+		return nil, err
 	}
 	// Preserve the operating capabilities if they exist
 	capabilities := organization.OperatingCapabilities
@@ -270,15 +272,16 @@ func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (*mod
 	input.LegalName = strings.TrimSpace(input.LegalName)
 	input.TradingName = strings.TrimSpace(input.TradingName)
 	input.OwnerName = strings.TrimSpace(input.OwnerName)
-	if input.LegalName == "" || input.CountryCode == "" {
-		return nil, apperrors.Validation("Legal name and country are required.", []apperrors.FieldViolation{
-			{Field: "legalName", Message: "Required."}})
-	}
 
 	input.RegistrationNumber = strings.TrimSpace(input.RegistrationNumber)
 	input.CountryCode = strings.ToUpper(strings.TrimSpace(input.CountryCode))
 	if input.OrganizationType != "" && !contains(models.SupportedOrganizationTypes, input.OrganizationType) {
 		return nil, fieldError("organizationType", "Choose a supported company type.")
+	}
+	input.Timezone = strings.TrimSpace(input.Timezone)
+	input.DefaultCurrency = strings.ToUpper(strings.TrimSpace(input.DefaultCurrency))
+	if err := validateCompanyFields(input.LegalName, input.RegistrationNumber, input.CountryCode, input.Timezone, input.DefaultCurrency, input.OrganizationType); err != nil {
+		return nil, err
 	}
 	organization := &models.Organization{
 		ID:                 ids.New(ids.PrefixOrganization),
@@ -671,6 +674,10 @@ func (s *Service) CreateRepresentative(ctx context.Context, input CreateRepresen
 	if err := normalizeRepresentative(rep); err != nil {
 		return nil, err
 	}
+	if err := s.validateRepresentativeDocument(ctx, input.OrganizationID, input.AuthorityDocumentFileID, input.RequestID, input.CorrelationID); err != nil {
+		return nil, err
+	}
+
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		if err := s.lockEditable(ctx, tx, input.OrganizationID); err != nil {
 			return err
@@ -796,6 +803,10 @@ func (s *Service) UpdateRepresentative(ctx context.Context, input UpdateRepresen
 		rep.IdentityReference = input.IdentityReference
 	}
 	if err := normalizeRepresentative(rep); err != nil {
+		return nil, err
+	}
+
+	if err := s.validateRepresentativeDocument(ctx, input.OrganizationID, input.AuthorityDocumentFileID, input.RequestID, input.CorrelationID); err != nil {
 		return nil, err
 	}
 

@@ -108,7 +108,7 @@ try {
   await page
     .getByRole("button", { name: "Save & continue", exact: true })
     .click();
-  await page.getByRole("alert").waitFor();
+  await page.getByRole("alert").filter({hasText:"We couldn't connect"}).waitFor();
   assert.equal(
     await page.locator("#registered-street").inputValue(),
     "1 Registered Road",
@@ -157,7 +157,7 @@ try {
     route.abort("internetdisconnected"),
   );
   await page.goto(origin + "/setup/capabilities");
-  await page.getByRole("alert").waitFor();
+  await page.getByRole("alert").filter({hasText:"We couldn't connect"}).waitFor();
   assert.equal(
     await page.locator('input[type="checkbox"]').count(),
     0,
