@@ -105,15 +105,19 @@ The local browser suite uses real Fleet HTTP, authorization, PostgreSQL and sign
 
 ## 12. Git release
 
-Implementation commit: pending the release commit. Branch remains `staging`; no merge to main or production operation.
+Implementation commit: `54c7655bf94d9da0102012b5117414df37e34905`; activation projection compatibility fix: `6ae456e68dc2a8e1c85183c77f34db5a4896a193`. Branch remains `staging`; no merge to main or production operation.
 
 ## 13. GitHub Actions
 
-Pending observation after push. The existing Fleet authentication workflow now also runs onboarding HTTP/browser tests and uploads both sets of artifacts. The mandatory repository workflow remains authoritative for its infrastructure-backed checks.
+[Section 31 mandatory acceptance, implementation 54c7655b](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43041806353) passed, including the Fleet mandatory suite and the other required service gates. The follow-up activation revision has its own mandatory run in progress.
+
+The Fleet browser workflow stalled in Ubuntu APT font installation: live job logs showed repeated `Temporary failure resolving azure.archive.ubuntu.com`. All required browser shared libraries were already installed; only nine optional font packages were being added. The workflow is corrected to install Playwright's pinned headless Chromium directly with `--only-shell`, retaining all browser tests and the application’s bundled Inter font. Superseded stalled runs are canceled and the corrected workflow is rerun. No verification is skipped to manufacture a green result.
 
 ## 14. VPS deployment evidence
 
-Pending actual staging deployment job, API/worker running-image revision checks and migration read-back. A green build or skipped server step is not accepted as deployment evidence.
+Staging deployment [43042843119](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43042843119) executed the build and server deployment steps successfully. At 14:56:18 UTC both `karrygo-fleet-partner-api` and `karrygo-fleet-partner-worker` reported image `sha256:9d60b273cb9f5ae9fbea033be5cf3d08266510933eb37822aabf2cfcc0eb9165`, OCI revision `6ae456e68dc2a8e1c85183c77f34db5a4896a193`. API health was `healthy`. Pre-deployment database backup ran. Migration/test-account read-back is being collected separately.
+
+Submission now persists its validated customer-stage projection in the same transaction so the existing activation worker sees six complete prerequisites. The browser regression also asserts those durable rows, while verification/wallet/activation approvals remain untouched.
 
 ## 15. Vercel deployment evidence
 

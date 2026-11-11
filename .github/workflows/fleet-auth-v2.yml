@@ -39,7 +39,7 @@ jobs:
           cache-dependency-path: web/fleet/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: web/fleet
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --only-shell chromium
         working-directory: web/fleet
       - name: Auth security and contracts
         run: go test ./services/fleet-partner-service/internal/features/auth/... ./services/fleet-partner-service/internal/platform/contact/... ./services/fleet-partner-service/internal/section28contract/...
@@ -51,7 +51,7 @@ jobs:
           npm test
           npm run build
           npm run typecheck
-          npx eslint 'src/components/features/auth/*.tsx' src/lib/hooks/useContactAuthForm.ts src/lib/services/authService.ts src/lib/api/client.ts src/lib/auth/authErrors.ts 'src/app/(auth)/sign-in/page.tsx' 'src/app/(auth)/verify/page.tsx' scripts/auth-e2e.mjs 'src/app/(setup)/setup' src/lib/services/organizationService.ts scripts/onboarding-e2e.mjs
+          npx eslint 'src/components/features/auth/*.tsx' src/lib/hooks/useContactAuthForm.ts src/lib/services/authService.ts src/lib/api/client.ts src/lib/auth/authErrors.ts 'src/app/(auth)/sign-in/page.tsx' 'src/app/(auth)/verify/page.tsx' scripts/auth-e2e.mjs 'src/app/(setup)/setup' src/lib/services/organizationService.ts 'src/app/(auth)/choose-organization/page.tsx' src/lib/stores/authStore.ts src/lib/stores/onboardingStore.ts src/lib/stores/organizationStore.ts src/lib/auth/organizationDestination.ts src/lib/countries.ts src/middleware.ts scripts/onboarding-e2e.mjs
       - name: Browser to API to PostgreSQL workflow (email sender fixture)
         env:
           FLEET_AUTH_BROWSER_TEST: '1'
