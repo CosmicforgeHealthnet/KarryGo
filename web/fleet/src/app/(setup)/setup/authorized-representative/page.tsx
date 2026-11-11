@@ -146,7 +146,7 @@ export default function AuthorizedRepresentativePage() {
 
         // If there's an existing representative, pre-fill the form
         if (repsArray.length > 0) {
-          const rep = repsArray[0];
+          const rep = repsArray.find((item) => item.isOnboardingOwner) ?? repsArray[0];
           setFormData({
             fullName: rep.fullName || "",
             roleTitle: rep.roleTitle || "",
@@ -221,16 +221,20 @@ export default function AuthorizedRepresentativePage() {
     try {
       // If existing representative, update; otherwise create
       if (existingReps.length > 0) {
+        const rep = existingReps.find((item) => item.isOnboardingOwner) ?? existingReps[0];
         await organizationService.updateRepresentative(
           organization.organizationId,
-          existingReps[0].id,
+          rep.id,
           {
             fullName: formData.fullName.trim(),
             roleTitle: formData.roleTitle.trim(),
             email: formData.email.trim(),
             phone: formData.phone.trim(),
             authorityType: formData.authorityType,
-          }
+            status: rep.status,
+            authorityDocumentFileId: rep.authorityDocumentFileId,
+          },
+          rep.version
         );
       } else {
         await organizationService.createRepresentative(organization.organizationId, {
@@ -244,13 +248,23 @@ export default function AuthorizedRepresentativePage() {
       }
 
       // Mark the stage as complete in the store
-      setStageComplete('authorized-representative');
+      setStageComplete('AUTHORIZED_REPRESENTATIVE');
 
       setSaveSuccess(true);
       router.push(nextPath("representative"));
     } catch (err: any) {
-      const message = err?.response?.data?.error?.message || err?.message || "Failed to save representative information.";
-      setSaveError(message);
+      const responseError = err?.response?.data?.error;
+      const status = err?.response?.status;
+      const requestId = responseError?.requestId ?? err?.response?.headers?.["x-request-id"];
+      let message = responseError?.message || err?.message || "Failed to save representative information.";
+      if (status === 409) {
+        message = "This information was changed elsewhere. Reload the page, review the latest details and try again.";
+      } else if (status === 401) {
+        message = "Your session has expired. Please sign in again.";
+      } else if (status === 403) {
+        message = "Your account cannot edit this organization's representative. Check your role or contact support.";
+      }
+      setSaveError(requestId ? `${message} Reference: ${requestId}` : message);
     } finally {
       setIsSubmitting(false);
     }
