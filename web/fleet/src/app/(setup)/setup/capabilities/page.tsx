@@ -187,7 +187,7 @@ export default function CapabilitiesPage() {
 
       await organizationService.updateCapabilities(organization.organizationId, enabledIds);
 
-      setStageComplete("capabilities");
+      setStageComplete("OPERATING_CAPABILITIES");
 
       setSaveSuccess(true);
       router.push(nextPath("services"));
