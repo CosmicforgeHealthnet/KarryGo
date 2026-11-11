@@ -1,0 +1,58 @@
+{
+  "implementationCommit": "70641f7b496dae7d3d5a8e1e4a9aab0efb195bdd",
+  "backendCommit": "6e7cfb82c398a6c1f0fbb1e2930faf312c9df75a",
+  "frontendCommit": "0b75bd0430fd882a518f995b6f12d21e2eb20c22",
+  "backendRun": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/42976834692",
+  "runtime": [
+    {
+      "container": "karrygo-fleet-partner-api",
+      "imageId": "sha256:2b5c177f893810f6c440bf2489cbb73537a68fcffa14062f89b36d8342898430",
+      "revision": "6e7cfb82c398a6c1f0fbb1e2930faf312c9df75a"
+    },
+    {
+      "container": "karrygo-fleet-partner-worker",
+      "imageId": "sha256:2b5c177f893810f6c440bf2489cbb73537a68fcffa14062f89b36d8342898430",
+      "revision": "6e7cfb82c398a6c1f0fbb1e2930faf312c9df75a"
+    }
+  ],
+  "frontend": {
+    "projectId": "prj_kFUDZnnpo98MmSwuDFb73XgHOHBJ",
+    "deploymentId": "dpl_G55Ws3uLtU6TQUYLYKP2G5A8ZhqX",
+    "state": "READY",
+    "alias": "https://fleet-karryam.vercel.app",
+    "url": "https://fleet-karryam-4k35b9s97-cosmicforgedevteamgmailcoms-projects.vercel.app",
+    "branch": "staging",
+    "sourceTree": "f314eb6cee72a9543907ed0cc7b05051d9e334e8"
+  },
+  "authCI": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/42977268195",
+  "databaseEvidenceRun": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/42977917689",
+  "live": {
+    "signupNotificationAccepted": true,
+    "emailReceived": true,
+    "deliveryChannels": [
+      "email"
+    ],
+    "notificationSentCount": 2,
+    "notificationAttemptsEach": 1,
+    "identityCreatedBeforeOTP": false,
+    "activeTestSessions": 0,
+    "unknownIdentifiersRejected": true,
+    "supersededChallengeRejected": true,
+    "missingChallengeRejected": true,
+    "expiredChallengeRejected": true,
+    "successfulOTPVerification": false,
+    "blocker": "Connected Gmail withholds authentication codes; operator-supplied fresh OTP required.",
+    "mobileBrowser": "Pixel 7 Chromium emulation; one identifier input, country selection, touch, no horizontal overflow",
+    "challengeStatus": "EXPIRED",
+    "liveSessionOnboardingAndSignIn": "BLOCKED_PENDING_OPERATOR_OTP",
+    "unknownEmailNotificationRecords": 0
+  },
+  "unknownIdentifierEvidenceRun": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/42978404507",
+  "mandatoryCI": {
+    "url": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/42977268297",
+    "conclusion": "success",
+    "mandatoryUnexpectedSkips": 0
+  },
+  "authCIConclusion": "success",
+  "runtimeGoVersion": "1.26.11"
+}

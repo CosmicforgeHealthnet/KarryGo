@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "checks": [
+    "signup → real API/PostgreSQL → email OTP → identity/session → onboarding route",
+    "HttpOnly session cookie refresh through same-origin proxy",
+    "duplicate email actions and email carried to single-input sign-in",
+    "email and phone sign-in → same identity → email OTP → session → onboarding",
+    "mobile and desktop forms render without horizontal overflow"
+  ]
+}

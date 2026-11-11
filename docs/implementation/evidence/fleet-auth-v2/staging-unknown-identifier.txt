@@ -1,0 +1,55 @@
+2026-11-11T07:17:46.5007095Z FLEET_DATABASE_EVIDENCE
+2026-11-11T07:17:46.6790672Z BEGIN
+2026-11-11T07:17:46.6900518Z     version     |          applied_at           
+2026-11-11T07:17:46.6901012Z ----------------+-------------------------------
+2026-11-11T07:17:46.6901401Z  000085_auth_v2 | 2026-11-11 06:54:16.207966+00
+2026-11-11T07:17:46.6902156Z (1 row)
+2026-11-11T07:17:46.6902304Z 
+2026-11-11T07:17:46.7102457Z                indexname               |                                                                                    indexdef                                                                                     
+2026-11-11T07:17:46.7103477Z ---------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-11-11T07:17:46.7110628Z  uq_fleet_partner_identity_email       | CREATE UNIQUE INDEX uq_fleet_partner_identity_email ON public.fleet_partner_corporate_identities USING btree (email_normalized) WHERE (status <> 'ARCHIVED'::text)
+2026-11-11T07:17:46.7112195Z  uq_fleet_partner_identity_email_lower | CREATE UNIQUE INDEX uq_fleet_partner_identity_email_lower ON public.fleet_partner_corporate_identities USING btree (lower(email_normalized)) WHERE (status <> 'ARCHIVED'::text)
+2026-11-11T07:17:46.7113615Z  uq_fleet_partner_identity_phone       | CREATE UNIQUE INDEX uq_fleet_partner_identity_phone ON public.fleet_partner_corporate_identities USING btree (phone_e164) WHERE (status <> 'ARCHIVED'::text)
+2026-11-11T07:17:46.7114391Z (3 rows)
+2026-11-11T07:17:46.7114536Z 
+2026-11-11T07:17:46.7259583Z                                                                                                     pg_get_constraintdef                                                                                                     
+2026-11-11T07:17:46.7260595Z -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2026-11-11T07:17:46.7262066Z  CHECK ((purpose = ANY (ARRAY['SIGN_UP_OR_LOGIN'::text, 'SIGN_UP'::text, 'SIGN_IN'::text, 'STAFF_INVITATION'::text, 'ORGANIZATION_SELECTION'::text, 'STEP_UP'::text, 'CONTACT_CHANGE'::text, 'PROVIDER_INVITATION'::text])))
+2026-11-11T07:17:46.7263593Z (1 row)
+2026-11-11T07:17:46.7263760Z 
+2026-11-11T07:17:46.7300654Z  legacy_case_collision_groups 
+2026-11-11T07:17:46.7301088Z ------------------------------
+2026-11-11T07:17:46.7301427Z                             0
+2026-11-11T07:17:46.7301880Z (1 row)
+2026-11-11T07:17:46.7302042Z 
+2026-11-11T07:17:46.7302177Z  legacy_malformed_phone_count 
+2026-11-11T07:17:46.7302467Z ------------------------------
+2026-11-11T07:17:46.7302745Z                             0
+2026-11-11T07:17:46.7303013Z (1 row)
+2026-11-11T07:17:46.7303143Z 
+2026-11-11T07:17:46.7310475Z  test_identity_count 
+2026-11-11T07:17:46.7310952Z ---------------------
+2026-11-11T07:17:46.7311341Z                    0
+2026-11-11T07:17:46.7311914Z (1 row)
+2026-11-11T07:17:46.7312134Z 
+2026-11-11T07:17:46.7353866Z  purpose | status | delivery_status | count 
+2026-11-11T07:17:46.7354339Z ---------+--------+-----------------+-------
+2026-11-11T07:17:46.7354690Z (0 rows)
+2026-11-11T07:17:46.7354946Z 
+2026-11-11T07:17:46.7408218Z  test_active_sessions 
+2026-11-11T07:17:46.7409212Z ----------------------
+2026-11-11T07:17:46.7409518Z                     0
+2026-11-11T07:17:46.7409798Z (1 row)
+2026-11-11T07:17:46.7409946Z 
+2026-11-11T07:17:46.7410059Z COMMIT
+2026-11-11T07:17:46.7569515Z FLEET_NOTIFICATION_EVIDENCE
+2026-11-11T07:17:46.9139423Z BEGIN
+2026-11-11T07:17:46.9268064Z  event_type | channels | status | count 
+2026-11-11T07:17:46.9268580Z ------------+----------+--------+-------
+2026-11-11T07:17:46.9268976Z (0 rows)
+2026-11-11T07:17:46.9269136Z 
+2026-11-11T07:17:46.9362791Z  channel | status | attempts | count 
+2026-11-11T07:17:46.9363415Z ---------+--------+----------+-------
+2026-11-11T07:17:46.9363940Z (0 rows)
+2026-11-11T07:17:46.9364181Z 
+2026-11-11T07:17:46.9364376Z COMMIT
