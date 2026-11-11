@@ -26,9 +26,20 @@ try {
     if (i === 119) throw new Error('Next server did not become ready');
   }
   browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  let context = await browser.newContext();
+  let page = await context.newPage();
   page.setDefaultTimeout(30000);
+  const endSession = async () => {
+    // Stop the mounted app before revoking its session through the API. Otherwise
+    // its outstanding reads can race our next navigation with an expiry redirect.
+    await page.close();
+    const response = await context.request.post(`${origin}/fleet-partner/v1/auth/logout`, { headers: { Origin: origin } });
+    assert.equal(response.status(), 200, 'Session logout');
+    await context.close();
+    context = await browser.newContext();
+    page = await context.newPage();
+    page.setDefaultTimeout(30000);
+  };
   const otp = async () => (await (await fetch(`${api}/__test/otp`)).json()).code;
   const fillOTP = async () => {
     const code = await otp();
@@ -46,12 +57,11 @@ try {
   await fillOTP();
   await page.waitForURL(/\/setup(?:\/|$)/, { timeout: 60000 });
   checks.push('signup → real API/PostgreSQL → email OTP → identity/session → onboarding route');
+  await page.close();
   const refresh = await context.request.post(`${origin}/fleet-partner/v1/auth/refresh`, { headers: { Origin: origin } });
   assert.equal(refresh.status(), 200, 'Session refresh');
   checks.push('HttpOnly session cookie refresh through same-origin proxy');
-  await context.request.post(`${origin}/fleet-partner/v1/auth/logout`, { headers: { Origin: origin } });
-  await context.clearCookies();
-  await page.evaluate(() => localStorage.clear());
+  await endSession();
   await page.goto(`${origin}/sign-up`);
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Work email').fill('BROWSER@example.com');
@@ -66,15 +76,13 @@ try {
   for (const identifier of ['browser@example.com', '08012345678']) {
     await fetch(`${api}/__test/cooldown`, { method: 'POST' });
     await page.goto(`${origin}/sign-in`);
-  await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle');
     await page.getByLabel('Email address or phone number').fill(identifier);
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.waitForURL('**/verify?**');
     await fillOTP();
     await page.waitForURL(/\/setup(?:\/|$)/, { timeout: 60000 });
-    await context.request.post(`${origin}/fleet-partner/v1/auth/logout`, { headers: { Origin: origin } });
-    await context.clearCookies();
-    await page.evaluate(() => localStorage.clear());
+    await endSession();
   }
   checks.push('email and phone sign-in → same identity → email OTP → session → onboarding');
   await page.setViewportSize({ width: 390, height: 844 });
