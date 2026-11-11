@@ -3,13 +3,15 @@
 // step-up.
 //
 // There is no password anywhere in this package. A caller proves control of
-// an email + phone pair by entering a code that was emailed to them.
+// their registered email by entering a code. Phone association is not proof
+// of phone ownership.
 package usecases
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -59,6 +61,7 @@ var ErrMembershipNotFound = errors.New("auth: membership not found for identity"
 // InvitationAcceptor completes a staff invitation during OTP verification. It
 // is an interface for the same layering reason as MembershipReader.
 type InvitationAcceptor interface {
+	ValidateForAuthentication(ctx context.Context, tx pgx.Tx, token string, pair contact.Pair) error
 	// AcceptByToken consumes the invitation and returns the activated
 	// membership. It must be called inside the caller's transaction.
 	AcceptByToken(ctx context.Context, tx pgx.Tx, token string, identityID string, pair contact.Pair) (MembershipSummary, error)
@@ -131,14 +134,16 @@ func NewService(opts Options) *Service {
 
 // StartInput is the request to begin signup or login.
 type StartInput struct {
-	Email           string
-	Phone           string
-	InvitationToken string
-	Purpose         string
-	IPHash          string
-	UserAgentHash   string
-	RequestID       string
-	CorrelationID   string
+	Email             string
+	Identifier        string
+	ResendChallengeID string
+	Phone             string
+	InvitationToken   string
+	Purpose           string
+	IPHash            string
+	UserAgentHash     string
+	RequestID         string
+	CorrelationID     string
 	// Step-up bindings; only set for PurposeStepUp.
 	IdentityID     string
 	SessionID      string
@@ -146,8 +151,7 @@ type StartInput struct {
 	ActionClass    string
 }
 
-// StartResult is the deliberately generic response to a start request.
-// It reveals nothing about whether the account exists.
+// StartResult describes an accepted email challenge with absolute deadlines.
 type StartResult struct {
 	ChallengeID        string
 	DeliveryChannel    string
@@ -156,124 +160,200 @@ type StartResult struct {
 	ResendAfterSeconds int
 	// Absolute server deadlines keep the mobile browser countdown accurate
 	// across refreshes and background-tab timer throttling.
-	ExpiresAt          time.Time
-	ResendAvailableAt  time.Time
+	ExpiresAt         time.Time
+	ResendAvailableAt time.Time
 }
 
-// Start begins a passwordless authentication challenge.
-//
-// Both email and phone are mandatory. The response must not reveal whether
-// either contact already exists. Real OTP challenges (not fake success IDs)
-// are created for syntactically valid requests, and an identity is never
-// created until its email OTP has been verified.
+// Start is the signup-only compatibility entry point. The public handler never
+// accepts a purpose; only dedicated handlers and authenticated step-up set it.
 func (s *Service) Start(ctx context.Context, input StartInput) (StartResult, error) {
+	if input.Purpose == "" {
+		input.Purpose = models.PurposeSignUp
+	}
+	if input.InvitationToken != "" && input.Purpose == models.PurposeSignUp {
+		input.Purpose = models.PurposeStaffInvitation
+	}
 	pair, err := contact.NormalizePair(input.Email, input.Phone, s.opts.DefaultCountryCode)
 	if err != nil {
 		fields := []apperrors.FieldViolation{}
 		for _, v := range contact.Violations(input.Email, input.Phone, s.opts.DefaultCountryCode) {
 			fields = append(fields, apperrors.FieldViolation{Field: v.Field, Message: v.Message})
 		}
-		if len(fields) == 0 {
-			fields = append(fields, apperrors.FieldViolation{Field: "email", Message: "A valid email address and phone number are both required."})
-		}
 		return StartResult{}, apperrors.Validation("Enter a valid email address and phone number.", fields)
 	}
-
-	purpose := input.Purpose
-	if purpose == "" {
-		purpose = models.PurposeSignUpOrLogin
-	}
-	if input.InvitationToken != "" && purpose == models.PurposeSignUpOrLogin {
-		purpose = models.PurposeStaffInvitation
-	}
-
 	emailHash := contact.Hash(s.opts.ContactSecret, pair.EmailNormalized)
 	phoneHash := contact.Hash(s.opts.ContactSecret, pair.PhoneE164)
-
-	if err := s.enforceLimits(ctx, ratelimit.ScopeChallengeCreate, map[string]string{
-		"email": emailHash, "phone": phoneHash, "ip": input.IPHash,
-	}, ratelimit.Rule{Limit: s.opts.OTPMaxPerHour, Window: time.Hour}); err != nil {
-		s.recordSecurityEvent(ctx, models.SecurityEvent{
-			EventType: models.SecurityEventRateLimited, Severity: models.SeverityWarn,
-			EmailHash: &emailHash, PhoneHash: &phoneHash, IPHash: optional(input.IPHash),
-			RequestID: input.RequestID, CorrelationID: input.CorrelationID,
-		})
-		s.opts.Metrics.IncCounter("fleet_partner_otp_rate_limited_total", nil, 1)
+	if err := s.enforceLimits(ctx, ratelimit.ScopeChallengeCreate, map[string]string{"email": emailHash, "phone": phoneHash, "ip": input.IPHash}, ratelimit.Rule{Limit: s.opts.OTPMaxPerHour, Window: time.Hour}); err != nil {
 		return StartResult{}, err
 	}
-
-	s.opts.Metrics.IncCounter("fleet_partner_auth_start_requests_total", map[string]string{"purpose": purpose}, 1)
-
-	// Resolve the pair. Conflicting or restricted identities must not get
-	// fabricated challenges that never email a code. Deliver a real email OTP,
-	// then show a non-disclosing failure only after the email is verified.
-	// A conflict never binds the new challenge to an existing identity.
-	var identityID *string
-	existing, resolveErr := s.opts.Identities.ResolvePair(ctx, s.opts.Pool, pair.EmailNormalized, pair.PhoneE164)
-	switch {
-	case resolveErr == nil:
-		if !existing.Usable(s.opts.Now()) {
-			s.recordSecurityEvent(ctx, models.SecurityEvent{
-				EventType: models.SecurityEventSuspendedAttempt, Severity: models.SeverityWarn,
-				IdentityID: &existing.ID, EmailHash: &emailHash, PhoneHash: &phoneHash,
-				RequestID: input.RequestID, CorrelationID: input.CorrelationID,
-			})
-			// Do not disclose account status in the unauthenticated response.
-			// Verification will return ACCOUNT_UNAVAILABLE without issuing tokens.
+	var challenge *models.Challenge
+	var code string
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		// All starts and verifications lock identifiers in this order, including
+		// requests from different service replicas. No raw identifiers in locks.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0)), pg_advisory_xact_lock(hashtextextended($2,0))`, "fleet-email:"+emailHash, "fleet-phone:"+phoneHash); err != nil {
+			return err
 		}
-		identityID = &existing.ID
-	case errors.Is(resolveErr, authrepos.ErrIdentityPairConflict):
-		s.recordSecurityEvent(ctx, models.SecurityEvent{
-			EventType: models.SecurityEventIdentityPairConflict, Severity: models.SeverityCritical,
-			EmailHash: &emailHash, PhoneHash: &phoneHash, IPHash: optional(input.IPHash),
-			RequestID: input.RequestID, CorrelationID: input.CorrelationID,
-		})
-		// Do not disclose which contact matched. The OTP goes only to the
-		// supplied email; after that email is verified, return CONTACT_MISMATCH.
-		identityID = nil
-	case errors.Is(resolveErr, authrepos.ErrNotFound):
-		identityID = nil // new signup; identity is created after verification
-	default:
-		return StartResult{}, resolveErr
-	}
-
-	// A sensitive-action step-up is never an account-recovery flow. It must
-	// match the authenticated, usable identity exactly. In particular, an
-	// account conflict or suspension cannot be promoted to a step-up grant
-	// simply by verifying an OTP at an unrelated address.
-	if purpose == models.PurposeStepUp {
-		if input.IdentityID == "" || resolveErr != nil || existing == nil ||
-			existing.ID != input.IdentityID || !existing.Usable(s.opts.Now()) {
-			return StartResult{}, errorcodes.Forbidden(errorcodes.IdentitySuspended,
-				"Sensitive-action verification is unavailable. Please sign in again or contact support.")
+		if input.ResendChallengeID != "" {
+			old, err := s.opts.Challenges.LockForVerification(ctx, tx, input.ResendChallengeID)
+			if err != nil {
+				return errorcodes.Unauthorized(errorcodes.OTPChallengeNotFound, "This verification request is no longer valid.")
+			}
+			if old.Purpose != input.Purpose || old.EmailHash != emailHash || old.PhoneHash != phoneHash {
+				return errorcodes.Unauthorized(errorcodes.OTPInvalid, "Start again.")
+			}
+			if old.Status != models.ChallengeStatusPending && old.Status != models.ChallengeStatusExpired {
+				return challengeVerificationError(old, s.opts.Now())
+			}
+			if s.opts.Now().After(old.ExpiresAt.Add(30 * time.Minute)) {
+				return errorcodes.Unauthorized(errorcodes.OTPChallengeExpired, "This request has expired. Start again.")
+			}
+			if s.opts.Now().Before(old.ResendAvailableAt) {
+				return errorcodes.TooManyRequests(errorcodes.OTPResendTooSoon, "Please wait before requesting another code.")
+			}
 		}
-		identityID = &input.IdentityID
-	}
-
-	challenge, code, err := s.buildChallenge(pair, emailHash, phoneHash, purpose, identityID, input)
-	if err != nil {
-		return StartResult{}, err
-	}
-
-	if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		identityID, err := s.startEligibility(ctx, tx, pair, input)
+		if err != nil {
+			return err
+		}
+		latest, err := s.opts.Challenges.Latest(ctx, tx, emailHash, phoneHash, input.Purpose, input.SessionID, input.ActionClass)
+		if err != nil && !errors.Is(err, authrepos.ErrNotFound) {
+			return err
+		}
+		if latest != nil && s.opts.Now().Before(latest.ResendAvailableAt) {
+			if input.ResendChallengeID != "" {
+				return errorcodes.TooManyRequests(errorcodes.OTPResendTooSoon, "Please wait before requesting another code.")
+			}
+			if latest.Status == models.ChallengeStatusPending && latest.DeliveryStatus == models.DeliveryStatusAccepted {
+				challenge = latest
+				return nil
+			}
+			return errorcodes.TooManyRequests(errorcodes.OTPResendTooSoon, "Please wait before requesting another code.")
+		}
+		challenge, code, err = s.buildChallenge(pair, emailHash, phoneHash, input.Purpose, identityID, input)
+		if err != nil {
+			return err
+		}
 		return s.opts.Challenges.Create(ctx, tx, challenge)
-	}); err != nil {
+	})
+	if err != nil {
+		code := apperrors.From(err).Code
+		if code == errorcodes.EmailAlreadyRegistered || code == errorcodes.PhoneAlreadyAssociated || code == errorcodes.IdentityPairConflict {
+			s.recordSecurityEvent(ctx, models.SecurityEvent{EventType: models.SecurityEventIdentityPairConflict, Severity: models.SeverityWarn, EmailHash: &emailHash, PhoneHash: &phoneHash, IPHash: optional(input.IPHash), RequestID: input.RequestID, CorrelationID: input.CorrelationID})
+		}
 		return StartResult{}, err
 	}
+	if code != "" {
+		if err := s.deliver(ctx, challenge, code, input.Purpose); err != nil {
+			return StartResult{}, err
+		}
+	}
+	s.opts.Metrics.IncCounter("fleet_partner_auth_start_requests_total", map[string]string{"purpose": input.Purpose}, 1)
+	return s.challengeResult(challenge), nil
+}
 
-	if err := s.deliver(ctx, challenge, code, purpose); err != nil {
+func (s *Service) SignIn(ctx context.Context, input StartInput) (StartResult, error) {
+	raw := strings.TrimSpace(input.Identifier)
+	var identity *models.Identity
+	var err error
+	if err = s.enforceLimits(ctx, "sign-in-lookup", map[string]string{"identifier": contact.Hash(s.opts.ContactSecret, strings.ToLower(raw)), "ip": input.IPHash}, ratelimit.Rule{Limit: s.opts.OTPMaxPerHour, Window: time.Hour}); err != nil {
 		return StartResult{}, err
 	}
+	if strings.Contains(raw, "@") {
+		value, _, e := contact.NormalizeEmail(raw)
+		if e != nil {
+			return StartResult{}, apperrors.Validation("Enter a valid email address.", []apperrors.FieldViolation{{Field: "identifier", Message: "Enter a valid email address."}})
+		}
+		identity, err = s.opts.Identities.FindByEmail(ctx, s.opts.Pool, value)
+	} else {
+		value, _, e := contact.NormalizePhone(raw, s.opts.DefaultCountryCode)
+		if e != nil {
+			return StartResult{}, apperrors.Validation("Enter a valid phone number.", []apperrors.FieldViolation{{Field: "identifier", Message: "Enter a valid phone number with its country code."}})
+		}
+		identity, err = s.opts.Identities.FindByPhone(ctx, s.opts.Pool, value)
+	}
+	if err != nil && !errors.Is(err, authrepos.ErrNotFound) {
+		return StartResult{}, err
+	}
+	if identity == nil || !identity.Usable(s.opts.Now()) || identity.EmailVerifiedAt == nil || identity.Status != models.IdentityStatusActive {
+		if identity != nil && !identity.Usable(s.opts.Now()) {
+			s.recordSecurityEvent(ctx, models.SecurityEvent{EventType: models.SecurityEventSuspendedAttempt, Severity: models.SeverityWarn, IdentityID: &identity.ID, RequestID: input.RequestID, CorrelationID: input.CorrelationID})
+		}
+		return StartResult{}, signInUnavailable()
+	}
+	// The client never supplies the delivery email in this contract.
+	input.Email = identity.EmailNormalized
+	input.Phone = identity.PhoneE164
+	input.IdentityID = identity.ID
+	input.Purpose = models.PurposeSignIn
+	return s.Start(ctx, input)
+}
 
-	return StartResult{
-		ChallengeID:        challenge.ID,
-		DeliveryChannel:    "EMAIL",
-		MaskedDestination:  contact.MaskEmail(pair.EmailNormalized),
-		ExpiresInSeconds:   int(s.opts.OTPExpiry.Seconds()),
-		ResendAfterSeconds: int(s.opts.OTPResendCooldown.Seconds()),
-		ExpiresAt:          challenge.ExpiresAt,
-		ResendAvailableAt:  challenge.ResendAvailableAt,
-	}, nil
+func signInUnavailable() error {
+	return errorcodes.Unauthorized(errorcodes.SignInUnavailable, "We could not start sign-in with these details. Check them, create an account or contact support.")
+}
+
+func (s *Service) startEligibility(ctx context.Context, tx pgx.Tx, pair contact.Pair, input StartInput) (*string, error) {
+	if input.Purpose == models.PurposeSignUp {
+		if err := s.signupEligibility(ctx, tx, pair); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	if input.Purpose != models.PurposeSignIn && input.Purpose != models.PurposeStaffInvitation && input.Purpose != models.PurposeStepUp {
+		return nil, errorcodes.BadRequest(errorcodes.OTPInvalid, "Unsupported verification purpose. Start again.")
+	}
+	if input.Purpose == models.PurposeStaffInvitation {
+		if s.opts.Invitations == nil {
+			return nil, errorcodes.Unavailable(errorcodes.OTPDeliveryUnavailable, "Invitation authentication is temporarily unavailable.")
+		}
+		if err := s.opts.Invitations.ValidateForAuthentication(ctx, tx, input.InvitationToken, pair); err != nil {
+			return nil, err
+		}
+	}
+	identity, err := s.opts.Identities.ResolvePair(ctx, tx, pair.EmailNormalized, pair.PhoneE164)
+	if input.Purpose == models.PurposeStaffInvitation && errors.Is(err, authrepos.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		if errors.Is(err, authrepos.ErrNotFound) || errors.Is(err, authrepos.ErrIdentityPairConflict) {
+			return nil, signInUnavailable()
+		}
+		return nil, err
+	}
+	if !identity.Usable(s.opts.Now()) {
+		s.recordSecurityEvent(ctx, models.SecurityEvent{EventType: models.SecurityEventSuspendedAttempt, Severity: models.SeverityWarn, IdentityID: &identity.ID, RequestID: input.RequestID, CorrelationID: input.CorrelationID})
+		return nil, signInUnavailable()
+	}
+	if input.Purpose == models.PurposeSignIn && (identity.ID != input.IdentityID || identity.EmailVerifiedAt == nil || identity.Status != models.IdentityStatusActive) {
+		return nil, signInUnavailable()
+	}
+	if input.Purpose == models.PurposeStepUp && (identity.ID != input.IdentityID || input.SessionID == "") {
+		return nil, signInUnavailable()
+	}
+	return &identity.ID, nil
+}
+
+func (s *Service) signupEligibility(ctx context.Context, q database.Querier, pair contact.Pair) error {
+	email, err := s.opts.Identities.FindByEmail(ctx, q, pair.EmailNormalized)
+	if err != nil && !errors.Is(err, authrepos.ErrNotFound) {
+		return err
+	}
+	if email != nil {
+		return errorcodes.Conflict(errorcodes.EmailAlreadyRegistered, "This email is already registered with Karryam Fleet. Please sign in or use another email address.")
+	}
+	phone, err := s.opts.Identities.FindByPhone(ctx, q, pair.PhoneE164)
+	if err != nil && !errors.Is(err, authrepos.ErrNotFound) {
+		return err
+	}
+	if phone != nil {
+		return errorcodes.Conflict(errorcodes.PhoneAlreadyAssociated, "This phone number is already associated with a Karryam Fleet account. Use another number or contact support.")
+	}
+	return nil
+}
+
+func (s *Service) challengeResult(c *models.Challenge) StartResult {
+	return StartResult{ChallengeID: c.ID, DeliveryChannel: "EMAIL", MaskedDestination: contact.MaskEmail(c.EmailNormalized), ExpiresInSeconds: max(0, int(c.ExpiresAt.Sub(s.opts.Now()).Seconds())), ResendAfterSeconds: max(0, int(c.ResendAvailableAt.Sub(s.opts.Now()).Seconds())), ExpiresAt: c.ExpiresAt, ResendAvailableAt: c.ResendAvailableAt}
 }
 
 func (s *Service) buildChallenge(pair contact.Pair, emailHash string, phoneHash string, purpose string, identityID *string, input StartInput) (*models.Challenge, string, error) {
@@ -294,7 +374,7 @@ func (s *Service) buildChallenge(pair contact.Pair, emailHash string, phoneHash 
 		Purpose:         purpose,
 		Status:          models.ChallengeStatusPending,
 		// Keyed digest binds the code to this challenge and this phone.
-		CodeDigest:        auth.HashOTP(s.opts.OTPSecret, challengeID, pair.PhoneE164, code),
+		CodeDigest:        auth.HashOTP(s.opts.OTPSecret, challengeID, purpose+":"+pair.PhoneE164, code),
 		ExpiresAt:         now.Add(s.opts.OTPExpiry),
 		ResendAvailableAt: now.Add(s.opts.OTPResendCooldown),
 		MaximumAttempts:   s.opts.OTPMaxAttempts,
@@ -338,7 +418,9 @@ func (s *Service) deliver(ctx context.Context, challenge *models.Challenge, code
 			"We could not send your verification code right now. Please try again shortly.")
 	}
 
-	_ = s.opts.Challenges.RecordDelivery(ctx, challenge.ID, models.DeliveryStatusAccepted, reference)
+	if err := s.opts.Challenges.RecordDelivery(ctx, challenge.ID, models.DeliveryStatusAccepted, reference); err != nil {
+		return errorcodes.Unavailable(errorcodes.OTPDeliveryUnavailable, "We could not confirm your verification request. Please try again shortly.")
+	}
 	return nil
 }
 
@@ -349,9 +431,11 @@ func (s *Service) enforceLimits(ctx context.Context, scope string, keys map[stri
 		}
 		allowed, err := s.opts.Limiter.Allow(ctx, scope+":"+name, key, rule)
 		if err != nil {
-			continue // infrastructure failure must not lock everyone out
+			return errorcodes.Unavailable(errorcodes.OTPDeliveryUnavailable, "Authentication is temporarily unavailable. Please try again shortly.")
 		}
 		if !allowed {
+			s.recordSecurityEvent(ctx, models.SecurityEvent{EventType: models.SecurityEventRateLimited, Severity: models.SeverityWarn})
+			s.opts.Metrics.IncCounter("fleet_partner_otp_rate_limited_total", nil, 1)
 			return errorcodes.TooManyRequests(errorcodes.AuthenticationRateLimited,
 				"Too many attempts. Please wait before trying again.")
 		}
@@ -375,6 +459,10 @@ func optional(value string) *string {
 
 func purposeText(purpose string) string {
 	switch purpose {
+	case models.PurposeSignUp:
+		return "create your Karryam Fleet account"
+	case models.PurposeSignIn:
+		return "sign in to Karryam Fleet"
 	case models.PurposeStaffInvitation:
 		return "accept your organization invitation"
 	case models.PurposeStepUp:

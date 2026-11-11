@@ -46,8 +46,7 @@ the same transaction and bumps the role version, so access stops immediately.
 
 ## Enumeration and disclosure
 
-`/auth/start` is indistinguishable between existing, non-existent, suspended
-and conflicted accounts. Cross-tenant reads return `not_found`. Session
+Signup explicitly reports email/phone conflicts before OTP delivery, as required by Fleet policy. Sign-in returns the same `sign_in_unavailable` failure for unknown, restricted and unverified identities. Successful phone lookup shows only a masked registered email. Lookup and OTP starts are rate limited by IP and keyed normalized identifiers. The deprecated `/auth/start` is signup-only and cannot create a sign-in bypass. Cross-tenant reads return `not_found`. Session
 lookups for another identity return `not_found`. Sessions listings never
 serialize refresh hashes.
 
@@ -55,8 +54,7 @@ serialize refresh hashes.
 
 Bounded counters throttle challenge creation, verification, resend, refresh,
 organization switching and step-up. Durable per-challenge attempt limits live
-in PostgreSQL, so a Redis outage degrades throttling rather than removing the
-hard limit.
+in PostgreSQL, and a rate-limit backend failure returns service unavailable.
 
 ## Audit
 

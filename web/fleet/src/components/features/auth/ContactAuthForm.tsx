@@ -1,9 +1,10 @@
 // components/features/auth/ContactAuthForm.tsx
 //
-// Shared email + phone form for sign-up and sign-in.
+// Registration and invitation email + phone form.
 
 "use client";
 
+import Link from "next/link";
 import { Mail, Phone, ArrowRight, RotateCw } from "lucide-react";
 import { PHONE_COUNTRIES, findPhoneCountry } from "@/lib/auth/contact";
 import { useContactAuthForm } from "@/lib/hooks/useContactAuthForm";
@@ -126,6 +127,12 @@ export function ContactAuthForm({ idPrefix, invitationToken }: ContactAuthFormPr
       {showFormError && formError && (
         <div role="alert" className="rounded-lg border border-[var(--red)]/30 bg-[var(--red-bg)] px-4 py-3">
           <p className="text-[14px] text-[var(--red)]">{formError.message}</p>
+          {formError.kind === "email_registered" && (
+            <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold">
+              <Link href={`/sign-in?identifier=${encodeURIComponent(email.trim())}`} className="text-primary hover:underline">Sign In</Link>
+              <button type="button" onClick={() => { handleEmailChange(""); document.getElementById(emailId)?.focus(); }} className="text-primary hover:underline">Try Another Email</button>
+            </div>
+          )}
           {formError.retryable && formError.kind !== "rate_limited" && (
             <button
               type="button"

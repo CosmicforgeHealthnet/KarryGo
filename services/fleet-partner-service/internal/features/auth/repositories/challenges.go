@@ -61,6 +61,12 @@ func (r *ChallengeRepository) Create(ctx context.Context, q database.Querier, ch
 	return nil
 }
 
+// Latest is read under the caller's per-contact advisory transaction locks.
+func (r *ChallengeRepository) Latest(ctx context.Context, q database.Querier, emailHash, phoneHash, purpose, sessionID, actionClass string) (*models.Challenge, error) {
+	return scanChallenge(q.QueryRow(ctx, `SELECT `+challengeColumns+` FROM fleet_partner_auth_otp_challenges
+ WHERE email_hash=$1 AND phone_hash=$2 AND purpose=$3 AND COALESCE(session_id,'')=$4 AND COALESCE(action_class,'')=$5 ORDER BY created_at DESC LIMIT 1`, emailHash, phoneHash, purpose, sessionID, actionClass))
+}
+
 // GetByID loads one challenge without locking.
 func (r *ChallengeRepository) GetByID(ctx context.Context, challengeID string) (*models.Challenge, error) {
 	row := r.db.QueryRow(ctx, `SELECT `+challengeColumns+`
@@ -85,7 +91,7 @@ func (r *ChallengeRepository) RecordFailedAttempt(ctx context.Context, q databas
 			failed_attempts = failed_attempts + 1,
 			status = CASE WHEN failed_attempts + 1 >= maximum_attempts THEN 'LOCKED' ELSE status END,
 			updated_at = now()
-		WHERE id = $1`, challengeID)
+		WHERE id = $1 AND status = 'PENDING'`, challengeID)
 	if err != nil {
 		return fmt.Errorf("auth: record failed attempt: %w", err)
 	}

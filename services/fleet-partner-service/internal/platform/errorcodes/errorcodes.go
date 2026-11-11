@@ -13,6 +13,9 @@ import (
 
 // Authentication codes.
 const (
+	EmailAlreadyRegistered        apperrors.Code = "email_already_registered"
+	PhoneAlreadyAssociated        apperrors.Code = "phone_already_associated"
+	SignInUnavailable             apperrors.Code = "sign_in_unavailable"
 	OTPDeliveryUnavailable        apperrors.Code = "otp_delivery_unavailable"
 	OTPChallengeNotFound          apperrors.Code = "otp_challenge_not_found"
 	OTPChallengeExpired           apperrors.Code = "otp_challenge_expired"

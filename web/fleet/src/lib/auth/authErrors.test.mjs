@@ -61,3 +61,11 @@ test("a rejection with no request id in the body falls back to the response head
   });
   assert.equal(bodyWins.requestId, "body-1");
 });
+
+
+test("v2 duplicate and unavailable identifiers have actionable structured errors", () => {
+  assert.equal(classifyAuthError(http(409, { code: "email_already_registered" })).kind, "email_registered");
+  assert.equal(classifyAuthError(http(409, { code: "phone_already_associated" })).kind, "phone_associated");
+  assert.equal(classifyAuthError(http(401, { code: "sign_in_unavailable" })).kind, "sign_in_unavailable");
+  assert.equal(classifyAuthError(http(409, { code: "email_already_registered" })).retryable, false);
+});

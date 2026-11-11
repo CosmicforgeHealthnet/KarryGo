@@ -50,11 +50,11 @@ const identityColumns = `id, email_normalized, email_display, phone_e164, phone_
 // would let someone claim another person's identity by supplying a known
 // email with their own phone (or vice versa).
 func (r *IdentityRepository) ResolvePair(ctx context.Context, q database.Querier, emailNormalized string, phoneE164 string) (*models.Identity, error) {
-	byEmail, err := r.findBy(ctx, q, "email_normalized", emailNormalized)
+	byEmail, err := r.FindByEmail(ctx, q, emailNormalized)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
-	byPhone, err := r.findBy(ctx, q, "phone_e164", phoneE164)
+	byPhone, err := r.FindByPhone(ctx, q, phoneE164)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
@@ -67,6 +67,23 @@ func (r *IdentityRepository) ResolvePair(ctx context.Context, q database.Querier
 	default:
 		return nil, ErrIdentityPairConflict
 	}
+}
+
+// FindByEmail includes archived identities so registration applies account policy.
+func (r *IdentityRepository) FindByEmail(ctx context.Context, q database.Querier, value string) (*models.Identity, error) {
+	if q == nil {
+		q = r.db
+	}
+	return scanIdentity(q.QueryRow(ctx, `SELECT `+identityColumns+` FROM fleet_partner_corporate_identities
+ WHERE lower(email_normalized) = lower($1) ORDER BY (status = 'ARCHIVED'), created_at DESC LIMIT 1`, value))
+}
+
+func (r *IdentityRepository) FindByPhone(ctx context.Context, q database.Querier, value string) (*models.Identity, error) {
+	if q == nil {
+		q = r.db
+	}
+	return scanIdentity(q.QueryRow(ctx, `SELECT `+identityColumns+` FROM fleet_partner_corporate_identities
+ WHERE phone_e164 = $1 ORDER BY (status = 'ARCHIVED'), created_at DESC LIMIT 1`, value))
 }
 
 func (r *IdentityRepository) findBy(ctx context.Context, q database.Querier, column string, value string) (*models.Identity, error) {

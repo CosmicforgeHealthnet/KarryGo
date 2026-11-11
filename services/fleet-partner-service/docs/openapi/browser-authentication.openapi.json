@@ -2,13 +2,13 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Fleet Corporate Browser Authentication",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "Focused browser auth contract supplement. Existing request DTOs remain authoritative; no JSON refresh credential accepted/returned. SameSite deployment policy must match trusted origins. Cookie Path: /fleet-partner/v1/auth"
   },
   "paths": {
     "/fleet-partner/v1/auth/start": {
       "post": {
-        "summary": "start",
+        "summary": "Deprecated signup-only alias; no existing-account login",
         "parameters": [
           {
             "in": "header",
@@ -23,7 +23,62 @@
         "security": [],
         "responses": {
           "202": {
-            "description": "Existing non-secret auth response."
+            "description": "Notification Service accepted email request; actual inbox delivery is asynchronous.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "challengeId",
+                        "maskedDestination",
+                        "expiresAt",
+                        "resendAvailableAt"
+                      ],
+                      "properties": {
+                        "challengeId": {
+                          "type": "string"
+                        },
+                        "deliveryChannel": {
+                          "type": "string",
+                          "enum": [
+                            "EMAIL"
+                          ]
+                        },
+                        "deliveryStatus": {
+                          "type": "string",
+                          "enum": [
+                            "ACCEPTED"
+                          ]
+                        },
+                        "maskedDestination": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "resendAvailableAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        },
+                        "resendAfterSeconds": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Missing, invalid, revoked, expired or replayed session credential."
@@ -36,8 +91,42 @@
           },
           "503": {
             "description": "Authentication dependency unavailable."
+          },
+          "409": {
+            "description": "email_already_registered or phone_already_associated; zero OTP generation/delivery"
+          },
+          "422": {
+            "description": "Field-specific validation_failed"
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "phone"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9][0-9]{7,14}$"
+                  },
+                  "invitationToken": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
       }
     },
     "/fleet-partner/v1/auth/verify": {
@@ -348,6 +437,302 @@
           },
           "503": {
             "description": "Authentication dependency unavailable."
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/sign-up/start": {
+      "post": {
+        "summary": "Register a new identity; reject email/phone conflicts before sending email OTP",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Notification Service accepted email request; actual inbox delivery is asynchronous.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "challengeId",
+                        "maskedDestination",
+                        "expiresAt",
+                        "resendAvailableAt"
+                      ],
+                      "properties": {
+                        "challengeId": {
+                          "type": "string"
+                        },
+                        "deliveryChannel": {
+                          "type": "string",
+                          "enum": [
+                            "EMAIL"
+                          ]
+                        },
+                        "deliveryStatus": {
+                          "type": "string",
+                          "enum": [
+                            "ACCEPTED"
+                          ]
+                        },
+                        "maskedDestination": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "resendAvailableAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        },
+                        "resendAfterSeconds": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          },
+          "409": {
+            "description": "email_already_registered or phone_already_associated; zero OTP generation/delivery"
+          },
+          "422": {
+            "description": "Field-specific validation_failed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "phone"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9][0-9]{7,14}$"
+                  },
+                  "invitationToken": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/sign-in/start": {
+      "post": {
+        "summary": "Sign in by email or phone; deliver only to existing verified registered email",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Notification Service accepted email request; actual inbox delivery is asynchronous.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "challengeId",
+                        "maskedDestination",
+                        "expiresAt",
+                        "resendAvailableAt"
+                      ],
+                      "properties": {
+                        "challengeId": {
+                          "type": "string"
+                        },
+                        "deliveryChannel": {
+                          "type": "string",
+                          "enum": [
+                            "EMAIL"
+                          ]
+                        },
+                        "deliveryStatus": {
+                          "type": "string",
+                          "enum": [
+                            "ACCEPTED"
+                          ]
+                        },
+                        "maskedDestination": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "resendAvailableAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        },
+                        "resendAfterSeconds": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "sign_in_unavailable: same response for unknown, restricted and unverified identities; no OTP delivered"
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          },
+          "422": {
+            "description": "Field-specific validation_failed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "identifier"
+                ],
+                "properties": {
+                  "identifier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fleet-partner/v1/auth/phone/change": {
+      "post": {
+        "summary": "Change associated phone using a single-use, session-bound email step-up grant",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured trusted web origin."
+          }
+        ],
+        "security": [
+          {
+            "BearerAccess": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Existing non-secret auth response."
+          },
+          "401": {
+            "description": "Missing, invalid, revoked, expired or replayed session credential."
+          },
+          "403": {
+            "description": "Missing or untrusted browser Origin."
+          },
+          "429": {
+            "description": "Existing auth abuse limits."
+          },
+          "503": {
+            "description": "Authentication dependency unavailable."
+          },
+          "409": {
+            "description": "phone_already_associated; no association changed"
+          }
+        },
+        "description": "Start step-up with actionClass phone_change:<E.164>, verify its emailed code, then submit this request in the same session/organization. This associates a phone and never claims SMS verification.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "stepUpReference"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string"
+                  },
+                  "stepUpReference": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
         }
       }

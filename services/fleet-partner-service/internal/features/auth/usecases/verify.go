@@ -3,9 +3,11 @@ package usecases
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"cosmicforge/logistics/shared/go/auth"
 
@@ -27,8 +29,8 @@ const (
 	NextStepStepUpGranted         = "STEP_UP_GRANTED"
 	// Safe outcomes visible only after the user proves control of the email.
 	// Neither outcome creates an identity or issues authentication tokens.
-	NextStepContactMismatch       = "CONTACT_MISMATCH"
-	NextStepAccountUnavailable    = "ACCOUNT_UNAVAILABLE"
+	NextStepContactMismatch    = "CONTACT_MISMATCH"
+	NextStepAccountUnavailable = "ACCOUNT_UNAVAILABLE"
 )
 
 // VerifyInput is a code submission.
@@ -82,8 +84,18 @@ func (s *Service) Verify(ctx context.Context, input VerifyInput) (VerifyResult, 
 	// failedChallenge is set when the code was wrong; the attempt is recorded
 	// after the transaction rolls back.
 	var failedChallenge *models.Challenge
+	snapshot, err := s.opts.Challenges.GetByID(ctx, input.ChallengeID)
+	if err != nil {
+		if errors.Is(err, authrepos.ErrNotFound) {
+			return VerifyResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeNotFound, "This verification request is no longer valid.")
+		}
+		return VerifyResult{}, err
+	}
 
-	err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0)), pg_advisory_xact_lock(hashtextextended($2,0))`, "fleet-email:"+snapshot.EmailHash, "fleet-phone:"+snapshot.PhoneHash); err != nil {
+			return err
+		}
 		challenge, err := s.opts.Challenges.LockForVerification(ctx, tx, input.ChallengeID)
 		if err != nil {
 			if errors.Is(err, authrepos.ErrNotFound) {
@@ -97,8 +109,11 @@ func (s *Service) Verify(ctx context.Context, input VerifyInput) (VerifyResult, 
 			return err
 		}
 
+		if challenge.DeliveryStatus != models.DeliveryStatusAccepted {
+			return errorcodes.Unavailable(errorcodes.OTPDeliveryUnavailable, "Request a new verification code.")
+		}
 		// Constant-time comparison of the keyed digest.
-		if !auth.VerifyOTP(s.opts.OTPSecret, challenge.ID, challenge.PhoneE164, input.Code, challenge.CodeDigest) {
+		if !auth.VerifyOTP(s.opts.OTPSecret, challenge.ID, challenge.Purpose+":"+challenge.PhoneE164, input.Code, challenge.CodeDigest) {
 			// Returning an error from this function rolls the transaction
 			// back, so the attempt counter must be persisted OUTSIDE it —
 			// otherwise a wrong code would never consume an attempt and the
@@ -159,27 +174,19 @@ func (s *Service) completeVerification(ctx context.Context, tx pgx.Tx, challenge
 	// Step-up: no new session; grant a short-lived reference bound to the
 	// originating session, organization and action class.
 	if challenge.Purpose == models.PurposeStepUp {
+		if _, err := s.startEligibility(ctx, tx, pair, StartInput{Purpose: models.PurposeStepUp, IdentityID: derefString(challenge.IdentityID), SessionID: derefString(challenge.SessionID)}); err != nil {
+			return VerifyResult{}, err
+		}
+		session, err := s.opts.Sessions.LockByID(ctx, tx, derefString(challenge.SessionID))
+		if err != nil || validateOrganizationSource(session, derefString(challenge.IdentityID), s.opts.Now()) != nil {
+			return VerifyResult{}, signInUnavailable()
+		}
 		return VerifyResult{
 			NextStep:        NextStepStepUpGranted,
 			IdentityID:      derefString(challenge.IdentityID),
 			StepUpReference: challenge.ID,
 			StepUpExpiresAt: s.opts.Now().Add(s.opts.StepUpTTL),
 		}, nil
-	}
-
-	// Start intentionally returns the same 202 response regardless of
-	// whether either contact was already registered. After successful email
-	// verification we can safely tell the requester that the pair cannot be
-	// used, without disclosing which contact matched or granting a session.
-	// Recheck inside the locked challenge transaction: identity state may
-	// have changed between OTP creation and verification.
-	existing, pairErr := s.opts.Identities.ResolvePair(ctx, tx, pair.EmailNormalized, pair.PhoneE164)
-	outcome, gateErr := verifiedPairOutcome(existing, pairErr, s.opts.Now())
-	if gateErr != nil {
-		return VerifyResult{}, gateErr
-	}
-	if outcome != "" {
-		return VerifyResult{NextStep: outcome}, nil
 	}
 
 	identity, err := s.resolveOrCreateIdentity(ctx, tx, challenge, pair)
@@ -238,6 +245,32 @@ func (s *Service) completeVerification(ctx context.Context, tx pgx.Tx, challenge
 }
 
 func (s *Service) resolveOrCreateIdentity(ctx context.Context, tx pgx.Tx, challenge *models.Challenge, pair contact.Pair) (*models.Identity, error) {
+	if challenge.Purpose == models.PurposeSignUp {
+		if err := s.signupEligibility(ctx, tx, pair); err != nil {
+			return nil, err
+		}
+	} else if challenge.Purpose == models.PurposeSignIn {
+		if challenge.IdentityID == nil {
+			return nil, signInUnavailable()
+		}
+		identity, err := s.opts.Identities.GetByIDUsing(ctx, tx, *challenge.IdentityID)
+		if err != nil {
+			if errors.Is(err, authrepos.ErrNotFound) {
+				return nil, signInUnavailable()
+			}
+			return nil, err
+		}
+		if !identity.Usable(s.opts.Now()) || identity.Status != models.IdentityStatusActive || identity.EmailVerifiedAt == nil ||
+			!strings.EqualFold(identity.EmailNormalized, pair.EmailNormalized) || identity.PhoneE164 != pair.PhoneE164 {
+			return nil, signInUnavailable()
+		}
+		if err := s.opts.Identities.MarkContactVerified(ctx, tx, identity.ID, identity.Version); err != nil {
+			return nil, err
+		}
+		return identity, nil
+	} else if challenge.Purpose != models.PurposeStaffInvitation {
+		return nil, errorcodes.Unauthorized(errorcodes.OTPInvalid, "Start a new verification request.")
+	}
 	existing, err := s.opts.Identities.ResolvePair(ctx, tx, pair.EmailNormalized, pair.PhoneE164)
 	switch {
 	case err == nil:
@@ -263,6 +296,13 @@ func (s *Service) resolveOrCreateIdentity(ctx context.Context, tx pgx.Tx, challe
 			Status:          models.IdentityStatusPending,
 		}
 		if err := s.opts.Identities.Create(ctx, tx, identity); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				if strings.Contains(pgErr.ConstraintName, "email") {
+					return nil, errorcodes.Conflict(errorcodes.EmailAlreadyRegistered, "This email is already registered with Karryam Fleet. Please sign in or use another email address.")
+				}
+				return nil, errorcodes.Conflict(errorcodes.PhoneAlreadyAssociated, "This phone number is already associated with a Karryam Fleet account. Use another number or contact support.")
+			}
 			return nil, err
 		}
 		if err := s.opts.Identities.MarkContactVerified(ctx, tx, identity.ID, 1); err != nil {
@@ -275,7 +315,6 @@ func (s *Service) resolveOrCreateIdentity(ctx context.Context, tx pgx.Tx, challe
 		return nil, err
 	}
 }
-
 
 // verifiedPairOutcome decides whether an email-verified user can proceed
 // without revealing which of the two contact fields caused a mismatch.

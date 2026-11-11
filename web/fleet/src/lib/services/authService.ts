@@ -20,7 +20,12 @@ interface Envelope<T> {
 
 export const authService = {
   async startOTP(data: StartOTPRequest): Promise<StartOTPResponse> {
-    const response = await apiClient.post<Envelope<StartOTPResponse>>('/auth/start', data);
+    const response = await apiClient.post<Envelope<StartOTPResponse>>('/auth/sign-up/start', data);
+    return response.data.data;
+  },
+
+  async signIn(identifier: string): Promise<StartOTPResponse> {
+    const response = await apiClient.post<Envelope<StartOTPResponse>>('/auth/sign-in/start', { identifier });
     return response.data.data;
   },
 

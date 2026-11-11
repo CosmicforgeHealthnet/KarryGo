@@ -253,13 +253,10 @@ func replayMigrationTip(t *testing.T) string {
 	return strings.TrimSuffix(filepath.Base(paths[len(paths)-1]), ".up.sql")
 }
 
-func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
+func TestMigrationReplay_InvestigationSubjectsRollbackAndReapply(t *testing.T) {
 	pool := isolatedTestDatabase(t, "fleet_partner_s30_replay_current_tip")
 	ctx := context.Background()
-	if replayMigrationTip(t) != "000084_admin_investigation_subjects" {
-		t.Fatal("review latest migration object/retention assertions for the new tip")
-	}
-	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000084"); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []string{"fleet_partner_admin_investigations", "fleet_partner_admin_investigation_history", "admin_owner_command_decisions", "fleet_partner_provider_offer_decision_receipts", "admin_owner_context_heads", "admin_owner_context_history", "fleet_partner_managed_provider_members", "fleet_partner_completed_work_records"} {
@@ -289,7 +286,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 			t.Fatalf("rollback removed earlier source object %s", table)
 		}
 	}
-	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000084"); err != nil {
 		t.Fatal(err)
 	}
 	if !tableExists(t, pool, "fleet_partner_admin_investigations") || !columnExists(t, pool, "fleet_partner_admin_investigations", "organization_subject_id") {
@@ -307,7 +304,47 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 		t.Fatal("rollback erased immutable investigation evidence")
 	}
 	current := appliedMigrationVersions(t, pool)
-	if current[len(current)-1] != replayMigrationTip(t) || !tableExists(t, pool, "fleet_partner_admin_investigations") {
+	if current[len(current)-1] != "000084_admin_investigation_subjects" || !tableExists(t, pool, "fleet_partner_admin_investigations") {
 		t.Fatal("refused retention rollback changed source schema or ledger")
 	}
+}
+
+func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
+	pool := isolatedTestDatabase(t, "fleet_partner_s30_auth_v2_tip")
+	ctx := context.Background()
+	if replayMigrationTip(t) != "000085_auth_v2" {
+		t.Fatal("review latest migration object/retention assertions for the new tip")
+	}
+	if err := database.ApplyMigrationsUpTo(ctx, pool, migrationsDir, "000084"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO fleet_partner_auth_otp_challenges(id,email_normalized,email_hash,phone_e164,phone_hash,purpose,status,code_digest,expires_at) VALUES('legacy-test','legacy@example.com','email-hash','+2348012345678','phone-hash','SIGN_UP_OR_LOGIN','PENDING','opaque-digest',now()+interval '1 hour')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	check := func(wantIndex bool) {
+		t.Helper()
+		var status string
+		var exists bool
+		if err := pool.QueryRow(ctx, `SELECT status FROM fleet_partner_auth_otp_challenges WHERE id='legacy-test'`).Scan(&status); err != nil || status != "SUPERSEDED" {
+			t.Fatal("legacy challenge lost or resurrected", err)
+		}
+		if err := pool.QueryRow(ctx, `SELECT to_regclass('uq_fleet_partner_identity_email_lower') IS NOT NULL`).Scan(&exists); err != nil || exists != wantIndex {
+			t.Fatal("case-insensitive index state", err)
+		}
+		if !tableExists(t, pool, "fleet_partner_corporate_identities") || !tableExists(t, pool, "fleet_partner_admin_investigations") || !columnExists(t, pool, "fleet_partner_admin_investigations", "organization_subject_id") {
+			t.Fatal("existing schema removed")
+		}
+	}
+	check(true)
+	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	check(false)
+	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	check(true)
 }

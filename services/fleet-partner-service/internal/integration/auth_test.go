@@ -55,7 +55,7 @@ func (s *stubMemberships) GetForIdentity(_ context.Context, _ string, membership
 	return authusecases.MembershipSummary{}, authusecases.ErrMembershipNotFound
 }
 
-func newAuthHarness(t *testing.T, memberships *stubMemberships) *authHarness {
+func newAuthHarness(t *testing.T, memberships *stubMemberships, customize ...func(*authusecases.Options)) *authHarness {
 	t.Helper()
 	pool := testPool(t)
 	sender := authclients.NewFakeSender()
@@ -63,7 +63,7 @@ func newAuthHarness(t *testing.T, memberships *stubMemberships) *authHarness {
 		memberships = &stubMemberships{}
 	}
 
-	service := authusecases.NewService(authusecases.Options{
+	opts := authusecases.Options{
 		Pool:               pool,
 		Identities:         authrepos.NewIdentityRepository(pool),
 		Challenges:         authrepos.NewChallengeRepository(pool),
@@ -86,7 +86,11 @@ func newAuthHarness(t *testing.T, memberships *stubMemberships) *authHarness {
 		RefreshTokenTTL:    72 * time.Hour,
 		StepUpTTL:          5 * time.Minute,
 		DefaultCountryCode: "234",
-	})
+	}
+	for _, configure := range customize {
+		configure(&opts)
+	}
+	service := authusecases.NewService(opts)
 	return &authHarness{
 		service: service, sender: sender, pool: pool,
 		events:      authrepos.NewSecurityEventRepository(pool),
@@ -144,7 +148,13 @@ func TestPasswordlessSignupAndLogin(t *testing.T) {
 	}
 
 	// Existing owner logs in with the same pair; no second identity appears.
-	secondChallenge, secondCode := h.startAndCode(t, "owner@example.com", "+2348012345678")
+	login, err := h.service.SignIn(ctx, authusecases.StartInput{Identifier: "owner@example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondChallenge := login.ChallengeID
+	msg, _ := h.sender.LastOTP()
+	secondCode := msg.Code
 	secondResult, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: secondChallenge, Code: secondCode})
 	if err != nil {
 		t.Fatalf("login Verify() error = %v", err)
@@ -197,10 +207,10 @@ func TestOTPIsNeverStoredRawAndNeverReturned(t *testing.T) {
 		t.Fatal("the raw OTP must never be stored")
 	}
 	// The digest must be the keyed HMAC, verifiable only with the pepper.
-	if !auth.VerifyOTP([]byte("test-otp-pepper"), result.ChallengeID, "+2348012345679", message.Code, digest) {
+	if !auth.VerifyOTP([]byte("test-otp-pepper"), result.ChallengeID, authmodels.PurposeSignUp+":+2348012345679", message.Code, digest) {
 		t.Fatal("stored digest is not the expected keyed HMAC")
 	}
-	if auth.VerifyOTP([]byte("wrong-pepper"), result.ChallengeID, "+2348012345679", message.Code, digest) {
+	if auth.VerifyOTP([]byte("wrong-pepper"), result.ChallengeID, authmodels.PurposeSignUp+":+2348012345679", message.Code, digest) {
 		t.Fatal("digest must depend on the server pepper")
 	}
 }
@@ -277,7 +287,8 @@ func TestResendCooldownAndInvalidation(t *testing.T) {
 		challengeID); err != nil {
 		t.Fatalf("clear cooldown: %v", err)
 	}
-	if _, err := h.service.Resend(ctx, authusecases.ResendInput{ChallengeID: challengeID}); err != nil {
+	resent, err := h.service.Resend(ctx, authusecases.ResendInput{ChallengeID: challengeID})
+	if err != nil {
 		t.Fatalf("Resend: %v", err)
 	}
 	message, _ := h.sender.LastOTP()
@@ -289,7 +300,7 @@ func TestResendCooldownAndInvalidation(t *testing.T) {
 		t.Fatal("the superseded code must not verify")
 	}
 	// The new code works.
-	if _, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: challengeID, Code: message.Code}); err != nil {
+	if _, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: resent.ChallengeID, Code: message.Code}); err != nil {
 		t.Fatalf("new code must verify: %v", err)
 	}
 }
@@ -330,65 +341,32 @@ func TestConcurrentVerificationSingleWinner(t *testing.T) {
 func TestIdentityPairConflict(t *testing.T) {
 	h := newAuthHarness(t, nil)
 	ctx := context.Background()
-
-	// Two separate identities.
-	firstChallenge, firstCode := h.startAndCode(t, "first@example.com", "08011111111")
-	if _, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: firstChallenge, Code: firstCode}); err != nil {
-		t.Fatalf("first verify: %v", err)
+	id, code := h.startAndCode(t, "owner@example.com", "08012345690")
+	if _, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: id, Code: code}); err != nil {
+		t.Fatal(err)
 	}
-	secondChallenge, secondCode := h.startAndCode(t, "second@example.com", "08022222222")
-	if _, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: secondChallenge, Code: secondCode}); err != nil {
-		t.Fatalf("second verify: %v", err)
+	before := h.sender.OTPCount()
+	for _, pair := range []authusecases.StartInput{{Email: "owner@example.com", Phone: "08012345690"}, {Email: "OWNER@example.com", Phone: "08012345691"}, {Email: "new@example.com", Phone: "08012345690"}} {
+		if _, err := h.service.Start(ctx, pair); err == nil {
+			t.Fatal("duplicate signup accepted")
+		}
 	}
-
-	// Mixing the halves is a conflict. Start still returns generically.
-	result, err := h.service.Start(ctx, authusecases.StartInput{
-		Email: "first@example.com", Phone: "08022222222",
-	})
-	if err != nil {
-		t.Fatalf("Start on conflict must stay generic, got %v", err)
-	}
-	if result.ChallengeID == "" || result.MaskedDestination == "" {
-		t.Fatal("generic response must still look like a normal start")
-	}
-	count, _ := h.events.CountByType(ctx, authmodels.SecurityEventIdentityPairConflict)
-	if count == 0 {
-		t.Fatal("identity pair conflict must be recorded as a security event")
+	if h.sender.OTPCount() != before {
+		t.Fatal("duplicate signup delivered OTP")
 	}
 }
 
 func TestStartIsEnumerationSafe(t *testing.T) {
 	h := newAuthHarness(t, nil)
 	ctx := context.Background()
-
-	// Unknown account.
-	unknown, err := h.service.Start(ctx, authusecases.StartInput{
-		Email: "nobody@example.com", Phone: "08033333333",
-	})
-	if err != nil {
-		t.Fatalf("Start unknown: %v", err)
+	for _, identifier := range []string{"unknown@example.com", "+2348012345678"} {
+		_, err := h.service.SignIn(ctx, authusecases.StartInput{Identifier: identifier})
+		if apperrors.From(err).Code != errorcodes.SignInUnavailable {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
-
-	// Known account.
-	knownChallenge, knownCode := h.startAndCode(t, "known@example.com", "08044444444")
-	if _, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: knownChallenge, Code: knownCode}); err != nil {
-		t.Fatalf("verify known: %v", err)
-	}
-	known, err := h.service.Start(ctx, authusecases.StartInput{
-		Email: "known@example.com", Phone: "08044444444",
-	})
-	if err != nil {
-		t.Fatalf("Start known: %v", err)
-	}
-
-	// Both responses have the same shape and fields.
-	if unknown.DeliveryChannel != known.DeliveryChannel ||
-		unknown.ExpiresInSeconds != known.ExpiresInSeconds ||
-		unknown.ResendAfterSeconds != known.ResendAfterSeconds {
-		t.Fatal("start responses must be indistinguishable between known and unknown accounts")
-	}
-	if unknown.ChallengeID == "" || known.ChallengeID == "" {
-		t.Fatal("both responses must carry a challenge id")
+	if h.sender.OTPCount() != 0 {
+		t.Fatal("unknown identifier delivered OTP")
 	}
 }
 
@@ -475,32 +453,23 @@ func TestLogoutIsIdempotent(t *testing.T) {
 func TestSuspendedIdentityCannotAuthenticate(t *testing.T) {
 	h := newAuthHarness(t, nil)
 	ctx := context.Background()
-	challengeID, code := h.startAndCode(t, "suspended@example.com", "08088888888")
-	result, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: challengeID, Code: code})
+	id, code := h.startAndCode(t, "suspended@example.com", "08012345692")
+	result, err := h.service.Verify(ctx, authusecases.VerifyInput{ChallengeID: id, Code: code})
 	if err != nil {
-		t.Fatalf("verify: %v", err)
+		t.Fatal(err)
 	}
-
-	if _, err := h.pool.Exec(ctx,
-		`UPDATE fleet_partner_corporate_identities SET status = 'SUSPENDED' WHERE id = $1`,
-		result.IdentityID); err != nil {
-		t.Fatalf("suspend identity: %v", err)
+	_, err = h.pool.Exec(ctx, `UPDATE fleet_partner_corporate_identities SET status='SUSPENDED' WHERE id=$1`, result.IdentityID)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Refresh is refused.
-	_, err = h.service.Refresh(ctx, authusecases.RefreshInput{RefreshToken: result.Tokens.RefreshToken})
-	if apperrors.From(err).Code != errorcodes.IdentitySuspended {
-		t.Fatalf("suspended refresh error = %v, want identity_suspended", err)
-	}
-	// Start stays generic and sends no OTP.
 	before := h.sender.OTPCount()
-	if _, err := h.service.Start(ctx, authusecases.StartInput{
-		Email: "suspended@example.com", Phone: "08088888888",
-	}); err != nil {
-		t.Fatalf("start for suspended identity must stay generic: %v", err)
+	for _, identifier := range []string{"suspended@example.com", "+2348012345692"} {
+		if _, err := h.service.SignIn(ctx, authusecases.StartInput{Identifier: identifier}); apperrors.From(err).Code != errorcodes.SignInUnavailable {
+			t.Fatalf("suspended login: %v", err)
+		}
 	}
 	if h.sender.OTPCount() != before {
-		t.Fatal("no OTP may be sent to a suspended identity")
+		t.Fatal("restricted login delivered OTP")
 	}
 }
 

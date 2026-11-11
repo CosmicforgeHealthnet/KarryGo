@@ -44,75 +44,9 @@ func (s *Service) Resend(ctx context.Context, input ResendInput) (StartResult, e
 		}
 		return StartResult{}, err
 	}
-
-	now := s.opts.Now()
-	// A replaced or consumed challenge cannot be resurrected; the user must
-	// start from the current sign-in flow instead of mailing codes for an old ID.
-	switch challenge.Status {
-	case models.ChallengeStatusSuperseded:
-		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeSuperseded,
-			"A newer verification request replaced this one. Start again.")
-	case models.ChallengeStatusConsumed, models.ChallengeStatusVerified:
-		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeConsumed,
-			"This verification request has already been used. Start again.")
-	case models.ChallengeStatusLocked:
-		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPAttemptLimitExceeded,
-			"Too many incorrect attempts. Start again.")
-	case models.ChallengeStatusPending, models.ChallengeStatusExpired:
-		// Accepted states, handled below.
-	default:
-		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeExpired,
-			"This verification request is no longer valid. Start again.")
-	}
-	if now.Before(challenge.ResendAvailableAt) {
-		return StartResult{}, errorcodes.TooManyRequests(errorcodes.OTPResendTooSoon,
-			"Please wait before requesting another code.")
-	}
-	// An expired normal signup/sign-in challenge can be recovered without
-	// sending its now-invalid digest again. Start creates a NEW challenge ID
-	// and enforces per-email, per-phone and per-IP OTP limits. Never recover
-	// an expired invitation/step-up challenge or an old shared link.
-	if challenge.Status == models.ChallengeStatusExpired || !now.Before(challenge.ExpiresAt) {
-		if challenge.Purpose != models.PurposeSignUpOrLogin ||
-			now.After(challenge.ExpiresAt.Add(30*time.Minute)) {
-			return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeExpired,
-				"This verification request has expired. Start again.")
-		}
-		return s.Start(ctx, StartInput{
-			Email: challenge.EmailNormalized, Phone: challenge.PhoneE164,
-			IPHash: input.IPHash, RequestID: input.RequestID, CorrelationID: input.CorrelationID,
-		})
-	}
-
-	code, err := auth.GenerateNumericOTP(s.opts.OTPLength)
-	if err != nil {
-		return StartResult{}, err
-	}
-	// Rotating the digest invalidates the previous code immediately.
-	digest := auth.HashOTP(s.opts.OTPSecret, challenge.ID, challenge.PhoneE164, code)
-	expiresAt := now.Add(s.opts.OTPExpiry)
-	resendAt := now.Add(s.opts.OTPResendCooldown)
-
-	if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		return s.opts.Challenges.Rotate(ctx, tx, challenge.ID, digest, expiresAt, resendAt)
-	}); err != nil {
-		return StartResult{}, errorcodes.Unauthorized(errorcodes.OTPChallengeExpired, "This verification request is no longer valid.")
-	}
-
-	challenge.ExpiresAt = expiresAt
-	if err := s.deliver(ctx, challenge, code, challenge.Purpose); err != nil {
-		return StartResult{}, err
-	}
-
-	return StartResult{
-		ChallengeID:        challenge.ID,
-		DeliveryChannel:    "EMAIL",
-		MaskedDestination:  maskStored(challenge.EmailNormalized),
-		ExpiresInSeconds:   int(s.opts.OTPExpiry.Seconds()),
-		ResendAfterSeconds: int(s.opts.OTPResendCooldown.Seconds()),
-		ExpiresAt:          expiresAt,
-		ResendAvailableAt:  resendAt,
-	}, nil
+	return s.Start(ctx, StartInput{Email: challenge.EmailNormalized, Phone: challenge.PhoneE164, Purpose: challenge.Purpose,
+		IdentityID: derefString(challenge.IdentityID), SessionID: derefString(challenge.SessionID), OrganizationID: derefString(challenge.OrganizationID), ActionClass: derefString(challenge.ActionClass), InvitationToken: derefString(challenge.InvitationID),
+		ResendChallengeID: challenge.ID, IPHash: input.IPHash, RequestID: input.RequestID, CorrelationID: input.CorrelationID})
 }
 
 // RefreshInput presents an opaque refresh token.

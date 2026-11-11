@@ -7,6 +7,9 @@
 // Kept free of imports so it can be unit-tested with Node's built-in runner.
 
 export type AuthErrorKind =
+  | "email_registered"
+  | "phone_associated"
+  | "sign_in_unavailable"
   | "invalid_email"
   | "missing_email"
   | "invalid_phone"
@@ -58,6 +61,9 @@ interface HttpLikeError {
 }
 
 const MESSAGES: Record<AuthErrorKind, string> = {
+  email_registered: "This email is already registered with Karryam Fleet. Please sign in or use another email address.",
+  phone_associated: "This phone number is already associated with a Karryam Fleet account. Use another number or contact support.",
+  sign_in_unavailable: "We could not start sign-in with these details. Check them, create an account or contact support.",
   invalid_email: "Enter a valid email address, like you@company.com.",
   missing_email: "Enter your email address.",
   invalid_phone: "Enter a valid phone number for the selected country.",
@@ -119,6 +125,9 @@ export function classifyAuthError(err: unknown): AuthError {
   const requestId = body?.requestId ?? body?.request_id ?? headerRequestId(response.headers);
   const meta = { code, requestId, status };
 
+  if (code === "email_already_registered") return build("email_registered", { ...meta, retryable: false });
+  if (code === "phone_already_associated") return build("phone_associated", { ...meta, retryable: false });
+  if (code === "sign_in_unavailable") return build("sign_in_unavailable", { ...meta, retryable: false });
   if (code === "untrusted_origin") return build("configuration", meta);
   if (status === 429 || code === "rate_limited" || code === "authentication_rate_limited" || code === "otp_resend_too_soon") {
     return build("rate_limited", meta);

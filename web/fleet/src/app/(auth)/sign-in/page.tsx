@@ -3,7 +3,8 @@
 "use client";
 
 import Link from "next/link";
-import { ContactAuthForm } from "@/components/features/auth/ContactAuthForm";
+import { Suspense } from "react";
+import { SignInForm } from "@/components/features/auth/SignInForm";
 
 export default function SignInPage() {
   return (
@@ -15,10 +16,10 @@ export default function SignInPage() {
         Sign in to Karryam
       </h1>
       <p className="mt-5 text-[clamp(15px,1.08vw,18px)] leading-relaxed text-[var(--ink-600)]">
-        Enter the email and phone number on file for your account.
+        Enter your email address or phone number. We’ll email your sign-in code.
       </p>
 
-      <ContactAuthForm idPrefix="signin" />
+      <Suspense fallback={null}><SignInForm /></Suspense>
 
       <p className="mt-[38px] text-center text-[clamp(14px,1.15vw,19px)] text-[var(--ink-500)]">
         New to Karryam?{" "}

@@ -125,7 +125,7 @@ jobs:
           body="$(mktemp)"
           trap 'rm -f "$body"' EXIT
           status="$(curl -sS --retry 2 --retry-delay 3 --max-time 30 -o "$body" -w '%{http_code}' \
-            -X POST 'https://fleet-karryam.vercel.app/api/auth/start' \
+            -X POST 'https://fleet-karryam.vercel.app/api/auth/sign-up/start' \
             -H 'Content-Type: application/json' \
             -H 'Origin: https://fleet-karryam.vercel.app' \
             --data '{"email":"not-an-email","phone":"0"}')"

@@ -1,0 +1,30 @@
+# Fleet authentication v2 audit
+
+Audited staging `6bf43b28` on 2026-11-11. Scope: Fleet web, Fleet Partner API, its PostgreSQL migrations, Notification Service and staging delivery workflows. No SMS or phone ownership verification is authorized.
+
+## Confirmed architecture and defects
+
+- `web/fleet/src/components/features/auth/ContactAuthForm.tsx` and `useContactAuthForm.ts` serve both pages and require an email/phone pair. `authService.startOTP` calls `/auth/start`. The Axios interceptor also recognizes that legacy URL. Signup carries staff invitation tokens. Verify already supports server absolute deadlines and recently fixed replacement/error handling; retain these fixes.
+- Public auth routes live in `internal/features/auth/http/handlers.go`; use cases in `auth_service.go`, `verify.go`, `session_flows.go`. Shared start deliberately mails codes even for a conflicting pair or restricted identity. Signup eligibility is checked too late. Verification resolves or creates an identity without a separate registration/sign-in purpose. Sign-in can create an identity.
+- Identity `ResolvePair` prevents silent contact replacement. There is no single-identifier lookup API. `contact.NormalizeEmail` lowercases/trims; phone normalization supports international and Nigerian national numbers but strips arbitrary characters, accepting malformed input.
+- Migration 000003 creates existing corporate identities, OTP challenges, sessions, session history and security events. Non-archived email and phone have authoritative partial unique indexes; identity IDs and membership foreign keys must remain. Email index assumes already lowercase data; add a case-insensitive index after checking legacy compatibility. Purpose CHECK requires an additive migration for SIGN_UP and SIGN_IN. `phone_bound_at` is association, not SMS verification.
+- Challenge codes are cryptographically generated, stored as keyed HMACs and checked in constant time under a row lock. Expiry, attempts, superseded/consumed checks, rate limits and security events exist. Challenge creation supersedes previous pending challenges, but concurrent starts need serialization/cooldown to suppress duplicate delivery. Existing resend rotates a digest with the same challenge ID and notification idempotency key, risking suppressed replacement delivery; it reads eligibility/cooldown outside its transaction.
+- Refresh rotates durable hashed tokens and contains replay; cookies are HttpOnly and origin-bound. Identity/membership/organization checks, selection, logout, session revocation and session history must be preserved. Step-up is bound to an authenticated identity/session/action; retain its separate flow. Staff invitation acceptance is transactional and contact-pair bound. No implemented phone-change endpoint was found despite a CONTACT_CHANGE purpose constant.
+- OTP trace: same-origin frontend proxy → Fleet public route → PostgreSQL challenge → `NotificationSender.SendOTP` → signed shared notifications client → Notification Service `corporate.auth.otp` template/fallback → email channel → verify → durable session. Notification acceptance is not proof of inbox delivery. Sender explicitly requests EMAIL only. Templates carry code, purpose and expiry; Notification Service owns retries/deduplication and delivery status. Preserve provider and service contracts.
+
+## Callers and compatibility
+
+Repository search found Fleet frontend, Fleet integration tests, risk registry, route-coverage contracts, browser OpenAPI, auth/security/runbook docs, `scripts/fleet/check-auth-origin.sh`, and `.github/workflows/activate-fleet-origin.yml`. Other services have their own unrelated `/auth/start` namespaces. Migrate Fleet browser clients and probes. Keep legacy Fleet start as a documented signup-only compatibility alias; invitation-token requests remain separately purpose-bound. Existing SIGN_UP_OR_LOGIN challenges must be invalidated during migration so old start semantics cannot bypass v2.
+
+## Execution plan
+
+1. Add dedicated signup/sign-in contracts, case-insensitive identity lookup and structured conflict/identifier errors. Reject duplicate signup before any code generation or notification. Sign-in reads its email destination exclusively from an eligible existing identity.
+2. Bind verification to purpose and identity; sign-in cannot create, signup cannot log into an intervening identity. Recheck uniqueness transactionally and translate database conflicts. Preserve invitations, organizations and step-up. Implement authenticated email-confirmed phone changes with uniqueness and session binding.
+3. Serialize challenge starts, enforce cooldown, issue replacement challenge IDs on resend, preserve absolute deadlines, distinguish delivery acceptance, and retain rate limits/security logs.
+4. Separate signup form from single-identifier sign-in; retain branding, country selection, duplicate actions, accurate errors, OTP and existing navigation.
+5. Add PostgreSQL-backed HTTP/integration and concurrency coverage; run Go, notification, frontend, lint/typecheck/build and browser workflows. Test real staging mail only with an authorized test inbox/phone.
+6. Push only staging, inspect automatic backend workflow actual server steps and image revision, deploy/verify Fleet Vercel project and alias, run live acceptance, record concrete evidence and unresolved access/service limits in final closure.
+
+## Initial access observations
+
+GitHub CLI is authenticated and staging was fast-forwarded before edits. PostgreSQL 18 binaries are installed; Docker is unavailable locally. Vercel connector initially returned 404 for the staging alias without team scope, so discover correct project/team before deployment. The current branch includes `deploy-staging-auto.yml` (push/dispatch, staging only), with predeploy backup and health/rollback steps. Older `deploy-platform.yml` has stricter restore/approval gates; do not confuse these paths or report skipped steps as deployment. Live authorized inbox details have been requested while implementation proceeds.

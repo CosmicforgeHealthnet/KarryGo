@@ -6,9 +6,14 @@ export interface StartOTPRequest {
   invitationToken?: string;
 }
 
+export interface SignInRequest {
+  identifier: string;
+}
+
 export interface StartOTPResponse {
   challengeId: string;
-  deliveryChannel: string;
+  deliveryChannel: "EMAIL";
+  deliveryStatus?: "ACCEPTED";
   maskedDestination: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
@@ -24,7 +29,7 @@ export interface VerifyOTPRequest {
 
 export interface Tokens {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   accessExpiresAt: string;
   refreshExpiresAt: string;
   sessionId: string;

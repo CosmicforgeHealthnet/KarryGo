@@ -45,6 +45,8 @@ function VerifyContent() {
   const [expiresIn, setExpiresIn] = useState(expirySeconds);
   const [attempts, setAttempts] = useState(0);
   const [justResent, setJustResent] = useState(false);
+  const resendBusy = useRef(false);
+  const [resending, setResending] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
   const [errorReference, setErrorReference] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
@@ -274,7 +276,9 @@ function VerifyContent() {
   }
 
   async function handleResend() {
-    if (resendIn > 0 || submitting || success || restartRequired) return;
+    if (resendBusy.current || resendIn > 0 || submitting || success || restartRequired) return;
+    resendBusy.current = true;
+    setResending(true);
 
     setResendError(null);
     setErrorReference(null);
@@ -325,7 +329,7 @@ function VerifyContent() {
       setResendError(`${reason === "replaced" || reason === "consumed" || reason === "missing" || reason === "expired"
         ? "This verification request is no longer active. Start again."
         : failure.message}${detail ? ` (Reference: ${detail})` : ""}`);
-    }
+    } finally { resendBusy.current = false; setResending(false); }
   }
 
   const attemptsRemaining = MAX_ATTEMPTS - attempts;
@@ -481,7 +485,7 @@ function VerifyContent() {
           <button
             type="button"
             onClick={handleResend}
-            disabled={resendIn > 0 || submitting || success}
+            disabled={resending || resendIn > 0 || submitting || success}
             className="mt-3 w-full text-center text-[13px] font-semibold text-primary transition hover:text-primary-hover disabled:cursor-not-allowed disabled:text-ink-500"
           >
             {resendIn > 0 ? `Resend code in ${resendIn}s` : expired ? "Request new code" : "Resend code"}

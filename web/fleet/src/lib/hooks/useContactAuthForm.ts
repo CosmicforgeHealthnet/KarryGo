@@ -1,6 +1,6 @@
 // lib/hooks/useContactAuthForm.ts
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/services/authService";
 import { useAuthStore } from "@/lib/stores/authStore";
@@ -41,6 +41,7 @@ interface UseContactAuthFormOptions {
 
 export function useContactAuthForm({ invitationToken }: UseContactAuthFormOptions = {}) {
   const router = useRouter();
+  const busy = useRef(false);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState(DEFAULT_PHONE_COUNTRY);
@@ -90,11 +91,12 @@ export function useContactAuthForm({ invitationToken }: UseContactAuthFormOption
 
   async function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
-    if (submitting) return;
+    if (busy.current) return;
 
     setTouched({ email: true, phone: true });
     if (!canSubmit || !phoneResult.ok) return;
 
+    busy.current = true;
     setState({ status: "submitting" });
     setServerFieldErrors({});
     setLoading(true);
@@ -134,7 +136,7 @@ export function useContactAuthForm({ invitationToken }: UseContactAuthFormOption
       setState({ status: "error", error });
       setError(error.message);
       setLoading(false);
-    }
+    } finally { busy.current = false; }
   }
 
   return {

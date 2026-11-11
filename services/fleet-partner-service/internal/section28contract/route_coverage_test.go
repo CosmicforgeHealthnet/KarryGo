@@ -315,7 +315,7 @@ func manifestlessRoutes() []liveRoute {
 
 		tenant("DELETE", "/sessions/:sessionId"), tenant("GET", "/sessions"),
 		tenant("POST", "/auth/logout"), tenant("POST", "/auth/refresh"), tenant("POST", "/auth/resend"),
-		tenant("POST", "/auth/select-organization"), tenant("POST", "/auth/start"),
+		tenant("POST", "/auth/select-organization"), tenant("POST", "/auth/phone/change"), tenant("POST", "/auth/start"), tenant("POST", "/auth/sign-up/start"), tenant("POST", "/auth/sign-in/start"),
 		tenant("POST", "/auth/step-up/start"), tenant("POST", "/auth/step-up/verify"), tenant("POST", "/auth/verify"),
 
 		tenant("GET", "/provider/sub-wallet"), tenant("GET", "/provider/sub-wallet/statement"),

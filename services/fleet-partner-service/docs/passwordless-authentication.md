@@ -1,199 +1,46 @@
-# Passwordless Authentication
+# Fleet authentication v2
 
-```text
-KarryGo corporate authentication has no user password.
-Email and phone are required.
-OTP is delivered to email only.
-Managed-provider authentication remains in the owning provider service.
-No temporary provider password is sent.
-```
+Fleet uses email OTP only. Registration requires a unique email and E.164 phone. Sign-in accepts one identifier: email or phone. A phone is an account lookup association; no phone ownership or SMS verification is performed. Existing identity IDs, organization memberships and authorization boundaries remain intact.
 
-## What does not exist
+## Public browser contracts
 
-There is no password signup, password login, password hash, password reset,
-temporary password, generated password, "change password on first login" or
-security question anywhere in corporate authentication. No API accepts
-`password`, `passwordConfirmation`, `oldPassword`, `newPassword`,
-`temporaryPassword` or `passwordHash`. No table has a password column.
+All paths start with `/fleet-partner/v1`. Browser requests require an exact trusted Origin. Success bodies use `{ data, meta }`; errors use the existing structured error envelope.
 
-Two architecture tests enforce this on every build
-(`internal/architecture_auth_test.go`): `TestNoPasswordAuthentication` scans
-all Go sources and migrations for password-credential tokens, and
-`TestNoPasswordLoginRoute` fails if a password-style login route appears.
+| Route | Request | Result |
+| --- | --- | --- |
+| POST /auth/sign-up/start | email, phone, optional invitationToken | 202 accepted email challenge; 409 email_already_registered / phone_already_associated before OTP generation; 422 field validation |
+| POST /auth/sign-in/start | identifier | 202 existing identity challenge; 401 sign_in_unavailable for unknown, restricted or unverified identity; never creates an identity |
+| POST /auth/start | registration DTO | Deprecated signup-only alias, including separate staff invitation purpose when a token is present; cannot log into an existing account |
+| POST /auth/verify | challengeId, code, optional deviceLabel | Session and nextStep, or specific invalid/expired/superseded/consumed/attempt-limit error |
+| POST /auth/resend | challengeId | Replacement challenge ID and deadlines; previous code/challenge unusable |
+| POST /auth/refresh | HttpOnly refresh cookie | Rotating session; refresh reuse contains the family |
+| POST /auth/logout | HttpOnly refresh cookie | Revokes session and clears cookies |
 
-Infrastructure credentials are a different thing entirely and remain
-permitted: database URLs, SMTP logins and service HMAC secrets live in secure
-environment configuration and are deliberately not matched by those scanners.
+Challenge results include `challengeId`, `deliveryChannel: EMAIL`, maskedDestination, expiresAt, resendAvailableAt, expiresInSeconds and resendAfterSeconds. Delivery acceptance means Notification Service accepted the request; it is not an inbox-delivery receipt. Notification failure returns 503 otp_delivery_unavailable. A rapid repeat may return the already accepted pending challenge without another email, or 429 while delivery is pending. Verification uses the absolute backend deadline.
 
-## The flow
+Registration checks both identifiers before generating a cryptographically secure six-digit OTP. No identity is created until successful verification. Verification rechecks uniqueness in a transaction and database unique indexes remain authoritative under concurrency. Existing email displays Sign In and Try Another Email; phone conflicts never identify its owner. Archived identifiers remain reserved by API policy.
 
-```text
-User enters email AND phone
-        |
-POST /fleet-partner/v1/auth/start
-        |
-pair normalized (email lowercased, phone E.164)
-        |
-6-digit OTP generated with crypto/rand
-        |
-notification-service sends the OTP to the EMAIL address
-        |
-User enters the code
-        |
-POST /fleet-partner/v1/auth/verify
-        |
-session issued (access token + rotating refresh token)
-```
+Sign-in normalizes one identifier, resolves an active eligible identity with verified registered email, and binds the challenge to that identity and SIGN_IN purpose. Phone sign-in reads its email destination exclusively from the database. Unknown/restricted/unverified identifiers share one safe failure and signup/support path, without usable challenges or notifications. Rate limits apply to lookup, normalized contacts and source IP.
 
-Both fields are mandatory on every start. The phone is part of identity
-matching and account security; the code itself is only ever emailed. **No SMS
-OTP is sent in this release** — `TestNoSMSOTPDelivery` fails the build if an
-SMS channel is requested from the auth, staff or provider features.
+## Authenticated contracts
 
-The same flow serves new owner registration, existing owner login, staff
-login, staff invitation acceptance, organization selection and step-up.
+`POST /auth/select-organization`, `/auth/step-up/start`, `/auth/step-up/verify`, `GET /sessions`, `DELETE /sessions/:sessionId` retain their roles and session checks. Staff invitations retain token/contact-pair matching and transactional acceptance; single/multiple/no organization memberships retain READY / ORGANIZATION_SELECTION_REQUIRED / ONBOARDING_REQUIRED navigation.
 
-## OTP security
+To change the associated phone securely:
 
-| Property | Implementation |
-| --- | --- |
-| Generation | `crypto/rand` via `shared/go/auth.GenerateNumericOTP` |
-| Length | 6 digits (configurable 6–10) |
-| Storage | **Never raw.** `code_digest` = `HMAC-SHA256(pepper, "otp"‖challengeID‖phone‖code)` |
-| Comparison | `hmac.Equal` — constant time |
-| Expiry | 10 minutes (bounded 1m–1h by config validation) |
-| Attempts | 5, then the challenge locks |
-| Resend | 60s cooldown; a new code supersedes the previous one immediately |
-| Binding | challenge ID + normalized phone + purpose |
-| Single use | consumed atomically under `FOR UPDATE` |
+1. In the existing authenticated session, normalize the desired phone to E.164.
+2. POST /auth/step-up/start with `{ "actionClass": "phone_change:<E.164>" }`. The code is emailed to the existing registered email, using existing step-up infrastructure.
+3. Verify that challenge through /auth/step-up/verify and retain stepUpReference.
+4. POST /auth/phone/change with `{ "phone": "<E.164>", "stepUpReference": "..." }` in the same session/organization. Exact phone binding, current identity/session eligibility, grant expiry, uniqueness and optimistic version are checked transactionally. Successful update spends the grant once and records IDENTITY_PHONE_CHANGED. It returns phoneAssociated=true and phoneVerified=false. It preserves the identity and memberships and cannot move a phone from another identity.
 
-A bare SHA-256 of a six-digit code is trivially reversible, so the digest is
-**keyed** with `FLEET_PARTNER_OTP_HMAC_SECRET`. That pepper is mandatory in
-every environment (startup fails without it), is never logged, never
-returned, and never appears in a validation error.
+## Persistence and security
 
-Because an error return rolls its transaction back, the failed-attempt
-counter is written **outside** the verification transaction — otherwise a
-wrong code would never consume an attempt and the limit could never be
-reached. The same reasoning applies to refresh-reuse containment.
+Migration 000085 adds SIGN_UP/SIGN_IN to the existing challenge-purpose CHECK, adds a lower(email_normalized) partial unique index, and supersedes pre-upgrade pending/expired challenges because purpose-bound OTP digests have changed. Existing verified step-up grants and staff invitation tokens are retained. It creates no replacement identity tables. Case-colliding legacy records cause migration to fail for operator resolution, never silent merging. Existing phone uniqueness stays unchanged.
 
-## Delivery honesty
+OTP HMAC binds challenge ID, purpose, phone association and code; no raw OTP is stored by Fleet. PostgreSQL advisory locks serialize contact transitions across replicas. Challenge row locks, expiration and attempt limits prevent replay and brute force. Resend rechecks state/cooldown/eligibility transactionally, replaces the challenge and notification idempotency key, and preserves original destinations/bindings. Rate-limit infrastructure failure is unavailable, not unlimited access. Refresh secrets remain HttpOnly cookies; no JSON contract exposes them.
 
-OTP delivery goes through `notification-service`. There is deliberately **no**
-logging sender, console sender or in-memory sender selectable from
-configuration — `cmd` only ever wires the real adapter. When delivery fails
-or the transport is unconfigured, the API returns
+The notification adapter sends only EMAIL through existing corporate.auth.otp templates and fallback content. There is no SMS integration. Existing Notification Service retry/status/idempotency controls remain responsible for delivery.
 
-```json
-{"error":{"code":"otp_delivery_unavailable","message":"We could not send your verification code right now. Please try again shortly."}}
-```
+## Verification
 
-with HTTP 503, and the challenge records `delivery_status = UNAVAILABLE`. It
-never returns 200 for an OTP that was not sent. Tests inject
-`clients.FakeSender` directly; it cannot be reached from config.
-
-## Enumeration safety
-
-`POST /auth/start` returns the same shape, channel, expiry and cooldown
-whether the account exists, does not exist, is suspended, or the email and
-phone belong to two different identities. Conflicts and suspended attempts
-are recorded as append-only security events (hashed contacts only, never raw
-values), so operators can see them without the API disclosing anything.
-
-## Identity pair rules
-
-- Email comparison is case-insensitive (`email_normalized` is pre-lowered).
-- Phone is stored E.164.
-- Email and phone must resolve to the **same** identity. A half-match —
-  a known email with a different phone, or vice versa — is
-  `identity_pair_conflict`, never a silent takeover.
-- `CONTACT_VERIFIED` means the emailed OTP was verified and the normalized
-  phone was bound. It does not claim the phone was SMS-verified.
-
-## Sessions and refresh tokens
-
-Browser refresh credentials use an HttpOnly, host-only cookie, never JSON.
-Verify and organization selection set `karrygo_fleet_refresh`; refresh reads and
-rotates that cookie; logout revokes its existing session family and expires it.
-Path is `/fleet-partner/v1/auth`, SameSite defaults Lax, and Secure is mandatory
-outside development/test. Expiry matches `FLEET_PARTNER_REFRESH_TOKEN_TTL`.
-Use `credentials: "include"` and a configured trusted Origin; missing/hostile
-Origin fails 403. Preflight permits explicit trusted origins only. Auth responses
-are no-store. There is no JSON refresh-token fallback.
-
-Identity-only onboarding/organization-selection sessions retain their existing
-restricted authority; their refresh credential follows the same cookie boundary.
-Step-up references are not refresh credentials and are not put into this cookie.
-
-`web/partner-web` uses Gateway-owned merchant Partner accounts, NOT these corporate
-identities. See Gateway `docs/browser-authentication.md` for that pre-existing
-authority. No session state is duplicated across the two services.
-
-Access tokens are short-lived HS256 tokens carrying subject, session ID, role
-and service. Refresh tokens are opaque `crypto/rand` values; only their
-HMAC hashes are stored.
-
-Rotation retires the current session row (`REVOKED`, reason `rotated`) and
-issues a successor in the **same family**. Keeping the spent hash is what
-makes reuse detectable: replaying a spent token still finds a row, and
-finding a non-`ACTIVE` row is the reuse signal. On reuse the entire family is
-marked `COMPROMISED`, a critical security event is written, and the caller
-gets `refresh_token_reused`.
-
-Every refresh re-checks identity status, membership status and organization
-status, so a suspension takes effect at the next rotation rather than
-outliving it.
-
-Browser logout and rotation acquire the existing session family's transaction-
-scoped advisory lock before row locks. Normal logout marks active family rows
-REVOKED, not COMPROMISED; the latter remains reserved for replay containment.
-This prevents revocation's snapshot from missing a concurrently inserted successor.
-
-## Organization selection
-
-After verification: no membership → `ONBOARDING_REQUIRED`; exactly one →
-an organization-scoped session; several → `ORGANIZATION_SELECTION_REQUIRED`
-plus the allowed organizations. `POST /auth/select-organization` accepts a
-**membershipId** that must belong to the authenticated identity — an
-arbitrary `organizationId` is never trusted.
-
-Organization selection is a continuation of the same browser session family,
-not a new login/family. Before issuing anything, the service resolves the JWT's
-SessionID in PostgreSQL, acquires the persisted family's transaction-scoped
-advisory lock and then locks the source row. It requires the source to belong to
-the authenticated identity, be ACTIVE, unrevoked and unexpired; the identity
-must remain usable and the family must have no compromised history. Membership
-authorization is checked under that transaction, and expiry is checked again
-before rotation. Missing/revoked/expired sources return the existing 401 envelope
-even when the JWT signature and membership are valid.
-
-The source is retired through the existing refresh-rotation repository operation;
-the successor has a new session ID/digest and the same family. Both transition
-history records use `organization_selected`. Cookie logout, session-ID logout,
-user session revocation, refresh and replay containment follow the same
-family-before-row lock ordering. If logout wins, selection cannot issue; if
-selection wins, logout using the originating credential/ID also revokes the
-successor. A spent refresh token still triggers family compromise containment.
-
-The earlier cookie implementation did not check the persistent source on this
-path and created an unrelated family; its logout-completeness claim was therefore
-overstated. Focused source-validation tests now exist, as do deterministic
-PostgreSQL organization-selection/logout/replay race tests. Those database tests
-require `FLEET_PARTNER_TEST_DATABASE_URL`; absence is a certification blocker,
-not a runtime PASS. Deployed HTTPS/browser certification remains separate.
-
-## Step-up
-
-Sensitive actions use the same emailed OTP, bound to the current identity,
-session, organization and action class, with a short TTL. A grant cannot be
-transferred to another session, organization or action category — each of
-those four mismatches is covered by a test.
-
-## Rate limiting
-
-Bounded counters (Redis when configured, in-process otherwise) throttle
-challenge creation, verification, resend, refresh, organization switching and
-step-up, keyed by hashed email, hashed phone, IP and challenge. Redis is
-never the source of truth: challenge status and attempt counts live in
-PostgreSQL, and a Redis outage degrades to the durable per-challenge limit
-rather than locking everyone out.
+See `docs/implementation/fleet-auth-v2-audit.md` and `fleet-auth-v2-final-closure.md` at repository root for audit/deployment evidence. `.github/workflows/fleet-auth-v2.yml` runs auth security/contract tests, PostgreSQL regressions, frontend checks/build and an actual Chromium → Next.js proxy → Fleet API → PostgreSQL workflow. The local browser test uses a test-only sender fixture and is distinct from live staging mail acceptance.

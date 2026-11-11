@@ -94,7 +94,7 @@ export const useAuthStore = create<AuthStore>()(
       setAuth: (tokens: Tokens, identityId: string, organizations: Organization[]) => {
         set({
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
+          refreshToken: tokens.refreshToken ?? null,
           sessionId: tokens.sessionId,
           accessExpiresAt: tokens.accessExpiresAt,
           refreshExpiresAt: tokens.refreshExpiresAt,

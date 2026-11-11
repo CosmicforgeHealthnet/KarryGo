@@ -2,7 +2,8 @@
 //
 // KarryGo corporate authentication is passwordless: there is no password
 // field, hash, reset or temporary credential anywhere in this package. A
-// corporate identity is an email + phone pair verified by an emailed OTP.
+// corporate identity has a verified email and an associated unique phone.
+// Email OTP never proves ownership of the phone.
 package models
 
 import "time"
@@ -18,6 +19,8 @@ const (
 
 // OTP challenge purposes.
 const (
+	PurposeSignUp                = "SIGN_UP"
+	PurposeSignIn                = "SIGN_IN"
 	PurposeSignUpOrLogin         = "SIGN_UP_OR_LOGIN"
 	PurposeStaffInvitation       = "STAFF_INVITATION"
 	PurposeOrganizationSelection = "ORGANIZATION_SELECTION"

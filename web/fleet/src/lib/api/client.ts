@@ -32,10 +32,7 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    const isAuthEndpoint =
-      originalRequest.url === '/auth/start' ||
-      originalRequest.url === '/auth/verify' ||
-      originalRequest.url === '/auth/logout';
+    const isAuthEndpoint = /^\/auth\/(?:start|sign-up\/start|sign-in\/start|verify|resend|refresh|logout)$/.test(originalRequest.url ?? '');
 
     const hasAuthHeader = !!originalRequest.headers?.Authorization;
 

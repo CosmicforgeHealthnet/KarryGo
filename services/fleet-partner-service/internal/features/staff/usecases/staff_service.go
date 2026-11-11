@@ -137,37 +137,53 @@ func toSummary(member models.OrganizationUser, organizationName string, organiza
 
 // ---- InvitationAcceptor (consumed by the auth feature) ----
 
+// ValidateForAuthentication checks a staff invitation before generating any OTP.
+func (s *Service) ValidateForAuthentication(ctx context.Context, tx pgx.Tx, token string, pair contact.Pair) error {
+	_, err := s.validInvitation(ctx, tx, token, pair)
+	return err
+}
+
+func (s *Service) validInvitation(ctx context.Context, tx pgx.Tx, token string, pair contact.Pair) (*models.StaffInvitation, error) {
+	tokenHash := auth.HashRefreshToken(s.opts.InvitationSecret, token)
+
+	invitation, err := s.opts.Invitations.LockByTokenHash(ctx, tx, tokenHash)
+	if err != nil {
+		if errors.Is(err, staffrepos.ErrNotFound) {
+			return nil, errorcodes.Unauthorized(errorcodes.StaffInvitationConsumed,
+				"This invitation is no longer valid.")
+		}
+		return nil, err
+	}
+
+	now := s.opts.Now()
+	if invitation.Status != models.InvitationStatusPending {
+		return nil, errorcodes.Unauthorized(errorcodes.StaffInvitationConsumed,
+			"This invitation has already been used.")
+	}
+	if !now.Before(invitation.ExpiresAt) {
+		return nil, errorcodes.Unauthorized(errorcodes.StaffInvitationExpired,
+			"This invitation has expired. Ask for a new one.")
+	}
+	// The invitation is bound to the exact contact pair it was issued for.
+	if invitation.EmailNormalized != pair.EmailNormalized || invitation.PhoneE164 != pair.PhoneE164 {
+		return nil, errorcodes.Unauthorized(errorcodes.StaffInvitationConsumed,
+			"This invitation is no longer valid.")
+	}
+
+	return invitation, nil
+}
+
 // AcceptByToken consumes a staff invitation during OTP verification.
 //
 // It runs inside the verification transaction, so an invitation can never be
 // half-accepted. The invitation is bound to the exact normalized email and
 // phone it was issued for.
 func (s *Service) AcceptByToken(ctx context.Context, tx pgx.Tx, token string, identityID string, pair contact.Pair) (authusecases.MembershipSummary, error) {
-	tokenHash := auth.HashRefreshToken(s.opts.InvitationSecret, token)
-
-	invitation, err := s.opts.Invitations.LockByTokenHash(ctx, tx, tokenHash)
+	invitation, err := s.validInvitation(ctx, tx, token, pair)
 	if err != nil {
-		if errors.Is(err, staffrepos.ErrNotFound) {
-			return authusecases.MembershipSummary{}, errorcodes.Unauthorized(errorcodes.StaffInvitationConsumed,
-				"This invitation is no longer valid.")
-		}
 		return authusecases.MembershipSummary{}, err
 	}
-
 	now := s.opts.Now()
-	if invitation.Status != models.InvitationStatusPending {
-		return authusecases.MembershipSummary{}, errorcodes.Unauthorized(errorcodes.StaffInvitationConsumed,
-			"This invitation has already been used.")
-	}
-	if !now.Before(invitation.ExpiresAt) {
-		return authusecases.MembershipSummary{}, errorcodes.Unauthorized(errorcodes.StaffInvitationExpired,
-			"This invitation has expired. Ask for a new one.")
-	}
-	// The invitation is bound to the exact contact pair it was issued for.
-	if invitation.EmailNormalized != pair.EmailNormalized || invitation.PhoneE164 != pair.PhoneE164 {
-		return authusecases.MembershipSummary{}, errorcodes.Unauthorized(errorcodes.StaffInvitationConsumed,
-			"This invitation is no longer valid.")
-	}
 
 	// An identity already holding a live membership cannot accept a second
 	// invitation into the same organization.

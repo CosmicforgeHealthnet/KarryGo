@@ -93,7 +93,10 @@ type stepUpStartRequest struct {
 func (h *Handler) RegisterPublicRoutes(group *gin.RouterGroup) {
 	boundary := h.cookie.Boundary()
 	group.OPTIONS("/auth/*path", boundary)
+	// Deprecated alias is signup-only; it cannot authenticate an existing identity.
 	group.POST("/auth/start", boundary, h.start)
+	group.POST("/auth/sign-up/start", boundary, h.start)
+	group.POST("/auth/sign-in/start", boundary, h.signIn)
 	group.POST("/auth/verify", boundary, h.verify)
 	group.POST("/auth/resend", boundary, h.resend)
 	group.POST("/auth/refresh", boundary, h.refresh)
@@ -102,6 +105,7 @@ func (h *Handler) RegisterPublicRoutes(group *gin.RouterGroup) {
 
 // RegisterAuthenticatedRoutes mounts endpoints requiring a corporate session.
 func (h *Handler) RegisterAuthenticatedRoutes(group *gin.RouterGroup) {
+	group.POST("/auth/phone/change", h.cookie.Boundary(), h.changePhone)
 	group.POST("/auth/select-organization", h.cookie.Boundary(), h.selectOrganization)
 	group.POST("/auth/step-up/start", h.cookie.Boundary(), h.stepUpStart)
 	group.POST("/auth/step-up/verify", h.cookie.Boundary(), h.stepUpVerify)
@@ -143,16 +147,33 @@ func (h *Handler) start(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	// The response is identical whether or not the account exists.
+	// Eligible registration only; conflicts return before OTP generation.
 	respond.JSON(c, http.StatusAccepted, gin.H{
 		"challengeId":        result.ChallengeID,
 		"deliveryChannel":    result.DeliveryChannel,
+		"deliveryStatus":     "ACCEPTED",
 		"maskedDestination":  result.MaskedDestination,
 		"expiresInSeconds":   result.ExpiresInSeconds,
 		"resendAfterSeconds": result.ResendAfterSeconds,
 		"expiresAt":          result.ExpiresAt,
 		"resendAvailableAt":  result.ResendAvailableAt,
 	})
+}
+
+func (h *Handler) signIn(c *gin.Context) {
+	var request struct {
+		Identifier string `json:"identifier"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+	result, err := h.service.SignIn(c.Request.Context(), authusecases.StartInput{Identifier: request.Identifier, IPHash: h.ipHash(c), UserAgentHash: h.userAgentHash(c), RequestID: httpx.GetRequestID(c), CorrelationID: middleware.GetCorrelationID(c)})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.JSON(c, http.StatusAccepted, gin.H{"challengeId": result.ChallengeID, "deliveryChannel": result.DeliveryChannel, "maskedDestination": result.MaskedDestination, "expiresInSeconds": result.ExpiresInSeconds, "resendAfterSeconds": result.ResendAfterSeconds, "expiresAt": result.ExpiresAt, "resendAvailableAt": result.ResendAvailableAt, "deliveryStatus": "ACCEPTED"})
 }
 
 func (h *Handler) verify(c *gin.Context) {
@@ -232,6 +253,7 @@ func (h *Handler) resend(c *gin.Context) {
 	respond.JSON(c, http.StatusAccepted, gin.H{
 		"challengeId":        result.ChallengeID,
 		"deliveryChannel":    result.DeliveryChannel,
+		"deliveryStatus":     "ACCEPTED",
 		"maskedDestination":  result.MaskedDestination,
 		"expiresInSeconds":   result.ExpiresInSeconds,
 		"resendAfterSeconds": result.ResendAfterSeconds,
@@ -365,6 +387,25 @@ func (h *Handler) stepUpVerify(c *gin.Context) {
 		"stepUpReference": result.StepUpReference,
 		"expiresAt":       result.StepUpExpiresAt,
 	})
+}
+
+func (h *Handler) changePhone(c *gin.Context) {
+	var request struct {
+		Phone           string `json:"phone"`
+		StepUpReference string `json:"stepUpReference"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
+	claims, _ := auth.ClaimsFromContext(c)
+	organization, _ := c.Get(middleware.TenantOrganizationIDKey)
+	organizationID, _ := organization.(string)
+	if err := h.service.ChangePhone(c.Request.Context(), claims.Subject, claims.SessionID, organizationID, request.Phone, request.StepUpReference); err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, gin.H{"phoneAssociated": true, "phoneVerified": false})
 }
 
 func (h *Handler) listSessions(c *gin.Context) {

@@ -155,6 +155,17 @@ jobs:
           find "$dir" -name '*.sql.gz' -mtime +7 -delete || true
           docker pull -q "$image" >/dev/null
           bash bin/deploy-service.sh "$svc" "$image"
+          if [ "$svc" = fleet-partner-service ]; then
+            expected="${image##*:}"
+            for container in karrygo-fleet-partner-api karrygo-fleet-partner-worker; do
+              actual_image=$(docker inspect -f '{{.Image}}' "$container")
+              revision=$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$actual_image")
+              [ "$revision" = "$expected" ] || { echo "::error::Fleet running image revision mismatch"; exit 1; }
+              echo "FLEET_RUNTIME_EVIDENCE container=$container image=$actual_image revision=$revision"
+            done
+            [ "$(docker inspect -f '{{.State.Health.Status}}' karrygo-fleet-partner-api)" = healthy ]
+            echo 'FLEET_RUNTIME_EVIDENCE api_health=healthy'
+          fi
           REMOTE
           done
 

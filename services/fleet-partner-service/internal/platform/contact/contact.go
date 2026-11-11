@@ -1,8 +1,8 @@
 // Package contact normalizes and hashes the email/phone identity pair used by
 // corporate passwordless authentication.
 //
-// Both an email address and a phone number are required to start any
-// corporate authentication flow. Email is lowercased and trimmed for
+// Registration requires an email address and phone number; sign-in accepts
+// either identifier. Email is lowercased and trimmed for
 // comparison; phone is normalized to E.164. Hashes are keyed so that a
 // leaked table cannot be used to enumerate accounts by rainbow table.
 //
@@ -32,6 +32,7 @@ type Pair struct {
 var (
 	emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$`)
 	digitsOnly   = regexp.MustCompile(`[^0-9]`)
+	phonePattern = regexp.MustCompile(`^(\+|00)?[0-9]+$`)
 )
 
 // NormalizeEmail trims, lowercases and validates an email address.
@@ -66,6 +67,9 @@ func NormalizePhone(raw string, defaultCountryCode string) (e164 string, display
 	trimmed = strings.ReplaceAll(trimmed, "(", "")
 	trimmed = strings.ReplaceAll(trimmed, ")", "")
 
+	if !phonePattern.MatchString(trimmed) {
+		return "", "", fmt.Errorf("contact: phone number contains invalid characters")
+	}
 	var digits string
 	switch {
 	case strings.HasPrefix(trimmed, "+"):
@@ -82,7 +86,7 @@ func NormalizePhone(raw string, defaultCountryCode string) (e164 string, display
 		digits = digitsOnly.ReplaceAllString(trimmed, "")
 	}
 
-	if len(digits) < 8 || len(digits) > 15 {
+	if len(digits) < 8 || len(digits) > 15 || strings.HasPrefix(digits, "0") {
 		return "", "", fmt.Errorf("contact: phone number is not a valid international number")
 	}
 	return "+" + digits, display, nil

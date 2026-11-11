@@ -30,7 +30,7 @@ func buildAuthRouter(t *testing.T) (*gin.Engine, *authHarness) {
 	gin.SetMode(gin.TestMode)
 	h := newAuthHarness(t, nil)
 
-	handler := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test"}})
+	handler := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test", "http://127.0.0.1:3417"}})
 	router := app.BuildRouter(app.Options{
 		Config: config.Config{
 			AppEnv: "test", MetricsEnabled: true, MetricsAuthToken: "metrics-token",
