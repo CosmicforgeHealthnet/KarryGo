@@ -165,11 +165,16 @@ export const organizationService = {
   async updateRepresentative(
     organizationId: string,
     representativeId: string,
-    data: UpdateRepresentativeRequest
+    data: UpdateRepresentativeRequest,
+    expectedVersion: number
   ): Promise<Representative> {
+    if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error('A current representative version is required before saving changes.');
+    }
     const response = await apiClient.put<{ data: Representative }>(
       `/organizations/${organizationId}/representatives/${representativeId}`,
-      data
+      data,
+      { headers: { 'If-Match': String(expectedVersion) } }
     );
     return response.data.data;
   },
@@ -233,10 +238,17 @@ export const organizationService = {
     return response.data.data || null;
   },
 
-  async updateProfile(organizationId: string, data: any): Promise<any> {
+  async updateProfile(organizationId: string, data: any, expectedVersion?: number): Promise<any> {
+    // First profile creation uses the backend's insert path (no If-Match).
+    // Existing profiles must send their persisted version; otherwise the
+    // backend's insert-on-conflict path silently discards the edit.
+    if (expectedVersion !== undefined && (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1)) {
+      throw new Error('A valid profile version is required before saving existing details.');
+    }
     const response = await apiClient.put<{ data: any }>(
       `/organizations/${organizationId}/profile`,
-      data
+      data,
+      expectedVersion === undefined ? undefined : { headers: { 'If-Match': String(expectedVersion) } }
     );
     return response.data.data;
   },
