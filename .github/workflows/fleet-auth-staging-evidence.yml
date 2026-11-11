@@ -1,5 +1,8 @@
 name: Fleet authentication staging evidence (read only)
 on:
+  push:
+    branches: [staging]
+    paths: [.github/workflows/fleet-auth-staging-evidence.yml]
   workflow_dispatch:
     inputs:
       test_email:
@@ -13,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   evidence:
-    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 10
