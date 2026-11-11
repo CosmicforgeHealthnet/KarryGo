@@ -1,0 +1,134 @@
+{
+  "scope": "Final test revision; application runtime is e6537f20 with identical product code",
+  "fleet": {
+    "status": "completed",
+    "conclusion": "success",
+    "headSha": "65f50b1f4582c4feace017fd0f35a35fa8d442f2",
+    "url": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43049893473",
+    "jobs": [
+      {
+        "name": "auth-integration",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "mandatory": {
+    "status": "completed",
+    "conclusion": "success",
+    "headSha": "65f50b1f4582c4feace017fd0f35a35fa8d442f2",
+    "url": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43049893126",
+    "jobs": [
+      {
+        "name": "repository-security-scans",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/support-dispute-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/api-gateway)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "provider-apps (apps/dispatch_provider)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/pricing-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "static-and-contract",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/payment-wallet-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/referral-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "provider-apps (apps/truck_provider)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/customer-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/notification-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/media-file-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/partner-web-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/admin-backoffice-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "fleet-mandatory",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/driver-hauling-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/analytics-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (shared/go)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/verification-compliance-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/driver-taxi-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "other-go-modules (services/driver-dispatch-delivery-service)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "acceptance",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+}

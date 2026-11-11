@@ -1,0 +1,50 @@
+{
+  "scope": "Real Fleet HTTP handler/authorization/use case/PostgreSQL reproduction; not the original historical live request",
+  "baselineRevision": "23c48c6d",
+  "requestId": "onboarding-step3-baseline-authority",
+  "test": "TestOnboardingRepresentativeWireContract",
+  "trigger": {
+    "authorityType": "LEGAL_REPRESENTATIVE"
+  },
+  "before": {
+    "httpStatus": 500,
+    "body": {
+      "error": {
+        "code": "internal_error",
+        "message": "Something went wrong. Please try again.",
+        "retryable": false,
+        "details": [],
+        "requestId": "onboarding-step3-baseline-authority"
+      }
+    }
+  },
+  "databaseEvidence": {
+    "sqlstate": "23514",
+    "constraint": "fleet_partner_organization_authorized_repr_authority_type_check"
+  },
+  "after": {
+    "httpStatus": 422,
+    "body": {
+      "error": {
+        "code": "validation_failed",
+        "message": "Choose a supported authority type.",
+        "retryable": false,
+        "details": [
+          {
+            "field": "authorityType",
+            "message": "Choose a supported authority type."
+          }
+        ],
+        "requestId": "onboarding-step3-baseline-authority"
+      }
+    }
+  },
+  "afterWorkflow": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43049893473",
+  "supportedAuthorities": [
+    "DIRECTOR",
+    "OFFICER",
+    "POWER_OF_ATTORNEY",
+    "OWNER",
+    "OTHER"
+  ]
+}

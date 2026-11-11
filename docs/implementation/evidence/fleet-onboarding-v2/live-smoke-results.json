@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "scope": "Unauthenticated smoke only; no OTP requested or live onboarding claimed",
+  "checks": [
+    "Live mobile sign-in renders one identifier field without overflow",
+    "Live signup retains email, phone and country-code selector",
+    "Unauthenticated Step 3 redirects to sign-in",
+    "Live current-identity endpoint is deployed and requires authentication"
+  ],
+  "requestId": "143ecf06-fe6f-4964-811b-6df6325c1aec"
+}

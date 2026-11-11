@@ -1,0 +1,22 @@
+{
+  "scope": "Staging only",
+  "applicationRevision": "e6537f20fafcf99e9f1062d13f7fb2fc85dc536b",
+  "backend": {
+    "workflow": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43048281489",
+    "observedAtUtc": "2026-11-11T15:28:10Z",
+    "runtimeEvidence": [
+      "FLEET_RUNTIME_EVIDENCE container=karrygo-fleet-partner-api image=sha256:a6bfa0e4d08c012d4eb2cb7cceaac37e7b049ca44b9b2b43654bf252f23c967a revision=e6537f20fafcf99e9f1062d13f7fb2fc85dc536b",
+      "FLEET_RUNTIME_EVIDENCE container=karrygo-fleet-partner-worker image=sha256:a6bfa0e4d08c012d4eb2cb7cceaac37e7b049ca44b9b2b43654bf252f23c967a revision=e6537f20fafcf99e9f1062d13f7fb2fc85dc536b",
+      "FLEET_RUNTIME_EVIDENCE api_health=healthy"
+    ]
+  },
+  "frontend": {
+    "project": "fleet-karryam",
+    "alias": "https://fleet-karryam.vercel.app",
+    "deploymentId": "dpl_AXh2HuHEyBmVyVic78wAAw3vxmni",
+    "readyState": "READY",
+    "sourceBranch": "staging",
+    "sourceRevision": "e6537f20fafcf99e9f1062d13f7fb2fc85dc536b"
+  },
+  "liveAuthenticatedAcceptance": "Pending authorized inbox OTP; not certified"
+}

@@ -98,3 +98,11 @@ Implementation decisions: add a narrow authenticated current-identity projection
 ### Final boundary regression findings
 
 A real HTTP negative test reproduced invalid IANA timezone updates as HTTP 500 (request `67a70c4a-a640-44ca-b2ee-b66bc9b05d6b`). Company legal/regional inputs now validate before repository writes and return field-specific 422 responses. Currency/country negatives and foreign representative-supporting-document ownership denial are covered. Submitted customer-stage completion is persisted transactionally for the existing activation worker; its separate verification and wallet gates remain unchanged.
+
+### Staging release observation
+
+Application release `e6537f20fafcf99e9f1062d13f7fb2fc85dc536b` is actually running on both staging Fleet containers (image `sha256:a6bfa0e4d08c012d4eb2cb7cceaac37e7b049ca44b9b2b43654bf252f23c967a`, healthy) and served by Vercel deployment `dpl_AXh2HuHEyBmVyVic78wAAw3vxmni` on the staging alias. Migration 000086 is applied. Section 31 mandatory acceptance passed for this application revision. Detailed release links, safe evidence and subsequent CI results are maintained in `fleet-onboarding-final-closure.md`.
+
+Live unauthenticated mobile/auth-route smoke passes without sending OTP email. Authenticated live onboarding remains untested: the connected browser is signed out, the test alias has no identity/session, and the connected Gmail reader withholds authentication codes. An authorized test inbox and its email OTP are the exact remaining access requirement; fixture browser results must not be described as a live Notification/Media/Verification acceptance. Android browser checks use device emulation, not a physical handset.
+
+Final test revision `65f50b1f4582c4feace017fd0f35a35fa8d442f2` passed Fleet CI [43049893473](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43049893473) and full mandatory acceptance [43049893126](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43049893126). It changes only browser-test session cleanup, so the deployed e6537f20 application code is identical. Live authenticated acceptance remains the explicit access blocker above.

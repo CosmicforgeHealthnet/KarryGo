@@ -1,0 +1,22 @@
+{
+  "workflow": "https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43049929112",
+  "scope": "Read-only staging, earlier test alias only; no codes, digests, tokens or message bodies selected",
+  "latestMigration": "000086_onboarding_persistence",
+  "appliedAtUtc": "2026-11-11T14:50:26.301143Z",
+  "runtimeRevision": "e6537f20fafcf99e9f1062d13f7fb2fc85dc536b",
+  "identityUniqueIndexes": [
+    "uq_fleet_partner_identity_email",
+    "uq_fleet_partner_identity_email_lower",
+    "uq_fleet_partner_identity_phone"
+  ],
+  "testIdentityCount": 0,
+  "testActiveSessions": 0,
+  "historicalNotificationEvidence": {
+    "event": "corporate.auth.otp",
+    "channel": "email",
+    "status": "sent",
+    "count": 2,
+    "attemptsPerDelivery": 1,
+    "interpretation": "Prior auth deliveries only. Not proof of a new live onboarding journey or inbox receipt."
+  }
+}
