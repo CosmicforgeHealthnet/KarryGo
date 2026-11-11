@@ -12,12 +12,15 @@ export function challengeFailure(code: string | undefined, kind: string): Challe
     case "otp_challenge_consumed": return "consumed";
     case "otp_challenge_not_found": return "missing";
     case "otp_attempt_limit_exceeded": return "locked";
+    case "email_already_registered":
+    case "phone_already_associated":
     case "identity_pair_conflict": return "contact_mismatch";
+    case "sign_in_unavailable":
     case "identity_suspended": return "account_unavailable";
   }
   if (kind === "network") return "network";
   if (kind === "rate_limited") return "locked";
-  if (kind === "configuration" || kind === "unavailable" || kind === "server_error") {
+  if (kind === "configuration" || kind === "unavailable" || kind === "server_error" || kind === "delivery_failed") {
     return "access_denied";
   }
   return "invalid";

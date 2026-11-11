@@ -18,3 +18,10 @@ test("transport failures and account outcomes are not mislabeled as expired", ()
   assert.equal(challengeFailure("identity_pair_conflict", "unauthorized"), "contact_mismatch");
   assert.equal(challengeFailure("identity_suspended", "configuration"), "account_unavailable");
 });
+
+test("v2 eligibility races and mail failures do not consume local wrong-code attempts", () => {
+  assert.equal(challengeFailure("sign_in_unavailable", "sign_in_unavailable"), "account_unavailable");
+  assert.equal(challengeFailure("email_already_registered", "email_registered"), "contact_mismatch");
+  assert.equal(challengeFailure("phone_already_associated", "phone_associated"), "contact_mismatch");
+  assert.equal(challengeFailure("otp_delivery_unavailable", "delivery_failed"), "access_denied");
+});
