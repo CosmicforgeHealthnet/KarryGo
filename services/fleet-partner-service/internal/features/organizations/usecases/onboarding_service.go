@@ -110,6 +110,17 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 		)
 	}
 
+	// Protect existing legal registration data when older clients send an
+	// incomplete update payload. The company-edit screen previously passed an
+	// empty registration number, which would erase the original registration.
+	registrationNumber := input.RegistrationNumber
+	if registrationNumber == "" {
+		registrationNumber = organization.RegistrationNumber
+	}
+	if input.ExpectedVersion > 0 && input.ExpectedVersion != organization.Version {
+		return nil, apperrors.Conflict("The company details changed elsewhere. Reload and retry.", nil)
+	}
+
 	// Preserve the operating capabilities if they exist
 	capabilities := organization.OperatingCapabilities
 	if capabilities == nil {
@@ -122,7 +133,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, input UpdateOrganizati
 		Status:                organization.Status, // Keep as DRAFT
 		LegalName:             input.LegalName,
 		TradingName:           input.TradingName,
-		RegistrationNumber:    input.RegistrationNumber,
+		RegistrationNumber:    registrationNumber,
 		CountryCode:           input.CountryCode,
 		Timezone:              input.Timezone,
 		DefaultCurrency:       input.DefaultCurrency,
