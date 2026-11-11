@@ -116,6 +116,9 @@ export default function HeadquartersPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Existing profile updates require If-Match. A missing version would turn
+  // the write into an insert-if-missing and silently discard saved changes.
+  const [savedProfile, setSavedProfile] = useState<any>(null);
 
   const [formData, setFormData] = useState<FormData>({
     street: "",
@@ -145,6 +148,7 @@ export default function HeadquartersPage() {
 
       try {
         const profile = await organizationService.getProfile(organization.organizationId);
+        setSavedProfile(profile ?? null);
         if (profile) {
           setFormData({
             street: profile.registeredAddress?.street || "",
@@ -220,7 +224,15 @@ export default function HeadquartersPage() {
     setSaveSuccess(false);
 
     try {
+      if (savedProfile && (!Number.isSafeInteger(savedProfile.version) || savedProfile.version < 1)) {
+        throw new Error("Could not load the current profile version. Reload this step before saving.");
+      }
       await organizationService.updateProfile(organization.organizationId, {
+        // Preserve fields owned by other profile screens rather than clearing
+        // them with an incomplete PUT payload.
+        businessType: savedProfile?.businessType ?? null,
+        incorporationDate: savedProfile?.incorporationDate ?? null,
+        taxReference: savedProfile?.taxReference ?? null,
         registeredAddress: {
           street: formData.street.trim(),
           city: formData.city.trim(),
@@ -239,15 +251,24 @@ export default function HeadquartersPage() {
         businessPhone: formData.businessPhone.trim() || null,
         website: formData.website.trim() || null,
         businessDescription: formData.businessDescription.trim() || null,
-      });
-
-      setStageComplete("headquarters");
+      }, savedProfile?.version);
+      const latest = await organizationService.getProfile(organization.organizationId);
+      setSavedProfile(latest);
+      setStageComplete("HEADQUARTERS");
 
       setSaveSuccess(true);
       router.push(nextPath("address"));
     } catch (err: any) {
-      const message = err?.response?.data?.error?.message || err?.message || "Failed to save headquarters information.";
-      setSaveError(message);
+      const responseError = err?.response?.data?.error;
+      const status = err?.response?.status;
+      const requestId = responseError?.requestId ?? err?.response?.headers?.["x-request-id"];
+      let message = responseError?.message || err?.message || "Failed to save headquarters information.";
+      if (status === 409) {
+        message = "These details were changed elsewhere. Reload and review the latest saved address before trying again.";
+      } else if (status === 401) {
+        message = "Your session expired. Please sign in again.";
+      }
+      setSaveError(requestId ? `${message} Reference: ${requestId}` : message);
     } finally {
       setIsSaving(false);
     }
