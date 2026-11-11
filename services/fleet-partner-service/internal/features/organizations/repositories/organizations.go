@@ -106,6 +106,10 @@ func (r *OrganizationRepository) Update(ctx context.Context, q database.Querier,
 		org.OrganizationType,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_fleet_partner_org_registration" {
+			return errorcodes.Conflict(errorcodes.OrganizationRegistrationExists, "A company with this registration number is already registered in this country.")
+		}
 		return fmt.Errorf("organizations: update: %w", err)
 	}
 	if tag.RowsAffected() == 0 {

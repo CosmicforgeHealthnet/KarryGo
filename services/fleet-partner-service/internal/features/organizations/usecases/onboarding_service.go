@@ -1225,6 +1225,10 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 		CorrelationID:  input.Tenant.CorrelationID,
 	}, input.FileID)
 	if err != nil {
+		var remote *platformclients.Error
+		if errors.As(err, &remote) && (remote.Outcome == platformclients.OutcomeNotFound || remote.Outcome == platformclients.OutcomeForbidden) {
+			return nil, apperrors.NotFound("File not found.", nil)
+		}
 		// Unconfigured or unreachable media service must not let an
 		// unverified file be attached.
 		return nil, errorcodes.Unavailable(errorcodes.OrganizationOnboardingIncomplete,

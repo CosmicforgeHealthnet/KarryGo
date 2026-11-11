@@ -734,10 +734,18 @@ func (h *Handler) markStage(c *gin.Context) {
 		return
 	}
 
-	respond.OK(c, gin.H{
-		"stage":  stage,
-		"status": status,
-	})
+	actual, err := h.organizations.GetOnboardingStatus(c.Request.Context(), tenantCtx.OrganizationID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	for _, current := range actual.Stages {
+		if current.Stage == stage {
+			respond.OK(c, gin.H{"stage": stage, "status": current.Status, "missingFields": current.MissingFields})
+			return
+		}
+	}
+	respond.Error(c, apperrors.NotFound("Onboarding stage not found.", nil))
 }
 
 func (h *Handler) currentOrganization(c *gin.Context) {

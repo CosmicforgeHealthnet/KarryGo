@@ -132,6 +132,9 @@ func TestOnboardingV2PersistedJourneyAndBoundaries(t *testing.T) {
 		t.Fatal(updated)
 	}
 	call("PUT", base, company, 1, 409)
+	createOrganization(t, h.pool, "Other Registration Owner", "RC-REGISTRATION-TAKEN")
+	duplicateRegistration := map[string]any{"legalName": "Updated Company", "registrationNumber": "RC-REGISTRATION-TAKEN", "countryCode": "NG", "timezone": "Africa/Lagos", "defaultCurrency": "NGN"}
+	call("PUT", base, duplicateRegistration, 2, 409)
 	badRegionalSettings := map[string]any{"legalName": "Updated Company", "countryCode": "NG", "timezone": "Not/AZone", "defaultCurrency": "NGN"}
 	call("PUT", base, badRegionalSettings, 2, 422)
 	badRegionalSettings["timezone"] = "Africa/Lagos"
