@@ -253,6 +253,19 @@ func (s *Service) RemoveDocument(ctx context.Context, t tenant.Context, id strin
 	})
 }
 
+// A Media validation rejection during GRANT creation cannot be attributed
+// to the user's file: the file bytes have not been uploaded at this point.
+// Surface a server-side integration problem rather than falsely blaming the
+// PDF/JPEG/PNG itself. Keep fail-closed behavior and the request reference.
+func mediaUploadAuthorizationError(err error) error {
+	var remote *platformclients.Error
+	if errors.As(err, &remote) && remote.Outcome == platformclients.OutcomeValidation {
+		return errorcodes.Unavailable(errorcodes.OrganizationOnboardingIncomplete,
+			"Document upload authorization was rejected by the Media Service. No file was uploaded; contact support with the request reference.")
+	}
+	return mediaUploadError(err)
+}
+
 func mediaUploadError(err error) error {
 	var remote *platformclients.Error
 	if errors.As(err, &remote) {
