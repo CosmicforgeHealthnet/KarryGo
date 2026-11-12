@@ -1166,7 +1166,7 @@ func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input 
 		RetentionClass:   "STANDARD",
 	})
 	if err != nil {
-		return nil, mediaUploadError(err)
+		return nil, mediaUploadAuthorizationError(err)
 	}
 
 	return &grant, nil
