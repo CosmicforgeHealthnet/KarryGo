@@ -140,6 +140,7 @@ export default function Documents() {
         void reloadSaved().catch(setError);
       }}
     >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {data.status!.requiredDocumentTypes.map((type) => {
         const docs = data.documents.filter((d) => d.documentType === type);
         return (
@@ -261,6 +262,7 @@ export default function Documents() {
           </Section>
         );
       })}
+      </div>
       <p className="text-xs text-ink-500">
         PDF, JPEG, PNG or WebP · Up to 25 MB per file. Removing an attachment
         retains the underlying records for audit.
