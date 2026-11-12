@@ -1079,6 +1079,21 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 // A file owned by another organization, or one that is not fully uploaded and
 // scanned, is refused. No binary content is ever stored locally.
 
+// The private Media API accepts COMPANY_DOCUMENT, not the legacy media_assets
+// purpose "document_file". Fleet's upload grants must use the Media contract.
+const companyDocumentUploadPurpose = "COMPANY_DOCUMENT"
+
+func companyDocumentPurpose(requested string) (string, error) {
+	if requested != "" && !strings.EqualFold(strings.TrimSpace(requested), companyDocumentUploadPurpose) {
+		return "", fieldError("uploadPurpose", "Only company document uploads are supported on this route.")
+	}
+	return companyDocumentUploadPurpose, nil
+}
+
+func belongsToCompanyDocument(metadata platformclients.FileMetadata, organizationID string) bool {
+	return metadata.OwnerID == organizationID && metadata.OwnerType == "ORGANIZATION"
+}
+
 // RequestDocumentUploadAuthorizationInput contains the data for requesting an upload grant.
 type RequestDocumentUploadAuthorizationInput struct {
 	Tenant           tenant.Context
@@ -1109,10 +1124,11 @@ func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input 
 	if !AcceptsOnboardingEdits(org.Status) {
 		return nil, apperrors.Conflict("Documents cannot be changed while the company is under review.", nil)
 	}
-	// Default upload purpose if not provided
-	purpose := input.UploadPurpose
-	if purpose == "" {
-		purpose = "document_file"
+	// Never issue an invalid legacy document_file grant, and never let
+	// this organization-documents route request an unrelated Media purpose.
+	purpose, err := companyDocumentPurpose(input.UploadPurpose)
+	if err != nil {
+		return nil, err
 	}
 
 	// Default allowed MIME types if not provided
@@ -1141,7 +1157,7 @@ func (s *Service) RequestDocumentUploadAuthorization(ctx context.Context, input 
 		CorrelationID:  input.Tenant.CorrelationID,
 		IdempotencyKey: input.IdempotencyKey,
 	}, platformclients.MediaUploadRequest{
-		OwnerType:        "organization",
+		OwnerType:        "ORGANIZATION",
 		OwnerReference:   input.Tenant.OrganizationID,
 		DocumentCategory: input.DocumentType,
 		UploadPurpose:    purpose,
@@ -1234,7 +1250,7 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 		return nil, errorcodes.Unavailable(errorcodes.OrganizationOnboardingIncomplete,
 			"Document verification is unavailable right now. Please try again shortly.")
 	}
-	if metadata.OwnerID != input.Tenant.OrganizationID || metadata.OwnerType != "organization" {
+	if !belongsToCompanyDocument(metadata, input.Tenant.OrganizationID) {
 		// Never reveal that the file exists under another organization.
 		return nil, apperrors.NotFound("File not found.", nil)
 	}
