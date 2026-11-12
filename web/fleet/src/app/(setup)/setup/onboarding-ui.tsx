@@ -9,11 +9,12 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { previousPath, nextPath } from "./steps";
 
 export const control =
-  "w-full min-w-0 rounded-xl border border-field-border bg-surface px-3 py-2.5 text-base text-ink-950 outline-none focus:border-label-accent focus:ring-2 focus:ring-primary/20 disabled:opacity-60";
+  "w-full min-w-0 rounded-xl border border-field-border bg-surface px-4 py-2.5 text-sm text-ink-950 outline-none focus:border-label-accent focus:ring-4 focus:ring-primary/15 disabled:opacity-60";
 export function humanize(code: string) {
   return code
     .toLowerCase()
@@ -134,7 +135,7 @@ export function Field({
     <div className="min-w-0">
       <label
         htmlFor={name}
-        className="mb-1 block text-sm font-semibold text-ink-950"
+        className="mb-1 block text-[13px] font-semibold text-ink-900"
       >
         {label}
         {props.required && <span aria-hidden="true"> *</span>}
@@ -164,7 +165,7 @@ export function SelectField({
     <div className="min-w-0">
       <label
         htmlFor={name}
-        className="mb-1 block text-sm font-semibold text-ink-950"
+        className="mb-1 block text-[13px] font-semibold text-ink-900"
       >
         {label}
         {props.required && <span aria-hidden="true"> *</span>}
@@ -187,7 +188,7 @@ export function Section({
   return (
     <section className="rounded-2xl border border-line bg-surface p-4 sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-ink-950">{title}</h2>
+        <h2 style={{ fontSize: "15px" }} className="font-semibold text-ink-950">{title}</h2>
         {edit && (
           <Link
             href={edit}
@@ -217,10 +218,10 @@ export function StepForm({
   onReload?: () => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form onSubmit={onSubmit} className="mx-auto w-full max-w-5xl space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-ink-950">{title}</h1>
-        <p className="mt-2 text-sm text-ink-600">{description}</p>
+        <h1 className="text-ink-950">{title}</h1>
+        <p className="mt-1.5 text-sm text-ink-600">{description}</p>
       </div>
       {error != null && (
         <ErrorNotice
@@ -249,32 +250,33 @@ function SaveFooterContent({
   const pathname = usePathname();
   const search = useSearchParams();
   const returnToReview = step !== "review" && search.get("return") === "review";
+  const actionLabel = returnToReview ? "Save & return to review" : label;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pb-[max(1rem,env(safe-area-inset-bottom))] pt-5">
-      <Link href={previousPath(step)} className="btn btn-secondary">
+    // Matches the original two-button Fleet footer: primary action first on
+    // mobile, Back beneath it; only the two actions appear at this boundary.
+    <div className="flex flex-col-reverse gap-3 border-t border-line pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between">
+      <Link href={previousPath(step)} className="btn btn-secondary btn-lg w-full sm:w-auto">
+        <ArrowLeft />
         Back
-      </Link>
-      <Link href="/setup" className="text-sm text-ink-600">
-        Return to overview
       </Link>
       {editable ? (
         <button
           type="submit"
           disabled={busy || disabled}
-          className="btn btn-primary"
+          aria-busy={busy}
+          className="btn btn-primary btn-lg w-full sm:w-auto sm:min-w-[200px]"
         >
-          {busy
-            ? "Saving…"
-            : returnToReview
-              ? "Save & return to review"
-              : label}
+          {busy ? <Loader2 className="animate-spin" /> : null}
+          {busy ? "Saving…" : actionLabel}
+          {!busy && <ArrowRight />}
         </button>
       ) : (
         <Link
-          className="btn btn-primary"
+          className="btn btn-primary btn-lg w-full sm:w-auto sm:min-w-[200px]"
           href={pathname === "/setup/submit" ? "/setup" : nextPath(step)}
         >
           Continue
+          <ArrowRight />
         </Link>
       )}
     </div>
