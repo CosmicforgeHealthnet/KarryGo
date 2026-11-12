@@ -146,7 +146,8 @@ export default function RepresentativePage() {
             </SelectField>
           </Section>
         )}
-        <Section title="Who is the authorized representative of this company?">
+        <Section title="Representative details">
+          <p className="mb-4 text-sm text-ink-600">Who is the authorized representative of this company?</p>
           <div className="space-y-3">
             {[
               ["self", "I am the authorized representative."],
@@ -175,10 +176,9 @@ export default function RepresentativePage() {
               legally authorized person.
             </p>
           )}
-        </Section>
         {form.choice && (
-          <Section title="Representative details">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 border-t border-line pt-6">
+            <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
               <Field
                 name="fullName"
                 label="Full name"
@@ -240,8 +240,9 @@ export default function RepresentativePage() {
               details. Supporting authority evidence may be requested during
               company review.
             </p>
-          </Section>
+          </div>
         )}
+        </Section>
       </fieldset>
       <SaveFooter
         step="representative"
