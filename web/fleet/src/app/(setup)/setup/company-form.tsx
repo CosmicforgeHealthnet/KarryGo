@@ -90,26 +90,10 @@ export default function CompanyForm() {
         void reloadSaved().catch(setError);
       }}
     >
-      <Section
-        title={
-          identity.isOrganizationOwner || !org
-            ? "Owner account contact"
-            : "Your account contact"
-        }
-      >
-        <dl className="grid gap-4 sm:grid-cols-2">
-          <TextValue label="Registered email" value={identity.email} />
-          <TextValue label="Registered phone" value={identity.phone} />
-        </dl>
-        <p className="mt-3 text-xs text-ink-500">
-          These are your account details. Business contacts can be different and
-          are entered in the next step.
-        </p>
-      </Section>
       <Section title="Legal information">
         <fieldset
           disabled={!editable || busy}
-          className="grid gap-4 sm:grid-cols-2"
+          className="grid gap-x-6 gap-y-5 sm:grid-cols-2"
         >
           <Field
             label="Legal company name"
@@ -133,6 +117,10 @@ export default function CompanyForm() {
             value={form.registrationNumber}
             onChange={(e) => set("registrationNumber", e.target.value)}
           />
+        </fieldset>
+      </Section>
+      <Section title="Business details">
+        <fieldset disabled={!editable || busy} className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
           <SelectField
             label="Company type"
             name="organizationType"
@@ -183,17 +171,26 @@ export default function CompanyForm() {
               set("defaultCurrency", e.target.value.toUpperCase())
             }
           />
-          {!org && !identity.fullName && (
-            <Field
-              label="Your full name"
-              name="ownerName"
-              required
-              autoComplete="name"
-              value={form.ownerName}
-              onChange={(e) => set("ownerName", e.target.value)}
-            />
-          )}
         </fieldset>
+      </Section>
+      <Section
+        title={identity.isOrganizationOwner || !org ? "Owner details" : "Account details"}
+      >
+        {!org && !identity.fullName && (
+          <fieldset disabled={!editable || busy} className="mb-5">
+            <Field label="Your full name" name="ownerName" required
+              autoComplete="name" value={form.ownerName}
+              onChange={(e) => set("ownerName", e.target.value)} />
+          </fieldset>
+        )}
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <TextValue label="Registered email" value={identity.email} />
+          <TextValue label="Registered phone" value={identity.phone} />
+        </dl>
+        <p className="mt-3 text-xs text-ink-500">
+          These are your account details. Business contacts can be different and
+          are entered in the next step.
+        </p>
       </Section>
       <SaveFooter step="company" busy={busy} editable={editable} />
     </StepForm>
