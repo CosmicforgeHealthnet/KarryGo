@@ -86,15 +86,15 @@ export default function Headquarters() {
       }}
     >
       <fieldset disabled={!editable || busy} className="space-y-6">
-        <Section title="Registered business address">
+        <Section title="Registered Address">
           <AddressGroup
             prefix="registered"
             value={form.registeredAddress}
             onChange={(value) => change({ ...form, registeredAddress: value })}
           />
-        </Section>
-        <Section title="Operating address">
-          <label className="flex items-center gap-3 text-sm">
+          <div className="mt-6 border-t border-line pt-5">
+            <p className="mb-3 text-[13px] font-semibold text-ink-900">Operating address</p>
+            <label className="flex items-center gap-3 text-sm">
             <input
               type="checkbox"
               checked={form.same}
@@ -113,8 +113,9 @@ export default function Headquarters() {
               />
             </div>
           )}
+          </div>
         </Section>
-        <Section title="Business contact information">
+        <Section title="Contact Information">
           {!profile?.businessEmail && !profile?.businessPhone && (
             <p className="mb-4 text-sm text-ink-600">
               We&apos;ve filled this using your registered details. You can
