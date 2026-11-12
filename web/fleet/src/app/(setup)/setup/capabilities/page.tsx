@@ -38,7 +38,7 @@ export default function Capabilities() {
   }
   return (
     <StepForm
-      title="Logistics services"
+      title="Services you offer"
       description="Select the services your company intends to offer or manage. Certain services require additional review."
       onSubmit={save}
       error={error}
@@ -46,7 +46,7 @@ export default function Capabilities() {
         void reloadSaved().catch(setError);
       }}
     >
-      <Section title="Available services">
+      <Section title="Select Capabilities">
         <fieldset
           disabled={busy || !editable}
           className="grid gap-3 sm:grid-cols-2"
