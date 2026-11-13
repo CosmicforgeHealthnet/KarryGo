@@ -39,7 +39,7 @@ func TestSection17WorkerRejectsTenantMismatch(t *testing.T) {
 }
 func TestSection17RouteCatalogue(t *testing.T) {
 	routes := TenantRoutes()
-	if len(routes) != 37 {
+	if len(routes) != 46 { // 37 + 5 shift-template + 4 enrolment routes (000089)
 		t.Fatalf("routes=%d", len(routes))
 	}
 	seen := map[string]bool{}

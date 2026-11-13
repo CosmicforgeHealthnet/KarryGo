@@ -1855,6 +1855,440 @@
           }
         ]
       }
+    },
+    "/shift-templates": {
+      "get": {
+        "operationId": "listShiftTemplates",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "shifts.read",
+        "x-feature-flag": "SHIFTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createShiftTemplate",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "shifts.manage",
+        "x-feature-flag": "SHIFTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shift-templates/{templateId}": {
+      "get": {
+        "operationId": "getShiftTemplate",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "shifts.read",
+        "x-feature-flag": "SHIFTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateShiftTemplate",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "shifts.manage",
+        "x-feature-flag": "SHIFTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/shift-templates/{templateId}/generate": {
+      "post": {
+        "operationId": "generateShiftsFromTemplate",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "shifts.manage",
+        "x-feature-flag": "SHIFTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/training/enrollments": {
+      "get": {
+        "operationId": "listTrainingEnrollments",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "training.read",
+        "x-feature-flag": "TRAINING_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTrainingEnrollment",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "training.manage",
+        "x-feature-flag": "TRAINING_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/training/enrollments/{enrollmentId}/complete": {
+      "post": {
+        "operationId": "completeTrainingEnrollment",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "training.record_completion",
+        "x-feature-flag": "TRAINING_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "enrollmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/training/enrollments/{enrollmentId}/cancel": {
+      "post": {
+        "operationId": "cancelTrainingEnrollment",
+        "tags": [
+          "Section 17"
+        ],
+        "x-permission": "training.manage",
+        "x-feature-flag": "TRAINING_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "enrollmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {

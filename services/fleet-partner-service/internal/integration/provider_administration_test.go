@@ -22,7 +22,9 @@ type activeOrgReader struct{}
 func (activeOrgReader) OrganizationStatus(context.Context, string) (string, string, error) {
 	return "Org", "ACTIVE", nil
 }
-func (activeOrgReader) OrganizationCurrency(context.Context, string) (string, error) { return "NGN", nil }
+func (activeOrgReader) OrganizationCurrency(context.Context, string) (string, error) {
+	return "NGN", nil
+}
 func (activeOrgReader) BranchName(context.Context, string, string) (string, string, error) {
 	return "Branch", "BRANCH", nil
 }

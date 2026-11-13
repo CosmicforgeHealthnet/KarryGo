@@ -164,6 +164,7 @@ Newest first. Each entry lists anything that creates new app-frontend work.
 
 | Date | Area | What changed | App frontend impact |
 |---|---|---|---|
+| 2026-11-13 | Sections 5-20 | Branches, departments, settings, custom roles, scoped role bindings, staff edit; managed-provider edit/reactivate/remove/capabilities/policies/declines; marketplace unsafe-vehicle declines reach maintenance; shift templates and training enrolments (`fleet-sections-05-20-final-closure.md`) | None for provider apps. Fleet web pages for the new routes not yet built. |
 | 2026-11-13 | Company activation (ADR-006) | Fleet applies Verification decisions (push + one-minute read-back), maps VERIFIED to APPROVED, activates approved companies; activation policy v2; Verification accepts Fleet's text ids, has company review admin commands and delivers decisions to Fleet; staging pairing workflow connects them | Admin console company review screens (3.1). Fleet web company page shows review progress (done). |
 | 2026-11-13 | Audit | Full audit of Sections 1-72 and Appendices A-D (`spec-v2-audit/`) | None |
 | 2026-11-13 | Fleet | Staff management, HQ branch, workforce/payroll fixes, trips pages, staging modules switched on (`fleet-end-to-end-activation-report.md`) | None |
