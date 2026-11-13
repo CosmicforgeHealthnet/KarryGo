@@ -132,6 +132,15 @@ func (s *Service) applyTripEvent(ctx context.Context, tx pgx.Tx,
 		return "", err
 	}
 
+	// Mirror the trip onto the assignment it executes (11.2: READY_FOR_EXECUTION
+	// -> IN_PROGRESS -> COMPLETED). A gapped trip moves nothing here; the sync
+	// sweep advances it once reconciliation has made the projection current.
+	if outcome != repositories.TripEventGap {
+		if _, err := s.advanceAssignmentFromTrip(ctx, tx, trip, event.EventID); err != nil {
+			return "", err
+		}
+	}
+
 	if outcome == repositories.TripEventGap {
 		return repositories.SourceEventGap, nil
 	}
@@ -215,8 +224,8 @@ func (s *Service) resolveTripOrganization(ctx context.Context, tx pgx.Tx,
 	}
 
 	if sourceEvent.PlatformRequestID != "" {
-		projection, findErr := s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx,
-			event.SourceService, sourceEvent.PlatformRequestID)
+		projection, findErr := s.tripOwnerProjection(ctx, tx, event.SourceService,
+			sourceEvent.PlatformRequestID, sourceEvent)
 		if findErr == nil {
 			sourceEvent.OrganizationID = projection.OrganizationID
 			return nil
@@ -243,15 +252,69 @@ func (s *Service) associatedRequest(ctx context.Context, tx pgx.Tx,
 	if trip == nil || trip.PlatformRequestID == nil || *trip.PlatformRequestID == "" {
 		return nil, nil
 	}
-	projection, err := s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx,
+	projections, err := s.opts.Projections.ListBySourceRequest(ctx, tx,
 		trip.SourceService, *trip.PlatformRequestID)
-	if errors.Is(err, repositories.ErrNotFound) {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
 	}
-	return projection, nil
+	for index := range projections {
+		if projections[index].OrganizationID == trip.OrganizationID {
+			return &projections[index], nil
+		}
+	}
+	return nil, nil
+}
+
+// tripOwnerProjection picks, among every organization's projection of the
+// trip's request, the one that owns the trip.
+//
+// A request may have been offered to several organizations, but only one
+// committed to it. The owner is identified from Fleet's OWN records: the
+// projection carrying the assignment the source says it executes, else the
+// one projection that moved past the open pool. Organization identifiers in
+// the event body only ever select among projections Fleet already holds; they
+// can never name a tenant Fleet does not already associate with this request.
+func (s *Service) tripOwnerProjection(ctx context.Context, tx pgx.Tx, sourceService string,
+	requestID string, sourceEvent *repositories.TripSourceEvent) (*models.RequestProjection, error) {
+	projections, err := s.opts.Projections.ListBySourceRequest(ctx, tx, sourceService, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if len(projections) == 0 {
+		return nil, repositories.ErrNotFound
+	}
+	if len(projections) == 1 {
+		return &projections[0], nil
+	}
+	if sourceEvent.AssignmentID != "" {
+		for index := range projections {
+			if projections[index].AssignmentID != nil && *projections[index].AssignmentID == sourceEvent.AssignmentID {
+				return &projections[index], nil
+			}
+		}
+	}
+	var committed []*models.RequestProjection
+	for index := range projections {
+		switch projections[index].ProjectionStatus {
+		case models.ProjectionOffered, models.ProjectionExpired, models.ProjectionCancelled,
+			models.ProjectionOrganizationDeclined:
+			continue
+		}
+		committed = append(committed, &projections[index])
+	}
+	if len(committed) == 1 {
+		return committed[0], nil
+	}
+	if claimed := sourceEvent.SettlementOrganizationID; claimed != "" {
+		for _, projection := range committed {
+			if projection.OrganizationID == claimed {
+				return projection, nil
+			}
+		}
+	}
+	// Ambiguous: more than one organization appears committed and nothing
+	// Fleet holds tells them apart. Refuse rather than guess a tenant.
+	return nil, repositories.ErrNotFound
 }
 
 // recordTripHistory appends the append-only status transition.

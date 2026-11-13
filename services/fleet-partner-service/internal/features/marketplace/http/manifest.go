@@ -36,6 +36,11 @@ func TenantRoutes() []Route {
 		{Method: "GET", Path: "/marketplace/assignments", OperationID: "listCorporateAssignments", Permission: PermissionMarketplaceRead, AuthClass: "corporate"},
 		{Method: "GET", Path: "/marketplace/assignments/:assignmentId", OperationID: "getCorporateAssignment", Permission: PermissionMarketplaceRead, AuthClass: "corporate"},
 		{Method: "GET", Path: "/marketplace/assignments/:assignmentId/history", OperationID: "listCorporateAssignmentHistory", Permission: PermissionMarketplaceRead, AuthClass: "corporate"},
+		// Spec 12.3 trip lifecycle projection (status, history, outcome and
+		// canonical references). Distinct from /tracking, which serves the
+		// live position projection.
+		{Method: "GET", Path: "/marketplace/trips", OperationID: "listCorporateTrips", Permission: PermissionMarketplaceRead, AuthClass: "corporate"},
+		{Method: "GET", Path: "/marketplace/trips/:tripId", OperationID: "getCorporateTrip", Permission: PermissionMarketplaceRead, AuthClass: "corporate"},
 
 		{Method: "POST", Path: "/marketplace/offers/:offerId/accept", OperationID: "acceptCorporateOffer", Permission: PermissionMarketplaceAccept, AuthClass: "corporate", IdempotencyRequired: true, ExpectedVersionRequired: true},
 		{Method: "POST", Path: "/marketplace/offers/:offerId/decline", OperationID: "declineCorporateOffer", Permission: PermissionMarketplaceDecline, AuthClass: "corporate", IdempotencyRequired: true},
@@ -59,6 +64,8 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 		"listCorporateAssignments":       h.ListAssignments,
 		"getCorporateAssignment":         h.GetAssignment,
 		"listCorporateAssignmentHistory": h.ListAssignmentHistory,
+		"listCorporateTrips":             h.ListTrips,
+		"getCorporateTrip":               h.GetTrip,
 		"acceptCorporateOffer":           h.AcceptOffer,
 		"declineCorporateOffer":          h.DeclineOffer,
 		"assignCorporateRequest":         h.Assign,

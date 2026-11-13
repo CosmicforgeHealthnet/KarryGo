@@ -200,6 +200,11 @@ func (s *Service) IngestEvent(ctx context.Context, raw []byte, event InboundEven
 	case errors.Is(err, events.ErrPayloadMismatch):
 		return IngestResult{}, codedBadRequest("payload_hash_mismatch",
 			"This event id was already received with a different payload.")
+	case errors.Is(err, errNoEligibleOrganization):
+		// The request was evaluated against every managed organization and
+		// none may take it. Nothing was recorded; a redelivery re-evaluates.
+		return IngestResult{Status: IngestIgnored, EventID: event.EventID,
+			Code: "no_eligible_organization"}, nil
 	case errors.Is(err, repositories.ErrNotFound):
 		// No projection for this request. Not an error the producer can fix by
 		// retrying with the same event, and not something we invent state for.
@@ -240,7 +245,7 @@ func (s *Service) ApplyStreamEventTx(ctx context.Context, tx pgx.Tx, envelope ev
 		return appErr
 	}
 	_, err := s.applyEvent(ctx, tx, event)
-	if errors.Is(err, repositories.ErrNotFound) {
+	if errors.Is(err, repositories.ErrNotFound) || errors.Is(err, errNoEligibleOrganization) {
 		// The shared stream carries events for many fleet organizations. A
 		// request/trip that has no local projection is intentionally ignored;
 		// inventing one would fabricate source-owned state.
@@ -267,6 +272,17 @@ func (s *Service) applyEvent(ctx context.Context, tx pgx.Tx,
 		}
 		return s.opts.PrivateEvents.ProjectPrivateExecutionEvent(ctx, tx, event)
 	}
+
+	// Marketplace tables store the source CATEGORY; the authenticated caller
+	// is a service NAME. Normalise once here so every lookup and insert below
+	// speaks the stored vocabulary.
+	category := SourceCategory(event.SourceService)
+	if category == "" {
+		return "", codedBadRequest("unknown_source_service",
+			"The producing service is not a marketplace execution source.")
+	}
+	event.SourceService = category
+
 	// Route on which aggregate the event's version belongs to. Trip and proof
 	// events carry TRIP versions; applying them to the request projection's
 	// counter would compare two unrelated sequences.
@@ -274,16 +290,39 @@ func (s *Service) applyEvent(ctx context.Context, tx pgx.Tx,
 		return s.applyTripEvent(ctx, tx, event)
 	}
 
-	projection, err := s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx,
-		event.SourceService, sourceRequestID(event))
+	// One source request may be projected into several organizations (every
+	// organization it was offered to). Each copy advances under its own
+	// version rules, in id order so concurrent deliveries lock identically.
+	projections, err := s.opts.Projections.ListBySourceRequest(ctx, tx, category,
+		sourceRequestID(event))
 	if err != nil {
 		return "", err
 	}
+	if len(projections) == 0 {
+		if event.EventType == EventRequestOffered && s.opts.Opportunities.Enabled {
+			return s.createOpportunities(ctx, tx, category, event)
+		}
+		return "", repositories.ErrNotFound
+	}
 
-	return s.opts.Projections.ApplySourceEvent(ctx, tx, projection.ID, event.AggregateVersion,
-		event.EventID, event.OccurredAt, func(freshness string) error {
-			return s.applyProjectionChange(ctx, tx, projection, event)
-		})
+	outcome := repositories.SourceEventStale
+	for index := range projections {
+		projection := projections[index]
+		applied, err := s.opts.Projections.ApplySourceEvent(ctx, tx, projection.ID,
+			event.AggregateVersion, event.EventID, event.OccurredAt, func(freshness string) error {
+				return s.applyProjectionChange(ctx, tx, &projection, event)
+			})
+		if err != nil {
+			return "", err
+		}
+		switch {
+		case applied == repositories.SourceEventGap:
+			outcome = repositories.SourceEventGap
+		case applied == repositories.SourceEventApplied && outcome == repositories.SourceEventStale:
+			outcome = repositories.SourceEventApplied
+		}
+	}
+	return outcome, nil
 }
 
 func privateExecutionOperationID(payload map[string]any) string {
@@ -327,15 +366,28 @@ func (s *Service) applyProjectionChange(ctx context.Context, tx pgx.Tx,
 	}
 
 	switch event.EventType {
-	case EventRequestOffered, EventRequestUpdated:
+	case EventRequestOffered:
 		return nil
 
+	case EventRequestUpdated:
+		return s.applyRequestUpdate(ctx, tx, projection, event)
+
 	case EventRequestReserved:
-		return setStatus(models.ProjectionReservationPending)
+		return s.applyRequestReserved(ctx, tx, projection, event)
 
 	case EventRequestReservationRelease:
 		// A released reservation returns the request to the open pool; it is
 		// not a terminal state and the organization may be offered it again.
+		// Only the organization that held the reservation moves: another
+		// organization's copy was never reserved and must not be reset.
+		if projection.ProjectionStatus != models.ProjectionReservationPending &&
+			projection.ProjectionStatus != models.ProjectionOrganizationAccepted {
+			return nil
+		}
+		if winner := payloadString(event.Payload, "organizationId"); winner != "" &&
+			winner != projection.OrganizationID {
+			return nil
+		}
 		return setStatus(models.ProjectionOffered)
 
 	case EventRequestExpired:
@@ -407,5 +459,9 @@ func (s *Service) cancelOpenWork(ctx context.Context, tx pgx.Tx,
 		reasonCode, ""); err != nil {
 		return err
 	}
-	return nil
+	// Providers holding a copy of a stood-down offer must stop seeing Accept
+	// and Decline on it: their recipient rows close with the offer.
+	_, err = s.opts.Offers.CloseOpenRecipients(ctx, tx, projection.OrganizationID, offer.ID,
+		models.RecipientCancelled)
+	return err
 }

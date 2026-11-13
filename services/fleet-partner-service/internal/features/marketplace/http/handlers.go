@@ -199,6 +199,44 @@ func (h *Handler) ListAssignmentHistory(c *gin.Context) {
 	respond.OK(c, history)
 }
 
+// ListTrips returns the organization's trip lifecycle projections.
+// GET /marketplace/trips
+func (h *Handler) ListTrips(c *gin.Context) {
+	t, ok := h.gate(c, PermissionMarketplaceRead)
+	if !ok {
+		return
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	offset, _ := strconv.Atoi(c.Query("offset"))
+	page, err := h.service.ListCorporateTrips(c.Request.Context(), t, usecases.CorporateTripFilter{
+		Status:        strings.TrimSpace(c.Query("status")),
+		SourceService: strings.TrimSpace(c.Query("sourceService")),
+		MembershipID:  strings.TrimSpace(c.Query("membershipId")),
+		Limit:         limit,
+		Offset:        offset,
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, page)
+}
+
+// GetTrip returns one trip with its history, delivery outcome and assignment.
+// GET /marketplace/trips/:tripId
+func (h *Handler) GetTrip(c *gin.Context) {
+	t, ok := h.gate(c, PermissionMarketplaceRead)
+	if !ok {
+		return
+	}
+	trip, err := h.service.GetCorporateTrip(c.Request.Context(), t, c.Param("tripId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, trip)
+}
+
 // ---------------------------------------------------------------------------
 // Writes (idempotency required)
 // ---------------------------------------------------------------------------

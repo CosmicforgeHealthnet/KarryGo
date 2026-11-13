@@ -294,7 +294,7 @@ func (s *Service) reconcileRequest(ctx context.Context, item repositories.Reconc
 	}
 
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		projection, findErr := s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx,
+		projection, findErr := s.reconciliationProjection(ctx, tx, item.OrganizationID,
 			item.SourceService, item.AggregateSourceID)
 		if findErr != nil {
 			return findErr
@@ -394,7 +394,7 @@ func (s *Service) repairAssociatedRequest(ctx context.Context, tx pgx.Tx,
 		return nil
 	}
 
-	projection, err := s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx,
+	projection, err := s.reconciliationProjection(ctx, tx, trip.OrganizationID,
 		trip.SourceService, *trip.PlatformRequestID)
 	if errors.Is(err, repositories.ErrNotFound) {
 		return nil
@@ -482,4 +482,25 @@ func (s *Service) RunReconciliationLoop(ctx context.Context, interval time.Durat
 			}
 		}
 	}
+}
+
+// reconciliationProjection resolves the projection a reconciliation case or
+// trip repair targets. A request offered to several organizations has one
+// projection per organization; the case's own organization selects the right
+// one, so a repair can never land on another tenant's copy.
+func (s *Service) reconciliationProjection(ctx context.Context, tx pgx.Tx, organizationID string,
+	sourceService string, requestID string) (*models.RequestProjection, error) {
+	if organizationID == "" {
+		return s.opts.Projections.FindBySourceRequestAnyOrganization(ctx, tx, sourceService, requestID)
+	}
+	projections, err := s.opts.Projections.ListBySourceRequest(ctx, tx, sourceService, requestID)
+	if err != nil {
+		return nil, err
+	}
+	for index := range projections {
+		if projections[index].OrganizationID == organizationID {
+			return &projections[index], nil
+		}
+	}
+	return nil, repositories.ErrNotFound
 }

@@ -176,6 +176,12 @@ func main() {
 		}()
 		go func() { defer workers.Done(); app.StartAssignmentExpiryWorker(ctx, cfg, pool, metrics) }()
 		go func() { defer workers.Done(); app.StartReassignmentStalenessWorker(ctx, cfg, pool, metrics) }()
+		// Sections 11-12: offer expiry + trip->assignment sync, the execution
+		// start worker (previously only in cmd/worker) and the Section 27
+		// scheduled-task runner (previously never started anywhere).
+		app.StartMarketplaceLifecycleWorker(ctx, cfg, pool, metrics, &workers)
+		app.StartExecutionStartWorker(ctx, cfg, pool, metrics, &workers)
+		app.StartScheduler(ctx, cfg, pool, metrics, &workers)
 		app.StartSection16Workers(ctx, cfg, components, &workers)
 		app.StartSection17And18Workers(ctx, cfg, components, &workers)
 		app.StartSections19To21Workers(ctx, cfg, components, &workers)

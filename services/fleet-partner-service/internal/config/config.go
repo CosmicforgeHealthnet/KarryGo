@@ -163,6 +163,26 @@ type Config struct {
 	MarketplaceReconcileBackoffMax   time.Duration
 	MarketplaceReconcileSweepLimit   int
 
+	// Sections 11-12 opportunity creation from platform.request.offered.v1.
+	// Only reachable when event ingestion itself is enabled and the caller is
+	// allowlisted; this is an additional kill switch, not the rollout gate.
+	MarketplaceOpportunityCreationEnabled  bool
+	MarketplaceOpportunityMaxOrganizations int
+	MarketplaceOpportunityMaxRecipients    int
+	MarketplaceOfferMinTTL                 time.Duration
+	MarketplaceOfferMaxTTL                 time.Duration
+	// Marketplace lifecycle worker: offer expiry (spec 62 "offer-expiry") and
+	// the trip -> assignment IN_PROGRESS/COMPLETED synchronization sweep. Both
+	// only touch Fleet-owned rows and make no external call.
+	MarketplaceLifecycleWorkerEnabled bool
+	MarketplaceLifecycleInterval      time.Duration
+	MarketplaceLifecycleBatchSize     int
+	// SchedulerEnabled starts the Section 27 scheduled-task runner wherever
+	// the worker loop runs. It only enqueues jobs for tasks an operator
+	// created; with no scheduled tasks it does nothing.
+	SchedulerEnabled      bool
+	SchedulerPollInterval time.Duration
+
 	// Section 27 assignment expiry and reassignment staleness workers.
 	AssignmentExpiryWorkerEnabled bool
 	AssignmentExpiryInterval      time.Duration
@@ -608,6 +628,17 @@ func Load() (Config, error) {
 		MarketplaceReconcileBackoffBase:  time.Duration(getEnvInt("FLEET_MARKETPLACE_RECONCILE_BACKOFF_BASE_SECONDS", 10)) * time.Second,
 		MarketplaceReconcileBackoffMax:   time.Duration(getEnvInt("FLEET_MARKETPLACE_RECONCILE_BACKOFF_MAX_SECONDS", 900)) * time.Second,
 		MarketplaceReconcileSweepLimit:   getEnvInt("FLEET_MARKETPLACE_RECONCILE_SWEEP_LIMIT", 500),
+
+		MarketplaceOpportunityCreationEnabled:  getEnvBool("FLEET_MARKETPLACE_OPPORTUNITY_CREATION_ENABLED", true),
+		MarketplaceOpportunityMaxOrganizations: getEnvInt("FLEET_MARKETPLACE_OPPORTUNITY_MAX_ORGANIZATIONS", 50),
+		MarketplaceOpportunityMaxRecipients:    getEnvInt("FLEET_MARKETPLACE_OPPORTUNITY_MAX_RECIPIENTS", 50),
+		MarketplaceOfferMinTTL:                 time.Duration(getEnvInt("FLEET_MARKETPLACE_OFFER_MIN_TTL_SECONDS", 120)) * time.Second,
+		MarketplaceOfferMaxTTL:                 time.Duration(getEnvInt("FLEET_MARKETPLACE_OFFER_MAX_TTL_SECONDS", 900)) * time.Second,
+		MarketplaceLifecycleWorkerEnabled:      getEnvBool("FLEET_MARKETPLACE_LIFECYCLE_WORKER_ENABLED", true),
+		MarketplaceLifecycleInterval:           time.Duration(getEnvInt("FLEET_MARKETPLACE_LIFECYCLE_INTERVAL_SECONDS", 30)) * time.Second,
+		MarketplaceLifecycleBatchSize:          getEnvInt("FLEET_MARKETPLACE_LIFECYCLE_BATCH_SIZE", 100),
+		SchedulerEnabled:                       getEnvBool("FLEET_SCHEDULER_ENABLED", true),
+		SchedulerPollInterval:                  time.Duration(getEnvInt("FLEET_SCHEDULER_POLL_INTERVAL_SECONDS", 5)) * time.Second,
 
 		AssignmentExpiryWorkerEnabled:           getEnvBool("ASSIGNMENT_EXPIRY_WORKER_ENABLED", false),
 		AssignmentExpiryInterval:                time.Duration(getEnvInt("FLEET_ASSIGNMENT_EXPIRY_INTERVAL_SECONDS", 15)) * time.Second,

@@ -109,6 +109,9 @@ type Options struct {
 	// (Section 28/34). Optional: when nil, ListProviderMemberships reports
 	// the capability as unavailable rather than panicking.
 	MembershipHistory MembershipHistoryReader
+	// Opportunities controls the creation of organization opportunities from
+	// platform.request.offered.v1 (Sections 11-12). Zero value: off.
+	Opportunities OpportunityConfig
 
 	ResponseTimeoutDefault time.Duration
 	ResponseTimeoutMin     time.Duration

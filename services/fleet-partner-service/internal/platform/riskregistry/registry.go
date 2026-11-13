@@ -447,6 +447,26 @@ var overrides = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/locations/:locationId", RiskClass: ratelimit.RiskStandard},
 	{Method: "PATCH", Path: "/fleet-partner/v1/locations/:locationId", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/locations/:locationId/archive", RiskClass: ratelimit.RiskSensitive},
+	// Corporate marketplace (Sections 11-12). The manifest
+	// (features/marketplace/http/manifest.go) existed and was mounted, but
+	// the coverage contract never enumerated it, so these routes had no
+	// classification at all. Accept/assign/cancel/reassign commit the
+	// organization or move a provider's work: SENSITIVE, like other
+	// assignment writes. Reads are STANDARD.
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/offers", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/offers/:offerId", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/metrics", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/requests/:projectionId/candidates", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/assignments", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/assignments/:assignmentId", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/assignments/:assignmentId/history", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/trips", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/marketplace/trips/:tripId", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/marketplace/offers/:offerId/accept", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/marketplace/offers/:offerId/decline", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/marketplace/requests/:projectionId/assign", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/marketplace/assignments/:assignmentId/cancel", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/marketplace/assignments/:assignmentId/reassign", RiskClass: ratelimit.RiskSensitive},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},

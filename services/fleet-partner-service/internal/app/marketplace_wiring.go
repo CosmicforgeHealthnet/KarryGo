@@ -156,5 +156,12 @@ func BuildMarketplaceService(cfg config.Config, pool *pgxpool.Pool, metrics *obs
 		CandidateMemberships: NewCandidateMembershipLister(providerrepos.NewRepository(pool)),
 		MembershipHistory:    NewMembershipHistoryReader(providerrepos.NewRepository(pool)),
 		Flags:                flags,
+		Opportunities: mktusecases.OpportunityConfig{
+			Enabled:                      cfg.MarketplaceOpportunityCreationEnabled,
+			MaxOrganizations:             cfg.MarketplaceOpportunityMaxOrganizations,
+			MaxRecipientsPerOrganization: cfg.MarketplaceOpportunityMaxRecipients,
+			MinOfferTTL:                  cfg.MarketplaceOfferMinTTL,
+			MaxOfferTTL:                  cfg.MarketplaceOfferMaxTTL,
+		},
 	})
 }

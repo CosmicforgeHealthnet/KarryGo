@@ -217,13 +217,13 @@ func init() {
 		aggregate string
 		producers []string
 	}{
-		"platform.request.offered.v1":      {"request", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "taxi-service"}},
-		"platform.request.cancelled.v1":    {"request", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "taxi-service"}},
-		"provider.availability.changed.v1": {"provider", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "taxi-service"}},
+		"platform.request.offered.v1":      {"request", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "driver-taxi-service"}},
+		"platform.request.cancelled.v1":    {"request", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "driver-taxi-service"}},
+		"provider.availability.changed.v1": {"provider", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "driver-taxi-service"}},
 		"provider.verification.changed.v1": {"provider", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "verification-compliance-service"}},
-		"trip.created.v1":                  {"trip", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "taxi-service"}},
-		"trip.status_changed.v1":           {"trip", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "taxi-service"}},
-		"trip.completed.v1":                {"trip", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "taxi-service"}},
+		"trip.created.v1":                  {"trip", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "driver-taxi-service"}},
+		"trip.status_changed.v1":           {"trip", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "driver-taxi-service"}},
+		"trip.completed.v1":                {"trip", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "driver-taxi-service"}},
 		"vehicle.verification.changed.v1":  {"vehicle", []string{"driver-dispatch-delivery-service", "driver-hauling-service", "verification-compliance-service"}},
 		"wallet.entry.posted.v1":           {"wallet_entry", []string{"payment-wallet-service"}},
 		"settlement.created.v1":            {"settlement", []string{"payment-wallet-service"}},

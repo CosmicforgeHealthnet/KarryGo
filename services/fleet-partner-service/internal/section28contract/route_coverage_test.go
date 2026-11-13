@@ -38,6 +38,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
+	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
 	packageshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/packages/http"
 	privatehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/http"
@@ -280,6 +281,15 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 	// one was the other half of the same blind spot.
 	safetyOpsH := safetyfeature.NewOperationsHandler(nil, nil, nil)
 	for _, r := range safetyOpsH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+
+	// The corporate marketplace manifest (mkthttp.TenantRoutes, mounted by
+	// marketplaceHandler.RegisterTenantRoutes in wiring.go) was never
+	// enumerated here, so its routes -- offers, assignments, and since
+	// Sections 11-12 the trip lifecycle projection -- escaped both registry
+	// coverage tests. Enumerated from the live manifest so it cannot drift.
+	for _, r := range mkthttp.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 

@@ -155,6 +155,11 @@ func main() {
 	go func() { defer workers.Done(); app.StartMarketplaceReconciliation(ctx, cfg, pool, metrics) }()
 	go func() { defer workers.Done(); app.StartAssignmentExpiryWorker(ctx, cfg, pool, metrics) }()
 	go func() { defer workers.Done(); app.StartReassignmentStalenessWorker(ctx, cfg, pool, metrics) }()
+	// Sections 11-12: offer expiry + trip->assignment sync, and the Section 27
+	// scheduled-task runner. Same composition as the API binary's in-process
+	// option; both are lease/SKIP-LOCKED safe when run in several processes.
+	app.StartMarketplaceLifecycleWorker(ctx, cfg, pool, metrics, &workers)
+	app.StartScheduler(ctx, cfg, pool, metrics, &workers)
 	if cfg.FinanceIntegrationEnabled && !cfg.FinanceExecutionKillSwitch && !cfg.IntegrationsKillSwitch {
 		if financeService := app.BuildFinanceService(cfg, pool, metrics); financeService != nil {
 			workers.Add(1)
