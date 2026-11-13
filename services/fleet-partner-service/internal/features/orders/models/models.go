@@ -88,11 +88,22 @@ const (
 // Once an order reaches ASSIGNED or IN_PROGRESS it has no direct edge to
 // CANCELLED: an execution request or canonical trip may already exist by
 // then, and the owning execution service — not a local order-status write —
-// is authoritative for stopping it. That path is orchestration's
-// responsibility (a later Section 15 slice), not this one's.
+// is authoritative for stopping it. Such an order is stopped by cancelling
+// its private assignment (which requests cancellation from the execution
+// service); the order then moves to CANCELLED only when the canonical
+// service's cancellation event is projected back (app/private_execution_
+// events.go).
+//
+// PLANNED and ASSIGNED are reached only from real producers: a private
+// assignment being created for the order's work (route publication or a
+// direct assignment) plans it, and the provider accepting assigns it. Trip
+// events drive IN_PROGRESS and the terminal outcomes.
 var orderTransitions = map[string]map[string]bool{
-	StatusDraft:              {StatusAwaitingApproval: true, StatusConfirmed: true, StatusCancelled: true},
-	StatusAwaitingApproval:   {StatusConfirmed: true, StatusCancelled: true},
+	StatusDraft: {StatusAwaitingApproval: true, StatusConfirmed: true, StatusCancelled: true},
+	// AWAITING_APPROVAL -> DRAFT is the reject-for-changes edge (and the edge an
+	// edit made during review takes): the order survives the review, it just
+	// has to be submitted again.
+	StatusAwaitingApproval:   {StatusConfirmed: true, StatusCancelled: true, StatusDraft: true},
 	StatusConfirmed:          {StatusPlanned: true, StatusCancelled: true},
 	StatusPlanned:            {StatusAssigned: true, StatusCancelled: true},
 	StatusAssigned:           {StatusInProgress: true, StatusFailed: true, StatusPartiallyCompleted: true},
@@ -123,6 +134,13 @@ func Cancellable(status string) bool {
 		return true
 	}
 	return false
+}
+
+// Editable reports whether the order's commercial content (schedule,
+// service fields, instructions, priority, reference) may still be changed.
+// Once confirmed, an order has committed to what it is.
+func Editable(status string) bool {
+	return status == StatusDraft || status == StatusAwaitingApproval
 }
 
 // Order is an organization-owned private order.
@@ -167,6 +185,13 @@ const (
 	ChangeCreated   = "CREATED"
 	ChangeConfirmed = "CONFIRMED"
 	ChangeCancelled = "CANCELLED"
+
+	// Reason codes recorded on order history by the Section 15 lifecycle.
+	ReasonSubmittedForApproval = "SUBMITTED_FOR_APPROVAL"
+	ReasonApproved             = "APPROVED"
+	ReasonEditedDuringApproval = "EDITED_DURING_APPROVAL"
+	ReasonPrivateAssignment    = "PRIVATE_ASSIGNMENT_CREATED"
+	ReasonProviderAccepted     = "PROVIDER_ACCEPTED_ASSIGNMENT"
 )
 
 // OrderHistory is one immutable order status change.

@@ -31,6 +31,12 @@ type privateWorkAdapter struct {
 	shipments *shipmentsrepos.Repository
 }
 
+// NewPrivateWorkAdapter builds the privateoperations -> orders/shipments
+// work resolver used by BuildPrivateOperationsService.
+func NewPrivateWorkAdapter(orders *ordersrepos.Repository, shipments *shipmentsrepos.Repository) privateusecases.WorkPort {
+	return privateWorkAdapter{orders: orders, shipments: shipments}
+}
+
 func (a privateWorkAdapter) Resolve(ctx context.Context, q database.Querier, organizationID, origin, id string) (privateusecases.WorkInfo, error) {
 	var orderID, shipmentID string
 	switch origin {
@@ -210,7 +216,11 @@ func BuildPrivateOperationsService(cfg config.Config, pool *pgxpool.Pool, publis
 		Repository:  privaterepos.NewRepository(pool),
 		Work:        privateWorkAdapter{orders: ordersrepos.NewRepository(pool), shipments: shipmentsrepos.NewRepository(pool)},
 		Eligibility: privateEligibilityAdapter{service: eligibilityusecases.Build(cfg, pool, metrics), workforce: workforce, assets: assets, restrictions: restrictions},
-		Events:      publisher,
+		// Assignment creation plans the order's work; provider acceptance
+		// assigns it. Trip events (private_execution_events.go) take it from
+		// there.
+		Progress: NewPrivateWorkProgressAdapter(ordersrepos.NewRepository(pool), shipmentsrepos.NewRepository(pool), publisher),
+		Events:   publisher,
 		Flags: privateusecases.Flags{
 			Enabled:         cfg.PrivateOrdersEnabled,
 			WritesEnabled:   cfg.PrivateAssignmentsWritesEnabled,

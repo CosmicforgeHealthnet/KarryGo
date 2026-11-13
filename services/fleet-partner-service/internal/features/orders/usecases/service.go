@@ -16,11 +16,11 @@
 // supplies the real adapters, matching how CRM itself depends on Media,
 // Notifications and Approvals through ports rather than concrete packages.
 //
-// Approval-policy evaluation for confirmation is intentionally not wired in
-// this slice: AWAITING_APPROVAL exists in the state machine for forward
-// compatibility, but no usecase here transitions an order into it. Wiring the
-// existing WP9 approval framework (the same one CRM binds through
-// ApprovalPort) is a follow-up, not a placeholder invented here.
+// Approval is bound to the existing WP9 approval framework through
+// ApprovalPort (the same engine CRM binds): Submit moves a DRAFT order to
+// AWAITING_APPROVAL and raises a WP9 request when the organization's policy
+// requires one, Approve confirms it, Reject returns it to DRAFT. See
+// lifecycle.go.
 package usecases
 
 import (
@@ -196,6 +196,13 @@ type Options struct {
 	Metrics *observability.Metrics
 	Flags   Flags
 	Now     func() time.Time
+	// Approvals binds order submission/approval to the WP9 approval
+	// framework. Nil means no organization policy can require a review: the
+	// submit/approve path still works under the four-eyes rule alone.
+	Approvals ApprovalPort
+	// DependentWork withdraws an order's shipments and pending provider
+	// offers when the order is cancelled. Nil leaves them untouched.
+	DependentWork DependentWorkPort
 }
 
 // Service implements the Section 15 private order workflows.
@@ -698,8 +705,17 @@ func (s *Service) AddStop(ctx context.Context, t tenant.Context, orderID string,
 // ---------------------------------------------------------------------------
 
 // Confirm validates every prerequisite and freezes the catalogue and
-// confirmation snapshots. No execution request, assignment or canonical trip
-// is created here — that is a later Section 15 slice's responsibility.
+// confirmation snapshots, moving a DRAFT order straight to CONFIRMED.
+//
+// It is the direct path for organizations whose approval policy does not
+// require a review of private orders. Where the policy does require one, the
+// order must go through Submit and Approve instead, and Confirm refuses
+// rather than letting the review be skipped. An order already AWAITING_
+// APPROVAL is confirmed only by Approve.
+//
+// No execution request, assignment or canonical trip is created here.
+// Planning (a private assignment for the order's work) and provider
+// acceptance move the order forward from CONFIRMED.
 func (s *Service) Confirm(ctx context.Context, t tenant.Context, orderID string, expectedVersion int64) (models.Order, error) {
 	if err := s.requireWritable(); err != nil {
 		return models.Order{}, err
@@ -710,87 +726,35 @@ func (s *Service) Confirm(ctx context.Context, t tenant.Context, orderID string,
 
 	var confirmed models.Order
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		order, err := s.opts.Repository.Lock(ctx, tx, t.OrganizationID, orderID)
+		order, err := s.lockOrder(ctx, tx, t, orderID)
 		if err != nil {
-			return translateOrderNotFound(err)
-		}
-		if !t.BranchPermitted(order.BranchID) {
-			return orderNotFound()
+			return err
 		}
 		if order.Version != expectedVersion {
 			return concurrency.ErrVersionMismatch
+		}
+		if order.Status == models.StatusAwaitingApproval {
+			return errorcodes.Conflict(errorcodes.OrderApprovalRequired,
+				"This order is awaiting approval; approve it instead of confirming it directly.")
 		}
 		if !models.CanTransition(order.Status, models.StatusConfirmed) {
 			return errorcodes.Conflict(errorcodes.OrderNotConfirmable,
 				"This order cannot be confirmed from its current status.")
 		}
-
-		customer, err := s.requireActiveCustomer(ctx, tx, t, order.CustomerID)
+		required, err := s.approvalRequired(ctx, t)
 		if err != nil {
 			return err
 		}
-		item, err := s.requireActiveCatalogItem(ctx, tx, t, order.ServiceCatalogItemID)
+		if required {
+			return errorcodes.Conflict(errorcodes.OrderApprovalRequired,
+				"This organization requires private orders to be approved; submit the order for approval.")
+		}
+		commitment, err := s.validateCommitment(ctx, tx, t, order)
 		if err != nil {
 			return err
 		}
-		if err := models.ValidateServiceFields(item.RequiredFieldsSchema, order.ServiceFields); err != nil {
-			return errorcodes.UnprocessableEntity(errorcodes.OrderStopInvalid, err.Error())
-		}
-		if strings.TrimSpace(order.ContractID) != "" {
-			at := s.opts.Now()
-			if order.RequestedScheduleStart != nil {
-				at = *order.RequestedScheduleStart
-			}
-			if _, err := s.requireActiveContract(ctx, tx, t, order.ContractID, customer.ID, at); err != nil {
-				return err
-			}
-		}
-
-		stops, err := s.opts.Repository.ListStops(ctx, tx, t.OrganizationID, orderID)
-		if err != nil {
-			return err
-		}
-		if len(stops) == 0 {
-			return errorcodes.UnprocessableEntity(errorcodes.OrderStopsRequired,
-				"An order must have at least one stop before it can be confirmed.")
-		}
-		for i, stop := range stops {
-			if stop.Sequence != i {
-				return errorcodes.Conflict(errorcodes.OrderStopSequenceConflict,
-					"Order stop sequence is not contiguous.")
-			}
-		}
-
-		confirmationSnapshot := models.JSONMap{
-			"customerId":          customer.ID,
-			"customerLegalName":   customer.LegalName,
-			"customerDisplayName": customer.DisplayName,
-			"customerType":        customer.CustomerType,
-			"stopCount":           len(stops),
-		}
-
-		confirmed, err = s.opts.Repository.Confirm(ctx, tx, t.OrganizationID, orderID, expectedVersion,
-			item.Snapshot, confirmationSnapshot, t.ActorID)
-		if err != nil {
-			return concurrency.AsConflict(translateVersionErr(err))
-		}
-		if histErr := s.opts.Repository.AppendHistory(ctx, tx, models.OrderHistory{
-			OrganizationID: t.OrganizationID, OrderID: orderID, PreviousStatus: order.Status,
-			NewStatus: models.StatusConfirmed, ActorType: string(t.ActorType), ActorID: t.ActorID,
-			CorrelationID: t.CorrelationID,
-		}); histErr != nil {
-			return histErr
-		}
-		if auditErr := s.opts.Audit.Record(ctx, tx, audit.EntryFromTenant(t, "orders.order.confirmed",
-			"private_order", confirmed.ID)); auditErr != nil {
-			return auditErr
-		}
-		if s.opts.Events != nil {
-			return s.opts.Events.Publish(ctx, tx, "organization.orders.order.confirmed.v1", "private_order",
-				confirmed.ID, confirmed.Version, t.OrganizationID, t.CorrelationID,
-				map[string]any{"orderId": confirmed.ID})
-		}
-		return nil
+		confirmed, err = s.commitConfirmation(ctx, tx, t, order, expectedVersion, commitment, "")
+		return err
 	})
 	if err != nil {
 		return models.Order{}, concurrency.AsConflict(err)
@@ -835,6 +799,16 @@ func (s *Service) Cancel(ctx context.Context, t tenant.Context, orderID string, 
 		if !models.Cancellable(order.Status) {
 			return errorcodes.Conflict(errorcodes.OrderNotCancellable,
 				"This order can no longer be cancelled directly; it has moved past planning.")
+		}
+		// Downstream compensation: the order's not-yet-executing shipments and
+		// pending provider offers are withdrawn in the same transaction, so a
+		// cancelled order never leaves a provider being asked to accept work
+		// that no longer exists. Work a provider already accepted refuses the
+		// whole cancellation; it must be stopped through the execution service.
+		if s.opts.DependentWork != nil {
+			if err = s.opts.DependentWork.CancelForOrder(ctx, tx, t, orderID, reasonCode); err != nil {
+				return err
+			}
 		}
 
 		cancelled, err = s.opts.Repository.Cancel(ctx, tx, t.OrganizationID, orderID, expectedVersion,

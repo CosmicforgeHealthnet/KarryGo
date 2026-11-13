@@ -57,6 +57,7 @@ import (
 	marketplacehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
+	ordersrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/repositories"
 	ordersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
 	orghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/http"
 	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
@@ -64,6 +65,7 @@ import (
 	packageshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/packages/http"
 	packagesusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/packages/usecases"
 	privatehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/http"
+	privaterepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/repositories"
 	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
 	prooffeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
 	providershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/http"
@@ -85,6 +87,7 @@ import (
 	cataloghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/servicecatalog/http"
 	catalogusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/servicecatalog/usecases"
 	shipmentshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/http"
+	shipmentsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/repositories"
 	shipmentsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/usecases"
 	specializedfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
@@ -429,6 +432,13 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	authorizer := accesscontrol.NewAuthorizer(roles, entryCache, cfg.AuthorizationCacheTTL)
 	searchService := BuildSearchService(cfg, pool, authorizer, metrics)
 	shipmentsService := BuildShipmentsService(cfg, pool, metrics, publisher)
+	// Section 15 order approval is bound to the WP9 approval framework, and
+	// cancelling an order withdraws its not-yet-executing shipments and
+	// pending provider offers in the same transaction.
+	ordersService := BuildOrdersService(cfg, pool, metrics, publisher, searchService).
+		WithApprovals(NewOrdersApprovalAdapter(approvalService, eligibilityService)).
+		WithDependentWork(NewOrdersDependentWorkAdapter(ordersrepos.NewRepository(pool),
+			shipmentsrepos.NewRepository(pool), privaterepos.NewRepository(pool), publisher))
 	exportsService := BuildExportsService(cfg, pool, publisher, metrics, searchService,
 		shipmentsService, workforceService, assetsService, warehouseService,
 		safetyOperations, financeOperations, engagementService)
@@ -445,7 +455,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 			eligibilityService, financeService),
 		CRM:               BuildCRMService(cfg, pool, metrics, publisher, approvalService),
 		ServiceCatalog:    BuildServiceCatalogService(cfg, pool, metrics, publisher),
-		Orders:            BuildOrdersService(cfg, pool, metrics, publisher, searchService),
+		Orders:            ordersService,
 		Shipments:         shipmentsService,
 		Packages:          BuildPackagesService(cfg, pool, publisher, contracts.Media),
 		Manifests:         BuildManifestsService(cfg, pool, publisher),
@@ -626,7 +636,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// Section 15 routes follow the same rule as Section 14: mounted whenever
 	// the service exists, answering not-found with the flag off.
 	catalogHandler := cataloghttp.NewHandler(c.ServiceCatalog, c.Authorizer)
-	ordersHandler := ordershttp.NewHandler(c.Orders, c.Authorizer)
+	ordersHandler := ordershttp.NewHandler(c.Orders, c.Authorizer).WithIdempotency(c.Idempotency)
 	shipmentsHandler := shipmentshttp.NewHandler(c.Shipments, c.Authorizer, c.Idempotency)
 	packagesHandler := packageshttp.NewHandler(c.Packages, c.Authorizer, c.Idempotency)
 	manifestsHandler := manifestshttp.NewHandler(c.Manifests, c.Authorizer, c.Idempotency)

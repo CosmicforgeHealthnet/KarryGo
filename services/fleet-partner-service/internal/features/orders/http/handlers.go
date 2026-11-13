@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -31,13 +32,22 @@ const (
 
 // Handler serves the Section 15 private order routes.
 type Handler struct {
-	service    *usecases.Service
-	authorizer *accesscontrol.Authorizer
+	service     *usecases.Service
+	authorizer  *accesscontrol.Authorizer
+	idempotency *idempotency.Store
 }
 
 // NewHandler builds the handler.
 func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{service: service, authorizer: authorizer}
+}
+
+// WithIdempotency binds the shared durable Idempotency-Key store. Every
+// route the manifest marks IdempotencyRequired then refuses a request without
+// a key and replays the recorded response for an identical retry.
+func (h *Handler) WithIdempotency(store *idempotency.Store) *Handler {
+	h.idempotency = store
+	return h
 }
 
 // RegisterTenantRoutes mounts the corporate private order routes.
@@ -50,10 +60,14 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	if h.service == nil {
 		return
 	}
-	mount(group, h.TenantRoutes(), map[string]gin.HandlerFunc{
+	h.mount(group, h.TenantRoutes(), map[string]gin.HandlerFunc{
 		"listOrders":              h.list,
 		"createOrder":             h.create,
 		"getOrder":                h.get,
+		"updateOrder":             h.update,
+		"submitOrder":             h.submit,
+		"approveOrder":            h.approve,
+		"rejectOrder":             h.reject,
 		"confirmOrder":            h.confirm,
 		"cancelOrder":             h.cancel,
 		"listOrderHistory":        h.history,
@@ -63,13 +77,36 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	})
 }
 
-func mount(group *gin.RouterGroup, routes []Route, handlers map[string]gin.HandlerFunc) {
+func (h *Handler) mount(group *gin.RouterGroup, routes []Route, handlers map[string]gin.HandlerFunc) {
 	for _, route := range routes {
 		handler, ok := handlers[route.OperationID]
 		if !ok || handler == nil {
 			panic("orders: no handler registered for operation " + route.OperationID)
 		}
+		if route.IdempotencyRequired {
+			handler = h.idempotent(route, handler)
+		}
 		group.Handle(route.Method, route.Path, handler)
+	}
+}
+
+// idempotent wraps a command in the shared durable idempotency store. The
+// endpoint key includes the concrete path so the same key on two different
+// orders is two different commands. Without a configured store (unit tests
+// that never exercise a write) the handler runs unwrapped.
+func (h *Handler) idempotent(route Route, next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.idempotency == nil {
+			next(c)
+			return
+		}
+		t, ok := middleware.TenantFromGin(c)
+		if !ok {
+			next(c)
+			return
+		}
+		idempotency.ExecuteHTTP(c, h.idempotency, t.OrganizationID, route.Method+" "+c.Request.URL.Path,
+			func() { next(c) })
 	}
 }
 
@@ -178,6 +215,7 @@ type OrderView struct {
 	Priority               string         `json:"priority"`
 	SpecialInstructions    string         `json:"specialInstructions,omitempty"`
 	Status                 string         `json:"status"`
+	ApprovalRequestID      string         `json:"approvalRequestId,omitempty"`
 	Version                int64          `json:"version"`
 	CreatedAt              string         `json:"createdAt"`
 	UpdatedAt              string         `json:"updatedAt"`
@@ -201,6 +239,7 @@ func NewOrderView(o models.Order) OrderView {
 		Priority:               o.Priority,
 		SpecialInstructions:    o.SpecialInstructions,
 		Status:                 o.Status,
+		ApprovalRequestID:      o.ApprovalRequestID,
 		Version:                o.Version,
 		CreatedAt:              formatTime(o.CreatedAt),
 		UpdatedAt:              formatTime(o.UpdatedAt),
@@ -522,4 +561,110 @@ func (h *Handler) convertConversionIntent(c *gin.Context) {
 		return
 	}
 	respond.Created(c, NewOrderView(order))
+}
+
+type updateOrderRequest struct {
+	CustomerReference      *string        `json:"customerReference"`
+	ServiceFields          map[string]any `json:"serviceFields"`
+	RequestedScheduleStart string         `json:"requestedScheduleStart"`
+	RequestedScheduleEnd   string         `json:"requestedScheduleEnd"`
+	ClearSchedule          bool           `json:"clearSchedule"`
+	Timezone               *string        `json:"timezone"`
+	Priority               *string        `json:"priority"`
+	SpecialInstructions    *string        `json:"specialInstructions"`
+	ExpectedVersion        int64          `json:"expectedVersion"`
+}
+
+// update edits a DRAFT or AWAITING_APPROVAL order (PATCH /orders/{id}).
+func (h *Handler) update(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.authorize(c, t, PermissionOrdersManage) {
+		return
+	}
+	var body updateOrderRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	start, err := parseTimeField(body.RequestedScheduleStart)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	end, err := parseTimeField(body.RequestedScheduleEnd)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	order, err := h.service.Update(c.Request.Context(), t, c.Param("orderId"), usecases.UpdateInput{
+		CustomerReference: body.CustomerReference, ServiceFields: models.JSONMap(body.ServiceFields),
+		RequestedScheduleStart: start, RequestedScheduleEnd: end, ClearSchedule: body.ClearSchedule,
+		Timezone: body.Timezone, Priority: body.Priority, SpecialInstructions: body.SpecialInstructions,
+		ExpectedVersion: expectedVersion(c, body.ExpectedVersion),
+	})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, NewOrderView(order))
+}
+
+// submit moves a DRAFT order to AWAITING_APPROVAL.
+func (h *Handler) submit(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.authorize(c, t, PermissionOrdersManage) {
+		return
+	}
+	var body versionOnlyRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	order, err := h.service.Submit(c.Request.Context(), t, c.Param("orderId"),
+		expectedVersion(c, body.ExpectedVersion), strings.TrimSpace(c.GetHeader("Idempotency-Key")))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, NewOrderView(order))
+}
+
+// approve confirms an order that is AWAITING_APPROVAL.
+func (h *Handler) approve(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.authorize(c, t, PermissionOrdersConfirm) {
+		return
+	}
+	var body versionOnlyRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	order, err := h.service.Approve(c.Request.Context(), t, c.Param("orderId"), expectedVersion(c, body.ExpectedVersion))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, NewOrderView(order))
+}
+
+type rejectOrderRequest struct {
+	ReasonCode      string `json:"reasonCode"`
+	ExpectedVersion int64  `json:"expectedVersion"`
+}
+
+// reject returns an order under review to DRAFT.
+func (h *Handler) reject(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.authorize(c, t, PermissionOrdersConfirm) {
+		return
+	}
+	var body rejectOrderRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	order, err := h.service.Reject(c.Request.Context(), t, c.Param("orderId"),
+		expectedVersion(c, body.ExpectedVersion), body.ReasonCode)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, NewOrderView(order))
 }

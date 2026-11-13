@@ -16,6 +16,7 @@ func TestCanTransition_Matrix(t *testing.T) {
 		{StatusDraft, StatusCancelled}:               true,
 		{StatusAwaitingApproval, StatusConfirmed}:    true,
 		{StatusAwaitingApproval, StatusCancelled}:    true,
+		{StatusAwaitingApproval, StatusDraft}:        true,
 		{StatusConfirmed, StatusPlanned}:             true,
 		{StatusConfirmed, StatusCancelled}:           true,
 		{StatusPlanned, StatusAssigned}:              true,

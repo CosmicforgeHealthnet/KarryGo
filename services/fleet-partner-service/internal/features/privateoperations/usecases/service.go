@@ -31,6 +31,24 @@ type WorkPort interface {
 type EligibilityPort interface {
 	Validate(context.Context, string, string, string, string, string) (bool, error)
 }
+
+// WorkProgressPort advances the private order and shipment that an
+// assignment serves, inside the assignment's own transaction. It is how
+// PLANNED and ASSIGNED are reached from real producers: creating an
+// assignment (directly or by route publication) plans the work, and the
+// provider accepting it assigns the work. The implementation is a no-op for
+// work already past the target state, so a reassignment never moves anything
+// backwards.
+type WorkProgressPort interface {
+	MarkPlanned(ctx context.Context, tx pgx.Tx, actor ProgressActor, work WorkInfo, assignmentID string) error
+	MarkAssigned(ctx context.Context, tx pgx.Tx, actor ProgressActor, work WorkInfo, assignmentID string) error
+}
+
+// ProgressActor identifies who caused a work progression.
+type ProgressActor struct {
+	ActorType, ActorID, CorrelationID string
+}
+
 type EventPublisher interface {
 	Publish(context.Context, pgx.Tx, string, string, string, int64, string, string, any) error
 }
@@ -40,6 +58,7 @@ type Options struct {
 	Repository  *repositories.Repository
 	Work        WorkPort
 	Eligibility EligibilityPort
+	Progress    WorkProgressPort
 	Events      EventPublisher
 	Audit       *audit.Recorder
 	Flags       Flags
@@ -190,6 +209,11 @@ func (s *Service) createAssignment(ctx context.Context, tx pgx.Tx, t tenant.Cont
 	}
 	if x = s.opts.Repository.History(ctx, tx, t.OrganizationID, out.ID, "", out.Status, "CREATED", string(t.ActorType), t.ActorID, t.CorrelationID); x != nil {
 		return models.Assignment{}, x
+	}
+	if s.opts.Progress != nil {
+		if x = s.opts.Progress.MarkPlanned(ctx, tx, ProgressActor{ActorType: string(t.ActorType), ActorID: t.ActorID, CorrelationID: t.CorrelationID}, work, out.ID); x != nil {
+			return models.Assignment{}, x
+		}
 	}
 	if x = s.opts.Audit.Record(ctx, tx, audit.EntryFromTenant(t, "private_assignments.created", "private_assignment", out.ID)); x != nil {
 		return models.Assignment{}, x
@@ -419,6 +443,11 @@ func (s *Service) Respond(ctx context.Context, org, id string, in RespondInput) 
 			work, x := s.opts.Work.Resolve(ctx, tx, org, a.WorkOrigin, workID(a))
 			if x != nil {
 				return x
+			}
+			if s.opts.Progress != nil {
+				if x = s.opts.Progress.MarkAssigned(ctx, tx, ProgressActor{ActorType: "provider", ActorID: a.ProviderID, CorrelationID: id}, work, id); x != nil {
+					return x
+				}
 			}
 			fp := hash(org, id, a.ProviderID, a.ExecutionService)
 			execution, createErr := s.opts.Repository.CreateExecution(ctx, tx, models.ExecutionOperation{ID: ids.New(repositories.PrefixExecution), OrganizationID: org, SettlementOrganizationID: org, ExecutingProviderID: a.ProviderID, OrganizationMembershipID: a.ProviderMembershipID, PrivateOrderID: work.PrivateOrderID, ShipmentID: work.ShipmentID, AssignmentID: id, ProviderResponseID: createdDecision.ID, VehicleOrTruckReference: a.VehicleOrTruckReference, ContractReference: work.ContractReference, QuotationReference: work.QuotationReference, ExecutionService: a.ExecutionService, Status: models.ExecutionPending, IdempotencyKey: "private-execution-" + id, RequestFingerprint: fp, CorrelationID: id, CausationID: createdDecision.ID, Payload: work.ExecutionPayload})

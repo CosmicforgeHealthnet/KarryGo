@@ -50,12 +50,14 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 		return
 	}
 	mount(group, h.TenantRoutes(), map[string]gin.HandlerFunc{
-		"listShipments":  h.list,
-		"createShipment": h.create,
-		"getShipment":    h.get,
-		"updateShipment": h.update,
-		"listCargoItems": h.listCargoItems,
-		"addCargoItem":   h.addCargoItem,
+		"listShipments":     h.list,
+		"createShipment":    h.create,
+		"getShipment":       h.get,
+		"updateShipment":    h.update,
+		"markShipmentReady": h.markReady,
+		"cancelShipment":    h.cancel,
+		"listCargoItems":    h.listCargoItems,
+		"addCargoItem":      h.addCargoItem,
 	})
 }
 
@@ -450,5 +452,52 @@ func (h *Handler) addCargoItem(c *gin.Context) {
 			return 0, nil, err
 		}
 		return http.StatusCreated, NewCargoItemView(item), nil
+	})
+}
+
+type shipmentCommandRequest struct {
+	ReasonCode      string `json:"reasonCode"`
+	ExpectedVersion int64  `json:"expectedVersion"`
+}
+
+// markReady moves a DRAFT shipment to READY (Section 58.6).
+func (h *Handler) markReady(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+		return
+	}
+	var body shipmentCommandRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	shipmentID := c.Param("shipmentId")
+	version := expectedVersion(c, body.ExpectedVersion)
+	h.runIdempotent(c, "POST /shipments/"+shipmentID+"/ready", t, body, func() (int, any, error) {
+		shipment, err := h.service.MarkReady(c.Request.Context(), t, shipmentID, version)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusOK, NewShipmentView(shipment), nil
+	})
+}
+
+// cancel cancels a DRAFT or READY shipment.
+func (h *Handler) cancel(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+		return
+	}
+	var body shipmentCommandRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	shipmentID := c.Param("shipmentId")
+	version := expectedVersion(c, body.ExpectedVersion)
+	h.runIdempotent(c, "POST /shipments/"+shipmentID+"/cancel", t, body, func() (int, any, error) {
+		shipment, err := h.service.Cancel(c.Request.Context(), t, shipmentID, version, body.ReasonCode)
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusOK, NewShipmentView(shipment), nil
 	})
 }

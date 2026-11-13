@@ -266,13 +266,67 @@ func (r *Repository) MarkAwaitingApproval(ctx context.Context, q database.Querie
 			status = $1, approval_request_id = $2, updated_by = $3, version = version + 1, updated_at = now()
 		WHERE organization_id = $4 AND id = $5 AND version = $6
 		RETURNING `+orderColumns,
-		models.StatusAwaitingApproval, approvalRequestID, actorID, organizationID, orderID, expectedVersion)
+		models.StatusAwaitingApproval, nullable(approvalRequestID), actorID, organizationID, orderID, expectedVersion)
 	updated, err := scanOrder(row)
 	if err != nil {
 		if errors.Is(scanErr(err), ErrNotFound) {
 			return updated, ErrVersionConflict
 		}
 		return updated, classify(err, "mark order awaiting approval")
+	}
+	return updated, nil
+}
+
+// UpdateFields is a version-checked edit of an order's mutable commercial
+// fields. With returnToDraft it also moves an order under review back to
+// DRAFT and detaches its approval request, because what was submitted for
+// approval is no longer what the order says.
+func (r *Repository) UpdateFields(ctx context.Context, q database.Querier, organizationID, orderID string,
+	expectedVersion int64, o models.Order, returnToDraft bool) (models.Order, error) {
+	fields, err := encodeJSONObject(o.ServiceFields)
+	if err != nil {
+		return models.Order{}, err
+	}
+	row := r.q(q).QueryRow(ctx, `
+		UPDATE fleet_partner_private_orders SET
+			customer_reference = $1, service_fields = $2, requested_schedule_start = $3,
+			requested_schedule_end = $4, timezone = $5, priority = $6, special_instructions = $7,
+			status = CASE WHEN $8 THEN 'DRAFT' ELSE status END,
+			approval_request_id = CASE WHEN $8 THEN NULL ELSE approval_request_id END,
+			updated_by = $9, version = version + 1, updated_at = now()
+		WHERE organization_id = $10 AND id = $11 AND version = $12
+		  AND status IN ('DRAFT', 'AWAITING_APPROVAL')
+		RETURNING `+orderColumns,
+		o.CustomerReference, fields, o.RequestedScheduleStart, o.RequestedScheduleEnd, o.Timezone,
+		o.Priority, o.SpecialInstructions, returnToDraft, o.UpdatedBy, organizationID, orderID,
+		expectedVersion)
+	updated, err := scanOrder(row)
+	if err != nil {
+		if errors.Is(scanErr(err), ErrNotFound) {
+			return updated, ErrVersionConflict
+		}
+		return updated, classify(err, "update order")
+	}
+	return updated, nil
+}
+
+// ReturnToDraft moves an order under review back to DRAFT (rejection for
+// changes) and detaches its approval request.
+func (r *Repository) ReturnToDraft(ctx context.Context, q database.Querier, organizationID, orderID string,
+	expectedVersion int64, actorID string) (models.Order, error) {
+	row := r.q(q).QueryRow(ctx, `
+		UPDATE fleet_partner_private_orders SET
+			status = 'DRAFT', approval_request_id = NULL, updated_by = $1,
+			version = version + 1, updated_at = now()
+		WHERE organization_id = $2 AND id = $3 AND version = $4 AND status = 'AWAITING_APPROVAL'
+		RETURNING `+orderColumns,
+		actorID, organizationID, orderID, expectedVersion)
+	updated, err := scanOrder(row)
+	if err != nil {
+		if errors.Is(scanErr(err), ErrNotFound) {
+			return updated, ErrVersionConflict
+		}
+		return updated, classify(err, "return order to draft")
 	}
 	return updated, nil
 }

@@ -385,6 +385,14 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/leads/:leadId/status", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/leads/:leadId/convert", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/leads/:leadId/history", RiskClass: ratelimit.RiskSensitive},
+	// Private order edit and approval lifecycle (Sections 15, 44.3, 58.5).
+	{Method: "PATCH", Path: "/fleet-partner/v1/orders/:orderId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/orders/:orderId/submit", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/orders/:orderId/approve", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/orders/:orderId/reject", RiskClass: ratelimit.RiskSensitive},
+	// Shipment lifecycle commands (Sections 15, 58.6).
+	{Method: "POST", Path: "/fleet-partner/v1/shipments/:shipmentId/ready", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/shipments/:shipmentId/cancel", RiskClass: ratelimit.RiskSensitive},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},
