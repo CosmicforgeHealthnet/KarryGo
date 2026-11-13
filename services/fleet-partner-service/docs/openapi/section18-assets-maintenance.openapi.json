@@ -2050,6 +2050,956 @@
           }
         }
       }
+    },
+    "/assets/{assetId}/unassign-provider": {
+      "post": {
+        "operationId": "unassignAssetProvider",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "assets.assign",
+        "x-feature-flag": "ASSET_ASSIGNMENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assets/{assetId}/history": {
+      "get": {
+        "operationId": "getAssetHistory",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "assets.read",
+        "x-feature-flag": "ASSETS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/assets/{assetId}/costs": {
+      "get": {
+        "operationId": "listAssetCosts",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "assets.costs.read",
+        "x-feature-flag": "ASSETS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "recordAssetCost",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "assets.costs.manage",
+        "x-feature-flag": "ASSETS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assets/{assetId}/meter-readings": {
+      "get": {
+        "operationId": "listMeterReadings",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "assets.read",
+        "x-feature-flag": "ASSETS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/meter-readings": {
+      "post": {
+        "operationId": "recordMeterReading",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "assets.manage",
+        "x-feature-flag": "ASSETS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/defects": {
+      "get": {
+        "operationId": "listDefects",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.read",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "reportDefect",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/defects/{defectId}": {
+      "get": {
+        "operationId": "getDefect",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.read",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "defectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/defects/{defectId}/defer": {
+      "post": {
+        "operationId": "deferDefect",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.approve",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "defectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/defects/{defectId}/start-repair": {
+      "post": {
+        "operationId": "startDefectRepair",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "defectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/defects/{defectId}/resolve": {
+      "post": {
+        "operationId": "resolveDefect",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.complete",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "defectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tyres": {
+      "get": {
+        "operationId": "listTyres",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.read",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        }
+      },
+      "post": {
+        "operationId": "registerTyre",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tyres/{tyreId}": {
+      "get": {
+        "operationId": "getTyre",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.read",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tyreId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/tyres/{tyreId}/install": {
+      "post": {
+        "operationId": "installTyre",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tyreId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tyres/{tyreId}/remove": {
+      "post": {
+        "operationId": "removeTyre",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tyreId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tyres/{tyreId}/rotate": {
+      "post": {
+        "operationId": "rotateTyre",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tyreId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tyres/{tyreId}/tread-readings": {
+      "post": {
+        "operationId": "recordTyreTread",
+        "tags": [
+          "Section 18"
+        ],
+        "x-permission": "maintenance.manage",
+        "x-feature-flag": "MAINTENANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or tenant scope denied"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tyreId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

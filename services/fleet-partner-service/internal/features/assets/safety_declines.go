@@ -112,6 +112,21 @@ func (s *Service) processSafetyDecline(ctx context.Context, v safetyDecline) err
 		if _, x = tx.Exec(ctx, `INSERT INTO fleet_partner_asset_safety_blocks(id,organization_id,asset_id,source_type,source_reference,status,reason,created_by)VALUES($1,$2,$3,$6,$4,'ACTIVE',$5,'safety-decline-reconciler')ON CONFLICT(organization_id,source_type,source_reference)DO NOTHING`, ids.New("asb"), v.OrganizationID, assetID, v.AssignmentID, v.ReasonCode, v.Source); x != nil {
 			return x
 		}
+		// The reported condition is a critical defect linked to the repair
+		// work order (spec 70.9): the asset is released only by authorized
+		// return to service.
+		var repairID, assetBranch string
+		if x = tx.QueryRow(ctx, `SELECT w.id,a.branch_id FROM fleet_partner_work_orders w JOIN fleet_partner_assets a ON a.organization_id=w.organization_id AND a.id=w.asset_id WHERE w.organization_id=$1 AND w.source_type=$2 AND w.source_reference=$3`, v.OrganizationID, v.Source, v.AssignmentID).Scan(&repairID, &assetBranch); x != nil {
+			return x
+		}
+		reporter := tenant.Context{OrganizationID: v.OrganizationID, ActorType: tenant.ActorTypeSystem, ActorID: "safety-decline-reconciler", CorrelationID: v.AssignmentID}
+		description := "Provider declined work: " + v.ReasonCode
+		if v.Note != "" {
+			description += " (" + v.Note + ")"
+		}
+		if _, _, x = s.insertDefectTx(ctx, tx, reporter, assetBranch, ReportDefectInput{AssetID: assetID, SourceType: "SAFETY_DECLINE", SourceReference: v.AssignmentID, ItemCode: v.ReasonCode, Description: description, Severity: "CRITICAL"}, repairID); x != nil {
+			return x
+		}
 		if _, x = tx.Exec(ctx, `UPDATE fleet_partner_assets SET operational_status='BLOCKED',version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND operational_status NOT IN('BLOCKED','RETIRED','ARCHIVED')`, v.OrganizationID, assetID); x != nil {
 			return x
 		}

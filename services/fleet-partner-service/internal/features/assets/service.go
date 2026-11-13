@@ -482,8 +482,10 @@ func (s *Service) CompleteInspection(ctx context.Context, t tenant.Context, id s
 		}
 	}
 	var v Inspection
+	workID := ""
 	e = s.tx(ctx, func(tx pgx.Tx) error {
-		if _, x := tx.Exec(ctx, `SELECT id FROM fleet_partner_assets WHERE organization_id=$1 AND id=$2 FOR UPDATE`, t.OrganizationID, old.AssetID); x != nil {
+		var assetBranch string
+		if x := tx.QueryRow(ctx, `SELECT branch_id FROM fleet_partner_assets WHERE organization_id=$1 AND id=$2 FOR UPDATE`, t.OrganizationID, old.AssetID).Scan(&assetBranch); x != nil {
 			return x
 		}
 		var x error
@@ -516,7 +518,7 @@ func (s *Service) CompleteInspection(ctx context.Context, t tenant.Context, id s
 			if _, x = tx.Exec(ctx, `INSERT INTO fleet_partner_asset_safety_blocks(id,organization_id,asset_id,source_type,source_reference,status,reason,created_by)VALUES($1,$2,$3,'INSPECTION',$4,'ACTIVE','Critical inspection failure',$5)`, ids.New("asb"), t.OrganizationID, v.AssetID, id, t.ActorID); x != nil {
 				return x
 			}
-			workID := ids.New("wor")
+			workID = ids.New("wor")
 			var workVersion int64
 			if x = tx.QueryRow(ctx, `INSERT INTO fleet_partner_work_orders(id,organization_id,asset_id,source_type,source_reference,priority,required_work)VALUES($1,$2,$3,'INSPECTION',$4,'CRITICAL','Resolve critical inspection defects') RETURNING version`, workID, t.OrganizationID, v.AssetID, id).Scan(&workVersion); x != nil {
 				return x
@@ -525,6 +527,23 @@ func (s *Service) CompleteInspection(ctx context.Context, t tenant.Context, id s
 				return x
 			}
 			if x = s.record(ctx, tx, t, "asset.blocked.v1", "asset", v.AssetID, assetVersion, map[string]any{"assetId": v.AssetID, "inspectionId": id, "operationalStatus": "BLOCKED"}); x != nil {
+				return x
+			}
+		}
+		// Every failed item becomes an asset defect (spec 48.2). Critical items
+		// are linked to the repair work order the critical failure created, so
+		// they are released only by its authorized return to service.
+		for _, a := range in.Answers {
+			if a.Passed {
+				continue
+			}
+			severity, linked := "MEDIUM", ""
+			for _, it := range items {
+				if it.Code == a.ItemCode && it.Critical {
+					severity, linked = "CRITICAL", workID
+				}
+			}
+			if _, _, x = s.insertDefectTx(ctx, tx, t, assetBranch, ReportDefectInput{AssetID: v.AssetID, SourceType: "INSPECTION", SourceReference: id, ItemCode: a.ItemCode, Description: "Inspection item " + a.ItemCode + " failed", Severity: severity}, linked); x != nil {
 				return x
 			}
 		}

@@ -35,7 +35,14 @@ func TenantRoutes() []Route {
 		{"GET", "/maintenance/work-orders", "listWorkOrders", "maintenance.read", "MAINTENANCE_ENABLED", "corporate", false, false}, {"POST", "/maintenance/work-orders", "createWorkOrder", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, false}, {"GET", "/maintenance/work-orders/:workOrderId", "getWorkOrder", "maintenance.read", "MAINTENANCE_ENABLED", "corporate", false, false}, {"PATCH", "/maintenance/work-orders/:workOrderId", "updateWorkOrder", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", false, true}, {"POST", "/maintenance/work-orders/:workOrderId/approve", "approveWorkOrder", "maintenance.approve", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/maintenance/work-orders/:workOrderId/complete", "completeWorkOrder", "maintenance.complete", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/maintenance/work-orders/:workOrderId/return-to-service", "returnToService", "maintenance.return_to_service", "MAINTENANCE_ENABLED", "corporate", true, true},
 		{"GET", "/breakdowns", "listBreakdowns", "breakdowns.read", "BREAKDOWNS_ENABLED", "corporate", false, false}, {"POST", "/breakdowns", "createBreakdown", "breakdowns.manage", "BREAKDOWNS_ENABLED", "corporate", true, false}, {"GET", "/breakdowns/:breakdownId", "getBreakdown", "breakdowns.read", "BREAKDOWNS_ENABLED", "corporate", false, false}, {"PATCH", "/breakdowns/:breakdownId", "updateBreakdown", "breakdowns.manage", "BREAKDOWNS_ENABLED", "corporate", false, true},
 		{"GET", "/inventory/parts", "listParts", "inventory.read", "PARTS_INVENTORY_ENABLED", "corporate", false, false}, {"POST", "/inventory/parts", "createPart", "inventory.manage", "PARTS_INVENTORY_ENABLED", "corporate", true, false}, {"GET", "/inventory/parts/:partId", "getPart", "inventory.read", "PARTS_INVENTORY_ENABLED", "corporate", false, false}, {"PATCH", "/inventory/parts/:partId", "updatePart", "inventory.manage", "PARTS_INVENTORY_ENABLED", "corporate", false, true}, {"GET", "/inventory/stock-movements", "listStockMovements", "inventory.read", "PARTS_INVENTORY_ENABLED", "corporate", false, false}, {"POST", "/inventory/stock-movements", "createStockMovement", "inventory.adjust", "PARTS_INVENTORY_ENABLED", "corporate", true, false},
-		{"GET", "/fuel-records", "listFuelRecords", "fuel.read", "FUEL_RECORDS_ENABLED", "corporate", false, false}, {"POST", "/fuel-records", "createFuelRecord", "fuel.manage", "FUEL_RECORDS_ENABLED", "corporate", true, false}, {"GET", "/fuel-records/:fuelRecordId", "getFuelRecord", "fuel.read", "FUEL_RECORDS_ENABLED", "corporate", false, false}, {"POST", "/fuel-records/:fuelRecordId/approve", "approveFuelRecord", "fuel.approve", "FUEL_RECORDS_ENABLED", "corporate", true, true}, {"POST", "/fuel-records/:fuelRecordId/reject", "rejectFuelRecord", "fuel.approve", "FUEL_RECORDS_ENABLED", "corporate", true, true}}
+		{"GET", "/fuel-records", "listFuelRecords", "fuel.read", "FUEL_RECORDS_ENABLED", "corporate", false, false}, {"POST", "/fuel-records", "createFuelRecord", "fuel.manage", "FUEL_RECORDS_ENABLED", "corporate", true, false}, {"GET", "/fuel-records/:fuelRecordId", "getFuelRecord", "fuel.read", "FUEL_RECORDS_ENABLED", "corporate", false, false}, {"POST", "/fuel-records/:fuelRecordId/approve", "approveFuelRecord", "fuel.approve", "FUEL_RECORDS_ENABLED", "corporate", true, true}, {"POST", "/fuel-records/:fuelRecordId/reject", "rejectFuelRecord", "fuel.approve", "FUEL_RECORDS_ENABLED", "corporate", true, true},
+		// Section 18.12 lifecycle gaps (spec 47.3, 48.3).
+		{"POST", "/assets/:assetId/unassign-provider", "unassignAssetProvider", "assets.assign", "ASSET_ASSIGNMENTS_ENABLED", "corporate", true, true},
+		{"GET", "/assets/:assetId/history", "getAssetHistory", "assets.read", "ASSETS_ENABLED", "corporate", false, false},
+		{"GET", "/assets/:assetId/costs", "listAssetCosts", "assets.costs.read", "ASSETS_ENABLED", "corporate", false, false}, {"POST", "/assets/:assetId/costs", "recordAssetCost", "assets.costs.manage", "ASSETS_ENABLED", "corporate", true, false},
+		{"GET", "/assets/:assetId/meter-readings", "listMeterReadings", "assets.read", "ASSETS_ENABLED", "corporate", false, false}, {"POST", "/meter-readings", "recordMeterReading", "assets.manage", "ASSETS_ENABLED", "corporate", true, false},
+		{"GET", "/defects", "listDefects", "maintenance.read", "MAINTENANCE_ENABLED", "corporate", false, false}, {"POST", "/defects", "reportDefect", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, false}, {"GET", "/defects/:defectId", "getDefect", "maintenance.read", "MAINTENANCE_ENABLED", "corporate", false, false}, {"POST", "/defects/:defectId/defer", "deferDefect", "maintenance.approve", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/defects/:defectId/start-repair", "startDefectRepair", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/defects/:defectId/resolve", "resolveDefect", "maintenance.complete", "MAINTENANCE_ENABLED", "corporate", true, true},
+		{"GET", "/tyres", "listTyres", "maintenance.read", "MAINTENANCE_ENABLED", "corporate", false, false}, {"POST", "/tyres", "registerTyre", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, false}, {"GET", "/tyres/:tyreId", "getTyre", "maintenance.read", "MAINTENANCE_ENABLED", "corporate", false, false}, {"POST", "/tyres/:tyreId/install", "installTyre", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/tyres/:tyreId/remove", "removeTyre", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/tyres/:tyreId/rotate", "rotateTyre", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, true}, {"POST", "/tyres/:tyreId/tread-readings", "recordTyreTread", "maintenance.manage", "MAINTENANCE_ENABLED", "corporate", true, true}}
 }
 
 type Handler struct {
@@ -112,7 +119,7 @@ func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, run func() 
 		return
 	}
 	status := http.StatusOK
-	if strings.HasPrefix(r.OperationID, "create") || strings.HasPrefix(r.OperationID, "add") || strings.HasPrefix(r.OperationID, "assign") {
+	if strings.HasPrefix(r.OperationID, "create") || strings.HasPrefix(r.OperationID, "add") || strings.HasPrefix(r.OperationID, "assign") || strings.HasPrefix(r.OperationID, "record") || strings.HasPrefix(r.OperationID, "report") || strings.HasPrefix(r.OperationID, "register") {
 		status = http.StatusCreated
 	}
 	var payload []byte
@@ -148,7 +155,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		return
 	}
 	id := ""
-	for _, p := range []string{"assetId", "templateId", "inspectionId", "scheduleId", "workOrderId", "breakdownId", "partId", "fuelRecordId"} {
+	for _, p := range []string{"assetId", "templateId", "inspectionId", "scheduleId", "workOrderId", "breakdownId", "partId", "fuelRecordId", "defectId", "tyreId"} {
 		if c.Param(p) != "" {
 			id = c.Param(p)
 		}
@@ -333,6 +340,67 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 				to = "REJECTED"
 			}
 			return h.s.FuelAction(c, t, id, to, b.Reason, ver(c, b.ExpectedVersion))
+		case "unassignAssetProvider":
+			var b UnassignInput
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			b.ExpectedVersion = ver(c, b.ExpectedVersion)
+			return h.s.UnassignProvider(c, t, id, b)
+		case "getAssetHistory":
+			return h.s.AssetHistory(c, t, id)
+		case "listAssetCosts":
+			return h.s.ListCosts(c, t, id)
+		case "recordAssetCost":
+			var b CostInput
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.RecordCost(c, t, id, b)
+		case "listMeterReadings":
+			return h.s.ListMeterReadings(c, t, id, c.Query("meterType"))
+		case "recordMeterReading":
+			var b MeterReadingInput
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.RecordMeterReading(c, t, b)
+		case "listDefects":
+			return h.s.ListDefects(c, t, DefectFilter{AssetID: c.Query("assetId"), Status: c.Query("status"), Severity: c.Query("severity")})
+		case "getDefect":
+			return h.s.GetDefect(c, t, id)
+		case "reportDefect":
+			var b ReportDefectInput
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.ReportDefect(c, t, b)
+		case "deferDefect", "startDefectRepair", "resolveDefect":
+			var b DefectAction
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			b.ExpectedVersion = ver(c, b.ExpectedVersion)
+			action := map[string]string{"deferDefect": "DEFER", "startDefectRepair": "START_REPAIR", "resolveDefect": "RESOLVE"}[r.OperationID]
+			return h.s.DefectTransition(c, t, id, action, b)
+		case "listTyres":
+			return h.s.ListTyres(c, t, c.Query("assetId"), c.Query("status"))
+		case "getTyre":
+			return h.s.GetTyre(c, t, id)
+		case "registerTyre":
+			var b RegisterTyreInput
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.RegisterTyre(c, t, b)
+		case "installTyre", "removeTyre", "rotateTyre", "recordTyreTread":
+			var b TyreAction
+			if !bind(c, &b) {
+				return nil, errors.New("bound")
+			}
+			b.ExpectedVersion = ver(c, b.ExpectedVersion)
+			action := map[string]string{"installTyre": "INSTALL", "removeTyre": "REMOVE", "rotateTyre": "ROTATE", "recordTyreTread": "TREAD"}[r.OperationID]
+			return h.s.TyreTransition(c, t, id, action, b)
 		}
 		return nil, apperrors.NotFound("Operation not found.", nil)
 	}

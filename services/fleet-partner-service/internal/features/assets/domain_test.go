@@ -36,7 +36,7 @@ func TestSection18WorkerRejectsTenantMismatch(t *testing.T) {
 }
 func TestSection18RouteCatalogueAndNoFinancialSurface(t *testing.T) {
 	routes := TenantRoutes()
-	if len(routes) != 43 {
+	if len(routes) != 62 {
 		t.Fatalf("routes=%d", len(routes))
 	}
 	seen := map[string]bool{}

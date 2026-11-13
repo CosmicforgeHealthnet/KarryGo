@@ -235,6 +235,22 @@ func (s *Service) ReturnToService(ctx context.Context, t tenant.Context, id stri
 	raw, _ := json.Marshal(in.EvidenceMediaIDs)
 	var v WorkOrder
 	e = s.tx(ctx, func(tx pgx.Tx) error {
+		// Serialize with every other writer of this asset's safety state.
+		var operational string
+		if x := tx.QueryRow(ctx, `SELECT operational_status FROM fleet_partner_assets WHERE organization_id=$1 AND id=$2 FOR UPDATE`, t.OrganizationID, old.AssetID).Scan(&operational); x != nil {
+			return x
+		}
+		if operational != "BLOCKED" {
+			return apperrors.Conflict("Asset is not under a safety block.", nil)
+		}
+		// An authorized release must cover every restriction in force, not only
+		// the one this work order was raised for (spec 48.2).
+		if x := s.activeSafetyBlocksCoveredTx(ctx, tx, t, old.AssetID); x != nil {
+			return x
+		}
+		if x := s.resolveRepairedCriticalDefectsTx(ctx, tx, t, old.AssetID, id); x != nil {
+			return x
+		}
 		var unresolved bool
 		if x := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fleet_partner_inspections WHERE organization_id=$1 AND asset_id=$2 AND overall_result='CRITICAL_FAIL' AND completed_at>(SELECT completed_at FROM fleet_partner_work_orders WHERE id=$3))`, t.OrganizationID, old.AssetID, id).Scan(&unresolved); x != nil {
 			return x
