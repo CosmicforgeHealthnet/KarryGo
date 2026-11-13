@@ -44,6 +44,23 @@ func TestProviderDecisionAndLive(t *testing.T) {
 	}
 }
 
+func TestResolution(t *testing.T) {
+	a := &Match{ProviderID: "a", PlatformStatus: AccountActive, ManagedByOrgID: "org_1", SourceVersion: 3}
+	b := &Match{ProviderID: "b"}
+	if got := Resolution("TAXI", a, b); got.Outcome != ResolveConflict || got.ProviderID != "" || got.ServiceCategory != "TAXI" {
+		t.Fatalf("split identity: %+v", got)
+	}
+	if got := Resolution("TAXI", nil, nil); got.Outcome != ResolveNotFound {
+		t.Fatalf("no match: %+v", got)
+	}
+	if got := Resolution("TAXI", nil, a); got.Outcome != ResolveMatched || got.ProviderID != "a" || got.ManagedByOrgID != "org_1" || got.SourceVersion != 3 {
+		t.Fatalf("phone-only match: %+v", got)
+	}
+	if got := Resolution("TAXI", a, &Match{ProviderID: "a"}); got.Outcome != ResolveMatched || got.PlatformStatus != AccountActive {
+		t.Fatalf("both contacts, same provider: %+v", got)
+	}
+}
+
 func TestHelpers(t *testing.T) {
 	if NormalizeEmail("  Ada@Example.COM ") != "ada@example.com" {
 		t.Fatal("email not normalized")

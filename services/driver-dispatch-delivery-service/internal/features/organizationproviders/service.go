@@ -86,25 +86,14 @@ func (s *Service) Resolve(ctx context.Context, req orgprovider.ResolveRequest) (
 	if phoneErr != nil && !errors.Is(phoneErr, ErrNotFound) {
 		return orgprovider.ResolveResponse{}, phoneErr
 	}
-	out := orgprovider.ResolveResponse{ServiceCategory: ServiceCategory}
-	switch {
-	case emailErr == nil && phoneErr == nil && byEmail.ProviderID != byPhone.ProviderID:
-		out.Outcome = orgprovider.ResolveConflict
-		return out, nil
-	case emailErr != nil && phoneErr != nil:
-		out.Outcome = orgprovider.ResolveNotFound
-		return out, nil
+	var emailMatch, phoneMatch *orgprovider.Match
+	if emailErr == nil {
+		emailMatch = byEmail.match()
 	}
-	matched := byEmail
-	if emailErr != nil {
-		matched = byPhone
+	if phoneErr == nil {
+		phoneMatch = byPhone.match()
 	}
-	out.Outcome = orgprovider.ResolveMatched
-	out.ProviderID = matched.ProviderID
-	out.PlatformStatus = matched.AccountState()
-	out.ManagedByOrgID = matched.ManagedByOrgID
-	out.SourceVersion = matched.SourceVersion
-	return out, nil
+	return orgprovider.Resolution(ServiceCategory, emailMatch, phoneMatch), nil
 }
 
 // ProvisionSponsored creates one organization-sponsored rider.

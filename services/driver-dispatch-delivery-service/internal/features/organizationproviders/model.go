@@ -66,6 +66,11 @@ func (c Candidate) AccountState() string {
 	}
 }
 
+func (c Candidate) match() *orgprovider.Match {
+	return &orgprovider.Match{ProviderID: c.ProviderID, PlatformStatus: c.AccountState(),
+		ManagedByOrgID: c.ManagedByOrgID, SourceVersion: c.SourceVersion}
+}
+
 // Sponsored is a validated sponsored-identity request.
 type Sponsored struct {
 	OrganizationID string

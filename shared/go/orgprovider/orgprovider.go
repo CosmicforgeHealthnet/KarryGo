@@ -212,3 +212,36 @@ func SplitLegalName(name string) (first, last string) {
 	}
 	return parts[0], strings.Join(parts[1:], " ")
 }
+
+// Match is one provider found by a single contact.
+type Match struct {
+	ProviderID     string
+	PlatformStatus string
+	ManagedByOrgID string
+	SourceVersion  int64
+}
+
+// Resolution combines the email lookup and the phone lookup into the contract
+// answer. nil means "no provider has this contact". Two different providers
+// behind the two contacts is a CONFLICT that names neither of them.
+func Resolution(serviceCategory string, byEmail, byPhone *Match) ResolveResponse {
+	out := ResolveResponse{ServiceCategory: serviceCategory}
+	switch {
+	case byEmail != nil && byPhone != nil && byEmail.ProviderID != byPhone.ProviderID:
+		out.Outcome = ResolveConflict
+		return out
+	case byEmail == nil && byPhone == nil:
+		out.Outcome = ResolveNotFound
+		return out
+	}
+	matched := byEmail
+	if matched == nil {
+		matched = byPhone
+	}
+	out.Outcome = ResolveMatched
+	out.ProviderID = matched.ProviderID
+	out.PlatformStatus = matched.PlatformStatus
+	out.ManagedByOrgID = matched.ManagedByOrgID
+	out.SourceVersion = matched.SourceVersion
+	return out
+}
