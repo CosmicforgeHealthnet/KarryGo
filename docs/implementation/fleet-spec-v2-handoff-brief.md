@@ -118,13 +118,14 @@ be listed here.
 
 ## 4. Decisions needed from the product owner
 
-See `fleet-spec-v2-status.md` Section 4:
-1. company approval;
-2. API path;
-3. error catalogue;
-4. event transport and names;
-5. commercial values (stay undecided);
-6. AI deferral.
+All decided on 2026-11-13; see `fleet-spec-v2-status.md` Section 4.
+
+App impact of the decisions:
+- **Error codes (ADR-004):** Fleet moves to the Section 63 codes. Provider
+  services relay them unchanged, so provider apps should key behaviour on the
+  Section 63 codes (`assignment_response_expired`,
+  `assignment_already_resolved`, `decline_reason_required`, ...).
+- **API path (ADR-003):** unchanged; no app impact.
 
 ## 5. Work log (backend and cross-service)
 

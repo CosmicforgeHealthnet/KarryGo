@@ -136,22 +136,16 @@ have since been updated as in the table above).
   `deploy/platform/fleet-staging-modules.txt`.
 - Details: `fleet-end-to-end-activation-report.md`.
 
-## 4. Decisions needed before the remaining build
+## 4. Decisions (taken 2026-11-13)
 
-1. **Company approval.** Who approves a company: an operator in the admin
-   console (spec 70 step 12) or something else? Is staging auto-approved?
-   And should the wallet gate be relaxed on staging until Wallet is connected?
-2. **API path.** Keep `/fleet-partner/v1` or move to the binding
-   `/api/v1/corporate-logistics`? The internal path is hard-coded in the
-   dispatch, taxi and hauling services and in shared clients.
-3. **Error catalogue.** Section 63 and Appendix C disagree. Pick one.
-4. **Event transport.** Per-target signed HTTP delivery (as Dispatch,
-   Hauling and Wallet already do) or a shared stream. Also: Part 1 or Part 2
-   event names.
-5. **Commercial values.** Pricing, commission and subscription stay
-   undecided (Section 72), so no formulas will be coded.
-6. **AI capabilities (Section 24/54).** Deferred by ADR-002. Confirm they
-   stay deferred, or which provider and model to use.
+| # | Question | Decision | Record |
+|---|---|---|---|
+| 1 | Company approval | Operator decides in the admin console; Verification delivers the decision; Fleet activates. Wallet gate waivable on staging only. | `services/fleet-partner-service/docs/adr/ADR-006-company-approval.md` |
+| 2 | API path | Keep `/fleet-partner/v1`; new endpoints use Section 59 resource names | `ADR-003-api-path.md` |
+| 3 | Error catalogue | Section 63 | `ADR-004-error-catalogue.md` |
+| 4 | Event transport | Signed HTTP from the outbox, Section 61 names and envelope | `ADR-005-event-transport.md` |
+| 5 | Commercial values | Stay undecided; nothing is hard-coded (Section 72) | - |
+| 6 | AI | Stays deferred (ADR-002) | `ADR-002-release1-ai-automation-deferral.md` |
 
 ## 5. Proposed build order
 
