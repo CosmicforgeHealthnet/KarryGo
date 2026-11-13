@@ -1,0 +1,630 @@
+{
+  "label": "after-idle",
+  "mode": "start",
+  "profiles": {
+    "staging": {
+      "latency": 300,
+      "downloadThroughput": -1,
+      "uploadThroughput": -1
+    },
+    "slow4g": {
+      "latency": 562.5,
+      "downloadThroughput": 209715.2,
+      "uploadThroughput": 96000
+    }
+  },
+  "measurements": {
+    "staging": {
+      "coldLoadNoDocuments": {
+        "ms": 676,
+        "apiRequests": 7,
+        "byEndpoint": {
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1,
+          "GET /api/identity/profile": 1,
+          "GET /api/organizations/current": 1,
+          "GET /api/organizations/:id/profile": 1,
+          "GET /api/organizations/:id/representatives": 1,
+          "GET /api/organizations/:id/capabilities": 1
+        }
+      },
+      "uploads": [
+        {
+          "ms": 1262,
+          "apiRequests": 5,
+          "byEndpoint": {
+            "POST /api/organizations/:id/documents/upload-authorization": 1,
+            "POST /api/organizations/:id/documents/upload-content": 1,
+            "POST /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/onboarding-status": 1
+          },
+          "otherRequestsBeforeVisible": []
+        },
+        {
+          "ms": 1239,
+          "apiRequests": 5,
+          "byEndpoint": {
+            "POST /api/organizations/:id/documents/upload-authorization": 1,
+            "POST /api/organizations/:id/documents/upload-content": 1,
+            "POST /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/onboarding-status": 1
+          },
+          "otherRequestsBeforeVisible": []
+        },
+        {
+          "ms": 1243,
+          "apiRequests": 5,
+          "byEndpoint": {
+            "POST /api/organizations/:id/documents/upload-authorization": 1,
+            "POST /api/organizations/:id/documents/upload-content": 1,
+            "POST /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/onboarding-status": 1
+          },
+          "otherRequestsBeforeVisible": []
+        },
+        {
+          "ms": 1237,
+          "apiRequests": 5,
+          "byEndpoint": {
+            "POST /api/organizations/:id/documents/upload-authorization": 1,
+            "POST /api/organizations/:id/documents/upload-content": 1,
+            "POST /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/documents": 1,
+            "GET /api/organizations/:id/onboarding-status": 1
+          },
+          "otherRequestsBeforeVisible": []
+        }
+      ],
+      "coldLoadTimeline": {
+        "visibleAt": 661,
+        "requests": [
+          {
+            "what": "GET /setup/business-docs",
+            "start": 6,
+            "end": 310
+          },
+          {
+            "what": "GET /_next/static/media/inter_bold-s.p.0ou9p7w4gcn5b.ttf",
+            "start": 326,
+            "end": 330
+          },
+          {
+            "what": "GET /_next/static/media/inter_regular-s.p.432tkj802eolg.ttf",
+            "start": 326,
+            "end": 330
+          },
+          {
+            "what": "GET /_next/static/chunks/25i02l0eq6_in.css",
+            "start": 326,
+            "end": 330
+          },
+          {
+            "what": "GET /_next/static/chunks/37v5ulr6qjozi.js",
+            "start": 328,
+            "end": 333
+          },
+          {
+            "what": "GET /_next/static/chunks/30jdsxe3ja25o.js",
+            "start": 328,
+            "end": 333
+          },
+          {
+            "what": "GET /_next/static/chunks/34oyci46fsc5w.js",
+            "start": 331,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/2nsq1ek51g625.js",
+            "start": 331,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/3nc6x0_y5iwnk.js",
+            "start": 331,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/turbopack-2fyg3hr5ryk91.js",
+            "start": 331,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/16w18as3mphul.js",
+            "start": 331,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/1ntn7efqc-iiw.js",
+            "start": 332,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/3pzgzg-rtmug8.js",
+            "start": 333,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/2paqbzutikgyc.js",
+            "start": 333,
+            "end": 334
+          },
+          {
+            "what": "GET /_next/static/chunks/3lrhkae7-qsav.js",
+            "start": 333,
+            "end": 334
+          },
+          {
+            "what": "GET /api/organizations/:id/documents",
+            "start": 348,
+            "end": 647
+          },
+          {
+            "what": "GET /api/organizations/:id/onboarding-status",
+            "start": 349,
+            "end": 651
+          },
+          {
+            "what": "GET /api/identity/profile",
+            "start": 349,
+            "end": 651
+          },
+          {
+            "what": "GET /api/organizations/current",
+            "start": 349,
+            "end": 650
+          },
+          {
+            "what": "GET /api/organizations/:id/profile",
+            "start": 655,
+            "end": 954
+          },
+          {
+            "what": "GET /api/organizations/:id/representatives",
+            "start": 655,
+            "end": 954
+          },
+          {
+            "what": "GET /api/organizations/:id/capabilities",
+            "start": 656,
+            "end": 961
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 665,
+            "end": 670
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 670,
+            "end": 675
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 670,
+            "end": 675
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 671,
+            "end": 675
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 674,
+            "end": 977
+          },
+          {
+            "what": "GET /setup",
+            "start": 674,
+            "end": 977
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 677,
+            "end": 981
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 981,
+            "end": 1281
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 981,
+            "end": 1282
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 981,
+            "end": 1281
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 981,
+            "end": 1284
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 1282,
+            "end": 1586
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 1283,
+            "end": 1592
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 1289,
+            "end": 1592
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 1289,
+            "end": 1592
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 1588,
+            "end": 1892
+          },
+          {
+            "what": "GET /setup",
+            "start": 1593,
+            "end": 1895
+          },
+          {
+            "what": "GET /_next/static/chunks/1uz5u8c0bakto.js",
+            "start": 1594,
+            "end": 1595
+          },
+          {
+            "what": "GET /setup",
+            "start": 1594,
+            "end": 1896
+          },
+          {
+            "what": "GET /_next/static/chunks/0x0iqfja7hyvz.js",
+            "start": 1892,
+            "end": 1893
+          },
+          {
+            "what": "GET /_next/static/chunks/41sal_6n7pk-1.js",
+            "start": 1897,
+            "end": 1898
+          }
+        ]
+      },
+      "coldLoadAllDocuments": {
+        "medianMs": 654,
+        "runsMs": [
+          656,
+          651,
+          646,
+          654,
+          659
+        ],
+        "apiRequests": 7,
+        "byEndpoint": {
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1,
+          "GET /api/identity/profile": 1,
+          "GET /api/organizations/current": 1,
+          "GET /api/organizations/:id/profile": 1,
+          "GET /api/organizations/:id/representatives": 1,
+          "GET /api/organizations/:id/capabilities": 1
+        }
+      },
+      "navigateToServices": {
+        "ms": 68,
+        "apiRequests": 0,
+        "byEndpoint": {},
+        "otherRequestsBeforeVisible": []
+      },
+      "navigateBackToDocuments": {
+        "ms": 45,
+        "apiRequests": 0,
+        "byEndpoint": {},
+        "otherRequestsBeforeVisible": []
+      },
+      "replace": {
+        "ms": 1242,
+        "apiRequests": 5,
+        "byEndpoint": {
+          "POST /api/organizations/:id/documents/upload-authorization": 1,
+          "POST /api/organizations/:id/documents/upload-content": 1,
+          "POST /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1
+        },
+        "otherRequestsBeforeVisible": []
+      },
+      "remove": {
+        "ms": 660,
+        "apiRequests": 3,
+        "byEndpoint": {
+          "DELETE /api/organizations/:id/documents/:id": 1,
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1
+        },
+        "otherRequestsBeforeVisible": []
+      },
+      "reuploadAfterRemove": {
+        "ms": 1236,
+        "apiRequests": 5,
+        "byEndpoint": {
+          "POST /api/organizations/:id/documents/upload-authorization": 1,
+          "POST /api/organizations/:id/documents/upload-content": 1,
+          "POST /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1
+        },
+        "otherRequestsBeforeVisible": []
+      },
+      "previewOpen": {
+        "ms": 347,
+        "apiRequests": 1,
+        "byEndpoint": {
+          "GET /api/organizations/:id/documents/:id/preview": 1
+        },
+        "otherRequestsBeforeVisible": []
+      },
+      "previewClose": {
+        "ms": 35,
+        "apiRequests": 0,
+        "byEndpoint": {},
+        "otherRequestsBeforeVisible": []
+      },
+      "saveAndContinue": {
+        "ms": 346,
+        "apiRequests": 1,
+        "byEndpoint": {
+          "GET /api/organizations/:id/onboarding-status": 1
+        },
+        "otherRequestsBeforeVisible": []
+      }
+    },
+    "slow4g": {
+      "coldLoadTimeline": {
+        "visibleAt": 1205,
+        "requests": [
+          {
+            "what": "GET /setup/business-docs",
+            "start": 4,
+            "end": 574
+          },
+          {
+            "what": "GET /_next/static/media/inter_bold-s.p.0ou9p7w4gcn5b.ttf",
+            "start": 589,
+            "end": 591
+          },
+          {
+            "what": "GET /_next/static/media/inter_regular-s.p.432tkj802eolg.ttf",
+            "start": 589,
+            "end": 591
+          },
+          {
+            "what": "GET /_next/static/chunks/25i02l0eq6_in.css",
+            "start": 591,
+            "end": 596
+          },
+          {
+            "what": "GET /_next/static/chunks/37v5ulr6qjozi.js",
+            "start": 591,
+            "end": 596
+          },
+          {
+            "what": "GET /_next/static/chunks/30jdsxe3ja25o.js",
+            "start": 591,
+            "end": 596
+          },
+          {
+            "what": "GET /_next/static/chunks/34oyci46fsc5w.js",
+            "start": 591,
+            "end": 596
+          },
+          {
+            "what": "GET /_next/static/chunks/2nsq1ek51g625.js",
+            "start": 595,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/3nc6x0_y5iwnk.js",
+            "start": 595,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/turbopack-2fyg3hr5ryk91.js",
+            "start": 595,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/16w18as3mphul.js",
+            "start": 596,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/1ntn7efqc-iiw.js",
+            "start": 596,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/3pzgzg-rtmug8.js",
+            "start": 596,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/2paqbzutikgyc.js",
+            "start": 596,
+            "end": 597
+          },
+          {
+            "what": "GET /_next/static/chunks/3lrhkae7-qsav.js",
+            "start": 596,
+            "end": 597
+          },
+          {
+            "what": "GET /api/organizations/:id/documents",
+            "start": 609,
+            "end": 1175
+          },
+          {
+            "what": "GET /api/organizations/:id/onboarding-status",
+            "start": 611,
+            "end": 1196
+          },
+          {
+            "what": "GET /api/identity/profile",
+            "start": 611,
+            "end": 1184
+          },
+          {
+            "what": "GET /api/organizations/current",
+            "start": 611,
+            "end": 1192
+          },
+          {
+            "what": "GET /api/organizations/:id/profile",
+            "start": 1192,
+            "end": 1764
+          },
+          {
+            "what": "GET /api/organizations/:id/representatives",
+            "start": 1193,
+            "end": 1776
+          },
+          {
+            "what": "GET /api/organizations/:id/capabilities",
+            "start": 1193,
+            "end": 1773
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 1208,
+            "end": 1210
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 1210,
+            "end": 1211
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 1211,
+            "end": 1211
+          },
+          {
+            "what": "GET /_next/image",
+            "start": 1211,
+            "end": 1211
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 1222,
+            "end": 1790
+          },
+          {
+            "what": "GET /setup",
+            "start": 1222,
+            "end": 1797
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 1223,
+            "end": 1805
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 1792,
+            "end": 2363
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 1792,
+            "end": 2370
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 1798,
+            "end": 2377
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 1806,
+            "end": 2384
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 2365,
+            "end": null
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 2378,
+            "end": null
+          },
+          {
+            "what": "GET /setup/submit",
+            "start": 2384,
+            "end": null
+          },
+          {
+            "what": "GET /setup/capabilities",
+            "start": 2391,
+            "end": null
+          }
+        ]
+      },
+      "coldLoadAllDocuments": {
+        "medianMs": 1205,
+        "runsMs": [
+          1201,
+          1222,
+          1201,
+          1205,
+          1207
+        ],
+        "apiRequests": 7,
+        "byEndpoint": {
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1,
+          "GET /api/identity/profile": 1,
+          "GET /api/organizations/current": 1,
+          "GET /api/organizations/:id/profile": 1,
+          "GET /api/organizations/:id/representatives": 1,
+          "GET /api/organizations/:id/capabilities": 1
+        }
+      },
+      "navigateToServices": {
+        "ms": 73,
+        "apiRequests": 0,
+        "byEndpoint": {},
+        "otherRequestsBeforeVisible": []
+      },
+      "navigateBackToDocuments": {
+        "ms": 47,
+        "apiRequests": 0,
+        "byEndpoint": {},
+        "otherRequestsBeforeVisible": []
+      }
+    },
+    "afterReSignIn": {
+      "coldLoadAllDocuments": {
+        "ms": 665,
+        "apiRequests": 7,
+        "byEndpoint": {
+          "GET /api/organizations/:id/documents": 1,
+          "GET /api/organizations/:id/onboarding-status": 1,
+          "GET /api/identity/profile": 1,
+          "GET /api/organizations/current": 1,
+          "GET /api/organizations/:id/profile": 1,
+          "GET /api/organizations/:id/representatives": 1,
+          "GET /api/organizations/:id/capabilities": 1
+        }
+      }
+    }
+  }
+}

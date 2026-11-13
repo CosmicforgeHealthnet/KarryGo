@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "checks": [
+    "email OTP → persisted company, legal type, unique owner membership and server-backed contact reuse",
+    "distinct operating address; editable business contacts do not change identity; representative self create and versioned edit",
+    "offline save retains inputs; failed capabilities read prevents destructive replacement and retry restores saved selection",
+    "preview PDF, PNG, JPEG and WebP from authenticated object URLs; close and Escape release them; survives reload; failure stays in the viewer; fits mobile; documents unchanged",
+    "signed media authorization → upload/checksum → readiness → attach; server-backed removal remains removed after refresh; review displays saved records",
+    "edit completed company section preserves legal data and returns to review; submission persists without approving company or requiring wallet",
+    "read-only submitted company: Preview available without Replace or Remove",
+    "logout → phone sign-in → registered email OTP → saved company submission across session",
+    "independent Android Chrome emulation session → email sign-in → persisted company review without prior browser drafts",
+    "multiple organizations select by membership; switching drafts cannot reuse another tenant’s saved address or review data"
+  ]
+}

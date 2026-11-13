@@ -1,0 +1,32 @@
+{
+  "desktop": {
+    "protectedStepRedirectsTo": "/sign-in?redirect=%2Fsetup%2Fbusiness-docs",
+    "signInVisibleMs": 1192,
+    "noHorizontalOverflow": true
+  },
+  "mobile": {
+    "protectedStepRedirectsTo": "/sign-in?redirect=%2Fsetup%2Fbusiness-docs",
+    "signInVisibleMs": 764,
+    "noHorizontalOverflow": true
+  },
+  "previewUnauthenticated": {
+    "status": 401,
+    "body": "unauthorized",
+    "cacheControl": "no-store",
+    "nosniff": "nosniff"
+  },
+  "previewInvalidToken": {
+    "status": 401,
+    "body": "unauthorized"
+  },
+  "previewQueryTokenIgnored": {
+    "status": 401
+  },
+  "apiRoundTripMs": [
+    158,
+    146,
+    190,
+    143,
+    165
+  ]
+}

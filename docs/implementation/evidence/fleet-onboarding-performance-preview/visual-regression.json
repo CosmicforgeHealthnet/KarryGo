@@ -1,0 +1,103 @@
+{
+  "method": "Playwright full-page captures at deviceScaleFactor 1 against the same disposable API, before = commit 6f5bd91, after = this change; per-run values (file reference, attachment date) masked identically; pixel difference with Pillow.",
+  "results": [
+    {
+      "capture": "documents-empty-desktop",
+      "compared": "after with Preview removed from layout",
+      "sameSize": true,
+      "size": [
+        1440,
+        1000
+      ],
+      "differingPixels": 0,
+      "differenceBoundingBox": null
+    },
+    {
+      "capture": "documents-empty-desktop",
+      "compared": "after as shipped",
+      "sameSize": true,
+      "size": [
+        1440,
+        1000
+      ],
+      "differingPixels": 0,
+      "differenceBoundingBox": null
+    },
+    {
+      "capture": "documents-empty-mobile",
+      "compared": "after with Preview removed from layout",
+      "sameSize": true,
+      "size": [
+        390,
+        1143
+      ],
+      "differingPixels": 0,
+      "differenceBoundingBox": null
+    },
+    {
+      "capture": "documents-empty-mobile",
+      "compared": "after as shipped",
+      "sameSize": true,
+      "size": [
+        390,
+        1143
+      ],
+      "differingPixels": 0,
+      "differenceBoundingBox": null
+    },
+    {
+      "capture": "documents-ready-desktop",
+      "compared": "after with Preview removed from layout",
+      "sameSize": true,
+      "size": [
+        1440,
+        1000
+      ],
+      "differingPixels": 0,
+      "differenceBoundingBox": null
+    },
+    {
+      "capture": "documents-ready-desktop",
+      "compared": "after as shipped",
+      "sameSize": true,
+      "size": [
+        1440,
+        1000
+      ],
+      "differingPixels": 5740,
+      "differenceBoundingBox": [
+        482,
+        398,
+        1106,
+        682
+      ]
+    },
+    {
+      "capture": "documents-ready-mobile",
+      "compared": "after with Preview removed from layout",
+      "sameSize": true,
+      "size": [
+        390,
+        1599
+      ],
+      "differingPixels": 0,
+      "differenceBoundingBox": null
+    },
+    {
+      "capture": "documents-ready-mobile",
+      "compared": "after as shipped",
+      "sameSize": true,
+      "size": [
+        390,
+        1599
+      ],
+      "differingPixels": 5740,
+      "differenceBoundingBox": [
+        50,
+        461,
+        236,
+        1268
+      ]
+    }
+  ]
+}
