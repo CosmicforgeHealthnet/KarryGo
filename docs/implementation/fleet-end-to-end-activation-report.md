@@ -71,6 +71,13 @@ not posted to wallets.
   were found and fixed. Shift create/publish, payroll create/calculate and
   compensation-rule create were exercised.
 - `next build` passes; changed pages type-check and lint clean.
+- Live staging, after the capability workflow applied the settings and Fleet
+  reported healthy: a read-only check with the owner's own session. Staff,
+  Roles, Trips, Workforce, Shifts and Payroll pages load real data. 95 of
+  107 module list endpoints return 200. The others are expected: Wallet-
+  backed finance views (503), proof records and support cases (deliberately
+  off), one endpoint that requires parameters, and rate limiting during the
+  sweep. No server errors. No records were created.
 
 ## Still not working, and why
 
