@@ -591,6 +591,8 @@ type linkView struct {
 	TruckID        string `json:"truckId,omitempty"`
 	Status         string `json:"status"`
 	SourceVersion  int64  `json:"sourceVersion"`
+	// DecidedAt is when the provider accepted or declined (provider links).
+	DecidedAt *time.Time `json:"decidedAt,omitempty"`
 }
 
 func requiredWriteHeaders(c *gin.Context) (string, string, bool) {
@@ -672,7 +674,7 @@ func (h *Handler) createProviderLink(c *gin.Context) {
 
 func (h *Handler) readProviderLink(c *gin.Context) {
 	var out linkView
-	err := h.db.QueryRow(c, `SELECT link_id::text,organization_id::text,COALESCE(branch_id::text,''),membership_id::text,provider_id::text,state,version FROM hauling_organization_provider_links WHERE link_id=$1 AND organization_id=$2`, c.Param("linkId"), c.GetHeader("X-Organization-ID")).Scan(&out.LinkID, &out.OrganizationID, &out.BranchID, &out.MembershipID, &out.ProviderID, &out.Status, &out.SourceVersion)
+	err := h.db.QueryRow(c, `SELECT link_id::text,organization_id::text,COALESCE(branch_id::text,''),membership_id::text,provider_id::text,state,version,decided_at FROM hauling_organization_provider_links WHERE link_id=$1 AND organization_id=$2`, c.Param("linkId"), c.GetHeader("X-Organization-ID")).Scan(&out.LinkID, &out.OrganizationID, &out.BranchID, &out.MembershipID, &out.ProviderID, &out.Status, &out.SourceVersion, &out.DecidedAt)
 	if err != nil {
 		dbError(c, err)
 		return
@@ -682,10 +684,10 @@ func (h *Handler) readProviderLink(c *gin.Context) {
 
 func (h *Handler) readProviderLinkByProvider(c *gin.Context) {
 	var out linkView
-	err := h.db.QueryRow(c, `SELECT link_id::text,organization_id::text,COALESCE(branch_id::text,''),membership_id::text,provider_id::text,state,version
+	err := h.db.QueryRow(c, `SELECT link_id::text,organization_id::text,COALESCE(branch_id::text,''),membership_id::text,provider_id::text,state,version,decided_at
 		FROM hauling_organization_provider_links
 		WHERE provider_id=$1 AND organization_id=$2 AND state IN ('REQUESTED','ACTIVE','SUSPENDED')
-		ORDER BY created_at DESC LIMIT 1`, c.Param("providerId"), c.GetHeader("X-Organization-ID")).Scan(&out.LinkID, &out.OrganizationID, &out.BranchID, &out.MembershipID, &out.ProviderID, &out.Status, &out.SourceVersion)
+		ORDER BY created_at DESC LIMIT 1`, c.Param("providerId"), c.GetHeader("X-Organization-ID")).Scan(&out.LinkID, &out.OrganizationID, &out.BranchID, &out.MembershipID, &out.ProviderID, &out.Status, &out.SourceVersion, &out.DecidedAt)
 	if err != nil {
 		dbError(c, err)
 		return
