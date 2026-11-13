@@ -88,6 +88,38 @@ func RunProviderReconciler(ctx context.Context, components *Components, interval
 	}
 }
 
+// RunVerificationReconciler re-dispatches company verification submissions
+// that never reached verification-compliance-service, reads decisions back,
+// and retries activation of approved companies (ADR-006). It is the safety
+// net under the pushed decision event: a lost event only delays activation
+// by one interval.
+//
+// Shared by the API binary's in-process worker and the dedicated worker
+// binary, like RunProviderReconciler.
+func RunVerificationReconciler(ctx context.Context, components *Components, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			result, err := components.Organizations.ReconcileVerifications(ctx, 25)
+			if err != nil {
+				logging.Notice(config.ServiceName, "verification reconcile pass error: %v", err)
+				continue
+			}
+			if result.Activated > 0 || result.Failed > 0 {
+				logging.Notice(config.ServiceName, "verification reconcile: redispatched=%d readBack=%d activated=%d failed=%d",
+					result.Redispatched, result.ReadBack, result.Activated, result.Failed)
+			}
+		}
+	}
+}
+
 // StartMarketplaceReconciliation runs marketplace projection reconciliation
 // and the stale-trip sweep until ctx ends.
 //

@@ -49,10 +49,14 @@ type Options struct {
 	// becomes able to take real work, so it is gated on a durable decision
 	// rather than only on the local assessment.
 	Eligibility enforcement.Gate
-	Events      EventPublisher
-	Audit       *audit.Recorder
-	Metrics     *observability.Metrics
-	Now         func() time.Time
+	// WalletGateWaived lets activation pass without an active organization
+	// wallet. Only for environments with no wallet connection (staging);
+	// configuration validation refuses it in production (ADR-006).
+	WalletGateWaived bool
+	Events           EventPublisher
+	Audit            *audit.Recorder
+	Metrics          *observability.Metrics
+	Now              func() time.Time
 }
 
 // Service implements organization onboarding and lifecycle.

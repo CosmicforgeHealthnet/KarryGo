@@ -368,7 +368,11 @@ func (s *Service) EvaluateActivation(ctx context.Context, organizationID string)
 	} else if !errors.Is(err, orgrepos.ErrNotFound) {
 		return nil, err
 	}
-	assessment.Gates = append(assessment.Gates, ActivationGate{Name: "organization_wallet_active", Passed: walletPassed})
+	walletGate := ActivationGate{Name: "organization_wallet_active", Passed: walletPassed}
+	if !walletPassed && s.opts.WalletGateWaived {
+		walletGate.Passed, walletGate.Detail = true, "waived"
+	}
+	assessment.Gates = append(assessment.Gates, walletGate)
 
 	branches, err := s.opts.Branches.List(ctx, tenant.Query{OrganizationID: organizationID, Limit: 100})
 	if err != nil {

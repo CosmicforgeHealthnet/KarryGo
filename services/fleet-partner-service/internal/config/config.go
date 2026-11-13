@@ -217,6 +217,9 @@ type Config struct {
 	// owns"). Same three-caller default as DocumentsProviderAllowedCallers,
 	// since these are the same three owning provider services.
 	ProviderMembershipAllowedCallers string
+	// VerificationEventsAllowedCallers may deliver organization verification
+	// decisions to POST /internal/fleet-partner/v1/organization-verification/events.
+	VerificationEventsAllowedCallers string
 
 	DocumentReconcileEnabled     bool
 	DocumentReconcileInterval    time.Duration
@@ -410,7 +413,14 @@ type Config struct {
 	// verification do not have rollout bypasses; these flags only gate new
 	// behavior-changing projections/resolution/instruction flows.
 	FleetOperatingModeEnforcementEnabled bool
-	FleetCompensationResolverEnabled     bool
+	// ActivationWalletGateWaived lets company activation pass without an
+	// active organization wallet (ADR-006). Staging only: refused in
+	// production.
+	ActivationWalletGateWaived bool
+	// VerificationReconcileInterval is how often submitted companies have
+	// their verification decision read back and activation retried.
+	VerificationReconcileInterval    time.Duration
+	FleetCompensationResolverEnabled bool
 
 	// FleetCompensationResolverMode is OFF, SHADOW or ON (CMP-001/019).
 	// Unset falls back to the boolean above, so an existing deployment keeps
@@ -629,6 +639,7 @@ func Load() (Config, error) {
 		// under. It is a read of the same contract the execution services
 		// already use -- no new shape, no write access, and Support holds no
 		// Fleet credentials beyond this one allowlist entry.
+		VerificationEventsAllowedCallers: getEnv("FLEET_VERIFICATION_EVENTS_ALLOWED_CALLERS", "verification-compliance-service"),
 		ProviderMembershipAllowedCallers: getEnv("PROVIDER_MEMBERSHIP_ALLOWED_CALLERS",
 			"driver-dispatch-delivery-service,driver-taxi-service,driver-hauling-service,support-dispute-service"),
 
@@ -820,6 +831,8 @@ func Load() (Config, error) {
 		Section22WorkersEnabled:              getEnvBool("SECTION22_WORKERS_ENABLED", false),
 		Section23WorkersEnabled:              getEnvBool("SECTION23_WORKERS_ENABLED", false),
 		FleetOperatingModeEnforcementEnabled: getEnvBool("FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED", true),
+		ActivationWalletGateWaived:           getEnvBool("FLEET_ACTIVATION_WALLET_GATE_WAIVED", false),
+		VerificationReconcileInterval:        getEnvDuration("FLEET_VERIFICATION_RECONCILE_INTERVAL", time.Minute),
 		FleetCompensationResolverEnabled:     getEnvBool("FLEET_COMPENSATION_RESOLVER_ENABLED", false),
 		FleetCompensationResolverMode:        getEnv("FLEET_COMPENSATION_RESOLVER_MODE", ""),
 		FleetCompletedWorkProjectionEnabled:  getEnvBool("FLEET_COMPLETED_WORK_PROJECTION_ENABLED", false),
@@ -1240,6 +1253,9 @@ func (c Config) Validate() error {
 	// feature) -- this check only needs to confirm the same env var chain.go
 	// itself will read is actually set before a production process accepts
 	// traffic, not become the source of truth for the runtime value.
+	if c.AppEnv == "production" && c.ActivationWalletGateWaived {
+		problems = append(problems, "FLEET_ACTIVATION_WALLET_GATE_WAIVED must not be set in production: companies activate only with an active wallet")
+	}
 	if c.AppEnv == "production" && os.Getenv("FLEET_PARTNER_AUDIT_CHAIN_SECRET") == "" {
 		problems = append(problems, "FLEET_PARTNER_AUDIT_CHAIN_SECRET is required in production (audit hash-chain HMAC key)")
 	}

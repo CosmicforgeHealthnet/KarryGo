@@ -6,17 +6,37 @@ import (
 	"testing"
 )
 
-// The latest migration backfills an active Head Office branch for every
-// company without one; rolling it back keeps the branches (other records may
-// reference them) and re-applying it never duplicates them.
+// The two latest migrations:
+//   - 000088 publishes company activation policy version 2 and archives
+//     version 1; rolling back restores version 1 and re-applying restores 2.
+//   - 000087 backfills an active Head Office branch for every company without
+//     one; rolling it back keeps the branches (other records may reference
+//     them) and re-applying it never duplicates them.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
-	if replayMigrationTip(t) != "000087_default_head_office_branch" {
+	if replayMigrationTip(t) != "000088_company_activation_policy_v2" {
 		t.Fatal("review latest migration retention assertions")
 	}
 	pool := isolatedTestDatabase(t, "fleet_partner_onboarding_tip")
 	ctx := context.Background()
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
+	}
+	activePolicy := func() string {
+		t.Helper()
+		var id string
+		if err := pool.QueryRow(ctx, `SELECT id FROM fleet_partner_eligibility_policies WHERE organization_id IS NULL AND policy_key='COMPANY_ACTIVATION' AND status='ACTIVE'`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	if got := activePolicy(); got != "elp_default_company_activation_v2" {
+		t.Fatalf("active policy after apply: %s", got)
+	}
+	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	if got := activePolicy(); got != "elp_default_company_activation" {
+		t.Fatalf("active policy after rollback: %s", got)
 	}
 	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
@@ -57,5 +77,8 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	}
 	if count, _ := branches("org_no_branch"); count != 1 {
 		t.Fatalf("reapply duplicated the head office: %d", count)
+	}
+	if got := activePolicy(); got != "elp_default_company_activation_v2" {
+		t.Fatalf("active policy after reapply: %s", got)
 	}
 }

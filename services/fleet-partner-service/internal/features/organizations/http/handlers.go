@@ -74,6 +74,7 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.GET("/organizations/:organizationId/documents/:documentId/preview", h.previewDocument)
 	group.POST("/organizations/:organizationId/submit", h.submit)
 	group.GET("/organizations/:organizationId/verification", h.verificationStatus)
+	group.GET("/organizations/:organizationId/activation-readiness", h.activationReadiness)
 	group.GET("/organizations/:organizationId/wallet-provisioning", h.walletStatus)
 	group.POST("/organizations/:organizationId/wallet-provisioning/retry", h.retryWallet)
 	group.POST("/organizations/:organizationId/close-request", h.requestClosure)
@@ -1000,6 +1001,28 @@ func (h *Handler) requestClosure(c *gin.Context) {
 		return
 	}
 	respond.Created(c, gin.H{"closureRequestId": closure.ID, "status": closure.Status})
+}
+
+// activationReadiness reports every activation gate and whether it passes,
+// so the company can see what still stands between it and activation.
+func (h *Handler) activationReadiness(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, tenantCtx) {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "organization.read") {
+		return
+	}
+	assessment, err := h.organizations.EvaluateActivation(c.Request.Context(), tenantCtx.OrganizationID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	gates := make([]gin.H, 0, len(assessment.Gates))
+	for _, gate := range assessment.Gates {
+		gates = append(gates, gin.H{"name": gate.Name, "passed": gate.Passed, "detail": gate.Detail})
+	}
+	respond.OK(c, gin.H{"ready": assessment.Ready, "gates": gates})
 }
 
 func (h *Handler) closureStatus(c *gin.Context) {

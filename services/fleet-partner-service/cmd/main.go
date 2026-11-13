@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	orghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/http"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -180,9 +181,13 @@ func main() {
 		app.StartSections19To21Workers(ctx, cfg, components, &workers)
 		app.StartSections22And23Workers(ctx, cfg, components, &workers)
 		if !cfg.IntegrationsKillSwitch {
-			workers.Add(2)
+			workers.Add(3)
 			go func() { defer workers.Done(); outboxWorker.Run(ctx) }()
 			go func() { defer workers.Done(); runProviderReconciler(ctx, components, cfg.JobPollInterval) }()
+			go func() {
+				defer workers.Done()
+				app.RunVerificationReconciler(ctx, components, cfg.VerificationReconcileInterval)
+			}()
 		} else {
 			logging.Notice("worker", "integration outbox and provider reconciliation stopped by global kill switch")
 		}
@@ -457,6 +462,11 @@ func main() {
 			}
 			if routes := buildProviderMembershipInternalRoutes(cfg, components.Providers); routes != nil {
 				routes(group)
+			}
+			// ADR-006: verification-compliance-service delivers company
+			// verification decisions here.
+			if callers := parseAllowedCallers(cfg.VerificationEventsAllowedCallers); len(callers) > 0 {
+				orghttp.RegisterVerificationEventRoutes(group, orghttp.NewVerificationEventHandler(components.Organizations, callers))
 			}
 		},
 	})

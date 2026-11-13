@@ -197,7 +197,7 @@ func seedEligibleOrganization(t *testing.T, pool *pgxpool.Pool, organizationID s
 
 	// The documents the platform default activation policy names. READY rather
 	// than ATTACHED: a file that exists is not a check that passed.
-	for _, documentType := range []string{"REGISTRATION_CERTIFICATE", "TAX_IDENTIFICATION"} {
+	for _, documentType := range []string{"CERTIFICATE_OF_INCORPORATION", "TAX_CLEARANCE", "INSURANCE_POLICY", "OPERATING_LICENSE"} {
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO fleet_partner_organization_documents
 				(id, organization_id, document_type, file_id, status, expires_at)

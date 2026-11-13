@@ -92,6 +92,7 @@ var generated = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/documents/:documentId/preview", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/onboarding-status", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/verification", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/activation-readiness", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/wallet-provisioning", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/current", RiskClass: ratelimit.RiskStandard},
 	// Onboarding form routes. They were mounted but unclassified, so they
@@ -306,6 +307,7 @@ var generated = []Entry{
 	{Method: "POST", Path: "/internal/fleet-partner/v1/customers/:customerId/orders/:orderId/documents/:documentId/download-requests", RiskClass: ratelimit.RiskInternalService},
 	{Method: "POST", Path: "/internal/fleet-partner/v1/documents/media-events", RiskClass: ratelimit.RiskInternalService},
 	{Method: "POST", Path: "/internal/fleet-partner/v1/events", RiskClass: ratelimit.RiskInternalService},
+	{Method: "POST", Path: "/internal/fleet-partner/v1/organization-verification/events", RiskClass: ratelimit.RiskInternalService},
 	// finance's 3 internal routes were missing entirely -- not generated, not
 	// previously in overrides, invisible to TestRouteRiskRegistry_
 	// CoversEveryMountedRoute because the finance package was never added to

@@ -64,11 +64,14 @@ func (s *Service) checkCompany(ctx context.Context, input EvaluateInput,
 	})
 
 	if policy.RequiresCompanyCheck(models.CheckLifecycle) {
-		switch state.Status {
-		case orgmodels.OrganizationStatusActive:
-		case orgmodels.OrganizationStatusSuspended:
+		switch {
+		case state.Status == orgmodels.OrganizationStatusActive:
+		case state.Status == orgmodels.OrganizationStatusUnderReview && input.OperationType == models.OperationCompanyActivation:
+			// Activation is the move from UNDER_REVIEW to ACTIVE, so for this
+			// one operation a company under review is the expected state.
+		case state.Status == orgmodels.OrganizationStatusSuspended:
 			result.block(models.ReasonCompanySuspended)
-		case orgmodels.OrganizationStatusArchived:
+		case state.Status == orgmodels.OrganizationStatusArchived:
 			result.block(models.ReasonCompanyArchived)
 		default:
 			result.block(models.ReasonCompanyNotActive)

@@ -292,6 +292,9 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		Eligibility:   eligibilityService,
 		Events:        publisher,
 		Metrics:       metrics,
+		// ADR-006: staging may waive the wallet gate; validation refuses it
+		// in production.
+		WalletGateWaived: cfg.ActivationWalletGateWaived,
 	})
 
 	staffService := staffusecases.NewService(staffusecases.Options{

@@ -313,7 +313,7 @@ func TestExpiredRequiredDocumentIsIneligible(t *testing.T) {
 		f.orgID); err != nil {
 		t.Fatal(err)
 	}
-	for index, documentType := range []string{"REGISTRATION_CERTIFICATE", "TAX_IDENTIFICATION"} {
+	for index, documentType := range []string{"CERTIFICATE_OF_INCORPORATION", "TAX_CLEARANCE", "INSURANCE_POLICY", "OPERATING_LICENSE"} {
 		expiry := "now() + interval '1 year'"
 		if index == 0 {
 			expiry = "now() - interval '1 day'"

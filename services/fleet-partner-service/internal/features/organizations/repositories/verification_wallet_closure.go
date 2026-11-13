@@ -84,6 +84,47 @@ func (r *OnboardingRepository) LatestVerificationRequest(ctx context.Context, or
 	return &request, nil
 }
 
+// ListVerificationRequestsToReconcile returns, across organizations, the
+// latest verification request of each company whose verification is still
+// open (not dispatched, unknown, submitted or under review), or approved for
+// a company that is not active yet. Least recently synced first, so every
+// company is visited in turn.
+func (r *OnboardingRepository) ListVerificationRequestsToReconcile(ctx context.Context, limit int) ([]models.VerificationRequest, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT v.id, v.organization_id, v.submission_version, v.submission_snapshot, v.status,
+			v.external_reference, v.source_service, v.source_version, v.last_event_id, v.synced_at,
+			v.submitted_by, v.request_id, v.correlation_id, v.created_at, v.updated_at
+		FROM (
+			SELECT DISTINCT ON (organization_id) *
+			FROM fleet_partner_organization_verification_requests
+			ORDER BY organization_id, submission_version DESC
+		) v
+		JOIN fleet_partner_organizations o ON o.id = v.organization_id
+		WHERE v.status IN ('PENDING_DISPATCH', 'UNKNOWN_OUTCOME', 'SUBMITTED', 'UNDER_REVIEW')
+		   OR (v.status = 'APPROVED' AND o.status IN ('BUSINESS_SUBMITTED', 'UNDER_REVIEW'))
+		ORDER BY v.synced_at NULLS FIRST, v.updated_at
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("organizations: list verification requests to reconcile: %w", err)
+	}
+	defer rows.Close()
+	var out []models.VerificationRequest
+	for rows.Next() {
+		var request models.VerificationRequest
+		var snapshot []byte
+		if err := rows.Scan(&request.ID, &request.OrganizationID, &request.SubmissionVersion, &snapshot,
+			&request.Status, &request.ExternalReference, &request.SourceService,
+			&request.SourceVersion, &request.LastEventID, &request.SyncedAt,
+			&request.SubmittedBy, &request.RequestID, &request.CorrelationID,
+			&request.CreatedAt, &request.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("organizations: scan verification request: %w", err)
+		}
+		_ = json.Unmarshal(snapshot, &request.SubmissionSnapshot)
+		out = append(out, request)
+	}
+	return out, rows.Err()
+}
+
 // UpdateVerificationStatus projects an externally-owned verification outcome.
 // Older source versions are ignored so out-of-order events cannot regress it.
 func (r *OnboardingRepository) UpdateVerificationStatus(ctx context.Context, q database.Querier, organizationID string, requestID string, status string, externalReference string, sourceVersion int64, eventID string) error {

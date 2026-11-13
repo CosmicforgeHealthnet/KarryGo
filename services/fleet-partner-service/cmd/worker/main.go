@@ -134,8 +134,12 @@ func main() {
 	workers.Add(1)
 	go func() { defer workers.Done(); jobWorker.Run(ctx) }()
 	if !cfg.IntegrationsKillSwitch {
-		workers.Add(2)
+		workers.Add(3)
 		go func() { defer workers.Done(); outboxWorker.Run(ctx) }()
+		go func() {
+			defer workers.Done()
+			app.RunVerificationReconciler(ctx, components, cfg.VerificationReconcileInterval)
+		}()
 		// Re-drives incomplete provider provisioning sagas. Shared with the
 		// API binary through internal/app so a deployment that splits into a
 		// dedicated worker process does not silently lose this worker.

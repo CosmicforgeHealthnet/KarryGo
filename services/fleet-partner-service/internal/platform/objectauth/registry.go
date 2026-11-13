@@ -155,6 +155,7 @@ var manifestlessPermissions = map[string]string{
 	"GET /fleet-partner/v1/organizations/:organizationId/documents/:documentId/preview":     "organization.read",
 	"POST /fleet-partner/v1/organizations/:organizationId/submit":                           "organization.submit",
 	"GET /fleet-partner/v1/organizations/:organizationId/verification":                      "organization.read",
+	"GET /fleet-partner/v1/organizations/:organizationId/activation-readiness":              "organization.read",
 	"GET /fleet-partner/v1/organizations/:organizationId/wallet-provisioning":               "organization.read",
 	"POST /fleet-partner/v1/organizations/:organizationId/wallet-provisioning/retry":        "organization.update",
 	"POST /fleet-partner/v1/organizations/:organizationId/close-request":                    "organization.close",
