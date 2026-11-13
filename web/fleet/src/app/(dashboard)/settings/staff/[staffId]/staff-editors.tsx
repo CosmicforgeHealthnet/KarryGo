@@ -39,9 +39,7 @@ export function StaffDetailsEditor({
   const [fullName, setFullName] = useState(member.fullName);
   const [jobTitle, setJobTitle] = useState(member.jobTitle ?? "");
   const [branchIds, setBranchIds] = useState<string[]>(member.branchIds);
-  // The directory does not report department membership, so departments are
-  // only sent when the user picks them; otherwise the current ones are kept.
-  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
+  const [departmentIds, setDepartmentIds] = useState<string[]>(member.departmentIds ?? []);
   const [departmentsTouched, setDepartmentsTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
@@ -55,7 +53,7 @@ export function StaffDetailsEditor({
     setFullName(member.fullName);
     setJobTitle(member.jobTitle ?? "");
     setBranchIds(member.branchIds);
-    setDepartmentIds([]);
+    setDepartmentIds(member.departmentIds ?? []);
     setDepartmentsTouched(false);
     setError(null);
     setNotice(null);

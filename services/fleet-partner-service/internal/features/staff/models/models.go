@@ -167,20 +167,21 @@ type RoleRef struct {
 // StaffDirectoryEntry is a staff member as the company's own users see them:
 // the membership, the person's verified contacts and the roles they hold now.
 type StaffDirectoryEntry struct {
-	ID                 string     `json:"id"`
-	FullName           string     `json:"fullName"`
-	JobTitle           *string    `json:"jobTitle"`
-	Email              string     `json:"email"`
-	Phone              string     `json:"phone"`
-	Status             string     `json:"status"`
-	IsOwner            bool       `json:"isOwner"`
-	Roles              []RoleRef  `json:"roles"`
-	PermittedBranchIDs []string   `json:"branchIds"`
-	Version            int64      `json:"version"`
-	InvitedAt          *time.Time `json:"invitedAt"`
-	ActivatedAt        *time.Time `json:"activatedAt"`
-	SuspendedAt        *time.Time `json:"suspendedAt"`
-	CreatedAt          time.Time  `json:"createdAt"`
+	ID                     string     `json:"id"`
+	FullName               string     `json:"fullName"`
+	JobTitle               *string    `json:"jobTitle"`
+	Email                  string     `json:"email"`
+	Phone                  string     `json:"phone"`
+	Status                 string     `json:"status"`
+	IsOwner                bool       `json:"isOwner"`
+	Roles                  []RoleRef  `json:"roles"`
+	PermittedBranchIDs     []string   `json:"branchIds"`
+	PermittedDepartmentIDs []string   `json:"departmentIds"`
+	Version                int64      `json:"version"`
+	InvitedAt              *time.Time `json:"invitedAt"`
+	ActivatedAt            *time.Time `json:"activatedAt"`
+	SuspendedAt            *time.Time `json:"suspendedAt"`
+	CreatedAt              time.Time  `json:"createdAt"`
 }
 
 // InvitationView is a staff invitation without its token hash.

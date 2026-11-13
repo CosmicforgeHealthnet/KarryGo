@@ -37,6 +37,8 @@ export interface ProviderMembership {
   providerId: string | null;
   onboardingSource: OnboardingSource;
   relationshipType: RelationshipType;
+  employmentType?: string | null;
+  employeeNumber?: string | null;
   homeBranchId: string | null;
   status: MembershipStatus;
   joinedAt: string | null;

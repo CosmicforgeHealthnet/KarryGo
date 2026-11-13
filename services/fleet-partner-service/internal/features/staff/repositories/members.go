@@ -321,7 +321,7 @@ func (r *MemberRepository) Directory(ctx context.Context, organizationID string,
 	}
 	rows, err := r.db.Query(ctx, `
 		SELECT u.id, u.full_name, u.job_title, i.email_display, i.phone_display, u.status, u.is_owner,
-			u.permitted_branch_ids, u.version, u.invited_at, u.activated_at, u.suspended_at, u.created_at,
+			u.permitted_branch_ids, u.permitted_department_ids, u.version, u.invited_at, u.activated_at, u.suspended_at, u.created_at,
 			COALESCE((
 				SELECT json_agg(json_build_object('id', ro.id, 'code', ro.code, 'name', ro.name) ORDER BY ro.name)
 				FROM fleet_partner_role_bindings b
@@ -343,7 +343,7 @@ func (r *MemberRepository) Directory(ctx context.Context, organizationID string,
 		var e models.StaffDirectoryEntry
 		var roles []byte
 		if err := rows.Scan(&e.ID, &e.FullName, &e.JobTitle, &e.Email, &e.Phone, &e.Status, &e.IsOwner,
-			&e.PermittedBranchIDs, &e.Version, &e.InvitedAt, &e.ActivatedAt, &e.SuspendedAt, &e.CreatedAt, &roles); err != nil {
+			&e.PermittedBranchIDs, &e.PermittedDepartmentIDs, &e.Version, &e.InvitedAt, &e.ActivatedAt, &e.SuspendedAt, &e.CreatedAt, &roles); err != nil {
 			return nil, fmt.Errorf("staff: scan directory: %w", err)
 		}
 		if err := json.Unmarshal(roles, &e.Roles); err != nil {
@@ -351,6 +351,9 @@ func (r *MemberRepository) Directory(ctx context.Context, organizationID string,
 		}
 		if e.PermittedBranchIDs == nil {
 			e.PermittedBranchIDs = []string{}
+		}
+		if e.PermittedDepartmentIDs == nil {
+			e.PermittedDepartmentIDs = []string{}
 		}
 		entries = append(entries, e)
 	}

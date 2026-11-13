@@ -30,9 +30,10 @@ export function MembershipEditor({
 }) {
   const [homeBranchId, setHomeBranchId] = useState(membership.homeBranchId ?? '');
   const [relationshipType, setRelationshipType] = useState<RelationshipType>(membership.relationshipType);
-  // Not reported by the membership read; sent only when chosen.
-  const [employmentType, setEmploymentType] = useState<EmploymentType | ''>('');
-  const [employeeNumber, setEmployeeNumber] = useState('');
+  const [employmentType, setEmploymentType] = useState<EmploymentType | ''>(
+    (membership.employmentType as EmploymentType | undefined) ?? '',
+  );
+  const [employeeNumber, setEmployeeNumber] = useState(membership.employeeNumber ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ApiErrorInfo | null>(null);
 
@@ -42,8 +43,8 @@ export function MembershipEditor({
     setError(null);
     const input: UpdateProviderInput = { relationshipType };
     if (homeBranchId && homeBranchId !== membership.homeBranchId) input.homeBranchId = homeBranchId;
-    if (employmentType) input.employmentType = employmentType;
-    if (employeeNumber.trim()) input.employeeNumber = employeeNumber.trim();
+    if (employmentType !== (membership.employmentType ?? '')) input.employmentType = employmentType;
+    if (employeeNumber.trim() !== (membership.employeeNumber ?? '')) input.employeeNumber = employeeNumber.trim();
     try {
       onSaved(await providerService.update(membership.membershipId, input, membership.version));
     } catch (err) {
@@ -87,7 +88,7 @@ export function MembershipEditor({
             onChange={(e) => setEmploymentType(e.target.value as EmploymentType | '')}
             className={INPUT}
           >
-            <option value="">Unchanged</option>
+            <option value="">Not set</option>
             <option value="FULL_TIME">Full time</option>
             <option value="PART_TIME">Part time</option>
             <option value="CASUAL">Casual</option>

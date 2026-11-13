@@ -19,6 +19,7 @@ export interface StaffMember {
   isOwner: boolean;
   roles: RoleRef[];
   branchIds: string[];
+  departmentIds?: string[];
   version: number;
   invitedAt: string | null;
   activatedAt: string | null;

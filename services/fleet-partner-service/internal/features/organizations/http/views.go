@@ -24,6 +24,8 @@ func providerViews(memberships []providerMembership) []gin.H {
 			"providerId":       membership.ProviderID,
 			"onboardingSource": membership.OnboardingSource,
 			"relationshipType": membership.RelationshipType,
+			"employmentType":   membership.EmploymentType,
+			"employeeNumber":   membership.EmployeeNumber,
 			"homeBranchId":     membership.HomeBranchID,
 			"status":           membership.Status,
 			"joinedAt":         membership.JoinedAt,
