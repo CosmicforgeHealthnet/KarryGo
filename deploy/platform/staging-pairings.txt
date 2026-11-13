@@ -1,0 +1,18 @@
+# Staging service connections, applied by
+# .github/workflows/platform-staging-pairing.yml (scripts/platform/staging-pairing.sh).
+# Allowed lines (anything else is refused):
+#   PAIR <caller> <callee>              shared HMAC secret, generated on the server
+#   SET  <service> NAME=true|false
+#   URL  <service> NAME=http://karrygo-<container>:<port>
+# No secret is ever written here.
+
+# Company activation (Fleet ADR-006): Fleet submits companies to Verification
+# and reads decisions back; Verification delivers decisions to Fleet.
+PAIR fleet-partner-service verification-compliance-service
+PAIR verification-compliance-service fleet-partner-service
+URL fleet-partner-service FLEET_PARTNER_VERIFICATION_COMPLIANCE_SERVICE_BASE_URL=http://karrygo-verification-staging:8111
+URL verification-compliance-service VERIFICATION_COMPLIANCE_FLEET_EVENTS_URL=http://karrygo-fleet-partner-api:8113
+SET verification-compliance-service VERIFICATION_COMPLIANCE_MIGRATION=true
+SET verification-compliance-service VERIFICATION_COMPLIANCE_PRIVATE_API_ENABLED=true
+# Staging has no Fleet <-> Wallet connection yet; refused in production.
+SET fleet-partner-service FLEET_ACTIVATION_WALLET_GATE_WAIVED=true
