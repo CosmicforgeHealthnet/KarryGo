@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
@@ -43,7 +44,11 @@ func TestProviderAndTruckLinkLifecyclePostgres(t *testing.T) {
 	router := gin.New()
 	router.Use(httpx.ErrorHandler())
 	root := router.Group("/api/v1/hauling")
-	Register(root, New(pool, Flags{Enabled: true}), serviceauth.NewVerifier(map[string][]byte{"fleet-partner-service": secret}, 5*time.Minute), []string{"fleet-partner-service"})
+	handler := New(pool, Flags{Enabled: true})
+	Register(root, handler, serviceauth.NewVerifier(map[string][]byte{"fleet-partner-service": secret}, 5*time.Minute), []string{"fleet-partner-service"})
+	providerSigner := sharedauth.NewTokenSigner([]byte("integration-provider-token-secret"))
+	RegisterProviderConsent(root.Group("/provider/organization-associations"), handler,
+		sharedauth.BearerMiddleware(providerSigner, "truck_provider", "hauling"))
 
 	organizationID, membershipID, branchID := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	keyPrefix := uuid.NewString()
@@ -58,18 +63,38 @@ func TestProviderAndTruckLinkLifecyclePostgres(t *testing.T) {
 	conflict := map[string]any{"organizationId": uuid.NewString(), "membershipId": uuid.NewString(), "providerId": providerID}
 	authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links", conflict, keyPrefix+"-provider-create", uuid.NewString(), http.StatusConflict)
 
-	activeBody := map[string]any{"state": "ACTIVE", "expectedVersion": version, "organizationId": organizationID, "reasonCode": "TEST"}
-	activeKey := keyPrefix + "-provider-active"
-	result := authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", activeBody, activeKey, uuid.NewString(), http.StatusOK)
+	// The organization cannot accept on the provider's behalf (FLEET-10.2).
+	forced := map[string]any{"state": "ACTIVE", "expectedVersion": version, "organizationId": organizationID, "reasonCode": "TEST"}
+	authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", forced, keyPrefix+"-provider-forced", uuid.NewString(), http.StatusConflict)
+	// Another provider cannot decide it; the provider can, once.
+	if code, _ := providerDecision(t, router, providerSigner, uuid.NewString(), linkID, "accept"); code != http.StatusNotFound {
+		t.Fatalf("another provider decided the association: %d", code)
+	}
+	code, accepted := providerDecision(t, router, providerSigner, providerID, linkID, "accept")
+	if code != http.StatusOK || nestedString(t, accepted, "status") != "ACTIVE" {
+		t.Fatalf("provider accept: %d %#v", code, accepted)
+	}
+	version = nestedVersion(t, accepted)
+	if code, _ := providerDecision(t, router, providerSigner, providerID, linkID, "decline"); code != http.StatusConflict {
+		t.Fatalf("decline after accept: %d", code)
+	}
+	var actorType string
+	if err := pool.QueryRow(context.Background(), `SELECT actor_type FROM hauling_organization_link_history WHERE link_id=$1 AND new_state='ACTIVE'`, linkID).Scan(&actorType); err != nil || actorType != "PROVIDER" {
+		t.Fatalf("consent actor: %q %v", actorType, err)
+	}
+
+	suspendBody := map[string]any{"state": "SUSPENDED", "expectedVersion": version, "organizationId": organizationID, "reasonCode": "TEST"}
+	suspendKey := keyPrefix + "-provider-suspend"
+	result := authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", suspendBody, suspendKey, uuid.NewString(), http.StatusOK)
 	version = nestedVersion(t, result)
-	replayedTransition := authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", activeBody, activeKey, uuid.NewString(), http.StatusOK)
+	replayedTransition := authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", suspendBody, suspendKey, uuid.NewString(), http.StatusOK)
 	if nestedVersion(t, replayedTransition) != version {
 		t.Fatal("idempotent transition replay changed the provider link version")
 	}
 	conflictingTransition := map[string]any{"state": "REVOKED", "expectedVersion": version - 1, "organizationId": organizationID, "reasonCode": "TEST"}
-	authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", conflictingTransition, activeKey, uuid.NewString(), http.StatusConflict)
+	authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", conflictingTransition, suspendKey, uuid.NewString(), http.StatusConflict)
 
-	for _, state := range []string{"SUSPENDED", "ACTIVE", "REVOKED"} {
+	for _, state := range []string{"ACTIVE", "REVOKED"} {
 		result := authorityCall(t, router, secret, http.MethodPost, "/api/v1/hauling/internal/marketplace/provider-links/"+linkID+"/transitions", map[string]any{"state": state, "expectedVersion": version, "organizationId": organizationID, "reasonCode": "TEST"}, keyPrefix+"-provider-"+state+uuid.NewString(), uuid.NewString(), http.StatusOK)
 		version = nestedVersion(t, result)
 	}
@@ -138,6 +163,23 @@ func TestProviderAndTruckLinkLifecyclePostgres(t *testing.T) {
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("cross-tenant read status=%d", response.Code)
 	}
+}
+
+func providerDecision(t *testing.T, router http.Handler, signer *sharedauth.TokenSigner, providerID, linkID, decision string) (int, map[string]any) {
+	t.Helper()
+	now := time.Now()
+	token, err := signer.Sign(sharedauth.Claims{Subject: providerID, Role: "truck_provider", Service: "hauling",
+		SessionID: uuid.NewString(), Type: sharedauth.TokenTypeAccess, IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/hauling/provider/organization-associations/"+linkID+"/"+decision, nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	var decoded map[string]any
+	_ = json.Unmarshal(response.Body.Bytes(), &decoded)
+	return response.Code, decoded
 }
 
 func authorityCall(t *testing.T, router http.Handler, secret []byte, method, path string, body any, key, nonce string, want int) map[string]any {

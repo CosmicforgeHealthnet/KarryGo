@@ -685,6 +685,10 @@ func main() {
 				)
 			}
 			fleetauthority.Register(group, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
+			// FLEET-10.2: the provider accepts or declines an organization
+			// association with their own session; Fleet reads it back.
+			fleetauthority.RegisterProviderConsent(group.Group("/provider/organization-associations"), authorityHandler,
+				sharedauth.BearerMiddleware(authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 			restrictions.Register(group, restrictionService, authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))
 			privateexecution.Register(group, privateexecution.NewHandler(privateExecutionService),
 				authorityHandler, inboundVerifier, splitCSV(cfg.FleetAllowedCallers))

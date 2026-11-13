@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/shared/go/orgprovider"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -116,6 +117,13 @@ func (h *Handler) writable(c *gin.Context) bool {
 	}
 	return true
 }
+
+// opaqueID accepts another service's identifier without assuming its format.
+func opaqueID(id string) bool {
+	id = strings.TrimSpace(id)
+	return id != "" && len(id) <= 128
+}
+
 func validIDs(ids ...string) bool {
 	for _, id := range ids {
 		if _, e := uuid.Parse(id); e != nil {
@@ -488,7 +496,8 @@ func (h *Handler) provisionProvider(c *gin.Context) {
 		return
 	}
 	var body provisionProviderBody
-	if c.ShouldBindJSON(&body) != nil || !validIDs(body.OrganizationID) || strings.TrimSpace(body.EmailNormalized) == "" || strings.TrimSpace(body.PhoneE164) == "" || !strings.EqualFold(body.ServiceCategory, "HAULING") {
+	// Fleet organization ids are opaque (org_<hex>), not UUIDs.
+	if c.ShouldBindJSON(&body) != nil || !opaqueID(body.OrganizationID) || strings.TrimSpace(body.EmailNormalized) == "" || strings.TrimSpace(body.PhoneE164) == "" || !strings.EqualFold(body.ServiceCategory, "HAULING") {
 		c.JSON(400, gin.H{"error": gin.H{"code": "INVALID_REQUEST"}})
 		return
 	}
@@ -631,7 +640,14 @@ func (h *Handler) createProviderLink(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 	var eligible bool
-	err = tx.QueryRow(c, `SELECT EXISTS(SELECT 1 FROM truck_providers WHERE id=$1 AND status='active' AND onboarding_status='complete' AND COALESCE(service_type,'hauling')='hauling')`, body.ProviderID).Scan(&eligible)
+	// An independent provider must already be active and onboarded. A
+	// provider this organization sponsored is still awaiting verification
+	// when the association is requested; Fleet's activation gate waits for
+	// that, so it is not repeated here. A provider sponsored by ANOTHER
+	// organization is never eligible.
+	err = tx.QueryRow(c, `SELECT EXISTS(SELECT 1 FROM truck_providers WHERE id=$1 AND COALESCE(service_type,'hauling')='hauling'
+		AND (managed_by_organization_id IS NULL OR managed_by_organization_id=$2)
+		AND ((status='active' AND onboarding_status='complete') OR (managed_by_organization_id=$2 AND status IN ('active','pending'))))`, body.ProviderID, body.OrganizationID).Scan(&eligible)
 	if err != nil || !eligible {
 		c.JSON(422, gin.H{"error": gin.H{"code": "PROVIDER_INELIGIBLE"}})
 		return
@@ -831,7 +847,10 @@ func (h *Handler) transitionLink(c *gin.Context, kind string) {
 		dbError(c, err)
 		return
 	}
-	if out.SourceVersion != body.ExpectedVersion || !linkTransitions[out.Status][body.State] {
+	// A provider link leaves REQUESTED only by the provider's own decision
+	// (RegisterProviderConsent): the organization cannot consent for them.
+	consentOnly := kind == "PROVIDER" && !orgprovider.OrganizationMayTransition(out.Status, body.State)
+	if out.SourceVersion != body.ExpectedVersion || !linkTransitions[out.Status][body.State] || consentOnly {
 		c.JSON(409, gin.H{"error": gin.H{"code": "INVALID_STATE_OR_VERSION"}})
 		return
 	}
