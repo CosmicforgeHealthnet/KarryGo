@@ -596,6 +596,18 @@ try {
   });
   assert.equal(unlocked.status(), 422, "Approval lifts the lifecycle restriction");
   checks.push("changes requested returns to setup; back under review returns to the dashboard; approval removes the banner and the API restriction in the same session");
+  // A session marker without a client token must reach sign-in, not loop.
+  const orphan = await browser.newContext();
+  await orphan.addCookies([
+    { name: "karrygo_has_session", value: "1", url: origin },
+    { name: "karrygo_org_status", value: "DRAFT", url: origin },
+  ]);
+  const orphanPage = await orphan.newPage();
+  await orphanPage.goto(origin + "/");
+  await orphanPage.getByLabel("Email address or phone number").waitFor();
+  assert.equal(new URL(orphanPage.url()).pathname, "/sign-in");
+  await orphan.close();
+  checks.push("a leftover session marker without a token reaches sign-in instead of looping");
   assert.deepEqual(errors, [], "Browser runtime errors");
   await writeFile(
     evidence + "/results.json",

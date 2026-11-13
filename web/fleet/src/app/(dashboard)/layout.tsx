@@ -38,6 +38,7 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { organizationService } from "@/lib/services/organizationService";
 import { PendingVerificationBanner } from "@/components/features/PendingVerificationBanner";
+import { clearStaleSessionMarker } from "@/lib/auth/sessionMarker";
 import { RestrictedActionNotice } from "@/components/features/RestrictedActionNotice";
 import {
   belongsInSetup,
@@ -206,6 +207,7 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!_hasHydrated) return;
     if (!accessToken) {
+      clearStaleSessionMarker();
       router.replace("/sign-in");
       return;
     }

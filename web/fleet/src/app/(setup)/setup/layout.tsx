@@ -11,6 +11,7 @@ import { KarryamLogo } from "@/components/brand/KarryamLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { OnboardingProvider, useOnboarding } from "./onboarding-context";
 import { Loading } from "./onboarding-ui";
+import { clearStaleSessionMarker } from "@/lib/auth/sessionMarker";
 import { belongsInSetup, organizationDestination } from "@/lib/auth/organizationDestination";
 import {
   SETUP_STEPS, SETUP_HOME, CREATE_COMPANY_PATH, stepForPath,
@@ -339,8 +340,10 @@ export default function Layout({ children }: { children: ReactNode }) {
   const selected = useAuthStore((s) => s.selectedOrganization?.organizationId);
   const router = useRouter();
   useEffect(() => {
-    if (hydrated && !authenticated)
+    if (hydrated && !authenticated) {
+      clearStaleSessionMarker();
       router.replace("/sign-in?redirect=%2Fsetup");
+    }
   }, [hydrated, authenticated, router]);
   if (!hydrated || !authenticated)
     return <div className="min-h-dvh bg-surface-2"><Loading /></div>;
