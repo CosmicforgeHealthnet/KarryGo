@@ -1,8 +1,5 @@
-// Package reports is the reserved feature boundary for corporate read models and tenant-scoped exports.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package reports names the Section 24 reporting boundary. Tenant-scoped
+// exports live in features/exports and the dashboard aggregate in
+// features/dashboard. Scheduled operational reports are outside Sections
+// 5-20 and are tracked with Section 24.
 package reports

@@ -1,8 +1,8 @@
-// Package assignments is the reserved feature boundary for work assignment integration with dispatch, taxi and hauling services.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package assignments names the Section 11 assignment boundary. Its production
+// implementation is split by work origin so each keeps one transaction
+// boundary: marketplace company work lives in features/marketplace
+// (offers, organization acceptance, provider assignments, accept/decline,
+// expiry and reassignment) and private company work in
+// features/privateoperations. Canonical trips stay owned by Dispatch, Taxi
+// and Hauling.
 package assignments

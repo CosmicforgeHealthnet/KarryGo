@@ -1,8 +1,6 @@
-// Package wallets is the reserved feature boundary for organization wallet and sub-wallet projections from payment-wallet-service (no local ledger).
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package wallets names the Section 13 wallet boundary. Its production
+// implementation (organization wallet projection, provider sub-wallets,
+// allocations, statements and withdrawals, all read from or instructed to
+// payment-wallet-service, with no local ledger) lives in
+// features/companywallet.
 package wallets

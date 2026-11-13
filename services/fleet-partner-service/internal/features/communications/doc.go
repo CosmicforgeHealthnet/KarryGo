@@ -1,8 +1,5 @@
-// Package communications is the reserved feature boundary for organization notification templates and preferences via notification-service.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package communications names the Section 23 communication boundary. Its
+// production implementation (organization notification rules, templates and
+// operational messages, delivered through notification-service) lives in
+// features/engagement.
 package communications
