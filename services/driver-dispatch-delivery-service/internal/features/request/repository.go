@@ -149,6 +149,14 @@ func (r *PostgresRepository) MarkBroadcastAccepted(ctx context.Context, broadcas
 	`, broadcastID, inboxID, respondedAt); err != nil {
 		return err
 	}
+	// An independent provider took the request: every organization still
+	// holding it as an open opportunity must stand down. Published in the same
+	// transaction as the acceptance. The accepting provider is deliberately not
+	// named -- organizations need to know the request is gone, not who took it.
+	if err := r.emitBroadcastEvent(ctx, tx, eventRequestUpdated, broadcastID, bookingID,
+		map[string]any{"status": "accepted"}); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 

@@ -231,6 +231,46 @@ func TestTerminalBroadcastTransitionsEmitExactlyOnce(t *testing.T) {
 	}
 }
 
+// TestIndependentAcceptanceAnnouncesClaimedRequest proves the Sections 11-12
+// producer half: when an independent provider takes the request, every
+// organization still holding it as an open opportunity is told, in the same
+// transaction, at the next version -- without naming the provider.
+func TestIndependentAcceptanceAnnouncesClaimedRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	fixture := newBroadcastEmissionFixture(t, ctx)
+
+	providerID := uuid.NewString()
+	if _, err := fixture.pool.Exec(ctx, `INSERT INTO providers (id, phone) VALUES ($1, $2)`,
+		providerID, "+2348000071001"); err != nil {
+		t.Fatal(err)
+	}
+	broadcast := fixture.createBroadcast(t, ctx)
+	inboxes, err := fixture.repo.CreateInboxRows(ctx, broadcast.ID, broadcast.BookingID, []string{providerID})
+	if err != nil || len(inboxes) != 1 {
+		t.Fatalf("inboxes=%+v err=%v", inboxes, err)
+	}
+	if err := fixture.repo.MarkBroadcastAccepted(ctx, broadcast.ID, broadcast.BookingID, inboxes[0].ID,
+		providerID, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+
+	events := fixture.events(t, ctx)
+	if len(events) != 2 || events[0].EventType != eventRequestOffered || events[1].EventType != eventRequestUpdated {
+		t.Fatalf("events=%+v, want offered then updated", events)
+	}
+	if events[1].AggregateVersion != events[0].AggregateVersion+1 {
+		t.Fatalf("claimed event version %d does not follow %d", events[1].AggregateVersion, events[0].AggregateVersion)
+	}
+	if events[1].Payload["status"] != "accepted" || events[1].Payload["requestId"] != broadcast.ID {
+		t.Fatalf("claimed payload=%v", events[1].Payload)
+	}
+	encoded, _ := json.Marshal(events[1].Payload)
+	if strings.Contains(string(encoded), providerID) {
+		t.Fatalf("claimed event names the accepting provider: %s", encoded)
+	}
+}
+
 // TestNoProviderFoundEmitsExpiry pins the mapping decision.
 func TestNoProviderFoundEmitsExpiry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
