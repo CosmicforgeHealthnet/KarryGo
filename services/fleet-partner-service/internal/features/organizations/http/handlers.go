@@ -24,6 +24,7 @@ import (
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -1375,15 +1376,52 @@ func (h *Handler) listProviders(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.read") {
 		return
 	}
-	memberships, err := h.providers.Repository().ListMemberships(c.Request.Context(), tenant.Query{
+	limit := cursor.DefaultLimit
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > cursor.MaxLimit {
+			respond.Error(c, apperrors.Validation("limit must be between 1 and 100.",
+				[]apperrors.FieldViolation{{Field: "limit", Message: "Out of range."}}))
+			return
+		}
+		limit = parsed
+	}
+	position, hasCursor, err := cursor.Decode(c.Query("cursor"))
+	if err != nil {
+		respond.Error(c, apperrors.Validation("The cursor is not valid.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Malformed."}}))
+		return
+	}
+	query := tenant.Query{
 		OrganizationID:     tenantCtx.OrganizationID,
 		PermittedBranchIDs: tenantCtx.PermittedBranchIDs,
-	})
+		Limit:              limit,
+	}
+	if hasCursor {
+		query.CursorSortValue, query.CursorLastID = position.SortValue, position.LastID
+	}
+	memberships, err := h.providers.Repository().ListMemberships(c.Request.Context(), query)
 	if err != nil {
 		respond.Error(c, err)
 		return
 	}
-	respond.List(c, providerViews(memberships), "")
+	next := ""
+	if len(memberships) == limit {
+		last := memberships[len(memberships)-1]
+		next = cursor.EncodeTime(last.CreatedAt, last.ID)
+	}
+	respond.List(c, providerViews(memberships), next)
+}
+
+// visibleProvider loads a membership inside the caller's tenant and branch
+// scope. Unknown or out-of-scope ids are 404; real failures stay errors.
+func (h *Handler) visibleProvider(c *gin.Context, tenantCtx tenant.Context) (*providerMembership, bool) {
+	membership, err := h.providers.VisibleMembership(c.Request.Context(), tenantCtx, c.Param("membershipId"))
+	if err != nil {
+		respond.Error(c, err)
+		return nil, false
+	}
+	return membership, true
 }
 
 func (h *Handler) getProvider(c *gin.Context) {
@@ -1394,10 +1432,8 @@ func (h *Handler) getProvider(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.read") {
 		return
 	}
-	membership, err := h.providers.Repository().GetMembership(c.Request.Context(),
-		tenantCtx.OrganizationID, c.Param("membershipId"))
-	if err != nil {
-		respond.Error(c, apperrors.NotFound("Provider not found.", nil))
+	membership, ok := h.visibleProvider(c, tenantCtx)
+	if !ok {
 		return
 	}
 	respond.OK(c, providerViews([]providerMembership{*membership})[0])
@@ -1409,6 +1445,9 @@ func (h *Handler) suspendProvider(c *gin.Context) {
 		return
 	}
 	if !h.authorize(c, tenantCtx, "providers.suspend") {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	expectedVersion, err := expectedVersionFrom(c)
@@ -1434,6 +1473,9 @@ func (h *Handler) providerProvisioningStatus(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.read") {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	saga, err := h.providers.Repository().GetSaga(c.Request.Context(),
 		tenantCtx.OrganizationID, c.Param("membershipId"))
 	if err != nil {
@@ -1456,6 +1498,9 @@ func (h *Handler) providerHistory(c *gin.Context) {
 		return
 	}
 	if !h.authorize(c, tenantCtx, "providers.read") {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	history, err := h.providers.Repository().ListHistory(c.Request.Context(),

@@ -42,6 +42,9 @@ func (h *Handler) updateProvider(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	expected, err := expectedVersionFrom(c)
 	if err != nil {
 		respond.Error(c, err)
@@ -67,6 +70,9 @@ func (h *Handler) reactivateProvider(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	expected, err := expectedVersionFrom(c)
 	if err != nil {
 		respond.Error(c, err)
@@ -86,6 +92,9 @@ type removeProviderRequest struct {
 func (h *Handler) removeProvider(c *gin.Context) {
 	tenantCtx, ok := h.tenantWithPermission(c, "providers.remove")
 	if !ok {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	expected, err := expectedVersionFrom(c)
@@ -120,6 +129,9 @@ func (h *Handler) providerCapabilities(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	capabilities, err := h.providers.Capabilities(c.Request.Context(), tenantCtx.OrganizationID, c.Param("membershipId"))
 	if err != nil {
 		respond.Error(c, err)
@@ -143,6 +155,9 @@ type capabilityRequest struct {
 func (h *Handler) replaceProviderCapabilities(c *gin.Context) {
 	tenantCtx, ok := h.tenantWithPermission(c, "providers.manage_capabilities")
 	if !ok {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	var request struct {
@@ -183,6 +198,9 @@ func (h *Handler) providerPolicy(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	policy, err := h.providers.Policy(c.Request.Context(), tenantCtx.OrganizationID, c.Param("membershipId"))
 	if err != nil {
 		respond.Error(c, err)
@@ -203,6 +221,9 @@ type policyRequest struct {
 func (h *Handler) replaceProviderPolicy(c *gin.Context) {
 	tenantCtx, ok := h.tenantWithPermission(c, "providers.manage_policies")
 	if !ok {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	var request policyRequest
@@ -230,6 +251,9 @@ func (h *Handler) providerDeclines(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	declines, err := h.providers.Declines(c.Request.Context(), tenantCtx.OrganizationID, c.Param("membershipId"), 100)
 	if err != nil {
 		respond.Error(c, err)
@@ -247,6 +271,9 @@ func (h *Handler) resendProviderLogin(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	result, err := h.providers.ResendLogin(c.Request.Context(), providerusecases.ResendLoginInput{
 		Tenant: tenantCtx, MembershipID: c.Param("membershipId"), IdempotencyKey: c.GetHeader("Idempotency-Key")})
 	if err != nil {
@@ -259,6 +286,9 @@ func (h *Handler) resendProviderLogin(c *gin.Context) {
 func (h *Handler) providerAvailability(c *gin.Context) {
 	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
 	if !ok {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	availability, err := h.providers.Availability(c.Request.Context(), tenantCtx, c.Param("membershipId"))
@@ -274,6 +304,9 @@ func (h *Handler) providerBranches(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
+		return
+	}
 	branches, err := h.providers.ProviderBranches(c.Request.Context(), tenantCtx, c.Param("membershipId"))
 	if err != nil {
 		respond.Error(c, err)
@@ -285,6 +318,9 @@ func (h *Handler) providerBranches(c *gin.Context) {
 func (h *Handler) providerVehicles(c *gin.Context) {
 	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
 	if !ok {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	includeHistory := strings.EqualFold(strings.TrimSpace(c.Query("includeHistory")), "true")
@@ -299,6 +335,9 @@ func (h *Handler) providerVehicles(c *gin.Context) {
 func (h *Handler) providerServiceRoles(c *gin.Context) {
 	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
 	if !ok {
+		return
+	}
+	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
 	roles, err := h.providers.ProviderServiceRoles(c.Request.Context(), tenantCtx, c.Param("membershipId"))

@@ -161,12 +161,18 @@ func (r *Repository) ListMemberships(ctx context.Context, query tenant.Query) ([
 	if branches == nil {
 		branches = []string{}
 	}
+	// Keyset pagination on (created_at DESC, id DESC): stable under inserts.
+	var afterTime any
+	if query.CursorSortValue != "" {
+		afterTime = query.CursorSortValue
+	}
 	rows, err := r.db.Query(ctx, `SELECT `+membershipColumns+`
 		FROM fleet_partner_organization_provider_memberships
 		WHERE organization_id = $1
 		  AND (cardinality($2::text[]) = 0 OR home_branch_id IS NULL OR home_branch_id = ANY($2::text[]))
-		ORDER BY created_at DESC, id
-		LIMIT $3`, query.OrganizationID, branches, limit)
+		  AND ($4::timestamptz IS NULL OR (created_at, id) < ($4::timestamptz, $5))
+		ORDER BY created_at DESC, id DESC
+		LIMIT $3`, query.OrganizationID, branches, limit, afterTime, query.CursorLastID)
 	if err != nil {
 		return nil, fmt.Errorf("providers: list memberships: %w", err)
 	}
