@@ -60,6 +60,17 @@ func (c Config) ExecutionCapabilities() ExecutionCapabilities {
 
 func (c ExecutionCapabilities) Any() bool { return c.Dispatch || c.Hauling || c.Taxi }
 
+// DispatchProviderClient is the Dispatch client configuration. The
+// marketplace surface names the same service through DISPATCH_SERVICE_URL and
+// DISPATCH_SERVICE_SECRET, so either pair is accepted, the generic one first.
+func (c Config) DispatchProviderClient() (ClientConfig, bool) {
+	if dispatch := c.Clients["driver-dispatch-delivery-service"]; dispatch.Configured() {
+		return dispatch, true
+	}
+	fallback := ClientConfig{BaseURL: c.DispatchServiceURL, Secret: c.DispatchServiceSecret}
+	return fallback, fallback.Configured()
+}
+
 // Configured reports whether the client can make live calls.
 func (c ClientConfig) Configured() bool {
 	return c.BaseURL != "" && len(c.Secret) > 0
@@ -125,6 +136,13 @@ type Config struct {
 	// every category flag and is intended for incident response.
 	IntegrationsKillSwitch    bool
 	HaulingIntegrationEnabled bool
+	// DispatchManagedProvidersEnabled and TaxiManagedProvidersEnabled wire
+	// the FLEET-10.2 managed-provider contract (resolve, sponsored identity,
+	// association) to Dispatch and Taxi. Hauling's is wired by
+	// HaulingIntegrationEnabled. Default false; each requires its service's
+	// URL and secret, and IntegrationsKillSwitch wins over both.
+	DispatchManagedProvidersEnabled bool
+	TaxiManagedProvidersEnabled     bool
 	// TaxiIntegrationEnabled switches the TAXI execution source on. Default
 	// false: Section 8 TAX-028 gates activation behind full certification of
 	// corporate context, assignments, offers, reservation, private execution,
@@ -570,12 +588,14 @@ func Load() (Config, error) {
 		ServiceCredentialScopingEnabled: getEnvBool("FLEET_PARTNER_SERVICE_CREDENTIAL_SCOPING_ENABLED", false),
 		RetentionExecutionEnabled:       getEnvBool("FLEET_PARTNER_RETENTION_EXECUTION_ENABLED", false),
 
-		DispatchServiceURL:        getEnv("DISPATCH_SERVICE_URL", ""),
-		DispatchServiceSecret:     []byte(getEnv("DISPATCH_SERVICE_SECRET", "")),
-		DispatchServiceTimeout:    time.Duration(getEnvInt("DISPATCH_SERVICE_TIMEOUT_SECONDS", 10)) * time.Second,
-		IntegrationsKillSwitch:    getEnvBool("FLEET_INTEGRATIONS_KILL_SWITCH", false),
-		HaulingIntegrationEnabled: getEnvBool("FLEET_HAULING_INTEGRATION_ENABLED", false),
-		TaxiIntegrationEnabled:    getEnvBool("FLEET_TAXI_INTEGRATION_ENABLED", false),
+		DispatchServiceURL:              getEnv("DISPATCH_SERVICE_URL", ""),
+		DispatchServiceSecret:           []byte(getEnv("DISPATCH_SERVICE_SECRET", "")),
+		DispatchServiceTimeout:          time.Duration(getEnvInt("DISPATCH_SERVICE_TIMEOUT_SECONDS", 10)) * time.Second,
+		IntegrationsKillSwitch:          getEnvBool("FLEET_INTEGRATIONS_KILL_SWITCH", false),
+		HaulingIntegrationEnabled:       getEnvBool("FLEET_HAULING_INTEGRATION_ENABLED", false),
+		DispatchManagedProvidersEnabled: getEnvBool("FLEET_DISPATCH_MANAGED_PROVIDERS_ENABLED", false),
+		TaxiManagedProvidersEnabled:     getEnvBool("FLEET_TAXI_MANAGED_PROVIDERS_ENABLED", false),
+		TaxiIntegrationEnabled:          getEnvBool("FLEET_TAXI_INTEGRATION_ENABLED", false),
 
 		MarketplaceEventIngestionEnabled: getEnvBool("FLEET_MARKETPLACE_EVENT_INGESTION_ENABLED", false),
 		MarketplaceAllowedCallers:        getEnv("FLEET_MARKETPLACE_ALLOWED_CALLERS", ""),
@@ -1122,6 +1142,14 @@ func (c Config) Validate() error {
 	section16Configured := c.DispatchPlanningEnabled || c.RoutePlanningEnabled || c.RouteOptimizationEnabled || c.RoutePublicationEnabled || c.ControlTowerEnabled || c.TrackingProjectionsEnabled || c.GeofencesEnabled || c.OperationalAlertsEnabled || c.Section16WorkersEnabled
 	if section16Configured && (c.Section16TrackingFreshAfter <= 0 || c.Section16TrackingStaleAfter <= c.Section16TrackingFreshAfter || c.Section16TrackingRetention <= c.Section16TrackingStaleAfter) {
 		problems = append(problems, "Section 16 tracking thresholds must be positive and ordered fresh < stale < retention")
+	}
+	if c.DispatchManagedProvidersEnabled && !c.IntegrationsKillSwitch {
+		if _, ok := c.DispatchProviderClient(); !ok {
+			problems = append(problems, "FLEET_PARTNER_DISPATCH_SERVICE_BASE_URL and FLEET_PARTNER_DISPATCH_SERVICE_SECRET (or DISPATCH_SERVICE_URL and DISPATCH_SERVICE_SECRET) are required when FLEET_DISPATCH_MANAGED_PROVIDERS_ENABLED is true")
+		}
+	}
+	if c.TaxiManagedProvidersEnabled && !c.IntegrationsKillSwitch && !c.Clients["driver-taxi-service"].Configured() {
+		problems = append(problems, "FLEET_PARTNER_TAXI_SERVICE_BASE_URL and FLEET_PARTNER_TAXI_SERVICE_SECRET are required when FLEET_TAXI_MANAGED_PROVIDERS_ENABLED is true")
 	}
 	if c.HaulingIntegrationEnabled && !c.IntegrationsKillSwitch {
 		hauling := c.Clients["driver-hauling-service"]

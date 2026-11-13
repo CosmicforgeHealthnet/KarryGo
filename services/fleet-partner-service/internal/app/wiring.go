@@ -275,6 +275,24 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		contracts.Providers[platformclients.CategoryHauling] = haulingClient
 		contracts.HaulingLinks = haulingClient
 	}
+	// FLEET-10.2: managed providers for Dispatch and Taxi, behind their own
+	// flags. Without them both categories keep the fail-closed adapter.
+	providerClientOptions := func(service string, client config.ClientConfig) platformclients.Options {
+		return platformclients.Options{
+			ServiceName: service, BaseURL: client.BaseURL, Secret: client.Secret,
+			Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv,
+			MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax,
+			Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold},
+		}
+	}
+	if dispatchCfg, ok := cfg.DispatchProviderClient(); ok && cfg.DispatchManagedProvidersEnabled && !cfg.IntegrationsKillSwitch {
+		contracts.Providers[platformclients.CategoryDispatch] = platformclients.NewDispatchProviderClient(
+			providerClientOptions("driver-dispatch-delivery-service", dispatchCfg))
+	}
+	if taxiCfg := cfg.Clients["driver-taxi-service"]; taxiCfg.Configured() && cfg.TaxiManagedProvidersEnabled && !cfg.IntegrationsKillSwitch {
+		contracts.Providers[platformclients.CategoryTaxi] = platformclients.NewTaxiProviderClient(
+			providerClientOptions("driver-taxi-service", taxiCfg))
+	}
 
 	members := staffrepos.NewMemberRepository(pool)
 	roles := staffrepos.NewRoleRepository(pool)

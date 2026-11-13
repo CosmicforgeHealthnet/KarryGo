@@ -276,6 +276,35 @@ func TestHaulingEnablementRequiresCompleteClient(t *testing.T) {
 	}
 }
 
+// FLEET-10.2: Dispatch and Taxi managed providers are opt-in and need their
+// service client; Dispatch accepts either of its two documented pairs.
+func TestManagedProviderFlagsRequireTheirServiceClient(t *testing.T) {
+	cfg := validConfig()
+	if cfg.DispatchManagedProvidersEnabled || cfg.TaxiManagedProvidersEnabled {
+		t.Fatal("managed providers must default to off")
+	}
+	cfg.DispatchManagedProvidersEnabled = true
+	cfg.TaxiManagedProvidersEnabled = true
+	cfg.Clients["driver-dispatch-delivery-service"] = ClientConfig{}
+	cfg.Clients["driver-taxi-service"] = ClientConfig{}
+	cfg.DispatchServiceURL, cfg.DispatchServiceSecret = "", nil
+	assertInvalid(t, cfg, "FLEET_DISPATCH_MANAGED_PROVIDERS_ENABLED")
+	assertInvalid(t, cfg, "FLEET_TAXI_MANAGED_PROVIDERS_ENABLED")
+
+	cfg.DispatchServiceURL, cfg.DispatchServiceSecret = "https://dispatch.internal", []byte("secret")
+	cfg.Clients["driver-taxi-service"] = ClientConfig{BaseURL: "https://taxi.internal", Secret: []byte("secret")}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("complete managed-provider config rejected: %v", err)
+	}
+	if client, ok := cfg.DispatchProviderClient(); !ok || client.BaseURL != "https://dispatch.internal" {
+		t.Fatalf("dispatch fallback client = %+v %v", client, ok)
+	}
+	cfg.Clients["driver-dispatch-delivery-service"] = ClientConfig{BaseURL: "https://dispatch.generic", Secret: []byte("secret")}
+	if client, _ := cfg.DispatchProviderClient(); client.BaseURL != "https://dispatch.generic" {
+		t.Fatalf("generic dispatch client must win: %+v", client)
+	}
+}
+
 func TestGlobalKillOverridesIncompleteHaulingConfig(t *testing.T) {
 	cfg := validConfig()
 	cfg.HaulingIntegrationEnabled = true
