@@ -1,6 +1,7 @@
 package finance
 
 import (
+	"bytes"
 	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
+	"strconv"
 	"strings"
 )
 
@@ -63,7 +65,11 @@ func (s *Service) IngestWalletEvent(ctx context.Context, raw []byte) (string, er
 			return fmt.Errorf("finance event: unsupported event type")
 		}
 		var payload map[string]any
-		if err = json.Unmarshal(envelope.Payload, &payload); err != nil {
+		// UseNumber keeps money exact: through float64, amounts above 2^53
+		// minor units would be silently rounded.
+		decoder := json.NewDecoder(bytes.NewReader(envelope.Payload))
+		decoder.UseNumber()
+		if err = decoder.Decode(&payload); err != nil {
 			return err
 		}
 		safeStatus, _ := payload["status"].(string)
@@ -74,13 +80,9 @@ func (s *Service) IngestWalletEvent(ctx context.Context, raw []byte) (string, er
 		if value, ok := payload["jobReference"].(string); ok && value != "" {
 			subjectType, subjectID = "JOB", value
 		}
-		var amount *int64
-		if value, ok := payload["amountMinor"].(float64); ok && value >= 0 {
-			v := int64(value)
-			amount = &v
-		} else if value, ok := payload["amountPaidMinor"].(float64); ok && value >= 0 {
-			v := int64(value)
-			amount = &v
+		amount, err := minorAmount(payload, "amountMinor", "amountPaidMinor")
+		if err != nil {
+			return err
 		}
 		currency, _ := payload["currency"].(string)
 		if amount == nil {
@@ -153,4 +155,27 @@ func statusForEvent(t string) string {
 		return strings.ToUpper(parts[len(parts)-2])
 	}
 	return "UNKNOWN"
+}
+
+// minorAmount reads the first present money field as an exact, non-negative
+// whole number of minor units. A fractional, negative or non-numeric amount is
+// refused rather than truncated: guessing at money is worse than a rejected
+// event, which the sender retries and reconciliation surfaces.
+func minorAmount(payload map[string]any, fields ...string) (*int64, error) {
+	for _, field := range fields {
+		raw, present := payload[field]
+		if !present || raw == nil {
+			continue
+		}
+		number, ok := raw.(json.Number)
+		if !ok {
+			return nil, fmt.Errorf("finance event: %s must be a number", field)
+		}
+		value, err := strconv.ParseInt(number.String(), 10, 64)
+		if err != nil || value < 0 {
+			return nil, fmt.Errorf("finance event: %s must be a whole, non-negative number of minor units", field)
+		}
+		return &value, nil
+	}
+	return nil, nil
 }
