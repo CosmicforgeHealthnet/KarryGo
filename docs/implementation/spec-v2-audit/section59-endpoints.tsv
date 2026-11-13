@@ -1,0 +1,250 @@
+59.2	59.2 Organization, structure and settings	GET	/organizations/current	EXACT	GET /organizations/current	
+59.2	59.2 Organization, structure and settings	PATCH	/organizations/current	EQUIVALENT	PUT /organizations/:organizationId, PUT /organizations/:organizationId/profile	PUT not JSON Merge Patch; edits allowed only in onboarding statuses
+59.2	59.2 Organization, structure and settings	POST	/organizations/current/submit	EQUIVALENT	POST /organizations/:organizationId/submit	
+59.2	59.2 Organization, structure and settings	POST	/organizations/current/closure-requests	EQUIVALENT	POST /organizations/:organizationId/close-request	plus closure/assess|approve|reject|execute, closure-status
+59.2	59.2 Organization, structure and settings	GET	/organization-settings	PARTIAL	GET /fleet-partner/operating-mode	only operating mode + financial visibility; assignment timeout, approval thresholds, provider visibility, retention, flags (models.Settings) not readable
+59.2	59.2 Organization, structure and settings	PATCH	/organization-settings	PARTIAL	PUT /fleet-partner/operating-mode	SettingsRepository.Update exists (repositories/settings.go:124) but no route
+59.2	59.2 Organization, structure and settings	GET	/branches	MISSING	-	BranchRepository Create/List/Archive (repositories/branches.go:28-111) unrouted; HQ branch auto-created by migration 000087/onboarding only
+59.2	59.2 Organization, structure and settings	POST	/branches	MISSING	-	BranchRepository Create/List/Archive (repositories/branches.go:28-111) unrouted; HQ branch auto-created by migration 000087/onboarding only
+59.2	59.2 Organization, structure and settings	GET	/branches/{branchId}	MISSING	-	BranchRepository.GetByID unrouted
+59.2	59.2 Organization, structure and settings	PATCH	/branches/{branchId}	MISSING	-	no update method
+59.2	59.2 Organization, structure and settings	POST	/branches/{branchId}/activate	MISSING	-	
+59.2	59.2 Organization, structure and settings	POST	/branches/{branchId}/deactivate	MISSING	-	BranchRepository.Archive unrouted
+59.2	59.2 Organization, structure and settings	GET	/locations	MISSING	-	no operating_locations table; only warehouse locations and CRM customer locations
+59.2	59.2 Organization, structure and settings	POST	/locations	MISSING	-	no operating_locations table; only warehouse locations and CRM customer locations
+59.2	59.2 Organization, structure and settings	GET	/departments	MISSING	-	DepartmentRepository Create/GetByID only, unrouted
+59.2	59.2 Organization, structure and settings	POST	/departments	MISSING	-	DepartmentRepository Create/GetByID only, unrouted
+59.2	59.2 Organization, structure and settings	PATCH	/departments	MISSING	-	DepartmentRepository Create/GetByID only, unrouted
+59.2	59.2 Organization, structure and settings	GET	/teams	MISSING	-	no table
+59.2	59.2 Organization, structure and settings	POST	/teams	MISSING	-	no table
+59.2	59.2 Organization, structure and settings	PATCH	/teams	MISSING	-	no table
+59.2	59.2 Organization, structure and settings	GET	/cost-centres	MISSING	-	no table (departments.cost_centre_id column only)
+59.2	59.2 Organization, structure and settings	POST	/cost-centres	MISSING	-	no table (departments.cost_centre_id column only)
+59.2	59.2 Organization, structure and settings	PATCH	/cost-centres	MISSING	-	no table (departments.cost_centre_id column only)
+59.3	59.3 Users, roles and approvals	GET	/users	EQUIVALENT	GET /staff	
+59.3	59.3 Users, roles and approvals	POST	/users/invitations	EQUIVALENT	POST /staff/invitations	also GET /staff/invitations, DELETE /staff/invitations/:invitationId
+59.3	59.3 Users, roles and approvals	POST	/users/invitations/{id}/resend	EQUIVALENT	POST /staff/invitations/:invitationId/resend	added d83e81e
+59.3	59.3 Users, roles and approvals	POST	/users/{id}/suspend	EQUIVALENT	POST /staff/:staffId/suspend	
+59.3	59.3 Users, roles and approvals	POST	/users/{id}/reactivate	EQUIVALENT	POST /staff/:staffId/reactivate	
+59.3	59.3 Users, roles and approvals	GET	/roles	EXACT	GET /roles	
+59.3	59.3 Users, roles and approvals	POST	/roles	MISSING	-	RoleRepository.CreateRole (staff/repositories/roles.go:130) unrouted
+59.3	59.3 Users, roles and approvals	GET	/roles/{id}	MISSING	-	RoleRepository.GetRole (staff/repositories/roles.go:85) exists, no route (GET /roles list only)
+59.3	59.3 Users, roles and approvals	PATCH	/roles/{id}	MISSING	-	RoleRepository.UpdateRole unrouted
+59.3	59.3 Users, roles and approvals	PUT	/users/{id}/roles	MISSING	-	ReplaceRoleBindings usecase (staff/usecases/membership_flows.go:161) unrouted
+59.3	59.3 Users, roles and approvals	GET	/permissions	EXACT	GET /permissions	
+59.3	59.3 Users, roles and approvals	GET	/approval-policies	MISSING	-	policies auto-created from templates (approvals/repositories/approvals.go)
+59.3	59.3 Users, roles and approvals	POST	/approval-policies	MISSING	-	policies auto-created from templates (approvals/repositories/approvals.go)
+59.3	59.3 Users, roles and approvals	GET	/approval-policies/{id}	MISSING	-	
+59.3	59.3 Users, roles and approvals	PATCH	/approval-policies/{id}	MISSING	-	
+59.3	59.3 Users, roles and approvals	GET	/approvals	EQUIVALENT	GET /approvals/requests	
+59.3	59.3 Users, roles and approvals	GET	/approvals/{id}	EQUIVALENT	GET /approvals/requests/:approvalId (+/decisions, /history)	
+59.3	59.3 Users, roles and approvals	POST	/approvals/{id}/decisions	EQUIVALENT	POST /approvals/requests/:approvalId/approve | /reject	quorum + self-approval rules in approvals/usecases/service.go:217,1003
+59.3	59.3 Users, roles and approvals	POST	/approval-delegations	MISSING	-	table fleet_partner_approval_delegations (migration 000006:116) has no code
+59.4	59.4 Managed providers and workforce	GET	/providers	EXACT	GET /providers	
+59.4	59.4 Managed providers and workforce	POST	/providers	EXACT	POST /providers	
+59.4	59.4 Managed providers and workforce	GET	/providers/{id}	EXACT	GET /providers/:id	
+59.4	59.4 Managed providers and workforce	PATCH	/providers/{id}	MISSING	-	
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/activate	MISSING	-	activation is automatic: providers/usecases/lifecycle.go:189 TryActivate after association + sub-wallet
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/suspend	EXACT	POST /providers/:id/suspend	
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/reactivate	MISSING	-	ChangeStatus (lifecycle.go:244) supports it, unrouted; member-layer POST /managed-members/:memberId/reinstate is a different aggregate
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/end	MISSING	-	ChangeStatus REMOVED unrouted; no offboarding of shifts/assets/sub-wallet
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/service-roles	PARTIAL	POST /managed-members/:memberId/links	member-layer service link (FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED), not the membership aggregate
+59.4	59.4 Managed providers and workforce	DELETE	/providers/{id}/service-roles	MISSING	-	no link removal route
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/branches	MISSING	-	membership carries one branch_id; no reassignment
+59.4	59.4 Managed providers and workforce	POST	/providers/{id}/vehicles	EQUIVALENT	POST /assets/:assetId/assignments	keyed by asset; providerMembershipId,startAt,endAt in body
+59.4	59.4 Managed providers and workforce	GET	/providers/{id}/availability	MISSING	-	no projection route; ProviderAuthority lookup (platformclients/provider_authority.go) used only inside eligibility
+59.4	59.4 Managed providers and workforce	GET	/providers/{id}/declines	PARTIAL	GET /marketplace/assignments?status=DECLINED	no membership filter (marketplace/http/handlers.go:82-90)
+59.4	59.4 Managed providers and workforce	GET	/shifts	EXACT	GET /shifts	
+59.4	59.4 Managed providers and workforce	POST	/shifts	EXACT	POST /shifts	
+59.4	59.4 Managed providers and workforce	PATCH	/shifts/{id}	EXACT	PATCH /shifts/:id	
+59.4	59.4 Managed providers and workforce	POST	/shifts/{id}/publish	EXACT	POST /shifts/:id/publish	
+59.4	59.4 Managed providers and workforce	POST	/leave-requests	EQUIVALENT	POST /leave	
+59.4	59.4 Managed providers and workforce	POST	/leave-requests/{id}/decisions	EQUIVALENT	POST /leave/:leaveId/approve | /reject	
+59.4	59.4 Managed providers and workforce	GET	/training-courses	EQUIVALENT	GET /training/courses	
+59.4	59.4 Managed providers and workforce	POST	/training-courses	EQUIVALENT	POST /training/courses	no modules/assessments
+59.4	59.4 Managed providers and workforce	POST	/training-enrolments	MISSING	-	no enrolment aggregate
+59.4	59.4 Managed providers and workforce	POST	/training-enrolments/{id}/complete	PARTIAL	POST /training/courses/:courseId/complete	completion recorded directly against course + membership (workforce/service.go:717)
+59.4	59.4 Managed providers and workforce	GET	/provider-performance	PARTIAL	GET /performance/providers/:membershipId	per-provider only; no date/branch filters; snapshots from private assignments only
+59.5	59.5 Marketplace, assignment and live trips	GET	/marketplace/offers	EXACT	GET /marketplace/offers	
+59.5	59.5 Marketplace, assignment and live trips	GET	/marketplace/offers/{id}	EXACT	GET /marketplace/offers/:id	
+59.5	59.5 Marketplace, assignment and live trips	POST	/marketplace/offers/{id}/accept	EXACT	POST /marketplace/offers/:id/accept	
+59.5	59.5 Marketplace, assignment and live trips	POST	/marketplace/offers/{id}/reject	EQUIVALENT	POST /marketplace/offers/:offerId/decline	
+59.5	59.5 Marketplace, assignment and live trips	GET	/marketplace/offers/{id}/eligible-providers	EQUIVALENT	GET /marketplace/requests/:projectionId/candidates	keyed by request projection
+59.5	59.5 Marketplace, assignment and live trips	POST	/marketplace/offers/{id}/assignments	EQUIVALENT	POST /marketplace/requests/:projectionId/assign	
+59.5	59.5 Marketplace, assignment and live trips	GET	/assignments	EQUIVALENT	GET /marketplace/assignments	
+59.5	59.5 Marketplace, assignment and live trips	GET	/assignments/{id}	EQUIVALENT	GET /marketplace/assignments/:assignmentId (+/history)	
+59.5	59.5 Marketplace, assignment and live trips	POST	/assignments/{id}/accept	EQUIVALENT	internal POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-accept	provider-only relay via execution services; unmounted when FLEET_MARKETPLACE_ALLOWED_CALLERS is empty
+59.5	59.5 Marketplace, assignment and live trips	POST	/assignments/{id}/decline	EQUIVALENT	internal POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-decline	same gating
+59.5	59.5 Marketplace, assignment and live trips	POST	/assignments/{id}/cancel	EQUIVALENT	POST /marketplace/assignments/:assignmentId/cancel	
+59.5	59.5 Marketplace, assignment and live trips	POST	/assignments/{id}/reassign	EQUIVALENT	POST /marketplace/assignments/:assignmentId/reassign	writes need FLEET_REASSIGNMENT_ENABLED
+59.5	59.5 Marketplace, assignment and live trips	GET	/trips	PARTIAL	GET /tracking	reads tracking projections; fleet_partner_trip_projections (migration 000010) has no list route
+59.5	59.5 Marketplace, assignment and live trips	GET	/trips/{id}	PARTIAL	GET /tracking/:canonicalTripReference	no trip_projection_history read
+59.5	59.5 Marketplace, assignment and live trips	GET	/control-tower/live	EQUIVALENT	GET /control-tower	
+59.5	59.5 Marketplace, assignment and live trips	GET	/control-tower/exceptions	PARTIAL	GET /alerts	operational alerts only
+59.5	59.5 Marketplace, assignment and live trips	POST	/rescue-cases	PARTIAL	POST /breakdowns	asset breakdown carries rescue_status/replacement_asset_id (assets/domain.go Breakdown); no rescue-case aggregate for provider unavailability/delay/cargo transfer
+59.5	59.5 Marketplace, assignment and live trips	POST	/rescue-cases/{id}/resolve	PARTIAL	PATCH /breakdowns/:breakdownId	
+59.6	59.6 Commercial, orders and routing	GET	/customers	EXACT	GET /customers	
+59.6	59.6 Commercial, orders and routing	POST	/customers	EXACT	POST /customers	
+59.6	59.6 Commercial, orders and routing	GET	/customers/{id}	EXACT	GET /customers/:id	
+59.6	59.6 Commercial, orders and routing	PATCH	/customers/{id}	EXACT	PATCH /customers/:id	
+59.6	59.6 Commercial, orders and routing	POST	/customers/{id}/contacts	EXACT	POST /customers/:id/contacts	
+59.6	59.6 Commercial, orders and routing	POST	/customers/{id}/credit-holds	EQUIVALENT	POST /customers/:customerId/credit-profile/hold	
+59.6	59.6 Commercial, orders and routing	GET	/leads	MISSING	-	opportunity stage LEAD exists (crm/models StageLead) but an opportunity requires an existing customer (crm/usecases/opportunities.go:74)
+59.6	59.6 Commercial, orders and routing	POST	/leads	MISSING	-	opportunity stage LEAD exists (crm/models StageLead) but an opportunity requires an existing customer (crm/usecases/opportunities.go:74)
+59.6	59.6 Commercial, orders and routing	POST	/leads/{id}/convert	MISSING	-	
+59.6	59.6 Commercial, orders and routing	GET	/quotations	EXACT	GET /quotations	
+59.6	59.6 Commercial, orders and routing	POST	/quotations	EXACT	POST /quotations	
+59.6	59.6 Commercial, orders and routing	POST	/quotations/{id}/submit	EXACT	POST /quotations/:id/submit	
+59.6	59.6 Commercial, orders and routing	POST	/quotations/{id}/accept	EXACT	POST /quotations/:id/accept	
+59.6	59.6 Commercial, orders and routing	GET	/contracts	EXACT	GET /contracts	
+59.6	59.6 Commercial, orders and routing	POST	/contracts	EXACT	POST /contracts	
+59.6	59.6 Commercial, orders and routing	POST	/contracts/{id}/activate	EXACT	POST /contracts/:id/activate	
+59.6	59.6 Commercial, orders and routing	POST	/contracts/{id}/amendments	PARTIAL	POST /contracts/:contractId/renew	renewal creates a new version; mid-term amendment of an active contract not supported (UpdateContract draft-only, crm/usecases/contracts.go:224)
+59.6	59.6 Commercial, orders and routing	GET	/service-level-agreements	EXACT	GET /service-level-agreements	
+59.6	59.6 Commercial, orders and routing	POST	/service-level-agreements	EXACT	POST /service-level-agreements	
+59.6	59.6 Commercial, orders and routing	GET	/orders	EXACT	GET /orders	
+59.6	59.6 Commercial, orders and routing	POST	/orders	EXACT	POST /orders	
+59.6	59.6 Commercial, orders and routing	GET	/orders/{id}	EXACT	GET /orders/:id	
+59.6	59.6 Commercial, orders and routing	PATCH	/orders/{id}	MISSING	-	
+59.6	59.6 Commercial, orders and routing	POST	/orders/{id}/submit	EQUIVALENT	POST /orders/:orderId/confirm	
+59.6	59.6 Commercial, orders and routing	POST	/orders/{id}/approve	MISSING	-	AWAITING_APPROVAL path exists only in repository (orders/repositories/repository.go:262 MarkAwaitingApproval, no caller)
+59.6	59.6 Commercial, orders and routing	POST	/orders/{id}/cancel	EXACT	POST /orders/:id/cancel	
+59.6	59.6 Commercial, orders and routing	POST	/orders/{id}/request-execution	PARTIAL	POST /private-assignments (+ /private-executions/:executionId)	assignment-led private execution; dispatch/hauling only, taxi not wired
+59.6	59.6 Commercial, orders and routing	GET	/shipments	EXACT	GET /shipments	
+59.6	59.6 Commercial, orders and routing	POST	/shipments	EXACT	POST /shipments	
+59.6	59.6 Commercial, orders and routing	GET	/shipments/{id}	EXACT	GET /shipments/:id	
+59.6	59.6 Commercial, orders and routing	PATCH	/shipments/{id}	EXACT	PATCH /shipments/:id	
+59.6	59.6 Commercial, orders and routing	POST	/shipments/{id}/packages	EXACT	POST /shipments/:id/packages	
+59.6	59.6 Commercial, orders and routing	POST	/shipments/{id}/exceptions	PARTIAL	POST /packages/:packageId/transition	package-level exceptional states with reasonCode (packages/usecases/service.go:196); no shipment exception record
+59.6	59.6 Commercial, orders and routing	GET	/manifests	EXACT	GET /manifests	
+59.6	59.6 Commercial, orders and routing	POST	/manifests	EXACT	POST /manifests	
+59.6	59.6 Commercial, orders and routing	POST	/manifests/{id}/close	EXACT	POST /manifests/:id/close	
+59.6	59.6 Commercial, orders and routing	GET	/route-plans	EQUIVALENT	GET /routes	
+59.6	59.6 Commercial, orders and routing	POST	/route-plans	EQUIVALENT	POST /routes	
+59.6	59.6 Commercial, orders and routing	POST	/route-plans/{id}/optimize	EQUIVALENT	POST /routes/:routeId/optimize	
+59.6	59.6 Commercial, orders and routing	POST	/route-plans/{id}/approve	EQUIVALENT	POST /routes/:routeId/approve	
+59.6	59.6 Commercial, orders and routing	POST	/route-plans/{id}/publish	EQUIVALENT	POST /routes/:routeId/publish	
+59.6	59.6 Commercial, orders and routing	POST	/route-plans/{id}/reoptimize	EQUIVALENT	POST /routes/:routeId/replan	
+59.6	59.6 Commercial, orders and routing	GET	/geofences	EXACT	GET /geofences	
+59.6	59.6 Commercial, orders and routing	POST	/geofences	EXACT	POST /geofences	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/assets	EXACT	GET /assets	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/assets	EXACT	POST /assets	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/assets/{id}	EXACT	GET /assets/:id	
+59.7	59.7 Assets, maintenance, compliance and safety	PATCH	/assets/{id}	EXACT	PATCH /assets/:id	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/assets/{id}/documents	EXACT	POST /assets/:id/documents	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/assets/{id}/reserve	MISSING	-	no RESERVED operational status (migration 000040 CHECK: AVAILABLE,ASSIGNED,IN_USE,BLOCKED,UNDER_MAINTENANCE,OUT_OF_SERVICE)
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/assets/{id}/retire	EXACT	POST /assets/:id/retire	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/inspection-templates	EXACT	GET /inspection-templates	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/inspection-templates	EXACT	POST /inspection-templates	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/inspections	EXACT	POST /inspections	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/inspections/{id}/items	PARTIAL	POST /inspections/:inspectionId/complete	item answers submitted only at completion
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/inspections/{id}/complete	EXACT	POST /inspections/:id/complete	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/defects	MISSING	-	defects stored only as inspection defect_summary JSON
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/defects	MISSING	-	defects stored only as inspection defect_summary JSON
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/defects/{id}/resolve	MISSING	-	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/maintenance-plans	EQUIVALENT	GET /maintenance/schedules	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/maintenance-plans	EQUIVALENT	POST /maintenance/schedules	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/work-orders	EQUIVALENT	GET /maintenance/work-orders	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/work-orders	EQUIVALENT	POST /maintenance/work-orders	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/work-orders/{id}/approve	EQUIVALENT	POST /maintenance/work-orders/:workOrderId/approve	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/work-orders/{id}/start	EQUIVALENT	PATCH /maintenance/work-orders/:workOrderId status=IN_PROGRESS	transition APPROVED->IN_PROGRESS (assets/operations.go:167); started_at is not set by the UPDATE (operations.go:198)
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/work-orders/{id}/complete	EQUIVALENT	POST /maintenance/work-orders/:workOrderId/complete	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/work-orders/{id}/return-to-service	EQUIVALENT	POST /maintenance/work-orders/:workOrderId/return-to-service	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/parts	EQUIVALENT	GET /inventory/parts	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/parts	EQUIVALENT	POST /inventory/parts	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/stock-movements	EQUIVALENT	POST /inventory/stock-movements	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/fuel-transactions	EQUIVALENT	GET /fuel-records	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/fuel-transactions	EQUIVALENT	POST /fuel-records	no amount/currency fields (assets/domain.go FuelRecord)
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/fuel-transactions/{id}/approve	EQUIVALENT	POST /fuel-records/:fuelRecordId/approve | /reject	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/compliance/requirements	EXACT	GET /compliance/requirements	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/compliance/status	EXACT	GET /compliance/status	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/compliance/restrictions	EXACT	POST /compliance/restrictions	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/compliance/restrictions/{id}/lift	EQUIVALENT	POST /compliance/restrictions/:restrictionId/clear	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/incidents	EXACT	GET /incidents	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/incidents	EXACT	POST /incidents	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/incidents/{id}/triage	PARTIAL	PATCH /incidents/:incidentId	severity/status edit; no triage command or immediateActions record
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/incidents/{id}/investigations	PARTIAL	PATCH /incidents/:incidentId (status INVESTIGATING)	no investigation record with lead/scope
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/corrective-actions	EQUIVALENT	POST /incidents/:incidentId/corrective-actions	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/proof-records	EXACT	POST /proof-records	
+59.7	59.7 Assets, maintenance, compliance and safety	GET	/claims	EXACT	GET /claims	
+59.7	59.7 Assets, maintenance, compliance and safety	POST	/claims	EXACT	POST /claims	
+59.8	59.8 Warehouse, yard and dock	GET	/warehouses	EXACT	GET /warehouses	
+59.8	59.8 Warehouse, yard and dock	POST	/warehouses	EXACT	POST /warehouses	
+59.8	59.8 Warehouse, yard and dock	GET	/warehouses/{id}	EXACT	GET /warehouses/:id	
+59.8	59.8 Warehouse, yard and dock	PATCH	/warehouses/{id}	EXACT	PATCH /warehouses/:id	
+59.8	59.8 Warehouse, yard and dock	GET	/warehouse-zones	EQUIVALENT	GET /warehouses/:warehouseId/locations (location_type=ZONE)	migration 000046 location_type CHECK
+59.8	59.8 Warehouse, yard and dock	POST	/warehouse-zones	EQUIVALENT	POST /warehouses/:warehouseId/locations (location_type=ZONE)	migration 000046 location_type CHECK
+59.8	59.8 Warehouse, yard and dock	GET	/storage-bins	EQUIVALENT	GET /warehouses/:warehouseId/locations (location_type=BIN)	
+59.8	59.8 Warehouse, yard and dock	POST	/storage-bins	EQUIVALENT	POST /warehouses/:warehouseId/locations (location_type=BIN)	
+59.8	59.8 Warehouse, yard and dock	GET	/inventory-items	EQUIVALENT	GET /inventory	
+59.8	59.8 Warehouse, yard and dock	POST	/inventory-items	PARTIAL	POST /inventory/receipts	items are created by receipts; no item-master/track-rules
+59.8	59.8 Warehouse, yard and dock	GET	/warehouse-stock	EQUIVALENT	GET /inventory	stock identity warehouse/location/sku/batch/lot/serial (warehouse/service.go:391)
+59.8	59.8 Warehouse, yard and dock	POST	/inventory-adjustments	EQUIVALENT	POST /inventory/movements (movementType=ADJUSTMENT)	warehouse/service.go:502
+59.8	59.8 Warehouse, yard and dock	GET	/warehouse-receipts	MISSING	-	receipts are one-shot stock postings; no receipt list
+59.8	59.8 Warehouse, yard and dock	POST	/warehouse-receipts	PARTIAL	POST /inventory/receipts	no expected-receipt document/lines
+59.8	59.8 Warehouse, yard and dock	POST	/warehouse-receipts/{id}/arrive	MISSING	-	
+59.8	59.8 Warehouse, yard and dock	POST	/warehouse-receipts/{id}/receive	MISSING	-	no expected/received/damaged/quarantined reconciliation
+59.8	59.8 Warehouse, yard and dock	POST	/putaway-tasks/{id}/claim	MISSING	-	no claimable leased tasks
+59.8	59.8 Warehouse, yard and dock	POST	/putaway-tasks/{id}/complete	PARTIAL	POST /inventory/movements (movementType=PUT_AWAY)	full-item move only (warehouse/service.go:510)
+59.8	59.8 Warehouse, yard and dock	GET	/pick-waves	MISSING	-	
+59.8	59.8 Warehouse, yard and dock	POST	/pick-waves	MISSING	-	
+59.8	59.8 Warehouse, yard and dock	POST	/pick-tasks/{id}/complete	PARTIAL	POST /fulfilment-orders/:fulfilmentOrderId/pick	order-level pick; row-locked reservation (warehouse/operations.go:196-202)
+59.8	59.8 Warehouse, yard and dock	POST	/packing-units	PARTIAL	POST /fulfilment-orders/:fulfilmentOrderId/pack	no packing-unit resource
+59.8	59.8 Warehouse, yard and dock	GET	/dock-appointments	EXACT	GET /dock-appointments	
+59.8	59.8 Warehouse, yard and dock	POST	/dock-appointments	EXACT	POST /dock-appointments	
+59.8	59.8 Warehouse, yard and dock	POST	/dock-appointments/{id}/check-in	EXACT	POST /dock-appointments/:id/check-in	
+59.8	59.8 Warehouse, yard and dock	GET	/yard-visits	EXACT	GET /yard-visits	
+59.8	59.8 Warehouse, yard and dock	POST	/yard-visits	EXACT	POST /yard-visits	
+59.8	59.8 Warehouse, yard and dock	POST	/yard-visits/{id}/gate-events	PARTIAL	POST /yard-visits/:yardVisitId/check-in | /check-out | /release	fixed transitions; no generic gate/parking/loading events
+59.9	59.9 Finance, wallets and reporting	GET	/invoices	EXACT	GET /invoices	
+59.9	59.9 Finance, wallets and reporting	POST	/invoices	EXACT	POST /invoices	
+59.9	59.9 Finance, wallets and reporting	GET	/invoices/{id}	EXACT	GET /invoices/:id	
+59.9	59.9 Finance, wallets and reporting	POST	/invoices/{id}/submit	MISSING	-	PENDING_APPROVAL accepted but nothing sets it; /approve goes straight from DRAFT (financeops/invoices.go:204)
+59.9	59.9 Finance, wallets and reporting	POST	/invoices/{id}/issue	EXACT	POST /invoices/:id/issue	
+59.9	59.9 Finance, wallets and reporting	POST	/credit-notes	EQUIVALENT	POST /invoices/:invoiceId/credit-note	
+59.9	59.9 Finance, wallets and reporting	GET	/expenses	EXACT	GET /expenses	
+59.9	59.9 Finance, wallets and reporting	POST	/expenses	EXACT	POST /expenses	
+59.9	59.9 Finance, wallets and reporting	POST	/expenses/{id}/submit	EXACT	POST /expenses/:id/submit	
+59.9	59.9 Finance, wallets and reporting	POST	/expenses/{id}/decisions	EQUIVALENT	POST /expenses/:expenseId/approve | /reject	
+59.9	59.9 Finance, wallets and reporting	GET	/payroll-periods	EXACT	GET /payroll-periods	
+59.9	59.9 Finance, wallets and reporting	POST	/payroll-periods	EXACT	POST /payroll-periods	
+59.9	59.9 Finance, wallets and reporting	POST	/payroll-periods/{id}/calculate	EXACT	POST /payroll-periods/:id/calculate	
+59.9	59.9 Finance, wallets and reporting	POST	/payroll-periods/{id}/approve	EXACT	POST /payroll-periods/:id/approve	
+59.9	59.9 Finance, wallets and reporting	POST	/payroll-periods/{id}/allocate	EQUIVALENT	POST /payroll-periods/:periodId/post	needs FINANCE_POSTING_ENABLED + wallet
+59.9	59.9 Finance, wallets and reporting	GET	/budgets	EXACT	GET /budgets	
+59.9	59.9 Finance, wallets and reporting	POST	/budgets	EXACT	POST /budgets	
+59.9	59.9 Finance, wallets and reporting	GET	/wallet	EXACT	GET /wallet	
+59.9	59.9 Finance, wallets and reporting	GET	/wallet/transactions	EXACT	GET /wallet/transactions	
+59.9	59.9 Finance, wallets and reporting	GET	/providers/{id}/sub-wallet	EXACT	GET /providers/:id/sub-wallet	
+59.9	59.9 Finance, wallets and reporting	GET	/providers/{id}/statements	EXACT	GET /providers/:id/statements	
+59.9	59.9 Finance, wallets and reporting	POST	/providers/{id}/allocations	EQUIVALENT	POST /providers/:membershipId/sub-wallet/allocations	
+59.9	59.9 Finance, wallets and reporting	POST	/allocations/{id}/approve	EQUIVALENT	POST /providers/:membershipId/sub-wallet/allocations/:allocationId/approve	
+59.9	59.9 Finance, wallets and reporting	POST	/allocations/{id}/cancel	PARTIAL	POST /providers/:membershipId/sub-wallet/allocations/:allocationId/reject	approver rejection; no requester cancel
+59.9	59.9 Finance, wallets and reporting	GET	/dashboard/operations	PARTIAL	GET /dashboard	no date/branch/service filters; not in riskregistry
+59.9	59.9 Finance, wallets and reporting	GET	/dashboard/finance	MISSING	-	
+59.9	59.9 Finance, wallets and reporting	GET	/reports	MISSING	-	f/reports is doc.go only
+59.9	59.9 Finance, wallets and reporting	POST	/reports	MISSING	-	f/reports is doc.go only
+59.9	59.9 Finance, wallets and reporting	POST	/reports/{id}/run	MISSING	-	
+59.9	59.9 Finance, wallets and reporting	GET	/report-runs/{id}	MISSING	-	
+59.9	59.9 Finance, wallets and reporting	POST	/exports	EXACT	POST /exports	
+59.10	59.10 Communication, integrations and governance	GET	/support-cases	EQUIVALENT	GET /support/cases	
+59.10	59.10 Communication, integrations and governance	POST	/support-cases	EQUIVALENT	POST /support/cases	
+59.10	59.10 Communication, integrations and governance	POST	/support-cases/{id}/messages	PARTIAL	POST /communications/threads (subjectType=SUPPORT_CASE) + /messages	internal org thread; SupportPort has no message call to support-dispute-service (engagement/domain.go:72)
+59.10	59.10 Communication, integrations and governance	GET	/notification-rules	EXACT	GET /notification-rules	
+59.10	59.10 Communication, integrations and governance	POST	/notification-rules	EQUIVALENT	PUT /notification-rules	
+59.10	59.10 Communication, integrations and governance	GET	/automation-rules	MISSING	-	AUTOMATION_RULE_EXECUTE job always fails permanent
+59.10	59.10 Communication, integrations and governance	POST	/automation-rules	MISSING	-	AUTOMATION_RULE_EXECUTE job always fails permanent
+59.10	59.10 Communication, integrations and governance	POST	/automation-rules/{id}/activate	MISSING	-	
+59.10	59.10 Communication, integrations and governance	GET	/api-clients	EQUIVALENT	GET /integrations/api-clients	
+59.10	59.10 Communication, integrations and governance	POST	/api-clients	EQUIVALENT	POST /integrations/api-clients	
+59.10	59.10 Communication, integrations and governance	POST	/api-clients/{id}/rotate	EQUIVALENT	POST /integrations/api-clients/:id/rotate	
+59.10	59.10 Communication, integrations and governance	GET	/webhook-subscriptions	EQUIVALENT	GET /integrations/webhooks	
+59.10	59.10 Communication, integrations and governance	POST	/webhook-subscriptions	EQUIVALENT	POST /integrations/webhooks	
+59.10	59.10 Communication, integrations and governance	POST	/webhook-deliveries/{id}/replay	EQUIVALENT	POST /integrations/webhook-deliveries/:id/replay	
+59.10	59.10 Communication, integrations and governance	POST	/imports	EXACT	POST /imports	
+59.10	59.10 Communication, integrations and governance	GET	/imports/{id}	EXACT	GET /imports/:id	
+59.10	59.10 Communication, integrations and governance	GET	/audit-events	EQUIVALENT	GET /audit-logs	
+59.10	59.10 Communication, integrations and governance	GET	/privacy-settings	PARTIAL	GET /retention-policies, GET /security-settings	no privacy-settings aggregate
+59.10	59.10 Communication, integrations and governance	PATCH	/privacy-settings	PARTIAL	PUT /retention-policies/:class, PUT /security-settings	
+59.10	59.10 Communication, integrations and governance	GET	/security/sessions	PARTIAL	GET /sessions	caller own sessions only (auth/http/handlers.go:413-415), not organization-wide
+59.10	59.10 Communication, integrations and governance	POST	/security/sessions/{id}/revoke	PARTIAL	DELETE /sessions/:sessionId	own sessions only
