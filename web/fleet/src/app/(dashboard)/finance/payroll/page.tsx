@@ -135,6 +135,12 @@ export default function PayrollPeriodsPage() {
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
           <button
+            onClick={() => router.push("/finance/payroll/statements")}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-[11.5px] font-medium text-ink-600 transition hover:bg-surface-2"
+          >
+            Statements
+          </button>
+          <button
             onClick={() => router.push("/finance/payroll/create")}
             className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90"
           >

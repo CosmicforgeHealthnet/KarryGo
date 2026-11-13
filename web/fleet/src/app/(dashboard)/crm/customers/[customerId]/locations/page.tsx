@@ -363,10 +363,7 @@ export default function CustomerLocationsPage() {
             return (
               <div
                 key={item.id}
-                onClick={() =>
-                  router.push(`/crm/customers/${customerId}/locations/${item.id}`)
-                }
-                className="group cursor-pointer rounded-xl border border-line bg-surface p-4 transition hover:shadow-md"
+                className="group rounded-xl border border-line bg-surface p-4 transition hover:shadow-md"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

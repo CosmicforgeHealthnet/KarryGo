@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { Edit3, GitBranch, Rocket, TrendingUp, Layers } from "lucide-react";
+import { Edit3, Rocket, TrendingUp, Layers } from "lucide-react";
 import { routeService } from "@/lib/services/routeService";
 import type { RoutePlan } from "@/lib/types/route";
 
@@ -14,7 +14,6 @@ const TABS = [
   { label: "Builder", segment: "builder", icon: Edit3 },
   { label: "Optimize", segment: "optimize", icon: TrendingUp },
   { label: "Publish", segment: "publish", icon: Rocket },
-  { label: "Progress", segment: "progress", icon: GitBranch },
 ];
 
 function statusStyle(status: string): { bg: string; text: string; dot: string } {

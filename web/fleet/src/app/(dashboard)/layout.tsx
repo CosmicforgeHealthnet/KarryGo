@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
+  Navigation,
   Truck,
   Briefcase,
   Warehouse,
@@ -61,6 +62,7 @@ const NAV_SECTIONS = [
     items: [
       { label: "Operations", href: "/operations/marketplace", icon: <Route className="h-4 w-4" /> },
       { label: "Control Tower", href: "/operations/control-tower", icon: <Radar className="h-4 w-4" /> },
+      { label: "Trips", href: "/operations/trips", icon: <Navigation className="h-4 w-4" /> },
       { label: "Dispatch", href: "/operations/dispatch", icon: <ClipboardList className="h-4 w-4" /> },
       { label: "Routes", href: "/operations/routes", icon: <GitBranch className="h-4 w-4" /> },
       { label: "Geofences", href: "/operations/geofences", icon: <MapPin className="h-4 w-4" /> },

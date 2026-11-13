@@ -337,10 +337,7 @@ export default function CustomerContactsPage() {
             return (
               <div
                 key={item.id}
-                onClick={() =>
-                  router.push(`/crm/customers/${customerId}/contacts/${item.id}`)
-                }
-                className={`group cursor-pointer rounded-xl border p-4 transition hover:shadow-md ${
+                className={`group rounded-xl border p-4 transition hover:shadow-md ${
                   item.isPrimary
                     ? "border-primary/30 bg-primary-bg/10 hover:border-primary/50"
                     : "border-line bg-surface hover:border-ink-400"

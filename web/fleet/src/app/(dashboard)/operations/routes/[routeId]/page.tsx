@@ -16,7 +16,6 @@ import {
   Rocket,
   User,
   Navigation,
-  Circle,
 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import { routeService } from "@/lib/services/routeService";
@@ -159,7 +158,6 @@ export default function RouteOverviewTab() {
   }
 
   const isDraft = (route.status || "").toUpperCase() === "DRAFT";
-  const isPublished = (route.status || "").toUpperCase() === "PUBLISHED";
 
   return (
     <div className="space-y-5">
@@ -427,15 +425,6 @@ export default function RouteOverviewTab() {
                 >
                   <Rocket className="h-3.5 w-3.5" />
                   Publish route
-                </Link>
-              )}
-              {isPublished && (
-                <Link
-                  href={`/operations/routes/${routeId}/progress`}
-                  className="flex w-full items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-xs font-medium text-ink-700 hover:bg-surface-2 transition-colors"
-                >
-                  <Circle className="h-3.5 w-3.5" />
-                  View progress
                 </Link>
               )}
             </div>

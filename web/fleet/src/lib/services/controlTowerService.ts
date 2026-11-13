@@ -1,7 +1,7 @@
 // lib/services/controlTowerService.ts
 
 import apiClient from '@/lib/api/client';
-import { Board, ControlTowerFilter } from '@/lib/types/controlTower';
+import { Board, ControlTowerFilter, TrackingProjection } from '@/lib/types/controlTower';
 
 function buildQuery(filter?: ControlTowerFilter): string {
   if (!filter) return '';
@@ -22,6 +22,20 @@ export const controlTowerService = {
   async getBoard(filter?: ControlTowerFilter): Promise<Board> {
     const res = await apiClient.get<{ data: Board }>(
       `/control-tower${buildQuery(filter)}`,
+    );
+    return res.data.data;
+  },
+
+  async listTrips(filter?: ControlTowerFilter): Promise<TrackingProjection[]> {
+    const res = await apiClient.get<{ data: TrackingProjection[] }>(
+      `/tracking${buildQuery(filter)}`,
+    );
+    return res.data.data ?? [];
+  },
+
+  async getTrip(canonicalTripReference: string): Promise<TrackingProjection> {
+    const res = await apiClient.get<{ data: TrackingProjection }>(
+      `/tracking/${encodeURIComponent(canonicalTripReference)}`,
     );
     return res.data.data;
   },

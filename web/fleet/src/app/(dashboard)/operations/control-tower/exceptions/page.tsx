@@ -138,7 +138,7 @@ export default function ExceptionsPage() {
         </div>
         <div className="flex items-center gap-2.5">
           <Link
-            href="/operations/rescue"
+            href="/fleet/breakdowns"
             className="flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
           >
             <LifeBuoy className="h-3.5 w-3.5" />
@@ -390,7 +390,7 @@ export default function ExceptionsPage() {
                         Acknowledge
                       </button>
                       <Link
-                        href={`/operations/rescue`}
+                        href="/fleet/breakdowns"
                         className="rounded-md border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors"
                       >
                         <LifeBuoy className="h-3.5 w-3.5" />
