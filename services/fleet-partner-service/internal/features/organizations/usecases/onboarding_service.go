@@ -367,6 +367,17 @@ func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (*mod
 		}); err != nil {
 			return err
 		}
+		// Activation requires an active default branch; every company starts
+		// with its head office.
+		if err := s.opts.Branches.Create(ctx, tx, organization.ID, &models.Branch{
+			Code:     "HQ",
+			Name:     "Head Office",
+			Type:     "OFFICE",
+			Timezone: organization.Timezone,
+			Status:   models.BranchStatusActive,
+		}); err != nil {
+			return err
+		}
 		// Owner contact is already verified — the caller reached here with a
 		// verified corporate session.
 		if err := s.opts.Onboarding.UpsertStage(ctx, tx, organization.ID, models.StageOwnerContact, models.StageStatusComplete, nil, nil); err != nil {
