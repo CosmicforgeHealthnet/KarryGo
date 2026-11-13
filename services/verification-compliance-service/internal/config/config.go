@@ -17,6 +17,11 @@ type Config struct {
 	AllowedCallers       string
 	VendorCallbackURL    string
 	VendorCallbackSecret string
+	// FleetEventsURL is fleet-partner-service's base origin; organization
+	// verification decisions are delivered there, signed with
+	// FleetEventsSecret (the secret Fleet trusts for this service).
+	FleetEventsURL    string
+	FleetEventsSecret string
 
 	// AssetCapabilityCertificationEnabled is Section 12's kill switch
 	// (ASSET_CAPABILITY_CERTIFICATION_ENABLED). It gates WRITES only: opening a
@@ -69,6 +74,8 @@ func Load() Config {
 		AllowedCallers:       getEnv("VERIFICATION_COMPLIANCE_ALLOWED_CALLERS", "fleet-partner-service,vendor-service,admin-backoffice-service"),
 		VendorCallbackURL:    strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_VENDOR_CALLBACK_URL")),
 		VendorCallbackSecret: strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_VENDOR_CALLBACK_SECRET")),
+		FleetEventsURL:       strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_FLEET_EVENTS_URL")),
+		FleetEventsSecret:    strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_FLEET_EVENTS_SECRET")),
 
 		AssetCapabilityCertificationEnabled: getEnv("ASSET_CAPABILITY_CERTIFICATION_ENABLED", "false") == "true",
 

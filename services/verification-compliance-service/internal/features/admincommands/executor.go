@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/verification-compliance-service/internal/features/adminresources"
+	"cosmicforge/logistics/services/verification-compliance-service/internal/features/organizations"
 	"cosmicforge/logistics/services/verification-compliance-service/internal/features/vendors"
 	"cosmicforge/logistics/shared/go/admincommand"
 	"cosmicforge/logistics/shared/go/adminowner"
@@ -20,6 +21,9 @@ import (
 )
 
 const SubjectKind = "vendor-cases"
+
+// OrganizationSubjectKind is a company submission from fleet-partner-service.
+const OrganizationSubjectKind = "organization-submissions"
 
 type Executor struct{}
 
@@ -46,7 +50,7 @@ func (Executor) Current(ctx context.Context, tx pgx.Tx, kind, id string) (int64,
 // permissionFor separates review handling from final decisions.
 func permissionFor(action string) string {
 	switch action {
-	case "START_REVIEW", "REQUEST_REMEDIATION":
+	case "START_REVIEW", "REQUEST_REMEDIATION", "START_ORGANIZATION_REVIEW", "REQUEST_ORGANIZATION_CHANGES":
 		return adminresources.PermissionReview
 	}
 	return adminresources.PermissionDecide
@@ -81,11 +85,14 @@ func Decision(in admincommand.Execution) (vendors.DecisionInput, error) {
 
 func (Executor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (admincommand.Transition, error) {
 	var out admincommand.Transition
-	if in.SubjectKind != SubjectKind {
+	if in.SubjectKind != SubjectKind && in.SubjectKind != OrganizationSubjectKind {
 		return out, admincommand.ErrNotFound
 	}
 	if err := adminresources.RequireMutationGrant(ctx, tx, in.Staff, permissionFor(in.Action)); err != nil {
 		return out, admincommand.ErrNotFound
+	}
+	if in.SubjectKind == OrganizationSubjectKind {
+		return applyOrganization(ctx, tx, in)
 	}
 	decision, err := Decision(in)
 	if err != nil {
@@ -108,3 +115,69 @@ func (Executor) Apply(ctx context.Context, tx pgx.Tx, in admincommand.Execution)
 
 var _ adminowner.StaffAuthorizer = Executor{}
 var _ admincommand.Executor = Executor{}
+
+// OrganizationDecision maps one organization action onto a decision.
+func OrganizationDecision(in admincommand.Execution) (status string, restriction string, issues []map[string]any, err error) {
+	restriction = "NONE"
+	switch in.Action {
+	case "START_ORGANIZATION_REVIEW":
+		status = organizations.StatusInProgress
+	case "REQUEST_ORGANIZATION_CHANGES":
+		status = organizations.StatusChangesRequired
+		issue := map[string]any{"code": in.Params["issue"], "remediation": in.Params["remediation"]}
+		if document := in.Params["document"]; document != "" {
+			issue["documentReference"] = document
+		}
+		issues = []map[string]any{issue}
+	case "APPROVE_ORGANIZATION":
+		status = organizations.StatusVerified
+	case "REJECT_ORGANIZATION":
+		status = organizations.StatusRejected
+		issues = []map[string]any{{"code": in.Params["reason"], "remediation": "REJECTED"}}
+	case "SUSPEND_ORGANIZATION":
+		status, restriction = organizations.StatusSuspended, "SUSPENDED"
+		issues = []map[string]any{{"code": in.Params["reason"], "remediation": "SUSPENDED"}}
+	default:
+		err = admincommand.ErrRejected
+	}
+	return
+}
+
+// applyOrganization decides a company submission. The decision is fenced on
+// the submission's source version and queued for delivery to Fleet in the
+// same transaction.
+func applyOrganization(ctx context.Context, tx pgx.Tx, in admincommand.Execution) (admincommand.Transition, error) {
+	var out admincommand.Transition
+	status, restriction, issues, err := OrganizationDecision(in)
+	if err != nil {
+		return out, err
+	}
+	var organizationID, submissionID, prior string
+	var priorVersion int64
+	err = tx.QueryRow(ctx, `SELECT organization_id, submission_id, status, source_version
+		FROM organization_verification_submissions WHERE id::text=$1 FOR UPDATE`, in.SubjectID).
+		Scan(&organizationID, &submissionID, &prior, &priorVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out, admincommand.ErrNotFound
+	}
+	if err != nil {
+		return out, err
+	}
+	if priorVersion != in.ExpectedVersion {
+		return out, admincommand.ErrConflict
+	}
+	result, err := organizations.ApplyDecision(ctx, tx, organizations.DecisionInput{
+		OrganizationID: organizationID, SubmissionID: submissionID, Status: status,
+		RestrictionStatus: restriction, ExpectedVersion: in.ExpectedVersion, Issues: issues,
+		DecidedBy: "staff:" + in.Staff,
+	})
+	switch {
+	case errors.Is(err, organizations.ErrSubmissionNotFound):
+		return out, admincommand.ErrConflict
+	case errors.Is(err, organizations.ErrInvalidDecision):
+		return out, admincommand.ErrRejected
+	case err != nil:
+		return out, err
+	}
+	return admincommand.Transition{PriorVersion: priorVersion, PriorState: prior, ResultingState: result.Status, Outcome: "APPLIED_BY_VERIFICATION_OWNER"}, nil
+}

@@ -63,6 +63,17 @@ func main() {
 		})
 	}
 
+	// Organization verification decisions are delivered to Fleet, which
+	// activates approved companies (Fleet ADR-006). Fleet also reads decisions
+	// back, so this only makes activation immediate.
+	if cfg.FleetEventsURL != "" && cfg.FleetEventsSecret != "" {
+		fleetWorker := organizations.NewFleetDeliveryWorker(db, cfg.FleetEventsURL, cfg.FleetEventsSecret, 5*time.Second)
+		workers = append(workers, func(runCtx context.Context) error {
+			fleetWorker.Run(runCtx, "verification-fleet-delivery", 5*time.Second)
+			return runCtx.Err()
+		})
+	}
+
 	// Section 12: asset capability and service-tier certification.
 	//
 	// The service is built whether or not the flag is on, because reads must

@@ -204,7 +204,7 @@ func TestVerificationSecureAdminOwnerBoundary(t *testing.T) {
 		t.Fatalf("history must name the human reviewer: %s %s %v", decidedBy, kind, err)
 	}
 	var callbacks int
-	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM verification_outbox WHERE aggregate_id=$1::uuid AND event_type='vendor.verification.status_changed' AND event_version=$2`, caseID, version).Scan(&callbacks); err != nil || callbacks != 1 {
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM verification_outbox WHERE aggregate_id=$1::text AND event_type='vendor.verification.status_changed' AND event_version=$2`, caseID, version).Scan(&callbacks); err != nil || callbacks != 1 {
 		t.Fatalf("vendor callback rows=%d err=%v", callbacks, err)
 	}
 

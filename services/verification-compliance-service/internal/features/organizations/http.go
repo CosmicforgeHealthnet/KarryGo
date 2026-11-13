@@ -108,8 +108,7 @@ func (h *Handler) submit(c *gin.Context) {
 		c.AbortWithStatus(409)
 		return
 	}
-	payload, _ := json.Marshal(v)
-	_, err = tx.Exec(c, `INSERT INTO verification_outbox(aggregate_id,event_type,event_version,payload)VALUES($1,'organization.verification.submitted.v1',$2,$3)ON CONFLICT DO NOTHING`, b.OrganizationID, v.SourceVersion, payload)
+	err = queueOrganizationEvent(c, tx, SubmittedEventType, b.OrganizationID, b.SubmissionID, v, "")
 	if err != nil {
 		c.AbortWithStatus(500)
 		return
@@ -154,8 +153,7 @@ func (h *Handler) decide(c *gin.Context) {
 	}
 	body.Status = strings.ToUpper(strings.TrimSpace(body.Status))
 	body.RestrictionStatus = strings.ToUpper(strings.TrimSpace(body.RestrictionStatus))
-	if !map[string]bool{"PENDING": true, "VERIFIED": true, "REJECTED": true, "SUSPENDED": true}[body.Status] ||
-		!map[string]bool{"NONE": true, "RESTRICTED": true, "SUSPENDED": true}[body.RestrictionStatus] {
+	if !decisionStatuses[body.Status] || !restrictionStatuses[body.RestrictionStatus] {
 		c.AbortWithStatus(422)
 		return
 	}
@@ -188,10 +186,19 @@ func (h *Handler) decide(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback(c)
-	var result view
-	err = tx.QueryRow(c, `UPDATE organization_verification_submissions SET status=$3,restriction_status=$4,issues=$5,source_version=source_version+1,decided_at=now(),updated_at=now() WHERE organization_id=$1 AND submission_id=$2 AND source_version=$6 RETURNING id::text,status,restriction_status,source_version,issues`, c.Param("organizationId"), c.Param("submissionId"), body.Status, body.RestrictionStatus, body.Issues, body.ExpectedVersion).Scan(&result.ExternalReference, &result.Status, &result.RestrictionStatus, &result.SourceVersion, &result.Issues)
-	if errors.Is(err, pgx.ErrNoRows) {
+	raw, _ := c.Get("service_name")
+	caller, _ := raw.(string)
+	result, err := ApplyDecision(c, tx, DecisionInput{
+		OrganizationID: c.Param("organizationId"), SubmissionID: c.Param("submissionId"),
+		Status: body.Status, RestrictionStatus: body.RestrictionStatus, ExpectedVersion: body.ExpectedVersion,
+		Issues: body.Issues, DecidedBy: caller,
+	})
+	if errors.Is(err, ErrSubmissionNotFound) {
 		c.AbortWithStatus(409)
+		return
+	}
+	if errors.Is(err, ErrInvalidDecision) {
+		c.AbortWithStatus(422)
 		return
 	}
 	if err != nil {
@@ -200,9 +207,6 @@ func (h *Handler) decide(c *gin.Context) {
 	}
 	response, _ := json.Marshal(result)
 	_, err = tx.Exec(c, `INSERT INTO verification_commands(command_type,idempotency_key,request_fingerprint,response_body) VALUES('DECIDE_ORGANIZATION',$1,$2,$3)`, key, fp, response)
-	if err == nil {
-		_, err = tx.Exec(c, `INSERT INTO verification_outbox(aggregate_id,event_type,event_version,payload) VALUES($1,'organization.verification.status_changed.v1',$2,$3)`, c.Param("organizationId"), result.SourceVersion, response)
-	}
 	if err == nil {
 		err = tx.Commit(c)
 	}

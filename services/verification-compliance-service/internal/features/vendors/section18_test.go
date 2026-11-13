@@ -450,7 +450,7 @@ func TestSection18ExpirySweepNotifiesVendorAndCallbackRepair(t *testing.T) {
 	}
 	var callbackID string
 	var payload []byte
-	if err := pool.QueryRow(ctx, `SELECT id::text,payload FROM verification_outbox WHERE aggregate_id=$1::uuid AND event_type='vendor.verification.status_changed' AND event_version=3`, kitchen).Scan(&callbackID, &payload); err != nil || !strings.Contains(strings.ReplaceAll(string(payload), " ", ""), `"status":"EXPIRED"`) || !strings.Contains(strings.ReplaceAll(string(payload), " ", ""), `"dimension":"FOOD_KITCHEN"`) {
+	if err := pool.QueryRow(ctx, `SELECT id::text,payload FROM verification_outbox WHERE aggregate_id=$1::text AND event_type='vendor.verification.status_changed' AND event_version=3`, kitchen).Scan(&callbackID, &payload); err != nil || !strings.Contains(strings.ReplaceAll(string(payload), " ", ""), `"status":"EXPIRED"`) || !strings.Contains(strings.ReplaceAll(string(payload), " ", ""), `"dimension":"FOOD_KITCHEN"`) {
 		t.Fatalf("expiry callback row=%s err=%v", payload, err)
 	}
 
