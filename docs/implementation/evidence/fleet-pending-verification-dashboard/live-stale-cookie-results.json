@@ -1,0 +1,24 @@
+{
+  "desktop": {
+    "visited": [
+      "/",
+      "/",
+      "/sign-in"
+    ],
+    "finalPath": "/sign-in",
+    "everVisitedSetup": false,
+    "staleCookieRemaining": false,
+    "setupHeadingShown": false
+  },
+  "mobile": {
+    "visited": [
+      "/",
+      "/",
+      "/sign-in"
+    ],
+    "finalPath": "/sign-in",
+    "everVisitedSetup": false,
+    "staleCookieRemaining": false,
+    "setupHeadingShown": false
+  }
+}

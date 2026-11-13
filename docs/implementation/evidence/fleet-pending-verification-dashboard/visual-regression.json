@@ -1,0 +1,67 @@
+{
+  "method": "Full-page captures at deviceScaleFactor 1 of the original build (c18b9c4) and this change against the same disposable API; external map requests blocked, live canvases and per-run ID masked identically; Pillow pixel difference.",
+  "beforeUnderReviewSignInLandedOn": "/setup/submit",
+  "afterUnderReviewSignInLandedOn": "/",
+  "results": [
+    {
+      "capture": "draft company setup home",
+      "device": "desktop",
+      "sameSize": true,
+      "size": [
+        1440,
+        1007
+      ],
+      "differingPixels": 0
+    },
+    {
+      "capture": "active company dashboard",
+      "device": "desktop",
+      "sameSize": true,
+      "size": [
+        1440,
+        2993
+      ],
+      "differingPixels": 0
+    },
+    {
+      "capture": "under-review dashboard with the banner removed vs original dashboard",
+      "device": "desktop",
+      "sameSize": true,
+      "size": [
+        1440,
+        2993
+      ],
+      "differingPixels": 0
+    },
+    {
+      "capture": "draft company setup home",
+      "device": "mobile",
+      "sameSize": true,
+      "size": [
+        390,
+        984
+      ],
+      "differingPixels": 0
+    },
+    {
+      "capture": "active company dashboard",
+      "device": "mobile",
+      "sameSize": true,
+      "size": [
+        390,
+        3930
+      ],
+      "differingPixels": 0
+    },
+    {
+      "capture": "under-review dashboard with the banner removed vs original dashboard",
+      "device": "mobile",
+      "sameSize": true,
+      "size": [
+        390,
+        3930
+      ],
+      "differingPixels": 0
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "checks": [
+    "email OTP → persisted company, legal type, unique owner membership and server-backed contact reuse",
+    "distinct operating address; editable business contacts do not change identity; representative self create and versioned edit",
+    "offline save retains inputs; failed capabilities read prevents destructive replacement and retry restores saved selection",
+    "preview PDF, PNG, JPEG and WebP from authenticated object URLs; close and Escape release them; survives reload; failure stays in the viewer; fits mobile; documents unchanged",
+    "signed media authorization → upload/checksum → readiness → attach; server-backed removal remains removed after refresh; review displays saved records",
+    "edit completed company section preserves legal data and returns to review; submission refreshes the authoritative status and enters the dashboard with the pending verification banner, without approving the company",
+    "submitted company: refresh, direct /, /setup, /setup/submit and step URLs, and a stale DRAFT cookie and stored status all land on the dashboard",
+    "pending company: restricted action shows 'Company verification required' and a direct API call is refused with organization_verification_pending",
+    "pending company reviews its submission and verification status read only, with document preview, inside the dashboard",
+    "logout → phone sign-in → registered email OTP → dashboard with saved company submission across session",
+    "independent Android Chrome emulation session → email sign-in → pending dashboard without prior browser state",
+    "multiple organizations select by membership; switching drafts cannot reuse another tenant’s saved address or review data",
+    "slow status read shows no setup or stale dashboard; an expired access token refreshes and stays on the dashboard",
+    "changes requested returns to setup; back under review returns to the dashboard; approval removes the banner and the API restriction in the same session",
+    "a leftover session marker without a token reaches sign-in instead of looping"
+  ]
+}
