@@ -51,9 +51,12 @@ func (s *Service) Board(ctx context.Context, t tenant.Context, f PageFilter) (Bo
 	}
 	summary := map[string]int{Fresh: 0, Aging: 0, Stale: 0, Unknown: 0, Gapped: 0}
 	gaps := false
-	for _, p := range tracking {
-		state := Freshness(p.SourceTimestamp, s.o.Now(), s.o.TrackingFreshAfter, s.o.TrackingStaleAfter, p.GapStatus != "CURRENT")
-		p.FreshnessStatus = state
+	// Freshness is recomputed at read time and written back into each trip:
+	// the stored status is only as current as the last maintenance sweep, and
+	// a stale fix must never be presented as live.
+	for i := range tracking {
+		state := Freshness(tracking[i].SourceTimestamp, s.o.Now(), s.o.TrackingFreshAfter, s.o.TrackingStaleAfter, tracking[i].GapStatus != "CURRENT")
+		tracking[i].FreshnessStatus = state
 		summary[state]++
 		if state == Gapped {
 			gaps = true

@@ -345,6 +345,15 @@ var overrides = []Entry{
 	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/qualifications", RiskClass: ratelimit.RiskInternalService},
 	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/training", RiskClass: ratelimit.RiskInternalService},
 	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/performance", RiskClass: ratelimit.RiskInternalService},
+	// Geofence events read and operational rescue cases (Sections 16.12,
+	// 16.14, 45.3). Rescue writes change who carries company work.
+	{Method: "GET", Path: "/fleet-partner/v1/geofence-events", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/rescue-cases", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/rescue-cases", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/rescue-cases/:rescueCaseId", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/rescue-cases/:rescueCaseId/replacement", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/rescue-cases/:rescueCaseId/resolve", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/rescue-cases/:rescueCaseId/cancel", RiskClass: ratelimit.RiskSensitive},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},

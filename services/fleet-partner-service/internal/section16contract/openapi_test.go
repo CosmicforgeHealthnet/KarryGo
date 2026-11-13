@@ -78,7 +78,7 @@ func TestSection16OpenAPIRouteParity(t *testing.T) {
 func TestSection16OpenAPIScopeAndSchemas(t *testing.T) {
 	s := spec(t)
 	paths := s["paths"].(map[string]any)
-	if len(paths) != 30 {
+	if len(paths) != 36 {
 		t.Fatalf("path count=%d", len(paths))
 	}
 	schemas := s["components"].(map[string]any)["schemas"].(map[string]any)

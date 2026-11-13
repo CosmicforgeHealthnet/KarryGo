@@ -39,6 +39,8 @@ const (
 	PermissionAlertsAck        = "alerts.acknowledge"
 	PermissionAlertsResolve    = "alerts.resolve"
 	PermissionAlertsReplay     = "alerts.replay"
+	PermissionRescueRead       = "rescue.read"
+	PermissionRescueManage     = "rescue.manage"
 )
 
 type Route struct {
@@ -80,11 +82,18 @@ func TenantRoutes() []Route {
 		{"PATCH", "/geofences/:geofenceId", "updateGeofence", PermissionGeofencesManage, "GEOFENCES_ENABLED", "corporate", false, true},
 		{"POST", "/geofences/:geofenceId/activate", "activateGeofence", PermissionGeofencesManage, "GEOFENCES_ENABLED", "corporate", false, true},
 		{"POST", "/geofences/:geofenceId/deactivate", "deactivateGeofence", PermissionGeofencesManage, "GEOFENCES_ENABLED", "corporate", false, true},
+		{"GET", "/geofence-events", "listGeofenceEvents", PermissionGeofencesRead, "GEOFENCES_ENABLED", "corporate", false, false},
 		{"GET", "/alerts", "listOperationalAlerts", PermissionAlertsRead, "OPERATIONAL_ALERTS_ENABLED", "corporate", false, false},
 		{"GET", "/alerts/:alertId", "getOperationalAlert", PermissionAlertsRead, "OPERATIONAL_ALERTS_ENABLED", "corporate", false, false},
 		{"POST", "/alerts/:alertId/acknowledge", "acknowledgeOperationalAlert", PermissionAlertsAck, "OPERATIONAL_ALERTS_ENABLED", "corporate", true, true},
 		{"POST", "/alerts/:alertId/resolve", "resolveOperationalAlert", PermissionAlertsResolve, "OPERATIONAL_ALERTS_ENABLED", "corporate", true, true},
 		{"POST", "/alerts/jobs/:jobId/replay", "replaySection16Job", PermissionAlertsReplay, "OPERATIONAL_ALERTS_ENABLED", "corporate", true, false},
+		{"GET", "/rescue-cases", "listRescueCases", PermissionRescueRead, "DISPATCH_PLANNING_ENABLED", "corporate", false, false},
+		{"POST", "/rescue-cases", "openRescueCase", PermissionRescueManage, "DISPATCH_PLANNING_ENABLED", "corporate", true, false},
+		{"GET", "/rescue-cases/:rescueCaseId", "getRescueCase", PermissionRescueRead, "DISPATCH_PLANNING_ENABLED", "corporate", false, false},
+		{"POST", "/rescue-cases/:rescueCaseId/replacement", "assignRescueReplacement", PermissionRescueManage, "DISPATCH_PLANNING_ENABLED", "corporate", true, true},
+		{"POST", "/rescue-cases/:rescueCaseId/resolve", "resolveRescueCase", PermissionRescueManage, "DISPATCH_PLANNING_ENABLED", "corporate", true, true},
+		{"POST", "/rescue-cases/:rescueCaseId/cancel", "cancelRescueCase", PermissionRescueManage, "DISPATCH_PLANNING_ENABLED", "corporate", true, true},
 	}
 }
 func InternalRoutes() []Route {
@@ -103,7 +112,7 @@ func NewHandler(s *Service, a *accesscontrol.Authorizer, idem *idempotency.Store
 func (h *Handler) TenantRoutes() []Route   { return TenantRoutes() }
 func (h *Handler) InternalRoutes() []Route { return InternalRoutes() }
 func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
-	handlers := map[string]gin.HandlerFunc{"getDispatchBoard": h.board, "getUnassignedWork": h.unassigned, "getAssignmentCandidates": h.candidates, "createDispatchPlan": h.createPlan, "listDispatchPlans": h.listPlans, "getDispatchPlan": h.getPlan, "updateDispatchPlan": h.updatePlan, "approveDispatchPlan": h.approvePlan, "publishDispatchPlan": h.publishPlan, "cancelDispatchPlan": h.cancelPlan, "listRoutePlans": h.listRoutes, "createRoutePlan": h.createRoute, "getRoutePlan": h.getRoute, "updateRoutePlan": h.updateRoute, "optimizeRoute": h.optimize, "approveRoute": h.approveRoute, "publishRoute": h.publishRoute, "replanRoute": h.replan, "cancelRoute": h.cancelRoute, "listRouteStops": h.listStops, "createRouteStop": h.createStop, "updateRouteStop": h.updateStop, "deleteRouteStop": h.deleteStop, "getControlTower": h.controlTower, "listTrackingProjections": h.listTracking, "getTrackingProjection": h.getTracking, "listGeofences": h.listGeofences, "createGeofence": h.createGeofence, "getGeofence": h.getGeofence, "updateGeofence": h.updateGeofence, "activateGeofence": h.activateGeofence, "deactivateGeofence": h.deactivateGeofence, "listOperationalAlerts": h.listAlerts, "getOperationalAlert": h.getAlert, "acknowledgeOperationalAlert": h.ackAlert, "resolveOperationalAlert": h.resolveAlert, "replaySection16Job": h.replay}
+	handlers := map[string]gin.HandlerFunc{"getDispatchBoard": h.board, "getUnassignedWork": h.unassigned, "getAssignmentCandidates": h.candidates, "createDispatchPlan": h.createPlan, "listDispatchPlans": h.listPlans, "getDispatchPlan": h.getPlan, "updateDispatchPlan": h.updatePlan, "approveDispatchPlan": h.approvePlan, "publishDispatchPlan": h.publishPlan, "cancelDispatchPlan": h.cancelPlan, "listRoutePlans": h.listRoutes, "createRoutePlan": h.createRoute, "getRoutePlan": h.getRoute, "updateRoutePlan": h.updateRoute, "optimizeRoute": h.optimize, "approveRoute": h.approveRoute, "publishRoute": h.publishRoute, "replanRoute": h.replan, "cancelRoute": h.cancelRoute, "listRouteStops": h.listStops, "createRouteStop": h.createStop, "updateRouteStop": h.updateStop, "deleteRouteStop": h.deleteStop, "getControlTower": h.controlTower, "listTrackingProjections": h.listTracking, "getTrackingProjection": h.getTracking, "listGeofences": h.listGeofences, "createGeofence": h.createGeofence, "getGeofence": h.getGeofence, "updateGeofence": h.updateGeofence, "activateGeofence": h.activateGeofence, "deactivateGeofence": h.deactivateGeofence, "listGeofenceEvents": h.listGeofenceEvents, "listOperationalAlerts": h.listAlerts, "getOperationalAlert": h.getAlert, "acknowledgeOperationalAlert": h.ackAlert, "resolveOperationalAlert": h.resolveAlert, "replaySection16Job": h.replay, "listRescueCases": h.listRescueCases, "openRescueCase": h.openRescueCase, "getRescueCase": h.getRescueCase, "assignRescueReplacement": h.assignRescueReplacement, "resolveRescueCase": h.resolveRescueCase, "cancelRescueCase": h.cancelRescueCase}
 	for _, r := range TenantRoutes() {
 		g.Handle(r.Method, r.Path, handlers[r.OperationID])
 	}
@@ -631,6 +640,102 @@ func (h *Handler) ingestTracking(c *gin.Context) {
 		return
 	}
 	respond.OK(c, gin.H{"projection": v, "disposition": d})
+}
+func (h *Handler) listGeofenceEvents(c *gin.Context) {
+	t, ok := h.gate(c, PermissionGeofencesRead)
+	if !ok {
+		return
+	}
+	f := GeofenceEventFilter{GeofenceID: c.Query("geofenceId"), CanonicalTripReference: c.Query("canonicalTripReference"), EventRule: strings.ToUpper(c.Query("eventRule")), BranchID: c.Query("branchId")}
+	f.Limit, _ = strconv.Atoi(c.Query("limit"))
+	f.Offset, _ = strconv.Atoi(c.Query("offset"))
+	for name, target := range map[string]**time.Time{"from": &f.From, "to": &f.To} {
+		if raw := c.Query(name); raw != "" {
+			parsed, e := time.Parse(time.RFC3339, raw)
+			if e != nil {
+				respond.Error(c, apperrors.BadRequest(name+" must be an RFC 3339 timestamp.", e))
+				return
+			}
+			*target = &parsed
+		}
+	}
+	v, e := h.s.ListGeofenceEvents(c, t, f)
+	write(c, v, e)
+}
+func (h *Handler) listRescueCases(c *gin.Context) {
+	t, ok := h.gate(c, PermissionRescueRead)
+	if !ok {
+		return
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	offset, _ := strconv.Atoi(c.Query("offset"))
+	v, e := h.s.ListRescueCases(c, t, RescueFilter{BranchID: c.Query("branchId"), Status: c.Query("status"), TriggerType: c.Query("triggerType"), Limit: limit, Offset: offset})
+	write(c, v, e)
+}
+func (h *Handler) getRescueCase(c *gin.Context) {
+	t, ok := h.gate(c, PermissionRescueRead)
+	if !ok {
+		return
+	}
+	v, e := h.s.GetRescueCase(c, t, c.Param("rescueCaseId"))
+	write(c, v, e)
+}
+func (h *Handler) openRescueCase(c *gin.Context) {
+	t, ok := h.gate(c, PermissionRescueManage)
+	if !ok {
+		return
+	}
+	var b OpenRescueCaseInput
+	if !bind(c, &b) {
+		return
+	}
+	b.IdempotencyKey = c.GetHeader("Idempotency-Key")
+	h.command(c, t, "POST /rescue-cases", b, func() (int, any, error) { v, e := h.s.OpenRescueCase(c, t, b); return 201, v, e })
+}
+func (h *Handler) assignRescueReplacement(c *gin.Context) {
+	t, ok := h.gate(c, PermissionRescueManage)
+	if !ok {
+		return
+	}
+	var b RescueReplacementInput
+	if !bind(c, &b) {
+		return
+	}
+	b.ExpectedVersion = version(c, b.ExpectedVersion)
+	h.command(c, t, c.Request.Method+" "+c.FullPath(), b, func() (int, any, error) {
+		v, e := h.s.AssignRescueReplacement(c, t, c.Param("rescueCaseId"), b)
+		return 200, v, e
+	})
+}
+func (h *Handler) resolveRescueCase(c *gin.Context) {
+	t, ok := h.gate(c, PermissionRescueManage)
+	if !ok {
+		return
+	}
+	var b ResolveRescueCaseInput
+	if !bind(c, &b) {
+		return
+	}
+	b.ExpectedVersion = version(c, b.ExpectedVersion)
+	h.command(c, t, c.Request.Method+" "+c.FullPath(), b, func() (int, any, error) {
+		v, e := h.s.ResolveRescueCase(c, t, c.Param("rescueCaseId"), b)
+		return 200, v, e
+	})
+}
+func (h *Handler) cancelRescueCase(c *gin.Context) {
+	t, ok := h.gate(c, PermissionRescueManage)
+	if !ok {
+		return
+	}
+	var b CancelRescueCaseInput
+	if !bind(c, &b) {
+		return
+	}
+	b.ExpectedVersion = version(c, b.ExpectedVersion)
+	h.command(c, t, c.Request.Method+" "+c.FullPath(), b, func() (int, any, error) {
+		v, e := h.s.CancelRescueCase(c, t, c.Param("rescueCaseId"), b)
+		return 200, v, e
+	})
 }
 func write(c *gin.Context, v any, e error) {
 	if e != nil {

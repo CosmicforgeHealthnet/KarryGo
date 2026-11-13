@@ -489,6 +489,11 @@ WHERE pa.work_origin='ROUTE_STOP' AND pa.status IN('DECLINED','EXPIRED','REASSIG
 				}
 			}
 		}
+		// Project replacement-provider responses onto rescue cases (spec 16.14)
+		// even when no dispatcher touches the case.
+		if e := s.SyncRescueReplacements(ctx, tx, 200); e != nil {
+			return e
+		}
 		routeRows, e := tx.Query(ctx, `SELECT rp.organization_id,rp.id,max(pa.version)
 FROM fleet_partner_route_plans rp JOIN fleet_partner_route_stops rs ON rs.route_plan_id=rp.id JOIN fleet_partner_private_assignments pa ON pa.organization_id=rp.organization_id AND pa.route_stop_id=rs.id
 WHERE rp.status IN('PUBLISHED','IN_PROGRESS') GROUP BY rp.organization_id,rp.id LIMIT 200`)

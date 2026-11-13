@@ -47,6 +47,7 @@ type Options struct {
 	Pool                                                                              *pgxpool.Pool
 	Repository                                                                        *Repository
 	PrivateAssignments                                                                PrivateAssignmentCreator
+	Rescue                                                                            RescueAssignmentPort
 	Candidates                                                                        CandidateSource
 	Optimizer                                                                         OptimizationPort
 	Events                                                                            EventPublisher

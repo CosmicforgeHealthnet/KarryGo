@@ -242,6 +242,35 @@ func (s *Service) Reassign(ctx context.Context, t tenant.Context, id string, in 
 	}
 	var replacement models.Assignment
 	err := s.tx(ctx, func(tx pgx.Tx) error {
+		var err error
+		replacement, err = s.reassignTx(ctx, tx, t, id, in, service)
+		return err
+	})
+	return replacement, err
+}
+
+// ReassignInTransaction lets an owning Fleet orchestration (Section 16 rescue
+// cases) offer replacement work atomically with its own case record. Gates,
+// eligibility, history, audit and outbox writes are identical to Reassign; the
+// replacement is an ordinary pending assignment the provider must accept or
+// decline.
+func (s *Service) ReassignInTransaction(ctx context.Context, tx pgx.Tx, t tenant.Context, id string, in ReassignInput) (models.Assignment, error) {
+	if e := s.gate(true); e != nil {
+		return models.Assignment{}, e
+	}
+	service := strings.ToUpper(strings.TrimSpace(in.ExecutionService))
+	if !models.ValidExecutionService(service) || service == "TAXI" || !enabledService(s.opts.Flags, service) {
+		return models.Assignment{}, errorcodes.Forbidden("private_execution_disabled", "The selected execution service is disabled.")
+	}
+	if in.ProviderMembershipID == "" || in.ProviderID == "" {
+		return models.Assignment{}, apperrors.BadRequest("providerMembershipId and providerId are required.", nil)
+	}
+	return s.reassignTx(ctx, tx, t, id, in, service)
+}
+
+func (s *Service) reassignTx(ctx context.Context, tx pgx.Tx, t tenant.Context, id string, in ReassignInput, service string) (models.Assignment, error) {
+	var replacement models.Assignment
+	err := func() error {
 		original, err := s.opts.Repository.LockAssignment(ctx, tx, t.OrganizationID, id)
 		if err != nil || !t.BranchPermitted(original.BranchID) {
 			return nf()
@@ -297,7 +326,7 @@ func (s *Service) Reassign(ctx context.Context, t tenant.Context, id string, in 
 			return s.opts.Events.Publish(ctx, tx, "private_assignment.reassigned.v1", "private_assignment", original.ID, updated.Version, original.OrganizationID, t.CorrelationID, map[string]any{"assignmentId": original.ID, "replacementAssignmentId": replacement.ID, "executionService": service})
 		}
 		return nil
-	})
+	}()
 	return replacement, err
 }
 

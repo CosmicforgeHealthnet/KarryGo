@@ -136,7 +136,7 @@ func TestOptimizationFingerprintCoversRouteVersionAndInputs(t *testing.T) {
 }
 func TestSection16RouteCatalogue(t *testing.T) {
 	routes := TenantRoutes()
-	if len(routes) != 37 {
+	if len(routes) != 44 {
 		t.Fatalf("tenant route count=%d", len(routes))
 	}
 	seen := map[string]bool{}
