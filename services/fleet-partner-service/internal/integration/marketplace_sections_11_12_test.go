@@ -800,3 +800,103 @@ func TestS1112_CorporateTripRoutes(t *testing.T) {
 		t.Fatalf("invalid filter = %d, want 4xx validation", code)
 	}
 }
+
+// seedCategoryMembership creates an ACTIVE, association-accepted managed
+// provider in the given category for an eligible organization.
+func seedCategoryMembership(t *testing.T, pool *pgxpool.Pool, organizationID string,
+	providerService string, category string, providerID string) *providermodels.Membership {
+	t.Helper()
+	now := time.Now()
+	membership := &providermodels.Membership{
+		ProviderService: providerService, ServiceCategory: category, ProviderID: &providerID,
+		OnboardingSource: providermodels.SourceSponsored, RelationshipType: providermodels.RelationshipEmployee,
+		Status: providermodels.StatusActive, AssociationAcceptedAt: &now,
+	}
+	if err := providerrepos.NewRepository(pool).CreateMembership(context.Background(), pool, organizationID, membership); err != nil {
+		t.Fatalf("seed %s membership: %v", category, err)
+	}
+	seedEligibleOrganization(t, pool, organizationID)
+	markMembershipSynced(t, pool, membership.ID)
+	return membership
+}
+
+// TestS1112_TaxiAndHaulingProducerEnvelopesCreateOpportunities ingests the
+// exact envelopes the new Taxi (migration 029) and Hauling (migration 034)
+// feeds deliver -- lowercase aggregate types, their payload shapes, their
+// signed service names -- and proves each opens an opportunity only for
+// organizations managing that service's providers.
+func TestS1112_TaxiAndHaulingProducerEnvelopesCreateOpportunities(t *testing.T) {
+	pool := testPool(t)
+	taxiOrg := createOrganization(t, pool, "S1112 Taxi Co", "RC-S1112-TAXI")
+	haulingOrg := createOrganization(t, pool, "S1112 Hauling Co", "RC-S1112-HAUL")
+	seedCategoryMembership(t, pool, taxiOrg.ID, "driver-taxi-service", mktmodels.SourceTaxi, "s1112-taxi-drv")
+	seedCategoryMembership(t, pool, haulingOrg.ID, "driver-hauling-service", mktmodels.SourceHauling, "s1112-haul-drv")
+	setOperatingMode(t, pool, taxiOrg.ID, mktmodels.ModeHybrid)
+	setOperatingMode(t, pool, haulingOrg.ID, mktmodels.ModeCentralized)
+	service := newOpportunityService(pool, true)
+
+	taxiRequest := "taxi-booking-s1112"
+	raw, event := sourceEvent(t, "driver-taxi-service", "evt-s1112-taxi-1", mktusecases.EventRequestOffered,
+		"request", taxiRequest, 1, map[string]any{
+			"sourceService": "driver-taxi-service", "requestId": taxiRequest, "bookingId": taxiRequest,
+			"sourceVersion": 1, "status": "pending_match", "serviceType": "taxi",
+			"vehicleClass": "economy", "passengerCount": 2,
+		})
+	if result := ingest(t, service, raw, event); result.Status != mktusecases.IngestAccepted {
+		t.Fatalf("taxi offered = %+v", result)
+	}
+	var taxiProjections, wrongCategory int
+	_ = pool.QueryRow(context.Background(), `SELECT count(*) FILTER (WHERE organization_id=$1 AND source_service='TAXI'),
+		count(*) FILTER (WHERE organization_id=$2)
+		FROM fleet_partner_marketplace_request_projections WHERE platform_request_id=$3`,
+		taxiOrg.ID, haulingOrg.ID, taxiRequest).Scan(&taxiProjections, &wrongCategory)
+	if taxiProjections != 1 || wrongCategory != 0 {
+		t.Fatalf("taxi opportunity projections = %d (hauling org %d), want 1/0", taxiProjections, wrongCategory)
+	}
+	var requirements string
+	_ = pool.QueryRow(context.Background(), `SELECT operational_requirements::text FROM fleet_partner_marketplace_request_projections
+		WHERE platform_request_id=$1`, taxiRequest).Scan(&requirements)
+	if !strings.Contains(requirements, "economy") || !strings.Contains(requirements, "passengerCount") {
+		t.Fatalf("taxi operational facts not projected: %s", requirements)
+	}
+	// HYBRID: providers are recipients too.
+	if got := countRows(t, pool, `SELECT count(*) FROM fleet_partner_provider_offer_recipients rec
+		JOIN fleet_partner_organization_request_offers o ON o.id = rec.offer_id
+		JOIN fleet_partner_marketplace_request_projections p ON p.id = o.request_projection_id
+		WHERE p.platform_request_id = $1`, taxiRequest); got != 1 {
+		t.Fatalf("hybrid taxi recipients = %d, want 1", got)
+	}
+	// Taken by an independent driver.
+	raw, event = sourceEvent(t, "driver-taxi-service", "evt-s1112-taxi-2", mktusecases.EventRequestUpdated,
+		"request", taxiRequest, 2, map[string]any{"requestId": taxiRequest, "status": "accepted", "sourceVersion": 2})
+	ingest(t, service, raw, event)
+	var taxiStatus string
+	_ = pool.QueryRow(context.Background(), `SELECT projection_status FROM fleet_partner_marketplace_request_projections
+		WHERE platform_request_id=$1`, taxiRequest).Scan(&taxiStatus)
+	if taxiStatus != mktmodels.ProjectionCancelled {
+		t.Fatalf("taxi projection after independent claim = %s, want CANCELLED", taxiStatus)
+	}
+
+	haulRequest := "haul-booking-s1112"
+	raw, event = sourceEvent(t, "driver-hauling-service", "evt-s1112-haul-1", mktusecases.EventRequestOffered,
+		"request", haulRequest, 1, map[string]any{
+			"sourceService": "driver-hauling-service", "requestId": haulRequest, "bookingId": haulRequest,
+			"sourceVersion": 1, "status": "pending_match", "serviceType": "hauling", "weightKg": 750,
+			"helpersRequired": 2,
+		})
+	if result := ingest(t, service, raw, event); result.Status != mktusecases.IngestAccepted {
+		t.Fatalf("hauling offered = %+v", result)
+	}
+	raw, event = sourceEvent(t, "driver-hauling-service", "evt-s1112-haul-2", mktusecases.EventRequestExpired,
+		"request", haulRequest, 2, map[string]any{"requestId": haulRequest, "status": "unmatched", "sourceVersion": 2})
+	ingest(t, service, raw, event)
+	var haulStatus, offerStatus string
+	_ = pool.QueryRow(context.Background(), `SELECT p.projection_status, o.status
+		FROM fleet_partner_marketplace_request_projections p
+		JOIN fleet_partner_organization_request_offers o ON o.request_projection_id = p.id
+		WHERE p.platform_request_id=$1 AND p.organization_id=$2 AND p.source_service='HAULING'`,
+		haulRequest, haulingOrg.ID).Scan(&haulStatus, &offerStatus)
+	if haulStatus != mktmodels.ProjectionExpired || offerStatus != mktmodels.OfferCancelled {
+		t.Fatalf("hauling after unmatched = %s/%s, want EXPIRED/CANCELLED", haulStatus, offerStatus)
+	}
+}
