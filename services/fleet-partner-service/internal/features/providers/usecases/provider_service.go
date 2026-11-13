@@ -233,7 +233,7 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 		}
 		if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 			return s.opts.Providers.SetProviderID(ctx, tx, input.Tenant.OrganizationID, membership.ID,
-				resolution.ProviderID, resolution.SourceVersion)
+				resolution.ProviderID, resolution.SourceVersion, models.SourceLinked)
 		}); err != nil {
 			return nil, err
 		}
@@ -275,7 +275,7 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 		}
 		if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 			return s.opts.Providers.SetProviderID(ctx, tx, input.Tenant.OrganizationID, membership.ID,
-				identity.ProviderID, identity.SourceVersion)
+				identity.ProviderID, identity.SourceVersion, models.SourceSponsored)
 		}); err != nil {
 			s.markSagaStep(ctx, membership.ID, "provider_identity_status", "UNKNOWN_OUTCOME",
 				models.SagaReconciliationRequired, "provider_identity_persistence_failed")
@@ -294,8 +294,14 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 			"The provider service returned an unexpected result.")
 	}
 
-	// Step 3: request the association — the provider must consent.
-	invitationSent := s.createAssociationInvitation(ctx, input, membership, pair, contract, meta)
+	// Step 3: request the association — the provider must consent. Recording
+	// the identity advanced the membership version, so the invitation's
+	// transition must start from the stored row, not the one built above.
+	current, err := s.opts.Providers.GetMembership(ctx, input.Tenant.OrganizationID, membership.ID)
+	if err != nil {
+		return nil, err
+	}
+	invitationSent := s.createAssociationInvitation(ctx, input, current, pair, contract, meta)
 
 	saga, _ := s.opts.Providers.GetSaga(ctx, input.Tenant.OrganizationID, membership.ID)
 	reloaded, err := s.opts.Providers.GetMembership(ctx, input.Tenant.OrganizationID, membership.ID)
@@ -352,20 +358,7 @@ func (s *Service) createAssociationInvitation(ctx context.Context, input CreateP
 	organizationName, _, _ := s.opts.Organizations.OrganizationStatus(ctx, input.Tenant.OrganizationID)
 
 	if membership.ProviderID != nil {
-		if _, err := contract.CreateAssociation(ctx, meta, platformclients.ProviderAssociationRequest{
-			OrganizationID:   input.Tenant.OrganizationID,
-			OrganizationName: organizationName,
-			ProviderID:       *membership.ProviderID,
-			MembershipID:     membership.ID,
-			RelationshipType: membership.RelationshipType,
-			IdempotencyKey:   "assoc:" + membership.ID,
-		}); err != nil {
-			s.markSagaStep(ctx, membership.ID, "association_status", "UNAVAILABLE",
-				models.SagaReconciliationRequired, "association_unavailable")
-		} else {
-			s.markSagaStep(ctx, membership.ID, "association_status", "AWAITING_PROVIDER",
-				models.SagaInProgress, "")
-		}
+		s.requestAssociation(ctx, membership, organizationName, contract, meta)
 	}
 
 	token, err := auth.GenerateOpaqueToken(32)

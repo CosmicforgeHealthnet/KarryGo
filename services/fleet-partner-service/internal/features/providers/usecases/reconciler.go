@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -66,8 +67,14 @@ func (s *Service) reconcileOne(ctx context.Context, saga models.ProvisioningSaga
 				return false
 			case resolution.Outcome == platformclients.ProviderResolveMatched:
 				if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+					// An identity found after an unknown provisioning outcome is
+					// the one the lost write created.
+					source := models.SourceLinked
+					if saga.ProviderIdentityStatus == "UNKNOWN_OUTCOME" {
+						source = models.SourceSponsored
+					}
 					return s.opts.Providers.SetProviderID(ctx, tx, saga.OrganizationID,
-						saga.MembershipID, resolution.ProviderID, resolution.SourceVersion)
+						saga.MembershipID, resolution.ProviderID, resolution.SourceVersion, source)
 				}); err != nil {
 					s.scheduleRetry(ctx, saga.MembershipID, "provider_identity_persistence_failed")
 					return false
@@ -102,6 +109,30 @@ func (s *Service) reconcileOne(ctx context.Context, saga models.ProvisioningSaga
 					models.SagaBlocked, "provider_identity_conflict")
 				return true
 			}
+		}
+	}
+
+	// Step 1b: the provider accepts or declines in their own app on the
+	// owning service. Read the decision back (and request the association if
+	// it was never created) rather than waiting for a callback.
+	if synced, syncErr := s.SyncAssociation(ctx, saga.OrganizationID, saga.MembershipID); syncErr == nil && synced {
+		progressed = true
+	}
+	if current, err := s.opts.Providers.GetMembership(ctx, saga.OrganizationID, saga.MembershipID); err == nil {
+		switch current.Status {
+		case models.StatusDeclined, models.StatusExpired, models.StatusCancelled:
+			// Terminal: stop reconciling rather than re-claiming the saga
+			// forever.
+			value := "FAILED"
+			if current.Status == models.StatusDeclined {
+				value = "DECLINED"
+			}
+			s.markSagaStep(ctx, saga.MembershipID, "association_status", value, models.SagaFailedPermanent,
+				"membership_"+strings.ToLower(current.Status))
+			return progressed
+		case models.StatusActive:
+			s.markSagaStep(ctx, saga.MembershipID, "association_status", "ACCEPTED", models.SagaCompleted, "")
+			return true
 		}
 	}
 

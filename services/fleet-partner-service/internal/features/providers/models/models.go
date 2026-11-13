@@ -218,6 +218,10 @@ type ProvisioningSaga struct {
 	Version                  int64
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
+	// AssociationID is the owning service's association (provider link) id;
+	// empty until the association was created there.
+	AssociationID            string
+	AssociationSourceVersion int64
 }
 
 // SubWalletLink projects the provider sub-wallet identity. It never stores a

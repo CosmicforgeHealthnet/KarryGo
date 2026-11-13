@@ -203,14 +203,17 @@ func (r *Repository) CountLiveMemberships(ctx context.Context, organizationID st
 	return count, nil
 }
 
-// SetProviderID records the resolved or provisioned provider identity.
-func (r *Repository) SetProviderID(ctx context.Context, q database.Querier, organizationID string, membershipID string, providerID string, sourceVersion int64) error {
+// SetProviderID records the resolved or provisioned provider identity and
+// how it was obtained (ORGANIZATION_SPONSORED or EXISTING_PROVIDER_LINKED;
+// empty keeps the stored value).
+func (r *Repository) SetProviderID(ctx context.Context, q database.Querier, organizationID string, membershipID string, providerID string, sourceVersion int64, onboardingSource string) error {
 	_, err := q.Exec(ctx, `
 		UPDATE fleet_partner_organization_provider_memberships SET
 			provider_id = $3, source_version = GREATEST(source_version, $4),
+			onboarding_source = COALESCE(NULLIF($5, ''), onboarding_source),
 			synced_at = now(), version = version + 1, updated_at = now()
 		WHERE organization_id = $1 AND id = $2`,
-		organizationID, membershipID, providerID, sourceVersion)
+		organizationID, membershipID, providerID, sourceVersion, onboardingSource)
 	if err != nil {
 		return fmt.Errorf("providers: set provider id: %w", err)
 	}

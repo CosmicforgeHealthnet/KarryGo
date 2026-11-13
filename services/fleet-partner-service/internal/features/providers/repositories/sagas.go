@@ -228,7 +228,7 @@ func scanInvitation(row pgx.Row) (*models.Invitation, error) {
 const sagaColumns = `id, organization_id, membership_id, provider_service, provider_resolution_status,
 	provider_identity_status, association_status, subwallet_status, notification_status,
 	overall_status, idempotency_key, attempts, last_error_code, next_attempt_at, version,
-	created_at, updated_at`
+	created_at, updated_at, COALESCE(association_id, ''), association_source_version`
 
 // CreateSaga inserts a provisioning saga for a membership.
 func (r *Repository) CreateSaga(ctx context.Context, q database.Querier, organizationID string, saga *models.ProvisioningSaga) error {
@@ -287,6 +287,24 @@ func (r *Repository) UpdateSagaStep(ctx context.Context, q database.Querier, mem
 	return nil
 }
 
+// SetSagaAssociation records the owning service's association id and the
+// version last observed, so the reconciler can read the provider's own
+// decision back. A lower version never overwrites a higher one.
+func (r *Repository) SetSagaAssociation(ctx context.Context, q database.Querier, membershipID string, associationID string, sourceVersion int64) error {
+	_, err := q.Exec(ctx, `
+		UPDATE fleet_partner_provider_provisioning_sagas SET
+			association_id = $2,
+			association_source_version = GREATEST(association_source_version, $3),
+			version = version + 1,
+			updated_at = now()
+		WHERE membership_id = $1 AND (association_id IS NULL OR association_id = $2)`,
+		membershipID, associationID, sourceVersion)
+	if err != nil {
+		return fmt.Errorf("providers: set saga association: %w", err)
+	}
+	return nil
+}
+
 // ClaimDueSagas returns sagas ready for another provisioning attempt.
 func (r *Repository) ClaimDueSagas(ctx context.Context, limit int) ([]models.ProvisioningSaga, error) {
 	rows, err := r.db.Query(ctx, `SELECT `+sagaColumns+`
@@ -318,7 +336,7 @@ func scanSaga(row pgx.Row) (*models.ProvisioningSaga, error) {
 		&saga.ProviderResolutionStatus, &saga.ProviderIdentityStatus, &saga.AssociationStatus,
 		&saga.SubWalletStatus, &saga.NotificationStatus, &saga.OverallStatus, &saga.IdempotencyKey,
 		&saga.Attempts, &saga.LastErrorCode, &saga.NextAttemptAt, &saga.Version,
-		&saga.CreatedAt, &saga.UpdatedAt)
+		&saga.CreatedAt, &saga.UpdatedAt, &saga.AssociationID, &saga.AssociationSourceVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -334,7 +352,7 @@ func scanSagaRows(rows pgx.Rows) (*models.ProvisioningSaga, error) {
 		&saga.ProviderResolutionStatus, &saga.ProviderIdentityStatus, &saga.AssociationStatus,
 		&saga.SubWalletStatus, &saga.NotificationStatus, &saga.OverallStatus, &saga.IdempotencyKey,
 		&saga.Attempts, &saga.LastErrorCode, &saga.NextAttemptAt, &saga.Version,
-		&saga.CreatedAt, &saga.UpdatedAt)
+		&saga.CreatedAt, &saga.UpdatedAt, &saga.AssociationID, &saga.AssociationSourceVersion)
 	if err != nil {
 		return nil, fmt.Errorf("providers: scan saga: %w", err)
 	}

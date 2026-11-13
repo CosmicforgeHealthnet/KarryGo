@@ -35,6 +35,17 @@ func (s *Service) RecordAssociationOutcome(ctx context.Context, organizationID s
 		target = models.StatusDeclined
 		eventType = "organization.provider.association_declined.v1"
 	}
+	// The decision is read back repeatedly; applying it twice must be a
+	// no-op, and a membership that has moved on must not be dragged back.
+	switch {
+	case accepted && (membership.Status == models.StatusPendingSetup || membership.Status == models.StatusActive):
+		return nil
+	case !accepted && membership.Status == models.StatusDeclined:
+		return nil
+	case !models.CanTransition(membership.Status, target):
+		return errorcodes.Conflict(errorcodes.ProviderMembershipNotActive,
+			"The provider's decision no longer applies to this membership.")
+	}
 
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		if invitation, err := s.opts.Providers.GetInvitationByMembership(ctx, organizationID, membershipID); err == nil {
@@ -57,6 +68,19 @@ func (s *Service) RecordAssociationOutcome(ctx context.Context, organizationID s
 				ReasonCode:    "provider_association_decision",
 				CorrelationID: correlationID,
 			}); err != nil {
+			return concurrency.AsConflict(err)
+		}
+		entry := audit.Entry{
+			OrganizationID: organizationID, ActorType: "provider", ActorID: derefString(membership.ProviderID),
+			Action: "provider.association_decided", ResourceType: "provider_membership", ResourceID: membershipID,
+			PreviousValues: map[string]any{"status": membership.Status},
+			NewValues:      map[string]any{"status": target, "accepted": accepted},
+			Reason:         "provider_association_decision", CorrelationID: correlationID,
+		}
+		if entry.ActorID == "" {
+			entry.ActorID = "unknown-provider"
+		}
+		if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
 			return err
 		}
 		return s.opts.Events.Publish(ctx, tx, eventType, "provider_membership", membershipID,

@@ -19,6 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	sharedauth "cosmicforge/logistics/shared/go/auth"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
@@ -142,15 +144,37 @@ func TestFleetClientToRealHaulingAuthority(t *testing.T) {
 	if err != nil || replay.LinkID != link.LinkID || replay.SourceVersion != link.SourceVersion {
 		t.Fatalf("Fleet idempotent replay=%+v err=%v", replay, err)
 	}
-	active, err := client.TransitionProviderLink(context.Background(), meta, link.LinkID, platformclients.HaulingLinkTransition{
+	// FLEET-10.2: the organization cannot accept on the provider's behalf.
+	if forced, err := client.TransitionProviderLink(context.Background(), meta, link.LinkID, platformclients.HaulingLinkTransition{
 		State: "ACTIVE", ExpectedVersion: link.SourceVersion, OrganizationID: organizationID,
 		ReasonCode: "BLACKBOX", IdempotencyKey: "blackbox-active-" + providerID,
-	})
-	if err != nil || active.Status != "ACTIVE" {
-		t.Fatalf("Fleet activate provider link=%+v err=%v", active, err)
+	}); err == nil {
+		t.Fatalf("Fleet activated a provider link without the provider's consent: %+v", forced)
+	}
+	// The provider accepts with their own session on Hauling.
+	now := time.Now()
+	providerToken, err := sharedauth.NewTokenSigner([]byte("provider-token")).Sign(sharedauth.Claims{
+		Subject: providerID, Role: "truck_provider", Service: "hauling", SessionID: uuid.NewString(),
+		Type: sharedauth.TokenTypeAccess, IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptRequest, _ := http.NewRequest(http.MethodPost, baseURL+"/api/v1/hauling/provider/organization-associations/"+link.LinkID+"/accept", nil)
+	acceptRequest.Header.Set("Authorization", "Bearer "+providerToken)
+	acceptResponse, err := http.DefaultClient.Do(acceptRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = acceptResponse.Body.Close()
+	if acceptResponse.StatusCode != http.StatusOK {
+		t.Fatalf("provider accept status=%d\n%s", acceptResponse.StatusCode, logs.String())
+	}
+	association, err := client.ReadAssociation(context.Background(), meta, link.LinkID)
+	if err != nil || association.Status != platformclients.AssociationAccepted || association.DecidedAt.IsZero() {
+		t.Fatalf("Fleet association read-back=%+v err=%v", association, err)
 	}
 	readBack, err := client.ReadProviderLink(context.Background(), meta, link.LinkID)
-	if err != nil || readBack.SourceVersion != active.SourceVersion {
+	if err != nil || readBack.Status != "ACTIVE" || readBack.SourceVersion != link.SourceVersion+1 {
 		t.Fatalf("Fleet read-back=%+v err=%v", readBack, err)
 	}
 	if readBack.OrganizationID != organizationID || readBack.ProviderID != providerID {
