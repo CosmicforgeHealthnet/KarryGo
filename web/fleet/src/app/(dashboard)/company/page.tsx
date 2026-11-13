@@ -4,6 +4,7 @@
 // sections, so it always shows the saved, server-backed records.
 import { OnboardingProvider, useOnboarding } from "../../(setup)/setup/onboarding-context";
 import { CompanyReview } from "../../(setup)/setup/company-review";
+import { ReviewProgress } from "./review-progress";
 
 function CompanySubmission() {
   const { data } = useOnboarding();
@@ -16,6 +17,9 @@ function CompanySubmission() {
           The company information you submitted and its verification status.
         </p>
       </div>
+      {data.organization?.organizationId && data.organization.status !== "ACTIVE" && (
+        <ReviewProgress organizationId={data.organization.organizationId} />
+      )}
       <CompanyReview edit={() => undefined} />
     </div>
   );

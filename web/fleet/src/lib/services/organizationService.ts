@@ -32,12 +32,28 @@ export interface CreateOrganizationResponse {
 export interface VerificationStatusResponse {
   status: string;
   submissionVersion: number;
-  issues: Array<{
-    id: string;
-    type: string;
-    message: string;
-    severity: string;
-  }>;
+  issues: VerificationIssue[];
+}
+
+// A review finding: what the reviewer wants changed and how.
+export interface VerificationIssue {
+  id: string;
+  issueCode: string;
+  fieldReference: string | null;
+  documentReference: string | null;
+  remediation: string;
+  raisedAt: string;
+}
+
+export interface ActivationGate {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface ActivationReadiness {
+  ready: boolean;
+  gates: ActivationGate[];
 }
 
 export interface WalletProvisioningResponse {
@@ -243,6 +259,13 @@ export const organizationService = {
   ): Promise<VerificationStatusResponse> {
     const response = await apiClient.get<{ data: VerificationStatusResponse }>(
       `/organizations/${organizationId}/verification`,
+    );
+    return response.data.data;
+  },
+
+  async getActivationReadiness(organizationId: string): Promise<ActivationReadiness> {
+    const response = await apiClient.get<{ data: ActivationReadiness }>(
+      `/organizations/${organizationId}/activation-readiness`,
     );
     return response.data.data;
   },

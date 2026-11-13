@@ -246,14 +246,14 @@ type VerificationRequest struct {
 
 // VerificationIssue is one append-only review finding.
 type VerificationIssue struct {
-	ID                    string
-	OrganizationID        string
-	VerificationRequestID string
-	IssueCode             string
-	FieldReference        *string
-	DocumentReference     *string
-	Remediation           string
-	RaisedAt              time.Time
+	ID                    string    `json:"id"`
+	OrganizationID        string    `json:"-"`
+	VerificationRequestID string    `json:"-"`
+	IssueCode             string    `json:"issueCode"`
+	FieldReference        *string   `json:"fieldReference"`
+	DocumentReference     *string   `json:"documentReference"`
+	Remediation           string    `json:"remediation"`
+	RaisedAt              time.Time `json:"raisedAt"`
 }
 
 // WalletProvisioning projects organization wallet state. No balance is ever
