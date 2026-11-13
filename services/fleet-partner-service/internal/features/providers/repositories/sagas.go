@@ -18,7 +18,7 @@ import (
 const invitationColumns = `id, organization_id, membership_id, provider_service, legal_name,
 	email_normalized, phone_e164, existing_provider_id, invitation_token_hash, status, expires_at,
 	delivery_status, notification_reference, attempts, created_by, accepted_at, declined_at,
-	consumed_at, version, created_at, updated_at`
+	consumed_at, last_sent_at, resend_count, version, created_at, updated_at`
 
 // CreateInvitation inserts a provider association invitation.
 func (r *Repository) CreateInvitation(ctx context.Context, q database.Querier, organizationID string, invitation *models.Invitation) error {
@@ -91,7 +91,9 @@ func (r *Repository) SetInvitationOutcome(ctx context.Context, q database.Querie
 // ErrInvitationNotUsable means the invitation was already resolved.
 var ErrInvitationNotUsable = errors.New("providers: invitation is not usable")
 
-// RecordInvitationDelivery stores the invitation email delivery outcome.
+// RecordInvitationDelivery stores the invitation email delivery outcome. An
+// accepted hand-off to notification-service also stamps last_sent_at, which
+// is the anchor of the resend cooldown (FLEET-10.8).
 func (r *Repository) RecordInvitationDelivery(ctx context.Context, invitationID string, status string, reference string) error {
 	var ref *string
 	if reference != "" {
@@ -100,10 +102,91 @@ func (r *Repository) RecordInvitationDelivery(ctx context.Context, invitationID 
 	_, err := r.db.Exec(ctx, `
 		UPDATE fleet_partner_provider_invitations SET
 			delivery_status = $2, notification_reference = COALESCE($3, notification_reference),
-			attempts = attempts + 1, updated_at = now()
+			attempts = attempts + 1,
+			last_sent_at = CASE WHEN $2 = 'ACCEPTED' THEN now() ELSE last_sent_at END,
+			updated_at = now()
 		WHERE id = $1`, invitationID, status, ref)
 	if err != nil {
 		return fmt.Errorf("providers: record invitation delivery: %w", err)
+	}
+	return nil
+}
+
+// LockLatestInvitation loads, and row-locks for the rest of tx, the newest
+// invitation of a membership. The lock serialises concurrent resend requests
+// so the cooldown and resend cap are checked against committed state.
+func (r *Repository) LockLatestInvitation(ctx context.Context, tx pgx.Tx, organizationID string, membershipID string) (*models.Invitation, error) {
+	row := tx.QueryRow(ctx, `SELECT `+invitationColumns+`
+		FROM fleet_partner_provider_invitations
+		WHERE organization_id = $1 AND membership_id = $2
+		ORDER BY created_at DESC, id DESC LIMIT 1
+		FOR UPDATE`, organizationID, membershipID)
+	return scanInvitation(row)
+}
+
+// ExpireInvitation marks one lapsed PENDING invitation expired (the worker
+// does the same in bulk); a resolved invitation is left untouched.
+func (r *Repository) ExpireInvitation(ctx context.Context, tx pgx.Tx, invitationID string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE fleet_partner_provider_invitations SET status = 'EXPIRED',
+			version = version + 1, updated_at = now()
+		WHERE id = $1 AND status = 'PENDING'`, invitationID)
+	if err != nil {
+		return fmt.Errorf("providers: expire invitation: %w", err)
+	}
+	return nil
+}
+
+// ClaimInvitationResend records an organization-requested resend on an
+// invitation. When tokenHash is non-empty the invitation is still PENDING and
+// its single-use token is rotated (the previous link stops working) with a
+// fresh expiry; otherwise only the resend state moves. Compare-and-set on
+// version so a concurrent provider decision is never overwritten.
+func (r *Repository) ClaimInvitationResend(ctx context.Context, tx pgx.Tx, invitationID string, expectedVersion int64, tokenHash string, expiresAt *time.Time) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE fleet_partner_provider_invitations SET
+			invitation_token_hash = CASE WHEN $3 <> '' THEN $3 ELSE invitation_token_hash END,
+			expires_at = COALESCE($4, expires_at),
+			delivery_status = 'PENDING',
+			last_sent_at = now(), resend_count = resend_count + 1,
+			version = version + 1, updated_at = now()
+		WHERE id = $1 AND version = $2
+		  AND ($3 = '' OR status = 'PENDING')`, invitationID, expectedVersion, tokenHash, expiresAt)
+	if err != nil {
+		return fmt.Errorf("providers: claim invitation resend: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrInvitationNotUsable
+	}
+	return nil
+}
+
+// ReleaseInvitationResend undoes the rate-limit part of a resend claim whose
+// notice could not be handed to notification-service, so the organization can
+// retry without waiting out a cooldown for a message that was never sent.
+func (r *Repository) ReleaseInvitationResend(ctx context.Context, tx pgx.Tx, invitationID string, previousLastSentAt *time.Time) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE fleet_partner_provider_invitations SET
+			last_sent_at = $2, resend_count = GREATEST(resend_count - 1, 0),
+			delivery_status = 'UNAVAILABLE', attempts = attempts + 1,
+			version = version + 1, updated_at = now()
+		WHERE id = $1`, invitationID, previousLastSentAt)
+	if err != nil {
+		return fmt.Errorf("providers: release invitation resend: %w", err)
+	}
+	return nil
+}
+
+// ConfirmInvitationResend stores the accepted notification reference of a
+// resend.
+func (r *Repository) ConfirmInvitationResend(ctx context.Context, tx pgx.Tx, invitationID string, reference string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE fleet_partner_provider_invitations SET
+			delivery_status = 'ACCEPTED', notification_reference = COALESCE(NULLIF($2, ''), notification_reference),
+			attempts = attempts + 1, updated_at = now()
+		WHERE id = $1`, invitationID, reference)
+	if err != nil {
+		return fmt.Errorf("providers: confirm invitation resend: %w", err)
 	}
 	return nil
 }
@@ -130,7 +213,7 @@ func scanInvitation(row pgx.Row) (*models.Invitation, error) {
 		&invitation.Status, &invitation.ExpiresAt, &invitation.DeliveryStatus,
 		&invitation.NotificationReference, &invitation.Attempts, &invitation.CreatedBy,
 		&invitation.AcceptedAt, &invitation.DeclinedAt, &invitation.ConsumedAt,
-		&invitation.Version, &invitation.CreatedAt, &invitation.UpdatedAt)
+		&invitation.LastSentAt, &invitation.ResendCount, &invitation.Version, &invitation.CreatedAt, &invitation.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

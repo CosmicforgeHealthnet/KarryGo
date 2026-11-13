@@ -1,6 +1,8 @@
 package http
 
 import (
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,12 @@ func (h *Handler) registerProviderAdminRoutes(group *gin.RouterGroup) {
 	group.GET("/providers/:membershipId/policies", h.providerPolicy)
 	group.PUT("/providers/:membershipId/policies", h.replaceProviderPolicy)
 	group.GET("/providers/:membershipId/declines", h.providerDeclines)
+	// FLEET-10.8, 10.11, 10.12 (spec 39.3).
+	group.POST("/providers/:membershipId/resend-login", h.resendProviderLogin)
+	group.GET("/providers/:membershipId/availability", h.providerAvailability)
+	group.GET("/providers/:membershipId/branches", h.providerBranches)
+	group.GET("/providers/:membershipId/vehicles", h.providerVehicles)
+	group.GET("/providers/:membershipId/service-roles", h.providerServiceRoles)
 }
 
 type updateProviderRequest struct {
@@ -228,4 +236,75 @@ func (h *Handler) providerDeclines(c *gin.Context) {
 		return
 	}
 	respond.List(c, declines, "")
+}
+
+// resendProviderLogin re-sends the association invitation or first-login
+// notice of a provider still pending acceptance or setup. Fleet never issues
+// a provider credential: the provider signs in through their owning provider
+// service with email + phone + emailed OTP.
+func (h *Handler) resendProviderLogin(c *gin.Context) {
+	tenantCtx, ok := h.tenantWithPermission(c, "providers.manage")
+	if !ok {
+		return
+	}
+	result, err := h.providers.ResendLogin(c.Request.Context(), providerusecases.ResendLoginInput{
+		Tenant: tenantCtx, MembershipID: c.Param("membershipId"), IdempotencyKey: c.GetHeader("Idempotency-Key")})
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.JSON(c, http.StatusOK, result)
+}
+
+func (h *Handler) providerAvailability(c *gin.Context) {
+	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
+	if !ok {
+		return
+	}
+	availability, err := h.providers.Availability(c.Request.Context(), tenantCtx, c.Param("membershipId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, availability)
+}
+
+func (h *Handler) providerBranches(c *gin.Context) {
+	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
+	if !ok {
+		return
+	}
+	branches, err := h.providers.ProviderBranches(c.Request.Context(), tenantCtx, c.Param("membershipId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.List(c, branches, "")
+}
+
+func (h *Handler) providerVehicles(c *gin.Context) {
+	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
+	if !ok {
+		return
+	}
+	includeHistory := strings.EqualFold(strings.TrimSpace(c.Query("includeHistory")), "true")
+	vehicles, err := h.providers.ProviderVehicles(c.Request.Context(), tenantCtx, c.Param("membershipId"), includeHistory)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.List(c, vehicles, "")
+}
+
+func (h *Handler) providerServiceRoles(c *gin.Context) {
+	tenantCtx, ok := h.tenantWithPermission(c, "providers.read")
+	if !ok {
+		return
+	}
+	roles, err := h.providers.ProviderServiceRoles(c.Request.Context(), tenantCtx, c.Param("membershipId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, roles)
 }

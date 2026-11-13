@@ -22,7 +22,13 @@ const (
 	EventCorporateAuthOTP            = "corporate.auth.otp"
 	EventCorporateStaffInvitation    = "corporate.staff.invitation"
 	EventCorporateProviderInvitation = "corporate.provider.invitation"
-	EventCorporateOnboardingUpdate   = "corporate.organization.onboarding_update"
+	// EventCorporateProviderLoginNotice is the first-login notice re-sent to
+	// a provider who accepted an organization association but has not yet
+	// finished setup. It carries no token, code or credential: it tells the
+	// provider to sign in to their own provider app with email + phone +
+	// emailed OTP.
+	EventCorporateProviderLoginNotice = "corporate.provider.login_notice"
+	EventCorporateOnboardingUpdate    = "corporate.organization.onboarding_update"
 )
 
 // RecipientCorporate is the recipient type for corporate users. The shared
@@ -63,6 +69,12 @@ type InvitationMessage struct {
 	IdempotencyKey   string
 	RequestID        string
 	CorrelationID    string
+	// TemplateKey, Title and Body optionally override the default invitation
+	// template for notices that are not a fresh invitation (the provider
+	// first-login notice). Empty values keep the invitation defaults.
+	TemplateKey string
+	Title       string
+	Body        string
 }
 
 // Sender delivers corporate authentication emails.
@@ -116,8 +128,8 @@ func (s *NotificationSender) SendOTP(ctx context.Context, message OTPMessage) (s
 		// A non-empty fallback is mandatory: template rows may not yet be
 		// installed in an existing notification-service database. Never queue
 		// an OTP email without the code in its plain-text and HTML content.
-		Body: fmt.Sprintf("Your verification code is %s. It expires in %d minutes. Never share this code.", message.Code, int(message.ExpiresIn.Minutes())),
-		Priority:    notifications.PriorityHigh,
+		Body:     fmt.Sprintf("Your verification code is %s. It expires in %d minutes. Never share this code.", message.Code, int(message.ExpiresIn.Minutes())),
+		Priority: notifications.PriorityHigh,
 		TemplateData: map[string]interface{}{
 			"code":               message.Code,
 			"expires_in_minutes": int(message.ExpiresIn.Minutes()),
@@ -146,6 +158,15 @@ func (s *NotificationSender) SendInvitation(ctx context.Context, message Invitat
 		eventType = EventCorporateStaffInvitation
 	}
 
+	templateKey := message.TemplateKey
+	if templateKey == "" {
+		templateKey = "corporate_invitation"
+	}
+	title := message.Title
+	if title == "" {
+		title = "You have been invited to " + message.OrganizationName
+	}
+
 	response, err := s.client.Send(ctx, notifications.Request{
 		IDempotencyKey: message.IdempotencyKey,
 		SourceService:  config.ServiceName,
@@ -156,8 +177,9 @@ func (s *NotificationSender) SendInvitation(ctx context.Context, message Invitat
 			Email: message.Email,
 		},
 		Channels:    []string{notifications.ChannelEmail},
-		TemplateKey: "corporate_invitation",
-		Title:       "You have been invited to " + message.OrganizationName,
+		TemplateKey: templateKey,
+		Title:       title,
+		Body:        message.Body,
 		Priority:    notifications.PriorityNormal,
 		TemplateData: map[string]interface{}{
 			"organization_name": message.OrganizationName,

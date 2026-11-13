@@ -106,6 +106,14 @@ const (
 	ProviderProvisioningIncomplete apperrors.Code = "provider_provisioning_incomplete"
 	ProviderSubwalletNotReady      apperrors.Code = "provider_subwallet_not_ready"
 	ProviderServiceUnavailable     apperrors.Code = "provider_service_unavailable"
+
+	// Provider login-notice resend (FLEET-10.8). Fleet never issues a
+	// provider credential; these describe re-sending the association
+	// invitation or the first-login notice only.
+	ProviderLoginNotPending          apperrors.Code = "provider_login_not_pending"
+	ProviderLoginResendTooSoon       apperrors.Code = "provider_login_resend_too_soon"
+	ProviderLoginResendLimitReached  apperrors.Code = "provider_login_resend_limit_reached"
+	ProviderLoginDeliveryUnavailable apperrors.Code = "provider_login_delivery_unavailable"
 )
 
 // New builds an *apperrors.Error carrying one of the codes above.

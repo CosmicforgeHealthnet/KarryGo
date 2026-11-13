@@ -154,9 +154,12 @@ type Invitation struct {
 	AcceptedAt            *time.Time
 	DeclinedAt            *time.Time
 	ConsumedAt            *time.Time
-	Version               int64
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	// LastSentAt and ResendCount are the resend rate-limit state (FLEET-10.8).
+	LastSentAt  *time.Time
+	ResendCount int
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Capability is an organization-controlled provider capability set.

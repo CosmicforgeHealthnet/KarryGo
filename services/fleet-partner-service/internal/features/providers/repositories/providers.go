@@ -79,6 +79,17 @@ func (r *Repository) GetMembership(ctx context.Context, organizationID string, m
 	return r.getMembership(ctx, r.db, organizationID, membershipID)
 }
 
+// GetMembershipForUpdate loads and row-locks one membership for the rest of
+// tx, so a command that depends on the membership state (e.g. a login-notice
+// resend) cannot interleave with a concurrent transition.
+func (r *Repository) GetMembershipForUpdate(ctx context.Context, tx pgx.Tx, organizationID string, membershipID string) (*models.Membership, error) {
+	row := tx.QueryRow(ctx, `SELECT `+membershipColumns+`
+		FROM fleet_partner_organization_provider_memberships
+		WHERE organization_id = $1 AND id = $2
+		FOR UPDATE`, organizationID, membershipID)
+	return scanMembership(row)
+}
+
 // getMembership reads through the supplied querier so a caller inside a
 // transaction sees its own uncommitted writes. Reading through the pool from
 // within a transaction would show stale state and make a multi-step

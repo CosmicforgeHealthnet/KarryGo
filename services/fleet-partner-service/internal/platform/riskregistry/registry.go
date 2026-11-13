@@ -110,9 +110,10 @@ var generated = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/documents/upload-authorization", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/documents/upload-content", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/permissions", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/providers", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/provider/sub-wallet", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/provider/sub-wallet/statement", RiskClass: ratelimit.RiskSensitive},
-	{Method: "GET", Path: "/fleet-partner/v1/providers", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/provider/sub-wallet/withdrawals", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/history", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/provisioning-status", RiskClass: ratelimit.RiskStandard},
@@ -256,7 +257,6 @@ var generated = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/documents", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/submit", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/wallet-provisioning/retry", RiskClass: ratelimit.RiskSensitive},
-	{Method: "POST", Path: "/fleet-partner/v1/provider/sub-wallet/withdrawals", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "POST", Path: "/fleet-partner/v1/providers", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/providers/:membershipId/sub-wallet/allocations", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "POST", Path: "/fleet-partner/v1/providers/:membershipId/sub-wallet/allocations/:allocationId/approve", RiskClass: ratelimit.RiskHighRisk},
@@ -330,6 +330,13 @@ var generated = []Entry{
 // human judgment call, applied after generated so a later re-extraction
 // never silently discards them.
 var overrides = []Entry{
+	// Managed-provider read models and login-notice resend (FLEET-10.8,
+	// 10.11, 10.12; spec 39.3).
+	{Method: "POST", Path: "/fleet-partner/v1/providers/:membershipId/resend-login", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/availability", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/branches", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/vehicles", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/service-roles", RiskClass: ratelimit.RiskStandard},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},
