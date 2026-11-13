@@ -74,6 +74,9 @@ type Membership struct {
 	OrganizationUserID string
 	Status             string
 	PermittedBranchIDs []string
+	// RoleVersion changes whenever the membership's roles change, so cached
+	// authorization decisions keyed on it become unreachable immediately.
+	RoleVersion int64
 }
 
 // ErrMembershipNotFound means the authenticated subject has no active

@@ -220,6 +220,14 @@ func ResolveTenant(resolver tenant.MembershipResolver, sessions SessionStatusChe
 
 		c.Set(TenantContextKey, tenantCtx)
 		c.Set(TenantOrganizationIDKey, tenantCtx.OrganizationID)
+		// Authorization caches key on the role version; publishing the
+		// membership's current one makes a role change effective on the
+		// next request instead of after the cache TTL.
+		roleVersion := membership.RoleVersion
+		if roleVersion < 1 {
+			roleVersion = 1
+		}
+		c.Set(TenantRoleVersionKey, roleVersion)
 		c.Request = c.Request.WithContext(tenant.Into(c.Request.Context(), tenantCtx))
 		c.Next()
 	}

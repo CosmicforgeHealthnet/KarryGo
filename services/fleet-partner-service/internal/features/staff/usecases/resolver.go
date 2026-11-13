@@ -57,6 +57,7 @@ func (r *MembershipResolver) ResolveMembership(ctx context.Context, subjectID st
 			OrganizationUserID: member.ID,
 			Status:             status,
 			PermittedBranchIDs: member.PermittedBranchIDs,
+			RoleVersion:        member.RoleVersion,
 		}, nil
 	default:
 		// Ambiguous scope: the caller must choose an organization.
@@ -84,6 +85,7 @@ func (r *MembershipResolver) ResolveForOrganization(ctx context.Context, subject
 		OrganizationUserID: member.ID,
 		Status:             status,
 		PermittedBranchIDs: member.PermittedBranchIDs,
+		RoleVersion:        member.RoleVersion,
 	}, nil
 }
 
