@@ -330,6 +330,16 @@ var generated = []Entry{
 // human judgment call, applied after generated so a later re-extraction
 // never silently discards them.
 var overrides = []Entry{
+	// Shift templates and training enrolments (Sections 17, 46.3).
+	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/shift-templates/:templateId", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/shift-templates/:templateId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/shift-templates/:templateId/generate", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/training/enrollments", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/training/enrollments", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/training/enrollments/:enrollmentId/complete", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/training/enrollments/:enrollmentId/cancel", RiskClass: ratelimit.RiskSensitive},
 	// Managed-provider administration (Sections 10, 39.3).
 	{Method: "PATCH", Path: "/fleet-partner/v1/providers/:membershipId", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/providers/:membershipId/reactivate", RiskClass: ratelimit.RiskHighRisk},

@@ -33,6 +33,11 @@ func TenantRoutes() []Route {
 		{"GET", "/workforce/profiles/:profileId", "getWorkforceProfile", "workforce.read", "WORKFORCE_ENABLED", "corporate", false, false},
 		{"PATCH", "/workforce/profiles/:profileId", "updateWorkforceProfile", "workforce.manage", "WORKFORCE_ENABLED", "corporate", false, true},
 		{"POST", "/workforce/profiles/:profileId/archive", "archiveWorkforceProfile", "workforce.manage", "WORKFORCE_ENABLED", "corporate", true, true},
+		{"GET", "/shift-templates", "listShiftTemplates", "shifts.read", "SHIFTS_ENABLED", "corporate", false, false},
+		{"POST", "/shift-templates", "createShiftTemplate", "shifts.manage", "SHIFTS_ENABLED", "corporate", true, false},
+		{"GET", "/shift-templates/:templateId", "getShiftTemplate", "shifts.read", "SHIFTS_ENABLED", "corporate", false, false},
+		{"PATCH", "/shift-templates/:templateId", "updateShiftTemplate", "shifts.manage", "SHIFTS_ENABLED", "corporate", false, true},
+		{"POST", "/shift-templates/:templateId/generate", "generateShiftsFromTemplate", "shifts.manage", "SHIFTS_ENABLED", "corporate", true, false},
 		{"GET", "/shifts", "listShifts", "shifts.read", "SHIFTS_ENABLED", "corporate", false, false},
 		{"POST", "/shifts", "createShift", "shifts.manage", "SHIFTS_ENABLED", "corporate", true, false},
 		{"GET", "/shifts/:shiftId", "getShift", "shifts.read", "SHIFTS_ENABLED", "corporate", false, false},
@@ -64,6 +69,10 @@ func TenantRoutes() []Route {
 		{"GET", "/training/courses/:courseId", "getTrainingCourse", "training.read", "TRAINING_ENABLED", "corporate", false, false},
 		{"PATCH", "/training/courses/:courseId", "updateTrainingCourse", "training.manage", "TRAINING_ENABLED", "corporate", false, true},
 		{"POST", "/training/courses/:courseId/complete", "completeTrainingCourse", "training.record_completion", "TRAINING_ENABLED", "corporate", true, false},
+		{"GET", "/training/enrollments", "listTrainingEnrollments", "training.read", "TRAINING_ENABLED", "corporate", false, false},
+		{"POST", "/training/enrollments", "createTrainingEnrollment", "training.manage", "TRAINING_ENABLED", "corporate", true, false},
+		{"POST", "/training/enrollments/:enrollmentId/complete", "completeTrainingEnrollment", "training.record_completion", "TRAINING_ENABLED", "corporate", true, false},
+		{"POST", "/training/enrollments/:enrollmentId/cancel", "cancelTrainingEnrollment", "training.manage", "TRAINING_ENABLED", "corporate", true, false},
 		{"GET", "/performance/providers/:membershipId", "getProviderPerformance", "performance.read", "PERFORMANCE_SNAPSHOTS_ENABLED", "corporate", false, false},
 	}
 }
@@ -212,6 +221,12 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		id = c.Param("courseId")
 	}
 	if id == "" {
+		id = c.Param("templateId")
+	}
+	if id == "" {
+		id = c.Param("enrollmentId")
+	}
+	if id == "" {
 		id = c.Param("id")
 	}
 	run := func() (any, error) {
@@ -355,6 +370,44 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 				return nil, errors.New("bound")
 			}
 			return h.s.CompleteCourse(c, t, id, b)
+		case "listShiftTemplates":
+			return h.s.ListShiftTemplates(c, t, page(c))
+		case "getShiftTemplate":
+			return h.s.GetShiftTemplate(c, t, id)
+		case "createShiftTemplate":
+			var b ShiftTemplate
+			if !bindJSON(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.CreateShiftTemplate(c, t, b)
+		case "updateShiftTemplate":
+			var b TemplatePatch
+			if !bindJSON(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.UpdateShiftTemplate(c, t, id, expected(c, b.ExpectedVersion), b)
+		case "generateShiftsFromTemplate":
+			var b GenerateInput
+			if !bindJSON(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.GenerateShifts(c, t, id, b)
+		case "listTrainingEnrollments":
+			return h.s.ListEnrollments(c, t, c.Query("membershipId"), page(c))
+		case "createTrainingEnrollment":
+			var b EnrollInput
+			if !bindJSON(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.Enroll(c, t, b)
+		case "completeTrainingEnrollment":
+			var b Completion
+			if !bindJSON(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.CompleteEnrollment(c, t, id, b)
+		case "cancelTrainingEnrollment":
+			return h.s.CancelEnrollment(c, t, id)
 		case "getProviderPerformance":
 			return h.s.ListPerformance(c, t, c.Param("membershipId"))
 		}
