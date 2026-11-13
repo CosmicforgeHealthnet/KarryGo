@@ -150,3 +150,19 @@ func TestDashboardScreenshots(t *testing.T) {
 	output := runFleetNodeScript(t, "scripts/dashboard-screenshots.mjs", "FLEET_AUTH_E2E_API="+server.URL, "FLEET_SHOT_LABEL="+os.Getenv("FLEET_SHOT_LABEL"))
 	t.Log(string(output))
 }
+
+// TestStaffManagementBrowser drives the staff directory, invitation, detail,
+// roles and permission pages against the disposable API.
+func TestStaffManagementBrowser(t *testing.T) {
+	if os.Getenv("FLEET_AUTH_BROWSER_TEST") != "1" {
+		t.Fatal("FLEET_AUTH_BROWSER_TEST=1 required for this opt-in browser suite")
+	}
+	server, h := startOnboardingBrowserAPI(t)
+	defer server.Close()
+	output := runFleetNodeScript(t, "scripts/staff-e2e.mjs", "FLEET_AUTH_E2E_API="+server.URL)
+	var cancelled int
+	if err := h.pool.QueryRow(context.Background(), `SELECT count(*) FROM fleet_partner_organization_staff_invitations WHERE email_normalized='bola@example.com' AND status='CANCELLED'`).Scan(&cancelled); err != nil || cancelled != 1 {
+		t.Fatalf("cancelled invitation: %d %v", cancelled, err)
+	}
+	t.Log(string(output))
+}

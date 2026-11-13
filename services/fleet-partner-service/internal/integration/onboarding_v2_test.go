@@ -66,7 +66,7 @@ func buildOnboardingRouter(t *testing.T, configureMedia ...func(*mediaTestServer
 			configure(media)
 		}
 		org = orgusecases.NewService(orgusecases.Options{Pool: pool, Organizations: orgrepos.NewOrganizationRepository(pool), Onboarding: orgrepos.NewOnboardingRepository(pool), Branches: orgrepos.NewBranchRepository(pool), Settings: orgrepos.NewSettingsRepository(pool), Events: publisher, Contracts: platformclients.ContractSet{Media: platformclients.NewMediaFileClient(platformclients.Options{ServiceName: "media-file-service", BaseURL: media.URL(), Secret: []byte(documentMediaSecret), Timeout: time.Second * 5}), Verification: platformclients.UnconfiguredVerification{Service: "verification-compliance-service"}}})
-		staff = staffusecases.NewService(staffusecases.Options{Pool: pool, Members: staffrepos.NewMemberRepository(pool), Roles: staffrepos.NewRoleRepository(pool), Invitations: staffrepos.NewInvitationRepository(pool), Organizations: org, Sessions: opts.Sessions, Sender: opts.Sender, Events: publisher, InvitationSecret: []byte("invitation-test-secret")})
+		staff = staffusecases.NewService(staffusecases.Options{Pool: pool, Members: staffrepos.NewMemberRepository(pool), Roles: staffrepos.NewRoleRepository(pool), Invitations: staffrepos.NewInvitationRepository(pool), Organizations: org, Sessions: opts.Sessions, Sender: opts.Sender, Events: publisher, InvitationSecret: []byte("invitation-test-secret"), DefaultCountryCode: "234"})
 		org.SetMembershipCreator(staff)
 		opts.Memberships = staff
 		opts.Invitations = staff

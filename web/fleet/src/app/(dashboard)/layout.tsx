@@ -9,6 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
+  UserCog,
   Truck,
   Briefcase,
   Warehouse,
@@ -79,6 +80,13 @@ const NAV_SECTIONS = [
     items: [
       { label: "CRM", href: "/crm/customers", icon: <Gem className="h-4 w-4" /> },
       { label: "Finance", href: "/finance", icon: <Wallet className="h-4 w-4" /> },
+    ]
+  },
+  {
+    label: "TEAM",
+    items: [
+      { label: "Staff", href: "/settings/staff", icon: <UserCog className="h-4 w-4" /> },
+      { label: "Roles", href: "/settings/roles", icon: <Lock className="h-4 w-4" /> },
     ]
   },
   // {

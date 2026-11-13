@@ -9,7 +9,9 @@ import { ContactAuthForm } from "@/components/features/auth/ContactAuthForm";
 
 function SignUpContent() {
   const searchParams = useSearchParams();
-  const invitationToken = searchParams.get("invitationToken") || undefined;
+  // Staff invitation emails link here with ?token=; ?invitationToken= is kept
+  // for links sent before that.
+  const invitationToken = searchParams.get("token") || searchParams.get("invitationToken") || undefined;
 
   return (
     <div>
@@ -20,8 +22,10 @@ function SignUpContent() {
         Create your account
       </h1>
       <p className="mt-5 text-[clamp(15px,1.08vw,18px)] leading-relaxed text-ink-600">
-        Enter your email and phone number to get started. You&apos;ll set up
-        your company details next.
+        {invitationToken
+          ? "You've been invited to join a company on Karryam Fleet. Enter the email and phone number the invitation was sent to."
+          : <>Enter your email and phone number to get started. You&apos;ll set up
+        your company details next.</>}
       </p>
 
       <ContactAuthForm idPrefix="signup" invitationToken={invitationToken} />

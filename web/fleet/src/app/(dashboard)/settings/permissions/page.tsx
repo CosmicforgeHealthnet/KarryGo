@@ -1,8 +1,9 @@
-﻿// src/app/(dashboard)/settings/permissions/page.tsx
+// src/app/(dashboard)/settings/permissions/page.tsx
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { staffService, staffErrorMessage } from "@/lib/services/staffService";
 import { useRouter } from "next/navigation";
 import {
   Shield,
@@ -30,94 +31,19 @@ type PermissionGroup = {
   }[];
 };
 
-// ==================== MOCK DATA ====================
+// Risk is derived from what a permission lets someone do: reading is low,
+// changing records medium, approving or managing people high, and moving money
+// critical.
+const riskOf = (code: string): PermissionGroup["permissions"][number]["riskLevel"] => {
+  const c = code.toLowerCase();
+  if (/(wallet|payout|withdraw|payroll|posting|settlement|refund|transfer)/.test(c)) return "Critical";
+  if (/(approve|manage|suspend|delete|remove|invite|close|revoke|grant)/.test(c)) return "High";
+  if (/(read|view|list|export)$/.test(c) || c.endsWith(".read")) return "Low";
+  return "Medium";
+};
 
-const MOCK_PERMISSION_GROUPS: PermissionGroup[] = [
-  {
-    id: "G-001",
-    name: "Staff Management",
-    description: "Permissions related to managing staff members.",
-    permissions: [
-      { id: "P-001", name: "View Staff", description: "View staff directory and profiles.", riskLevel: "Low" },
-      { id: "P-002", name: "Invite Staff", description: "Send invitations to new staff members.", riskLevel: "Medium" },
-      { id: "P-003", name: "Edit Staff", description: "Update staff profiles and roles.", riskLevel: "High" },
-      { id: "P-004", name: "Suspend Staff", description: "Suspend or reactivate staff members.", riskLevel: "Critical" },
-    ],
-  },
-  {
-    id: "G-002",
-    name: "Role Management",
-    description: "Permissions related to managing roles.",
-    permissions: [
-      { id: "P-005", name: "View Roles", description: "View roles and their permissions.", riskLevel: "Low" },
-      { id: "P-006", name: "Create Roles", description: "Create new custom roles.", riskLevel: "High" },
-      { id: "P-007", name: "Edit Roles", description: "Update existing roles.", riskLevel: "High" },
-      { id: "P-008", name: "Delete Roles", description: "Delete custom roles.", riskLevel: "Critical" },
-    ],
-  },
-  {
-    id: "G-003",
-    name: "Organization Settings",
-    description: "Permissions related to organization settings.",
-    permissions: [
-      { id: "P-009", name: "View Settings", description: "View organization settings.", riskLevel: "Low" },
-      { id: "P-010", name: "Edit Settings", description: "Update organization settings.", riskLevel: "High" },
-      { id: "P-011", name: "Manage Integrations", description: "Manage API clients and webhooks.", riskLevel: "High" },
-    ],
-  },
-  {
-    id: "G-004",
-    name: "Operations",
-    description: "Permissions related to operations and dispatch.",
-    permissions: [
-      { id: "P-012", name: "View Operations", description: "View dispatch board and operations.", riskLevel: "Low" },
-      { id: "P-013", name: "Manage Dispatch", description: "Create and manage dispatch assignments.", riskLevel: "Medium" },
-      { id: "P-014", name: "Manage Routes", description: "Create and manage routes.", riskLevel: "Medium" },
-      { id: "P-015", name: "Manage Rescue", description: "Create and manage rescue cases.", riskLevel: "High" },
-    ],
-  },
-  {
-    id: "G-005",
-    name: "Providers",
-    description: "Permissions related to provider management.",
-    permissions: [
-      { id: "P-016", name: "View Providers", description: "View provider directory.", riskLevel: "Low" },
-      { id: "P-017", name: "Manage Providers", description: "Add, edit, and manage providers.", riskLevel: "Medium" },
-      { id: "P-018", name: "Suspend Providers", description: "Suspend or end provider memberships.", riskLevel: "High" },
-    ],
-  },
-  {
-    id: "G-006",
-    name: "Fleet",
-    description: "Permissions related to fleet management.",
-    permissions: [
-      { id: "P-019", name: "View Fleet", description: "View fleet assets and status.", riskLevel: "Low" },
-      { id: "P-020", name: "Manage Assets", description: "Add, edit, and manage fleet assets.", riskLevel: "Medium" },
-      { id: "P-021", name: "Manage Maintenance", description: "Create and manage maintenance work orders.", riskLevel: "Medium" },
-      { id: "P-022", name: "Return to Service", description: "Authorize return-to-service decisions.", riskLevel: "High" },
-    ],
-  },
-  {
-    id: "G-007",
-    name: "Finance",
-    description: "Permissions related to finance and wallet.",
-    permissions: [
-      { id: "P-023", name: "View Finance", description: "View financial data and reports.", riskLevel: "Low" },
-      { id: "P-024", name: "Manage Allocations", description: "Create and approve allocations.", riskLevel: "High" },
-      { id: "P-025", name: "Manage Withdrawals", description: "Approve and process withdrawals.", riskLevel: "Critical" },
-    ],
-  },
-  {
-    id: "G-008",
-    name: "Compliance",
-    description: "Permissions related to compliance and safety.",
-    permissions: [
-      { id: "P-026", name: "View Compliance", description: "View compliance data and reports.", riskLevel: "Low" },
-      { id: "P-027", name: "Manage Requirements", description: "Create and manage compliance requirements.", riskLevel: "Medium" },
-      { id: "P-028", name: "Manage Restrictions", description: "Create and lift restrictions.", riskLevel: "High" },
-    ],
-  },
-];
+const titleCase = (value: string) =>
+  value.replace(/[_.]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()).trim();
 
 type RiskStyle = {
   bg: string;
@@ -143,14 +69,38 @@ export default function PermissionCataloguePage() {
   const [selectedRisk, setSelectedRisk] = useState<string>("All");
   const [showFilters, setShowFilters] = useState<boolean>(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(MOCK_PERMISSION_GROUPS);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const permissions = await staffService.permissions();
+      setError(null);
+      const groups = new Map<string, PermissionGroup>();
+      for (const p of permissions.filter((x) => x.isActive)) {
+        const category = p.category || p.code.split(".")[0] || "general";
+        const group = groups.get(category) ?? {
+          id: category,
+          name: titleCase(category),
+          description: `Permissions for ${titleCase(category).toLowerCase()}.`,
+          permissions: [],
+        };
+        group.permissions.push({ id: p.code, name: p.description || titleCase(p.code), description: p.code, riskLevel: riskOf(p.code) });
+        groups.set(category, group);
+      }
+      setData([...groups.values()].sort((x, y) => x.name.localeCompare(y.name)));
+      setSecondsAgo(0);
+    } catch (e) {
+      setError(staffErrorMessage(e, "Permissions could not be loaded."));
+    } finally {
       setLoading(false);
-    };
-    loadData();
+    }
   }, []);
+
+  useEffect(() => {
+    // Started from a promise callback so no state is set synchronously
+    // inside the effect.
+    Promise.resolve().then(load);
+  }, [load]);
 
   useEffect(() => {
     const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
@@ -210,12 +160,12 @@ export default function PermissionCataloguePage() {
             Permission Catalogue
           </h1>
           <p className="mt-1 text-sm text-ink-600">
-            Permission groups in business language. Use as reference while editing roles.
+            Every permission a role can grant, grouped by area. Risk shows how sensitive each one is.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setSecondsAgo(0)}
+            onClick={() => load()}
             className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3 text-[11.5px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
           >
             <RefreshCw className="h-3 w-3" />
@@ -291,10 +241,10 @@ export default function PermissionCataloguePage() {
           <div className="rounded-full bg-surface-2 p-4">
             <Shield className="h-8 w-8 text-ink-400" />
           </div>
-          <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No permissions found</h3>
-          <p className="mt-1 text-sm text-ink-500">No permissions match your current filters.</p>
-          <button onClick={clearFilters} className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90">
-            Clear filters
+          <h3 className="mt-3 text-[15px] font-semibold text-ink-950">{error ? "Permissions could not be loaded" : "No permissions found"}</h3>
+          <p className="mt-1 text-sm text-ink-500">{error ?? "No permissions match your current filters."}</p>
+          <button onClick={error ? () => { setLoading(true); load(); } : clearFilters} className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90">
+            {error ? "Try again" : "Clear filters"}
           </button>
         </div>
       ) : (
