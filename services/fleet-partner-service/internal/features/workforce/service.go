@@ -3,7 +3,6 @@ package workforce
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
 
@@ -834,65 +833,6 @@ func (s *Service) Evaluate(ctx context.Context, org, membership, service, assetT
 	return res, nil
 }
 
-func (s *Service) GeneratePerformance(ctx context.Context, t tenant.Context, membership string, start, end time.Time) (PerformanceSnapshot, error) {
-	if e := s.gate(s.o.Flags.Performance, true); e != nil {
-		return PerformanceSnapshot{}, e
-	}
-	if !end.After(start) {
-		return PerformanceSnapshot{}, apperrors.BadRequest("Valid performance period required.", nil)
-	}
-	metrics := map[string]int{"jobsAssigned": 0, "jobsAccepted": 0, "jobsCompleted": 0, "jobsFailed": 0, "declinedSafety": 0, "declinedOperational": 0, "declinedAvailability": 0, "declinedPersonal": 0, "declinedTechnical": 0, "declinedOther": 0}
-	rows, e := s.o.Pool.Query(ctx, `SELECT status,decline_reason,version FROM fleet_partner_private_assignments WHERE organization_id=$1 AND provider_membership_id=$2 AND created_at>=$3 AND created_at<$4 ORDER BY id`, t.OrganizationID, membership, start, end)
-	if e != nil {
-		return PerformanceSnapshot{}, e
-	}
-	var maxAssignmentVersion int64
-	for rows.Next() {
-		var status, reason string
-		var sourceVersion int64
-		if e = rows.Scan(&status, &reason, &sourceVersion); e != nil {
-			rows.Close()
-			return PerformanceSnapshot{}, e
-		}
-		if sourceVersion > maxAssignmentVersion {
-			maxAssignmentVersion = sourceVersion
-		}
-		metrics["jobsAssigned"]++
-		switch status {
-		case "ACCEPTED", "READY_FOR_EXECUTION", "IN_PROGRESS":
-			metrics["jobsAccepted"]++
-		case "DECLINED":
-			cat := declineCategory(reason)
-			metrics["declined"+cat]++
-		case "COMPLETED":
-			metrics["jobsAccepted"]++
-			metrics["jobsCompleted"]++
-		case "CANCELLED":
-			metrics["jobsFailed"]++
-		}
-	}
-	rows.Close()
-	inputs, _ := json.Marshal(map[string]any{"privateAssignments": map[string]any{"periodStart": start, "periodEnd": end, "membershipId": membership}, "declineCategories": []string{"SAFETY", "OPERATIONAL", "AVAILABILITY", "PERSONAL", "TECHNICAL", "OTHER"}, "automaticPunishment": false})
-	calc, _ := json.Marshal(metrics)
-	explain, _ := json.Marshal(map[string]any{"formula": "counts grouped from verified assignment projections", "ranking": false, "disciplinaryAction": false, "safetyDeclinesAreMisconduct": false})
-	versions, _ := json.Marshal(map[string]any{"formula": 1, "privateAssignmentMaxVersion": maxAssignmentVersion, "privateAssignmentCount": metrics["jobsAssigned"]})
-	v := PerformanceSnapshot{ID: ids.New("pfs"), OrganizationID: t.OrganizationID, MembershipID: membership, PeriodStart: start, PeriodEnd: end, MetricInputs: inputs, CalculatedMetrics: calc, Explanation: explain, SourceVersions: versions, GenerationStatus: "COMPLETE", FormulaVersion: "v1", Version: 1}
-	e = s.tx(ctx, func(tx pgx.Tx) error {
-		var inserted bool
-		e := tx.QueryRow(ctx, `INSERT INTO fleet_partner_performance_snapshots(id,organization_id,membership_id,period_start,period_end,metric_inputs,calculated_metrics,explanation,source_versions,generation_status,formula_version)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)ON CONFLICT(organization_id,membership_id,period_start,period_end,formula_version)DO NOTHING RETURNING id,generated_at,true`, v.ID, v.OrganizationID, membership, start, end, inputs, calc, explain, versions, v.GenerationStatus, v.FormulaVersion).Scan(&v.ID, &v.GeneratedAt, &inserted)
-		if errors.Is(e, pgx.ErrNoRows) {
-			return tx.QueryRow(ctx, `SELECT id,generated_at FROM fleet_partner_performance_snapshots WHERE organization_id=$1 AND membership_id=$2 AND period_start=$3 AND period_end=$4 AND formula_version=$5`, t.OrganizationID, membership, start, end, v.FormulaVersion).Scan(&v.ID, &v.GeneratedAt)
-		}
-		if e != nil {
-			return e
-		}
-		if inserted {
-			return s.record(ctx, tx, t, "performance_snapshot.generated.v1", "performance_snapshot", v.ID, 1, v)
-		}
-		return nil
-	})
-	return v, e
-}
 func declineCategory(reason string) string {
 	r := strings.ToUpper(reason)
 	switch {
