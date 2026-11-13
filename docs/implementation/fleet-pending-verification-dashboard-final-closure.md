@@ -132,4 +132,4 @@ The only visible additions are the banner, the restriction notice (shown only on
 ## 12. CI results for the final commit
 
 - [Fleet authentication v2 on `4579f1a`](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43447085003): **success** (frontend tests, build, lint, auth and full onboarding browser workflows including every scenario in section 5).
-- [Section 31 mandatory acceptance on `4579f1a`](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43447084787): in progress when this report was committed. Every job that had finished had passed (provider apps, security scans, referral, partner-web, payment-wallet and taxi modules). `fleet-mandatory` was still queued for a runner. The same full Fleet suite passed locally against PostgreSQL and Redis: 1452 passed, 0 failed.
+- [Section 31 mandatory acceptance on `4579f1a`](https://github.com/CosmicforgeHealthnet/KarryGo/actions/runs/43447084787): **success**, every job including `fleet-mandatory` (full Fleet PostgreSQL/Redis suite with the skip gate), `static-and-contract`, security scans, all Go modules and provider apps.
