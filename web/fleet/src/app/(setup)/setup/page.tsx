@@ -199,7 +199,7 @@ export default function SetupHomePage() {
       <p className="text-center text-[13px] text-ink-500">
         Need help?{" "}
         <a
-          href="mailto:support@karrygo.com"
+          href="mailto:support@karryam.com"
           className="font-bold text-label-accent hover:underline"
         >
           Contact support

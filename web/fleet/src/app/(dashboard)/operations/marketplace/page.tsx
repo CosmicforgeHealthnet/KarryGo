@@ -240,7 +240,7 @@ export default function MarketplaceOffersPage() {
       <div>
         <h1>Marketplace offers</h1>
         <p className="max-w-2xl">
-          Current eligible KarryGo opportunities. Sort by deadline to see urgent
+          Current eligible Karryam opportunities. Sort by deadline to see urgent
           offers first.
         </p>
       </div>

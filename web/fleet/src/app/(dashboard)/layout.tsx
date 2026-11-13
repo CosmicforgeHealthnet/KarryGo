@@ -354,7 +354,7 @@ export default function DashboardLayout({
         <div className={`flex items-center gap-1 px-2 pb-6 pt-14 lg:pt-5 flex-shrink-0 ${isCollapsed ? "justify-center" : ""}`}>
           <Image 
             src="/images/fleet-logo.png" 
-            alt="KarryGo Fleet OS" 
+            alt="Karryam Fleet" 
             width={42} 
             height={42}
             className="rounded-xl object-contain flex-shrink-0"

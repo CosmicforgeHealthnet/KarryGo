@@ -38,6 +38,7 @@ import { setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
+import { organizationService } from "@/lib/services/organizationService";
 import { useDashboardStore } from "@/lib/stores/dashboardStore";
 import { dashboardService } from "@/lib/services/dashboardService";
 import { useTheme } from "@/components/ThemeProvider";
@@ -455,6 +456,24 @@ function InsightsRail({
 export default function DashboardHomePage() {
   const router = useRouter();
   const { _hasHydrated, accessToken } = useAuthStore();
+  // The signed-in person's own first name and the actual time of day.
+  const [firstName, setFirstName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!_hasHydrated || !accessToken) return;
+    let active = true;
+    organizationService
+      .getIdentityProfile()
+      .then((profile) => {
+        if (active) setFirstName(profile.fullName?.trim().split(/\s+/)[0] || null);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [_hasHydrated, accessToken]);
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = firstName ? `${timeOfDay}, ${firstName}` : timeOfDay;
   const { isLoading: orgLoading } = useOrganizationStore();
   const [range, setRange] = useState<(typeof RANGE_OPTIONS)[number]>("7D");
 
@@ -658,7 +677,7 @@ export default function DashboardHomePage() {
           <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
             <div className="flex-1 w-full">
               <p className="text-xs sm:text-sm font-medium text-ink-500 flex items-center gap-2">
-                Good morning, David
+                {greeting}
               </p>
               <h2 className="mt-1.5 text-2xl sm:text-3xl lg:text-[34px] font-bold tracking-[-0.01em] text-ink-950 leading-tight">
                 Fleet operations, smarter and simpler.
@@ -672,14 +691,14 @@ export default function DashboardHomePage() {
               <div className="absolute inset-y-0 left-0 w-1/3 z-10 pointer-events-none" />
               <Image
                 src="/images/karryam-truck-light.png"
-                alt="KarryGo Truck"
+                alt="Karryam truck"
                 fill
                 className="object-contain opacity-100 dark:opacity-0"
                 priority
               />
               <Image
                 src="/images/karryam-truck-dark.png"
-                alt="KarryGo Truck"
+                alt="Karryam truck"
                 fill
                 className="object-contain opacity-0 dark:opacity-100"
                 priority

@@ -447,7 +447,7 @@ export default function SupportCasesPage() {
             Platform Support Cases
           </h1>
           <p className="mt-1 text-sm text-ink-600">
-            KarryGo support cases related to your organization, providers, customers, and trips.
+            Karryam support cases related to your organization, providers, customers, and trips.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
