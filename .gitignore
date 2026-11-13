@@ -54,3 +54,6 @@ __pycache__/
 deploy/**/*.env
 !deploy/**/*.env.example
 deploy/platform/**/release*.env
+
+# Local agent worktrees
+.claude/worktrees/

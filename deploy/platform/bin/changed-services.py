@@ -27,8 +27,11 @@ If the import graph cannot be computed (go missing, a module that does not
 load), the script fails rather than guessing: deploying too little is worse
 than a red run that someone reads.
 """
+import atexit
 import os
+import shutil
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 
@@ -53,11 +56,32 @@ def requires_shared(key):
     return mod.exists() and SHARED_MODULE in mod.read_text()
 
 
+_BUILD_ROOT = None
+
+
+def _build_root():
+    """A scratch copy of the image build context (shared/go + services/<key>).
+
+    The image build copies exactly these two trees and lets `go mod download`
+    complete go.sum inside the container. Doing the same here in a scratch
+    directory keeps the repository checkout untouched.
+    """
+    global _BUILD_ROOT
+    if _BUILD_ROOT is None:
+        _BUILD_ROOT = Path(tempfile.mkdtemp(prefix="changed-services-"))
+        atexit.register(shutil.rmtree, _BUILD_ROOT, True)
+        shutil.copytree(ROOT / "shared/go", _BUILD_ROOT / "shared/go", ignore=shutil.ignore_patterns(".git"))
+    return _BUILD_ROOT
+
+
 def imported_shared_packages(key):
-    """Every shared/go package in the service's build graph (all main packages and tests excluded)."""
-    service_dir = ROOT / "services" / key
-    if not (service_dir / "go.mod").exists():
+    """Every shared/go package in the service's build graph (non-test packages)."""
+    source = ROOT / "services" / key
+    if not (source / "go.mod").exists():
         return set()
+    service_dir = _build_root() / "services" / key
+    if not service_dir.exists():
+        shutil.copytree(source, service_dir, ignore=shutil.ignore_patterns(".git", "node_modules", ".next"))
     env = dict(os.environ, GOWORK="off", GOFLAGS="-mod=mod")
     result = subprocess.run(
         ["go", "list", "-deps", "-f", "{{.ImportPath}}", "./..."],
