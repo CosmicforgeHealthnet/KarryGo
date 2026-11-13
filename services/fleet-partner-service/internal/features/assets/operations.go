@@ -3,6 +3,7 @@ package assets
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -335,6 +336,9 @@ func (s *Service) GetBreakdown(ctx context.Context, t tenant.Context, id string)
 	}
 	var v Breakdown
 	e := s.o.Pool.QueryRow(ctx, `SELECT id,organization_id,asset_id,provider_membership_id,trip_reference,location_reference,occurred_at,severity,trip_impact,rescue_status,towing_reference,COALESCE(replacement_asset_id,''),status,version,created_at,updated_at FROM fleet_partner_breakdowns WHERE organization_id=$1 AND id=$2`, t.OrganizationID, id).Scan(&v.ID, &v.OrganizationID, &v.AssetID, &v.ProviderMembershipID, &v.TripReference, &v.LocationReference, &v.OccurredAt, &v.Severity, &v.TripImpact, &v.RescueStatus, &v.TowingReference, &v.ReplacementAssetID, &v.Status, &v.Version, &v.CreatedAt, &v.UpdatedAt)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return v, apperrors.NotFound("Resource not found.", nil)
+	}
 	if e == nil {
 		_, e = s.GetAsset(ctx, t, v.AssetID)
 	}
@@ -388,6 +392,9 @@ func (s *Service) GetPart(ctx context.Context, t tenant.Context, id string) (Par
 	}
 	var v Part
 	e := s.o.Pool.QueryRow(ctx, `SELECT id,organization_id,branch_id,sku,name,stock_unit,current_quantity_projection,reorder_level,warranty_information,status,version,created_at,updated_at FROM fleet_partner_parts WHERE organization_id=$1 AND id=$2`, t.OrganizationID, id).Scan(&v.ID, &v.OrganizationID, &v.BranchID, &v.SKU, &v.Name, &v.StockUnit, &v.CurrentQuantityProjection, &v.ReorderLevel, &v.WarrantyInformation, &v.Status, &v.Version, &v.CreatedAt, &v.UpdatedAt)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return v, apperrors.NotFound("Resource not found.", nil)
+	}
 	if e == nil && !t.BranchPermitted(v.BranchID) {
 		return v, apperrors.NotFound("Resource not found.", nil)
 	}
@@ -534,6 +541,9 @@ func (s *Service) GetFuel(ctx context.Context, t tenant.Context, id string) (Fue
 	}
 	var v FuelRecord
 	e := s.o.Pool.QueryRow(ctx, `SELECT id,organization_id,asset_id,provider_membership_id,fuel_or_energy_type,quantity,unit,odometer,operating_hours,receipt_media_id,supplier_reference,recorded_at,approval_status,approved_by,version,created_at,updated_at FROM fleet_partner_fuel_records WHERE organization_id=$1 AND id=$2`, t.OrganizationID, id).Scan(&v.ID, &v.OrganizationID, &v.AssetID, &v.ProviderMembershipID, &v.FuelOrEnergyType, &v.Quantity, &v.Unit, &v.Odometer, &v.OperatingHours, &v.ReceiptMediaID, &v.SupplierReference, &v.RecordedAt, &v.ApprovalStatus, &v.ApprovedBy, &v.Version, &v.CreatedAt, &v.UpdatedAt)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return v, apperrors.NotFound("Resource not found.", nil)
+	}
 	if e == nil {
 		_, e = s.GetAsset(ctx, t, v.AssetID)
 	}

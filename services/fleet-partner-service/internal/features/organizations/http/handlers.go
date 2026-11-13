@@ -917,6 +917,11 @@ func (h *Handler) verificationStatus(c *gin.Context) {
 	}
 	_, onboarding := h.organizations.Repositories()
 	request, err := onboarding.LatestVerificationRequest(c.Request.Context(), tenantCtx.OrganizationID)
+	if errors.Is(err, orgrepos.ErrNotFound) {
+		// Nothing has been submitted for verification yet.
+		respond.OK(c, gin.H{"status": "NOT_SUBMITTED", "submissionVersion": 0, "issues": []any{}})
+		return
+	}
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -1006,6 +1011,11 @@ func (h *Handler) closureStatus(c *gin.Context) {
 		return
 	}
 	closure, blockers, err := h.organizations.GetClosureStatus(c.Request.Context(), tenantCtx.OrganizationID)
+	if errors.Is(err, orgrepos.ErrNotFound) {
+		// No open closure request: a clean 404, not an internal error.
+		respond.Error(c, apperrors.NotFound("No closure request is open.", nil))
+		return
+	}
 	if err != nil {
 		respond.Error(c, err)
 		return
