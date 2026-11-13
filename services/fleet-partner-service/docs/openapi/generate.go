@@ -169,6 +169,7 @@ func requestSchema(id string) string {
 		"createContract": "ContractCreateRequest", "updateContract": "ContractUpdateRequest", "submitContract": "ContractSubmissionRequest", "activateContract": "ContractActivationRequest", "suspendContract": "ContractLifecycleRequest", "resumeContract": "ContractLifecycleRequest", "terminateContract": "ContractLifecycleRequest", "renewContract": "ContractRenewalRequest", "attachContractDocument": "DocumentAttachRequest", "replaceContractDocument": "DocumentReplaceRequest", "removeContractDocument": "DocumentRemoveRequest",
 		"createServiceLevelAgreement": "SLACreateRequest", "updateServiceLevelAgreement": "SLAUpdateRequest", "activateServiceLevelAgreement": "SLALifecycleRequest", "suspendServiceLevelAgreement": "SLALifecycleRequest", "terminateServiceLevelAgreement": "SLALifecycleRequest", "ingestServiceLevelObservation": "SLAObservationIngestionRequest",
 		"replayNotificationOperation": "EmptyRequest",
+		"createLead":                  "LeadCreateRequest", "updateLead": "LeadUpdateRequest", "assignLead": "LeadAssignCommand", "changeLeadStatus": "LeadStatusCommand", "convertLead": "LeadConversionRequest",
 	}
 	return m[id]
 }
@@ -186,6 +187,16 @@ func success(id string) (string, string) {
 	}
 	if id == "listCustomerHistory" {
 		return status, "CustomerHistoryItem"
+	}
+	if strings.Contains(id, "Lead") {
+		switch {
+		case id == "convertLead":
+			return "201", "LeadConversionResponse"
+		case strings.Contains(id, "History"):
+			return status, "LeadHistoryItem"
+		default:
+			return status, "LeadResponse"
+		}
 	}
 	if strings.Contains(id, "Customer") && !strings.Contains(id, "Quotation") && !strings.Contains(id, "Credit") {
 		return status, "CustomerResponse"
@@ -272,7 +283,20 @@ func schemas() M {
 	date := M{"type": "string", "format": "date"}
 	integer := M{"type": "integer", "format": "int64"}
 	s["ErrorDetail"] = obj(M{"field": str(128), "reason": str(512)}, nil)
-	s["StableErrorCode"] = enum("bad_request", "validation_failed", "validation_error", "unauthorized", "forbidden", "not_found", "conflict", "idempotency_conflict", "expected_version_mismatch", "rate_limited", "internal_error", "service_unavailable", "customer_not_found", "customer_already_exists", "customer_on_hold", "customer_risk_restricted", "customer_archived", "customer_invalid_state", "customer_contact_not_found", "customer_contact_conflict", "customer_location_not_found", "customer_location_invalid_timezone", "customer_location_invalid_coordinates", "opportunity_not_found", "opportunity_invalid_transition", "quotation_not_found", "quotation_invalid_state", "quotation_expired", "quotation_already_resolved", "quotation_approval_required", "quotation_version_conflict", "quotation_document_not_ready", "quotation_acceptance_conflict", "quotation_token_invalid", "quotation_token_expired", "contract_not_found", "contract_invalid_state", "contract_not_active", "contract_activation_blocked", "contract_approval_required", "contract_document_not_ready", "contract_version_conflict", "sla_not_found", "sla_invalid_state", "sla_observation_conflict", "sla_source_unknown", "credit_profile_not_found", "customer_credit_hold", "credit_change_approval_required")
+	s["StableErrorCode"] = enum("bad_request", "validation_failed", "validation_error", "unauthorized", "forbidden", "not_found", "conflict", "idempotency_conflict", "expected_version_mismatch", "rate_limited", "internal_error", "service_unavailable", "customer_not_found", "customer_already_exists", "customer_on_hold", "customer_risk_restricted", "customer_archived", "customer_invalid_state", "customer_contact_not_found", "customer_contact_conflict", "customer_location_not_found", "customer_location_invalid_timezone", "customer_location_invalid_coordinates", "opportunity_not_found", "opportunity_invalid_transition", "quotation_not_found", "quotation_invalid_state", "quotation_expired", "quotation_already_resolved", "quotation_approval_required", "quotation_version_conflict", "quotation_document_not_ready", "quotation_acceptance_conflict", "quotation_token_invalid", "quotation_token_expired", "contract_not_found", "contract_invalid_state", "contract_not_active", "contract_activation_blocked", "contract_approval_required", "contract_document_not_ready", "contract_version_conflict", "sla_not_found", "sla_invalid_state", "sla_observation_conflict", "sla_source_unknown", "credit_profile_not_found", "customer_credit_hold", "credit_change_approval_required", "lead_not_found", "lead_invalid_transition", "lead_already_converted")
+	s["LeadSource"] = enum("WEBSITE", "REFERRAL", "EVENT", "INBOUND_CALL", "INBOUND_EMAIL", "OUTBOUND", "PARTNER", "IMPORT", "OTHER")
+	s["LeadStatus"] = enum("NEW", "CONTACTED", "QUALIFIED", "DISQUALIFIED", "CONVERTED")
+	s["LeadCreateRequest"] = obj(M{"branchId": id, "source": ref("LeadSource"), "companyName": str(256), "contactSnapshot": M{"type": "object", "description": "Captured prospect contact details (personal data; visible only with crm.sensitive.read)."}, "ownerUserId": id, "score": M{"type": "integer", "minimum": 0, "maximum": 100}, "nextAction": str(512), "nextActionAt": dt, "notes": str(4000)}, []string{"companyName"})
+	s["LeadUpdateRequest"] = obj(M{"companyName": str(256), "source": ref("LeadSource"), "contactSnapshot": M{"type": "object"}, "score": M{"type": "integer", "minimum": 0, "maximum": 100}, "clearScore": M{"type": "boolean"}, "nextAction": str(512), "nextActionAt": dt, "notes": str(4000), "expectedVersion": M{"type": "integer", "minimum": 1}}, []string{"expectedVersion"})
+	s["LeadAssignCommand"] = obj(M{"ownerUserId": M{"type": "string", "maxLength": 128, "description": "Active member of the same organization; empty clears the owner."}, "expectedVersion": M{"type": "integer", "minimum": 1}}, []string{"expectedVersion"})
+	s["LeadStatusCommand"] = obj(M{"status": M{"type": "string", "enum": []any{"NEW", "CONTACTED", "QUALIFIED", "DISQUALIFIED"}, "description": "CONVERTED is reachable only through the convert command."}, "reasonCode": str(128), "expectedVersion": M{"type": "integer", "minimum": 1}}, []string{"status", "expectedVersion"})
+	s["LeadConversionOpportunity"] = obj(M{"title": str(256), "description": str(4000), "expectedValue": ref("Money"), "probabilityBasisPoints": M{"type": "integer", "minimum": 0, "maximum": 10000}, "expectedCloseDate": date, "serviceCapabilities": M{"type": "array", "items": str(128)}, "nextAction": str(512)}, []string{"title"})
+	s["LeadConversionRequest"] = obj(M{"customerId": M{"type": "string", "maxLength": 128, "description": "Map the lead onto this existing company CRM customer. Mutually exclusive with newCustomer."}, "newCustomer": ref("CustomerCreateRequest"), "opportunity": ref("LeadConversionOpportunity"), "expectedVersion": M{"type": "integer", "minimum": 1}}, []string{"expectedVersion"})
+	lead := M{"id": id, "branchId": id, "source": ref("LeadSource"), "companyName": str(256), "status": ref("LeadStatus"), "ownerUserId": id, "score": M{"type": "integer"}, "nextAction": str(512), "nextActionAt": dt, "disqualificationReason": str(128), "convertedCustomerId": id, "convertedOpportunityId": id, "convertedAt": dt, "version": integer, "createdAt": dt, "updatedAt": dt}
+	s["LeadResponse"] = obj(lead, []string{"id", "source", "companyName", "status", "version", "createdAt", "updatedAt"})
+	s["SensitiveLeadResponse"] = allOf("LeadResponse", M{"contactSnapshot": M{"type": "object"}, "notes": str(4000)})
+	s["LeadHistoryItem"] = obj(M{"id": id, "changeType": M{"type": "string", "enum": []any{"CREATED", "UPDATED", "ASSIGNED", "STATUS_CHANGED", "CONVERTED"}}, "previousStatus": str(32), "newStatus": ref("LeadStatus"), "reasonCode": str(128), "actorType": str(64), "occurredAt": dt}, []string{"id", "changeType", "newStatus", "actorType", "occurredAt"})
+	s["LeadConversionResponse"] = obj(M{"lead": ref("LeadResponse"), "customer": ref("CustomerResponse"), "customerCreated": M{"type": "boolean"}, "opportunity": ref("OpportunityResponse"), "replayed": M{"type": "boolean", "description": "True when an identical retry (same Idempotency-Key) returned the original conversion with HTTP 200."}}, []string{"lead", "customer", "customerCreated", "replayed"})
 	s["Error"] = obj(M{"code": ref("StableErrorCode"), "message": str(1024), "details": M{"type": "array", "items": ref("ErrorDetail")}, "requestId": str(128)}, []string{"code", "message", "details", "requestId"})
 	s["ErrorEnvelope"] = obj(M{"error": ref("Error")}, []string{"error"})
 	s["ResponseMeta"] = obj(M{"requestId": str(128), "nextCursor": str(2048)}, []string{"requestId"})
@@ -424,7 +448,7 @@ func responses() M {
 }
 
 func tags() []any {
-	names := []string{"Customers", "Contacts", "Locations", "Credit", "Opportunities", "Quotations", "Public quotations", "Contracts", "SLAs", "Internal SLA ingestion", "Notification operations"}
+	names := []string{"Customers", "Contacts", "Locations", "Credit", "Leads", "Opportunities", "Quotations", "Public quotations", "Contracts", "SLAs", "Internal SLA ingestion", "Notification operations"}
 	out := make([]any, 0, len(names))
 	for _, n := range names {
 		out = append(out, M{"name": n})
@@ -448,6 +472,8 @@ func tagFor(path string) string {
 		return "Locations"
 	case strings.Contains(path, "/customers"):
 		return "Customers"
+	case strings.Contains(path, "/leads"):
+		return "Leads"
 	case strings.Contains(path, "opportunities"):
 		return "Opportunities"
 	case strings.Contains(path, "quotations"):
@@ -465,6 +491,7 @@ func queryFilters(id string) []string {
 		"listContacts":                 {"status", "contactPurpose"},
 		"listLocations":                {"locationType", "status"},
 		"listOpportunities":            {"stage", "customerId", "branchId", "accountOwnerUserId", "createdAfter", "createdBefore"},
+		"listLeads":                    {"status", "source", "ownerUserId", "branchId", "createdAfter", "createdBefore"},
 		"listQuotations":               {"status", "customerId", "opportunityId", "branchId", "createdAfter", "createdBefore"},
 		"listContracts":                {"status", "customerId", "branchId", "createdAfter", "createdBefore"},
 		"listServiceLevelAgreements":   {"status", "customerId", "contractId", "metricCode"},
@@ -498,6 +525,10 @@ func safeExample(id string) M {
 		value = M{"locationType": "WAREHOUSE", "label": "Example depot", "address": M{"line1": "1 Example Way", "city": "Sample City", "countryCode": "IT"}, "timezone": "Europe/Rome"}
 	case "createOpportunity":
 		value = M{"customerId": "cus_example_01", "title": "Example regional deliveries", "probabilityBasisPoints": 6500, "serviceCapabilities": []any{"HAULING"}}
+	case "createLead":
+		value = M{"source": "WEBSITE", "companyName": "Example Prospect Ltd", "contactSnapshot": M{"name": "Example Person", "email": "prospect@example.invalid"}, "score": 60}
+	case "convertLead":
+		value = M{"newCustomer": M{"customerType": "BUSINESS", "defaultCurrency": "EUR"}, "opportunity": M{"title": "Example regional deliveries", "probabilityBasisPoints": 4000}, "expectedVersion": 3}
 	case "createQuotation":
 		value = M{"customerId": "cus_example_01", "currency": "EUR", "validFrom": "2026-08-01T00:00:00Z", "validUntil": "2026-08-15T00:00:00Z", "lineItems": []any{M{"description": "Example service", "quantity": "2.500", "unitType": "TRIP", "unitAmountMinor": 12500}}}
 	case "submitQuotation":

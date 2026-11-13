@@ -51,6 +51,25 @@ func (s *Service) CreateCustomer(ctx context.Context, t tenant.Context,
 		return models.Customer{}, err
 	}
 
+	var created models.Customer
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		var txErr error
+		created, txErr = s.createCustomerTx(ctx, tx, t, input)
+		return txErr
+	})
+	if err != nil {
+		return models.Customer{}, err
+	}
+	s.count("crm_customers_created_total", map[string]string{"type": created.CustomerType})
+	return created, nil
+}
+
+// createCustomerTx inserts an already-validated customer with its history,
+// audit and outbox rows inside the caller's transaction. Lead conversion
+// reuses it, so a converted customer is created under exactly the same rules
+// (duplicate detection included) as one created directly.
+func (s *Service) createCustomerTx(ctx context.Context, tx pgx.Tx, t tenant.Context,
+	input CreateCustomerInput) (models.Customer, error) {
 	normalized := models.NormalizeName(input.LegalName)
 	customer := models.Customer{
 		ID:                    ids.New(repositories.PrefixCustomer),
@@ -73,43 +92,37 @@ func (s *Service) CreateCustomer(ctx context.Context, t tenant.Context,
 	customer.DuplicateFingerprint = models.DuplicateFingerprint(customer.CustomerType,
 		normalized, customer.RegistrationNumber, customer.TaxReference)
 
-	var created models.Customer
-	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		var txErr error
-		created, txErr = s.opts.Repository.CreateCustomer(ctx, tx, customer)
-		if txErr != nil {
-			if errors.Is(txErr, repositories.ErrDuplicate) {
-				// Scoped to this organization only. The same legal entity may
-				// legitimately be a customer of two different fleet operators,
-				// and treating that as a conflict would make one tenant's data
-				// a constraint on another's.
-				return conflict(errorcodes.CustomerAlreadyExists,
-					"A customer with these identifying details already exists in this organization.")
-			}
-			return translate(txErr, "Customer", errorcodes.CustomerNotFound,
-				errorcodes.CustomerAlreadyExists)
+	created, txErr := s.opts.Repository.CreateCustomer(ctx, tx, customer)
+	if txErr != nil {
+		if errors.Is(txErr, repositories.ErrDuplicate) {
+			// Scoped to this organization only. The same legal entity may
+			// legitimately be a customer of two different fleet operators,
+			// and treating that as a conflict would make one tenant's data
+			// a constraint on another's.
+			return models.Customer{}, conflict(errorcodes.CustomerAlreadyExists,
+				"A customer with these identifying details already exists in this organization.")
 		}
-		if txErr = s.opts.Repository.AppendCustomerHistory(ctx, tx, models.CustomerHistory{
-			OrganizationID: t.OrganizationID, CustomerID: created.ID,
-			ChangeType: models.ChangeCreated, NewStatus: created.Status,
-			NewRiskStatus: created.RiskStatus, ActorType: string(t.ActorType),
-			ActorID: t.ActorID, CorrelationID: input.CorrelationID,
-			CausationID: input.CausationID,
-		}); txErr != nil {
-			return txErr
-		}
-		if txErr = s.record(ctx, tx, t, "crm.customer.created", "crm_customer", created.ID,
-			nil, customerAuditValues(created), ""); txErr != nil {
-			return txErr
-		}
-		return s.publish(ctx, tx, EventCustomerCreated, "crm_customer", created.ID,
-			created.Version, t.OrganizationID, input.CorrelationID,
-			customerEventPayload(created))
-	})
-	if err != nil {
-		return models.Customer{}, err
+		return models.Customer{}, translate(txErr, "Customer", errorcodes.CustomerNotFound,
+			errorcodes.CustomerAlreadyExists)
 	}
-	s.count("crm_customers_created_total", map[string]string{"type": created.CustomerType})
+	if txErr = s.opts.Repository.AppendCustomerHistory(ctx, tx, models.CustomerHistory{
+		OrganizationID: t.OrganizationID, CustomerID: created.ID,
+		ChangeType: models.ChangeCreated, NewStatus: created.Status,
+		NewRiskStatus: created.RiskStatus, ActorType: string(t.ActorType),
+		ActorID: t.ActorID, CorrelationID: input.CorrelationID,
+		CausationID: input.CausationID,
+	}); txErr != nil {
+		return models.Customer{}, txErr
+	}
+	if txErr = s.record(ctx, tx, t, "crm.customer.created", "crm_customer", created.ID,
+		nil, customerAuditValues(created), ""); txErr != nil {
+		return models.Customer{}, txErr
+	}
+	if txErr = s.publish(ctx, tx, EventCustomerCreated, "crm_customer", created.ID,
+		created.Version, t.OrganizationID, input.CorrelationID,
+		customerEventPayload(created)); txErr != nil {
+		return models.Customer{}, txErr
+	}
 	return created, nil
 }
 

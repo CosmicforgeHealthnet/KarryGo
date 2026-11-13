@@ -113,6 +113,15 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 		"resumeOpportunity":      h.resumeOpportunity,
 		"listOpportunityHistory": h.opportunityHistory,
 
+		"listLeads":        h.listLeads,
+		"createLead":       h.createLead,
+		"getLead":          h.getLead,
+		"updateLead":       h.updateLead,
+		"assignLead":       h.assignLead,
+		"changeLeadStatus": h.changeLeadStatus,
+		"convertLead":      h.convertLead,
+		"listLeadHistory":  h.leadHistory,
+
 		"listQuotations":          h.listQuotations,
 		"createQuotation":         h.createQuotation,
 		"getQuotation":            h.getQuotation,

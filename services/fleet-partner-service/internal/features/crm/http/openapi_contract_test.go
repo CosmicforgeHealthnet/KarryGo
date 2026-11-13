@@ -613,7 +613,7 @@ func TestSection14OpenAPIInventoryCounts(t *testing.T) {
 	}
 	sort.Strings(ids)
 	t.Logf("validated %d paths, %d operations, operationId range %s..%s", len(paths), operations, ids[0], ids[len(ids)-1])
-	if len(paths) != 63 || operations != 80 {
+	if len(paths) != 69 || operations != 88 {
 		t.Fatalf("inventory counts changed: %d paths, %d operations", len(paths), operations)
 	}
 }

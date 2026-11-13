@@ -43,30 +43,8 @@ func (s *Service) CreateOpportunity(ctx context.Context, t tenant.Context,
 	if err := requireIdempotencyKey(input.IdempotencyKey); err != nil {
 		return models.Opportunity{}, err
 	}
-	if strings.TrimSpace(input.Title) == "" {
-		return models.Opportunity{}, badRequest(errorcodes.OpportunityNotFound,
-			"title is required.")
-	}
-	if err := models.ValidateProbability(input.ProbabilityBasisPoints); err != nil {
-		return models.Opportunity{}, badRequest(errorcodes.OpportunityInvalidTransition,
-			err.Error())
-	}
-	// A value without a currency is a number nobody can add up.
-	if (input.ExpectedValueAmountMinor == nil) != (input.ExpectedValueCurrency == "") {
-		return models.Opportunity{}, badRequest(errorcodes.OpportunityInvalidTransition,
-			"expectedValue.amountMinor and expectedValue.currency must both be present or both absent.")
-	}
-	if input.ExpectedValueCurrency != "" {
-		upper := strings.ToUpper(input.ExpectedValueCurrency)
-		if err := models.ValidateCurrency(upper); err != nil {
-			return models.Opportunity{}, badRequest(errorcodes.OpportunityInvalidTransition,
-				"expectedValue.currency must be a three-letter ISO 4217 code.")
-		}
-		input.ExpectedValueCurrency = upper
-	}
-	if input.BranchID != "" && !t.BranchPermitted(input.BranchID) {
-		return models.Opportunity{}, badRequest(errorcodes.OpportunityNotFound,
-			"branchId is not within your authorized scope.")
+	if err := validateOpportunityInput(t, &input); err != nil {
+		return models.Opportunity{}, err
 	}
 
 	var created models.Opportunity
@@ -75,42 +53,84 @@ func (s *Service) CreateOpportunity(ctx context.Context, t tenant.Context,
 		if txErr != nil {
 			return txErr
 		}
-		if customer.IsArchived() {
-			return conflict(errorcodes.CustomerArchived,
-				"An archived customer cannot have new opportunities.")
-		}
-		record := models.Opportunity{
-			ID:                       ids.New(repositories.PrefixOpportunity),
-			OrganizationID:           t.OrganizationID,
-			BranchID:                 input.BranchID,
-			CustomerID:               input.CustomerID,
-			Title:                    strings.TrimSpace(input.Title),
-			Description:              input.Description,
-			Stage:                    models.StageLead,
-			ExpectedValueAmountMinor: input.ExpectedValueAmountMinor,
-			ExpectedValueCurrency:    input.ExpectedValueCurrency,
-			ProbabilityBasisPoints:   input.ProbabilityBasisPoints,
-			ExpectedCloseDate:        input.ExpectedCloseDate,
-			ServiceCapabilities:      input.ServiceCapabilities,
-			AccountOwnerUserID:       input.AccountOwnerUserID,
-			NextAction:               input.NextAction,
-			NextActionAt:             input.NextActionAt,
-			CreatedBy:                t.OrganizationUserID,
-		}
-		created, txErr = s.opts.Repository.CreateOpportunity(ctx, tx, record)
-		if txErr != nil {
-			return translate(txErr, "Opportunity", errorcodes.OpportunityNotFound,
-				errorcodes.OpportunityInvalidTransition)
-		}
-		if txErr = s.record(ctx, tx, t, "crm.opportunity.created", "sales_opportunity",
-			created.ID, nil, opportunityAuditValues(created), ""); txErr != nil {
-			return txErr
-		}
-		return s.publish(ctx, tx, EventOpportunityCreated, "sales_opportunity", created.ID,
-			created.Version, t.OrganizationID, input.CorrelationID,
-			opportunityEventPayload(created))
+		created, txErr = s.createOpportunityTx(ctx, tx, t, customer, input)
+		return txErr
 	})
 	if err != nil {
+		return models.Opportunity{}, err
+	}
+	return created, nil
+}
+
+// validateOpportunityInput is the pure validation shared by direct creation
+// and lead conversion. It normalizes the currency in place.
+func validateOpportunityInput(t tenant.Context, input *CreateOpportunityInput) error {
+	if strings.TrimSpace(input.Title) == "" {
+		return badRequest(errorcodes.OpportunityNotFound, "title is required.")
+	}
+	if err := models.ValidateProbability(input.ProbabilityBasisPoints); err != nil {
+		return badRequest(errorcodes.OpportunityInvalidTransition, err.Error())
+	}
+	// A value without a currency is a number nobody can add up.
+	if (input.ExpectedValueAmountMinor == nil) != (input.ExpectedValueCurrency == "") {
+		return badRequest(errorcodes.OpportunityInvalidTransition,
+			"expectedValue.amountMinor and expectedValue.currency must both be present or both absent.")
+	}
+	if input.ExpectedValueCurrency != "" {
+		upper := strings.ToUpper(input.ExpectedValueCurrency)
+		if err := models.ValidateCurrency(upper); err != nil {
+			return badRequest(errorcodes.OpportunityInvalidTransition,
+				"expectedValue.currency must be a three-letter ISO 4217 code.")
+		}
+		input.ExpectedValueCurrency = upper
+	}
+	if input.BranchID != "" && !t.BranchPermitted(input.BranchID) {
+		return badRequest(errorcodes.OpportunityNotFound,
+			"branchId is not within your authorized scope.")
+	}
+	return nil
+}
+
+// createOpportunityTx inserts a validated opportunity against an already
+// resolved customer, with its audit and outbox rows, inside the caller's
+// transaction. Lead conversion reuses it so a converted opportunity obeys
+// the same rules as one opened directly.
+func (s *Service) createOpportunityTx(ctx context.Context, tx pgx.Tx, t tenant.Context,
+	customer models.Customer, input CreateOpportunityInput) (models.Opportunity, error) {
+	if customer.IsArchived() {
+		return models.Opportunity{}, conflict(errorcodes.CustomerArchived,
+			"An archived customer cannot have new opportunities.")
+	}
+	record := models.Opportunity{
+		ID:                       ids.New(repositories.PrefixOpportunity),
+		OrganizationID:           t.OrganizationID,
+		BranchID:                 input.BranchID,
+		CustomerID:               customer.ID,
+		Title:                    strings.TrimSpace(input.Title),
+		Description:              input.Description,
+		Stage:                    models.StageLead,
+		ExpectedValueAmountMinor: input.ExpectedValueAmountMinor,
+		ExpectedValueCurrency:    input.ExpectedValueCurrency,
+		ProbabilityBasisPoints:   input.ProbabilityBasisPoints,
+		ExpectedCloseDate:        input.ExpectedCloseDate,
+		ServiceCapabilities:      input.ServiceCapabilities,
+		AccountOwnerUserID:       input.AccountOwnerUserID,
+		NextAction:               input.NextAction,
+		NextActionAt:             input.NextActionAt,
+		CreatedBy:                t.OrganizationUserID,
+	}
+	created, err := s.opts.Repository.CreateOpportunity(ctx, tx, record)
+	if err != nil {
+		return models.Opportunity{}, translate(err, "Opportunity", errorcodes.OpportunityNotFound,
+			errorcodes.OpportunityInvalidTransition)
+	}
+	if err = s.record(ctx, tx, t, "crm.opportunity.created", "sales_opportunity",
+		created.ID, nil, opportunityAuditValues(created), ""); err != nil {
+		return models.Opportunity{}, err
+	}
+	if err = s.publish(ctx, tx, EventOpportunityCreated, "sales_opportunity", created.ID,
+		created.Version, t.OrganizationID, input.CorrelationID,
+		opportunityEventPayload(created)); err != nil {
 		return models.Opportunity{}, err
 	}
 	return created, nil

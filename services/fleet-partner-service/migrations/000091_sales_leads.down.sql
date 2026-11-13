@@ -1,0 +1,3 @@
+DROP TRIGGER IF EXISTS trg_fleet_sales_lead_history_append_only ON fleet_partner_sales_lead_history;
+DROP TABLE IF EXISTS fleet_partner_sales_lead_history;
+DROP TABLE IF EXISTS fleet_partner_sales_leads;

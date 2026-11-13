@@ -317,6 +317,10 @@ const (
 	CreditProfileNotFound        apperrors.Code = "credit_profile_not_found"
 	CustomerCreditHold           apperrors.Code = "customer_credit_hold"
 	CreditChangeApprovalRequired apperrors.Code = "credit_change_approval_required"
+	// Sales leads (Sections 14, 43.3, 59.6).
+	LeadNotFound          apperrors.Code = "lead_not_found"
+	LeadInvalidTransition apperrors.Code = "lead_invalid_transition"
+	LeadAlreadyConverted  apperrors.Code = "lead_already_converted"
 )
 
 // Section 15: service catalogue and private orders.

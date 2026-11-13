@@ -376,6 +376,15 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/tyres/:tyreId/remove", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/tyres/:tyreId/rotate", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/tyres/:tyreId/tread-readings", RiskClass: ratelimit.RiskSensitive},
+	// Sales leads and conversion (Sections 14, 43.3, 59.6).
+	{Method: "GET", Path: "/fleet-partner/v1/leads", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/leads", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/leads/:leadId", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/leads/:leadId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/leads/:leadId/assign", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/leads/:leadId/status", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/leads/:leadId/convert", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/leads/:leadId/history", RiskClass: ratelimit.RiskSensitive},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},
