@@ -98,7 +98,38 @@ No change is required by the spec: customer booking stays exactly as it is
 (spec 2.2). If privacy requests are added for customers, an entry point will
 be listed here.
 
-## 3. Platform / infrastructure work (needs server access or a product owner)
+## 3. Admin console (`apps/admin`): work for the admin developers
+
+The admin web app is a scaffold today. The backend for these screens exists.
+
+### 3.1 Company review (ADR-006, spec 70 journey 1 step 12)
+
+Operators decide companies here; nothing else approves a company.
+
+- **Review queue:** company submissions read through the admin bridge, resource
+  kind `organization-submissions` (owner `verification-compliance-service`).
+  - Show the company name and country from the submission snapshot, the
+    status, when it was submitted, and the submitted documents (file ids in
+    the snapshot; preview through media).
+- **Actions,** sent as owner commands in the `verification` domain, with
+  `expectedVersion` = the submission's `source_version`:
+
+  | Action | Parameters | Effect |
+  |---|---|---|
+  | `START_ORGANIZATION_REVIEW` | none | Marks the submission in review. |
+  | `REQUEST_ORGANIZATION_CHANGES` | `issue` (reason code), `remediation` (`RESUBMIT_DOCUMENT` / `PROVIDE_ADDITIONAL_DOCUMENT` / `CORRECT_DETAILS`), optional `document` (one of the four company document types) | The company sees the request on its company page and can resubmit. |
+  | `APPROVE_ORGANIZATION` | none; needs a second approver | Fleet activates the company once its other checks pass. |
+  | `REJECT_ORGANIZATION` | `reason`; needs a second approver | |
+  | `SUSPEND_ORGANIZATION` | `reason`; needs a second approver | |
+
+- **Results:** the bridge returns `ErrConflict` (409) when the submission
+  changed since it was loaded. Reload and retry.
+- **Permissions:**
+  - Reviewing needs Verification's review grant.
+  - Deciding needs the decide grant (`verification.organization_submissions.read`
+    to list).
+
+## 4. Platform / infrastructure work (needs server access or a product owner)
 
 - Point-in-time recovery and encrypted database backups (RPO target 5 minutes;
   today nightly dumps).
@@ -116,7 +147,7 @@ be listed here.
   - Fleet ↔ Verification: `FLEET_PARTNER_VERIFICATION_COMPLIANCE_SERVICE_*`
     (base URL and secret).
 
-## 4. Decisions needed from the product owner
+## 5. Decisions needed from the product owner
 
 All decided on 2026-11-13; see `fleet-spec-v2-status.md` Section 4.
 
@@ -127,11 +158,12 @@ App impact of the decisions:
   `assignment_already_resolved`, `decline_reason_required`, ...).
 - **API path (ADR-003):** unchanged; no app impact.
 
-## 5. Work log (backend and cross-service)
+## 6. Work log (backend and cross-service)
 
 Newest first. Each entry lists anything that creates new app-frontend work.
 
 | Date | Area | What changed | App frontend impact |
 |---|---|---|---|
+| 2026-11-13 | Company activation (ADR-006) | Fleet applies Verification decisions (push + one-minute read-back), maps VERIFIED to APPROVED, activates approved companies; activation policy v2; Verification accepts Fleet's text ids, has company review admin commands and delivers decisions to Fleet; staging pairing workflow connects them | Admin console company review screens (3.1). Fleet web company page shows review progress (done). |
 | 2026-11-13 | Audit | Full audit of Sections 1-72 and Appendices A-D (`spec-v2-audit/`) | None |
 | 2026-11-13 | Fleet | Staff management, HQ branch, workforce/payroll fixes, trips pages, staging modules switched on (`fleet-end-to-end-activation-report.md`) | None |
