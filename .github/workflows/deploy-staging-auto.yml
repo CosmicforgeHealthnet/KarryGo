@@ -40,6 +40,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: shared/go/go.mod
+          cache: false
+
       - name: Decide which services to deploy
         id: pick
         env:
@@ -62,14 +67,11 @@ jobs:
                || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
               BEFORE="HEAD~1"
             fi
-            changed=$(git diff --name-only "$BEFORE" HEAD)
-            if echo "$changed" | grep -qE '^(shared/go/|services/Dockerfile$|go\.work)'; then
-              picked="$allowed"   # shared code changed: every service is affected
-            else
-              for k in $allowed; do
-                echo "$changed" | grep -q "^services/$k/" && picked="$picked $k"
-              done
-            fi
+            # Only services whose image inputs changed: their own folder, the
+            # shared Dockerfile, or a shared/go package in their import graph.
+            # go.work / go.work.sum are never copied into an image.
+            git diff --name-only "$BEFORE" HEAD > "$RUNNER_TEMP/changed.txt"
+            picked=$(python3 deploy/platform/bin/changed-services.py $allowed < "$RUNNER_TEMP/changed.txt")
           fi
           picked=$(echo $picked)
           echo "services=$picked" >> "$GITHUB_OUTPUT"
@@ -131,6 +133,21 @@ jobs:
           scp "${opts[@]}" -r "$scratch/bundle/." "$target:$remote/"
           ssh "${opts[@]}" "$target" "docker login ghcr.io -u '$GITHUB_ACTOR' --password-stdin" <<< "$GHCR_TOKEN"
           trap 'ssh "${opts[@]}" "$target" "docker logout ghcr.io" || true; rm -rf "$scratch"' EXIT
+
+          # Preflight every selected service before changing any of them, so a
+          # settings file the deploy account cannot read stops the run up front
+          # instead of half way through a multi-service release.
+          ssh "${opts[@]}" "$target" bash -s -- "$remote" $SERVICES <<'PREFLIGHT'
+          set -euo pipefail
+          remote="$1"; shift
+          cd "$remote/platform"
+          source bin/lib.sh
+          for svc in "$@"; do
+            load_service "$svc"
+            check_service_files
+          done
+          echo "preflight: private settings files are present, owner-only and readable for: $*"
+          PREFLIGHT
 
           for s in $SERVICES; do
             echo "== $s"

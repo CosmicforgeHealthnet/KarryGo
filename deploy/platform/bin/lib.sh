@@ -80,6 +80,10 @@ check_private_file() {
   [ -f "$file" ] || die "$file is missing. Create it from deploy/platform/env/ (see the guide, section G)."
   mode="$(stat -c '%a' "$file")"
   [ "$mode" = "600" ] || die "$file must have mode 600 (owner only); it is $mode. Fix: chmod 600 $file"
+  # Mode 600 is only half the rule: the owner must be the account that deploys,
+  # or neither these checks nor docker compose can read it. Never fix this by
+  # widening the mode.
+  [ -r "$file" ] || die "$file is owner-only but owned by $(stat -c '%U' "$file"), and this deploy runs as $(id -un). Fix as root, keeping mode 600: chown $(id -un):$(id -gn) $file"
 }
 
 # check_service_files: every settings file the loaded service's compose file uses.
