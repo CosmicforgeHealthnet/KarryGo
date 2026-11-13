@@ -143,6 +143,9 @@ type ReplaceRoleBindingsInput struct {
 	Tenant   tenant.Context
 	MemberID string
 	RoleIDs  []string
+	// Bindings, when set, replaces RoleIDs and may narrow a grant to one
+	// branch or department and give it an expiry (spec Section 9).
+	Bindings []BindingSpec
 	// ActorMemberID and ActorRoleVersion drive the escalation check.
 	ActorMemberID    string
 	ActorRoleVersion int64
@@ -159,12 +162,33 @@ type PermissionGuard interface {
 // member cannot escalate beyond their own authority. The membership's role
 // version is bumped so cached decisions and live sessions become stale.
 func (s *Service) ReplaceRoleBindings(ctx context.Context, guard PermissionGuard, input ReplaceRoleBindingsInput) error {
+	if len(input.Bindings) == 0 {
+		for _, roleID := range input.RoleIDs {
+			input.Bindings = append(input.Bindings, BindingSpec{RoleID: roleID, ScopeType: models.ScopeOrganization})
+		}
+	}
+	if err := s.validateBindingSpecs(ctx, input.Tenant.OrganizationID, input.Bindings); err != nil {
+		return err
+	}
+	if input.MemberID == input.ActorMemberID {
+		// Changing your own roles is never self-service: it is the shortest
+		// path to escalating or to locking the last owner out.
+		return errorcodes.Forbidden(errorcodes.PermissionEscalationForbidden,
+			"You cannot change your own roles. Ask another administrator.")
+	}
 	requested := map[string]struct{}{}
-	for _, roleID := range input.RoleIDs {
-		role, err := s.opts.Roles.GetRole(ctx, input.Tenant.OrganizationID, roleID)
+	grantsOrgOwner := false
+	for _, spec := range input.Bindings {
+		role, err := s.opts.Roles.GetRole(ctx, input.Tenant.OrganizationID, spec.RoleID)
+		if err == nil && role.Status != "ACTIVE" {
+			err = staffrepos.ErrNotFound
+		}
 		if err != nil {
 			return apperrors.Validation("One or more roles are not available to this organization.",
 				[]apperrors.FieldViolation{{Field: "roleIds", Message: "Unknown role."}})
+		}
+		if role.Code == models.RoleOrganizationOwner && spec.ScopeType == models.ScopeOrganization && spec.ExpiresAt == nil {
+			grantsOrgOwner = true
 		}
 		for _, permission := range role.Permissions {
 			requested[permission] = struct{}{}
@@ -186,6 +210,12 @@ func (s *Service) ReplaceRoleBindings(ctx context.Context, guard PermissionGuard
 			}
 			return err
 		}
+		if member.IsOwner && !grantsOrgOwner {
+			// An owner keeps the owner role for as long as they are an owner;
+			// ownership itself changes only through an ownership transfer.
+			return errorcodes.Conflict(errorcodes.LastOwnerRequired,
+				"An owner must keep the organization owner role.")
+		}
 
 		existing, err := s.opts.Roles.ListBindings(ctx, input.Tenant.OrganizationID, input.MemberID)
 		if err != nil {
@@ -197,16 +227,25 @@ func (s *Service) ReplaceRoleBindings(ctx context.Context, guard PermissionGuard
 				return err
 			}
 		}
-		for _, roleID := range input.RoleIDs {
-			if err := s.opts.Roles.CreateBinding(ctx, tx, input.Tenant.OrganizationID, &models.RoleBinding{
+		roleIDs := make([]string, 0, len(input.Bindings))
+		for _, spec := range input.Bindings {
+			binding := &models.RoleBinding{
 				OrganizationUserID: input.MemberID,
-				RoleID:             roleID,
-				ScopeType:          models.ScopeOrganization,
+				RoleID:             spec.RoleID,
+				ScopeType:          spec.ScopeType,
+				ExpiresAt:          spec.ExpiresAt,
 				GrantedBy:          input.Tenant.ActorID,
-			}); err != nil {
+			}
+			if spec.ScopeID != "" {
+				scopeID := spec.ScopeID
+				binding.ScopeID = &scopeID
+			}
+			if err := s.opts.Roles.CreateBinding(ctx, tx, input.Tenant.OrganizationID, binding); err != nil {
 				return err
 			}
+			roleIDs = append(roleIDs, spec.RoleID)
 		}
+		input.RoleIDs = roleIDs
 		if err := s.opts.Members.BumpRoleVersion(ctx, tx, input.Tenant.OrganizationID, input.MemberID); err != nil {
 			return err
 		}

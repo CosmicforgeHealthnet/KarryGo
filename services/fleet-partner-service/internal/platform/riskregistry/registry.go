@@ -330,6 +330,26 @@ var generated = []Entry{
 // human judgment call, applied after generated so a later re-extraction
 // never silently discards them.
 var overrides = []Entry{
+	// Organization structure and access administration (Sections 7-9).
+	{Method: "GET", Path: "/fleet-partner/v1/branches", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/branches", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/branches/:branchId", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/branches/:branchId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/branches/:branchId/archive", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "GET", Path: "/fleet-partner/v1/departments", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/departments", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/departments/:departmentId", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/departments/:departmentId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/departments/:departmentId/archive", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/organization-settings", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/organization-settings", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "PATCH", Path: "/fleet-partner/v1/staff/:staffId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/staff/:staffId/role-bindings", RiskClass: ratelimit.RiskSensitive},
+	{Method: "PUT", Path: "/fleet-partner/v1/staff/:staffId/roles", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "POST", Path: "/fleet-partner/v1/roles", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "GET", Path: "/fleet-partner/v1/roles/:roleId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "PATCH", Path: "/fleet-partner/v1/roles/:roleId", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "POST", Path: "/fleet-partner/v1/roles/:roleId/archive", RiskClass: ratelimit.RiskHighRisk},
 	// Provisioning a brand-new tenant organization is as consequential as
 	// suspending one -- both change who can act inside Fleet at all.
 	{Method: "POST", Path: "/fleet-partner/v1/organizations", RiskClass: ratelimit.RiskHighRisk},

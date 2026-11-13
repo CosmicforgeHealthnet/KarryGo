@@ -185,3 +185,43 @@ func scanBranchRows(rows pgx.Rows) (*models.Branch, error) {
 	}
 	return &branch, nil
 }
+
+// Update changes a branch's editable fields with compare-and-swap. Archived
+// branches are immutable; reactivating one is a separate status change.
+func (r *BranchRepository) Update(ctx context.Context, q database.Querier, organizationID string, branch *models.Branch, expectedVersion int64) error {
+	if err := ValidateTimezone(branch.Timezone); err != nil {
+		return err
+	}
+	tag, err := q.Exec(ctx, `
+		UPDATE fleet_partner_branches SET
+			name = $4, type = $5, address = $6, latitude = $7, longitude = $8,
+			operating_hours = NULLIF($9, ''), timezone = $10, status = $11,
+			version = version + 1, updated_at = now()
+		WHERE organization_id = $1 AND id = $2 AND version = $3 AND status <> 'ARCHIVED'`,
+		organizationID, branch.ID, expectedVersion, branch.Name, branch.Type, branch.Address,
+		branch.Latitude, branch.Longitude, branch.OperatingHours, branch.Timezone, branch.Status)
+	if err != nil {
+		return fmt.Errorf("branches: update: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		exists, err := r.existsInTenant(ctx, organizationID, branchID(branch))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return ErrNotFound
+		}
+		return concurrency.ErrVersionMismatch
+	}
+	return nil
+}
+
+func branchID(branch *models.Branch) string { return branch.ID }
+
+// CountActive reports the organization's active branches.
+func (r *BranchRepository) CountActive(ctx context.Context, organizationID string) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_branches WHERE organization_id = $1 AND status = 'ACTIVE'`,
+		organizationID).Scan(&count)
+	return count, err
+}

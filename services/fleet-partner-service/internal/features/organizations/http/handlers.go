@@ -84,6 +84,8 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.POST("/organizations/:organizationId/closure/reject", h.rejectClosure)
 	group.POST("/organizations/:organizationId/closure/execute", h.executeClosure)
 
+	h.registerStructureRoutes(group)
+
 	group.GET("/permissions", h.listPermissions)
 	group.GET("/roles", h.listRoles)
 

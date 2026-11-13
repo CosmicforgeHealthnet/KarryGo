@@ -287,6 +287,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		Organizations: orgrepos.NewOrganizationRepository(pool),
 		Onboarding:    orgrepos.NewOnboardingRepository(pool),
 		Branches:      orgrepos.NewBranchRepository(pool),
+		Departments:   orgrepos.NewDepartmentRepository(pool),
 		Settings:      orgrepos.NewSettingsRepository(pool),
 		Contracts:     contracts,
 		Eligibility:   eligibilityService,

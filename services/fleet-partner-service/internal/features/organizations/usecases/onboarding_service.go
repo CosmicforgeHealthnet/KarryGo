@@ -42,6 +42,7 @@ type Options struct {
 	Organizations *orgrepos.OrganizationRepository
 	Onboarding    *orgrepos.OnboardingRepository
 	Branches      *orgrepos.BranchRepository
+	Departments   *orgrepos.DepartmentRepository
 	Settings      *orgrepos.SettingsRepository
 	Memberships   MembershipCreator
 	Contracts     platformclients.ContractSet
