@@ -197,6 +197,13 @@ type Config struct {
 	// decision; a kill switch has to work during an incident without anyone
 	// reasoning about which of several flags also has to move.
 	TaxiFleetKillSwitch bool
+	// TaxiOrganizationProvidersEnabled lets fleet-partner-service create
+	// organization-sponsored drivers and request driver associations
+	// (FLEET-10.2). Reads and the driver's own accept/decline stay mounted;
+	// only Fleet's writes are gated. Default false. TaxiFleetKillSwitch also
+	// stops the writes.
+	TaxiOrganizationProvidersEnabled    bool
+	TaxiOrganizationProvidersKillSwitch bool
 	// TaxiManagedSettlementEnabled isolates corporate settlement from the
 	// legacy direct-to-provider wallet path (Section 8 TAX-020A). Default
 	// false until Section 12 exists; turning it on stops corporate work
@@ -364,6 +371,8 @@ func Load() Config {
 		TaxiFleetManagedExecutionEnabled:    getEnvBool("TAXI_FLEET_MANAGED_EXECUTION_ENABLED", false),
 		TaxiFleetPrivateExecutionEnabled:    getEnvBool("TAXI_FLEET_PRIVATE_EXECUTION_ENABLED", false),
 		TaxiFleetKillSwitch:                 getEnvBool("TAXI_FLEET_KILL_SWITCH", false),
+		TaxiOrganizationProvidersEnabled:    getEnvBool("TAXI_ORGANIZATION_PROVIDERS_ENABLED", false),
+		TaxiOrganizationProvidersKillSwitch: getEnvBool("TAXI_ORGANIZATION_PROVIDERS_KILL_SWITCH", false),
 		TaxiManagedSettlementEnabled:        getEnvBool("TAXI_MANAGED_SETTLEMENT_ENABLED", false),
 		TaxiFleetExecutionCallers:           splitCSV(getEnv("TAXI_FLEET_EXECUTION_CALLERS", "fleet-partner-service")),
 		TaxiFleetReservationTTL:             time.Duration(getEnvInt("TAXI_FLEET_RESERVATION_TTL_SECONDS", 300)) * time.Second,

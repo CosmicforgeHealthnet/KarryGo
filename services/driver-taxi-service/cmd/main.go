@@ -61,6 +61,7 @@ import (
 	fleetprovider "cosmicforge/logistics/services/taxi-service/internal/features/fleetprovider"
 	goods "cosmicforge/logistics/services/taxi-service/internal/features/goods"
 	"cosmicforge/logistics/services/taxi-service/internal/features/managedexec"
+	"cosmicforge/logistics/services/taxi-service/internal/features/organizationproviders"
 	"cosmicforge/logistics/services/taxi-service/internal/features/privateexecution"
 	"cosmicforge/logistics/services/taxi-service/internal/movement"
 
@@ -726,6 +727,22 @@ func main() {
 			privateexecution.Register(group,
 				privateexecution.NewHandler(privateExecutionService, cfg.TaxiFleetExecutionCallers),
 				opsVerifier)
+			// FLEET-10.2: Fleet resolves drivers, requests
+			// organization-sponsored accounts and asks for associations
+			// here; the driver accepts or declines from their own app and
+			// Fleet reads the decision back. The private half mounts only
+			// when an internal caller is trusted.
+			orgProviderRepo := organizationproviders.NewRepository(db)
+			orgProviders := organizationproviders.NewHandler(organizationproviders.NewService(orgProviderRepo,
+				organizationproviders.Flags{
+					Enabled:    cfg.TaxiOrganizationProvidersEnabled,
+					KillSwitch: cfg.TaxiOrganizationProvidersKillSwitch || cfg.TaxiFleetKillSwitch,
+				}))
+			organizationproviders.RegisterInternal(group.Group("/internal/organization-providers"), orgProviders,
+				organizationproviders.Boundary(opsVerifier, cfg.TaxiFleetExecutionCallers, orgProviderRepo)...)
+			organizationproviders.RegisterProvider(group.Group("/provider/organization-associations"), orgProviders,
+				organizationproviders.ClaimsProviderID,
+				sharedauth.BearerMiddleware(authService.AccessSigner(), providerauthusecases.ProviderRole, providerauthusecases.ProviderService))
 			// Closes baseline spec finding 3.3 (phase B11): the last piece
 			// needed before support-dispute-service can resolve a taxi
 			// driver's identity for a complaint/dispute, the same way it
