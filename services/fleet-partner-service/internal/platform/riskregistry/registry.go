@@ -89,6 +89,7 @@ var generated = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/orders/:orderId/stops", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/closure-status", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/documents", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/documents/:documentId/preview", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/onboarding-status", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/verification", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/wallet-provisioning", RiskClass: ratelimit.RiskSensitive},

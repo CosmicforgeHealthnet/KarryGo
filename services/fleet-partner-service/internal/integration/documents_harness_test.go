@@ -94,6 +94,7 @@ type mediaTestServer struct {
 	timeoutDeletion   bool
 	blockDeletion     string
 	refuseDownload    bool
+	safetyOnUpload    string // overrides the SAFE verdict a completed upload gets
 	unavailable       bool
 	deletionCalls     int
 	uploadAuthCalls   int
@@ -230,7 +231,7 @@ func (m *mediaTestServer) handleAuthorizeUpload(w http.ResponseWriter, r *http.R
 		"uploadPath":            "/objects/" + objectID + "/content",
 		"expiresAt":             time.Now().UTC().Add(15 * time.Minute).Format(time.RFC3339),
 		"maxSizeBytes":          int64(1 << 20),
-		"allowedMimeTypes":      []string{"application/pdf"},
+		"allowedMimeTypes":      []string{"application/pdf", "image/jpeg", "image/png", "image/webp"},
 	})
 }
 
@@ -314,7 +315,11 @@ func (m *mediaTestServer) handleContent(w http.ResponseWriter, r *http.Request, 
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/pdf")
+	contentType := object.DetectedMIME
+	if contentType == "" {
+		contentType = "application/pdf"
+	}
+	w.Header().Set("Content-Type", contentType)
 	_, _ = w.Write(object.Content)
 }
 
@@ -714,16 +719,37 @@ func (m *mediaTestServer) handleUploadContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 	sum := sha256.Sum256(content)
-	if len(content) == 0 || len(content) > 1<<20 || !bytes.HasPrefix(content, []byte("%PDF-")) || r.Header.Get("X-Declared-Content-Type") != "application/pdf" || r.Header.Get("X-Declared-Size") != strconv.Itoa(len(content)) || r.Header.Get("X-Declared-Checksum-SHA256") != hex.EncodeToString(sum[:]) {
+	declared := r.Header.Get("X-Declared-Content-Type")
+	detected := sniffDocumentType(content)
+	if len(content) == 0 || len(content) > 1<<20 || detected == "" || declared != detected || r.Header.Get("X-Declared-Size") != strconv.Itoa(len(content)) || r.Header.Get("X-Declared-Checksum-SHA256") != hex.EncodeToString(sum[:]) {
 		w.WriteHeader(422)
 		return
 	}
 	object.UploadStatus = "COMPLETED"
 	object.SafetyStatus = "SAFE"
-	object.DetectedMIME = "application/pdf"
+	if m.safetyOnUpload != "" {
+		object.SafetyStatus = m.safetyOnUpload
+	}
+	object.DetectedMIME = detected
 	object.SizeBytes = int64(len(content))
 	object.Checksum = hex.EncodeToString(sum[:])
 	object.Content = content
 	object.SourceVersion++
 	m.writeData(w, m.viewLocked(object))
+}
+
+// sniffDocumentType identifies the four company-document formats the way the
+// real Media authority does: from the bytes, not the declared type.
+func sniffDocumentType(content []byte) string {
+	switch {
+	case bytes.HasPrefix(content, []byte("%PDF-")):
+		return "application/pdf"
+	case bytes.HasPrefix(content, []byte{0xFF, 0xD8, 0xFF}):
+		return "image/jpeg"
+	case bytes.HasPrefix(content, []byte("\x89PNG\r\n\x1a\n")):
+		return "image/png"
+	case len(content) >= 12 && bytes.Equal(content[0:4], []byte("RIFF")) && bytes.Equal(content[8:12], []byte("WEBP")):
+		return "image/webp"
+	}
+	return ""
 }

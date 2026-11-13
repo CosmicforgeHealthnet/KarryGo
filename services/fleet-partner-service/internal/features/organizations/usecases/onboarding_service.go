@@ -468,7 +468,7 @@ func (s *Service) GetOnboardingStatus(ctx context.Context, organizationID string
 		return nil, err
 	}
 
-	status.Stages, err = s.assessStages(ctx, organization, stages)
+	status.Stages, err = s.assessStagesWithDocuments(ctx, organization, stages, documents)
 	if err != nil {
 		return nil, err
 	}

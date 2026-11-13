@@ -176,6 +176,17 @@ func validateProfile(profile *models.Profile) error {
 // assessStages derives customer completion from persisted records, not client flags.
 // Internal verification, wallet and activation stages remain owned by their services.
 func (s *Service) assessStages(ctx context.Context, org *models.Organization, stages []models.OnboardingStage) ([]models.OnboardingStage, error) {
+	docs, err := s.opts.Onboarding.ListDocuments(ctx, org.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.assessStagesWithDocuments(ctx, org, stages, docs)
+}
+
+// assessStagesWithDocuments is assessStages for a caller that has already read
+// the organization's current documents, so the status read does not list them
+// twice.
+func (s *Service) assessStagesWithDocuments(ctx context.Context, org *models.Organization, stages []models.OnboardingStage, docs []models.Document) ([]models.OnboardingStage, error) {
 	profile, err := s.opts.Onboarding.GetProfile(ctx, org.ID)
 	if err != nil && !errors.Is(err, repos.ErrNotFound) {
 		return nil, err
@@ -185,10 +196,6 @@ func (s *Service) assessStages(ctx context.Context, org *models.Organization, st
 		return nil, err
 	}
 	caps, err := s.opts.Onboarding.ListCapabilities(ctx, org.ID)
-	if err != nil {
-		return nil, err
-	}
-	docs, err := s.opts.Onboarding.ListDocuments(ctx, org.ID)
 	if err != nil {
 		return nil, err
 	}

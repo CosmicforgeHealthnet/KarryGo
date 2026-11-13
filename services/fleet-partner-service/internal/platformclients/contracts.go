@@ -116,6 +116,18 @@ type MediaContract interface {
 	Configured() bool
 }
 
+// MediaContentReader is the read-only content capability: the object's
+// authoritative state, a short-lived download grant, and the bytes behind it.
+// MediaFileClient implements it. It is separate from MediaContract so the many
+// callers that only need metadata do not have to implement content access.
+type MediaContentReader interface {
+	ReadObject(ctx context.Context, meta CallMeta, mediaObjectID string) (MediaObjectState, error)
+	AuthorizeDownload(ctx context.Context, meta CallMeta, mediaObjectID string) (MediaDownloadGrant, error)
+	ReadContent(ctx context.Context, meta CallMeta, grant MediaDownloadGrant, maxBytes int64) ([]byte, error)
+}
+
+var _ MediaContentReader = (*MediaFileClient)(nil)
+
 // ---- Provider services (dispatch / taxi / hauling) ----
 
 // ProviderResolveRequest resolves an identity by BOTH normalized contacts.

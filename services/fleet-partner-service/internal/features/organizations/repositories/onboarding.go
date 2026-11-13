@@ -358,6 +358,30 @@ func (r *OnboardingRepository) ListDocuments(ctx context.Context, organizationID
 	return documents, rows.Err()
 }
 
+// GetDocument reads one attachment scoped to its organization. A document
+// belonging to another organization is indistinguishable from a missing one.
+func (r *OnboardingRepository) GetDocument(ctx context.Context, organizationID string, documentID string) (*models.Document, error) {
+	var document models.Document
+	err := r.db.QueryRow(ctx, `
+		SELECT id, organization_id, document_type, file_id, verification_reference, status,
+			issued_at, expires_at, source_service, source_version, last_event_id, synced_at,
+			created_at, updated_at
+		FROM fleet_partner_organization_documents
+		WHERE organization_id = $1 AND id = $2`, organizationID, documentID).Scan(
+		&document.ID, &document.OrganizationID, &document.DocumentType,
+		&document.FileID, &document.VerificationReference, &document.Status,
+		&document.IssuedAt, &document.ExpiresAt, &document.SourceService,
+		&document.SourceVersion, &document.LastEventID, &document.SyncedAt,
+		&document.CreatedAt, &document.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("organizations: get document: %w", err)
+	}
+	return &document, nil
+}
+
 func (r *OnboardingRepository) ListDocumentsTx(ctx context.Context, q database.Querier, organizationID string) ([]models.Document, error) {
 	rows, err := q.Query(ctx, `
 		SELECT id, organization_id, document_type, file_id, verification_reference, status,

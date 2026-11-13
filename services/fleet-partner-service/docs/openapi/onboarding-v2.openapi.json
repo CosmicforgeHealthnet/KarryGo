@@ -1415,6 +1415,79 @@
           }
         }
       }
+    },
+    "/fleet-partner/v1/organizations/{organizationId}/documents/{documentId}/preview": {
+      "get": {
+        "summary": "Read-only preview of an attached company document for the organization's own users (organization.read).",
+        "description": "Verifies the session, the organization scope and organization.read, that the document belongs to the organization and is an active READY attachment, then asks the Media File Service for the object's state and a short-lived download grant and reads the content. Media must still report the object as owned by this organization, fully uploaded, passed safety scanning and not deleted; quarantined, unsafe, pending, deleted or unreleased files are refused. The bytes must be PDF, JPEG, PNG or WebP as detected by Media, match that type's signature and Media's SHA-256 checksum. The response is the file content only: no Media URL, object reference or grant is returned, and the grant is never logged. Each successful preview records an audit entry; the document, its status and onboarding progress are unchanged.",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document content. Headers: Cache-Control no-store, private; X-Content-Type-Options nosniff; Content-Security-Policy default-src 'none'; frame-ancestors 'none'; sandbox; Content-Disposition attachment.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or revoked session"
+          },
+          "403": {
+            "description": "Caller lacks organization.read"
+          },
+          "404": {
+            "description": "No such attached document in this organization, the attachment was removed, or Media no longer has the file"
+          },
+          "409": {
+            "description": "Document not READY, not passed upload/safety checks, refused by Media, or failed the integrity check"
+          },
+          "415": {
+            "description": "Stored format is not a previewable document type"
+          },
+          "503": {
+            "description": "Media File Service unavailable"
+          }
+        }
+      }
     }
   },
   "components": {

@@ -355,6 +355,7 @@ func manifestlessRoutes() []liveRoute {
 		internalRoute("POST", "/marketplace-offers/:offerId/provider-accept"), internalRoute("POST", "/marketplace-offers/:offerId/provider-decline"),
 
 		tenant("GET", "/organizations/:organizationId/closure-status"), tenant("GET", "/organizations/:organizationId/documents"),
+		tenant("GET", "/organizations/:organizationId/documents/:documentId/preview"),
 		tenant("GET", "/organizations/:organizationId/onboarding-status"), tenant("GET", "/organizations/:organizationId/verification"),
 		tenant("GET", "/organizations/:organizationId/wallet-provisioning"), tenant("GET", "/organizations/current"),
 		tenant("GET", "/permissions"), tenant("GET", "/providers"), tenant("GET", "/providers/:membershipId"),

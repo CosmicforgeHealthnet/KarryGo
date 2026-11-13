@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -69,6 +70,7 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.POST("/organizations/:organizationId/documents", h.attachDocument)
 	group.GET("/organizations/:organizationId/documents", h.listDocuments)
 	group.DELETE("/organizations/:organizationId/documents/:documentId", h.removeDocument)
+	group.GET("/organizations/:organizationId/documents/:documentId/preview", h.previewDocument)
 	group.POST("/organizations/:organizationId/submit", h.submit)
 	group.GET("/organizations/:organizationId/verification", h.verificationStatus)
 	group.GET("/organizations/:organizationId/wallet-provisioning", h.walletStatus)
@@ -1387,4 +1389,35 @@ func (h *Handler) removeDocument(c *gin.Context) {
 		return
 	}
 	respond.OK(c, gin.H{"documentId": c.Param("documentId"), "status": "REMOVED"})
+}
+
+// previewDocument streams an attached company document to the organization's
+// own users for viewing. It needs only read permission, so a member who
+// cannot change documents can still look at them.
+//
+// The response is the document bytes, never a Media URL or grant. It is
+// marked private, uncacheable, non-sniffable and unframeable, and is served
+// as an attachment so a direct navigation can never render it in Fleet's
+// origin; the web app reads it through an authenticated request instead.
+func (h *Handler) previewDocument(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !requireScopedPath(c, t) {
+		return
+	}
+	if !h.authorize(c, t, "organization.read") {
+		return
+	}
+	preview, err := h.organizations.PreviewDocument(c.Request.Context(), t, c.Param("documentId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	filename := strings.ToLower(strings.ReplaceAll(preview.DocumentType, "_", "-")) + preview.Extension
+	c.Header("Cache-Control", "no-store, private, max-age=0")
+	c.Header("Pragma", "no-cache")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox")
+	c.Header("Cross-Origin-Resource-Policy", "same-origin")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	c.Data(http.StatusOK, preview.ContentType, preview.Content)
 }
