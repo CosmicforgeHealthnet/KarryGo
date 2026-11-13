@@ -75,7 +75,7 @@ function OnboardingShell({ children }: { children: ReactNode }) {
     (data.status?.stages ?? []).map((stage) => [stage.stage, stage.status])
   );
   const stageStatusError = !!organization && !data.status;
-  const loadStageStatuses = (_organizationId: string) => { void reload(); };
+  const loadStageStatuses = () => { void reload(); };
   const hasCompany = !!organization?.organizationId;
   const isOnboardingHome = pathname === SETUP_HOME;
   const activeStep = stepForPath(pathname);
@@ -96,7 +96,25 @@ function OnboardingShell({ children }: { children: ReactNode }) {
     if (!hasCompany && pathname !== CREATE_COMPANY_PATH && pathname !== SETUP_HOME)
       router.replace(CREATE_COMPANY_PATH);
   }, [hasCompany, pathname, router]);
-  useEffect(() => { setIsMobileMenuOpen(false); }, [pathname]);
+  // Load the next step's code once the browser is idle, so continuing does not
+  // wait on a network round trip. (The previous step is already prefetched by
+  // the Back link; prefetching it again would only compete with that request.)
+  // Rendering is unchanged.
+  useEffect(() => {
+    const next = SETUP_STEPS[activeIndex + 1];
+    if (activeIndex < 0 || !next) return;
+    const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 200));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const handle = idle(() => router.prefetch(next.path));
+    return () => cancel(handle);
+  }, [activeIndex, router]);
+  // Close the step drawer when the page changes (adjusted during render, as
+  // React recommends, rather than in an effect).
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setIsMobileMenuOpen(false);
+  }
   useEffect(() => {
     if (!isMobileMenuOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
@@ -265,7 +283,7 @@ function OnboardingShell({ children }: { children: ReactNode }) {
             {stageStatusError && (
               <button
                 type="button"
-                onClick={() => organization?.organizationId && loadStageStatuses(organization.organizationId)}
+                onClick={() => organization?.organizationId && loadStageStatuses()}
                 className="mt-2 flex items-center gap-1 text-xs text-red hover:underline"
               >
                 <AlertTriangle className="h-3 w-3" />

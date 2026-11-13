@@ -228,6 +228,102 @@ try {
     buffer: pdf,
   });
   await certificate.getByText("Status: Ready", { exact: true }).waitFor();
+  // ---- Document preview: every accepted format, read-only, failure-tolerant ----
+  const fixtures = {
+    png: ["image/png", "iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAIAAACDRijCAAAAHElEQVR4nGPkqohioAZgooopowaNGjRq0Ag2CAA3hAD8jfoQDwAAAABJRU5ErkJggg=="],
+    jpeg: ["image/jpeg", "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDk6KKK0PkAooooA//Z"],
+    webp: ["image/webp", "UklGRjwAAABXRUJQVlA4IDAAAACQAgCdASoYABAAPm0skUWkIqGYBABABsSgAAeyAAD+771OI7f/+bA/9vP/BHloAAA="],
+  };
+  const image = (kind) => ({
+    name: "preview." + kind,
+    mimeType: fixtures[kind][0],
+    buffer: Buffer.from(fixtures[kind][1], "base64"),
+  });
+  const docSection = (type) =>
+    page.getByRole("heading", { name: type, exact: true }).locator("..").locator("..");
+  const readyRefs = async () =>
+    page.getByText(/^File reference:/).allInnerTexts();
+  const dialog = page.getByRole("dialog", { name: /preview$/ });
+  const openPreview = async (type) => {
+    await page
+      .getByRole("button", { name: "Preview " + type, exact: true })
+      .click();
+    await dialog.waitFor();
+  };
+  const closePreview = async (how = "button") => {
+    if (how === "escape") await page.keyboard.press("Escape");
+    else await page.getByRole("button", { name: "Close preview" }).click();
+    await dialog.waitFor({ state: "detached" });
+  };
+  // PDF: shown in the browser's own viewer from a local object URL.
+  await openPreview("Certificate Of Incorporation");
+  const frame = dialog.locator('object[type="application/pdf"]');
+  await frame.waitFor();
+  const pdfUrl = await frame.getAttribute("data");
+  assert.match(pdfUrl, /^blob:/, "Preview never uses a Media or tokenized URL");
+  assert.match(
+    await page.evaluate(async (u) => (await fetch(u)).text(), pdfUrl),
+    /^%PDF-/,
+    "PDF preview shows the saved document",
+  );
+  await closePreview();
+  assert.equal(
+    await page.evaluate(async (u) => fetch(u).then(() => "open", () => "revoked"), pdfUrl),
+    "revoked",
+    "Closing the preview releases its object URL",
+  );
+  // Images: each stored format renders at its real size.
+  for (const [type, kind] of [
+    ["Tax Clearance", "png"],
+    ["Insurance Policy", "jpeg"],
+    ["Operating License", "webp"],
+  ]) {
+    await docSection(type)
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(image(kind));
+    await docSection(type).getByText("Status: Ready", { exact: true }).waitFor();
+    await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
+    await openPreview(type);
+    const img = dialog.locator("img");
+    await img.waitFor();
+    await page.waitForFunction(
+      (el) => el.complete && el.naturalWidth > 0,
+      await img.elementHandle(),
+    );
+    assert.equal(await img.evaluate((el) => el.naturalWidth), 24, kind + " preview decoded");
+    await closePreview(kind === "jpeg" ? "escape" : "button");
+  }
+  const refsBefore = await readyRefs();
+  await page.reload();
+  await page.getByText("Status: Ready", { exact: true }).nth(3).waitFor();
+  await openPreview("Operating License");
+  await dialog.locator("img").waitFor();
+  await closePreview();
+  // A failed preview stays inside the viewer and changes nothing.
+  await page.route("**/documents/*/preview", (route) =>
+    route.abort("internetdisconnected"),
+  );
+  await openPreview("Tax Clearance");
+  await dialog.getByRole("alert").filter({ hasText: "We couldn't connect" }).waitFor();
+  await closePreview();
+  await page.unroute("**/documents/*/preview");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openPreview("Certificate Of Incorporation");
+  await dialog.locator("object").waitFor();
+  const box = await dialog.boundingBox();
+  assert(box && box.x >= 0 && box.x + box.width <= 390, "Preview fits a phone screen");
+  assert(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    "Mobile preview overflow",
+  );
+  await closePreview();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  assert.deepEqual(await readyRefs(), refsBefore, "Preview changes no document");
+  assert.equal(await page.getByText("Status: Ready", { exact: true }).count(), 4);
+  checks.push(
+    "preview PDF, PNG, JPEG and WebP from authenticated object URLs; close and Escape release them; survives reload; failure stays in the viewer; fits mobile; documents unchanged",
+  );
   await save("submit");
   await page
     .getByText("2 Operating Road, Abuja, FCT, NG", { exact: true })
@@ -270,6 +366,21 @@ try {
   checks.push(
     "edit completed company section preserves legal data and returns to review; submission persists without approving company or requiring wallet",
   );
+  // After submission the company is read-only: documents can still be viewed.
+  await page.goto(origin + "/setup/business-docs");
+  await page.getByText("Status: Ready", { exact: true }).nth(3).waitFor();
+  assert.equal(await page.locator("[data-document-preview]").count(), 4);
+  assert.equal(await page.getByText("Replace", { exact: true }).count(), 0);
+  await page
+    .getByRole("button", { name: "Preview Tax Clearance", exact: true })
+    .click();
+  await page.getByRole("dialog", { name: /preview$/ }).locator("img").waitFor();
+  await page.getByRole("button", { name: "Close preview" }).click();
+  await page.goto(origin + "/setup/submit");
+  await page
+    .getByRole("heading", { name: "Submission status", exact: true })
+    .waitFor();
+  checks.push("read-only submitted company: Preview available without Replace or Remove");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL("**/sign-in");
   await fetch(api + "/__test/cooldown", { method: "POST" });

@@ -1,7 +1,11 @@
 "use client";
-import { useRef, useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
 import { useOnboarding } from "../onboarding-context";
-import { organizationService as api } from "@/lib/services/organizationService";
+import { DocumentPreview } from "../document-preview";
+import {
+  organizationService as api,
+  type Document,
+} from "@/lib/services/organizationService";
 import {
   Section,
   StepForm,
@@ -13,12 +17,22 @@ const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const localError = (message: string) => ({
   response: { data: { error: { message } } },
 });
+// A document change affects only the document list and onboarding progress.
+const DOCUMENT_RECORDS = ["documents", "status"] as const;
+async function sha256Hex(file: File) {
+  const hash = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(hash), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
 export default function Documents() {
-  const { data, reload, reloadSaved, editable } = useOnboarding();
+  const { data, refresh, reloadSaved, editable } = useOnboarding();
   const id = data.organization!.organizationId;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<Document | null>(null);
+  const closePreview = useCallback(() => setPreviewing(null), []);
   const [pending, setPending] = useState<
     Record<string, { fileId: string; replaceId?: string }>
   >({});
@@ -31,7 +45,7 @@ export default function Documents() {
       delete next[type];
       return next;
     });
-    await reload();
+    await refresh(DOCUMENT_RECORDS);
   }
   async function upload(type: string, file: File, replaceId?: string) {
     if (guard.current) return;
@@ -43,10 +57,14 @@ export default function Documents() {
         throw localError("Choose a PDF, JPEG, PNG or WebP file.");
       if (file.size > 25 * 1024 * 1024 || file.size === 0)
         throw localError("Choose a nonempty file up to 25 MB.");
-      const grant = await api.requestUploadAuthorization(id, {
-        documentType: type,
-        idempotencyKey: crypto.randomUUID(),
-      });
+      // The checksum is computed while the upload authorization is requested.
+      const [grant, checksum] = await Promise.all([
+        api.requestUploadAuthorization(id, {
+          documentType: type,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+        sha256Hex(file),
+      ]);
       if (
         file.size > grant.maxSizeBytes ||
         !grant.allowedMimeTypes.includes(file.type)
@@ -54,13 +72,6 @@ export default function Documents() {
         throw localError(
           "This file does not meet the upload authorization's type or size limits.",
         );
-      const hash = await crypto.subtle.digest(
-        "SHA-256",
-        await file.arrayBuffer(),
-      );
-      const checksum = Array.from(new Uint8Array(hash), (b) =>
-        b.toString(16).padStart(2, "0"),
-      ).join("");
       await api.completeDocumentUpload(id, {
         ...grant,
         declaredMime: file.type,
@@ -101,7 +112,7 @@ export default function Documents() {
     setError(null);
     try {
       await api.removeDocument(id, documentId);
-      await reload();
+      await refresh(DOCUMENT_RECORDS);
       setConfirm(null);
     } catch (err) {
       setError(err);
@@ -115,7 +126,7 @@ export default function Documents() {
     if (guard.current) return;
     setBusy(true);
     try {
-      const current = await reload();
+      const current = await refresh(["status"]);
       if (
         current.status?.stages.find((s) => s.stage === "BUSINESS_DOCUMENTS")
           ?.status !== "COMPLETE"
@@ -176,50 +187,65 @@ export default function Documents() {
                       Expires {new Date(doc.expiresAt).toLocaleDateString()}
                     </p>
                   )}
-                  {editable && (
+                  {(editable || doc.status === "READY") && (
                     <div className="mt-3 flex flex-wrap items-center gap-3">
-                      <label className="btn btn-secondary cursor-pointer">
-                        Replace
-                        <span className="sr-only"> {humanize(type)}</span>
-                        <input
-                          type="file"
-                          className="sr-only"
-                          accept={allowed.join(",")}
-                          disabled={busy}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void upload(type, file, doc.id);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
-                      {confirm === doc.id ? (
+                      {doc.status === "READY" && (
+                        <button
+                          type="button"
+                          data-document-preview
+                          className="btn btn-secondary"
+                          onClick={() => setPreviewing(doc)}
+                        >
+                          Preview
+                          <span className="sr-only"> {humanize(type)}</span>
+                        </button>
+                      )}
+                      {editable && (
                         <>
-                          <span>Remove this attachment?</span>
+                        <label className="btn btn-secondary cursor-pointer">
+                          Replace
+                          <span className="sr-only"> {humanize(type)}</span>
+                          <input
+                            type="file"
+                            className="sr-only"
+                            accept={allowed.join(",")}
+                            disabled={busy}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void upload(type, file, doc.id);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        {confirm === doc.id ? (
+                          <>
+                            <span>Remove this attachment?</span>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => remove(doc.id)}
+                              className="font-semibold text-red"
+                            >
+                              Confirm removal
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirm(null)}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => remove(doc.id)}
-                            className="font-semibold text-red"
+                            onClick={() => setConfirm(doc.id)}
+                            className="text-red"
                           >
-                            Confirm removal
+                            Remove
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirm(null)}
-                          >
-                            Cancel
-                          </button>
+                        )}
                         </>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setConfirm(doc.id)}
-                          className="text-red"
-                        >
-                          Remove
-                        </button>
                       )}
                     </div>
                   )}
@@ -268,6 +294,13 @@ export default function Documents() {
         retains the underlying records for audit.
       </p>
       <SaveFooter step="documents" busy={busy} editable={editable} />
+      {previewing && (
+        <DocumentPreview
+          organizationId={id}
+          document={previewing}
+          onClose={closePreview}
+        />
+      )}
     </StepForm>
   );
 }

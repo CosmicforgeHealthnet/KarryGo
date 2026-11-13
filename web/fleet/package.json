@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --no-warnings --test src/lib/auth/*.test.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test src/lib/auth/*.test.mjs src/lib/onboarding/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

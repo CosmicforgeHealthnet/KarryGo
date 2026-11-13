@@ -6,6 +6,12 @@ import type { Organization } from "@/lib/stores/organizationStore";
 // NOTE: The Organization type is defined in organizationStore.ts and imported
 // here. Do not redeclare it — that caused a status-type mismatch across the app.
 
+// Optional cancellation for reads, so a superseded or unmounted onboarding
+// view does not keep requests running.
+export interface ReadOptions {
+  signal?: AbortSignal;
+}
+
 export interface CreateOrganizationRequest {
   legalName: string;
   tradingName: string;
@@ -141,9 +147,10 @@ export const organizationService = {
     return response.data.data;
   },
 
-  async getCurrentOrganization(): Promise<Organization> {
+  async getCurrentOrganization(options?: ReadOptions): Promise<Organization> {
     const response = await apiClient.get<{ data: Organization }>(
       "/organizations/current",
+      { signal: options?.signal },
     );
     return response.data.data;
   },
@@ -188,9 +195,13 @@ export const organizationService = {
     return response.data.data;
   },
 
-  async listRepresentatives(organizationId: string): Promise<Representative[]> {
+  async listRepresentatives(
+    organizationId: string,
+    options?: ReadOptions,
+  ): Promise<Representative[]> {
     const response = await apiClient.get<{ data: Representative[] }>(
       `/organizations/${organizationId}/representatives`,
+      { signal: options?.signal },
     );
     return response.data.data;
   },
@@ -218,9 +229,11 @@ export const organizationService = {
 
   async getOnboardingStatus(
     organizationId: string,
+    options?: ReadOptions,
   ): Promise<OnboardingStatusResponse> {
     const response = await apiClient.get<{ data: OnboardingStatusResponse }>(
       `/organizations/${organizationId}/onboarding-status`,
+      { signal: options?.signal },
     );
     return response.data.data;
   },
@@ -273,9 +286,11 @@ export const organizationService = {
 
   async getCapabilities(
     organizationId: string,
+    options?: ReadOptions,
   ): Promise<Record<string, string>> {
     const response = await apiClient.get<{ data: Record<string, string> }>(
       `/organizations/${organizationId}/capabilities`,
+      { signal: options?.signal },
     );
     return response.data.data || {};
   },
@@ -293,9 +308,13 @@ export const organizationService = {
 
   // ---- Profile (Headquarters) ----
 
-  async getProfile(organizationId: string): Promise<BusinessProfile | null> {
+  async getProfile(
+    organizationId: string,
+    options?: ReadOptions,
+  ): Promise<BusinessProfile | null> {
     const response = await apiClient.get<{ data: BusinessProfile | null }>(
       `/organizations/${organizationId}/profile`,
+      { signal: options?.signal },
     );
     return response.data.data || null;
   },
@@ -326,11 +345,44 @@ export const organizationService = {
     return response.data.data;
   },
 
-  async listDocuments(organizationId: string): Promise<Document[]> {
+  async listDocuments(
+    organizationId: string,
+    options?: ReadOptions,
+  ): Promise<Document[]> {
     const response = await apiClient.get<{ data: Document[] }>(
       `/organizations/${organizationId}/documents`,
+      { signal: options?.signal },
     );
     return response.data.data;
+  },
+
+  // Read-only content of one attached document, for the organization's own
+  // users. The bytes come through Fleet; no Media URL or grant reaches the
+  // browser, and the request carries the session in a header, never the URL.
+  async previewDocument(
+    organizationId: string,
+    documentId: string,
+    options?: ReadOptions,
+  ): Promise<Blob> {
+    try {
+      const response = await apiClient.get<Blob>(
+        `/organizations/${organizationId}/documents/${encodeURIComponent(documentId)}/preview`,
+        { responseType: "blob", signal: options?.signal, timeout: 60000 },
+      );
+      return response.data;
+    } catch (error) {
+      // A blob response hides the JSON error envelope; restore it so callers
+      // can show the server's safe message and request reference.
+      const response = (error as { response?: { data?: unknown } }).response;
+      if (response?.data instanceof Blob) {
+        try {
+          response.data = JSON.parse(await response.data.text());
+        } catch {
+          response.data = undefined;
+        }
+      }
+      throw error;
+    }
   },
 
   async attachDocument(
@@ -357,9 +409,10 @@ export const organizationService = {
       `/organizations/${organizationId}/documents/${documentId}`,
     );
   },
-  async getIdentityProfile(): Promise<IdentityProfile> {
+  async getIdentityProfile(options?: ReadOptions): Promise<IdentityProfile> {
     const result = await apiClient.get<{ data: IdentityProfile }>(
       "/identity/profile",
+      { signal: options?.signal },
     );
     return result.data.data;
   },
