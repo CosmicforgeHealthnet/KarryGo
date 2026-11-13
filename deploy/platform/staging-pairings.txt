@@ -14,5 +14,21 @@ URL fleet-partner-service FLEET_PARTNER_VERIFICATION_COMPLIANCE_SERVICE_BASE_URL
 URL verification-compliance-service VERIFICATION_COMPLIANCE_FLEET_EVENTS_URL=http://karrygo-fleet-partner-api:8113
 SET verification-compliance-service VERIFICATION_COMPLIANCE_MIGRATION=true
 SET verification-compliance-service VERIFICATION_COMPLIANCE_PRIVATE_API_ENABLED=true
-# Staging has no Fleet <-> Wallet connection yet; refused in production.
+# Company wallet and provider sub-wallets (spec 13, 42). Read, projection,
+# provisioning and reconciliation only: allocations, withdrawals, payroll
+# posting and finance execution stay off until finance reconciliation
+# approval (spec 33 step 8). Wallet keeps manual payouts (its default).
+PAIR fleet-partner-service payment-wallet-service
+PAIR payment-wallet-service fleet-partner-service
+URL fleet-partner-service FLEET_PARTNER_PAYMENT_WALLET_SERVICE_BASE_URL=http://karrygo-payment-wallet-service:8105
+URL payment-wallet-service PAYMENT_WALLET_FINANCE_OUTBOX_TARGET_URL=http://karrygo-fleet-partner-api:8113
+SET payment-wallet-service PAYMENT_WALLET_FINANCE_PRIVATE_API_ENABLED=true
+SET payment-wallet-service PAYMENT_WALLET_FINANCE_OUTBOX_ENABLED=true
+SET fleet-partner-service ORGANIZATION_WALLET_READ_ENABLED=true
+SET fleet-partner-service PROVIDER_SUBWALLET_ENABLED=true
+SET fleet-partner-service WALLET_PROJECTION_REFRESH_ENABLED=true
+SET fleet-partner-service WALLET_RECONCILIATION_ENABLED=true
+# The staging-only activation waiver stays until a company wallet has been
+# provisioned through the pair above; then set it to false. Refused in
+# production by Fleet's configuration validation.
 SET fleet-partner-service FLEET_ACTIVATION_WALLET_GATE_WAIVED=true

@@ -28,6 +28,7 @@ import json, re, sys
 FILES = {
     "fleet-partner-service": "/opt/karrygo/fleet-partner-service/fleet.service.env",
     "verification-compliance-service": "/opt/karrygo/verification-service/verification.env",
+    "payment-wallet-service": "/opt/karrygo/payment-wallet-service/wallet.env",
 }
 # (caller, callee) -> where each side keeps the shared secret.
 #   caller_var: the caller's single secret setting
@@ -38,6 +39,14 @@ PAIRS = {
         "callee_list": "VERIFICATION_COMPLIANCE_SERVICE_SECRETS"},
     ("verification-compliance-service", "fleet-partner-service"): {
         "caller_var": "VERIFICATION_COMPLIANCE_FLEET_EVENTS_SECRET",
+        "callee_list": "FLEET_PARTNER_SERVICE_SECRETS"},
+    # Fleet -> Wallet internal finance API (company wallet, sub-wallets).
+    ("fleet-partner-service", "payment-wallet-service"): {
+        "caller_var": "FLEET_PARTNER_PAYMENT_WALLET_SERVICE_SECRET",
+        "callee_list": "PAYMENT_WALLET_SERVICE_SECRETS"},
+    # Wallet -> Fleet finance events (wallet/payment projections).
+    ("payment-wallet-service", "fleet-partner-service"): {
+        "caller_var": "PAYMENT_WALLET_FINANCE_OUTBOX_SECRET",
         "callee_list": "FLEET_PARTNER_SERVICE_SECRETS"},
 }
 plan = {"pairs": [], "sets": [], "urls": []}
