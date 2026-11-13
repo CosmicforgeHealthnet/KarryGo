@@ -463,6 +463,12 @@ func main() {
 			if routes := buildProviderMembershipInternalRoutes(cfg, components.Providers); routes != nil {
 				routes(group)
 			}
+			// Provider self-service (FLEET-13.7 own sub-wallet, FLEET-17.15
+			// own schedule/qualifications/training/performance), called by
+			// the owning provider service on the provider's behalf.
+			if routes := components.InternalProviderSelfServiceRoutes(cfg); routes != nil {
+				routes(group)
+			}
 			// ADR-006: verification-compliance-service delivers company
 			// verification decisions here.
 			if callers := parseAllowedCallers(cfg.VerificationEventsAllowedCallers); len(callers) > 0 {

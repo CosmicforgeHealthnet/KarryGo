@@ -28,16 +28,22 @@ POST   /fleet-partner/v1/providers/{membershipId}/sub-wallet/withdrawals/{id}/re
 GET    /fleet-partner/v1/providers/{membershipId}/sub-wallet/withdrawals
 ```
 
-Provider-authenticated equivalents:
+Provider self-service equivalents. Providers never call Fleet directly: their
+owning provider service (`driver-dispatch-delivery-service`,
+`driver-taxi-service`, `driver-hauling-service`) authenticates the provider
+session and calls these HMAC-authenticated internal routes on the provider's
+behalf (allowlist: `PROVIDER_MEMBERSHIP_ALLOWED_CALLERS`):
 
 ```
-GET  /fleet-partner/v1/provider/sub-wallet
-GET  /fleet-partner/v1/provider/sub-wallet/statement
-POST /fleet-partner/v1/provider/sub-wallet/withdrawals
+GET  /internal/fleet-partner/v1/providers/{providerId}/sub-wallet
+GET  /internal/fleet-partner/v1/providers/{providerId}/sub-wallet/statement
+POST /internal/fleet-partner/v1/providers/{providerId}/sub-wallet/withdrawals
 ```
 
-The provider routes resolve the membership from the provider's own
-authenticated session through `ProviderMembershipResolver` — **never** from a
+The provider routes resolve the membership through `ProviderMembershipResolver`
+(`providers/http.SelfResolver`): the caller must be allowlisted AND be an
+owning provider service, and the membership is the provider's single live
+membership in that caller's own service — **never** a membership named by a
 path parameter or request body. There is no code path where request input
 selects whose money is read or moved. When no resolver is wired the routes are
 not mounted at all, rather than mounted with a weaker check.

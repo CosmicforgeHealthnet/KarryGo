@@ -67,6 +67,7 @@ import (
 	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
 	prooffeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
+	providershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/http"
 	providerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
 	recurringhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/http"
 	recurringusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/usecases"
@@ -950,6 +951,42 @@ func (c *Components) InternalSection22To23Routes() RouteRegistrar {
 		financeHandler.RegisterInternalRoutes(group)
 		engagementHandler.RegisterInternalRoutes(group)
 	}
+}
+
+// InternalProviderSelfServiceRoutes mounts the provider self-service surface
+// on the HMAC-authenticated internal route class: the provider's own
+// sub-wallet, statement and withdrawal request (FLEET-13.7, Section 13) and
+// own schedule, qualifications, training and performance (FLEET-17.15, spec
+// 46.2). Providers never call Fleet directly; their owning provider service
+// calls these routes for them. The caller allowlist is the existing
+// PROVIDER_MEMBERSHIP_ALLOWED_CALLERS -- the same owning services that read
+// a provider's membership summary -- and the resolver additionally requires
+// the caller to be an owning provider service. Returns nil (nothing mounted)
+// when no caller is allowlisted.
+func (c *Components) InternalProviderSelfServiceRoutes(cfg config.Config) RouteRegistrar {
+	callers := splitCallers(cfg.ProviderMembershipAllowedCallers)
+	if len(callers) == 0 || c.Providers == nil {
+		return nil
+	}
+	resolver := providershttp.NewSelfResolver(c.Providers, callers)
+	return func(group *gin.RouterGroup) {
+		if c.CompanyWallet != nil {
+			wallethttp.NewHandler(c.CompanyWallet, c.Authorizer).RegisterProviderRoutes(group, resolver)
+		}
+		if c.Workforce != nil {
+			workforcefeature.RegisterInternalProviderRoutes(group, workforcefeature.NewInternalProviderHandler(c.Workforce, resolver))
+		}
+	}
+}
+
+func splitCallers(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if name := strings.TrimSpace(part); name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 func (c *Components) InternalFleetPartnerRoutes(cfg config.Config) RouteRegistrar {

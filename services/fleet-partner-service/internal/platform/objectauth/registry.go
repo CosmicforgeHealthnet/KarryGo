@@ -231,6 +231,16 @@ var manifestlessPermissions = map[string]string{
 	"GET /internal/fleet-partner/v1/providers/:providerId/memberships":               internalCallerAllowlistSentinel,
 	"GET /internal/fleet-partner/v1/providers/:providerId/offers":                    internalCallerAllowlistSentinel,
 	"GET /internal/fleet-partner/v1/providers/:providerId/offers/:offerId":           internalCallerAllowlistSentinel,
+	// Provider self-service (FLEET-13.7, FLEET-17.15): caller allowlist plus
+	// owning-service check in providers/http.SelfResolver; the membership is
+	// resolved from the verified caller and :providerId, never the path.
+	"GET /internal/fleet-partner/v1/providers/:providerId/sub-wallet":                internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/sub-wallet/statement":      internalCallerAllowlistSentinel,
+	"POST /internal/fleet-partner/v1/providers/:providerId/sub-wallet/withdrawals":   internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/schedule":                  internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/qualifications":            internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/training":                  internalCallerAllowlistSentinel,
+	"GET /internal/fleet-partner/v1/providers/:providerId/performance":               internalCallerAllowlistSentinel,
 	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-accept":      internalCallerAllowlistSentinel,
 	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-acknowledge": internalCallerAllowlistSentinel,
 	"POST /internal/fleet-partner/v1/assignments/:assignmentId/provider-decline":     internalCallerAllowlistSentinel,

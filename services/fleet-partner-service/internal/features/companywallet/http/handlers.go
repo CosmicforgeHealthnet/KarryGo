@@ -84,7 +84,17 @@ type ProviderMembershipResolver interface {
 	ResolveMembership(c *gin.Context) (organizationID string, membershipID string, ok bool)
 }
 
-// RegisterProviderRoutes mounts the provider-authenticated routes.
+// RegisterProviderRoutes mounts the provider self-service routes (FLEET-13.7).
+//
+// Providers never call Fleet directly: these routes are mounted on the
+// INTERNAL, HMAC-authenticated surface (/internal/fleet-partner/v1) and are
+// called by the provider's owning provider service, which has already
+// authenticated the provider session and vouches for :providerId. The
+// resolver derives the membership from the verified caller service plus that
+// provider id -- the path never names a membership -- so a provider can only
+// ever reach their own sub-wallet. Responses are the minimal provider DTOs
+// (see usecases.ProviderStatement): no organization balance, margin,
+// commission, customer fare or other provider's data.
 func (h *Handler) RegisterProviderRoutes(group *gin.RouterGroup, resolver ProviderMembershipResolver) {
 	if resolver == nil {
 		// Without a resolver there is no trustworthy way to know whose
@@ -92,9 +102,45 @@ func (h *Handler) RegisterProviderRoutes(group *gin.RouterGroup, resolver Provid
 		// rather than mounted with a weaker check.
 		return
 	}
-	group.GET("/provider/sub-wallet", h.providerSubWallet(resolver))
-	group.GET("/provider/sub-wallet/statement", h.providerStatement(resolver))
-	group.POST("/provider/sub-wallet/withdrawals", h.providerWithdrawal(resolver))
+	for _, route := range ProviderRoutes() {
+		switch route.OperationID {
+		case "getProviderOwnSubWallet":
+			group.Handle(route.Method, route.Path, h.providerSubWallet(resolver))
+		case "getProviderOwnStatement":
+			group.Handle(route.Method, route.Path, h.providerStatement(resolver))
+		case "requestProviderOwnWithdrawal":
+			group.Handle(route.Method, route.Path, h.providerWithdrawal(resolver))
+		}
+	}
+}
+
+// ProviderRoute is one provider self-service route.
+type ProviderRoute struct {
+	Method, Path, OperationID string
+}
+
+// ProviderRoutes lists the provider self-service routes, mounted under
+// /internal/fleet-partner/v1.
+func ProviderRoutes() []ProviderRoute {
+	return []ProviderRoute{
+		{"GET", "/providers/:providerId/sub-wallet", "getProviderOwnSubWallet"},
+		{"GET", "/providers/:providerId/sub-wallet/statement", "getProviderOwnStatement"},
+		{"POST", "/providers/:providerId/sub-wallet/withdrawals", "requestProviderOwnWithdrawal"},
+	}
+}
+
+// resolveProvider runs the resolver. A resolver that already wrote its own
+// error (not found, caller not allowed) is respected; otherwise the request
+// is refused as unauthenticated.
+func resolveProvider(c *gin.Context, resolver ProviderMembershipResolver) (string, string, bool) {
+	organizationID, membershipID, ok := resolver.ResolveMembership(c)
+	if !ok {
+		if !c.Writer.Written() {
+			respond.Error(c, apperrors.Forbidden("Provider authentication is required.", nil))
+		}
+		return "", "", false
+	}
+	return organizationID, membershipID, true
 }
 
 func requireTenant(c *gin.Context) (tenant.Context, bool) {
@@ -632,9 +678,8 @@ func providerTenant(organizationID, membershipID string, c *gin.Context) tenant.
 
 func (h *Handler) providerSubWallet(resolver ProviderMembershipResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		organizationID, membershipID, ok := resolver.ResolveMembership(c)
+		organizationID, membershipID, ok := resolveProvider(c, resolver)
 		if !ok {
-			respond.Error(c, apperrors.Forbidden("Provider authentication is required.", nil))
 			return
 		}
 		view, err := h.service.GetSubWallet(c.Request.Context(),
@@ -649,9 +694,8 @@ func (h *Handler) providerSubWallet(resolver ProviderMembershipResolver) gin.Han
 
 func (h *Handler) providerStatement(resolver ProviderMembershipResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		organizationID, membershipID, ok := resolver.ResolveMembership(c)
+		organizationID, membershipID, ok := resolveProvider(c, resolver)
 		if !ok {
-			respond.Error(c, apperrors.Forbidden("Provider authentication is required.", nil))
 			return
 		}
 		statement, err := h.service.ProviderStatement(c.Request.Context(), usecases.StatementInput{
@@ -667,9 +711,8 @@ func (h *Handler) providerStatement(resolver ProviderMembershipResolver) gin.Han
 
 func (h *Handler) providerWithdrawal(resolver ProviderMembershipResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		organizationID, membershipID, ok := resolver.ResolveMembership(c)
+		organizationID, membershipID, ok := resolveProvider(c, resolver)
 		if !ok {
-			respond.Error(c, apperrors.Forbidden("Provider authentication is required.", nil))
 			return
 		}
 		var body withdrawalBody

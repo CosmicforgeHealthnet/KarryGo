@@ -111,9 +111,6 @@ var generated = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/documents/upload-content", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/permissions", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/providers", RiskClass: ratelimit.RiskStandard},
-	{Method: "GET", Path: "/fleet-partner/v1/provider/sub-wallet", RiskClass: ratelimit.RiskSensitive},
-	{Method: "GET", Path: "/fleet-partner/v1/provider/sub-wallet/statement", RiskClass: ratelimit.RiskSensitive},
-	{Method: "POST", Path: "/fleet-partner/v1/provider/sub-wallet/withdrawals", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/history", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/provisioning-status", RiskClass: ratelimit.RiskStandard},
@@ -337,6 +334,17 @@ var overrides = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/branches", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/vehicles", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/service-roles", RiskClass: ratelimit.RiskStandard},
+	// Provider self-service, called by the owning provider service on the
+	// provider's behalf (FLEET-13.7 own sub-wallet; FLEET-17.15 own
+	// schedule, qualifications, training, performance). These replace the
+	// never-mounted /fleet-partner/v1/provider/sub-wallet* entries.
+	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/sub-wallet", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/sub-wallet/statement", RiskClass: ratelimit.RiskInternalService},
+	{Method: "POST", Path: "/internal/fleet-partner/v1/providers/:providerId/sub-wallet/withdrawals", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/schedule", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/qualifications", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/training", RiskClass: ratelimit.RiskInternalService},
+	{Method: "GET", Path: "/internal/fleet-partner/v1/providers/:providerId/performance", RiskClass: ratelimit.RiskInternalService},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},
