@@ -308,3 +308,51 @@ func orEmpty(values []string) []string {
 	}
 	return values
 }
+
+// Directory lists the organization's staff with their verified contacts and
+// the roles they currently hold (unrevoked, unexpired bindings). When
+// memberID is set, only that member is returned.
+func (r *MemberRepository) Directory(ctx context.Context, organizationID string, memberID string, limit int) ([]models.StaffDirectoryEntry, error) {
+	if organizationID == "" {
+		return nil, fmt.Errorf("staff: organization id is required")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT u.id, u.full_name, u.job_title, i.email_display, i.phone_display, u.status, u.is_owner,
+			u.permitted_branch_ids, u.version, u.invited_at, u.activated_at, u.suspended_at, u.created_at,
+			COALESCE((
+				SELECT json_agg(json_build_object('id', ro.id, 'code', ro.code, 'name', ro.name) ORDER BY ro.name)
+				FROM fleet_partner_role_bindings b
+				JOIN fleet_partner_roles ro ON ro.id = b.role_id
+				WHERE b.organization_id = u.organization_id AND b.organization_user_id = u.id
+					AND b.revoked_at IS NULL AND (b.expires_at IS NULL OR b.expires_at > now())
+			), '[]'::json)
+		FROM fleet_partner_organization_users u
+		JOIN fleet_partner_corporate_identities i ON i.id = u.identity_id
+		WHERE u.organization_id = $1 AND ($2 = '' OR u.id = $2)
+		ORDER BY u.created_at DESC, u.id
+		LIMIT $3`, organizationID, memberID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("staff: directory: %w", err)
+	}
+	defer rows.Close()
+	entries := []models.StaffDirectoryEntry{}
+	for rows.Next() {
+		var e models.StaffDirectoryEntry
+		var roles []byte
+		if err := rows.Scan(&e.ID, &e.FullName, &e.JobTitle, &e.Email, &e.Phone, &e.Status, &e.IsOwner,
+			&e.PermittedBranchIDs, &e.Version, &e.InvitedAt, &e.ActivatedAt, &e.SuspendedAt, &e.CreatedAt, &roles); err != nil {
+			return nil, fmt.Errorf("staff: scan directory: %w", err)
+		}
+		if err := json.Unmarshal(roles, &e.Roles); err != nil {
+			return nil, fmt.Errorf("staff: decode roles: %w", err)
+		}
+		if e.PermittedBranchIDs == nil {
+			e.PermittedBranchIDs = []string{}
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}

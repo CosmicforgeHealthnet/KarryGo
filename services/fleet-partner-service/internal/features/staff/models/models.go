@@ -102,26 +102,26 @@ func (i StaffInvitation) Usable(now time.Time) bool {
 
 // Permission is a platform permission catalogue entry.
 type Permission struct {
-	Code        string
-	Category    string
-	Description string
-	IsActive    bool
+	Code        string `json:"code"`
+	Category    string `json:"category"`
+	Description string `json:"description"`
+	IsActive    bool   `json:"isActive"`
 }
 
 // Role is a system template (OrganizationID nil) or an organization's custom
 // role.
 type Role struct {
-	ID             string
-	OrganizationID *string
-	Code           string
-	Name           string
-	Description    string
-	IsSystem       bool
-	Status         string
-	Permissions    []string
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             string    `json:"id"`
+	OrganizationID *string   `json:"organizationId"`
+	Code           string    `json:"code"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	IsSystem       bool      `json:"isSystem"`
+	Status         string    `json:"status"`
+	Permissions    []string  `json:"permissions"`
+	Version        int64     `json:"version"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // RoleBinding grants a role to a membership within a scope.
@@ -155,4 +155,60 @@ func (b RoleBinding) Active(now time.Time) bool {
 		return false
 	}
 	return true
+}
+
+// RoleRef names a role held by a staff member.
+type RoleRef struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+// StaffDirectoryEntry is a staff member as the company's own users see them:
+// the membership, the person's verified contacts and the roles they hold now.
+type StaffDirectoryEntry struct {
+	ID                 string     `json:"id"`
+	FullName           string     `json:"fullName"`
+	JobTitle           *string    `json:"jobTitle"`
+	Email              string     `json:"email"`
+	Phone              string     `json:"phone"`
+	Status             string     `json:"status"`
+	IsOwner            bool       `json:"isOwner"`
+	Roles              []RoleRef  `json:"roles"`
+	PermittedBranchIDs []string   `json:"branchIds"`
+	Version            int64      `json:"version"`
+	InvitedAt          *time.Time `json:"invitedAt"`
+	ActivatedAt        *time.Time `json:"activatedAt"`
+	SuspendedAt        *time.Time `json:"suspendedAt"`
+	CreatedAt          time.Time  `json:"createdAt"`
+}
+
+// InvitationView is a staff invitation without its token hash.
+type InvitationView struct {
+	ID             string    `json:"id"`
+	FullName       string    `json:"fullName"`
+	Email          string    `json:"email"`
+	Phone          string    `json:"phone"`
+	RoleIDs        []string  `json:"roleIds"`
+	BranchIDs      []string  `json:"branchIds"`
+	Status         string    `json:"status"`
+	DeliveryStatus string    `json:"deliveryStatus"`
+	ExpiresAt      time.Time `json:"expiresAt"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// View returns the invitation without secret material.
+func (i StaffInvitation) View() InvitationView {
+	return InvitationView{
+		ID: i.ID, FullName: i.FullName, Email: i.EmailNormalized, Phone: i.PhoneE164,
+		RoleIDs: emptyIfNil(i.RoleIDs), BranchIDs: emptyIfNil(i.PermittedBranchIDs),
+		Status: i.Status, DeliveryStatus: i.DeliveryStatus, ExpiresAt: i.ExpiresAt, CreatedAt: i.CreatedAt,
+	}
+}
+
+func emptyIfNil(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }

@@ -228,3 +228,20 @@ func (s *Service) Roles() *staffrepos.RoleRepository { return s.opts.Roles }
 
 // Members exposes the member repository for read paths.
 func (s *Service) Members() *staffrepos.MemberRepository { return s.opts.Members }
+
+// StaffDirectory lists staff with verified contacts and current roles.
+func (s *Service) StaffDirectory(ctx context.Context, organizationID string) ([]models.StaffDirectoryEntry, error) {
+	return s.opts.Members.Directory(ctx, organizationID, "", 0)
+}
+
+// StaffMember returns one staff member with contacts and current roles.
+func (s *Service) StaffMember(ctx context.Context, organizationID string, memberID string) (*models.StaffDirectoryEntry, error) {
+	entries, err := s.opts.Members.Directory(ctx, organizationID, memberID, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, apperrors.NotFound("Staff member not found.", nil)
+	}
+	return &entries[0], nil
+}

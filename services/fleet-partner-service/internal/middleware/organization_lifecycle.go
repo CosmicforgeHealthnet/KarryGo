@@ -44,6 +44,8 @@ var PreActivationWriteRoutes = map[string]bool{
 	"POST /fleet-partner/v1/organizations/:organizationId/closure/approve":                  true,
 	"POST /fleet-partner/v1/organizations/:organizationId/closure/reject":                   true,
 	"POST /fleet-partner/v1/organizations/:organizationId/closure/execute":                  true,
+	"POST /fleet-partner/v1/staff/invitations/:invitationId/resend":                         true,
+	"DELETE /fleet-partner/v1/staff/invitations/:invitationId":                              true,
 	"POST /fleet-partner/v1/staff/invitations":                                              true,
 	"POST /fleet-partner/v1/staff/:staffId/suspend":                                         true,
 	"POST /fleet-partner/v1/staff/:staffId/reactivate":                                      true,

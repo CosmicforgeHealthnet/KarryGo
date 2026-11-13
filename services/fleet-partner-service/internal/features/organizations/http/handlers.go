@@ -20,6 +20,7 @@ import (
 	orgmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
 	orgusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/usecases"
 	providerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
+	staffmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/models"
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
@@ -86,7 +87,11 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.GET("/roles", h.listRoles)
 
 	group.GET("/staff", h.listStaff)
+	group.GET("/staff/invitations", h.listStaffInvitations)
 	group.POST("/staff/invitations", h.inviteStaff)
+	group.POST("/staff/invitations/:invitationId/resend", h.resendStaffInvitation)
+	group.DELETE("/staff/invitations/:invitationId", h.cancelStaffInvitation)
+	group.GET("/staff/:staffId", h.getStaffMember)
 	group.POST("/staff/:staffId/suspend", h.suspendStaff)
 	group.POST("/staff/:staffId/reactivate", h.reactivateStaff)
 
@@ -1146,15 +1151,79 @@ func (h *Handler) listStaff(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "staff.read") {
 		return
 	}
-	members, err := h.staff.ListStaff(c.Request.Context(), tenant.Query{
-		OrganizationID:     tenantCtx.OrganizationID,
-		PermittedBranchIDs: tenantCtx.PermittedBranchIDs,
-	})
+	members, err := h.staff.StaffDirectory(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		respond.Error(c, err)
 		return
 	}
 	respond.List(c, members, "")
+}
+
+func (h *Handler) getStaffMember(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "staff.read") {
+		return
+	}
+	member, err := h.staff.StaffMember(c.Request.Context(), tenantCtx.OrganizationID, c.Param("staffId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, member)
+}
+
+func (h *Handler) listStaffInvitations(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "staff.read") {
+		return
+	}
+	invitations, err := h.staff.ListInvitations(c.Request.Context(), tenantCtx, 100)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	views := make([]staffmodels.InvitationView, 0, len(invitations))
+	for _, invitation := range invitations {
+		views = append(views, invitation.View())
+	}
+	respond.List(c, views, "")
+}
+
+func (h *Handler) resendStaffInvitation(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "staff.invite") {
+		return
+	}
+	invitation, err := h.staff.ResendInvitation(c.Request.Context(), tenantCtx, c.Param("invitationId"))
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, invitation.View())
+}
+
+func (h *Handler) cancelStaffInvitation(c *gin.Context) {
+	tenantCtx, ok := requireTenant(c)
+	if !ok {
+		return
+	}
+	if !h.authorize(c, tenantCtx, "staff.invite") {
+		return
+	}
+	if err := h.staff.CancelInvitation(c.Request.Context(), tenantCtx, c.Param("invitationId")); err != nil {
+		respond.Error(c, err)
+		return
+	}
+	respond.OK(c, gin.H{"invitationId": c.Param("invitationId"), "status": "CANCELLED"})
 }
 
 type inviteStaffRequest struct {
