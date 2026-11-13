@@ -541,6 +541,45 @@ func TestAcceptanceToOneCanonicalTrip(t *testing.T) {
 		t.Fatalf("provider responses after worker reruns=%d, want 1", got)
 	}
 
+	// Sections 11-12: Fleet's Dispatch adapter speaks Dispatch's REAL internal
+	// dialect (camelCase bodies, reservation-id keyed release, POST
+	// eligibility validation, camelCase read models). Before, every one of
+	// these calls either hit a route Dispatch does not have or decoded to
+	// zero values. Proven here against the live Dispatch service.
+	native := platformclients.NewDispatchExecution(platformclients.New(platformclients.Options{
+		ServiceName: "driver-dispatch-delivery-service", BaseURL: dispatchURL,
+		Secret: []byte(stageOneServiceSecret), Timeout: 5 * time.Second, Metrics: metrics,
+	}))
+	nativeMeta := platformclients.CallMeta{OrganizationID: org.ID}
+	requestView, err := native.ReadRequest(ctx, nativeMeta, ready.RequestID)
+	if err != nil || requestView.RequestID != ready.RequestID ||
+		requestView.WinnerOrganizationID != org.ID || requestView.SourceVersion < 1 {
+		t.Fatalf("native ReadRequest=%+v err=%v", requestView, err)
+	}
+	reservationView, err := native.ReadReservation(ctx, nativeMeta, ready.RequestID, clientResponseID)
+	if err != nil || reservationView.ReservationID != reservationID ||
+		reservationView.WinnerOrganizationID != org.ID {
+		t.Fatalf("native ReadReservation=%+v err=%v, want reservation %s", reservationView, err, reservationID)
+	}
+	tripView, err := native.ReadTrip(ctx, nativeMeta, canonicalTripID)
+	if err != nil || tripView.TripID != canonicalTripID || tripView.ExecutingProviderID != ready.ProviderID ||
+		tripView.SourceVersion < 1 {
+		t.Fatalf("native ReadTrip=%+v err=%v", tripView, err)
+	}
+	eligibility, err := native.ValidateProviderEligibility(ctx, nativeMeta, ready.RequestID, ready.ProviderID, "")
+	if err != nil {
+		t.Fatalf("native ValidateProviderEligibility err=%v", err)
+	}
+	// The provider is now on the live canonical trip, so Dispatch says no --
+	// and says why, at the request's current version.
+	if eligibility.Eligible || eligibility.ReasonCode == "" || eligibility.SourceVersion != requestView.SourceVersion {
+		t.Fatalf("native eligibility=%+v, want ineligible with a reason at version %d",
+			eligibility, requestView.SourceVersion)
+	}
+	if err := native.CancelExecution(ctx, nativeMeta, canonicalTripID, "test", "cancel-1"); err != platformclients.ErrDispatchTripCancelUnsupported {
+		t.Fatalf("native CancelExecution err=%v, want unsupported", err)
+	}
+
 	// Section 15 private-order boundary: use the production Fleet adapter and
 	// worker against the real Dispatch private contract. Dispatch verifies the
 	// accepted private assignment by calling the live Fleet internal endpoint.

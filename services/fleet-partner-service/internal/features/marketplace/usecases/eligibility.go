@@ -184,6 +184,12 @@ func (c *EligibilityChecker) CheckSource(ctx context.Context, meta platformclien
 			"execution service contract is not available"), nil
 	}
 
+	// The organization asking is part of the question: Dispatch refuses to
+	// answer eligibility for a request another organization holds. It travels
+	// in the call metadata so every execution contract receives it.
+	if meta.OrganizationID == "" {
+		meta.OrganizationID = input.OrganizationID
+	}
 	eligibility, err := contract.ValidateProviderEligibility(ctx, meta, input.SourceRequestID, providerID, input.AssetReference)
 	if err != nil {
 		return EligibilityDecision{}, err

@@ -8,30 +8,27 @@ import (
 	"time"
 )
 
-// DispatchExecution is the REAL adapter for driver-dispatch-delivery-service.
+// DispatchExecution is the shared snake_case execution adapter that
+// driver-hauling-service and driver-taxi-service implement (HaulingExecution
+// and TaxiExecution embed it with their own API base):
 //
-// It targets the internal, service-authenticated routes added to dispatch by
-// this work package (documented in docs/marketplace-service-contracts.md):
+//	POST {base}/reservations
+//	GET  {base}/reservations/{sourceRequestId}?idempotency_key=
+//	POST {base}/reservations/{sourceRequestId}/release
+//	GET  {base}/eligibility
+//	POST {base}/executions
+//	GET  {base}/executions/by-idempotency/{key}
+//	GET  {base}/requests/{sourceRequestId}
+//	GET  {base}/trips/{sourceTripId}
+//	POST {base}/trips/{sourceTripId}/cancel
 //
-//	POST /api/v1/internal/marketplace/reservations
-//	GET  /api/v1/internal/marketplace/reservations/{sourceRequestId}
-//	POST /api/v1/internal/marketplace/reservations/{sourceRequestId}/release
-//	GET  /api/v1/internal/marketplace/eligibility
-//	POST /api/v1/internal/marketplace/executions
-//	GET  /api/v1/internal/marketplace/executions/{sourceRequestId}
-//	GET  /api/v1/internal/marketplace/requests/{sourceRequestId}
-//	GET  /api/v1/internal/marketplace/trips/{sourceTripId}
-//	POST /api/v1/internal/marketplace/trips/{sourceTripId}/cancel
+// Despite its historical name it is NOT the Dispatch adapter: Dispatch's own
+// internal API speaks a different (camelCase, reservation-id keyed) dialect
+// and is served by DispatchNativeExecution.
 type DispatchExecution struct {
 	client   *Client
 	apiBase  string
 	category string
-}
-
-// NewDispatchExecution builds the dispatch adapter over the shared signed
-// HTTP client (timeouts, tracing headers, error classification, metrics).
-func NewDispatchExecution(client *Client) *DispatchExecution {
-	return &DispatchExecution{client: client, apiBase: dispatchInternalBase, category: CategoryDispatch}
 }
 
 // Configured reports whether the dispatch base URL and secret are present.
