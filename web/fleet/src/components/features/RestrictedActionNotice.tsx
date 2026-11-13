@@ -58,7 +58,7 @@ export function RestrictedActionNotice({ onRefusal }: { onRefusal?: () => void }
             <Lock className="h-5 w-5 text-amber" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id="restricted-action-title" className="text-[15px] font-semibold text-ink-950">
+            <h2 id="restricted-action-title" style={{ fontSize: "15px", lineHeight: 1.35 }} className="font-semibold text-ink-950">
               {title}
             </h2>
             <p id="restricted-action-body" className="mt-1 text-sm text-ink-600">

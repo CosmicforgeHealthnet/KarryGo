@@ -1,0 +1,72 @@
+{
+  "open /": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "organization": {
+    "organizationStatus": "BUSINESS_SUBMITTED"
+  },
+  "refresh": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "manual /setup": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "manual /setup/submit": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "manual /setup/business-docs": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "manual /setup/profile": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "reopened browser": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false
+  },
+  "companyPage": {
+    "submissionStatus": true,
+    "editLinks": 0,
+    "previewButtons": 4
+  },
+  "directRestrictedApi": {
+    "status": 403,
+    "code": "organization_verification_pending",
+    "data": null
+  },
+  "restrictedUi": {
+    "notice": true,
+    "body": true
+  },
+  "reads": {
+    "/identity/profile": 200,
+    "/organizations/current": 200
+  },
+  "mobile /": {
+    "path": "/",
+    "banner": true,
+    "setupHeading": false,
+    "obsoleteCopy": false,
+    "noOverflow": true
+  }
+}
