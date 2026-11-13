@@ -12,7 +12,13 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
-type safetyDecline struct{ OrganizationID, AssignmentID, AssetReference, MembershipID, ReasonCode, Note string }
+type safetyDecline struct {
+	OrganizationID, AssignmentID, AssetReference, MembershipID, ReasonCode, Note string
+	// Source is PRIVATE_ASSIGNMENT or MARKETPLACE_ASSIGNMENT (spec 11.13,
+	// 18.11): an unsafe-vehicle decline starts the same safety workflow
+	// whichever kind of company work it was declined from.
+	Source string
+}
 
 // ReconcileSafetyDeclines consumes the durable Section 15 assignment projection.
 // The inbox and source uniqueness constraints make repeated sweeps idempotent.
@@ -20,14 +26,26 @@ func (s *Service) ReconcileSafetyDeclines(ctx context.Context) error {
 	if !s.o.Flags.Workers || s.o.Flags.KillSwitch || !s.o.Flags.Inspections || !s.o.Flags.Maintenance {
 		return nil
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT organization_id,id,vehicle_or_truck_reference,provider_membership_id,decline_reason,decline_note FROM fleet_partner_private_assignments a WHERE status='DECLINED' AND decline_reason IN('UNSAFE_VEHICLE','VEHICLE_DEFECT') AND vehicle_or_truck_reference<>'' AND NOT EXISTS(SELECT 1 FROM fleet_partner_safety_decline_inbox i WHERE i.organization_id=a.organization_id AND i.assignment_id=a.id AND i.reason_code=a.decline_reason) ORDER BY declined_at LIMIT 100`)
+	rows, e := s.o.Pool.Query(ctx, `
+		SELECT organization_id, id, vehicle_or_truck_reference, provider_membership_id, decline_reason, decline_note, 'PRIVATE_ASSIGNMENT', declined_at
+		FROM fleet_partner_private_assignments a
+		WHERE status='DECLINED' AND decline_reason IN('UNSAFE_VEHICLE','VEHICLE_DEFECT') AND vehicle_or_truck_reference<>''
+		  AND NOT EXISTS(SELECT 1 FROM fleet_partner_safety_decline_inbox i WHERE i.organization_id=a.organization_id AND i.assignment_id=a.id AND i.reason_code=a.decline_reason)
+		UNION ALL
+		SELECT r.organization_id, r.assignment_id, a.asset_reference, r.membership_id, r.reason_code, '', 'MARKETPLACE_ASSIGNMENT', r.occurred_at
+		FROM fleet_partner_assignment_responses r
+		JOIN fleet_partner_provider_assignments a ON a.id = r.assignment_id AND a.organization_id = r.organization_id
+		WHERE r.response='DECLINED' AND r.reason_code IN('UNSAFE_VEHICLE','VEHICLE_DEFECT') AND COALESCE(a.asset_reference,'')<>''
+		  AND NOT EXISTS(SELECT 1 FROM fleet_partner_safety_decline_inbox i WHERE i.organization_id=r.organization_id AND i.assignment_id=r.assignment_id AND i.reason_code=r.reason_code)
+		ORDER BY 8 LIMIT 100`)
 	if e != nil {
 		return e
 	}
 	items := []safetyDecline{}
 	for rows.Next() {
 		var v safetyDecline
-		if e = rows.Scan(&v.OrganizationID, &v.AssignmentID, &v.AssetReference, &v.MembershipID, &v.ReasonCode, &v.Note); e != nil {
+		var declinedAt any
+		if e = rows.Scan(&v.OrganizationID, &v.AssignmentID, &v.AssetReference, &v.MembershipID, &v.ReasonCode, &v.Note, &v.Source, &declinedAt); e != nil {
 			rows.Close()
 			return e
 		}
@@ -45,11 +63,20 @@ func (s *Service) processSafetyDecline(ctx context.Context, v safetyDecline) err
 	var alertAsset string
 	e := s.tx(ctx, func(tx pgx.Tx) error {
 		var assetID string
+		h := sha256.Sum256([]byte(v.OrganizationID + "|" + v.AssignmentID + "|" + v.ReasonCode + "|" + v.Note))
 		if x := tx.QueryRow(ctx, `SELECT id FROM fleet_partner_assets WHERE organization_id=$1 AND(id=$2 OR platform_vehicle_id=$2)`, v.OrganizationID, v.AssetReference).Scan(&assetID); x != nil {
+			if x != pgx.ErrNoRows {
+				return x
+			}
+			// The vehicle is not a Fleet-registered asset (for example a
+			// provider's own vehicle on marketplace work). There is nothing
+			// here to block; the owning execution service handles its own
+			// vehicle safety. Record the decline as handled so one such
+			// item can never wedge the sweep.
+			_, x = tx.Exec(ctx, `INSERT INTO fleet_partner_safety_decline_inbox(event_id,organization_id,assignment_id,asset_reference,reason_code,payload_hash)VALUES($1,$2,$3,$4,$5,$6)ON CONFLICT(organization_id,assignment_id,reason_code)DO NOTHING`, ids.New("sdi"), v.OrganizationID, v.AssignmentID, v.AssetReference, v.ReasonCode, hex.EncodeToString(h[:]))
 			return x
 		}
 		alertAsset = assetID
-		h := sha256.Sum256([]byte(v.OrganizationID + "|" + v.AssignmentID + "|" + v.ReasonCode + "|" + v.Note))
 		var inserted string
 		if x := tx.QueryRow(ctx, `INSERT INTO fleet_partner_safety_decline_inbox(event_id,organization_id,assignment_id,asset_reference,reason_code,payload_hash)VALUES($1,$2,$3,$4,$5,$6)ON CONFLICT(organization_id,assignment_id,reason_code)DO NOTHING RETURNING event_id`, ids.New("sdi"), v.OrganizationID, v.AssignmentID, v.AssetReference, v.ReasonCode, hex.EncodeToString(h[:])).Scan(&inserted); x != nil {
 			if x == pgx.ErrNoRows {
@@ -79,10 +106,10 @@ func (s *Service) processSafetyDecline(ctx context.Context, v safetyDecline) err
 			return x
 		}
 		workID := ids.New("wor")
-		if _, x = tx.Exec(ctx, `INSERT INTO fleet_partner_work_orders(id,organization_id,asset_id,source_type,source_reference,priority,required_work)VALUES($1,$2,$3,'PRIVATE_ASSIGNMENT',$4,'HIGH','Inspect provider-reported unsafe vehicle condition')ON CONFLICT(organization_id,source_type,source_reference)DO NOTHING`, workID, v.OrganizationID, assetID, v.AssignmentID); x != nil {
+		if _, x = tx.Exec(ctx, `INSERT INTO fleet_partner_work_orders(id,organization_id,asset_id,source_type,source_reference,priority,required_work)VALUES($1,$2,$3,$5,$4,'HIGH','Inspect provider-reported unsafe vehicle condition')ON CONFLICT(organization_id,source_type,source_reference)DO NOTHING`, workID, v.OrganizationID, assetID, v.AssignmentID, v.Source); x != nil {
 			return x
 		}
-		if _, x = tx.Exec(ctx, `INSERT INTO fleet_partner_asset_safety_blocks(id,organization_id,asset_id,source_type,source_reference,status,reason,created_by)VALUES($1,$2,$3,'PRIVATE_ASSIGNMENT',$4,'ACTIVE',$5,'safety-decline-reconciler')ON CONFLICT(organization_id,source_type,source_reference)DO NOTHING`, ids.New("asb"), v.OrganizationID, assetID, v.AssignmentID, v.ReasonCode); x != nil {
+		if _, x = tx.Exec(ctx, `INSERT INTO fleet_partner_asset_safety_blocks(id,organization_id,asset_id,source_type,source_reference,status,reason,created_by)VALUES($1,$2,$3,$6,$4,'ACTIVE',$5,'safety-decline-reconciler')ON CONFLICT(organization_id,source_type,source_reference)DO NOTHING`, ids.New("asb"), v.OrganizationID, assetID, v.AssignmentID, v.ReasonCode, v.Source); x != nil {
 			return x
 		}
 		if _, x = tx.Exec(ctx, `UPDATE fleet_partner_assets SET operational_status='BLOCKED',version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND operational_status NOT IN('BLOCKED','RETIRED','ARCHIVED')`, v.OrganizationID, assetID); x != nil {

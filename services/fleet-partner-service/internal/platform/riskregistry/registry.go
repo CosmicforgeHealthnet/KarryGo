@@ -330,6 +330,15 @@ var generated = []Entry{
 // human judgment call, applied after generated so a later re-extraction
 // never silently discards them.
 var overrides = []Entry{
+	// Managed-provider administration (Sections 10, 39.3).
+	{Method: "PATCH", Path: "/fleet-partner/v1/providers/:membershipId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/providers/:membershipId/reactivate", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "POST", Path: "/fleet-partner/v1/providers/:membershipId/remove", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/capabilities", RiskClass: ratelimit.RiskStandard},
+	{Method: "PUT", Path: "/fleet-partner/v1/providers/:membershipId/capabilities", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/policies", RiskClass: ratelimit.RiskStandard},
+	{Method: "PUT", Path: "/fleet-partner/v1/providers/:membershipId/policies", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/providers/:membershipId/declines", RiskClass: ratelimit.RiskSensitive},
 	// Organization structure and access administration (Sections 7-9).
 	{Method: "GET", Path: "/fleet-partner/v1/branches", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/branches", RiskClass: ratelimit.RiskSensitive},

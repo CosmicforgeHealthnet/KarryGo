@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	providermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -370,5 +371,52 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	}
 	if inbox != 1 || inspections != 1 || orders != 1 {
 		t.Fatalf("unsafe decline inbox=%d inspections=%d orders=%d", inbox, inspections, orders)
+	}
+
+	// Spec 11.13/18.11: an unsafe-vehicle decline of MARKETPLACE company work
+	// starts the same inspection/work-order/block workflow.
+	providerRef := "provider-1718"
+	projection := seedProjection(t, pool, org.ID, "req_unsafe_marketplace", "ASSIGNMENT_PENDING")
+	marketplaceAssignment := seedAssignment(t, pool, org.ID, projection.ID, &providermodels.Membership{ID: member, ProviderID: &providerRef}, now.Add(time.Hour))
+	secondAsset := ids.New("ast")
+	if _, e = pool.Exec(ctx, `INSERT INTO fleet_partner_assets(id,organization_id,branch_id,asset_code,asset_type,ownership_type,platform_vehicle_id)
+		SELECT $1,organization_id,branch_id,'MKT-VAN',asset_type,ownership_type,'plat-veh-unsafe' FROM fleet_partner_assets WHERE id=$2`, secondAsset, asset.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = pool.Exec(ctx, `UPDATE fleet_partner_provider_assignments SET asset_reference='plat-veh-unsafe', status='DECLINED', declined_at=now() WHERE id=$1`, marketplaceAssignment.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = pool.Exec(ctx, `INSERT INTO fleet_partner_assignment_responses(id,organization_id,assignment_id,membership_id,response,reason_code,safety_related,client_response_id)VALUES($1,$2,$3,$4,'DECLINED','UNSAFE_VEHICLE',true,'crid-unsafe')`, ids.New("asr"), org.ID, marketplaceAssignment.ID, member); e != nil {
+		t.Fatal(e)
+	}
+	// A decline on a vehicle Fleet does not manage is recorded and skipped,
+	// never wedging the sweep.
+	unmanagedProjection := seedProjection(t, pool, org.ID, "req_unsafe_unmanaged", "ASSIGNMENT_PENDING")
+	secondMember, secondProvider := ids.New("mem"), "provider-1718-b"
+	if _, e = pool.Exec(ctx, `INSERT INTO fleet_partner_organization_provider_memberships(id,organization_id,provider_service,service_category,provider_id,onboarding_source,status)VALUES($1,$2,'driver-dispatch-delivery-service','DISPATCH',$3,'ORGANIZATION_SPONSORED','ACTIVE')`, secondMember, org.ID, secondProvider); e != nil {
+		t.Fatal(e)
+	}
+	unmanaged := seedAssignment(t, pool, org.ID, unmanagedProjection.ID, &providermodels.Membership{ID: secondMember, ProviderID: &secondProvider}, now.Add(time.Hour))
+	if _, e = pool.Exec(ctx, `UPDATE fleet_partner_provider_assignments SET asset_reference='provider-own-car' WHERE id=$1`, unmanaged.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = pool.Exec(ctx, `INSERT INTO fleet_partner_assignment_responses(id,organization_id,assignment_id,membership_id,response,reason_code,safety_related,client_response_id)VALUES($1,$2,$3,$4,'DECLINED','VEHICLE_DEFECT',true,'crid-unmanaged')`, ids.New("asr"), org.ID, unmanaged.ID, secondMember); e != nil {
+		t.Fatal(e)
+	}
+	for i := 0; i < 2; i++ {
+		if e = a.ReconcileSafetyDeclines(ctx); e != nil {
+			t.Fatal(e)
+		}
+	}
+	var assetStatus string
+	if e = pool.QueryRow(ctx, `SELECT(SELECT count(*) FROM fleet_partner_safety_decline_inbox WHERE assignment_id=$1),(SELECT count(*) FROM fleet_partner_inspections WHERE assignment_id=$1),(SELECT count(*) FROM fleet_partner_work_orders WHERE source_type='MARKETPLACE_ASSIGNMENT' AND source_reference=$1),(SELECT operational_status FROM fleet_partner_assets WHERE id=$2)`, marketplaceAssignment.ID, secondAsset).Scan(&inbox, &inspections, &orders, &assetStatus); e != nil {
+		t.Fatal(e)
+	}
+	if inbox != 1 || inspections != 1 || orders != 1 || assetStatus != "BLOCKED" {
+		t.Fatalf("marketplace unsafe decline inbox=%d inspections=%d orders=%d status=%s", inbox, inspections, orders, assetStatus)
+	}
+	var unmanagedInbox int
+	if e = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_safety_decline_inbox WHERE assignment_id=$1`, unmanaged.ID).Scan(&unmanagedInbox); e != nil || unmanagedInbox != 1 {
+		t.Fatalf("unmanaged vehicle decline inbox=%d err=%v", unmanagedInbox, e)
 	}
 }
