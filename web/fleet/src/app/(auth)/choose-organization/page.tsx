@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/authStore";
 import type { Organization } from "@/lib/types/auth";
-import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
 import { organizationDestination } from "@/lib/auth/organizationDestination";
 import { organizationService } from "@/lib/services/organizationService";
 import { ErrorNotice, humanize } from "../../(setup)/setup/onboarding-ui";
@@ -14,7 +13,8 @@ export default function ChooseOrganization() {
   const [selecting, setSelecting] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   useEffect(() => {
-    if (hydrated && organizations.length === 0) router.replace("/setup");
+    if (hydrated && organizations.length === 0)
+      router.replace(organizationDestination(null));
   }, [hydrated, organizations.length, router]);
   async function select(org: Organization) {
     if (selecting) return;
@@ -23,7 +23,6 @@ export default function ChooseOrganization() {
     try {
       await useAuthStore.getState().selectOrganization(org.membershipId);
       const current = await organizationService.getCurrentOrganization();
-      setOrgStatusCookie(current.status);
       router.push(organizationDestination(current.status));
     } catch (err) {
       setError(err);

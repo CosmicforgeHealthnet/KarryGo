@@ -11,6 +11,7 @@ import { KarryamLogo } from "@/components/brand/KarryamLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { OnboardingProvider, useOnboarding } from "./onboarding-context";
 import { Loading } from "./onboarding-ui";
+import { belongsInSetup, organizationDestination } from "@/lib/auth/organizationDestination";
 import {
   SETUP_STEPS, SETUP_HOME, CREATE_COMPANY_PATH, stepForPath,
   isStepComplete, type SetupStep,
@@ -139,6 +140,12 @@ function OnboardingShell({ children }: { children: ReactNode }) {
       router.replace("/sign-in");
     } finally { setSigningOut(false); }
   };
+  // A submitted, active or otherwise post-onboarding company never stays in
+  // setup, whichever setup URL was opened: it goes where the shared lifecycle
+  // policy says, from the status the provider just read from the server.
+  if (organization && !belongsInSetup(organization.status))
+    return <LeaveSetup to={organizationDestination(organization.status)} />;
+
   const header = (
     <header
       className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-surface/80 px-4 backdrop-blur-xl sm:px-6"
@@ -309,6 +316,18 @@ function OnboardingShell({ children }: { children: ReactNode }) {
           <div className="mx-auto w-full max-w-[860px]">{children}</div>
         </main>
       </div>
+    </div>
+  );
+}
+
+function LeaveSetup({ to }: { to: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(to);
+  }, [router, to]);
+  return (
+    <div className="min-h-dvh bg-surface-2">
+      <Loading />
     </div>
   );
 }

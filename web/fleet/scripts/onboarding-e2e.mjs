@@ -360,45 +360,105 @@ try {
   await page
     .getByRole("button", { name: "Submit company for review", exact: true })
     .click();
-  await page
-    .getByRole("heading", { name: "Submission status", exact: true })
-    .waitFor();
+  // ---- Submitted: the real dashboard, restricted, never back to setup ----
+  const banner = (pg) => pg.getByText("Your company is under review.", { exact: true });
+  const expectDashboard = async (pg, label) => {
+    await pg.waitForURL((url) => url.pathname === "/", { timeout: 45000 });
+    await banner(pg).waitFor();
+    assert.equal(await pg.getByText(/^Set up /).count(), 0, label + ": setup heading shown");
+    assert.equal(
+      await pg.getByText("Complete these steps so we can verify your company.").count(),
+      0,
+      label + ": obsolete setup copy shown",
+    );
+  };
+  const signOutOfDashboard = async (pg) => {
+    await pg.setViewportSize({ width: 1440, height: 1000 });
+    await pg.locator('aside button[aria-haspopup="menu"]').click();
+    await pg.getByRole("button", { name: "Sign out", exact: true }).click();
+    await pg.waitForURL("**/sign-in");
+  };
+  await expectDashboard(page, "after submission");
   checks.push(
-    "edit completed company section preserves legal data and returns to review; submission persists without approving company or requiring wallet",
+    "edit completed company section preserves legal data and returns to review; submission refreshes the authoritative status and enters the dashboard with the pending verification banner, without approving the company",
   );
-  // After submission the company is read-only: documents can still be viewed.
-  await page.goto(origin + "/setup/business-docs");
-  await page.getByText("Status: Ready", { exact: true }).nth(3).waitFor();
+  await page.reload();
+  await expectDashboard(page, "refresh");
+  for (const path of ["/setup", "/setup/submit", "/setup/business-docs", "/setup/profile"]) {
+    await page.goto(origin + path);
+    await expectDashboard(page, path);
+  }
+  // Stale client state cannot send the company back to onboarding.
+  await page.context().addCookies([{ name: "karrygo_org_status", value: "DRAFT", url: origin }]);
+  await page.evaluate(() => {
+    const raw = localStorage.getItem("organization-storage");
+    if (raw) {
+      const stored = JSON.parse(raw);
+      if (stored?.state?.organization) stored.state.organization.status = "DRAFT";
+      localStorage.setItem("organization-storage", JSON.stringify(stored));
+    }
+  });
+  await page.goto(origin + "/");
+  await expectDashboard(page, "stale cookie and storage");
+  assert.equal(
+    (await page.context().cookies()).some((c) => c.name === "karrygo_org_status"),
+    false,
+    "Retired status cookie is removed",
+  );
+  checks.push(
+    "submitted company: refresh, direct /, /setup, /setup/submit and step URLs, and a stale DRAFT cookie and stored status all land on the dashboard",
+  );
+  // Restricted operation: explained in the UI and refused by the API itself.
+  await page.goto(origin + "/providers/add");
+  const required = page.locator("form input[required]");
+  await required.nth(0).fill("Restricted Provider");
+  await required.nth(1).fill("restricted-provider@example.com");
+  await required.nth(2).fill("+2348012349999");
+  await page.getByRole("button", { name: "Send invitation" }).click();
+  const notice = page.getByRole("alertdialog");
+  await notice.getByText("Company verification required", { exact: true }).waitFor();
+  await notice.getByText("This feature will be available after your company is approved.").waitFor();
+  await notice.getByRole("button", { name: "OK", exact: true }).click();
+  await notice.waitFor({ state: "detached" });
+  const sessionToken = JSON.parse(await page.evaluate(() => localStorage.getItem("auth-storage"))).state.accessToken;
+  const direct = await page.request.post(origin + "/api/providers", {
+    headers: { Authorization: "Bearer " + sessionToken, "Idempotency-Key": "direct-restricted" },
+    data: { legalName: "Direct", email: "direct@example.com", phone: "+2348012349998", serviceCategory: "DISPATCH" },
+  });
+  assert.equal(direct.status(), 403, "Direct restricted API call refused");
+  assert.equal((await direct.json()).error.code, "organization_verification_pending");
+  checks.push(
+    "pending company: restricted action shows 'Company verification required' and a direct API call is refused with organization_verification_pending",
+  );
+  // The submitted information stays reviewable, read only, with document preview.
+  await page.goto(origin + "/company");
+  await page.getByRole("heading", { name: "Submission status", exact: true }).waitFor();
+  await page.getByText("Edited Browser Freight", { exact: true }).first().waitFor();
   assert.equal(await page.locator("[data-document-preview]").count(), 4);
-  assert.equal(await page.getByText("Replace", { exact: true }).count(), 0);
-  await page
-    .getByRole("button", { name: "Preview Tax Clearance", exact: true })
-    .click();
+  assert.equal(await page.getByRole("link", { name: /^Edit / }).count(), 0, "Submission is read only");
+  await page.getByRole("button", { name: "Preview Tax Clearance", exact: true }).click();
   await page.getByRole("dialog", { name: /preview$/ }).locator("img").waitFor();
   await page.getByRole("button", { name: "Close preview" }).click();
-  await page.goto(origin + "/setup/submit");
-  await page
-    .getByRole("heading", { name: "Submission status", exact: true })
-    .waitFor();
-  checks.push("read-only submitted company: Preview available without Replace or Remove");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await page.waitForURL("**/sign-in");
+  checks.push("pending company reviews its submission and verification status read only, with document preview, inside the dashboard");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/");
+  await expectDashboard(page, "mobile");
+  assert(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    "Mobile dashboard overflow",
+  );
+  await page.screenshot({ path: evidence + "/mobile-pending-dashboard.png", fullPage: true });
+  await signOutOfDashboard(page);
   await fetch(api + "/__test/cooldown", { method: "POST" });
   await page.getByLabel("Email address or phone number").fill("08012345678");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.waitForURL("**/verify?**");
   await otp();
-  await page.waitForURL("**/setup/submit");
-  await page
-    .getByRole("heading", { name: "Submission status", exact: true })
-    .waitFor();
-  await page.getByText("Edited Browser Freight", { exact: true }).waitFor();
-  await page.screenshot({
-    path: evidence + "/mobile-submitted.png",
-    fullPage: true,
-  });
+  await expectDashboard(page, "phone sign-in");
+  await page.goto(origin + "/company");
+  await page.getByText("Edited Browser Freight", { exact: true }).first().waitFor();
   checks.push(
-    "logout → phone sign-in → registered email OTP → saved company submission across session",
+    "logout → phone sign-in → registered email OTP → dashboard with saved company submission across session",
   );
   const android = await browser.newContext({ ...devices["Pixel 7"] });
   page = await android.newPage();
@@ -412,11 +472,7 @@ try {
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.waitForURL("**/verify?**");
   await otp();
-  await page.waitForURL("**/setup/submit");
-  await page
-    .getByRole("heading", { name: "Submission status", exact: true })
-    .waitFor();
-  await page.getByText("Edited Browser Freight", { exact: true }).waitFor();
+  await expectDashboard(page, "email sign-in (Android)");
   assert(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -428,7 +484,7 @@ try {
     fullPage: true,
   });
   checks.push(
-    "independent Android Chrome emulation session → email sign-in → persisted company review without prior browser drafts",
+    "independent Android Chrome emulation session → email sign-in → pending dashboard without prior browser state",
   );
   const stored = JSON.parse(
     await page.evaluate(() => localStorage.getItem("auth-storage")),
@@ -450,8 +506,7 @@ try {
     },
   });
   assert.equal(second.status(), 201, "Create authorized second organization");
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await page.waitForURL("**/sign-in");
+  await signOutOfDashboard(page);
   await fetch(api + "/__test/cooldown", { method: "POST" });
   await page
     .getByLabel("Email address or phone number")
@@ -471,11 +526,76 @@ try {
   );
   await page.goto(origin + "/choose-organization");
   await page.getByRole("button", { name: /Edited Browser Freight/ }).click();
-  await page.waitForURL("**/setup/submit");
-  await page.getByText("Edited Browser Freight", { exact: true }).waitFor();
+  await expectDashboard(page, "switch to the submitted company");
+  await page.goto(origin + "/choose-organization");
+  await page.getByRole("button", { name: /Second Fleet/ }).click();
+  await page.waitForURL("**/setup");
+  assert.equal(await banner(page).count(), 0, "Draft company is not shown the pending banner");
   checks.push(
     "multiple organizations select by membership; switching drafts cannot reuse another tenant’s saved address or review data",
   );
+  // ---- Lifecycle changes reach the same session without signing in again ----
+  const setStatus = async (status) => {
+    const res = await fetch(api + "/__test/organization-status", {
+      method: "POST",
+      body: JSON.stringify({ tradingName: "Edited Browser Freight", status }),
+    });
+    assert.equal(res.status, 204, "set organization status " + status);
+  };
+  await page.goto(origin + "/choose-organization");
+  await page.getByRole("button", { name: /Edited Browser Freight/ }).click();
+  await expectDashboard(page, "back to the submitted company");
+  // Slow status read: the spinner holds; neither setup nor a stale dashboard
+  // flashes before the authoritative status arrives.
+  await page.route("**/api/organizations/current", async (route) => {
+    await new Promise((r) => setTimeout(r, 2500));
+    await route.continue();
+  });
+  await page.goto(origin + "/", { waitUntil: "commit" });
+  await page.waitForTimeout(1200);
+  assert.equal(await page.getByText(/^Set up /).count(), 0, "No setup flash while status loads");
+  assert.equal(await banner(page).count(), 0, "No dashboard before status is confirmed");
+  await expectDashboard(page, "slow status response");
+  await page.unroute("**/api/organizations/current");
+  // Expired access token: refreshed from the session cookie, still the dashboard.
+  await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem("auth-storage"));
+    stored.state.accessToken = "expired-access-token";
+    localStorage.setItem("auth-storage", JSON.stringify(stored));
+  });
+  await page.reload();
+  await expectDashboard(page, "after access token refresh");
+  checks.push("slow status read shows no setup or stale dashboard; an expired access token refreshes and stays on the dashboard");
+  // Changes requested: back to the correction flow, and setup is editable.
+  await setStatus("CHANGES_REQUIRED");
+  await page.reload();
+  await page.waitForURL((url) => url.pathname === "/setup");
+  await page.getByText(/^Set up /).waitFor();
+  assert.equal(await banner(page).count(), 0);
+  // Back under review: the dashboard again.
+  await setStatus("UNDER_REVIEW");
+  await page.goto(origin + "/setup/submit");
+  await expectDashboard(page, "under review");
+  // Approved: the same session loses the restriction.
+  await setStatus("ACTIVE");
+  await page.reload();
+  await page.waitForURL((url) => url.pathname === "/");
+  await page.getByText("Dashboard", { exact: true }).first().waitFor();
+  await page.waitForLoadState("networkidle");
+  assert.equal(await banner(page).count(), 0, "Active company has no verification banner");
+  for (const path of ["/setup", "/setup/submit"]) {
+    await page.goto(origin + path);
+    await page.waitForURL((url) => url.pathname === "/");
+  }
+  const activeToken = JSON.parse(await page.evaluate(() => localStorage.getItem("auth-storage"))).state.accessToken;
+  const unlocked = await page.request.post(origin + "/api/providers", {
+    headers: { Authorization: "Bearer " + activeToken, "Idempotency-Key": "active-unlocked" },
+    // Invalid contact details: the providers use case itself refuses them,
+    // which proves the request got past the lifecycle restriction.
+    data: { legalName: "Active", email: "not-an-email", phone: "1", serviceCategory: "DISPATCH" },
+  });
+  assert.equal(unlocked.status(), 422, "Approval lifts the lifecycle restriction");
+  checks.push("changes requested returns to setup; back under review returns to the dashboard; approval removes the banner and the API restriction in the same session");
   assert.deepEqual(errors, [], "Browser runtime errors");
   await writeFile(
     evidence + "/results.json",

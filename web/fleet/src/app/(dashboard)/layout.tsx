@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -38,7 +38,13 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { organizationService } from "@/lib/services/organizationService";
 import { PendingVerificationBanner } from "@/components/features/PendingVerificationBanner";
-import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
+import { RestrictedActionNotice } from "@/components/features/RestrictedActionNotice";
+import {
+  belongsInSetup,
+  organizationAccess,
+  organizationDestination,
+  type OrganizationAccess,
+} from "@/lib/auth/organizationDestination";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const NAV_SECTIONS = [
@@ -144,7 +150,12 @@ export default function DashboardLayout({
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const { _hasHydrated, accessToken, identityId, logout } = useAuthStore();
-  const { organization, setOrganization, isPending, setLoading } = useOrganizationStore();
+  const { organization, setOrganization, setLoading } = useOrganizationStore();
+  // Access is decided only from the status this layout has just read from the
+  // server; the persisted organization store is never trusted for it.
+  const [access, setAccess] = useState<OrganizationAccess | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const lastStatusRead = useRef(0);
 
   const pageName = getPageName(pathname);
   const activeItem = findActiveNavItem(pathname);
@@ -154,42 +165,80 @@ export default function DashboardLayout({
   const avatarInitials = initialsFrom(displayName);
   const displayRole = "Fleet Manager";
 
+  // Reads the company's authoritative status and applies the shared lifecycle
+  // policy. A background read (focus, interval, after a refused action) only
+  // updates access; it never replaces the dashboard with an error.
+  const readOrganization = useCallback(
+    async (background: boolean) => {
+      lastStatusRead.current = Date.now();
+      try {
+        const org = await organizationService.getCurrentOrganization();
+        setOrganization(org);
+        if (belongsInSetup(org.status)) {
+          // Still onboarding, or corrections were requested.
+          router.replace(organizationDestination(org.status));
+          return;
+        }
+        setAccess(organizationAccess(org.status));
+        setLoadError(null);
+      } catch (error: unknown) {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 401) {
+          router.replace("/sign-in");
+          return;
+        }
+        if ((status === 403 || status === 404) && useAuthStore.getState().organizations.length === 0) {
+          // A new account without a company yet.
+          router.replace(organizationDestination(null));
+          return;
+        }
+        if (!background) setLoadError("We couldn't confirm your company's status.");
+      } finally {
+        if (!background) {
+          setLoading(false);
+          setIsLoading(false);
+        }
+      }
+    },
+    [router, setOrganization, setLoading],
+  );
+
   useEffect(() => {
     if (!_hasHydrated) return;
-
     if (!accessToken) {
       router.replace("/sign-in");
       return;
     }
+    // The read is asynchronous; state changes only when it settles.
+    queueMicrotask(() => void readOrganization(false));
+    // Read once per session token; refreshes are handled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, _hasHydrated]);
 
-    const fetchOrganization = async () => {
-      try {
-        setLoading(true);
-        const org = await organizationService.getCurrentOrganization();
-        setOrganization(org);
-
-        if (org?.status) {
-          setOrgStatusCookie(org.status);
-        }
-
-        if (org?.status === "DRAFT") {
-          router.replace("/setup");
-          return;
-        }
-      } catch (error: any) {
-        if (error?.response?.status === 401) {
-          router.replace("/sign-in");
-          return;
-        }
-        console.error("Failed to fetch organization:", error);
-      } finally {
-        setLoading(false);
-        setIsLoading(false);
-      }
+  // Pick up approval (or a change request) without a new sign-in: re-read the
+  // status when the tab regains focus (at most once a minute) and every five
+  // minutes while the company is not yet operational.
+  useEffect(() => {
+    if (!access) return;
+    const refreshIfStale = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastStatusRead.current > 60_000)
+        void readOrganization(true);
     };
+    document.addEventListener("visibilitychange", refreshIfStale);
+    window.addEventListener("focus", refreshIfStale);
+    const interval =
+      access === "operational" ? undefined : window.setInterval(() => void readOrganization(true), 5 * 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshIfStale);
+      window.removeEventListener("focus", refreshIfStale);
+      if (interval) window.clearInterval(interval);
+    };
+  }, [access, readOrganization]);
 
-    fetchOrganization();
-  }, [accessToken, _hasHydrated, router, setOrganization, setLoading]);
+  // A refused action may mean the status changed; confirm it.
+  const onRefusal = useCallback(() => {
+    if (Date.now() - lastStatusRead.current > 10_000) void readOrganization(true);
+  }, [readOrganization]);
 
   useEffect(() => {
     const checkScreen = () => {
@@ -244,7 +293,10 @@ export default function DashboardLayout({
     }
   };
 
-  if (!_hasHydrated || isLoading) {
+  // Nothing renders until the company's status has been read and access
+  // decided: no flash of the dashboard for a company that belongs in setup,
+  // and no access granted from a stale stored status.
+  if (!_hasHydrated || isLoading || (!access && !loadError)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-2">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -256,9 +308,26 @@ export default function DashboardLayout({
     return null;
   }
 
-  if (organization?.status === "DRAFT") {
-    router.replace("/setup");
-    return null;
+  if (!access) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4">
+        <div role="alert" className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 text-center shadow-sm">
+          <h2 className="text-[15px] font-semibold text-ink-950">{loadError}</h2>
+          <p className="mt-1 text-[13px] text-ink-500">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadError(null);
+              setIsLoading(true);
+              void readOrganization(false);
+            }}
+            className="btn btn-primary btn-md mt-4 w-full"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -460,12 +529,13 @@ export default function DashboardLayout({
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full">
-          {/* {isPending() && (
+          {access !== "operational" && (
             <div className="mb-6">
-              <PendingVerificationBanner organizationName={organization?.legalName} />
+              <PendingVerificationBanner organizationName={displayName ?? undefined} access={access} />
             </div>
-          )} */}
+          )}
           {children}
+          <RestrictedActionNotice onRefusal={onRefusal} />
         </main>
       </div>
     </div>

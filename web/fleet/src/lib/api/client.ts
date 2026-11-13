@@ -2,6 +2,11 @@
 
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { isLifecycleRefusal } from '@/lib/auth/organizationDestination';
+
+// Announced when the backend refuses an action because the company is not
+// yet approved (or needs corrections). The dashboard explains it to the user.
+export const LIFECYCLE_REFUSAL_EVENT = 'fleet:organization-lifecycle-refusal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 const AUTH_COOKIE_SCOPED_BASE = '/fleet-partner/v1/auth';
@@ -55,6 +60,13 @@ apiClient.interceptors.response.use(
         window.location.href = '/sign-in';
         return Promise.reject(error);
       }
+    }
+
+    if (isLifecycleRefusal(error) && typeof window !== 'undefined') {
+      const body = (error.response?.data as { error?: { code?: string; message?: string } })?.error;
+      window.dispatchEvent(
+        new CustomEvent(LIFECYCLE_REFUSAL_EVENT, { detail: { code: body?.code, message: body?.message } }),
+      );
     }
 
     return Promise.reject(error);

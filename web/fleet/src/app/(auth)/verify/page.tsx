@@ -10,7 +10,6 @@ import { authService } from "@/lib/services/authService";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { useOrganizationStore } from "@/lib/stores/organizationStore";
 import { organizationService } from "@/lib/services/organizationService";
-import { setOrgStatusCookie } from "@/lib/utils/orgStatusCookie";
 import { classifyAuthError } from "@/lib/auth/authErrors";
 import { challengeFailure } from "@/lib/auth/challengeErrors";
 import { otpDeadline, remainingSeconds } from "@/lib/auth/challengeTiming";
@@ -125,12 +124,12 @@ function VerifyContent() {
         if (data?.tokens) {
           setAuth(data.tokens, data.identityId, data.organizations || []);
         }
-        setOrgStatusCookie("DRAFT");
         setState({ status: "success" });
         setLoading(false);
         const hasCompany = (data.organizations || []).length > 0;
         setTimeout(() => {
-          router.push(hasCompany ? "/setup" : "/setup/create-company");
+          // With a company, the dashboard reads its status and routes it.
+          router.push(hasCompany ? "/" : organizationDestination(null));
         }, 800);
         return;
       }
@@ -151,7 +150,6 @@ function VerifyContent() {
         try {
           const org = await organizationService.getCurrentOrganization();
           setOrganization(org);
-          setOrgStatusCookie(org.status);
 
           setState({ status: "success" });
           setLoading(false);
@@ -160,11 +158,12 @@ function VerifyContent() {
           }, 800);
           return;
         } catch {
-          setOrgStatusCookie("DRAFT");
+          // The status could not be read here. Do not guess "draft": the
+          // dashboard re-reads it and routes from the authoritative answer.
           setState({ status: "success" });
           setLoading(false);
           setTimeout(() => {
-            router.push("/setup");
+            router.push("/");
           }, 800);
           return;
         }

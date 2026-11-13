@@ -17,9 +17,6 @@ export function useSetupStatus() {
     canSubmit:
       data.status?.allowedNextActions.includes("SUBMIT_FOR_VERIFICATION") ??
       false,
-    submitted: ["BUSINESS_SUBMITTED", "UNDER_REVIEW", "ACTIVE"].includes(
-      data.organization?.status ?? "",
-    ),
     workSteps,
     doneCount,
     allDone: doneCount === workSteps.length,

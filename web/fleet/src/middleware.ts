@@ -21,18 +21,21 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // The org-status cookie is readable by the page and can outlive the
-  // session (e.g. a server-side logout). Only honour it while signed in,
-  // otherwise /setup -> /sign-in -> /setup loops forever.
-  if (hasSession && orgStatus === "DRAFT" && !pathname.startsWith("/setup") && pathname !== "/choose-organization") {
-    return NextResponse.redirect(new URL("/setup", request.url));
-  }
-
+  // Organization lifecycle routing is NOT decided here. It used to follow a
+  // client-written status cookie, which went stale: an account that signed up
+  // carried "DRAFT" through submission, so every visit to the dashboard was
+  // redirected back to /setup. Where a member belongs is decided from the
+  // backend's authoritative status by lib/auth/organizationDestination in the
+  // dashboard and setup layouts, and the backend enforces it independently.
+  let response: NextResponse;
   if (hasSession && isAuthRoute) {
-    return NextResponse.redirect(new URL("/", request.url));
+    response = NextResponse.redirect(new URL("/", request.url));
+  } else {
+    response = NextResponse.next();
   }
-
-  return NextResponse.next();
+  // Remove the retired status cookie so a stale value cannot linger.
+  if (orgStatus !== undefined) response.cookies.delete(ORG_STATUS_COOKIE);
+  return response;
 }
 
 export const config = {

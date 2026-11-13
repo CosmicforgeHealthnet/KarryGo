@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Check,
   ChevronRight,
-  Clock,
   Loader2,
   RefreshCw,
 } from "lucide-react";
@@ -27,7 +26,6 @@ export default function SetupHomePage() {
     loading,
     error,
     stages,
-    submitted,
     workSteps,
     doneCount,
     allDone,
@@ -80,23 +78,7 @@ export default function SetupHomePage() {
 
       {/* Progress and the one main action */}
       <div className="rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(11,31,68,0.05)] sm:p-6">
-        {submitted ? (
-          <div className="flex items-start gap-4">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-amber-bg text-amber">
-              <Clock className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-[17px] font-bold text-ink-950">
-                Your company is being reviewed
-              </p>
-              <p className="mt-1 text-sm text-ink-600">
-                You&apos;ve submitted everything. You can&apos;t change your
-                details while the review is in progress.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
+        <>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-[13px] font-bold text-label-accent">
@@ -133,8 +115,7 @@ export default function SetupHomePage() {
                   : "Continue setup"}
               <ArrowRight />
             </button>
-          </>
-        )}
+        </>
       </div>
 
       {/* Every step, with its status; tap to open */}
@@ -200,7 +181,7 @@ export default function SetupHomePage() {
               key={step.id}
               className={index > 0 ? "border-t border-line" : ""}
             >
-              {locked || submitted ? (
+              {locked ? (
                 row
               ) : (
                 <Link
