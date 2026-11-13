@@ -1,0 +1,5 @@
+# Fleet capability settings for STAGING, applied by
+# .github/workflows/fleet-staging-modules.yml when this file changes.
+# Only NAME=true|false lines (and FLEET_PARTNER_STAFF_ACCEPT_URL=https://...)
+# are accepted; secrets are never written here. An empty list only reports the
+# current settings (names and on/off values).

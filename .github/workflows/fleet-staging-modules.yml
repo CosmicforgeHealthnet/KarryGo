@@ -1,0 +1,62 @@
+name: Fleet staging capabilities
+# Staging only. Reports Fleet's capability settings (names and on/off values,
+# never secret values) and applies deploy/platform/fleet-staging-modules.txt.
+# The server script backs up the settings, applies them with apply-env.sh,
+# waits for health and restores the previous settings if Fleet is unhealthy.
+on:
+  push:
+    branches: [staging]
+    paths:
+      - deploy/platform/fleet-staging-modules.txt
+      - scripts/fleet/staging-modules.sh
+      - .github/workflows/fleet-staging-modules.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: staging-release-runtime
+  cancel-in-progress: false
+jobs:
+  capabilities:
+    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
+    steps:
+      - name: Require authorized staging initiator
+        shell: bash
+        env:
+          AUTHORIZED_INITIATORS: ${{ vars.STAGING_RELEASE_INITIATORS }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              allowed = json.loads(os.environ.get('AUTHORIZED_INITIATORS', ''))
+          except (ValueError, TypeError):
+              allowed = None
+          if not isinstance(allowed, list) or not allowed or os.environ['ACTOR'] not in allowed:
+              sys.exit('Not an authorized staging release initiator')
+          print('Staging release initiator authorized')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Report and apply Fleet capability settings (health-checked, rolled back on failure)
+        shell: bash
+        env:
+          HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          USER_: ${{ secrets.STAGING_DEPLOY_USER }}
+          KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ -n "$HOST" && -n "$USER_" && -n "$KEY" && -n "$KNOWN" ]] || { echo 'Missing staging deployment credentials'; exit 1; }
+          [[ "$HOST" =~ ^[A-Za-z0-9.-]+$ && "$USER_" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'Invalid deployment host/user'; exit 1; }
+          umask 077
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+          printf '%s\n' "$KEY" > "$scratch/key"
+          printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
+          desired=$(base64 -w0 deploy/platform/fleet-staging-modules.txt)
+          ssh -T -i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$scratch/known_hosts" -o ConnectTimeout=12 "$USER_@$HOST" bash -se -- "$desired" < scripts/fleet/staging-modules.sh
