@@ -27,7 +27,7 @@ import type { Leave } from '@/lib/types/workforce';
 
 const STATUS_FILTERS = [
   'ALL',
-  'PENDING',
+  'REQUESTED',
   'APPROVED',
   'REJECTED',
   'CANCELLED',
@@ -85,7 +85,7 @@ export default function LeavePage() {
     let approved = 0;
     let rejected = 0;
     for (const r of rows) {
-      if (r.status === 'PENDING') pending++;
+      if (r.status === 'REQUESTED') pending++;
       else if (r.status === 'APPROVED') approved++;
       else if (r.status === 'REJECTED') rejected++;
     }
@@ -392,7 +392,7 @@ export default function LeavePage() {
         <div className="space-y-2.5">
           {filtered.map((row) => {
             const tone = leaveStatusTone(row.status);
-            const isPending = row.status === 'PENDING';
+            const isPending = row.status === 'REQUESTED';
             const isApproved = row.status === 'APPROVED';
             const busy = busyId === row.id;
 

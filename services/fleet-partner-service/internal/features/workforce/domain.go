@@ -10,64 +10,144 @@ type Flags struct {
 }
 
 type Profile struct {
-	ID, OrganizationID, BranchID, MembershipID, EmployeeNumber, RelationshipType, Role, SupervisorMembershipID, Status string
-	StartDate, CreatedAt, UpdatedAt                                                                                    time.Time
-	EndDate                                                                                                            *time.Time
-	Version                                                                                                            int64
+	ID                     string     `json:"id"`
+	OrganizationID         string     `json:"organizationId"`
+	BranchID               string     `json:"branchId"`
+	MembershipID           string     `json:"membershipId"`
+	EmployeeNumber         string     `json:"employeeNumber"`
+	RelationshipType       string     `json:"relationshipType"`
+	Role                   string     `json:"role"`
+	SupervisorMembershipID string     `json:"supervisorMembershipId"`
+	Status                 string     `json:"status"`
+	StartDate              time.Time  `json:"startDate"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	UpdatedAt              time.Time  `json:"updatedAt"`
+	EndDate                *time.Time `json:"endDate"`
+	Version                int64      `json:"version"`
 }
 type Shift struct {
-	ID, OrganizationID, BranchID, Name, Role, Timezone, Status, PlannerUserID string
-	StartAt, EndAt, CreatedAt, UpdatedAt                                      time.Time
-	RequiredCapacity                                                          int
-	Version                                                                   int64
+	ID               string    `json:"id"`
+	OrganizationID   string    `json:"organizationId"`
+	BranchID         string    `json:"branchId"`
+	Name             string    `json:"name"`
+	Role             string    `json:"role"`
+	Timezone         string    `json:"timezone"`
+	Status           string    `json:"status"`
+	PlannerUserID    string    `json:"plannerUserId"`
+	StartAt          time.Time `json:"startAt"`
+	EndAt            time.Time `json:"endAt"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	RequiredCapacity int       `json:"requiredCapacity"`
+	Version          int64     `json:"version"`
 }
 type ShiftAssignment struct {
-	ID, OrganizationID, ShiftID, MembershipID, AssignmentType, Status, CheckInSource, CheckOutSource string
-	ExpectedStart, ExpectedEnd, CreatedAt, UpdatedAt                                                 time.Time
-	CheckedInAt, CheckedOutAt                                                                        *time.Time
-	Version                                                                                          int64
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organizationId"`
+	ShiftID        string     `json:"shiftId"`
+	MembershipID   string     `json:"membershipId"`
+	AssignmentType string     `json:"assignmentType"`
+	Status         string     `json:"status"`
+	CheckInSource  string     `json:"checkInSource"`
+	CheckOutSource string     `json:"checkOutSource"`
+	ExpectedStart  time.Time  `json:"expectedStart"`
+	ExpectedEnd    time.Time  `json:"expectedEnd"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	CheckedInAt    *time.Time `json:"checkedInAt"`
+	CheckedOutAt   *time.Time `json:"checkedOutAt"`
+	Version        int64      `json:"version"`
 }
 type Leave struct {
-	ID, OrganizationID, MembershipID, LeaveType, Reason, Status, ApprovedBy string
-	StartAt, EndAt, CreatedAt, UpdatedAt                                    time.Time
-	ApprovedAt                                                              *time.Time
-	Version                                                                 int64
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organizationId"`
+	MembershipID   string     `json:"membershipId"`
+	LeaveType      string     `json:"leaveType"`
+	Reason         string     `json:"reason"`
+	Status         string     `json:"status"`
+	ApprovedBy     string     `json:"approvedBy"`
+	StartAt        time.Time  `json:"startAt"`
+	EndAt          time.Time  `json:"endAt"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	ApprovedAt     *time.Time `json:"approvedAt"`
+	Version        int64      `json:"version"`
 }
 type Qualification struct {
-	ID, OrganizationID, Code, Name, Status                    string
-	ApplicableRoles, ApplicableServices, ApplicableAssetTypes []string
-	ValidityPeriodSeconds                                     *int64
-	EvidenceRequired                                          bool
-	Version                                                   int64
-	CreatedAt, UpdatedAt                                      time.Time
+	ID                    string    `json:"id"`
+	OrganizationID        string    `json:"organizationId"`
+	Code                  string    `json:"code"`
+	Name                  string    `json:"name"`
+	Status                string    `json:"status"`
+	ApplicableRoles       []string  `json:"applicableRoles"`
+	ApplicableServices    []string  `json:"applicableServices"`
+	ApplicableAssetTypes  []string  `json:"applicableAssetTypes"`
+	ValidityPeriodSeconds *int64    `json:"validityPeriodSeconds"`
+	EvidenceRequired      bool      `json:"evidenceRequired"`
+	Version               int64     `json:"version"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 type ProviderQualification struct {
-	ID, OrganizationID, MembershipID, QualificationID, EvidenceMediaID, VerificationReference, Status, VerifiedBy string
-	IssuedAt, ExpiresAt, VerifiedAt                                                                               *time.Time
-	Version                                                                                                       int64
-	CreatedAt, UpdatedAt                                                                                          time.Time
+	ID                    string     `json:"id"`
+	OrganizationID        string     `json:"organizationId"`
+	MembershipID          string     `json:"membershipId"`
+	QualificationID       string     `json:"qualificationId"`
+	EvidenceMediaID       string     `json:"evidenceMediaId"`
+	VerificationReference string     `json:"verificationReference"`
+	Status                string     `json:"status"`
+	VerifiedBy            string     `json:"verifiedBy"`
+	IssuedAt              *time.Time `json:"issuedAt"`
+	ExpiresAt             *time.Time `json:"expiresAt"`
+	VerifiedAt            *time.Time `json:"verifiedAt"`
+	Version               int64      `json:"version"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 type Course struct {
-	ID, OrganizationID, Code, Title, ProviderReference, Status string
-	RequiredRoles, RequiredServices                            []string
-	ValidityPeriodSeconds                                      *int64
-	PassingScore                                               float64
-	Version                                                    int64
-	CreatedAt, UpdatedAt                                       time.Time
+	ID                    string    `json:"id"`
+	OrganizationID        string    `json:"organizationId"`
+	Code                  string    `json:"code"`
+	Title                 string    `json:"title"`
+	ProviderReference     string    `json:"providerReference"`
+	Status                string    `json:"status"`
+	RequiredRoles         []string  `json:"requiredRoles"`
+	RequiredServices      []string  `json:"requiredServices"`
+	ValidityPeriodSeconds *int64    `json:"validityPeriodSeconds"`
+	PassingScore          float64   `json:"passingScore"`
+	Version               int64     `json:"version"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 type Completion struct {
-	ID, OrganizationID, CourseID, MembershipID, Status, CertificateMediaID, VerifiedBy string
-	Score                                                                              float64
-	CompletedAt                                                                        time.Time
-	ExpiresAt                                                                          *time.Time
-	Version                                                                            int64
-	CreatedAt, UpdatedAt                                                               time.Time
+	ID                 string     `json:"id"`
+	OrganizationID     string     `json:"organizationId"`
+	CourseID           string     `json:"courseId"`
+	MembershipID       string     `json:"membershipId"`
+	Status             string     `json:"status"`
+	CertificateMediaID string     `json:"certificateMediaId"`
+	VerifiedBy         string     `json:"verifiedBy"`
+	Score              float64    `json:"score"`
+	CompletedAt        time.Time  `json:"completedAt"`
+	ExpiresAt          *time.Time `json:"expiresAt"`
+	Version            int64      `json:"version"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 type PerformanceSnapshot struct {
-	ID, OrganizationID, MembershipID, GenerationStatus, FormulaVersion string
-	PeriodStart, PeriodEnd, GeneratedAt                                time.Time
-	MetricInputs, CalculatedMetrics, Explanation, SourceVersions       json.RawMessage
-	Version                                                            int64
+	ID                string          `json:"id"`
+	OrganizationID    string          `json:"organizationId"`
+	MembershipID      string          `json:"membershipId"`
+	GenerationStatus  string          `json:"generationStatus"`
+	FormulaVersion    string          `json:"formulaVersion"`
+	PeriodStart       time.Time       `json:"periodStart"`
+	PeriodEnd         time.Time       `json:"periodEnd"`
+	GeneratedAt       time.Time       `json:"generatedAt"`
+	MetricInputs      json.RawMessage `json:"metricInputs"`
+	CalculatedMetrics json.RawMessage `json:"calculatedMetrics"`
+	Explanation       json.RawMessage `json:"explanation"`
+	SourceVersions    json.RawMessage `json:"sourceVersions"`
+	Version           int64           `json:"version"`
 }
 type Eligibility struct {
 	Eligible   bool     `json:"eligible"`

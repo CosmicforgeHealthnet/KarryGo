@@ -7,7 +7,7 @@ import { AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { workforceService } from '@/lib/services/workforceService';
 import type { Profile } from '@/lib/types/workforce';
 
-const PROFILE_STATUSES = ['ACTIVE', 'SUSPENDED', 'ENDED', 'ARCHIVED'] as const;
+const PROFILE_STATUSES = ['ACTIVE', 'INACTIVE', 'ENDED', 'ARCHIVED'] as const;
 
 export default function EditProfilePage() {
   const params = useParams();

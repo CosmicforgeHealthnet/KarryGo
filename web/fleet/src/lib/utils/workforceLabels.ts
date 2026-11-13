@@ -20,7 +20,7 @@ const TONES: Record<Tone, ToneClasses> = {
 
 const PROFILE_STATUS_META: Record<string, { label: string; tone: Tone }> = {
   ACTIVE:    { label: 'Active',    tone: 'green'   },
-  SUSPENDED: { label: 'Suspended', tone: 'amber'   },
+  INACTIVE:  { label: 'Inactive',  tone: 'amber'   },
   ENDED:     { label: 'Ended',     tone: 'neutral' },
   ARCHIVED:  { label: 'Archived',  tone: 'neutral' },
 };
@@ -95,10 +95,11 @@ export const leaveTypeLabel = (t: string): string =>
   LEAVE_TYPE_LABEL[t] ?? t;
 
 const LEAVE_STATUS_META: Record<string, { label: string; tone: Tone }> = {
-  PENDING:   { label: 'Pending',   tone: 'amber'   },
+  REQUESTED: { label: 'Pending',   tone: 'amber'   },
   APPROVED:  { label: 'Approved',  tone: 'green'   },
   REJECTED:  { label: 'Rejected',  tone: 'red'     },
   CANCELLED: { label: 'Cancelled', tone: 'neutral' },
+  COMPLETED: { label: 'Completed', tone: 'neutral' },
 };
 
 export const leaveStatusLabel = (s: string): string =>

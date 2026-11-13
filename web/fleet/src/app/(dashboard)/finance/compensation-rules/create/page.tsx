@@ -113,8 +113,9 @@ export default function CreateCompensationRulePage() {
         applicableRoles: roles,
         applicableServices: services,
         calculationConfiguration,
-        effectiveFrom,
-        effectiveUntil: effectiveUntil || null,
+        // The API takes RFC3339 timestamps.
+        effectiveFrom: `${effectiveFrom}T00:00:00Z`,
+        effectiveUntil: effectiveUntil ? `${effectiveUntil}T00:00:00Z` : null,
       });
       setSuccess(`Rule ${created.id} created as draft.`);
       setTimeout(() => {

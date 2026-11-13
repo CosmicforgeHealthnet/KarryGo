@@ -38,8 +38,9 @@ export default function CreatePayrollPeriodPage() {
       const created = await financeService.payrollPeriods.create({
         branchId: branchId.trim() || undefined,
         currency: currency.toUpperCase(),
-        periodStart,
-        periodEnd,
+        // The API takes RFC3339 timestamps; the period is stored as dates.
+        periodStart: `${periodStart}T00:00:00Z`,
+        periodEnd: `${periodEnd}T00:00:00Z`,
       });
       setSuccess(`Payroll period ${created.id} created.`);
       setTimeout(() => {

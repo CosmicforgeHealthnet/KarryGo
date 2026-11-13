@@ -1,4 +1,4 @@
-export type ProfileStatus = 'ACTIVE' | 'SUSPENDED' | 'ENDED' | 'ARCHIVED';
+export type ProfileStatus = 'ACTIVE' | 'INACTIVE' | 'ENDED' | 'ARCHIVED';
 export type RelationshipType = 'EMPLOYEE' | 'CONTRACTOR' | 'PARTNER';
 
 export type ShiftStatus =
@@ -28,10 +28,11 @@ export type LeaveType =
   | 'OTHER';
 
 export type LeaveStatus =
-  | 'PENDING'
+  | 'REQUESTED'
   | 'APPROVED'
   | 'REJECTED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'COMPLETED';
 
 export type QualificationStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
