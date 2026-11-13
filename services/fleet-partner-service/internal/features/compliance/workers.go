@@ -66,7 +66,7 @@ func (s *Service) handleComplianceSweep(ctx context.Context, j jobs.Job) error {
 	if e != nil {
 		return e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT DISTINCT restriction_id FROM fleet_partner_restriction_operations WHERE organization_id=$1 AND status IN('OUTCOME_UNKNOWN','RETRY_SCHEDULED') AND next_attempt_at<=now()`, p.OrganizationID)
+	rows, e := s.o.Pool.Query(ctx, `SELECT DISTINCT restriction_id FROM fleet_partner_restriction_operations WHERE organization_id=$1 AND status IN('PENDING','OUTCOME_UNKNOWN','RETRY_SCHEDULED') AND next_attempt_at<=now()`, p.OrganizationID)
 	if e != nil {
 		return e
 	}

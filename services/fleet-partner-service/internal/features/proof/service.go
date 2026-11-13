@@ -344,7 +344,7 @@ func (s *Service) MandatorySatisfied(ctx context.Context, org, snapshot, order, 
 	_ = json.Unmarshal(p.RequiredProofTypes, &required)
 	for _, typ := range required {
 		var n int
-		e = s.o.Pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_proof_records r WHERE r.organization_id=$1 AND r.policy_snapshot_reference=$2 AND r.proof_type=$3 AND($4=''OR r.order_id=$4)AND($5=''OR r.shipment_id=$5)AND($6=''OR r.package_id=$6)AND($7=''OR r.route_stop_id=$7) AND(r.verification_status='VERIFIED' OR EXISTS(SELECT 1 FROM fleet_partner_proof_verifications v WHERE v.proof_record_id=r.id AND v.status='VERIFIED'))`, org, snapshot, strings.ToUpper(typ), order, shipment, pkg, stop).Scan(&n)
+		e = s.o.Pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_proof_records r WHERE r.organization_id=$1 AND r.policy_snapshot_reference=$2 AND r.proof_type=$3 AND($4=''OR r.order_id=$4)AND($5=''OR r.shipment_id=$5)AND($6=''OR r.package_id=$6)AND($7=''OR r.route_stop_id=$7) AND(r.verification_status='VERIFIED' OR EXISTS(SELECT 1 FROM fleet_partner_proof_verifications v WHERE v.proof_record_id=r.id AND v.status='VERIFIED')) AND NOT EXISTS(SELECT 1 FROM fleet_partner_proof_verifications v WHERE v.proof_record_id=r.id AND v.status='REJECTED')`, org, snapshot, strings.ToUpper(typ), order, shipment, pkg, stop).Scan(&n)
 		if e != nil {
 			return false, e
 		}

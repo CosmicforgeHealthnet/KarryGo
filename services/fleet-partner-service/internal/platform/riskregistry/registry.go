@@ -393,6 +393,28 @@ var overrides = []Entry{
 	// Shipment lifecycle commands (Sections 15, 58.6).
 	{Method: "POST", Path: "/fleet-partner/v1/shipments/:shipmentId/ready", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/shipments/:shipmentId/cancel", RiskClass: ratelimit.RiskSensitive},
+	// Generic chain of custody, incident lifecycle, compliance checks, proof
+	// verification and specialized capability schemas (Sections 19, 20, 49,
+	// 50). Custody, findings and proof decisions are evidence: SENSITIVE.
+	{Method: "POST", Path: "/fleet-partner/v1/custody-events", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/custody-events", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/custody-events/:eventId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incidents/:incidentId/triage", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incidents/:incidentId/contain", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incidents/:incidentId/escalate", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/incidents/:incidentId/investigations", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incidents/:incidentId/investigations", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incident-investigations/:investigationId/findings", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incident-investigations/:investigationId/approve", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incidents/:incidentId/resolve", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/incidents/:incidentId/close", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/proof-records/:recordId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/proof-records/:recordId/verify", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/proof-records/:recordId/reject", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/compliance/restrictions", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/compliance/checks", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/compliance/checks", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/compliance/checks/:checkId", RiskClass: ratelimit.RiskStandard},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},

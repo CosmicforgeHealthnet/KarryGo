@@ -181,11 +181,12 @@ func (s *OperationsService) UpdateReport(ctx context.Context, t tenant.Context, 
 	return in, e
 }
 
-const incidentCols = `id,organization_id,COALESCE(branch_id,''),incident_type,severity,status,occurred_at,location_reference,route_id,assignment_id,trip_reference,people_references,asset_references,shipment_references,external_reference,description,reported_by,owner_user_id,resolution_action,resolution_reason,version,created_at,updated_at,closed_at`
+const incidentCols = `id,organization_id,COALESCE(branch_id,''),incident_type,severity,status,occurred_at,location_reference,route_id,assignment_id,trip_reference,people_references,asset_references,shipment_references,external_reference,description,reported_by,owner_user_id,resolution_action,resolution_reason,version,created_at,updated_at,closed_at,immediate_actions,triaged_by,triaged_at,containment_summary,contained_by,contained_at,escalation_reason,escalation_trigger,pre_escalation_status,escalated_by,escalated_at,closure_reason,closed_by`
 
 func scanIncident(r pgx.Row) (Incident, error) {
 	var v Incident
-	e := r.Scan(&v.ID, &v.OrganizationID, &v.BranchID, &v.IncidentType, &v.Severity, &v.Status, &v.OccurredAt, &v.LocationReference, &v.RouteID, &v.AssignmentID, &v.TripReference, &v.PeopleReferences, &v.AssetReferences, &v.ShipmentReferences, &v.ExternalReference, &v.Description, &v.ReportedBy, &v.OwnerUserID, &v.ResolutionAction, &v.ResolutionReason, &v.Version, &v.CreatedAt, &v.UpdatedAt, &v.ClosedAt)
+	e := r.Scan(&v.ID, &v.OrganizationID, &v.BranchID, &v.IncidentType, &v.Severity, &v.Status, &v.OccurredAt, &v.LocationReference, &v.RouteID, &v.AssignmentID, &v.TripReference, &v.PeopleReferences, &v.AssetReferences, &v.ShipmentReferences, &v.ExternalReference, &v.Description, &v.ReportedBy, &v.OwnerUserID, &v.ResolutionAction, &v.ResolutionReason, &v.Version, &v.CreatedAt, &v.UpdatedAt, &v.ClosedAt,
+		&v.ImmediateActions, &v.TriagedBy, &v.TriagedAt, &v.ContainmentSummary, &v.ContainedBy, &v.ContainedAt, &v.EscalationReason, &v.EscalationTrigger, &v.PreEscalationStatus, &v.EscalatedBy, &v.EscalatedAt, &v.ClosureReason, &v.ClosedBy)
 	return v, e
 }
 func (s *OperationsService) CreateIncident(ctx context.Context, t tenant.Context, v Incident) (Incident, error) {
@@ -260,18 +261,20 @@ func (s *OperationsService) UpdateIncident(ctx context.Context, t tenant.Context
 	if e != nil {
 		return in, e
 	}
-	status := strings.ToUpper(in.Status)
-	if status == "" {
-		status = old.Status
+	if e = s.gate(s.o.Flags.Incidents, true); e != nil {
+		return in, e
 	}
-	if status == "RESOLVED" || status == "CLOSED" {
-		if in.ResolutionAction == "" || in.ResolutionReason == "" {
-			return in, apperrors.BadRequest("Resolution action and reason are required.", nil)
-		}
+	// The incident lifecycle (spec 58.11) is enforced: a PATCH edits
+	// ownership only, and every status change goes through the transition
+	// command that records its preconditions.
+	status := strings.ToUpper(strings.TrimSpace(in.Status))
+	if status != "" && status != old.Status {
+		return in, apperrors.Conflict("Incident status changes use the lifecycle commands (triage, contain, escalate, investigations, resolve, close).", nil)
 	}
+	status = old.Status
 	e = s.tx(ctx, func(tx pgx.Tx) error {
 		var x error
-		in, x = scanIncident(tx.QueryRow(ctx, `UPDATE fleet_partner_incidents SET status=$4,owner_user_id=COALESCE(NULLIF($5,''),owner_user_id),resolution_action=COALESCE(NULLIF($6,''),resolution_action),resolution_reason=COALESCE(NULLIF($7,''),resolution_reason),closed_at=CASE WHEN $4 IN('RESOLVED','CLOSED') THEN now() ELSE closed_at END,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING `+incidentCols, t.OrganizationID, id, expected, status, in.OwnerUserID, in.ResolutionAction, in.ResolutionReason))
+		in, x = scanIncident(tx.QueryRow(ctx, `UPDATE fleet_partner_incidents SET status=$4,owner_user_id=COALESCE(NULLIF($5,''),owner_user_id),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING `+incidentCols, t.OrganizationID, id, expected, status, in.OwnerUserID))
 		if errors.Is(x, pgx.ErrNoRows) {
 			return apperrors.Conflict("Version conflict.", nil)
 		}
@@ -335,30 +338,54 @@ func scanAction(r pgx.Row) (CorrectiveAction, error) {
 	e := r.Scan(&v.ID, &v.OrganizationID, &v.IncidentID, &v.ActionType, &v.OwnerUserID, &v.DueAt, &v.Status, &v.VerificationRequirements, &v.CompletionNotes, &v.CompletedAt, &v.VerifiedBy, &v.VerifiedAt, &v.Version, &v.CreatedAt, &v.UpdatedAt)
 	return v, e
 }
+
+// CreateCorrectiveAction adds a follow-up action to an incident that is
+// already in its corrective-action stage. The first actions are created by
+// ApproveFindings, which is what moves an incident into that stage.
 func (s *OperationsService) CreateCorrectiveAction(ctx context.Context, t tenant.Context, incidentID string, v CorrectiveAction) (CorrectiveAction, error) {
+	if e := s.gate(s.o.Flags.Incidents, true); e != nil {
+		return v, e
+	}
 	if _, e := s.GetIncident(ctx, t, incidentID); e != nil {
 		return v, e
 	}
-	if v.ActionType == "" || v.OwnerUserID == "" || v.DueAt.IsZero() {
-		return v, apperrors.BadRequest("Action type, owner and dueAt are required.", nil)
+	if e := validateAction(v, s.o.Now()); e != nil {
+		return v, e
 	}
+	e := s.tx(ctx, func(tx pgx.Tx) error {
+		inc, x := s.lockIncident(ctx, tx, t, incidentID)
+		if x != nil {
+			return x
+		}
+		if !stageIs(inc, IncidentCorrectiveAction) {
+			return apperrors.Conflict("Corrective actions are created when investigation findings are approved, or added once the incident is in its corrective-action stage.", nil)
+		}
+		v, x = s.insertAction(ctx, tx, t, incidentID, v)
+		return x
+	})
+	return v, e
+}
+
+func validateAction(v CorrectiveAction, now time.Time) error {
+	if strings.TrimSpace(v.ActionType) == "" || strings.TrimSpace(v.OwnerUserID) == "" || v.DueAt.IsZero() {
+		return apperrors.BadRequest("Action type, owner and dueAt are required.", nil)
+	}
+	if !v.DueAt.After(now) {
+		return apperrors.BadRequest("Corrective action dueAt must be in the future.", nil)
+	}
+	return nil
+}
+
+func (s *OperationsService) insertAction(ctx context.Context, tx pgx.Tx, t tenant.Context, incidentID string, v CorrectiveAction) (CorrectiveAction, error) {
 	v.ID = ids.New("coa")
 	v.OrganizationID = t.OrganizationID
 	v.IncidentID = incidentID
 	v.VerificationRequirements = safeJSON(v.VerificationRequirements, "{}")
-	e := s.tx(ctx, func(tx pgx.Tx) error {
-		var x error
-		v, x = scanAction(tx.QueryRow(ctx, `INSERT INTO fleet_partner_corrective_actions(id,organization_id,incident_id,action_type,owner_user_id,due_at,verification_requirements)VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING `+actionCols, v.ID, v.OrganizationID, v.IncidentID, v.ActionType, v.OwnerUserID, v.DueAt, v.VerificationRequirements))
-		if x != nil {
-			return x
-		}
-		_, x = tx.Exec(ctx, `UPDATE fleet_partner_incidents SET status='CORRECTIVE_ACTION_REQUIRED',version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2`, t.OrganizationID, incidentID)
-		if x != nil {
-			return x
-		}
-		return s.record(ctx, tx, t, "corrective_action.created.v1", "corrective_action", v.ID, v.Version, v)
-	})
-	return v, e
+	v, x := scanAction(tx.QueryRow(ctx, `INSERT INTO fleet_partner_corrective_actions(id,organization_id,incident_id,action_type,owner_user_id,due_at,verification_requirements)VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING `+actionCols, v.ID, v.OrganizationID, v.IncidentID, strings.TrimSpace(v.ActionType), strings.TrimSpace(v.OwnerUserID), v.DueAt, v.VerificationRequirements))
+	if x != nil {
+		return v, x
+	}
+	return v, s.record(ctx, tx, t, "corrective_action.created.v1", "corrective_action", v.ID, v.Version, v)
 }
 func (s *OperationsService) Action(ctx context.Context, t tenant.Context, id, command, notes string, expected int64) (CorrectiveAction, error) {
 	if expected <= 0 {

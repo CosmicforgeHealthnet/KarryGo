@@ -40,7 +40,7 @@ func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
 	if h.service == nil {
 		return
 	}
-	m := map[string]gin.HandlerFunc{"createPackage": h.create, "listPackages": h.list, "getPackage": h.get, "getPackageHistory": h.history, "transitionPackage": h.transition, "scanPackage": h.scan, "listCustody": h.custody, "recordCustody": h.recordCustody}
+	m := map[string]gin.HandlerFunc{"createPackage": h.create, "listPackages": h.list, "getPackage": h.get, "getPackageHistory": h.history, "transitionPackage": h.transition, "scanPackage": h.scan, "listCustody": h.custody, "recordCustody": h.recordCustody, "recordCustodyEvent": h.recordCustodyEvent, "listCustodyEvents": h.listCustodyEvents, "getCustodyEvent": h.getCustodyEvent}
 	for _, r := range h.TenantRoutes() {
 		g.Handle(r.Method, r.Path, m[r.OperationID])
 	}
@@ -315,8 +315,62 @@ type custodyRequest struct {
 	ToLocationReference   string    `json:"toLocationReference"`
 	Condition             string    `json:"condition"`
 	EvidenceMediaID       string    `json:"evidenceMediaId"`
+	EvidenceMediaIDs      []string  `json:"evidenceMediaIds"`
 	CorrectionOfEventID   string    `json:"correctionOfEventId"`
 	OccurredAt            time.Time `json:"occurredAt"`
+}
+
+func (b custodyRequest) input() usecases.CustodyInput {
+	return usecases.CustodyInput{FromActorType: b.FromActorType, FromActorReference: b.FromActorReference, ToActorType: b.ToActorType, ToActorReference: b.ToActorReference, FromLocationReference: b.FromLocationReference, ToLocationReference: b.ToLocationReference, Condition: b.Condition, EvidenceMediaID: b.EvidenceMediaID, EvidenceMediaIDs: b.EvidenceMediaIDs, CorrectionOfEventID: b.CorrectionOfEventID, OccurredAt: b.OccurredAt, Source: "CORPORATE_API"}
+}
+
+type custodyEventRequest struct {
+	SubjectType      string `json:"subjectType"`
+	SubjectReference string `json:"subjectReference"`
+	custodyRequest
+}
+
+// recordCustodyEvent is the generic chain-of-custody command (spec 19.12):
+// a handover of a package, shipment, order, asset or specialized record.
+func (h *Handler) recordCustodyEvent(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.auth(c, t, PermissionCustodyRecord) {
+		return
+	}
+	var b custodyEventRequest
+	if !bind(c, &b) {
+		return
+	}
+	h.runIdempotent(c, "POST /custody-events", t, b, func() (int, any, error) {
+		e, x := h.service.RecordSubjectCustody(c.Request.Context(), t, usecases.SubjectCustodyInput{SubjectType: b.SubjectType, SubjectReference: b.SubjectReference, CustodyInput: b.input()})
+		return http.StatusCreated, e, x
+	})
+}
+
+func (h *Handler) listCustodyEvents(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.auth(c, t, PermissionCustodyRead) {
+		return
+	}
+	v, e := h.service.SubjectCustody(c.Request.Context(), t, c.Query("subjectType"), c.Query("subjectReference"))
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	respond.OK(c, v)
+}
+
+func (h *Handler) getCustodyEvent(c *gin.Context) {
+	t, ok := requireTenant(c)
+	if !ok || !h.auth(c, t, PermissionCustodyRead) {
+		return
+	}
+	v, e := h.service.GetCustodyEvent(c.Request.Context(), t, c.Param("eventId"))
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	respond.OK(c, v)
 }
 
 func (h *Handler) recordCustody(c *gin.Context) {
@@ -329,7 +383,7 @@ func (h *Handler) recordCustody(c *gin.Context) {
 		return
 	}
 	h.runIdempotent(c, "POST /packages/:packageId/custody", t, b, func() (int, any, error) {
-		e, x := h.service.RecordCustody(c.Request.Context(), t, c.Param("packageId"), usecases.CustodyInput{FromActorType: b.FromActorType, FromActorReference: b.FromActorReference, ToActorType: b.ToActorType, ToActorReference: b.ToActorReference, FromLocationReference: b.FromLocationReference, ToLocationReference: b.ToLocationReference, Condition: b.Condition, EvidenceMediaID: b.EvidenceMediaID, CorrectionOfEventID: b.CorrectionOfEventID, OccurredAt: b.OccurredAt, Source: "CORPORATE_API"})
+		e, x := h.service.RecordCustody(c.Request.Context(), t, c.Param("packageId"), b.input())
 		return http.StatusCreated, e, x
 	})
 }

@@ -88,6 +88,1781 @@
                                    }
                    },
     "paths":  {
+"/fleet-partner/v1/incidents/{incidentId}/triage": {
+    "post": {
+        "operationId": "triageIncident",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.triage",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "reported -> triaged. Requires severity, location, affected people/asset reference arrays and the immediate actions taken. Emits incident.triaged."
+    }
+},
+"/fleet-partner/v1/incidents/{incidentId}/contain": {
+    "post": {
+        "operationId": "containIncident",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.triage",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "triaged -> contained. Requires containmentSummary. Emits incident.contained."
+    }
+},
+"/fleet-partner/v1/incidents/{incidentId}/escalate": {
+    "post": {
+        "operationId": "escalateIncident",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.triage",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "reported|triaged|contained|under_investigation|corrective_action -> escalated. Requires trigger (SEVERITY, REGULATORY, CUSTOMER, SAFETY_CRITICAL, OTHER) and reason; the incident later continues from the stage it escalated from. Emits incident.escalated."
+    }
+},
+"/fleet-partner/v1/incidents/{incidentId}/investigations": {
+    "get": {
+        "operationId": "listIncidentInvestigations",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.read",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "description": "The organization's own investigations of one incident.",
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ]
+    },
+    "post": {
+        "operationId": "createIncidentInvestigation",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.investigate",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "contained -> under_investigation. Assigns an active organization member as investigator with a scope and an evidence preservation plan. One open investigation per incident. Emits incident.investigation_started."
+    }
+},
+"/fleet-partner/v1/incident-investigations/{investigationId}/findings": {
+    "post": {
+        "operationId": "submitInvestigationFindings",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.investigate",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "investigationId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "Findings and root cause, submitted by the assigned investigator only."
+    }
+},
+"/fleet-partner/v1/incident-investigations/{investigationId}/approve": {
+    "post": {
+        "operationId": "approveInvestigationFindings",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.approve",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "investigationId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "under_investigation -> corrective_action. Approves submitted findings (approver must not be the investigator) and creates the correctiveActions in the same transaction. Emits incident.corrective_action_started."
+    }
+},
+"/fleet-partner/v1/incidents/{incidentId}/resolve": {
+    "post": {
+        "operationId": "resolveIncident",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.approve",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "corrective_action -> resolved once every corrective action is verified or cancelled. Emits incident.resolved."
+    }
+},
+"/fleet-partner/v1/incidents/{incidentId}/close": {
+    "post": {
+        "operationId": "closeIncident",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "incidents.approve",
+        "x-feature-flag": "INCIDENTS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": true,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "incidentId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            {
+                "name": "If-Match",
+                "in": "header",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "Expected aggregate version; expectedVersion in the JSON body is also accepted."
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "resolved -> closed once linked claims are settled, rejected, closed or cancelled. Emits incident.closed."
+    }
+},
+"/fleet-partner/v1/proof-records/{recordId}": {
+    "get": {
+        "operationId": "getProofRecord",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "proof.read",
+        "x-feature-flag": "PROOF_RECORDS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "description": "Immutable proof record with its append-only verification history and effective status.",
+        "parameters": [
+            {
+                "name": "recordId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ]
+    }
+},
+"/fleet-partner/v1/proof-records/{recordId}/verify": {
+    "post": {
+        "operationId": "verifyProofRecord",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "proof.verify",
+        "x-feature-flag": "PROOF_RECORDS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "recordId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "Verifies a proof record against the policy snapshot it was submitted under. The submitter cannot verify their own proof; an organization decision is final. Emits proof.verified."
+    }
+},
+"/fleet-partner/v1/proof-records/{recordId}/reject": {
+    "post": {
+        "operationId": "rejectProofRecord",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "proof.verify",
+        "x-feature-flag": "PROOF_RECORDS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "recordId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "Rejects a proof record with reasonCodes. A correction is a new superseding proof record. Emits proof.rejected."
+    }
+},
+"/fleet-partner/v1/compliance/checks": {
+    "get": {
+        "operationId": "listComplianceChecks",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "compliance.read",
+        "x-feature-flag": "COMPLIANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "description": "Compliance checks, newest first, filterable by subjectType and subjectReference."
+    },
+    "post": {
+        "operationId": "createComplianceCheck",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "compliance.evaluate",
+        "x-feature-flag": "COMPLIANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "Evaluates every active requirement of the subject in one transaction and records the check; the strictest result governs. Blocking failures apply restrictions that are propagated to the execution services. Emits compliance_check.completed."
+    }
+},
+"/fleet-partner/v1/compliance/checks/{checkId}": {
+    "get": {
+        "operationId": "getComplianceCheck",
+        "tags": [
+            "Section 19 Compliance, Safety and Proof"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "compliance.read",
+        "x-feature-flag": "COMPLIANCE_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "description": "One immutable compliance check with the evaluations it produced.",
+        "parameters": [
+            {
+                "name": "checkId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ]
+    }
+},
+
                   "/fleet-partner/v1/compliance/status":  {
                                                               "get":  {
                                                                           "operationId":  "listComplianceStatus",
@@ -1182,6 +2957,96 @@
                                                                                 }
                                                                     },
                   "/fleet-partner/v1/compliance/restrictions":  {
+"get": {
+    "operationId": "listRestrictions",
+    "tags": [
+        "Section 19 Compliance, Safety and Proof"
+    ],
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "x-permission": "compliance.read",
+    "x-feature-flag": "RESTRICTION_PROPAGATION_ENABLED",
+    "x-auth-class": "corporate",
+    "x-idempotency-required": false,
+    "x-expected-version-required": false,
+    "responses": {
+        "200": {
+            "description": "Successful response",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Envelope"
+                    }
+                }
+            }
+        },
+        "400": {
+            "description": "Invalid request",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Problem"
+                    }
+                }
+            }
+        },
+        "401": {
+            "description": "Unauthenticated",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Problem"
+                    }
+                }
+            }
+        },
+        "403": {
+            "description": "Forbidden",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Problem"
+                    }
+                }
+            }
+        },
+        "404": {
+            "description": "Not found",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Problem"
+                    }
+                }
+            }
+        },
+        "409": {
+            "description": "Conflict",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Problem"
+                    }
+                }
+            }
+        },
+        "503": {
+            "description": "Capability or authority unavailable",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Problem"
+                    }
+                }
+            }
+        }
+    },
+    "description": "Restrictions of the organization, filterable by subjectType, subjectReference and state."
+},
+
                                                                     "post":  {
                                                                                  "operationId":  "applyRestriction",
                                                                                  "tags":  [

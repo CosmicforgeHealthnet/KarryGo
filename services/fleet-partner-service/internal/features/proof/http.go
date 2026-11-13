@@ -19,7 +19,10 @@ type Route struct {
 }
 
 func TenantRoutes() []Route {
-	return []Route{{"GET", "/proof-policies", "listProofPolicies", "proof.read", "PROOF_POLICIES_ENABLED", "corporate", false, false}, {"PUT", "/proof-policies", "putProofPolicy", "proof.manage_policies", "PROOF_POLICIES_ENABLED", "corporate", true, true}, {"GET", "/proof-policies/:policyId", "getProofPolicy", "proof.read", "PROOF_POLICIES_ENABLED", "corporate", false, false}, {"POST", "/proof-records", "createProofRecord", "proof.record", "PROOF_RECORDS_ENABLED", "corporate", true, false}, {"GET", "/proof-records", "listProofRecords", "proof.read", "PROOF_RECORDS_ENABLED", "corporate", false, false}}
+	return []Route{{"GET", "/proof-policies", "listProofPolicies", "proof.read", "PROOF_POLICIES_ENABLED", "corporate", false, false}, {"PUT", "/proof-policies", "putProofPolicy", "proof.manage_policies", "PROOF_POLICIES_ENABLED", "corporate", true, true}, {"GET", "/proof-policies/:policyId", "getProofPolicy", "proof.read", "PROOF_POLICIES_ENABLED", "corporate", false, false}, {"POST", "/proof-records", "createProofRecord", "proof.record", "PROOF_RECORDS_ENABLED", "corporate", true, false}, {"GET", "/proof-records", "listProofRecords", "proof.read", "PROOF_RECORDS_ENABLED", "corporate", false, false},
+		{"GET", "/proof-records/:recordId", "getProofRecord", "proof.read", "PROOF_RECORDS_ENABLED", "corporate", false, false},
+		{"POST", "/proof-records/:recordId/verify", "verifyProofRecord", "proof.verify", "PROOF_RECORDS_ENABLED", "corporate", true, false},
+		{"POST", "/proof-records/:recordId/reject", "rejectProofRecord", "proof.verify", "PROOF_RECORDS_ENABLED", "corporate", true, false}}
 }
 func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
 
@@ -39,6 +42,9 @@ func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
 	g.GET("/proof-policies/:policyId", h.getPolicy)
 	g.POST("/proof-records", h.createRecord)
 	g.GET("/proof-records", h.listRecords)
+	g.GET("/proof-records/:recordId", h.getRecord)
+	g.POST("/proof-records/:recordId/verify", func(c *gin.Context) { h.decide(c, "VERIFIED") })
+	g.POST("/proof-records/:recordId/reject", func(c *gin.Context) { h.decide(c, "REJECTED") })
 }
 func (h *Handler) gate(c *gin.Context, p string) (tenant.Context, bool) {
 	t, ok := middleware.TenantFromGin(c)
@@ -166,4 +172,55 @@ func (h *Handler) listRecords(c *gin.Context) {
 		out = append(out, view(r))
 	}
 	respond.OK(c, out)
+}
+
+type detailView struct {
+	Record          recordView     `json:"record"`
+	EffectiveStatus string         `json:"effectiveStatus"`
+	Verifications   []Verification `json:"verifications"`
+}
+
+func detail(d RecordDetail) detailView {
+	return detailView{Record: view(d.Record), EffectiveStatus: d.EffectiveStatus, Verifications: d.Verifications}
+}
+func (h *Handler) getRecord(c *gin.Context) {
+	t, ok := h.gate(c, "proof.read")
+	if !ok {
+		return
+	}
+	d, e := h.s.GetRecord(c, t, c.Param("recordId"))
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	respond.OK(c, detail(d))
+}
+
+type decisionBody struct {
+	ReasonCodes []string `json:"reasonCodes"`
+}
+
+// decide verifies or rejects a proof record (spec 49.3 POST /proofs/{id}/verify).
+func (h *Handler) decide(c *gin.Context, decision string) {
+	t, ok := h.gate(c, "proof.verify")
+	if !ok {
+		return
+	}
+	endpoint := "POST /proof-records/:recordId/verify"
+	if decision == "REJECTED" {
+		endpoint = "POST /proof-records/:recordId/reject"
+	}
+	idempotency.ExecuteHTTP(c, h.idem, t.OrganizationID, endpoint, func() {
+		var b decisionBody
+		if c.ShouldBindJSON(&b) != nil {
+			respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+			return
+		}
+		d, e := h.s.Decide(c, t, c.Param("recordId"), decision, DecisionInput{ReasonCodes: b.ReasonCodes})
+		if e != nil {
+			respond.Error(c, e)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": detail(d)})
+	})
 }

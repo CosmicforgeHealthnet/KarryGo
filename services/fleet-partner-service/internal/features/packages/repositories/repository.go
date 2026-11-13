@@ -3,6 +3,7 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -178,20 +179,43 @@ func (r *Repository) CreateScan(ctx context.Context, q database.Querier, s model
 
 func (r *Repository) CreateCustody(ctx context.Context, q database.Querier, e models.CustodyEvent) (models.CustodyEvent, error) {
 	e.ID = ids.New(PrefixCustody)
-	err := r.q(q).QueryRow(ctx, `INSERT INTO fleet_partner_custody_events(id,organization_id,package_id,shipment_id,manifest_id,from_actor_type,from_actor_reference,to_actor_type,to_actor_reference,from_location_reference,to_location_reference,condition,evidence_media_id,correction_of_event_id,occurred_at,source,correlation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING received_at,created_at`, e.ID, e.OrganizationID, e.PackageID, e.ShipmentID, nullable(e.ManifestID), e.FromActorType, e.FromActorReference, e.ToActorType, e.ToActorReference, e.FromLocationReference, e.ToLocationReference, e.Condition, e.EvidenceMediaID, nullable(e.CorrectionOfEventID), e.OccurredAt, e.Source, e.CorrelationID).Scan(&e.ReceivedAt, &e.CreatedAt)
+	if e.SubjectType == "" {
+		e.SubjectType = models.CustodySubjectPackage
+	}
+	if e.EvidenceMediaIDs == nil {
+		e.EvidenceMediaIDs = []string{}
+	}
+	evidence, err := json.Marshal(e.EvidenceMediaIDs)
+	if err != nil {
+		return e, err
+	}
+	var subjectRef, pkg, shipment any
+	if e.SubjectType == models.CustodySubjectPackage {
+		pkg, shipment = e.PackageID, e.ShipmentID
+		e.SubjectReference = e.PackageID
+	} else {
+		subjectRef = e.SubjectReference
+	}
+	err = r.q(q).QueryRow(ctx, `INSERT INTO fleet_partner_custody_events(id,organization_id,package_id,shipment_id,manifest_id,from_actor_type,from_actor_reference,to_actor_type,to_actor_reference,from_location_reference,to_location_reference,condition,evidence_media_id,correction_of_event_id,occurred_at,source,correlation_id,subject_type,subject_reference,evidence_media_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING received_at,created_at`, e.ID, e.OrganizationID, pkg, shipment, nullable(e.ManifestID), e.FromActorType, e.FromActorReference, e.ToActorType, e.ToActorReference, e.FromLocationReference, e.ToLocationReference, e.Condition, e.EvidenceMediaID, nullable(e.CorrectionOfEventID), e.OccurredAt, e.Source, e.CorrelationID, e.SubjectType, subjectRef, evidence).Scan(&e.ReceivedAt, &e.CreatedAt)
 	return e, err
 }
 
-const custodyColumns = `id,organization_id,package_id,shipment_id,COALESCE(manifest_id,''),from_actor_type,from_actor_reference,to_actor_type,to_actor_reference,from_location_reference,to_location_reference,condition,evidence_media_id,COALESCE(correction_of_event_id,''),occurred_at,received_at,source,correlation_id,created_at`
+const custodyColumns = `id,organization_id,COALESCE(package_id,''),COALESCE(shipment_id,''),COALESCE(manifest_id,''),from_actor_type,from_actor_reference,to_actor_type,to_actor_reference,from_location_reference,to_location_reference,condition,evidence_media_id,COALESCE(correction_of_event_id,''),occurred_at,received_at,source,correlation_id,created_at,subject_type,subject_key,evidence_media_ids`
 
 func scanCustody(row pgx.Row) (models.CustodyEvent, error) {
 	var e models.CustodyEvent
+	var evidence []byte
 	err := row.Scan(&e.ID, &e.OrganizationID, &e.PackageID, &e.ShipmentID, &e.ManifestID,
 		&e.FromActorType, &e.FromActorReference, &e.ToActorType, &e.ToActorReference,
 		&e.FromLocationReference, &e.ToLocationReference, &e.Condition, &e.EvidenceMediaID,
-		&e.CorrectionOfEventID, &e.OccurredAt, &e.ReceivedAt, &e.Source, &e.CorrelationID, &e.CreatedAt)
+		&e.CorrectionOfEventID, &e.OccurredAt, &e.ReceivedAt, &e.Source, &e.CorrelationID, &e.CreatedAt,
+		&e.SubjectType, &e.SubjectReference, &evidence)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return e, ErrNotFound
+	}
+	if err == nil {
+		e.EvidenceMediaIDs = []string{}
+		err = json.Unmarshal(evidence, &e.EvidenceMediaIDs)
 	}
 	return e, err
 }
@@ -204,6 +228,70 @@ func (r *Repository) LatestCustody(ctx context.Context, q database.Querier, org,
 func (r *Repository) GetCustody(ctx context.Context, q database.Querier, org, pkg, id string) (models.CustodyEvent, error) {
 	return scanCustody(r.q(q).QueryRow(ctx, `SELECT `+custodyColumns+` FROM fleet_partner_custody_events
 		WHERE organization_id=$1 AND package_id=$2 AND id=$3`, org, pkg, id))
+}
+
+// LockCustodySubject serializes handovers of one non-package subject for the
+// rest of the transaction, so two concurrent writers cannot both continue
+// from the same holder. Package handovers are serialized by the package lock.
+func (r *Repository) LockCustodySubject(ctx context.Context, q database.Querier, org, subjectType, subjectRef string) error {
+	_, err := r.q(q).Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "custody:"+org+":"+subjectType+":"+subjectRef)
+	return err
+}
+
+// LatestSubjectCustody returns the latest event (the current holder) of any
+// custody subject.
+func (r *Repository) LatestSubjectCustody(ctx context.Context, q database.Querier, org, subjectType, subjectRef string) (models.CustodyEvent, error) {
+	return scanCustody(r.q(q).QueryRow(ctx, `SELECT `+custodyColumns+` FROM fleet_partner_custody_events
+		WHERE organization_id=$1 AND subject_type=$2 AND subject_key=$3 ORDER BY occurred_at DESC,id DESC LIMIT 1`, org, subjectType, subjectRef))
+}
+
+// GetCustodyEvent reads one custody event of the organization by its ID.
+func (r *Repository) GetCustodyEvent(ctx context.Context, q database.Querier, org, id string) (models.CustodyEvent, error) {
+	return scanCustody(r.q(q).QueryRow(ctx, `SELECT `+custodyColumns+` FROM fleet_partner_custody_events
+		WHERE organization_id=$1 AND id=$2`, org, id))
+}
+
+// ListSubjectCustody returns a subject's complete chain in occurrence order.
+func (r *Repository) ListSubjectCustody(ctx context.Context, org, subjectType, subjectRef string) ([]models.CustodyEvent, error) {
+	rows, err := r.db.Query(ctx, `SELECT `+custodyColumns+` FROM fleet_partner_custody_events WHERE organization_id=$1 AND subject_type=$2 AND subject_key=$3 ORDER BY occurred_at,id`, org, subjectType, subjectRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.CustodyEvent{}
+	for rows.Next() {
+		e, x := scanCustody(rows)
+		if x != nil {
+			return nil, x
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// CustodySubjectBranch resolves a non-package custody subject inside the
+// organization and returns its branch ("" when it is organization-wide). A
+// subject that belongs to another organization is reported as ErrNotFound.
+func (r *Repository) CustodySubjectBranch(ctx context.Context, q database.Querier, org, subjectType, subjectRef string) (string, error) {
+	var table string
+	switch subjectType {
+	case models.CustodySubjectShipment:
+		table = "fleet_partner_shipments"
+	case models.CustodySubjectOrder:
+		table = "fleet_partner_private_orders"
+	case models.CustodySubjectAsset:
+		table = "fleet_partner_assets"
+	case models.CustodySubjectSpecializedRecord:
+		table = "fleet_partner_specialized_records"
+	default:
+		return "", ErrNotFound
+	}
+	var branch string
+	err := r.q(q).QueryRow(ctx, `SELECT COALESCE(branch_id,'') FROM `+table+` WHERE organization_id=$1 AND id=$2`, org, subjectRef).Scan(&branch)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return branch, err
 }
 
 func (r *Repository) ListCustody(ctx context.Context, org, pkg string) ([]models.CustodyEvent, error) {

@@ -40,6 +40,10 @@ func TenantRoutes() []Route {
 		{"POST", "/compliance/restrictions", "applyRestriction", "compliance.restrict", "RESTRICTION_PROPAGATION_ENABLED", "corporate", true, false},
 		{"GET", "/compliance/restrictions/:restrictionId", "getRestriction", "compliance.read", "RESTRICTION_PROPAGATION_ENABLED", "corporate", false, false},
 		{"POST", "/compliance/restrictions/:restrictionId/clear", "clearRestriction", "compliance.clear_restriction", "RESTRICTION_PROPAGATION_ENABLED", "corporate", true, true},
+		{"GET", "/compliance/restrictions", "listRestrictions", "compliance.read", "RESTRICTION_PROPAGATION_ENABLED", "corporate", false, false},
+		{"GET", "/compliance/checks", "listComplianceChecks", "compliance.read", "COMPLIANCE_ENABLED", "corporate", false, false},
+		{"POST", "/compliance/checks", "createComplianceCheck", "compliance.evaluate", "COMPLIANCE_ENABLED", "corporate", true, false},
+		{"GET", "/compliance/checks/:checkId", "getComplianceCheck", "compliance.read", "COMPLIANCE_ENABLED", "corporate", false, false},
 	}
 }
 func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
@@ -196,7 +200,19 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.ApplyRestriction(c, t, b)
 		case "getRestriction":
-			return h.s.GetRestriction(c, t.OrganizationID, c.Param("restrictionId"))
+			return h.s.RestrictionDetail(c, t, c.Param("restrictionId"))
+		case "listRestrictions":
+			return h.s.ListRestrictions(c, t, c.Query("subjectType"), c.Query("subjectReference"), c.Query("state"))
+		case "listComplianceChecks":
+			return h.s.ListChecks(c, t, c.Query("subjectType"), c.Query("subjectReference"))
+		case "getComplianceCheck":
+			return h.s.GetCheck(c, t, c.Param("checkId"))
+		case "createComplianceCheck":
+			var b CheckInput
+			if !bindCompliance(c, &b) {
+				return nil, errors.New("bound")
+			}
+			return h.s.RunCheck(c, t, b)
 		case "clearRestriction":
 			var b versionBody
 			if !bindCompliance(c, &b) {

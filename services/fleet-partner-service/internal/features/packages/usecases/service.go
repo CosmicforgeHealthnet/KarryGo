@@ -347,6 +347,65 @@ func (s *Service) Scan(ctx context.Context, t tenant.Context, id string, in Scan
 type CustodyInput struct {
 	FromActorType, FromActorReference, ToActorType, ToActorReference, FromLocationReference, ToLocationReference, Condition, EvidenceMediaID, CorrectionOfEventID, Source string
 	OccurredAt                                                                                                                                                            time.Time
+	// EvidenceMediaIDs are additional Media-service file references. Every
+	// reference is validated with the Media authority before anything is
+	// written; the event stores references only, never file content.
+	EvidenceMediaIDs []string
+}
+
+// maxCustodyEvidence bounds the evidence references of one handover.
+const maxCustodyEvidence = 10
+
+// custodyEvidence merges the single and list evidence fields, removes
+// duplicates and validates every reference with the Media authority.
+func (s *Service) custodyEvidence(ctx context.Context, t tenant.Context, in CustodyInput) ([]string, error) {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, id := range append([]string{in.EvidenceMediaID}, in.EvidenceMediaIDs...) {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	if len(out) > maxCustodyEvidence {
+		return nil, apperrors.BadRequest("A custody event accepts at most 10 evidence references.", nil)
+	}
+	if len(out) > 0 && s.opts.Media == nil {
+		return nil, apperrors.Unavailable("Media evidence validation is unavailable.", nil)
+	}
+	for _, id := range out {
+		ok, e := s.opts.Media.ValidateEvidence(ctx, t, id)
+		if e != nil || !ok {
+			return nil, apperrors.Unavailable("Media evidence could not be validated.", e)
+		}
+	}
+	return out, nil
+}
+
+// continueChain enforces the chain-of-custody rules shared by every subject:
+// an ordinary handover continues from the current holder and is chronological;
+// a correction must name an event of the same subject.
+func continueChain(latest models.CustodyEvent, latestErr error, in CustodyInput, sameSubject func(string) (bool, error)) error {
+	if latestErr == nil && strings.TrimSpace(in.CorrectionOfEventID) == "" {
+		if latest.ToActorType != strings.TrimSpace(in.FromActorType) ||
+			latest.ToActorReference != strings.TrimSpace(in.FromActorReference) {
+			return errorcodes.Conflict("custody_sequence_invalid", "Custody must continue from the current holder.")
+		}
+		if in.OccurredAt.Before(latest.OccurredAt) {
+			return errorcodes.Conflict("custody_sequence_invalid", "Custody events must be chronological.")
+		}
+	} else if latestErr != nil && !errors.Is(latestErr, repositories.ErrNotFound) {
+		return latestErr
+	}
+	if correctionID := strings.TrimSpace(in.CorrectionOfEventID); correctionID != "" {
+		ok, e := sameSubject(correctionID)
+		if e != nil || !ok {
+			return errorcodes.Conflict("custody_correction_invalid", "Correction target does not belong to this custody subject.")
+		}
+	}
+	return nil
 }
 
 func (s *Service) RecordCustody(ctx context.Context, t tenant.Context, id string, in CustodyInput) (models.CustodyEvent, error) {
@@ -356,40 +415,24 @@ func (s *Service) RecordCustody(ctx context.Context, t tenant.Context, id string
 	if in.OccurredAt.IsZero() || strings.TrimSpace(in.ToActorType) == "" || strings.TrimSpace(in.ToActorReference) == "" {
 		return models.CustodyEvent{}, apperrors.BadRequest("occurredAt and receiving actor are required.", nil)
 	}
-	if in.EvidenceMediaID != "" {
-		if s.opts.Media == nil {
-			return models.CustodyEvent{}, apperrors.Unavailable("Media evidence validation is unavailable.", nil)
-		}
-		ok, e := s.opts.Media.ValidateEvidence(ctx, t, in.EvidenceMediaID)
-		if e != nil || !ok {
-			return models.CustodyEvent{}, apperrors.Unavailable("Media evidence could not be validated.", e)
-		}
+	evidence, err := s.custodyEvidence(ctx, t, in)
+	if err != nil {
+		return models.CustodyEvent{}, err
 	}
 	var event models.CustodyEvent
-	err := s.withTx(ctx, func(tx pgx.Tx) error {
+	err = s.withTx(ctx, func(tx pgx.Tx) error {
 		p, e := s.opts.Repository.Lock(ctx, tx, t.OrganizationID, id)
 		if e != nil || !branchAllowed(t, p.BranchID) {
 			return notFound()
 		}
 		latest, latestErr := s.opts.Repository.LatestCustody(ctx, tx, t.OrganizationID, id)
-		if latestErr == nil && strings.TrimSpace(in.CorrectionOfEventID) == "" {
-			if latest.ToActorType != strings.TrimSpace(in.FromActorType) ||
-				latest.ToActorReference != strings.TrimSpace(in.FromActorReference) {
-				return errorcodes.Conflict("custody_sequence_invalid", "Custody must continue from the current holder.")
-			}
-			if in.OccurredAt.Before(latest.OccurredAt) {
-				return errorcodes.Conflict("custody_sequence_invalid", "Custody events must be chronological.")
-			}
-		} else if latestErr != nil && !errors.Is(latestErr, repositories.ErrNotFound) {
-			return latestErr
+		if e = continueChain(latest, latestErr, in, func(correctionID string) (bool, error) {
+			corrected, x := s.opts.Repository.GetCustody(ctx, tx, t.OrganizationID, id, correctionID)
+			return x == nil && corrected.ID != "", x
+		}); e != nil {
+			return e
 		}
-		if correctionID := strings.TrimSpace(in.CorrectionOfEventID); correctionID != "" {
-			corrected, correctionErr := s.opts.Repository.GetCustody(ctx, tx, t.OrganizationID, id, correctionID)
-			if correctionErr != nil || corrected.ID == "" {
-				return errorcodes.Conflict("custody_correction_invalid", "Correction target does not belong to this package.")
-			}
-		}
-		event, e = s.opts.Repository.CreateCustody(ctx, tx, models.CustodyEvent{OrganizationID: t.OrganizationID, PackageID: id, ShipmentID: p.ShipmentID, FromActorType: in.FromActorType, FromActorReference: in.FromActorReference, ToActorType: in.ToActorType, ToActorReference: in.ToActorReference, FromLocationReference: in.FromLocationReference, ToLocationReference: in.ToLocationReference, Condition: in.Condition, EvidenceMediaID: in.EvidenceMediaID, CorrectionOfEventID: in.CorrectionOfEventID, OccurredAt: in.OccurredAt.UTC(), Source: in.Source, CorrelationID: t.CorrelationID})
+		event, e = s.opts.Repository.CreateCustody(ctx, tx, models.CustodyEvent{OrganizationID: t.OrganizationID, SubjectType: models.CustodySubjectPackage, PackageID: id, ShipmentID: p.ShipmentID, FromActorType: in.FromActorType, FromActorReference: in.FromActorReference, ToActorType: in.ToActorType, ToActorReference: in.ToActorReference, FromLocationReference: in.FromLocationReference, ToLocationReference: in.ToLocationReference, Condition: in.Condition, EvidenceMediaID: firstOrEmpty(evidence), EvidenceMediaIDs: evidence, CorrectionOfEventID: in.CorrectionOfEventID, OccurredAt: in.OccurredAt.UTC(), Source: in.Source, CorrelationID: t.CorrelationID})
 		if e != nil {
 			return e
 		}
@@ -397,7 +440,7 @@ func (s *Service) RecordCustody(ctx context.Context, t tenant.Context, id string
 			return e
 		}
 		if s.opts.Events != nil {
-			return s.opts.Events.Publish(ctx, tx, "custody_event.recorded.v1", "package", id, p.Version, t.OrganizationID, t.CorrelationID, map[string]any{"packageId": id, "custodyEventId": event.ID})
+			return s.opts.Events.Publish(ctx, tx, "custody_event.recorded.v1", "package", id, p.Version, t.OrganizationID, t.CorrelationID, map[string]any{"packageId": id, "custodyEventId": event.ID, "subjectType": models.CustodySubjectPackage, "subjectReference": id, "evidenceCount": len(evidence)})
 		}
 		return nil
 	})
@@ -408,4 +451,140 @@ func (s *Service) Custody(ctx context.Context, t tenant.Context, id string) ([]m
 		return nil, e
 	}
 	return s.opts.Repository.ListCustody(ctx, t.OrganizationID, id)
+}
+
+func firstOrEmpty(v []string) string {
+	if len(v) == 0 {
+		return ""
+	}
+	return v[0]
+}
+
+func normalizeCustodySubject(subjectType, subjectRef string) (string, string, error) {
+	subjectType = strings.ToUpper(strings.TrimSpace(subjectType))
+	subjectRef = strings.TrimSpace(subjectRef)
+	if !models.ValidCustodySubject(subjectType) || subjectRef == "" {
+		return "", "", apperrors.BadRequest("subjectType must be PACKAGE, SHIPMENT, ORDER, ASSET or SPECIALIZED_RECORD and subjectReference is required.", nil)
+	}
+	return subjectType, subjectRef, nil
+}
+
+// subjectVisible resolves a custody subject inside the caller's organization
+// and branch scope. Anything else is the same safe not-found.
+func (s *Service) subjectVisible(ctx context.Context, q database.Querier, t tenant.Context, subjectType, subjectRef string) error {
+	if subjectType == models.CustodySubjectPackage {
+		p, e := s.opts.Repository.Get(ctx, q, t.OrganizationID, subjectRef)
+		if e != nil || !branchAllowed(t, p.BranchID) {
+			return custodyNotFound()
+		}
+		return nil
+	}
+	branch, e := s.opts.Repository.CustodySubjectBranch(ctx, q, t.OrganizationID, subjectType, subjectRef)
+	if errors.Is(e, repositories.ErrNotFound) || e == nil && !branchAllowed(t, branch) {
+		return custodyNotFound()
+	}
+	return e
+}
+
+func custodyNotFound() error {
+	return errorcodes.NotFound("custody_subject_not_found", "Custody subject not found.")
+}
+
+// SubjectCustodyInput records one handover of any custody subject.
+type SubjectCustodyInput struct {
+	SubjectType, SubjectReference string
+	CustodyInput
+}
+
+// RecordSubjectCustody appends one event to the chain of custody of a
+// package, shipment, order, asset or specialized record (spec 19.12). A
+// package handover is delegated to RecordCustody, so the package chain keeps
+// exactly one writer and one set of rules.
+func (s *Service) RecordSubjectCustody(ctx context.Context, t tenant.Context, in SubjectCustodyInput) (models.CustodyEvent, error) {
+	if e := s.enabled(true); e != nil {
+		return models.CustodyEvent{}, e
+	}
+	subjectType, subjectRef, err := normalizeCustodySubject(in.SubjectType, in.SubjectReference)
+	if err != nil {
+		return models.CustodyEvent{}, err
+	}
+	if subjectType == models.CustodySubjectPackage {
+		return s.RecordCustody(ctx, t, subjectRef, in.CustodyInput)
+	}
+	if in.OccurredAt.IsZero() || strings.TrimSpace(in.ToActorType) == "" || strings.TrimSpace(in.ToActorReference) == "" {
+		return models.CustodyEvent{}, apperrors.BadRequest("occurredAt and receiving actor are required.", nil)
+	}
+	if in.OccurredAt.After(s.opts.Now().Add(5 * time.Minute)) {
+		return models.CustodyEvent{}, apperrors.BadRequest("occurredAt cannot be in the future.", nil)
+	}
+	evidence, err := s.custodyEvidence(ctx, t, in.CustodyInput)
+	if err != nil {
+		return models.CustodyEvent{}, err
+	}
+	var event models.CustodyEvent
+	err = s.withTx(ctx, func(tx pgx.Tx) error {
+		if e := s.subjectVisible(ctx, tx, t, subjectType, subjectRef); e != nil {
+			return e
+		}
+		if e := s.opts.Repository.LockCustodySubject(ctx, tx, t.OrganizationID, subjectType, subjectRef); e != nil {
+			return e
+		}
+		latest, latestErr := s.opts.Repository.LatestSubjectCustody(ctx, tx, t.OrganizationID, subjectType, subjectRef)
+		if e := continueChain(latest, latestErr, in.CustodyInput, func(correctionID string) (bool, error) {
+			corrected, x := s.opts.Repository.GetCustodyEvent(ctx, tx, t.OrganizationID, correctionID)
+			return x == nil && corrected.SubjectType == subjectType && corrected.SubjectReference == subjectRef, x
+		}); e != nil {
+			return e
+		}
+		source := strings.TrimSpace(in.Source)
+		if source == "" {
+			source = "CORPORATE_API"
+		}
+		var e error
+		event, e = s.opts.Repository.CreateCustody(ctx, tx, models.CustodyEvent{OrganizationID: t.OrganizationID, SubjectType: subjectType, SubjectReference: subjectRef, FromActorType: strings.TrimSpace(in.FromActorType), FromActorReference: strings.TrimSpace(in.FromActorReference), ToActorType: strings.TrimSpace(in.ToActorType), ToActorReference: strings.TrimSpace(in.ToActorReference), FromLocationReference: in.FromLocationReference, ToLocationReference: in.ToLocationReference, Condition: in.Condition, EvidenceMediaID: firstOrEmpty(evidence), EvidenceMediaIDs: evidence, CorrectionOfEventID: in.CorrectionOfEventID, OccurredAt: in.OccurredAt.UTC(), Source: source, CorrelationID: t.CorrelationID})
+		if e != nil {
+			return e
+		}
+		if e = s.opts.Audit.Record(ctx, tx, audit.EntryFromTenant(t, "custody.recorded", "custody_event", event.ID)); e != nil {
+			return e
+		}
+		if s.opts.Events != nil {
+			return s.opts.Events.Publish(ctx, tx, "custody_event.recorded.v1", strings.ToLower(subjectType), subjectRef, 1, t.OrganizationID, t.CorrelationID, map[string]any{"custodyEventId": event.ID, "subjectType": subjectType, "subjectReference": subjectRef, "toActorType": event.ToActorType, "correctionOfEventId": event.CorrectionOfEventID, "evidenceCount": len(evidence)})
+		}
+		return nil
+	})
+	return event, err
+}
+
+// SubjectCustody returns the complete chain of custody of one visible subject.
+func (s *Service) SubjectCustody(ctx context.Context, t tenant.Context, subjectType, subjectRef string) ([]models.CustodyEvent, error) {
+	if e := s.enabled(false); e != nil {
+		return nil, e
+	}
+	subjectType, subjectRef, err := normalizeCustodySubject(subjectType, subjectRef)
+	if err != nil {
+		return nil, err
+	}
+	if e := s.subjectVisible(ctx, nil, t, subjectType, subjectRef); e != nil {
+		return nil, e
+	}
+	return s.opts.Repository.ListSubjectCustody(ctx, t.OrganizationID, subjectType, subjectRef)
+}
+
+// GetCustodyEvent reads one custody event whose subject the caller can see.
+func (s *Service) GetCustodyEvent(ctx context.Context, t tenant.Context, id string) (models.CustodyEvent, error) {
+	if e := s.enabled(false); e != nil {
+		return models.CustodyEvent{}, e
+	}
+	event, e := s.opts.Repository.GetCustodyEvent(ctx, nil, t.OrganizationID, strings.TrimSpace(id))
+	if errors.Is(e, repositories.ErrNotFound) {
+		return models.CustodyEvent{}, errorcodes.NotFound("custody_event_not_found", "Custody event not found.")
+	}
+	if e != nil {
+		return models.CustodyEvent{}, e
+	}
+	if e = s.subjectVisible(ctx, nil, t, event.SubjectType, event.SubjectReference); e != nil {
+		return models.CustodyEvent{}, errorcodes.NotFound("custody_event_not_found", "Custody event not found.")
+	}
+	return event, nil
 }

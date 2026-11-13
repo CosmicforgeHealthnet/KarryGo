@@ -17,6 +17,11 @@ func (h *Handler) TenantRoutes() []Route {
 		{"POST", "/packages/:packageId/scan", "scanPackage", PermissionPackagesScan, true, true},
 		{"GET", "/packages/:packageId/custody", "listCustody", PermissionCustodyRead, false, false},
 		{"POST", "/packages/:packageId/custody", "recordCustody", PermissionCustodyRecord, true, false},
+		// Generic chain of custody (spec 19.12): the same custody store,
+		// for packages, shipments, orders, assets and specialized records.
+		{"POST", "/custody-events", "recordCustodyEvent", PermissionCustodyRecord, true, false},
+		{"GET", "/custody-events", "listCustodyEvents", PermissionCustodyRead, false, false},
+		{"GET", "/custody-events/:eventId", "getCustodyEvent", PermissionCustodyRead, false, false},
 	}
 }
 func (r Route) FullPath() string { return CorporatePrefix + r.Path }

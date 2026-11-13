@@ -86,4 +86,27 @@ type CustodyEvent struct {
 	FromLocationReference, ToLocationReference, Condition, EvidenceMediaID string
 	CorrectionOfEventID, Source, CorrelationID                             string
 	OccurredAt, ReceivedAt, CreatedAt                                      time.Time
+	// SubjectType and SubjectReference name what changed hands. A package
+	// event reports PACKAGE and its package ID; the generic chain (Section
+	// 19.12) also covers shipments, orders, assets and specialized records.
+	SubjectType, SubjectReference string
+	EvidenceMediaIDs              []string
+}
+
+// Custody subject types accepted by the generic chain of custody.
+const (
+	CustodySubjectPackage           = "PACKAGE"
+	CustodySubjectShipment          = "SHIPMENT"
+	CustodySubjectOrder             = "ORDER"
+	CustodySubjectAsset             = "ASSET"
+	CustodySubjectSpecializedRecord = "SPECIALIZED_RECORD"
+)
+
+// ValidCustodySubject reports whether a subject type may carry custody events.
+func ValidCustodySubject(v string) bool {
+	switch v {
+	case CustodySubjectPackage, CustodySubjectShipment, CustodySubjectOrder, CustodySubjectAsset, CustodySubjectSpecializedRecord:
+		return true
+	}
+	return false
 }

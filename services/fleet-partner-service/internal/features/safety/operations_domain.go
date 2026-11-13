@@ -24,6 +24,41 @@ type Incident struct {
 	Version                                                                                     int64
 	CreatedAt, UpdatedAt                                                                        time.Time
 	ClosedAt                                                                                    *time.Time
+	// Lifecycle facts recorded by the spec 58.11 transitions.
+	ImmediateActions, TriagedBy                              string
+	TriagedAt                                                *time.Time
+	ContainmentSummary, ContainedBy                          string
+	ContainedAt                                              *time.Time
+	EscalationReason, EscalationTrigger, PreEscalationStatus string
+	EscalatedBy                                              string
+	EscalatedAt                                              *time.Time
+	ClosureReason, ClosedBy                                  string
+}
+
+// Incident statuses (spec 58.11). OPEN is "reported", INVESTIGATING is
+// "under_investigation" and CORRECTIVE_ACTION_REQUIRED is "corrective_action".
+const (
+	IncidentOpen             = "OPEN"
+	IncidentTriaged          = "TRIAGED"
+	IncidentContained        = "CONTAINED"
+	IncidentInvestigating    = "INVESTIGATING"
+	IncidentCorrectiveAction = "CORRECTIVE_ACTION_REQUIRED"
+	IncidentResolved         = "RESOLVED"
+	IncidentClosed           = "CLOSED"
+	IncidentEscalated        = "ESCALATED"
+)
+
+// Investigation is the organization's own investigation of one incident.
+type Investigation struct {
+	ID, OrganizationID, IncidentID, InvestigatorUserID, Scope, EvidencePreservation string
+	Status, Findings, RootCause                                                     string
+	ContributingFactors                                                             json.RawMessage
+	FindingsSubmittedAt                                                             *time.Time
+	ApprovedBy                                                                      string
+	ApprovedAt, ClosedAt                                                            *time.Time
+	OpenedBy                                                                        string
+	Version                                                                         int64
+	CreatedAt, UpdatedAt                                                            time.Time
 }
 type Evidence struct {
 	ID, OrganizationID, IncidentID, MediaFileID string

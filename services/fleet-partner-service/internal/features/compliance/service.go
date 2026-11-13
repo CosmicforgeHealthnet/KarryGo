@@ -250,6 +250,24 @@ func (s *Service) Evaluate(ctx context.Context, t tenant.Context, in EvaluateInp
 	if strings.ToUpper(in.SubjectType) != r.SubjectType {
 		return Status{}, apperrors.BadRequest("Subject type does not match requirement.", nil)
 	}
+	var out Status
+	var restrictionID string
+	e = s.tx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, restrictionID, err = s.evaluateTx(ctx, tx, t, r, in)
+		return err
+	})
+	if e == nil && restrictionID != "" {
+		_ = s.ProcessRestriction(ctx, t.OrganizationID, restrictionID)
+	}
+	return out, e
+}
+
+// evaluateTx evaluates one active requirement for one subject inside the
+// caller's transaction, applying a restriction when a blocking requirement is
+// not met. It returns the status and the ID of any restriction it applied;
+// the caller propagates that restriction after commit.
+func (s *Service) evaluateTx(ctx context.Context, tx pgx.Tx, t tenant.Context, r Requirement, in EvaluateInput) (Status, string, error) {
 	state, reasons, expires := s.evidence(ctx, t.OrganizationID, r, in.SubjectReference)
 	if state == StateNonCompliant && r.BlocksOperation {
 		state = StateRestricted
@@ -257,48 +275,40 @@ func (s *Service) Evaluate(ctx context.Context, t tenant.Context, in EvaluateInp
 	reasonJSON, _ := json.Marshal(reasons)
 	out := Status{ID: ids.New("cmpst"), OrganizationID: t.OrganizationID, SubjectType: r.SubjectType, SubjectReference: in.SubjectReference, RequirementID: r.ID, State: state, ExpiresAt: expires, SourceType: strings.ToUpper(in.SourceType), SourceReference: in.SourceReference, SourceVersion: in.SourceVersion, EvaluatedAt: s.o.Now().UTC(), ReasonCodes: reasonJSON}
 	var restrictionID string
-	e = s.tx(ctx, func(tx pgx.Tx) error {
-		var oldState string
-		var oldVersion, oldSource int64
-		err := tx.QueryRow(ctx, `SELECT state,version,source_version FROM fleet_partner_compliance_statuses WHERE organization_id=$1 AND subject_type=$2 AND subject_reference=$3 AND requirement_id=$4 FOR UPDATE`, t.OrganizationID, out.SubjectType, out.SubjectReference, out.RequirementID).Scan(&oldState, &oldVersion, &oldSource)
-		_ = oldVersion
-		if err == nil && in.SourceVersion < oldSource {
-			return apperrors.Conflict("A newer evidence version has already been evaluated.", nil)
-		}
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			err = tx.QueryRow(ctx, `INSERT INTO fleet_partner_compliance_statuses(id,organization_id,subject_type,subject_reference,requirement_id,state,expires_at,source_type,source_reference,source_version,evaluated_at,reason_codes)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING `+statusColumns, out.ID, out.OrganizationID, out.SubjectType, out.SubjectReference, out.RequirementID, out.State, out.ExpiresAt, out.SourceType, out.SourceReference, out.SourceVersion, out.EvaluatedAt, out.ReasonCodes).Scan(&out.ID, &out.OrganizationID, &out.SubjectType, &out.SubjectReference, &out.RequirementID, &out.State, &out.DueAt, &out.ExpiresAt, &out.SourceType, &out.SourceReference, &out.SourceVersion, &out.EvaluatedAt, &out.ReasonCodes, &out.RestrictionReference, &out.Version, &out.CreatedAt, &out.UpdatedAt)
-		} else {
-			out.ID = ""
-			out, err = scanStatus(tx.QueryRow(ctx, `UPDATE fleet_partner_compliance_statuses SET state=$5,expires_at=$6,source_type=$7,source_reference=$8,source_version=$9,evaluated_at=$10,reason_codes=$11,version=version+1,updated_at=now() WHERE organization_id=$1 AND subject_type=$2 AND subject_reference=$3 AND requirement_id=$4 RETURNING `+statusColumns, t.OrganizationID, out.SubjectType, out.SubjectReference, out.RequirementID, out.State, out.ExpiresAt, out.SourceType, out.SourceReference, out.SourceVersion, out.EvaluatedAt, out.ReasonCodes))
-		}
-		if err != nil {
-			return err
-		}
-		if out.State == StateRestricted {
-			rr, er := s.createRestrictionTx(ctx, tx, t, RestrictInput{SubjectType: out.SubjectType, SubjectReference: out.SubjectReference, ReasonCode: "COMPLIANCE_" + r.Code, SourceType: "COMPLIANCE_STATUS", SourceReference: out.ID, Severity: r.Severity})
-			if er != nil {
-				return er
-			}
-			restrictionID = rr.ID
-			out.RestrictionReference = rr.ID
-			_, er = tx.Exec(ctx, `UPDATE fleet_partner_compliance_statuses SET restriction_reference=$1 WHERE id=$2`, rr.ID, out.ID)
-			if er != nil {
-				return er
-			}
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO fleet_partner_compliance_status_history(id,organization_id,compliance_status_id,previous_state,new_state,source_type,source_reference,source_version,reason_codes,restriction_reference,snapshot,actor_reference)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, ids.New("cmph"), t.OrganizationID, out.ID, oldState, out.State, out.SourceType, out.SourceReference, out.SourceVersion, out.ReasonCodes, out.RestrictionReference, mustJSON(out), t.ActorID)
-		if err != nil {
-			return err
-		}
-		return s.record(ctx, tx, t, "compliance_status.evaluated.v1", "compliance_status", out.ID, out.Version, out)
-	})
-	if e == nil && restrictionID != "" {
-		_ = s.ProcessRestriction(ctx, t.OrganizationID, restrictionID)
+	var oldState string
+	var oldVersion, oldSource int64
+	err := tx.QueryRow(ctx, `SELECT state,version,source_version FROM fleet_partner_compliance_statuses WHERE organization_id=$1 AND subject_type=$2 AND subject_reference=$3 AND requirement_id=$4 FOR UPDATE`, t.OrganizationID, out.SubjectType, out.SubjectReference, out.RequirementID).Scan(&oldState, &oldVersion, &oldSource)
+	_ = oldVersion
+	if err == nil && in.SourceVersion < oldSource {
+		return out, "", apperrors.Conflict("A newer evidence version has already been evaluated.", nil)
 	}
-	return out, e
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out, "", err
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx, `INSERT INTO fleet_partner_compliance_statuses(id,organization_id,subject_type,subject_reference,requirement_id,state,expires_at,source_type,source_reference,source_version,evaluated_at,reason_codes)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING `+statusColumns, out.ID, out.OrganizationID, out.SubjectType, out.SubjectReference, out.RequirementID, out.State, out.ExpiresAt, out.SourceType, out.SourceReference, out.SourceVersion, out.EvaluatedAt, out.ReasonCodes).Scan(&out.ID, &out.OrganizationID, &out.SubjectType, &out.SubjectReference, &out.RequirementID, &out.State, &out.DueAt, &out.ExpiresAt, &out.SourceType, &out.SourceReference, &out.SourceVersion, &out.EvaluatedAt, &out.ReasonCodes, &out.RestrictionReference, &out.Version, &out.CreatedAt, &out.UpdatedAt)
+	} else {
+		out.ID = ""
+		out, err = scanStatus(tx.QueryRow(ctx, `UPDATE fleet_partner_compliance_statuses SET state=$5,expires_at=$6,source_type=$7,source_reference=$8,source_version=$9,evaluated_at=$10,reason_codes=$11,version=version+1,updated_at=now() WHERE organization_id=$1 AND subject_type=$2 AND subject_reference=$3 AND requirement_id=$4 RETURNING `+statusColumns, t.OrganizationID, out.SubjectType, out.SubjectReference, out.RequirementID, out.State, out.ExpiresAt, out.SourceType, out.SourceReference, out.SourceVersion, out.EvaluatedAt, out.ReasonCodes))
+	}
+	if err != nil {
+		return out, "", err
+	}
+	if out.State == StateRestricted {
+		rr, er := s.createRestrictionTx(ctx, tx, t, RestrictInput{SubjectType: out.SubjectType, SubjectReference: out.SubjectReference, ReasonCode: "COMPLIANCE_" + r.Code, SourceType: "COMPLIANCE_STATUS", SourceReference: out.ID, Severity: r.Severity})
+		if er != nil {
+			return out, "", er
+		}
+		restrictionID = rr.ID
+		out.RestrictionReference = rr.ID
+		if _, er = tx.Exec(ctx, `UPDATE fleet_partner_compliance_statuses SET restriction_reference=$1 WHERE id=$2`, rr.ID, out.ID); er != nil {
+			return out, "", er
+		}
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO fleet_partner_compliance_status_history(id,organization_id,compliance_status_id,previous_state,new_state,source_type,source_reference,source_version,reason_codes,restriction_reference,snapshot,actor_reference)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, ids.New("cmph"), t.OrganizationID, out.ID, oldState, out.State, out.SourceType, out.SourceReference, out.SourceVersion, out.ReasonCodes, out.RestrictionReference, mustJSON(out), t.ActorID); err != nil {
+		return out, "", err
+	}
+	return out, restrictionID, s.record(ctx, tx, t, "compliance_status.evaluated.v1", "compliance_status", out.ID, out.Version, out)
 }
 
 const restrictionColumns = `id,organization_id,subject_type,subject_reference,reason_code,source_type,source_reference,severity,state,required_authorities,effective_at,cleared_at,version,created_by,cleared_by,clearance_reason,created_at,updated_at`
@@ -346,10 +356,14 @@ func (s *Service) ApplyRestriction(ctx context.Context, t tenant.Context, in Res
 	}
 	var v Restriction
 	e := s.tx(ctx, func(tx pgx.Tx) error { var x error; v, x = s.createRestrictionTx(ctx, tx, t, in); return x })
-	if e == nil {
-		e = s.ProcessRestriction(ctx, t.OrganizationID, v.ID)
+	if e != nil {
+		return v, e
 	}
-	return v, e
+	// The restriction is committed, enforced locally and its propagation is
+	// durable (operations + outbox). A propagation failure is reconciled by
+	// the worker, so it does not turn a recorded restriction into an error.
+	_ = s.ProcessRestriction(ctx, t.OrganizationID, v.ID)
+	return v, nil
 }
 func (s *Service) GetRestriction(ctx context.Context, org, id string) (Restriction, error) {
 	v, e := scanRestriction(s.o.Pool.QueryRow(ctx, `SELECT `+restrictionColumns+` FROM fleet_partner_restrictions WHERE organization_id=$1 AND id=$2`, org, id))
@@ -395,11 +409,14 @@ func (s *Service) ClearRestriction(ctx context.Context, t tenant.Context, id, re
 		}
 		return nil
 	})
-	if e == nil {
-		e = s.ProcessRestriction(ctx, t.OrganizationID, id)
-		v, _ = s.GetRestriction(ctx, t.OrganizationID, id)
+	if e != nil {
+		return v, e
 	}
-	return v, e
+	_ = s.ProcessRestriction(ctx, t.OrganizationID, id)
+	if current, x := s.GetRestriction(ctx, t.OrganizationID, id); x == nil {
+		v = current
+	}
+	return v, nil
 }
 func (s *Service) CheckSubject(ctx context.Context, org, typ, ref string) (Eligibility, error) {
 	var count int
@@ -478,15 +495,20 @@ func (s *Service) ProcessRestriction(ctx context.Context, org, id string) error 
 	}
 	for _, o := range ops {
 		c := s.authority(o.a)
-		if c == nil || !c.Configured() {
-			return apperrors.Unavailable("Required restriction authority is unavailable.", nil)
-		}
 		meta := platformclients.CallMeta{OrganizationID: org, IdempotencyKey: o.key}
 		cmd := platformclients.RestrictionCommand{RestrictionID: r.ID, OrganizationID: org, SubjectType: r.SubjectType, SubjectReference: r.SubjectReference, ReasonCode: r.ReasonCode, SourceReference: r.SourceReference, ExpectedVersion: o.version}
 		started := s.o.Now()
 		var out platformclients.RestrictionOutcome
 		var callErr error
-		if o.status == "OUTCOME_UNKNOWN" {
+		unconfigured := c == nil || !c.Configured()
+		if unconfigured {
+			// The restriction is already durable and enforced locally
+			// (CheckSubject). An authority that is not reachable from this
+			// deployment is a retryable propagation failure, recorded and
+			// reconciled like any other -- never a reason to stop
+			// propagating to the remaining authorities.
+			callErr = &platformclients.Error{Service: strings.ToLower(o.a), Outcome: platformclients.OutcomeTransient}
+		} else if o.status == "OUTCOME_UNKNOWN" {
 			if o.action == "APPLY" {
 				out, callErr = c.Read(ctx, meta, o.key)
 			} else {
@@ -499,8 +521,8 @@ func (s *Service) ProcessRestriction(ctx context.Context, org, id string) error 
 		// An ambiguous mutation is never resubmitted merely because its read-back
 		// failed. Only an authoritative NOT_FOUND proves the original operation
 		// did not land and makes an idempotent resubmission safe.
-		shouldSubmit := o.status != "OUTCOME_UNKNOWN"
-		if o.status == "OUTCOME_UNKNOWN" && clientOutcome(callErr) == platformclients.OutcomeNotFound {
+		shouldSubmit := o.status != "OUTCOME_UNKNOWN" && !unconfigured
+		if !unconfigured && o.status == "OUTCOME_UNKNOWN" && clientOutcome(callErr) == platformclients.OutcomeNotFound {
 			shouldSubmit = true
 		}
 		if shouldSubmit {
@@ -521,6 +543,9 @@ func (s *Service) ProcessRestriction(ctx context.Context, org, id string) error 
 				status = "OUTCOME_UNKNOWN"
 			}
 			code = string(oc)
+			if unconfigured {
+				outcome, code = "NOT_CONFIGURED", "AUTHORITY_NOT_CONFIGURED"
+			}
 		}
 		attempt := o.attempt + 1
 		e = s.tx(ctx, func(tx pgx.Tx) error {

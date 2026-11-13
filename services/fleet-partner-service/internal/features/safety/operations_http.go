@@ -29,7 +29,17 @@ func OperationsTenantRoutes() []OperationsRoute {
 	return []OperationsRoute{
 		{"GET", "/safety/reports", "listSafetyReports", "safety.read", "SAFETY_REPORTS_ENABLED", "corporate", false, false}, {"POST", "/safety/reports", "createSafetyReport", "safety.report", "SAFETY_REPORTS_ENABLED", "corporate", true, false}, {"GET", "/safety/reports/:reportId", "getSafetyReport", "safety.read", "SAFETY_REPORTS_ENABLED", "corporate", false, false}, {"PATCH", "/safety/reports/:reportId", "updateSafetyReport", "safety.manage", "SAFETY_REPORTS_ENABLED", "corporate", false, true}, {"POST", "/safety/reports/:reportId/resolve", "resolveSafetyReport", "safety.manage", "SAFETY_REPORTS_ENABLED", "corporate", true, true},
 		{"GET", "/incidents", "listIncidents", "incidents.read", "INCIDENTS_ENABLED", "corporate", false, false}, {"POST", "/incidents", "createIncident", "incidents.manage", "INCIDENTS_ENABLED", "corporate", true, false}, {"GET", "/incidents/:incidentId", "getIncident", "incidents.read", "INCIDENTS_ENABLED", "corporate", false, false}, {"PATCH", "/incidents/:incidentId", "updateIncident", "incidents.manage", "INCIDENTS_ENABLED", "corporate", false, true}, {"POST", "/incidents/:incidentId/evidence", "addIncidentEvidence", "incidents.attach_evidence", "INCIDENTS_ENABLED", "corporate", true, false}, {"POST", "/incidents/:incidentId/corrective-actions", "createCorrectiveAction", "incidents.manage", "INCIDENTS_ENABLED", "corporate", true, false},
-		{"POST", "/corrective-actions/:actionId/complete", "completeCorrectiveAction", "incidents.manage", "INCIDENTS_ENABLED", "corporate", true, true}, {"POST", "/corrective-actions/:actionId/verify", "verifyCorrectiveAction", "incidents.verify_actions", "INCIDENTS_ENABLED", "corporate", true, true}}
+		{"POST", "/corrective-actions/:actionId/complete", "completeCorrectiveAction", "incidents.manage", "INCIDENTS_ENABLED", "corporate", true, true}, {"POST", "/corrective-actions/:actionId/verify", "verifyCorrectiveAction", "incidents.verify_actions", "INCIDENTS_ENABLED", "corporate", true, true},
+		// Incident lifecycle (spec 49.3, 58.11).
+		{"POST", "/incidents/:incidentId/triage", "triageIncident", "incidents.triage", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"POST", "/incidents/:incidentId/contain", "containIncident", "incidents.triage", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"POST", "/incidents/:incidentId/escalate", "escalateIncident", "incidents.triage", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"GET", "/incidents/:incidentId/investigations", "listIncidentInvestigations", "incidents.read", "INCIDENTS_ENABLED", "corporate", false, false},
+		{"POST", "/incidents/:incidentId/investigations", "createIncidentInvestigation", "incidents.investigate", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"POST", "/incident-investigations/:investigationId/findings", "submitInvestigationFindings", "incidents.investigate", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"POST", "/incident-investigations/:investigationId/approve", "approveInvestigationFindings", "incidents.approve", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"POST", "/incidents/:incidentId/resolve", "resolveIncident", "incidents.approve", "INCIDENTS_ENABLED", "corporate", true, true},
+		{"POST", "/incidents/:incidentId/close", "closeIncident", "incidents.approve", "INCIDENTS_ENABLED", "corporate", true, true}}
 }
 func (r OperationsRoute) FullPath() string { return "/fleet-partner/v1" + r.Path }
 
@@ -131,6 +141,57 @@ type actionBody struct {
 	ResolutionReason string `json:"resolutionReason"`
 }
 
+type lifecycleBody struct {
+	ExpectedVersion      int64              `json:"expectedVersion"`
+	Severity             string             `json:"severity"`
+	LocationReference    string             `json:"locationReference"`
+	PeopleReferences     json.RawMessage    `json:"peopleReferences"`
+	AssetReferences      json.RawMessage    `json:"assetReferences"`
+	ImmediateActions     string             `json:"immediateActions"`
+	ContainmentSummary   string             `json:"containmentSummary"`
+	Trigger              string             `json:"trigger"`
+	Reason               string             `json:"reason"`
+	InvestigatorUserID   string             `json:"investigatorUserId"`
+	Scope                string             `json:"scope"`
+	EvidencePreservation string             `json:"evidencePreservation"`
+	Findings             string             `json:"findings"`
+	RootCause            string             `json:"rootCause"`
+	ContributingFactors  json.RawMessage    `json:"contributingFactors"`
+	CorrectiveActions    []CorrectiveAction `json:"correctiveActions"`
+	ResolutionAction     string             `json:"resolutionAction"`
+	ResolutionReason     string             `json:"resolutionReason"`
+}
+
+func (h *OperationsHandler) lifecycle(c *gin.Context, t tenant.Context, op string) (any, error) {
+	var b lifecycleBody
+	if !bindSafety(c, &b) {
+		return nil, errors.New("bound")
+	}
+	v := safetyVersion(c, b.ExpectedVersion)
+	id := c.Param("incidentId")
+	switch op {
+	case "triageIncident":
+		return h.s.TriageIncident(c, t, id, v, TriageInput{Severity: b.Severity, LocationReference: b.LocationReference, ImmediateActions: b.ImmediateActions, PeopleReferences: b.PeopleReferences, AssetReferences: b.AssetReferences})
+	case "containIncident":
+		return h.s.ContainIncident(c, t, id, v, b.ContainmentSummary)
+	case "escalateIncident":
+		return h.s.EscalateIncident(c, t, id, v, b.Trigger, b.Reason)
+	case "createIncidentInvestigation":
+		inv, inc, e := h.s.OpenInvestigation(c, t, id, v, InvestigationInput{InvestigatorUserID: b.InvestigatorUserID, Scope: b.Scope, EvidencePreservation: b.EvidencePreservation})
+		return gin.H{"investigation": inv, "incident": inc}, e
+	case "submitInvestigationFindings":
+		return h.s.SubmitFindings(c, t, c.Param("investigationId"), v, FindingsInput{Findings: b.Findings, RootCause: b.RootCause, ContributingFactors: b.ContributingFactors})
+	case "approveInvestigationFindings":
+		inv, inc, actions, e := h.s.ApproveFindings(c, t, c.Param("investigationId"), v, b.CorrectiveActions)
+		return gin.H{"investigation": inv, "incident": inc, "correctiveActions": actions}, e
+	case "resolveIncident":
+		return h.s.ResolveIncident(c, t, id, v, b.ResolutionAction, b.ResolutionReason)
+	case "closeIncident":
+		return h.s.CloseIncident(c, t, id, v, b.Reason)
+	}
+	return nil, apperrors.NotFound("Operation not found.", nil)
+}
+
 func publicReport(v Report) Report {
 	if v.Anonymous {
 		v.ReporterReference = ""
@@ -210,6 +271,10 @@ func (h *OperationsHandler) handle(c *gin.Context, r OperationsRoute) {
 				cmd = "VERIFY"
 			}
 			return h.s.Action(c, t, c.Param("actionId"), cmd, b.Notes, safetyVersion(c, b.ExpectedVersion))
+		case "listIncidentInvestigations":
+			return h.s.ListInvestigations(c, t, c.Param("incidentId"))
+		case "triageIncident", "containIncident", "escalateIncident", "createIncidentInvestigation", "submitInvestigationFindings", "approveInvestigationFindings", "resolveIncident", "closeIncident":
+			return h.lifecycle(c, t, r.OperationID)
 		}
 		return nil, apperrors.NotFound("Operation not found.", nil)
 	}
