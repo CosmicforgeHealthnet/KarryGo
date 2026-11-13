@@ -22,7 +22,7 @@ func TestEverySpecializedModuleValidatesItsAuthorityReferences(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			record := Record{CapabilityCode: tt.capability, RecordType: tt.recordType, SubjectType: "SHIPMENT", SubjectReference: "shipment-1", Payload: json.RawMessage(tt.payload)}
+			record := Record{CapabilityCode: tt.capability, RecordType: tt.recordType, SubjectType: "SHIPMENT", SubjectReference: "shipment-1", Payload: json.RawMessage(tt.payload), SchemaVersion: SchemaVersionLegacy}
 			if err := ValidateRecord(&record); err != nil {
 				t.Fatalf("valid module record rejected: %v", err)
 			}
@@ -47,7 +47,7 @@ func TestSpecializedModulesFailClosedAtAuthorityBoundaries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			record := Record{CapabilityCode: tt.capability, RecordType: tt.recordType, SubjectType: "SHIPMENT", SubjectReference: "shipment-1", Payload: json.RawMessage(tt.payload)}
+			record := Record{CapabilityCode: tt.capability, RecordType: tt.recordType, SubjectType: "SHIPMENT", SubjectReference: "shipment-1", Payload: json.RawMessage(tt.payload), SchemaVersion: SchemaVersionLegacy}
 			if err := ValidateRecord(&record); err == nil {
 				t.Fatal("unsafe specialized record accepted")
 			}

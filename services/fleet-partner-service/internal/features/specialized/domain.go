@@ -21,6 +21,10 @@ const (
 	Towing       = "TOWING_RECOVERY"
 )
 
+// SubjectOrder is the subject type of order-level specialized data
+// (spec 50.3 /orders/{id}/specialized-data).
+const SubjectOrder = "ORDER"
+
 type Flags struct {
 	Enabled, Workers, KillSwitch bool
 	Modules                      map[string]bool
@@ -41,6 +45,10 @@ type Record struct {
 	CreatedBy                                                                                       string
 	CreatedAt, UpdatedAt                                                                            time.Time
 	CompletedAt                                                                                     *time.Time
+	// SchemaVersion is the extension schema version the payload was
+	// validated against; SchemaID names it (e.g. COLD_CHAIN.v2).
+	SchemaVersion int
+	SchemaID      string
 }
 type Milestone struct {
 	ID, OrganizationID, RecordID, MilestoneType, Status string

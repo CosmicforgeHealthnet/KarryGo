@@ -415,6 +415,9 @@ var overrides = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/compliance/checks", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/compliance/checks", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/compliance/checks/:checkId", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/capability-schemas/:capabilityCode", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/orders/:orderId/specialized-data", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/orders/:orderId/specialized-data", RiskClass: ratelimit.RiskSensitive},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskSensitive},

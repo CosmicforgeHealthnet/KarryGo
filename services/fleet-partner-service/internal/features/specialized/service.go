@@ -51,14 +51,23 @@ func (s *Service) gate(write bool) error {
 	if s.o.Flags.KillSwitch {
 		return apperrors.Unavailable("Fleet operations are disabled.", nil)
 	}
+	// A disabled specialized capability does not expose its routes (spec
+	// 20.1): reads and writes are the same safe not-found.
 	if !s.o.Flags.Enabled {
-		if write {
-			return apperrors.Forbidden("Specialized logistics is disabled.", nil)
-		}
 		return apperrors.NotFound("Resource not found.", nil)
 	}
 	return nil
 }
+
+// ModuleAvailable reports whether a capability module is switched on for this
+// deployment. The HTTP layer answers 404 for a module that is not, before any
+// permission check, so a disabled module exposes no route at all.
+func (s *Service) ModuleAvailable(code string) bool {
+	return s.o.Flags.Enabled && s.o.Flags.Modules[strings.ToUpper(code)]
+}
+
+// FeatureAvailable reports whether specialized logistics is switched on.
+func (s *Service) FeatureAvailable() bool { return s.o.Flags.Enabled }
 func (s *Service) capability(ctx context.Context, org, code string, write bool) (Capability, error) {
 	if !s.o.Flags.Modules[code] {
 		return Capability{}, apperrors.NotFound("Resource not found.", nil)
@@ -151,17 +160,53 @@ func (s *Service) ListCapabilities(ctx context.Context, t tenant.Context) ([]Cap
 		if e != nil {
 			return nil, e
 		}
-		out = append(out, v)
+		// A module switched off for this deployment is not shown, whatever
+		// the organization row says.
+		if s.o.Flags.Modules[v.CapabilityCode] {
+			out = append(out, v)
+		}
 	}
 	return out, rows.Err()
 }
 
-const recordCols = `id,organization_id,COALESCE(branch_id,''),capability_code,record_type,subject_type,subject_reference,status,restricted_visibility,payload,external_financial_reference,source_authority,source_reference,idempotency_key,version,created_by,created_at,updated_at,completed_at`
+const recordCols = `id,organization_id,COALESCE(branch_id,''),capability_code,record_type,subject_type,subject_reference,status,restricted_visibility,payload,external_financial_reference,source_authority,source_reference,idempotency_key,version,created_by,created_at,updated_at,completed_at,schema_version`
 
 func scanRecord(r pgx.Row) (Record, error) {
 	var v Record
-	e := r.Scan(&v.ID, &v.OrganizationID, &v.BranchID, &v.CapabilityCode, &v.RecordType, &v.SubjectType, &v.SubjectReference, &v.Status, &v.RestrictedVisibility, &v.Payload, &v.ExternalFinancialReference, &v.SourceAuthority, &v.SourceReference, &v.IdempotencyKey, &v.Version, &v.CreatedBy, &v.CreatedAt, &v.UpdatedAt, &v.CompletedAt)
+	e := r.Scan(&v.ID, &v.OrganizationID, &v.BranchID, &v.CapabilityCode, &v.RecordType, &v.SubjectType, &v.SubjectReference, &v.Status, &v.RestrictedVisibility, &v.Payload, &v.ExternalFinancialReference, &v.SourceAuthority, &v.SourceReference, &v.IdempotencyKey, &v.Version, &v.CreatedBy, &v.CreatedAt, &v.UpdatedAt, &v.CompletedAt, &v.SchemaVersion)
+	if e == nil {
+		v.SchemaID = SchemaID(v.CapabilityCode, v.SchemaVersion)
+	}
 	return v, e
+}
+
+// validateReferences proves that asset and qualification references named
+// by the schema belong to the organization (spec 50.2 required
+// qualification/asset).
+func (s *Service) validateReferences(ctx context.Context, t tenant.Context, v Record) error {
+	if v.SchemaVersion != SchemaVersionCurrent {
+		return nil
+	}
+	assets, qualifications := referenceFields(v.CapabilityCode, v.RecordType, v.Payload)
+	for _, id := range assets {
+		var ok bool
+		if e := s.o.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fleet_partner_assets WHERE organization_id=$1 AND id=$2)`, t.OrganizationID, id).Scan(&ok); e != nil {
+			return e
+		}
+		if !ok {
+			return apperrors.BadRequest("Referenced asset "+id+" does not exist in this organization.", nil)
+		}
+	}
+	for _, id := range qualifications {
+		var ok bool
+		if e := s.o.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fleet_partner_qualifications WHERE organization_id=$1 AND id=$2 AND status='ACTIVE')`, t.OrganizationID, id).Scan(&ok); e != nil {
+			return e
+		}
+		if !ok {
+			return apperrors.BadRequest("Referenced qualification "+id+" is not an active qualification of this organization.", nil)
+		}
+	}
+	return nil
 }
 func (s *Service) validateMedia(ctx context.Context, t tenant.Context, p json.RawMessage) error {
 	var v map[string]any
@@ -204,6 +249,9 @@ func (s *Service) CreateRecord(ctx context.Context, t tenant.Context, v Record) 
 	if e := ValidateRecord(&v); e != nil {
 		return v, e
 	}
+	if e := s.validateReferences(ctx, t, v); e != nil {
+		return v, e
+	}
 	if e := s.validateMedia(ctx, t, v.Payload); e != nil {
 		return v, e
 	}
@@ -219,11 +267,17 @@ func (s *Service) CreateRecord(ctx context.Context, t tenant.Context, v Record) 
 	v.CreatedBy = t.ActorID
 	e = s.tx(ctx, func(tx pgx.Tx) error {
 		var x error
-		v, x = scanRecord(tx.QueryRow(ctx, `INSERT INTO fleet_partner_specialized_records(id,organization_id,branch_id,capability_code,record_type,subject_type,subject_reference,status,restricted_visibility,payload,external_financial_reference,source_authority,source_reference,idempotency_key,created_by)VALUES($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING `+recordCols, v.ID, v.OrganizationID, v.BranchID, v.CapabilityCode, v.RecordType, v.SubjectType, v.SubjectReference, v.Status, v.RestrictedVisibility, v.Payload, v.ExternalFinancialReference, v.SourceAuthority, v.SourceReference, v.IdempotencyKey, v.CreatedBy))
+		v, x = scanRecord(tx.QueryRow(ctx, `INSERT INTO fleet_partner_specialized_records(id,organization_id,branch_id,capability_code,record_type,subject_type,subject_reference,status,restricted_visibility,payload,external_financial_reference,source_authority,source_reference,idempotency_key,created_by,schema_version)VALUES($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING `+recordCols, v.ID, v.OrganizationID, v.BranchID, v.CapabilityCode, v.RecordType, v.SubjectType, v.SubjectReference, v.Status, v.RestrictedVisibility, v.Payload, v.ExternalFinancialReference, v.SourceAuthority, v.SourceReference, v.IdempotencyKey, v.CreatedBy, v.SchemaVersion))
 		if x != nil {
 			return x
 		}
-		return s.record(ctx, tx, t, "specialized_record.created.v1", "specialized_record", v.ID, v.Version, map[string]any{"recordId": v.ID, "capabilityCode": v.CapabilityCode, "recordType": v.RecordType, "status": v.Status})
+		if x = s.record(ctx, tx, t, "specialized_record.created.v1", "specialized_record", v.ID, v.Version, map[string]any{"recordId": v.ID, "capabilityCode": v.CapabilityCode, "recordType": v.RecordType, "status": v.Status, "schemaId": v.SchemaID}); x != nil {
+			return x
+		}
+		if v.SubjectType == SubjectOrder && s.o.Events != nil {
+			return s.o.Events.Publish(ctx, tx, "specialized_order.validated.v1", "order", v.SubjectReference, v.Version, t.OrganizationID, t.CorrelationID, map[string]any{"orderId": v.SubjectReference, "recordId": v.ID, "capabilityCode": v.CapabilityCode, "recordType": v.RecordType, "schemaId": v.SchemaID})
+		}
+		return nil
 	})
 	return v, e
 }
@@ -262,9 +316,21 @@ func (s *Service) ListRecords(ctx context.Context, t tenant.Context, code string
 		if e != nil {
 			return nil, e
 		}
-		out = append(out, v)
+		out = append(out, redact(v))
 	}
 	return out, rows.Err()
+}
+
+// redactedPayload replaces a restricted record's payload in list views. The
+// full payload is only returned by the single-record read, which writes a
+// sensitive-access audit row.
+var redactedPayload = json.RawMessage(`{"redacted":true}`)
+
+func redact(v Record) Record {
+	if v.RestrictedVisibility {
+		v.Payload = redactedPayload
+	}
+	return v
 }
 func (s *Service) UpdateRecord(ctx context.Context, t tenant.Context, code, id string, expected int64, v Record, command string) (Record, error) {
 	old, e := s.GetRecord(ctx, t, code, id)
@@ -282,7 +348,13 @@ func (s *Service) UpdateRecord(ctx context.Context, t tenant.Context, code, id s
 		v.Payload = old.Payload
 	}
 	v.RestrictedVisibility = old.RestrictedVisibility
+	// An update is validated against the schema version the record was
+	// written with, so version 1 records stay editable.
+	v.SchemaVersion = old.SchemaVersion
 	if e = ValidateRecord(&v); e != nil {
+		return v, e
+	}
+	if e = s.validateReferences(ctx, t, v); e != nil {
 		return v, e
 	}
 	status := old.Status

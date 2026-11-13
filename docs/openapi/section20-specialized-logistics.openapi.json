@@ -88,6 +88,327 @@
                                    }
                    },
     "paths":  {
+"/fleet-partner/v1/capability-schemas/{capabilityCode}": {
+    "get": {
+        "operationId": "getCapabilitySchema",
+        "tags": [
+            "Section 20 Specialized Logistics"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "specialized.read",
+        "x-feature-flag": "SPECIALIZED_LOGISTICS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "description": "Typed, closed extension schema of a capability the organization has enabled (schemaId CODE.vN, supported versions, restricted visibility, proof types). A disabled capability is a 404.",
+        "parameters": [
+            {
+                "name": "capabilityCode",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ]
+    }
+},
+"/fleet-partner/v1/orders/{orderId}/specialized-data": {
+    "get": {
+        "operationId": "listOrderSpecializedData",
+        "tags": [
+            "Section 20 Specialized Logistics"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "specialized.read",
+        "x-feature-flag": "SPECIALIZED_LOGISTICS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": false,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "description": "Specialized extension data of one common order, across enabled capabilities. Restricted (medical, passenger) records are access-audited.",
+        "parameters": [
+            {
+                "name": "orderId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ]
+    },
+    "post": {
+        "operationId": "createOrderSpecializedData",
+        "tags": [
+            "Section 20 Specialized Logistics"
+        ],
+        "security": [
+            {
+                "bearerAuth": []
+            }
+        ],
+        "x-permission": "specialized.manage",
+        "x-feature-flag": "SPECIALIZED_LOGISTICS_ENABLED",
+        "x-auth-class": "corporate",
+        "x-idempotency-required": true,
+        "x-expected-version-required": false,
+        "responses": {
+            "200": {
+                "description": "Successful response",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Envelope"
+                        }
+                    }
+                }
+            },
+            "400": {
+                "description": "Invalid request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "401": {
+                "description": "Unauthenticated",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "403": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "404": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "409": {
+                "description": "Conflict",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            },
+            "503": {
+                "description": "Capability or authority unavailable",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Problem"
+                        }
+                    }
+                }
+            }
+        },
+        "parameters": [
+            {
+                "name": "orderId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            {
+                "name": "Idempotency-Key",
+                "in": "header",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        ],
+        "requestBody": {
+            "required": true,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CommandRequest"
+                    }
+                }
+            }
+        },
+        "description": "Validates capabilityCode/recordType/payload against the capability schema (schemaVersion defaults to the current version; unsupported fields are rejected) and stores it as an extension of the order. Emits specialized_order.validated."
+    }
+},
+
                   "/fleet-partner/v1/specialized/capabilities":  {
                                                                      "get":  {
                                                                                  "operationId":  "listSpecializedCapabilities",

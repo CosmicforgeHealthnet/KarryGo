@@ -28,6 +28,10 @@ func set(v ...string) map[string]bool {
 	return m
 }
 func ValidCapability(v string) bool { _, ok := moduleTypes[v]; return ok }
+
+// ValidateRecord validates a record against the schema version it declares
+// (0 means the current version). Medical and passenger records always carry
+// restricted visibility.
 func ValidateRecord(v *Record) error {
 	v.CapabilityCode = strings.ToUpper(strings.TrimSpace(v.CapabilityCode))
 	v.RecordType = strings.ToUpper(strings.TrimSpace(v.RecordType))
@@ -35,9 +39,27 @@ func ValidateRecord(v *Record) error {
 	if !ok || !types[v.RecordType] {
 		return apperrors.BadRequest("Record type is not valid for this specialized capability.", nil)
 	}
-	if v.SubjectType == "" || v.SubjectReference == "" {
+	if strings.TrimSpace(v.SubjectType) == "" || strings.TrimSpace(v.SubjectReference) == "" {
 		return apperrors.BadRequest("Subject type and reference are required.", nil)
 	}
+	if v.SchemaVersion == 0 {
+		v.SchemaVersion = SchemaVersionCurrent
+	}
+	if v.CapabilityCode == Medical || v.CapabilityCode == Taxi {
+		v.RestrictedVisibility = true
+	}
+	switch v.SchemaVersion {
+	case SchemaVersionLegacy:
+		return validateLegacy(v)
+	case SchemaVersionCurrent:
+		return validateCurrent(v)
+	}
+	return apperrors.BadRequest(fmt.Sprintf("Unsupported schema version %d; supported versions are %d and %d.", v.SchemaVersion, SchemaVersionLegacy, SchemaVersionCurrent), nil)
+}
+
+// validateLegacy is the original schema version 1 contract: required fields
+// must be present; other fields are not inspected.
+func validateLegacy(v *Record) error {
 	var p map[string]any
 	if json.Unmarshal(v.Payload, &p) != nil {
 		return apperrors.BadRequest("Payload must be a JSON object.", nil)

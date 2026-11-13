@@ -20,7 +20,11 @@ type Route struct {
 }
 
 func TenantRoutes() []Route {
-	return []Route{{"GET", "/specialized/capabilities", "listSpecializedCapabilities", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"POST", "/specialized/capabilities/:capabilityCode/enable", "enableSpecializedCapability", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"POST", "/specialized/capabilities/:capabilityCode/disable", "disableSpecializedCapability", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"GET", "/specialized/:capabilityCode/records", "listSpecializedRecords", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"POST", "/specialized/:capabilityCode/records", "createSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}, {"GET", "/specialized/:capabilityCode/records/:recordId", "getSpecializedRecord", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"PATCH", "/specialized/:capabilityCode/records/:recordId", "updateSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, true}, {"POST", "/specialized/:capabilityCode/records/:recordId/commands/:command", "commandSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"POST", "/specialized/:capabilityCode/records/:recordId/milestones", "addSpecializedMilestone", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}, {"POST", "/specialized/COLD_CHAIN/records/:recordId/temperature-events", "addTemperatureEvent", "specialized.manage", "COLD_CHAIN_ENABLED", "corporate", true, false}}
+	return []Route{{"GET", "/specialized/capabilities", "listSpecializedCapabilities", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"POST", "/specialized/capabilities/:capabilityCode/enable", "enableSpecializedCapability", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"POST", "/specialized/capabilities/:capabilityCode/disable", "disableSpecializedCapability", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"GET", "/specialized/:capabilityCode/records", "listSpecializedRecords", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"POST", "/specialized/:capabilityCode/records", "createSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}, {"GET", "/specialized/:capabilityCode/records/:recordId", "getSpecializedRecord", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"PATCH", "/specialized/:capabilityCode/records/:recordId", "updateSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, true}, {"POST", "/specialized/:capabilityCode/records/:recordId/commands/:command", "commandSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"POST", "/specialized/:capabilityCode/records/:recordId/milestones", "addSpecializedMilestone", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}, {"POST", "/specialized/COLD_CHAIN/records/:recordId/temperature-events", "addTemperatureEvent", "specialized.manage", "COLD_CHAIN_ENABLED", "corporate", true, false},
+		// Spec 50.3: capability schemas and order-level specialized data.
+		{"GET", "/capability-schemas/:capabilityCode", "getCapabilitySchema", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false},
+		{"GET", "/orders/:orderId/specialized-data", "listOrderSpecializedData", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false},
+		{"POST", "/orders/:orderId/specialized-data", "createOrderSpecializedData", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}}
 }
 func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
 
@@ -74,7 +78,35 @@ type commandBody struct {
 	Reason          string `json:"reason"`
 }
 
+// available answers whether the route's module is switched on. A disabled
+// module exposes no route (spec 20.1): the answer is a 404 that is the same
+// for every caller, given before any permission check.
+func (h *Handler) available(c *gin.Context, r Route) bool {
+	if h.s == nil {
+		return false
+	}
+	code := c.Param("capabilityCode")
+	if strings.Contains(r.Path, "/COLD_CHAIN/") {
+		code = ColdChain
+	}
+	if code != "" {
+		return h.s.ModuleAvailable(code)
+	}
+	return h.s.FeatureAvailable()
+}
+
+type orderDataBody struct {
+	CapabilityCode string          `json:"capabilityCode"`
+	RecordType     string          `json:"recordType"`
+	SchemaVersion  int             `json:"schemaVersion"`
+	Payload        json.RawMessage `json:"payload"`
+}
+
 func (h *Handler) handle(c *gin.Context, r Route) {
+	if !h.available(c, r) {
+		respond.Error(c, apperrors.NotFound("Resource not found.", nil))
+		return
+	}
 	t, ok := h.gate(c, r.Permission)
 	if !ok {
 		return
@@ -140,6 +172,17 @@ func (h *Handler) execute(c *gin.Context, t tenant.Context, r Route) {
 		}
 		b.CorrelationID = c.GetHeader("Idempotency-Key")
 		v, e = h.s.AddMilestone(c, t, code, c.Param("recordId"), b)
+	case "getCapabilitySchema":
+		v, e = h.s.GetSchema(c, t, code)
+	case "listOrderSpecializedData":
+		v, e = h.s.ListOrderData(c, t, c.Param("orderId"))
+	case "createOrderSpecializedData":
+		var b orderDataBody
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		v, e = h.s.CreateOrderData(c, t, c.Param("orderId"), OrderDataInput{CapabilityCode: b.CapabilityCode, RecordType: b.RecordType, SchemaVersion: b.SchemaVersion, Payload: b.Payload, IdempotencyKey: c.GetHeader("Idempotency-Key")})
 	case "addTemperatureEvent":
 		var b TemperatureEvent
 		if c.ShouldBindJSON(&b) != nil {
