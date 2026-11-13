@@ -13,6 +13,7 @@ import (
 	orghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/http"
 	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	orgusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/usecases"
+	providerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
@@ -71,8 +72,8 @@ func buildOnboardingRouter(t *testing.T, configureMedia ...func(*mediaTestServer
 		opts.Invitations = staff
 	})
 	ah := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test", "http://127.0.0.1:3417"}})
-	oh := orghttp.NewHandler(org, staff, nil, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(h.pool), nil, 0), nil)
-	return app.BuildRouter(app.Options{Metrics: observability.NewMetrics(), Config: config.Config{AppEnv: "test", MaxRequestBodyBytes: 32 << 20}, TokenSigner: auth.NewTokenSigner([]byte("test-access-secret")), Resolver: staffusecases.NewMembershipResolver(staffrepos.NewMemberRepository(h.pool), org), SessionStatus: authrepos.NewSessionRepository(h.pool), PublicAuthRoutes: ah.RegisterPublicRoutes, IdentityRoutes: func(g *gin.RouterGroup) { ah.RegisterAuthenticatedRoutes(g); oh.RegisterOnboardingRoutes(g) }, TenantRoutes: oh.RegisterTenantRoutes}), h
+	oh := orghttp.NewHandler(org, staff, providerusecases.NewService(providerusecases.Options{Pool: h.pool}), accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(h.pool), nil, 0), nil)
+	return app.BuildRouter(app.Options{Metrics: observability.NewMetrics(), Config: config.Config{AppEnv: "test", MaxRequestBodyBytes: 32 << 20}, TokenSigner: auth.NewTokenSigner([]byte("test-access-secret")), Resolver: staffusecases.NewMembershipResolver(staffrepos.NewMemberRepository(h.pool), org), SessionStatus: authrepos.NewSessionRepository(h.pool), OrganizationStatus: app.OrganizationStatusFromPool(h.pool), PublicAuthRoutes: ah.RegisterPublicRoutes, IdentityRoutes: func(g *gin.RouterGroup) { ah.RegisterAuthenticatedRoutes(g); oh.RegisterOnboardingRoutes(g) }, TenantRoutes: oh.RegisterTenantRoutes}), h
 }
 
 func onboardingLogin(t *testing.T, router http.Handler, h *authHarness, email, phone string) string {

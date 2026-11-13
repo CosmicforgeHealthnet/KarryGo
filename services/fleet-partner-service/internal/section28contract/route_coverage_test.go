@@ -356,6 +356,7 @@ func manifestlessRoutes() []liveRoute {
 
 		tenant("GET", "/organizations/:organizationId/closure-status"), tenant("GET", "/organizations/:organizationId/documents"),
 		tenant("GET", "/organizations/:organizationId/documents/:documentId/preview"),
+		tenant("PUT", "/organizations/:organizationId"), tenant("PUT", "/organizations/:organizationId/stages/:stage"), tenant("POST", "/organizations/:organizationId/representatives"), tenant("GET", "/organizations/:organizationId/representatives"), tenant("PUT", "/organizations/:organizationId/representatives/:representativeId"), tenant("GET", "/organizations/:organizationId/capabilities"), tenant("PUT", "/organizations/:organizationId/capabilities"), tenant("GET", "/organizations/:organizationId/profile"), tenant("PUT", "/organizations/:organizationId/profile"), tenant("POST", "/organizations/:organizationId/documents/upload-authorization"), tenant("POST", "/organizations/:organizationId/documents/upload-content"),
 		tenant("GET", "/organizations/:organizationId/onboarding-status"), tenant("GET", "/organizations/:organizationId/verification"),
 		tenant("GET", "/organizations/:organizationId/wallet-provisioning"), tenant("GET", "/organizations/current"),
 		tenant("GET", "/permissions"), tenant("GET", "/providers"), tenant("GET", "/providers/:membershipId"),

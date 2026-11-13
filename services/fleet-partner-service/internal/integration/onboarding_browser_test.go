@@ -23,7 +23,7 @@ func TestOnboardingV2BrowserWorkflow(t *testing.T) {
 	defer server.Close()
 	output := runFleetNodeScript(t, "scripts/onboarding-e2e.mjs", "FLEET_AUTH_E2E_API="+server.URL)
 	var complete int
-	err := h.pool.QueryRow(context.Background(), `SELECT count(*) FROM fleet_partner_organization_onboarding_stages s JOIN fleet_partner_organizations o ON o.id=s.organization_id WHERE o.status='BUSINESS_SUBMITTED' AND s.stage IN ('OWNER_CONTACT','BUSINESS_PROFILE','HEADQUARTERS','AUTHORIZED_REPRESENTATIVE','OPERATING_CAPABILITIES','BUSINESS_DOCUMENTS') AND s.status='COMPLETE'`).Scan(&complete)
+	err := h.pool.QueryRow(context.Background(), `SELECT count(*) FROM fleet_partner_organization_onboarding_stages s JOIN fleet_partner_organizations o ON o.id=s.organization_id WHERE o.trading_name='Edited Browser Freight' AND s.stage IN ('OWNER_CONTACT','BUSINESS_PROFILE','HEADQUARTERS','AUTHORIZED_REPRESENTATIVE','OPERATING_CAPABILITIES','BUSINESS_DOCUMENTS') AND s.status='COMPLETE'`).Scan(&complete)
 	if err != nil || complete != 6 {
 		t.Fatalf("submitted customer's durable activation prerequisites: complete=%d error=%v", complete, err)
 	}
@@ -67,6 +67,25 @@ func startOnboardingBrowserAPI(t *testing.T) (*httptest.Server, *authHarness) {
 			return
 		}
 		h.pool.Exec(r.Context(), `UPDATE fleet_partner_auth_otp_challenges SET resend_available_at=now()-interval '1 second'`)
+	})
+	// Stands in for the verification authority: moves a company (by trading
+	// name) to a lifecycle status, as review, approval or a change request would.
+	mux.HandleFunc("/__test/organization-status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(405)
+			return
+		}
+		var body struct{ TradingName, Status string }
+		if json.NewDecoder(r.Body).Decode(&body) != nil {
+			w.WriteHeader(400)
+			return
+		}
+		tag, err := h.pool.Exec(r.Context(), `UPDATE fleet_partner_organizations SET status=$2 WHERE trading_name=$1`, body.TradingName, body.Status)
+		if err != nil || tag.RowsAffected() != 1 {
+			w.WriteHeader(404)
+			return
+		}
+		w.WriteHeader(204)
 	})
 	mux.Handle("/", router)
 	// A production Next build fixes its API rewrite target at build time, so
@@ -117,5 +136,17 @@ func TestOnboardingDocumentsScreenshots(t *testing.T) {
 	server, _ := startOnboardingBrowserAPI(t)
 	defer server.Close()
 	output := runFleetNodeScript(t, "scripts/onboarding-docs-screenshots.mjs", "FLEET_AUTH_E2E_API="+server.URL, "FLEET_SHOT_LABEL="+os.Getenv("FLEET_SHOT_LABEL"))
+	t.Log(string(output))
+}
+
+// TestDashboardScreenshots captures setup and dashboard pages across lifecycle
+// states for visual regression (.codex-cache/fleet-dashboard-screens/<label>).
+func TestDashboardScreenshots(t *testing.T) {
+	if os.Getenv("FLEET_AUTH_BROWSER_TEST") != "1" {
+		t.Fatal("FLEET_AUTH_BROWSER_TEST=1 required for this opt-in browser suite")
+	}
+	server, _ := startOnboardingBrowserAPI(t)
+	defer server.Close()
+	output := runFleetNodeScript(t, "scripts/dashboard-screenshots.mjs", "FLEET_AUTH_E2E_API="+server.URL, "FLEET_SHOT_LABEL="+os.Getenv("FLEET_SHOT_LABEL"))
 	t.Log(string(output))
 }

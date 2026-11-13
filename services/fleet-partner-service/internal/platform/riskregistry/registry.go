@@ -94,6 +94,20 @@ var generated = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/verification", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/wallet-provisioning", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/organizations/current", RiskClass: ratelimit.RiskStandard},
+	// Onboarding form routes. They were mounted but unclassified, so they
+	// already received the STANDARD fallback; classifying them STANDARD keeps
+	// that limit while making them visible to registry-driven checks.
+	{Method: "PUT", Path: "/fleet-partner/v1/organizations/:organizationId", RiskClass: ratelimit.RiskStandard},
+	{Method: "PUT", Path: "/fleet-partner/v1/organizations/:organizationId/stages/:stage", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/representatives", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/representatives", RiskClass: ratelimit.RiskStandard},
+	{Method: "PUT", Path: "/fleet-partner/v1/organizations/:organizationId/representatives/:representativeId", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/capabilities", RiskClass: ratelimit.RiskStandard},
+	{Method: "PUT", Path: "/fleet-partner/v1/organizations/:organizationId/capabilities", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/organizations/:organizationId/profile", RiskClass: ratelimit.RiskStandard},
+	{Method: "PUT", Path: "/fleet-partner/v1/organizations/:organizationId/profile", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/documents/upload-authorization", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/organizations/:organizationId/documents/upload-content", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/permissions", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/provider/sub-wallet", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/provider/sub-wallet/statement", RiskClass: ratelimit.RiskSensitive},

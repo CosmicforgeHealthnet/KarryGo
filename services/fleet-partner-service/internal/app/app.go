@@ -72,7 +72,12 @@ type Options struct {
 	// middleware.ResolveTenant. Nil disables the check, matching every
 	// other optional dependency in this Options struct.
 	SessionStatus middleware.SessionStatusChecker
-	ReadyChecks   []ReadyCheck
+	// OrganizationStatus enables the lifecycle gate on tenant routes: an
+	// organization that is not ACTIVE may read its data and complete, submit
+	// or correct onboarding, but cannot use other state-changing routes (see
+	// middleware.RequireOperationalOrganization). Production always sets it.
+	OrganizationStatus middleware.OrganizationStatusFunc
+	ReadyChecks        []ReadyCheck
 	// WorkerReady reports in-process worker readiness (nil when the worker
 	// runs as a separate process).
 	WorkerReady func() bool
@@ -273,6 +278,9 @@ func BuildRouter(opts Options) *gin.Engine {
 		// middleware.GlobalRateLimit's own doc comment for why this can't
 		// simply be mounted once on corporate/router instead.
 		tenantScoped.Use(middleware.GlobalRateLimit(opts.Limiter, opts.Metrics))
+		if opts.OrganizationStatus != nil {
+			tenantScoped.Use(middleware.RequireOperationalOrganization(opts.OrganizationStatus))
+		}
 		if opts.TenantRoutes != nil {
 			opts.TenantRoutes(tenantScoped)
 		}

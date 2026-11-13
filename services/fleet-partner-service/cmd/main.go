@@ -428,6 +428,7 @@ func main() {
 		// placeholder now that staff memberships exist.
 		Resolver:              components.Resolver,
 		SessionStatus:         components.Sessions,
+		OrganizationStatus:    app.OrganizationStatusFromPool(pool),
 		ReadyChecks:           readyChecks,
 		WorkerReady:           workerReady,
 		PublicAuthRoutes:      publicRoutes,
