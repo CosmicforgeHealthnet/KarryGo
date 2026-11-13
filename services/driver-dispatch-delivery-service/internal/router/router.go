@@ -34,6 +34,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/marketplace"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/missionplanning"
 	notificationhttp "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/notifications/http"
+	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/organizationproviders"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/privateexecution"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/profile"
 	requestfeature "cosmicforge/logistics/services/dispatch-delivery-service/internal/features/request"
@@ -49,6 +50,7 @@ import (
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/features/verification"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/middleware"
 	"cosmicforge/logistics/services/dispatch-delivery-service/internal/observability"
+	"cosmicforge/logistics/shared/go/apperrors"
 	sharedauth "cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/commercemission"
 	"cosmicforge/logistics/shared/go/commercequote"
@@ -806,6 +808,32 @@ func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpoo
 
 	marketplace.RegisterProviderRoutes(engine, authService.TokenUsecase(),
 		marketplace.NewProviderHandler(service, flags))
+
+	// FLEET-10.2: Fleet resolves riders, requests organization-sponsored
+	// identities and asks for associations here; the rider accepts or
+	// declines from their own app. Fleet reads the decision back.
+	orgProviders := organizationproviders.NewHandler(organizationproviders.NewService(
+		organizationproviders.NewRepository(db), organizationproviders.Flags{
+			Enabled:    cfg.OrganizationProvidersEnabled,
+			KillSwitch: cfg.OrganizationProvidersKillSwitch,
+		}))
+	organizationproviders.RegisterInternal(engine.Group("/api/v1/internal/organization-providers"), orgProviders,
+		authority.ServiceBoundary(internalVerifier, authority.NewPostgresNonceClaimer(db),
+			[]string{"fleet-partner-service"})...)
+	organizationproviders.RegisterProvider(engine.Group("/api/v1/provider/organization-associations"), orgProviders,
+		authhttp.DispatchRiderID, authhttp.DispatchRiderAuthRequired(authService.TokenUsecase()), requireRiderRole())
+}
+
+// requireRiderRole rejects any authenticated session that is not a dispatch
+// rider, so a customer token can never accept an organization association.
+func requireRiderRole() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if authhttp.Role(c) != authmodels.RoleDispatchProvider {
+			httpx.Abort(c, apperrors.Forbidden("This route is only available to dispatch providers.", nil))
+			return
+		}
+		c.Next()
+	}
 }
 
 // StartMarketplaceWorkers launches the relay worker and returns a stop

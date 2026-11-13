@@ -251,9 +251,15 @@ type Config struct {
 	MarketplaceVehicleEligibilityEnabled  bool
 	PrivateExecutionEnabled               bool
 	PrivateExecutionKillSwitch            bool
-	ProviderOrganizationOffersEnabled     bool
-	ProviderCompanyAssignmentsEnabled     bool
-	ProviderOrganizationModeEnabled       bool
+	// OrganizationProvidersEnabled lets fleet-partner-service create
+	// organization-sponsored riders and request rider associations
+	// (FLEET-10.2). Reads and the rider's own accept/decline stay mounted;
+	// only Fleet's writes are gated. Default false.
+	OrganizationProvidersEnabled      bool
+	OrganizationProvidersKillSwitch   bool
+	ProviderOrganizationOffersEnabled bool
+	ProviderCompanyAssignmentsEnabled bool
+	ProviderOrganizationModeEnabled   bool
 
 	// Dispatch-to-fleet provider decision relay.
 	FleetRelayEnabled       bool
@@ -437,6 +443,8 @@ func Load() (Config, error) {
 		MarketplaceVehicleEligibilityEnabled:  getEnvBool("DISPATCH_VEHICLE_ELIGIBILITY_ENABLED", false),
 		PrivateExecutionEnabled:               getEnvBool("DISPATCH_PRIVATE_EXECUTION_ENABLED", false),
 		PrivateExecutionKillSwitch:            getEnvBool("DISPATCH_PRIVATE_EXECUTION_KILL_SWITCH", false),
+		OrganizationProvidersEnabled:          getEnvBool("DISPATCH_ORGANIZATION_PROVIDERS_ENABLED", false),
+		OrganizationProvidersKillSwitch:       getEnvBool("DISPATCH_ORGANIZATION_PROVIDERS_KILL_SWITCH", false),
 		ProviderOrganizationOffersEnabled:     getEnvBool("DISPATCH_PROVIDER_ORGANIZATION_OFFERS_ENABLED", false),
 		ProviderCompanyAssignmentsEnabled:     getEnvBool("DISPATCH_PROVIDER_COMPANY_ASSIGNMENTS_ENABLED", false),
 		ProviderOrganizationModeEnabled:       getEnvBool("PROVIDER_ORGANIZATION_MODE_ENABLED", false),
