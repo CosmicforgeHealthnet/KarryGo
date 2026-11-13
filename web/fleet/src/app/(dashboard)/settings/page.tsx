@@ -15,6 +15,8 @@ import {
   Monitor,
   AlertTriangle,
   ArrowRight,
+  Layers,
+  SlidersHorizontal,
 } from "lucide-react";
 
 type SettingSection = {
@@ -66,6 +68,22 @@ const SETTING_SECTIONS: SettingSection[] = [
     path: "/settings/branches",
     icon: <Building2 className="h-5 w-5" />,
     color: "amber",
+  },
+  {
+    id: "departments",
+    label: "Departments",
+    description: "Teams, their branches and cost centres.",
+    path: "/settings/departments",
+    icon: <Layers className="h-5 w-5" />,
+    color: "amber",
+  },
+  {
+    id: "policies",
+    label: "Organization Policies",
+    description: "Assignment timeout, provider visibility and approval thresholds.",
+    path: "/settings/policies",
+    icon: <SlidersHorizontal className="h-5 w-5" />,
+    color: "purple",
   },
   {
     id: "retention",

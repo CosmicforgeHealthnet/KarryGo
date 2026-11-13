@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
-import { Layers, GitBranch, Clock } from 'lucide-react';
+import { Layers, GitBranch, Clock, Settings2, ThumbsDown } from 'lucide-react';
 import { providerService } from '@/lib/services/providerService';
 import {
   serviceCategoryLabel,
@@ -15,6 +15,8 @@ import type { ProviderMembership } from '@/lib/types/provider';
 
 const TABS = [
   { label: 'Overview',     segment: '',             icon: Layers },
+  { label: 'Work setup',   segment: 'work-setup',   icon: Settings2 },
+  { label: 'Declines',     segment: 'declines',     icon: ThumbsDown },
   { label: 'Provisioning', segment: 'provisioning', icon: GitBranch },
   { label: 'History',      segment: 'history',      icon: Clock },
 ];

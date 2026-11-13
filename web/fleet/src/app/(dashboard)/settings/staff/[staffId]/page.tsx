@@ -6,7 +6,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { User, UserX, UserCheck, ArrowLeft, AlertCircle, ShieldCheck } from "lucide-react";
 import { staffService, staffErrorMessage, STAFF_STATUS_LABEL } from "@/lib/services/staffService";
+import { structureService } from "@/lib/services/structureService";
 import type { Permission, Role, StaffMember } from "@/lib/types/staff";
+import type { Branch, Department, RoleBinding } from "@/lib/types/structure";
+import { StaffDetailsEditor, StaffRoleBindingsEditor } from "./staff-editors";
 
 type StatusStyle = {
   bg: string;
@@ -40,18 +43,27 @@ export default function StaffAccessDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
   const [showAll, setShowAll] = useState<boolean>(false);
+  const [bindings, setBindings] = useState<RoleBinding[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [member, allRoles, allPermissions] = await Promise.all([
+      const [member, allRoles, allPermissions, memberBindings, allBranches, allDepartments] = await Promise.all([
         staffService.get(staffId),
         staffService.roles().catch(() => [] as Role[]),
         staffService.permissions().catch(() => [] as Permission[]),
+        staffService.roleBindings(staffId).catch(() => [] as RoleBinding[]),
+        structureService.listBranches().catch(() => [] as Branch[]),
+        structureService.listDepartments().catch(() => [] as Department[]),
       ]);
       setError(null);
       setData(member);
       setRoles(allRoles);
       setPermissions(allPermissions);
+      setBindings(memberBindings);
+      setBranches(allBranches);
+      setDepartments(allDepartments);
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status;
       if (status === 404) setNotFound(true);
@@ -200,6 +212,21 @@ export default function StaffAccessDetailPage() {
           {data.suspendedAt && <div className="mt-0.5 text-xs text-red">Suspended {formatDateTime(data.suspendedAt)}</div>}
         </div>
       </div>
+
+      {/* ===== DETAILS AND ROLES ===== */}
+      {data.status !== "ENDED" && (
+        <>
+          <StaffDetailsEditor member={data} branches={branches} departments={departments} onSaved={load} />
+          <StaffRoleBindingsEditor
+            staffId={data.id}
+            bindings={bindings}
+            roles={roles}
+            branches={branches}
+            departments={departments}
+            onSaved={load}
+          />
+        </>
+      )}
 
       {/* ===== PERMISSIONS ===== */}
       <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">

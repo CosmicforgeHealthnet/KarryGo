@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -17,6 +17,12 @@ import {
   Clock,
   Eye,
 } from "lucide-react";
+import { ApiErrorNotice } from "@/components/features/ApiErrorNotice";
+import { describeApiError, type ApiErrorInfo } from "@/lib/api/errors";
+import { staffService } from "@/lib/services/staffService";
+import { structureService } from "@/lib/services/structureService";
+import type { Role } from "@/lib/types/staff";
+import type { Branch, Department, RoleBinding } from "@/lib/types/structure";
 
 // ==================== TYPES ====================
 
@@ -43,71 +49,6 @@ type RoleAssignment = {
   assignedBy: string;
   assignedAt: string;
 };
-
-// ==================== MOCK DATA ====================
-
-const MOCK_ASSIGNMENTS: RoleAssignment[] = [
-  {
-    id: "RA-001",
-    user: { id: "S-001", name: "Favour Daniel", email: "favour@apexlogistics.com" },
-    role: { id: "R-001", name: "Organization Admin" },
-    scope: { type: "Company-wide", value: "All" },
-    validity: { start: "2026-06-01", end: null },
-    status: "Active",
-    assignedBy: "System",
-    assignedAt: "2026-06-01T09:00:00Z",
-  },
-  {
-    id: "RA-002",
-    user: { id: "S-002", name: "Oluwaseun Adebayo", email: "seun@apexlogistics.com" },
-    role: { id: "R-002", name: "Operations Manager" },
-    scope: { type: "Branch", value: "Ikeja" },
-    validity: { start: "2026-06-15", end: null },
-    status: "Active",
-    assignedBy: "F. Daniel",
-    assignedAt: "2026-06-15T10:00:00Z",
-  },
-  {
-    id: "RA-003",
-    user: { id: "S-003", name: "Musa Bello", email: "musa@apexlogistics.com" },
-    role: { id: "R-003", name: "Fleet Manager" },
-    scope: { type: "Branch", value: "Lekki" },
-    validity: { start: "2026-06-20", end: null },
-    status: "Active",
-    assignedBy: "F. Daniel",
-    assignedAt: "2026-06-20T14:00:00Z",
-  },
-  {
-    id: "RA-004",
-    user: { id: "S-004", name: "Amina Yusuf", email: "amina@apexlogistics.com" },
-    role: { id: "R-004", name: "Dispatch Supervisor" },
-    scope: { type: "Branch", value: "Yaba" },
-    validity: { start: "2026-07-01", end: null },
-    status: "Active",
-    assignedBy: "O. Adebayo",
-    assignedAt: "2026-07-01T11:00:00Z",
-  },
-  {
-    id: "RA-005",
-    user: { id: "S-005", name: "Chinedu Uche", email: "chinedu@apexlogistics.com" },
-    role: { id: "R-006", name: "Warehouse Manager" },
-    scope: { type: "Branch", value: "Ikeja" },
-    validity: { start: "2026-08-01", end: null },
-    status: "Pending",
-    assignedBy: "F. Daniel",
-    assignedAt: "2026-08-01T10:00:00Z",
-  },
-  {
-    id: "RA-006",
-    user: { id: "S-006", name: "Esther Obi", email: "esther@apexlogistics.com" },
-    role: { id: "R-005", name: "Read-only User" },
-    scope: { type: "Company-wide", value: "All" },
-    validity: { start: "2026-07-15", end: "2026-12-31" },
-    status: "Active",
-    assignedBy: "F. Daniel",
-    assignedAt: "2026-07-15T09:00:00Z",
-  },
-];
 
 type StatusStyle = {
   bg: string;
@@ -139,14 +80,67 @@ export default function RoleAssignmentPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
   const [showFilters, setShowFilters] = useState<boolean>(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(MOCK_ASSIGNMENTS);
+  const [error, setError] = useState<ApiErrorInfo | null>(null);
+
+  // Every role binding held by every staff member, with its scope and expiry.
+  const load = useCallback(async () => {
+    try {
+      const [members, roles, branches, departments] = await Promise.all([
+        staffService.list(),
+        staffService.roles().catch(() => [] as Role[]),
+        structureService.listBranches().catch(() => [] as Branch[]),
+        structureService.listDepartments({ includeArchived: true }).catch(() => [] as Department[]),
+      ]);
+      const roleName = new Map(roles.map((r) => [r.id, r.name]));
+      const branchName = new Map(branches.map((b) => [b.id, b.name]));
+      const departmentName = new Map(departments.map((d) => [d.id, d.name]));
+      const now = Date.now();
+      const perMember = await Promise.all(
+        members.map(async (m) => {
+          const bindings = await staffService.roleBindings(m.id).catch(() => [] as RoleBinding[]);
+          return bindings.map((b): RoleAssignment => {
+            const type: RoleAssignment["scope"]["type"] =
+              b.scopeType === "BRANCH" ? "Branch" : b.scopeType === "DEPARTMENT" ? "Department" : "Company-wide";
+            const value =
+              b.scopeType === "BRANCH"
+                ? branchName.get(b.scopeId) ?? b.scopeId
+                : b.scopeType === "DEPARTMENT"
+                  ? departmentName.get(b.scopeId) ?? b.scopeId
+                  : "All";
+            const status: RoleAssignment["status"] =
+              m.status === "SUSPENDED" || m.status === "ENDED"
+                ? "Revoked"
+                : b.expiresAt && new Date(b.expiresAt).getTime() <= now
+                  ? "Expired"
+                  : new Date(b.effectiveFrom).getTime() > now
+                    ? "Pending"
+                    : "Active";
+            return {
+              id: b.id,
+              user: { id: m.id, name: m.fullName || m.email, email: m.email },
+              role: { id: b.roleId, name: roleName.get(b.roleId) ?? b.roleId },
+              scope: { type, value },
+              validity: { start: b.effectiveFrom, end: b.expiresAt },
+              status,
+              assignedBy: b.grantedBy ?? "",
+              assignedAt: b.createdAt,
+            };
+          });
+        }),
+      );
+      setData(perMember.flat());
+      setError(null);
+      setSecondsAgo(0);
+    } catch (e) {
+      setError(describeApiError(e, "Role assignments could not be loaded."));
+    } finally {
       setLoading(false);
-    };
-    loadData();
+    }
   }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(load);
+  }, [load]);
 
   useEffect(() => {
     const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
@@ -208,7 +202,7 @@ export default function RoleAssignmentPage() {
   };
 
   const goToCreateAssignment = () => {
-    router.push("/settings/roles/assignments/create");
+    router.push("/settings/staff");
   };
 
   // Stats
@@ -239,7 +233,7 @@ export default function RoleAssignmentPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setSecondsAgo(0)}
+            onClick={() => load()}
             className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3 text-[11.5px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
           >
             <RefreshCw className="h-3 w-3" />
@@ -261,6 +255,8 @@ export default function RoleAssignmentPage() {
           </button>
         </div>
       </div>
+
+      <ApiErrorNotice error={error} />
 
       {/* ===== STATS ===== */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -370,7 +366,7 @@ export default function RoleAssignmentPage() {
                     <tr
                       key={item.id}
                       className="border-b border-line hover:bg-surface-2 transition-colors group cursor-pointer"
-                      onClick={() => router.push(`/settings/roles/assignments/${item.id}`)}
+                      onClick={() => router.push(`/settings/staff/${encodeURIComponent(item.user.id)}`)}
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-ink-950 text-xs">{item.user.name}</div>

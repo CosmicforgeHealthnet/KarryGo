@@ -14,7 +14,10 @@ import {
   X,
   Clock,
   Edit3,
+  Eye,
+  Users,
 } from "lucide-react";
+import Link from "next/link";
 import { staffService, staffErrorMessage } from "@/lib/services/staffService";
 
 // ==================== TYPES ====================
@@ -185,7 +188,20 @@ export default function RolesPage() {
             <RefreshCw className="h-3 w-3" />
             {secondsAgo}s
           </button>
-
+          <Link
+            href="/settings/roles/assignments"
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Assignments
+          </Link>
+          <Link
+            href="/settings/roles/new"
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New role
+          </Link>
         </div>
       </div>
 
@@ -335,7 +351,13 @@ export default function RolesPage() {
                       <td className="px-4 py-3 text-ink-600 text-xs">{item.permissions}</td>
                       <td className="px-4 py-3 text-ink-600 text-xs">{item.assignedUsers}</td>
                       <td className="px-4 py-3 text-right">
-
+                        <Link
+                          href={`/settings/roles/${encodeURIComponent(item.id)}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors group-hover:text-primary"
+                        >
+                          {item.type === "Custom" && item.status !== "Archived" ? <Edit3 className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          {item.type === "Custom" && item.status !== "Archived" ? "Edit" : "View"}
+                        </Link>
                       </td>
                     </tr>
                   );

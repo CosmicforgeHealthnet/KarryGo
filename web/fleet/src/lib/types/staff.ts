@@ -69,3 +69,17 @@ export interface InviteStaffInput {
   roleIds: string[];
   branchIds?: string[];
 }
+
+export interface UpdateStaffInput {
+  fullName?: string;
+  jobTitle?: string | null;
+  branchIds?: string[];
+  departmentIds?: string[];
+}
+
+export interface RoleInput {
+  code: string;
+  name: string;
+  description: string;
+  permissions: string[];
+}

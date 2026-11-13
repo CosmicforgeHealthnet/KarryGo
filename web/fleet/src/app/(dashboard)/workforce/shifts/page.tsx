@@ -20,6 +20,7 @@ import {
   shiftStatusTone,
 } from '@/lib/utils/workforceLabels';
 import type { Shift } from '@/lib/types/workforce';
+import { ShiftTemplatesSection } from './shift-templates';
 
 const STATUS_FILTERS = [
   'ALL',
@@ -38,6 +39,8 @@ export default function ShiftsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>('ALL');
   const [showFilters, setShowFilters] = useState(false);
+  // Bumped when a template generates shifts, so the list reloads.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +67,7 @@ export default function ShiftsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const stats = useMemo(() => {
     let draft = 0;
@@ -285,6 +288,8 @@ export default function ShiftsPage() {
           })}
         </div>
       )}
+
+      <ShiftTemplatesSection onShiftsGenerated={() => setReloadKey((k) => k + 1)} />
     </div>
   );
 }

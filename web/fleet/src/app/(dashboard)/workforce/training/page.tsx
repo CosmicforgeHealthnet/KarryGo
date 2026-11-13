@@ -15,6 +15,7 @@ import {
   formatDate,
 } from '@/lib/utils/workforceLabels';
 import type { Course } from '@/lib/types/workforce';
+import { TrainingEnrollmentsSection } from './enrollments';
 
 const STATUS_FILTERS = ['ALL', 'ACTIVE', 'INACTIVE', 'ARCHIVED'] as const;
 
@@ -256,6 +257,8 @@ export default function TrainingCoursesPage() {
           })}
         </div>
       )}
+
+      {!loading && <TrainingEnrollmentsSection courses={rows} />}
     </div>
   );
 }

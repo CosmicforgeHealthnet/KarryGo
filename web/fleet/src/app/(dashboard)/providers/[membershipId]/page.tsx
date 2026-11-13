@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Edit3, RotateCcw, ShieldAlert } from 'lucide-react';
+import { ApiErrorNotice } from '@/components/features/ApiErrorNotice';
+import { describeApiError, type ApiErrorInfo } from '@/lib/api/errors';
 import { providerService } from '@/lib/services/providerService';
+import { structureService } from '@/lib/services/structureService';
+import type { Branch } from '@/lib/types/structure';
+import { MembershipEditor, RemoveMembershipCard } from './membership-admin';
 import {
   formatDate,
   onboardingSourceLabel,
@@ -25,6 +30,48 @@ export default function ProviderOverviewPage() {
 
   const [confirmSuspend, setConfirmSuspend] = useState(false);
   const [suspending, setSuspending] = useState(false);
+
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [actionError, setActionError] = useState<ApiErrorInfo | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [reactivating, setReactivating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    structureService
+      .listBranches()
+      .then((data) => {
+        if (!cancelled) setBranches(data);
+      })
+      .catch(() => {
+        // Branch names are a convenience; ids are shown without them.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function refresh(message?: string) {
+    const refreshed = await providerService.get(membershipId);
+    setMembership(refreshed);
+    if (message) setNotice(message);
+  }
+
+  async function handleReactivate() {
+    if (!membership) return;
+    setReactivating(true);
+    setActionError(null);
+    setNotice(null);
+    try {
+      await providerService.reactivate(membership.membershipId, membership.version);
+      await refresh('Provider reactivated.');
+    } catch (err) {
+      setActionError(describeApiError(err, 'The provider could not be reactivated.'));
+    } finally {
+      setReactivating(false);
+    }
+  }
 
   useEffect(() => {
     if (!membershipId) return;
@@ -102,7 +149,12 @@ export default function ProviderOverviewPage() {
     { label: 'Owning service', value: providerServiceLabel(membership.providerService) },
     { label: 'Relationship', value: relationshipTypeLabel(membership.relationshipType) },
     { label: 'Onboarding source', value: onboardingSourceLabel(membership.onboardingSource) },
-    { label: 'Home branch', value: membership.homeBranchId ?? '—' },
+    {
+      label: 'Home branch',
+      value: membership.homeBranchId
+        ? branches.find((b) => b.id === membership.homeBranchId)?.name ?? membership.homeBranchId
+        : '—',
+    },
     { label: 'Provider ID', value: membership.providerId ? <span className="font-mono text-xs">{membership.providerId}</span> : <span className="text-ink-400">Not yet linked</span> },
     { label: 'Joined', value: formatDate(membership.joinedAt) },
     { label: 'Version', value: String(membership.version) },
@@ -116,8 +168,42 @@ export default function ProviderOverviewPage() {
         </div>
       )}
 
+      <ApiErrorNotice error={actionError} />
+      {notice && (
+        <div className="rounded-lg border border-green/30 bg-green-bg px-4 py-2 text-sm text-green">
+          {notice}
+        </div>
+      )}
+
+      {editing && (
+        <MembershipEditor
+          membership={membership}
+          branches={branches}
+          onCancel={() => setEditing(false)}
+          onSaved={(updated) => {
+            setMembership(updated);
+            setEditing(false);
+            setNotice('Membership details saved.');
+          }}
+        />
+      )}
+
       <div className="rounded-lg border border-line bg-surface p-4">
-        <h3 className="mb-3 text-sm font-semibold text-ink-950">Membership</h3>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-ink-950">Membership</h3>
+          {!editing && !['REMOVED', 'CANCELLED', 'DECLINED', 'EXPIRED'].includes(membership.status) && (
+            <button
+              onClick={() => {
+                setEditing(true);
+                setNotice(null);
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors hover:bg-surface-2"
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
+        </div>
         <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {rows.map((row) => (
             <div
@@ -184,10 +270,27 @@ export default function ProviderOverviewPage() {
       )}
 
       {membership.status === 'SUSPENDED' && (
-        <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-ink-600">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-ink-600">
           <CheckCircle2 className="h-4 w-4 text-green" />
-          This membership is currently suspended.
+          <span className="flex-1">This membership is currently suspended.</span>
+          <button
+            onClick={handleReactivate}
+            disabled={reactivating}
+            className="flex items-center gap-1.5 rounded-md border border-green/30 bg-green-bg px-3.5 py-1.5 text-xs font-semibold text-green transition-colors hover:bg-green-bg/70 disabled:opacity-50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {reactivating ? 'Reactivating…' : 'Reactivate'}
+          </button>
         </div>
+      )}
+
+      {!['REMOVED', 'CANCELLED', 'DECLINED', 'EXPIRED'].includes(membership.status) && (
+        <RemoveMembershipCard
+          membership={membership}
+          onRemoved={async (status) => {
+            await refresh(status === 'CANCELLED' ? 'Invitation withdrawn.' : 'Provider removed from the organization.');
+          }}
+        />
       )}
     </div>
   );

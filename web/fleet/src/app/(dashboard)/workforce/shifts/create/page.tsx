@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
@@ -9,6 +9,8 @@ import {
   workforceService,
 } from '@/lib/services/workforceService';
 import type { Shift } from '@/lib/types/workforce';
+import { structureService } from '@/lib/services/structureService';
+import type { Branch } from '@/lib/types/structure';
 
 export default function CreateShiftPage() {
   const router = useRouter();
@@ -23,6 +25,22 @@ export default function CreateShiftPage() {
     requiredCapacity: '1',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    structureService
+      .listBranches()
+      .then((data) => {
+        if (!cancelled) setBranches(data.filter((b) => b.status === 'ACTIVE'));
+      })
+      .catch(() => {
+        // Without the list the branch id can still be typed.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
@@ -78,14 +96,33 @@ export default function CreateShiftPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Branch ID" required>
-          <input
-            required
-            value={form.branchId}
-            onChange={(e) => setForm({ ...form, branchId: e.target.value })}
-            placeholder="brn_..."
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+        <Field label="Branch" required>
+          {branches.length > 0 ? (
+            <select
+              required
+              value={form.branchId}
+              onChange={(e) => {
+                const branch = branches.find((b) => b.id === e.target.value);
+                setForm({ ...form, branchId: e.target.value, timezone: branch?.timezone || form.timezone });
+              }}
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">Choose a branch</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              required
+              value={form.branchId}
+              onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+              placeholder="brn_..."
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          )}
         </Field>
 
         <Field label="Name" required>

@@ -3,9 +3,16 @@ import type {
   CreateProviderInput,
   CreateProviderResult,
   MembershipHistoryEntry,
+  ProviderCapability,
+  ProviderDecline,
   ProviderMembership,
+  ProviderPolicy,
+  ProviderPolicyInput,
   ProvisioningStatus,
+  UpdateProviderInput,
 } from '@/lib/types/provider';
+
+const mid = (membershipId: string) => encodeURIComponent(membershipId);
 
 export const providerService = {
   async list(): Promise<ProviderMembership[]> {
@@ -57,6 +64,87 @@ export const providerService = {
   async history(membershipId: string): Promise<MembershipHistoryEntry[]> {
     const res = await apiClient.get<{ data: MembershipHistoryEntry[] }>(
       `/providers/${encodeURIComponent(membershipId)}/history`,
+    );
+    return res.data.data ?? [];
+  },
+
+  async update(
+    membershipId: string,
+    input: UpdateProviderInput,
+    expectedVersion: number,
+  ): Promise<ProviderMembership> {
+    const res = await apiClient.patch<{ data: ProviderMembership }>(
+      `/providers/${mid(membershipId)}`,
+      input,
+      { headers: { 'If-Match': String(expectedVersion) } },
+    );
+    return res.data.data;
+  },
+
+  async reactivate(membershipId: string, expectedVersion: number): Promise<void> {
+    await apiClient.post(`/providers/${mid(membershipId)}/reactivate`, {}, {
+      headers: { 'If-Match': String(expectedVersion) },
+    });
+  },
+
+  async remove(
+    membershipId: string,
+    expectedVersion: number,
+    reasonCode: string,
+  ): Promise<{ membershipId: string; status: string }> {
+    const res = await apiClient.post<{ data: { membershipId: string; status: string } }>(
+      `/providers/${mid(membershipId)}/remove`,
+      { reasonCode },
+      { headers: { 'If-Match': String(expectedVersion) } },
+    );
+    return res.data.data;
+  },
+
+  async capabilities(membershipId: string): Promise<ProviderCapability[]> {
+    const res = await apiClient.get<{ data: ProviderCapability[] }>(
+      `/providers/${mid(membershipId)}/capabilities`,
+    );
+    return res.data.data ?? [];
+  },
+
+  async replaceCapabilities(
+    membershipId: string,
+    capabilities: ProviderCapability[],
+  ): Promise<ProviderCapability[]> {
+    const res = await apiClient.put<{ data: { capabilities: ProviderCapability[] } }>(
+      `/providers/${mid(membershipId)}/capabilities`,
+      {
+        capabilities: capabilities.map((c) => ({
+          serviceType: c.serviceType,
+          vehicleClasses: c.vehicleClasses,
+          operatingZones: c.operatingZones,
+          qualifications: c.qualifications,
+          validUntil: c.validUntil,
+        })),
+      },
+    );
+    return res.data.data?.capabilities ?? [];
+  },
+
+  async policy(membershipId: string): Promise<ProviderPolicy> {
+    const res = await apiClient.get<{ data: ProviderPolicy }>(
+      `/providers/${mid(membershipId)}/policies`,
+    );
+    return res.data.data;
+  },
+
+  // providerDeclineRequired is never sent: the platform fixes it to true.
+  async replacePolicy(membershipId: string, input: ProviderPolicyInput): Promise<ProviderPolicy> {
+    const res = await apiClient.put<{ data: ProviderPolicy }>(
+      `/providers/${mid(membershipId)}/policies`,
+      input,
+    );
+    return res.data.data;
+  },
+
+  async declines(membershipId: string): Promise<ProviderDecline[]> {
+    const res = await apiClient.get<{ data: ProviderDecline[] }>(
+      `/providers/${mid(membershipId)}/declines`,
     );
     return res.data.data ?? [];
   },

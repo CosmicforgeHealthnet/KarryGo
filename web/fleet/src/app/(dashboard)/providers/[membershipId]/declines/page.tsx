@@ -1,81 +1,110 @@
-﻿// src/app/(dashboard)/providers/[providerId]/declines/page.tsx
+﻿// src/app/(dashboard)/providers/[membershipId]/declines/page.tsx
 
 "use client";
 
-import { useState } from "react";
-import { DECLINES } from "@/lib/mock-provider-data";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import {
   Search,
   Filter,
   X,
   ChevronDown,
-  AlertCircle,
   Shield,
-  Clock,
-  User,
   FileText,
   CheckCircle2,
-  XCircle,
-  AlertTriangle,
   Calendar,
-  ArrowRight,
+  Store,
 } from "lucide-react";
+import { ApiErrorNotice } from "@/components/features/ApiErrorNotice";
+import { describeApiError, type ApiErrorInfo } from "@/lib/api/errors";
+import { providerService } from "@/lib/services/providerService";
+import { formatDateTime } from "@/lib/utils/providerLabels";
+import type { ProviderDecline } from "@/lib/types/provider";
 
-const CATEGORY_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  Safety: {
-    bg: "bg-red-bg",
-    text: "text-red",
-    icon: <Shield className="h-3 w-3" />,
-  },
-  Availability: {
-    bg: "bg-amber-bg",
-    text: "text-amber",
-    icon: <Clock className="h-3 w-3" />,
-  },
-  Operational: {
+const ORIGIN_STYLES: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
+  MARKETPLACE: {
+    label: "Marketplace",
     bg: "bg-primary-bg",
     text: "text-primary",
-    icon: <FileText className="h-3 w-3" />,
+    icon: <Store className="h-3 w-3" />,
   },
-  Personal: {
+  PRIVATE: {
+    label: "Company work",
     bg: "bg-purple-bg",
     text: "text-purple",
-    icon: <User className="h-3 w-3" />,
-  },
-  Technical: {
-    bg: "bg-surface-2",
-    text: "text-ink-500",
-    icon: <AlertCircle className="h-3 w-3" />,
+    icon: <FileText className="h-3 w-3" />,
   },
 };
 
-const CATEGORIES = ["All", "Safety", "Availability", "Operational", "Personal", "Technical"];
+const FILTERS = ["All", "Safety", "Marketplace", "Company work"];
+
+const reasonLabel = (code: string) =>
+  code ? code.replace(/[_.]+/g, " ").toLowerCase().replace(/^\w/, (m) => m.toUpperCase()) : "No reason given";
 
 export default function DeclinesTab() {
+  const params = useParams();
+  const membershipId = params.membershipId as string;
+
+  const [declines, setDeclines] = useState<ProviderDecline[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<ApiErrorInfo | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState("All");
 
-  const filteredDeclines = DECLINES.filter((d) => {
+  useEffect(() => {
+    let cancelled = false;
+    providerService
+      .declines(membershipId)
+      .then((data) => {
+        if (!cancelled) setDeclines(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(describeApiError(err, "Declines could not be loaded."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [membershipId]);
+
+  const filteredDeclines = declines.filter((d) => {
+    const q = search.trim().toLowerCase();
     const matchesSearch =
-      search.trim() === "" ||
-      d.reference.toLowerCase().includes(search.toLowerCase()) ||
-      d.note.toLowerCase().includes(search.toLowerCase());
-
-    const matchesCategory = selectedCategory === "All" || d.category === selectedCategory;
-
-    return matchesSearch && matchesCategory;
+      q === "" || d.assignmentId.toLowerCase().includes(q) || d.reasonCode.toLowerCase().includes(q);
+    const matchesFilter =
+      selectedFilter === "All" ||
+      (selectedFilter === "Safety" && d.safetyRelated) ||
+      (selectedFilter === "Marketplace" && d.workOrigin === "MARKETPLACE") ||
+      (selectedFilter === "Company work" && d.workOrigin === "PRIVATE");
+    return matchesSearch && matchesFilter;
   });
 
-  const hasFilters = selectedCategory !== "All" || search !== "";
+  const hasFilters = selectedFilter !== "All" || search !== "";
 
   const clearFilters = () => {
     setSearch("");
-    setSelectedCategory("All");
+    setSelectedFilter("All");
   };
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-line bg-surface px-4 py-12 text-center text-sm text-ink-500">
+        Loading declines…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
+      <ApiErrorNotice error={error} />
+
+      <p className="text-xs text-ink-500">
+        Providers can always decline work. Declines for safety reasons, such as an unsafe vehicle, are flagged and never
+        count against the provider.
+      </p>
+
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-white px-3 sm:max-w-xs">
@@ -83,21 +112,21 @@ export default function DeclinesTab() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by reference or note..."
+            placeholder="Search by assignment or reason..."
             className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-500"
           />
         </div>
 
         <button
           onClick={() => {
-            const currentIndex = CATEGORIES.indexOf(selectedCategory);
-            const nextIndex = (currentIndex + 1) % CATEGORIES.length;
-            setSelectedCategory(CATEGORIES[nextIndex]);
+            const currentIndex = FILTERS.indexOf(selectedFilter);
+            const nextIndex = (currentIndex + 1) % FILTERS.length;
+            setSelectedFilter(FILTERS[nextIndex]);
           }}
           className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-2 whitespace-nowrap"
         >
           <Filter className="h-3.5 w-3.5 text-ink-400" />
-          {selectedCategory}
+          {selectedFilter}
           <ChevronDown className="h-3.5 w-3.5 text-ink-400" />
         </button>
 
@@ -124,64 +153,56 @@ export default function DeclinesTab() {
           </div>
           <h3 className="mt-3 text-sm font-semibold text-ink-950">No declines found</h3>
           <p className="mt-1 text-sm text-ink-500">
-            No decline records match your current filters.
+            {declines.length === 0
+              ? "This provider has not declined any work."
+              : "No decline records match your current filters."}
           </p>
-          <button
-            onClick={clearFilters}
-            className="mt-3.5 rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
-          >
-            Clear filters
-          </button>
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="mt-3.5 rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2.5">
           {filteredDeclines.map((record) => {
-            const categoryStyle = CATEGORY_STYLES[record.category] || CATEGORY_STYLES.Operational;
+            const origin = ORIGIN_STYLES[record.workOrigin] || ORIGIN_STYLES.PRIVATE;
 
             return (
               <div
-                key={record.id}
+                key={`${record.workOrigin}-${record.assignmentId}`}
                 className={`rounded-lg border p-3.5 transition-colors ${
-                  record.safetyFlag
+                  record.safetyRelated
                     ? "border-red/20 bg-red-bg/10"
                     : "border-line bg-white hover:bg-surface-2"
                 }`}
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-sm font-semibold text-ink-950">
-                        {record.reference}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-ink-950">{record.assignmentId}</span>
+                    <span
+                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${origin.bg} ${origin.text}`}
+                    >
+                      {origin.icon}
+                      {origin.label}
+                    </span>
+                    {record.safetyRelated && (
+                      <span className="flex items-center gap-1 rounded-full bg-red-bg px-2 py-0.5 text-[10px] font-semibold text-red">
+                        <Shield className="h-3 w-3" />
+                        Safety flag
                       </span>
-                      <span
-                        className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${categoryStyle.bg} ${categoryStyle.text}`}
-                      >
-                        {categoryStyle.icon}
-                        {record.category}
-                      </span>
-                      {record.safetyFlag && (
-                        <span className="flex items-center gap-1 rounded-full bg-red-bg px-2 py-0.5 text-[10px] font-semibold text-red">
-                          <Shield className="h-3 w-3" />
-                          Safety flag
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-sm text-ink-700">{record.note}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-500">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {record.time}
-                      </span>
-                      <span className="text-ink-300">·</span>
-                      <span className="flex items-center gap-1">
-                        <ArrowRight className="h-3.5 w-3.5" />
-                        Outcome: {record.outcome}
-                      </span>
-                    </div>
+                    )}
                   </div>
-                  <button className="text-xs font-medium text-primary transition-colors hover:text-primary-hover whitespace-nowrap">
-                    View →
-                  </button>
+                  <p className="mt-1 text-sm text-ink-700">{reasonLabel(record.reasonCode)}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-500">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {formatDateTime(record.declinedAt)}
+                    </span>
+                  </div>
                 </div>
               </div>
             );

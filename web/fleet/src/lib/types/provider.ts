@@ -86,3 +86,53 @@ export interface ProviderListFilter {
   relationshipType?: RelationshipType;
   search?: string;
 }
+export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CASUAL';
+
+export interface UpdateProviderInput {
+  homeBranchId?: string;
+  relationshipType?: RelationshipType;
+  employmentType?: EmploymentType | '';
+  employeeNumber?: string;
+}
+
+export interface ProviderCapability {
+  id?: string;
+  serviceType: string;
+  vehicleClasses: string[];
+  operatingZones: string[];
+  qualifications: string[];
+  validFrom?: string;
+  validUntil: string | null;
+  status?: string;
+}
+
+export type AssignmentMode = 'OFFER' | 'BROADCAST' | 'DIRECTED_OFFER';
+
+export interface ProviderPolicy {
+  membershipId: string;
+  assignmentMode: AssignmentMode | string;
+  // Always true: a managed provider can always decline company work.
+  providerDeclineRequired: boolean;
+  visibilityPolicy: 'ORGANIZATION' | 'BRANCH' | string;
+  shiftRestrictions: Record<string, unknown> | null;
+  zoneRestrictions: Record<string, unknown> | null;
+  workloadRestrictions: Record<string, unknown> | null;
+  version: number;
+  updatedAt: string;
+}
+
+export interface ProviderPolicyInput {
+  assignmentMode: string;
+  visibilityPolicy: string;
+  shiftRestrictions: Record<string, unknown>;
+  zoneRestrictions: Record<string, unknown>;
+  workloadRestrictions: Record<string, unknown>;
+}
+
+export interface ProviderDecline {
+  assignmentId: string;
+  workOrigin: 'MARKETPLACE' | 'PRIVATE' | string;
+  reasonCode: string;
+  safetyRelated: boolean;
+  declinedAt: string;
+}

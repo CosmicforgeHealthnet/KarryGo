@@ -1,10 +1,13 @@
 import apiClient from '@/lib/api/client';
+import type { RoleBinding, RoleBindingInput } from '@/lib/types/structure';
 import type {
   InviteStaffInput,
   Permission,
   Role,
+  RoleInput,
   StaffInvitation,
   StaffMember,
+  UpdateStaffInput,
 } from '@/lib/types/staff';
 
 const id = (value: string) => encodeURIComponent(value);
@@ -57,6 +60,52 @@ export const staffService = {
   async permissions(): Promise<Permission[]> {
     const res = await apiClient.get<{ data: Permission[] }>('/permissions');
     return res.data.data ?? [];
+  },
+
+  async update(staffId: string, input: UpdateStaffInput, expectedVersion: number): Promise<StaffMember> {
+    const res = await apiClient.patch<{ data: StaffMember }>(`/staff/${id(staffId)}`, input, {
+      headers: { 'If-Match': String(expectedVersion) },
+    });
+    return res.data.data;
+  },
+
+  async roleBindings(staffId: string): Promise<RoleBinding[]> {
+    const res = await apiClient.get<{ data: RoleBinding[] }>(`/staff/${id(staffId)}/role-bindings`);
+    return res.data.data ?? [];
+  },
+
+  // Replaces every role the staff member holds. The server refuses changes
+  // to your own roles (permission_escalation_forbidden).
+  async replaceRoles(staffId: string, bindings: RoleBindingInput[]): Promise<RoleBinding[]> {
+    const res = await apiClient.put<{ data: { staffId: string; bindings: RoleBinding[] } }>(
+      `/staff/${id(staffId)}/roles`,
+      { bindings },
+    );
+    return res.data.data?.bindings ?? [];
+  },
+
+  async getRole(roleId: string): Promise<Role> {
+    const res = await apiClient.get<{ data: Role }>(`/roles/${id(roleId)}`);
+    return res.data.data;
+  },
+
+  async createRole(input: RoleInput): Promise<Role> {
+    const res = await apiClient.post<{ data: Role }>('/roles', input);
+    return res.data.data;
+  },
+
+  // System roles are managed by the platform (role_is_system_managed).
+  async updateRole(roleId: string, input: Omit<RoleInput, 'code'>, expectedVersion: number): Promise<Role> {
+    const res = await apiClient.patch<{ data: Role }>(`/roles/${id(roleId)}`, input, {
+      headers: { 'If-Match': String(expectedVersion) },
+    });
+    return res.data.data;
+  },
+
+  async archiveRole(roleId: string, expectedVersion: number): Promise<void> {
+    await apiClient.post(`/roles/${id(roleId)}/archive`, {}, {
+      headers: { 'If-Match': String(expectedVersion) },
+    });
   },
 };
 

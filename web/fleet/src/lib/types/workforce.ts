@@ -305,3 +305,87 @@ export interface Page {
   limit?: number;
   offset?: number;
 }
+// ---------------------------------------------------------------------------
+// Shift templates and training enrolments (spec 17, 46)
+// ---------------------------------------------------------------------------
+
+export interface ShiftTemplate {
+  id: string;
+  organizationId: string;
+  branchId: string;
+  name: string;
+  role: string;
+  timezone: string;
+  // 1 (Monday) to 7 (Sunday)
+  weekdays: number[];
+  startLocalTime: string;
+  endLocalTime: string;
+  requiredCapacity: number;
+  breakRules: Record<string, unknown> | null;
+  status: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateShiftTemplateInput {
+  branchId: string;
+  name: string;
+  role: string;
+  timezone: string;
+  weekdays: number[];
+  startLocalTime: string;
+  endLocalTime: string;
+  requiredCapacity: number;
+}
+
+export interface UpdateShiftTemplateInput {
+  expectedVersion: number;
+  name?: string;
+  role?: string;
+  weekdays?: number[];
+  startLocalTime?: string;
+  endLocalTime?: string;
+  requiredCapacity?: number;
+  status?: 'ACTIVE' | 'ARCHIVED';
+}
+
+export interface GeneratedShifts {
+  templateId: string;
+  created: Shift[];
+  alreadyExist: string[];
+  // Local days whose start or end does not exist (a DST gap); never shifted.
+  skippedDays: string[];
+}
+
+export type EnrollmentStatus = 'ASSIGNED' | 'PASSED' | 'FAILED' | 'CANCELLED' | string;
+
+export interface Enrollment {
+  id: string;
+  organizationId: string;
+  courseId: string;
+  courseVersion: number;
+  membershipId: string;
+  status: EnrollmentStatus;
+  assignedBy: string;
+  assignedAt: string;
+  dueAt: string | null;
+  completedAt: string | null;
+  score: number | null;
+  completionId: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEnrollmentInput {
+  courseId: string;
+  membershipId: string;
+  dueAt?: string;
+}
+
+export interface CompleteEnrollmentInput {
+  score: number;
+  certificateMediaId?: string;
+  completedAt: string;
+}

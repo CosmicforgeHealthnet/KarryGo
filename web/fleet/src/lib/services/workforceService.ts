@@ -22,6 +22,13 @@ import type {
   UpdateProfileInput,
   UpdateQualificationInput,
   UpdateShiftInput,
+  ShiftTemplate,
+  CreateShiftTemplateInput,
+  UpdateShiftTemplateInput,
+  GeneratedShifts,
+  Enrollment,
+  CreateEnrollmentInput,
+  CompleteEnrollmentInput,
 } from '@/lib/types/workforce';
 
 function buildQuery(params?: Page): string {
@@ -494,6 +501,119 @@ export const workforceService = {
     const res = await apiClient.post<{ data: Completion }>(
       `/training/courses/${encodeURIComponent(courseId)}/complete`,
       input,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return res.data.data;
+  },
+
+  // -----------------------------------------------------------------------
+  // Shift templates
+  // -----------------------------------------------------------------------
+
+  async listShiftTemplates(params?: Page): Promise<ShiftTemplate[]> {
+    const res = await apiClient.get<{ data: ShiftTemplate[] }>(
+      `/shift-templates${buildQuery(params)}`,
+    );
+    return res.data.data ?? [];
+  },
+
+  async getShiftTemplate(templateId: string): Promise<ShiftTemplate> {
+    const res = await apiClient.get<{ data: ShiftTemplate }>(
+      `/shift-templates/${encodeURIComponent(templateId)}`,
+    );
+    return res.data.data;
+  },
+
+  async createShiftTemplate(
+    input: CreateShiftTemplateInput,
+    idempotencyKey: string,
+  ): Promise<ShiftTemplate> {
+    const res = await apiClient.post<{ data: ShiftTemplate }>(
+      '/shift-templates',
+      input,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return res.data.data;
+  },
+
+  async updateShiftTemplate(
+    templateId: string,
+    input: UpdateShiftTemplateInput,
+  ): Promise<ShiftTemplate> {
+    const { expectedVersion, ...body } = input;
+    const res = await apiClient.patch<{ data: ShiftTemplate }>(
+      `/shift-templates/${encodeURIComponent(templateId)}`,
+      body,
+      { headers: { 'If-Match': String(expectedVersion) } },
+    );
+    return res.data.data;
+  },
+
+  // Generates DRAFT shifts for each matching local day in [from, to].
+  // Re-running an overlapping range never duplicates a day.
+  async generateShiftsFromTemplate(
+    templateId: string,
+    range: { from: string; to: string },
+    idempotencyKey: string,
+  ): Promise<GeneratedShifts> {
+    const res = await apiClient.post<{ data: GeneratedShifts }>(
+      `/shift-templates/${encodeURIComponent(templateId)}/generate`,
+      range,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return res.data.data;
+  },
+
+  // -----------------------------------------------------------------------
+  // Training enrolments
+  // -----------------------------------------------------------------------
+
+  async listEnrollments(
+    params?: Page & { membershipId?: string },
+  ): Promise<Enrollment[]> {
+    const { membershipId, ...page } = params ?? {};
+    let qs = buildQuery(page);
+    if (membershipId) {
+      qs += `${qs ? '&' : '?'}membershipId=${encodeURIComponent(membershipId)}`;
+    }
+    const res = await apiClient.get<{ data: Enrollment[] }>(
+      `/training/enrollments${qs}`,
+    );
+    return res.data.data ?? [];
+  },
+
+  async createEnrollment(
+    input: CreateEnrollmentInput,
+    idempotencyKey: string,
+  ): Promise<Enrollment> {
+    const res = await apiClient.post<{ data: Enrollment }>(
+      '/training/enrollments',
+      input,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return res.data.data;
+  },
+
+  async completeEnrollment(
+    enrollmentId: string,
+    input: CompleteEnrollmentInput,
+    idempotencyKey: string,
+  ): Promise<Enrollment> {
+    const res = await apiClient.post<{ data: Enrollment }>(
+      `/training/enrollments/${encodeURIComponent(enrollmentId)}/complete`,
+      input,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return res.data.data;
+  },
+
+  async cancelEnrollment(
+    enrollmentId: string,
+    idempotencyKey: string,
+  ): Promise<Enrollment> {
+    const res = await apiClient.post<{ data: Enrollment }>(
+      `/training/enrollments/${encodeURIComponent(enrollmentId)}/cancel`,
+      {},
       { headers: { 'Idempotency-Key': idempotencyKey } },
     );
     return res.data.data;
