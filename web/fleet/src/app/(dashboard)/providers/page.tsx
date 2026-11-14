@@ -66,6 +66,24 @@ export default function ProvidersPage() {
   const [source, setSource] = useState<OnboardingSource | 'ALL'>('ALL');
   const [relationship, setRelationship] = useState<RelationshipType | 'ALL'>('ALL');
   const [showFilters, setShowFilters] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // The provider list is paged; each click fetches the next page.
+  const loadMore = async () => {
+    if (!nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const page = await providerService.listPage(nextCursor);
+      setRows((current) => [...current, ...page.items]);
+      setNextCursor(page.nextCursor);
+    } catch (err) {
+      const e = err as { response?: { data?: { error?: { message?: string } } } };
+      setError(e?.response?.data?.error?.message ?? 'More providers could not be loaded.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -73,9 +91,11 @@ export default function ProvidersPage() {
     setError(null);
 
     providerService
-      .list()
-      .then((data) => {
-        if (!cancelled) setRows(data);
+      .listPage()
+      .then((page) => {
+        if (cancelled) return;
+        setRows(page.items);
+        setNextCursor(page.nextCursor);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -344,9 +364,21 @@ export default function ProvidersPage() {
       )}
 
       {!loading && rows.length > 0 && (
-        <p className="text-center text-xs text-ink-400">
-          Showing the latest {rows.length} membership{rows.length === 1 ? '' : 's'}.
-        </p>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-center text-xs text-ink-400">
+            Showing {rows.length} membership{rows.length === 1 ? '' : 's'}
+            {nextCursor ? '; more are available.' : '.'}
+          </p>
+          {nextCursor && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="rounded-lg border border-line bg-surface px-4 py-2 text-xs font-medium text-ink-600 transition-colors hover:bg-surface-2 disabled:opacity-60"
+            >
+              {loadingMore ? 'Loading…' : 'Load more providers'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

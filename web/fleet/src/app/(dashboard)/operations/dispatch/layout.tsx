@@ -4,12 +4,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, UserX, CalendarClock } from "lucide-react";
+import { LayoutGrid, UserX, CalendarClock, LifeBuoy } from "lucide-react";
 
 const DISPATCH_TABS = [
   { label: "Board", href: "/operations/dispatch", icon: LayoutGrid },
   { label: "Unassigned", href: "/operations/dispatch/unassigned", icon: UserX },
   { label: "Plans", href: "/operations/dispatch/plans", icon: CalendarClock },
+  { label: "Rescue", href: "/operations/dispatch/rescue", icon: LifeBuoy },
 ];
 
 export default function DispatchLayout({

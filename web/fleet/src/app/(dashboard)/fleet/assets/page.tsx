@@ -150,13 +150,27 @@ export default function AssetsPage() {
             assignment readiness.
           </p>
         </div>
-        <Link
-          href="/fleet/assets/create"
-          className="flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add asset
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/fleet/defects"
+            className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium text-ink-600 transition-colors hover:bg-surface-2"
+          >
+            Defects
+          </Link>
+          <Link
+            href="/fleet/tyres"
+            className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium text-ink-600 transition-colors hover:bg-surface-2"
+          >
+            Tyres
+          </Link>
+          <Link
+            href="/fleet/assets/create"
+            className="flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add asset
+          </Link>
+        </div>
       </div>
 
       {error && (

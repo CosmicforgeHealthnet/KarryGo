@@ -281,6 +281,18 @@ export default function ApprovalsInboxPage() {
             <Download className="h-3.5 w-3.5" />
             Export
           </button>
+          <button
+            onClick={() => router.push("/settings/approval-policies")}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
+          >
+            Policies
+          </button>
+          <button
+            onClick={() => router.push("/settings/approvals/delegation")}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[11.5px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
+          >
+            Delegation
+          </button>
         </div>
       </div>
 
