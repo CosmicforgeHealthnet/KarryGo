@@ -55,6 +55,11 @@ type corporateBinding struct {
 	CorrelationID     string
 	FareAmount        int64
 	Currency          string
+	// BookingID is the booking this trip executes. Dispatch takes the
+	// customer's payment per booking (payment-wallet source_reference is the
+	// booking id), while Fleet settles per trip, so it is what lets Wallet
+	// find the money a managed trip releases.
+	BookingID string
 }
 
 // Managed reports whether this trip settles through Fleet.
@@ -81,10 +86,11 @@ func readCorporateBinding(ctx context.Context, tx pgx.Tx, tripID string) (corpor
 		       COALESCE(organization_membership_id,''),
 		       COALESCE(fleet_assignment_id,''), COALESCE(execution_mode,''),
 		       COALESCE(source_version,1), COALESCE(fleet_correlation_id,''),
-		       COALESCE(fare_amount,0), COALESCE(currency,'NGN')
+		       COALESCE(fare_amount,0), COALESCE(currency,'NGN'),
+		       COALESCE(booking_id::text,'')
 		  FROM trips WHERE id = $1::uuid`, tripID).
 		Scan(&b.ProviderID, &b.OrganizationID, &b.MembershipID, &b.FleetAssignmentID, &b.ExecutionMode,
-			&b.SourceVersion, &b.CorrelationID, &b.FareAmount, &b.Currency)
+			&b.SourceVersion, &b.CorrelationID, &b.FareAmount, &b.Currency, &b.BookingID)
 	return b, err
 }
 
@@ -129,6 +135,10 @@ func enqueueCompletedWorkIfManaged(ctx context.Context, tx pgx.Tx, enqueuer Comp
 		SourceVersion:      binding.SourceVersion,
 		IdempotencyKey:     CompletedWorkIdempotencyKey(tripID, binding.SourceVersion),
 		CorrelationID:      binding.CorrelationID,
+		// The payment was taken against the booking, not the trip. Fleet
+		// copies this into the settlement instruction unchanged, so Wallet
+		// releases exactly the escrow booking/payments.go funded.
+		PaymentSourceReference: binding.BookingID,
 	})
 }
 
