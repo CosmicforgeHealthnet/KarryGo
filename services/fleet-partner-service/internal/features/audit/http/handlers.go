@@ -36,13 +36,13 @@ const (
 
 // Handler serves the corporate audit-log read routes.
 type Handler struct {
-	repo       *repositories.Repository
+	repo       AuditReader
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler builds the handler. repo may be nil in deployments where the
 // pool is unavailable; routes then answer unavailable rather than panicking.
-func NewHandler(repo *repositories.Repository, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(repo AuditReader, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{repo: repo, authorizer: authorizer}
 }
 

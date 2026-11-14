@@ -179,6 +179,16 @@ func TestHTTPConstructorsDependOnUseCaseInterfaces(t *testing.T) {
 						violations = append(violations, file.fset.Position(fn.Pos()).String()+
 							" "+fn.Name.Name+" takes *"+typeName+"; declare a use-case interface in the http package")
 					}
+					// A handler never binds to storage directly: concrete
+					// repositories, the job queue, the scheduler store and the
+					// outbox are reached through an interface declared in the
+					// http package.
+					for _, storage := range []string{"repositories", "jobs", "scheduler", "events"} {
+						if typeName, bad := layeringConcretePointer(t, file, param.Type, storage); bad {
+							violations = append(violations, file.fset.Position(fn.Pos()).String()+
+								" "+fn.Name.Name+" takes *"+typeName+"; declare an interface in the http package")
+						}
+					}
 				}
 			}
 		}

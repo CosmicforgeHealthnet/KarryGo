@@ -13,7 +13,6 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/scheduler"
 )
 
 // worker_operations.* (service-global jobs: organization_id IS NULL) sit
@@ -34,9 +33,9 @@ import (
 
 // InternalHandler serves the service-to-service worker-operations surface.
 type InternalHandler struct {
-	jobs      *jobs.Queue
-	scheduler *scheduler.Repository
-	outbox    *events.OutboxRepository
+	jobs      JobQueue
+	scheduler ScheduledTasks
+	outbox    Outbox
 	allowed   map[string]bool
 }
 
@@ -44,7 +43,7 @@ type InternalHandler struct {
 // be nil (e.g. in a composition that never wires the outbox repository);
 // the two Section 29 operational routes that use it degrade to a safe 503
 // rather than a nil-pointer panic — see requireOutbox.
-func NewInternalHandler(jobQueue *jobs.Queue, schedulerRepo *scheduler.Repository, outbox *events.OutboxRepository, allowedCallers []string) *InternalHandler {
+func NewInternalHandler(jobQueue JobQueue, schedulerRepo ScheduledTasks, outbox Outbox, allowedCallers []string) *InternalHandler {
 	allowed := map[string]bool{}
 	for _, caller := range allowedCallers {
 		if name := strings.TrimSpace(caller); name != "" {

@@ -32,13 +32,13 @@ const (
 
 // Handler serves the Section 27 operator surface.
 type Handler struct {
-	jobs       *jobs.Queue
-	scheduler  *scheduler.Repository
+	jobs       JobQueue
+	scheduler  ScheduledTasks
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler builds the handler.
-func NewHandler(jobQueue *jobs.Queue, schedulerRepo *scheduler.Repository, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(jobQueue JobQueue, schedulerRepo ScheduledTasks, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{jobs: jobQueue, scheduler: schedulerRepo, authorizer: authorizer}
 }
 
