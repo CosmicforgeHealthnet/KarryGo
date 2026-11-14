@@ -45,7 +45,7 @@ func (h *Handler) updateProvider(c *gin.Context) {
 	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -73,7 +73,7 @@ func (h *Handler) reactivateProvider(c *gin.Context) {
 	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -97,7 +97,7 @@ func (h *Handler) removeProvider(c *gin.Context) {
 	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return

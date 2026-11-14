@@ -239,7 +239,8 @@ func validateAPIClientInput(in CreateAPIClientInput) (string, []string, []string
 	if err != nil {
 		return "", nil, nil, err
 	}
-	var cidrs []string
+	// Never nil: a nil slice is sent as NULL into the NOT NULL ip_allowlist column.
+	cidrs := []string{}
 	seen := map[string]bool{}
 	for _, raw := range in.IPAllowlist {
 		_, network, parseErr := net.ParseCIDR(strings.TrimSpace(raw))

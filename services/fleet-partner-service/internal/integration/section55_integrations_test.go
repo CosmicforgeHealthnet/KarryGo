@@ -90,6 +90,18 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 	if string(storedHash) == secret {
 		t.Fatal("API client plaintext secret was persisted")
 	}
+	// A client with no IP allowlist is stored with an empty list (any source
+	// address), not NULL into the NOT NULL column.
+	open, openSecret, _, err := svc.CreateAPIClient(ctx, actor, integrations.CreateAPIClientInput{
+		Name: "Unrestricted connector", Scopes: []string{integrations.ScopeIntegrationContextRead}, IdempotencyKey: "idem-api-create-open",
+	})
+	if err != nil || openSecret == "" || open.IPAllowlist == nil || len(open.IPAllowlist) != 0 {
+		t.Fatalf("create API client without allowlist: %+v err=%v", open, err)
+	}
+	var storedAllowlist int
+	if err = pool.QueryRow(ctx, `SELECT cardinality(ip_allowlist) FROM fleet_partner_organization_api_clients WHERE id=$1`, open.ID).Scan(&storedAllowlist); err != nil || storedAllowlist != 0 {
+		t.Fatalf("stored allowlist = %d (%v), want empty", storedAllowlist, err)
+	}
 	_, replaySecret, replay, err := svc.CreateAPIClient(ctx, actor, integrations.CreateAPIClientInput{
 		Name: "Warehouse connector", Scopes: []string{integrations.ScopeIntegrationContextRead},
 		IPAllowlist: []string{"203.0.113.0/24"}, IdempotencyKey: "idem-api-create",

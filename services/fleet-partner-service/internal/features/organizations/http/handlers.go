@@ -1495,7 +1495,7 @@ func (h *Handler) suspendProvider(c *gin.Context) {
 	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
 		return
 	}
-	expectedVersion, err := expectedVersionFrom(c)
+	expectedVersion, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -1583,6 +1583,13 @@ func timeCursorPage(c *gin.Context) (limit int, after *time.Time, afterID string
 		after, afterID = &sortTime, position.LastID
 	}
 	return limit, after, afterID, true
+}
+
+// requiredExpectedVersion reads a mandatory If-Match header. Provider
+// lifecycle writes use it so a missing header is refused instead of being
+// applied to whatever version happens to be current (a blind write).
+func requiredExpectedVersion(c *gin.Context) (int64, error) {
+	return concurrency.ParseIfMatch(c.GetHeader("If-Match"))
 }
 
 func expectedVersionFrom(c *gin.Context) (int64, error) {

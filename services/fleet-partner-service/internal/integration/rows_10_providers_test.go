@@ -521,6 +521,14 @@ func TestRow10_5_SuspendProviderOverHTTP(t *testing.T) {
 	if code, _ := rowsCall(t, f.router, "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version + 7)}); code != http.StatusConflict {
 		t.Fatalf("stale suspend = %d, want 409", code)
 	}
+	// A missing If-Match is refused rather than applied to whatever version
+	// is current (a blind write), and changes nothing.
+	if code, _ := rowsCall(t, f.router, "POST", path, map[string]any{}, nil); code != http.StatusBadRequest {
+		t.Fatalf("suspend without If-Match = %d, want 400", code)
+	}
+	if status := f.membershipStatus(t, membership); status != providermodels.StatusActive {
+		t.Fatalf("after refused suspend = %s, want ACTIVE", status)
+	}
 	code, body := rowsCall(t, f.router, "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version)})
 	if code != http.StatusOK || rowsData(t, body)["status"] != providermodels.StatusSuspended {
 		t.Fatalf("suspend = %d %v", code, body)
