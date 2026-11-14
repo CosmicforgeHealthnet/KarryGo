@@ -231,9 +231,11 @@ func (h *Handler) mayReadSensitive(c *gin.Context, t tenant.Context) bool {
 	if h.authorizer == nil {
 		return false
 	}
+	// No caller-chosen branch target: only an organization-wide grant
+	// unmasks, so ?branchId can never widen who sees contact data.
 	decision, err := h.authorizer.Authorize(c.Request.Context(), t.OrganizationID,
 		t.OrganizationUserID, roleVersionFrom(c), PermissionSensitiveRead,
-		accesscontrol.Target{BranchID: c.Query("branchId")})
+		accesscontrol.Target{})
 	return err == nil && decision.Allowed
 }
 

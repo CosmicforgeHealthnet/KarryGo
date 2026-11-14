@@ -334,7 +334,7 @@ type custodyEventRequest struct {
 // a handover of a package, shipment, order, asset or specialized record.
 func (h *Handler) recordCustodyEvent(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionCustodyRecord) {
+	if !ok || !h.auth(c, &t, PermissionCustodyRecord) {
 		return
 	}
 	var b custodyEventRequest
@@ -349,7 +349,7 @@ func (h *Handler) recordCustodyEvent(c *gin.Context) {
 
 func (h *Handler) listCustodyEvents(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionCustodyRead) {
+	if !ok || !h.auth(c, &t, PermissionCustodyRead) {
 		return
 	}
 	v, e := h.service.SubjectCustody(c.Request.Context(), t, c.Query("subjectType"), c.Query("subjectReference"))
@@ -362,7 +362,7 @@ func (h *Handler) listCustodyEvents(c *gin.Context) {
 
 func (h *Handler) getCustodyEvent(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionCustodyRead) {
+	if !ok || !h.auth(c, &t, PermissionCustodyRead) {
 		return
 	}
 	v, e := h.service.GetCustodyEvent(c.Request.Context(), t, c.Param("eventId"))
