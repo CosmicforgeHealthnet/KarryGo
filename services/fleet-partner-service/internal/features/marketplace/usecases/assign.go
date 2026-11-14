@@ -79,6 +79,13 @@ func (s *Service) Assign(ctx context.Context, input AssignInput) (*models.Assign
 	if err != nil {
 		return nil, err
 	}
+	// Branch scope (spec 7b): a dispatcher whose role is granted at some
+	// branches may only commit providers homed in those branches. Outside
+	// scope is indistinguishable from not found.
+	if membership != nil && membership.HomeBranchID != nil && *membership.HomeBranchID != "" &&
+		!input.Tenant.BranchPermitted(*membership.HomeBranchID) {
+		return nil, apperrors.NotFound("Provider not found.", nil)
+	}
 	if !decision.Eligible {
 		return nil, errorcodes.Conflict(apperrorsCode(decision.ReasonCode),
 			"That provider cannot take this work right now.")

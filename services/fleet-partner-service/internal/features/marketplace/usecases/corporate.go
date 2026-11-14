@@ -332,6 +332,18 @@ func (s *Service) GetCorporateAssignment(ctx context.Context, t tenant.Context, 
 		}
 		return nil, err
 	}
+	// Branch scope (spec 7b), matching the list's rule: an assignment whose
+	// provider is homed in a branch outside the caller's granted scope is
+	// not found. Unbranched providers stay visible.
+	if len(t.PermittedBranchIDs) > 0 {
+		branch, err := s.opts.Assignments.MembershipHomeBranch(ctx, t.OrganizationID, assignment.MembershipID)
+		if err != nil && !errors.Is(err, repositories.ErrNotFound) {
+			return nil, err
+		}
+		if branch != nil && *branch != "" && !t.BranchPermitted(*branch) {
+			return nil, apperrors.NotFound("Assignment not found.", nil)
+		}
+	}
 	return assignment, nil
 }
 

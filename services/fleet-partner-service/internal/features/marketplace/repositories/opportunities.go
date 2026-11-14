@@ -314,6 +314,22 @@ func (r *TripRepository) LockTripByID(ctx context.Context, q database.Querier,
 	return scanTrip(row)
 }
 
+// MembershipHomeBranch returns the home branch of an organization's managed
+// provider membership (nil when it has none), for branch-scoped reads.
+func (r *AssignmentRepository) MembershipHomeBranch(ctx context.Context, organizationID string,
+	membershipID string) (*string, error) {
+	var branch *string
+	err := r.db.QueryRow(ctx, `SELECT home_branch_id FROM fleet_partner_organization_provider_memberships
+		WHERE organization_id = $1 AND id = $2`, organizationID, membershipID).Scan(&branch)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("marketplace: membership home branch: %w", err)
+	}
+	return branch, nil
+}
+
 // TripHistoryEntry is one append-only trip status change.
 type TripHistoryEntry struct {
 	ID            string    `json:"id"`
@@ -387,8 +403,10 @@ func (r *TripRepository) ListPage(ctx context.Context, query tenant.Query,
 	}
 	rows, err := r.db.Query(ctx, `SELECT `+tripColumnsQualified+`
 		FROM fleet_partner_trip_projections t
+		LEFT JOIN fleet_partner_provider_assignments a
+		  ON a.id = t.assignment_id AND a.organization_id = t.organization_id
 		LEFT JOIN fleet_partner_organization_provider_memberships m
-		  ON m.id = t.organization_membership_id AND m.organization_id = t.organization_id
+		  ON m.id = COALESCE(t.organization_membership_id, a.membership_id) AND m.organization_id = t.organization_id
 		WHERE t.organization_id = $1
 		  AND ($2 = '' OR t.trip_status = $2)
 		  AND ($3 = '' OR t.source_service = $3)
@@ -430,8 +448,10 @@ func (r *TripRepository) GetScoped(ctx context.Context, query tenant.Query,
 	}
 	row := r.db.QueryRow(ctx, `SELECT `+tripColumnsQualified+`
 		FROM fleet_partner_trip_projections t
+		LEFT JOIN fleet_partner_provider_assignments a
+		  ON a.id = t.assignment_id AND a.organization_id = t.organization_id
 		LEFT JOIN fleet_partner_organization_provider_memberships m
-		  ON m.id = t.organization_membership_id AND m.organization_id = t.organization_id
+		  ON m.id = COALESCE(t.organization_membership_id, a.membership_id) AND m.organization_id = t.organization_id
 		WHERE t.organization_id = $1 AND t.id = $2
 		  AND (cardinality($3::text[]) = 0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($3::text[]))`,
 		query.OrganizationID, tripID, branches)

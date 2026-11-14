@@ -54,12 +54,15 @@ func (h *Handler) gate(c *gin.Context, permission string) (tenant.Context, bool)
 	if raw, ok := c.Get(middleware.TenantRoleVersionKey); ok {
 		roleVersion, _ = raw.(int64)
 	}
-	target := accesscontrol.Target{BranchID: c.Query("branchId")}
-	if err := h.authorizer.Require(c, t.OrganizationID, t.OrganizationUserID, roleVersion, permission, target); err != nil {
+	// Narrowed to the branches where the permission is actually granted; a
+	// caller-chosen ?branchId never widens a branch-scoped role.
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), t, roleVersion, permission)
+	if err != nil {
 		respond.Error(c, err)
 		return t, false
 	}
-	return t, true
+	middleware.SetTenant(c, scoped)
+	return scoped, true
 }
 
 func bindJSON(c *gin.Context, v any) bool {

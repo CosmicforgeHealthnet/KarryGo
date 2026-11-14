@@ -65,6 +65,8 @@ func newOpportunityService(pool *pgxpool.Pool, enabled bool) *mktusecases.Servic
 		Events:             events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Metrics:            observability.NewMetrics(),
 		Opportunities:      mktusecases.OpportunityConfig{Enabled: enabled},
+		Flags: mktusecases.Flags{ProjectionEnabled: true, OrganizationAcceptEnabled: true,
+			AssignmentEnabled: true},
 	})
 }
 
@@ -345,7 +347,12 @@ func TestS1112_OfferedEventIgnoredWithoutEligibleOrganizationOrWhenDisabled(t *t
 
 	// A producer that is not an execution source is permanently refused.
 	_, err := newOpportunityService(pool, true).IngestEvent(context.Background(), raw,
-		func() mktusecases.InboundEvent { e := event; e.SourceService = "support-dispute-service"; e.EventID = "evt-x"; return e }())
+		func() mktusecases.InboundEvent {
+			e := event
+			e.SourceService = "support-dispute-service"
+			e.EventID = "evt-x"
+			return e
+		}())
 	if err == nil || !strings.Contains(err.Error(), "unknown_source_service") {
 		t.Fatalf("unknown producer err = %v, want unknown_source_service", err)
 	}
@@ -898,5 +905,86 @@ func TestS1112_TaxiAndHaulingProducerEnvelopesCreateOpportunities(t *testing.T) 
 		haulRequest, haulingOrg.ID).Scan(&haulStatus, &offerStatus)
 	if haulStatus != mktmodels.ProjectionExpired || offerStatus != mktmodels.OfferCancelled {
 		t.Fatalf("hauling after unmatched = %s/%s, want EXPIRED/CANCELLED", haulStatus, offerStatus)
+	}
+}
+
+// TestS1112_MarketplaceBranchScopeCannotBeWidenedByQueryParameter applies the
+// staging branch-scope fix (spec 7b) to the marketplace surface: a dispatcher
+// whose only grant is at branch A cannot read, list or assign branch B work by
+// naming ?branchId=A.
+func TestS1112_MarketplaceBranchScopeCannotBeWidenedByQueryParameter(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	org := createOrganization(t, pool, "S1112 Branch Scope Co", "RC-S1112-BS")
+	branchA := seedBranch(t, pool, org.ID, "S1112 Branch A")
+	branchB := seedBranch(t, pool, org.ID, "S1112 Branch B")
+	service := newOpportunityService(pool, true)
+
+	_, assignmentA, membershipA := readyAssignment(t, pool, org.ID, "req-s1112-bs-a", "s1112-bs-drv-a", false)
+	_, assignmentB, membershipB := readyAssignment(t, pool, org.ID, "req-s1112-bs-b", "s1112-bs-drv-b", false)
+	for membership, branch := range map[string]string{membershipA.ID: branchA, membershipB.ID: branchB} {
+		if _, err := pool.Exec(ctx, `UPDATE fleet_partner_organization_provider_memberships
+			SET home_branch_id = $2 WHERE id = $1`, membership, branch); err != nil {
+			t.Fatalf("home branch: %v", err)
+		}
+	}
+	raw, event := sourceEvent(t, s1112Dispatch, "evt-s1112-bs-trip", mktusecases.EventTripCreated, "TRIP",
+		"trip-s1112-bs-b", 1, tripPayload("req-s1112-bs-b", "trip-s1112-bs-b", assignmentB.ID,
+			*membershipB.ProviderID, org.ID, "assigned"))
+	ingest(t, service, raw, event)
+	var tripB string
+	if err := pool.QueryRow(ctx, `SELECT id FROM fleet_partner_trip_projections WHERE platform_trip_id = 'trip-s1112-bs-b'`).Scan(&tripB); err != nil {
+		t.Fatalf("trip projection: %v", err)
+	}
+
+	authorizer := accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0)
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(respond.ErrorHandler())
+	engine.Use(func(c *gin.Context) {
+		member := c.GetHeader("X-Test-Member")
+		c.Set(middleware.TenantContextKey, tenant.Context{
+			OrganizationID: org.ID, OrganizationUserID: member,
+			ActorType: tenant.ActorTypeOrganizationUser, ActorID: member,
+		})
+		c.Set(middleware.TenantRoleVersionKey, int64(1))
+		c.Next()
+	})
+	mkthttp.NewHandler(service, authorizer, nil).RegisterTenantRoutes(engine.Group("/fleet-partner/v1"))
+	branchOnly := seedMember(t, pool, org.ID, seedIdentity(t, pool,
+		"s1112-branch-only-"+randomHex()[:6]+"@example.com", "+23481"+randomHex()[:8]), false, nil)
+	bindRole(t, pool, org.ID, branchOnly.ID, "rol_system_dispatcher", "BRANCH", branchA)
+	get := func(path string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("X-Test-Member", branchOnly.ID)
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	for _, path := range []string{
+		"/fleet-partner/v1/marketplace/assignments/" + assignmentB.ID,
+		"/fleet-partner/v1/marketplace/assignments/" + assignmentB.ID + "?branchId=" + branchA,
+		"/fleet-partner/v1/marketplace/assignments/" + assignmentB.ID + "/history?branchId=" + branchA,
+		"/fleet-partner/v1/marketplace/trips/" + tripB + "?branchId=" + branchA,
+	} {
+		if code := get(path); code != http.StatusNotFound {
+			t.Fatalf("branch-A-only dispatcher GET %s = %d, want 404", path, code)
+		}
+	}
+	if code := get("/fleet-partner/v1/marketplace/assignments/" + assignmentA.ID + "?branchId=" + branchA); code != http.StatusOK {
+		t.Fatalf("own-branch assignment = %d, want 200", code)
+	}
+	// Assigning a branch-B provider is refused as not found.
+	_, err := service.Assign(ctx, mktusecases.AssignInput{
+		Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: branchOnly.ID,
+			ActorType: tenant.ActorTypeOrganizationUser, ActorID: branchOnly.ID,
+			PermittedBranchIDs: []string{branchA}},
+		ProjectionID:   seedProjection(t, pool, org.ID, "req-s1112-bs-c", mktmodels.ProjectionOrganizationAccepted).ID,
+		MembershipID:   membershipB.ID,
+		IdempotencyKey: "s1112-bs-assign",
+	})
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "not found") {
+		t.Fatalf("cross-branch assign err = %v, want not found", err)
 	}
 }
