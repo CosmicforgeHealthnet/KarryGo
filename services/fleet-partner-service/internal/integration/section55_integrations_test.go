@@ -19,7 +19,10 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
+	integrationsclients "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/clients"
+	integrationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/models"
+	integrationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/repositories"
+	integrationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -30,21 +33,21 @@ func (section55Resolver) LookupIPAddr(context.Context, string) ([]net.IPAddr, er
 	return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
 }
 
-func newSection55Service(t *testing.T, pool *pgxpool.Pool) *integrations.Service {
+func newSection55Service(t *testing.T, pool *pgxpool.Pool) *integrationsusecases.Service {
 	t.Helper()
 	if pool == nil {
 		t.Fatal("invalid test pool")
 	}
-	validator := &integrations.DestinationValidator{
+	validator := &integrationsclients.DestinationValidator{
 		Resolver: section55Resolver{}, Production: false, AllowHTTP: true,
 	}
 	return newSection55ServiceWith(t, pool, validator, nil, 3)
 }
 
-func newSection55ServiceWith(t *testing.T, pool *pgxpool.Pool, validator *integrations.DestinationValidator, client *http.Client, disableAfter int) *integrations.Service {
+func newSection55ServiceWith(t *testing.T, pool *pgxpool.Pool, validator *integrationsclients.DestinationValidator, client *http.Client, disableAfter int) *integrationsusecases.Service {
 	t.Helper()
-	return integrations.NewService(integrations.Options{
-		Pool: pool,
+	return integrationsusecases.NewService(integrationsusecases.Options{
+		Store: integrationsrepos.NewRepository(pool), Publisher: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Config: config.Config{
 			AppEnv:                        "test",
 			OrganizationAPIClientsEnabled: true,
@@ -74,10 +77,10 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 	if err := svc.Ready(); err != nil {
 		t.Fatalf("enabled Section 55 service is not ready: %v", err)
 	}
-	actor := integrations.Actor{Tenant: tenant.Context{OrganizationID: orgA.ID, OrganizationUserID: "ou_s55_a", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_s55_a", CorrelationID: "cor_s55_api"}, IdentityID: "idn_s55_a", SessionID: "ses_s55_a", StepUpReference: "step_ok"}
+	actor := integrationsmodels.Actor{Tenant: tenant.Context{OrganizationID: orgA.ID, OrganizationUserID: "ou_s55_a", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_s55_a", CorrelationID: "cor_s55_api"}, IdentityID: "idn_s55_a", SessionID: "ses_s55_a", StepUpReference: "step_ok"}
 
-	client, secret, replay, err := svc.CreateAPIClient(ctx, actor, integrations.CreateAPIClientInput{
-		Name: "Warehouse connector", Scopes: []string{integrations.ScopeIntegrationContextRead},
+	client, secret, replay, err := svc.CreateAPIClient(ctx, actor, integrationsmodels.CreateAPIClientInput{
+		Name: "Warehouse connector", Scopes: []string{integrationsmodels.ScopeIntegrationContextRead},
 		IPAllowlist: []string{"203.0.113.0/24"}, IdempotencyKey: "idem-api-create",
 	})
 	if err != nil || replay || secret == "" {
@@ -92,8 +95,8 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 	}
 	// A client with no IP allowlist is stored with an empty list (any source
 	// address), not NULL into the NOT NULL column.
-	open, openSecret, _, err := svc.CreateAPIClient(ctx, actor, integrations.CreateAPIClientInput{
-		Name: "Unrestricted connector", Scopes: []string{integrations.ScopeIntegrationContextRead}, IdempotencyKey: "idem-api-create-open",
+	open, openSecret, _, err := svc.CreateAPIClient(ctx, actor, integrationsmodels.CreateAPIClientInput{
+		Name: "Unrestricted connector", Scopes: []string{integrationsmodels.ScopeIntegrationContextRead}, IdempotencyKey: "idem-api-create-open",
 	})
 	if err != nil || openSecret == "" || open.IPAllowlist == nil || len(open.IPAllowlist) != 0 {
 		t.Fatalf("create API client without allowlist: %+v err=%v", open, err)
@@ -102,8 +105,8 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 	if err = pool.QueryRow(ctx, `SELECT cardinality(ip_allowlist) FROM fleet_partner_organization_api_clients WHERE id=$1`, open.ID).Scan(&storedAllowlist); err != nil || storedAllowlist != 0 {
 		t.Fatalf("stored allowlist = %d (%v), want empty", storedAllowlist, err)
 	}
-	_, replaySecret, replay, err := svc.CreateAPIClient(ctx, actor, integrations.CreateAPIClientInput{
-		Name: "Warehouse connector", Scopes: []string{integrations.ScopeIntegrationContextRead},
+	_, replaySecret, replay, err := svc.CreateAPIClient(ctx, actor, integrationsmodels.CreateAPIClientInput{
+		Name: "Warehouse connector", Scopes: []string{integrationsmodels.ScopeIntegrationContextRead},
 		IPAllowlist: []string{"203.0.113.0/24"}, IdempotencyKey: "idem-api-create",
 	})
 	if err != nil || !replay || replaySecret != "" {
@@ -114,13 +117,13 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 	recorder := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(recorder)
 	ginCtx.Request = httptest.NewRequest("GET", "/fleet-partner/integrations/v1/context", nil)
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "203.0.113.42", integrations.ScopeIntegrationContextRead); err != nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "203.0.113.42", integrationsmodels.ScopeIntegrationContextRead, "", ""); err != nil {
 		t.Fatalf("valid client authentication failed: %v", err)
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, "wrong", "203.0.113.42", integrations.ScopeIntegrationContextRead); err == nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, "wrong", "203.0.113.42", integrationsmodels.ScopeIntegrationContextRead, "", ""); err == nil {
 		t.Fatal("wrong secret authenticated")
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "198.51.100.1", integrations.ScopeIntegrationContextRead); err == nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "198.51.100.1", integrationsmodels.ScopeIntegrationContextRead, "", ""); err == nil {
 		t.Fatal("IP allowlist bypassed")
 	}
 
@@ -131,19 +134,19 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 	if err != nil || replay || newSecret == "" || newSecret == secret {
 		t.Fatalf("rotate API client: replay=%v err=%v", replay, err)
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "203.0.113.42", integrations.ScopeIntegrationContextRead); err != nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "203.0.113.42", integrationsmodels.ScopeIntegrationContextRead, "", ""); err != nil {
 		t.Fatalf("previous secret was not honored during overlap: %v", err)
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, newSecret, "203.0.113.42", integrations.ScopeIntegrationContextRead); err != nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, newSecret, "203.0.113.42", integrationsmodels.ScopeIntegrationContextRead, "", ""); err != nil {
 		t.Fatalf("rotated secret did not authenticate: %v", err)
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, newSecret, "203.0.113.42", "integration.context.write"); err == nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, newSecret, "203.0.113.42", "integration.context.write", "", ""); err == nil {
 		t.Fatal("missing exact scope was accepted")
 	}
 	if _, err = pool.Exec(ctx, `UPDATE fleet_partner_organization_api_clients SET previous_secret_valid_until=now()-interval '1 second' WHERE id=$1`, client.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "203.0.113.42", integrations.ScopeIntegrationContextRead); err == nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, secret, "203.0.113.42", integrationsmodels.ScopeIntegrationContextRead, "", ""); err == nil {
 		t.Fatal("previous secret authenticated after the overlap expired")
 	}
 	actorB := actor
@@ -153,10 +156,10 @@ func TestSection55APIClientLifecycleTenantIsolationAndSecretStorage(t *testing.T
 		t.Fatal("cross-tenant API client rotation succeeded")
 	}
 	revoked, replay, err := svc.RevokeAPIClient(ctx, actor, client.ID, rotated.Version, "idem-api-revoke")
-	if err != nil || replay || revoked.Status != integrations.APIClientStatusRevoked {
+	if err != nil || replay || revoked.Status != integrationsmodels.APIClientStatusRevoked {
 		t.Fatalf("revoke API client: status=%s replay=%v err=%v", revoked.Status, replay, err)
 	}
-	if _, err = svc.Authenticate(ginCtx, client.ClientID, newSecret, "203.0.113.42", integrations.ScopeIntegrationContextRead); err == nil {
+	if _, err = svc.Authenticate(ginCtx, client.ClientID, newSecret, "203.0.113.42", integrationsmodels.ScopeIntegrationContextRead, "", ""); err == nil {
 		t.Fatal("revoked credential authenticated")
 	}
 	var lastUsed *time.Time
@@ -176,9 +179,9 @@ func TestSection55WebhookFanoutEncryptionAndReplay(t *testing.T) {
 	ctx := context.Background()
 	org := createOrganization(t, pool, "Section55 Webhook", "RC-S55-WEBHOOK")
 	svc := newSection55Service(t, pool)
-	actor := integrations.Actor{Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "ou_s55_w", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_s55_w", CorrelationID: "cor_s55_webhook"}, IdentityID: "idn_s55_w", SessionID: "ses_s55_w", StepUpReference: "step_ok"}
+	actor := integrationsmodels.Actor{Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "ou_s55_w", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_s55_w", CorrelationID: "cor_s55_webhook"}, IdentityID: "idn_s55_w", SessionID: "ses_s55_w", StepUpReference: "step_ok"}
 	publicEvent := "organization.status_changed.v1"
-	sub, secret, replay, err := svc.CreateWebhook(ctx, actor, integrations.CreateWebhookInput{
+	sub, secret, replay, err := svc.CreateWebhook(ctx, actor, integrationsmodels.CreateWebhookInput{
 		EndpointURL: "http://public.example/webhook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-webhook-create",
 	})
 	if err != nil || replay || secret == "" {
@@ -191,10 +194,10 @@ func TestSection55WebhookFanoutEncryptionAndReplay(t *testing.T) {
 	if string(ciphertext) == secret {
 		t.Fatal("webhook plaintext secret was persisted")
 	}
-	if _, _, _, err = svc.CreateWebhook(ctx, actor, integrations.CreateWebhookInput{EndpointURL: "http://169.254.169.254/hook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-webhook-ssrf"}); err == nil {
+	if _, _, _, err = svc.CreateWebhook(ctx, actor, integrationsmodels.CreateWebhookInput{EndpointURL: "http://169.254.169.254/hook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-webhook-ssrf"}); err == nil {
 		t.Fatal("metadata-service webhook destination accepted")
 	}
-	if _, _, _, err = svc.CreateWebhook(ctx, actor, integrations.CreateWebhookInput{EndpointURL: "http://public.example/hook", EventTypes: []string{"api_client.created.v1"}, IdempotencyKey: "idem-webhook-internal-event"}); err == nil {
+	if _, _, _, err = svc.CreateWebhook(ctx, actor, integrationsmodels.CreateWebhookInput{EndpointURL: "http://public.example/hook", EventTypes: []string{"api_client.created.v1"}, IdempotencyKey: "idem-webhook-internal-event"}); err == nil {
 		t.Fatal("internal lifecycle event was exposed to webhook subscription")
 	}
 
@@ -211,14 +214,14 @@ func TestSection55WebhookFanoutEncryptionAndReplay(t *testing.T) {
 		t.Fatalf("fanout: processed=%d err=%v", processed, err)
 	}
 	items, err := svc.ListDeliveries(ctx, org.ID, sub.ID)
-	if err != nil || len(items) != 1 || items[0].Status != integrations.DeliveryPending || items[0].JobID == "" {
+	if err != nil || len(items) != 1 || items[0].Status != integrationsmodels.DeliveryPending || items[0].JobID == "" {
 		t.Fatalf("durable delivery not created: %#v err=%v", items, err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE fleet_partner_webhook_deliveries SET status='DEAD_LETTERED' WHERE id=$1`, items[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	replayed, wasReplay, err := svc.ReplayDelivery(ctx, actor, items[0].ID, "idem-webhook-replay")
-	if err != nil || wasReplay || replayed.Status != integrations.DeliveryPending || replayed.ReplayOfDeliveryID != items[0].ID {
+	if err != nil || wasReplay || replayed.Status != integrationsmodels.DeliveryPending || replayed.ReplayOfDeliveryID != items[0].ID {
 		t.Fatalf("manual replay failed: %#v replay=%v err=%v", replayed, wasReplay, err)
 	}
 	replayedAgain, wasReplay, err := svc.ReplayDelivery(ctx, actor, items[0].ID, "idem-webhook-replay")
@@ -231,7 +234,7 @@ func TestSection55WebhookWorkerSigningRetryAfterSuccessAndDeadLetter(t *testing.
 	pool := testPool(t)
 	ctx := context.Background()
 	org := createOrganization(t, pool, "Section55 Worker", "RC-S55-WORKER")
-	actor := integrations.Actor{Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "ou_s55_worker", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_s55_worker", CorrelationID: "cor_s55_worker"}, IdentityID: "idn_s55_worker", SessionID: "ses_s55_worker", StepUpReference: "step_ok"}
+	actor := integrationsmodels.Actor{Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "ou_s55_worker", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_s55_worker", CorrelationID: "cor_s55_worker"}, IdentityID: "idn_s55_worker", SessionID: "ses_s55_worker", StepUpReference: "step_ok"}
 
 	var calls atomic.Int32
 	var capturedBody []byte
@@ -248,10 +251,10 @@ func TestSection55WebhookWorkerSigningRetryAfterSuccessAndDeadLetter(t *testing.
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	validator := &integrations.DestinationValidator{Resolver: section55Resolver{}, Production: false, AllowHTTP: true, AllowTestLoopback: true}
+	validator := &integrationsclients.DestinationValidator{Resolver: section55Resolver{}, Production: false, AllowHTTP: true, AllowTestLoopback: true}
 	svc := newSection55ServiceWith(t, pool, validator, nil, 1)
 	publicEvent := "organization.status_changed.v1"
-	sub, secret, _, err := svc.CreateWebhook(ctx, actor, integrations.CreateWebhookInput{EndpointURL: server.URL + "/hook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-worker-webhook"})
+	sub, secret, _, err := svc.CreateWebhook(ctx, actor, integrationsmodels.CreateWebhookInput{EndpointURL: server.URL + "/hook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-worker-webhook"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +290,7 @@ func TestSection55WebhookWorkerSigningRetryAfterSuccessAndDeadLetter(t *testing.
 		t.Fatalf("429 classification = %s/%s delay=%s err=%v", class, code, jobs.RetryDelay(err), err)
 	}
 	deliveries, _ = svc.ListDeliveries(ctx, org.ID, sub.ID)
-	if deliveries[0].Status != integrations.DeliveryRetryScheduled || deliveries[0].NextAttemptAt == nil {
+	if deliveries[0].Status != integrationsmodels.DeliveryRetryScheduled || deliveries[0].NextAttemptAt == nil {
 		t.Fatalf("retry state was not persisted: %#v", deliveries[0])
 	}
 	job.Attempts = 2
@@ -295,16 +298,16 @@ func TestSection55WebhookWorkerSigningRetryAfterSuccessAndDeadLetter(t *testing.
 		t.Fatalf("successful retry failed: %v", err)
 	}
 	deliveries, _ = svc.ListDeliveries(ctx, org.ID, sub.ID)
-	if deliveries[0].Status != integrations.DeliverySucceeded || deliveries[0].ResponseStatus != http.StatusNoContent {
+	if deliveries[0].Status != integrationsmodels.DeliverySucceeded || deliveries[0].ResponseStatus != http.StatusNoContent {
 		t.Fatalf("success state was not persisted: %#v", deliveries[0])
 	}
 	timestamp, _ := strconv.ParseInt(capturedHeaders.Get("X-KarryGo-Webhook-Timestamp"), 10, 64)
-	if err = integrations.VerifyWebhookSignature(secret, previousVersion, sub.ID, deliveries[0].ID,
+	if err = integrationsmodels.VerifyWebhookSignature(secret, previousVersion, sub.ID, deliveries[0].ID,
 		deliveries[0].SourceEventID, timestamp, capturedBody,
 		capturedHeaders.Get("X-KarryGo-Webhook-Signature"), time.Unix(timestamp, 0), 5*time.Minute); err != nil {
 		t.Fatalf("previous overlap signature failed verification: %v", err)
 	}
-	if err = integrations.VerifyWebhookSignature(rotatedSecret, sub.SecretVersion, sub.ID, deliveries[0].ID,
+	if err = integrationsmodels.VerifyWebhookSignature(rotatedSecret, sub.SecretVersion, sub.ID, deliveries[0].ID,
 		deliveries[0].SourceEventID, timestamp, capturedBody,
 		capturedHeaders.Get("X-KarryGo-Webhook-Signature"), time.Unix(timestamp, 0), 5*time.Minute); err != nil {
 		t.Fatalf("current rotated signature failed verification: %v", err)
@@ -315,7 +318,7 @@ func TestSection55WebhookWorkerSigningRetryAfterSuccessAndDeadLetter(t *testing.
 
 	deadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) }))
 	defer deadServer.Close()
-	deadSub, _, _, err := svc.CreateWebhook(ctx, actor, integrations.CreateWebhookInput{EndpointURL: deadServer.URL + "/hook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-worker-dead"})
+	deadSub, _, _, err := svc.CreateWebhook(ctx, actor, integrationsmodels.CreateWebhookInput{EndpointURL: deadServer.URL + "/hook", EventTypes: []string{publicEvent}, IdempotencyKey: "idem-worker-dead"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,13 +336,13 @@ func TestSection55WebhookWorkerSigningRetryAfterSuccessAndDeadLetter(t *testing.
 		t.Fatal("permanent 400 response reported success")
 	}
 	deadDeliveries, _ = svc.ListDeliveries(ctx, org.ID, deadSub.ID)
-	if deadDeliveries[0].Status != integrations.DeliveryDeadLettered {
+	if deadDeliveries[0].Status != integrationsmodels.DeliveryDeadLettered {
 		t.Fatalf("permanent response not dead-lettered: %#v", deadDeliveries[0])
 	}
 	webhooks, _ := svc.ListWebhooks(ctx, org.ID)
 	foundDisabled := false
 	for _, webhook := range webhooks {
-		if webhook.ID == deadSub.ID && webhook.Status == integrations.WebhookStatusDisabled {
+		if webhook.ID == deadSub.ID && webhook.Status == integrationsmodels.WebhookStatusDisabled {
 			foundDisabled = true
 		}
 	}

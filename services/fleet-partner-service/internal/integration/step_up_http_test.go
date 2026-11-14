@@ -26,7 +26,9 @@ import (
 	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
 	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
 	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
+	integrationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/models"
+	integrationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/repositories"
+	integrationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/usecases"
 	legalholdmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/models"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
 	orgmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
@@ -452,16 +454,16 @@ func TestStepUp_APISecretChangesIgnoreTheOrganizationSetting(t *testing.T) {
 	ctx := context.Background()
 	org := createOrganization(t, pool, "Secret StepUp Co", "RC-SECRET-STEPUP")
 	verifier := &fakeStepUpVerifier{validReference: "step_ok"}
-	svc := integrations.NewService(integrations.Options{
-		Pool: pool,
+	svc := integrationsusecases.NewService(integrationsusecases.Options{
+		Store: integrationsrepos.NewRepository(pool), Publisher: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Config: config.Config{
 			AppEnv: "test", OrganizationAPIClientsEnabled: true,
 			APIClientHashKey: []byte("0123456789abcdef0123456789abcdef"),
 		},
 		StepUp: verifier, SecurityPolicy: mfaNotRequired{},
 	})
-	actor := integrations.Actor{Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "ou_secret", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_secret"}, IdentityID: "idn_secret", SessionID: "ses_secret"}
-	input := integrations.CreateAPIClientInput{Name: "Connector", Scopes: []string{integrations.ScopeIntegrationContextRead}, IPAllowlist: []string{"203.0.113.0/24"}, IdempotencyKey: "idem-secret-stepup"}
+	actor := integrationsmodels.Actor{Tenant: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "ou_secret", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "ou_secret"}, IdentityID: "idn_secret", SessionID: "ses_secret"}
+	input := integrationsmodels.CreateAPIClientInput{Name: "Connector", Scopes: []string{integrationsmodels.ScopeIntegrationContextRead}, IPAllowlist: []string{"203.0.113.0/24"}, IdempotencyKey: "idem-secret-stepup"}
 	if _, _, _, err := svc.CreateAPIClient(ctx, actor, input); err == nil {
 		t.Fatal("API client created without step-up while the organization setting was off")
 	}

@@ -56,7 +56,10 @@ import (
 	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
 	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	fleetpartnerfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
-	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
+	integrationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/http"
+	integrationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/models"
+	integrationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/repositories"
+	integrationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/usecases"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers"
@@ -232,7 +235,7 @@ type Components struct {
 	// service. Always constructed; its writes fail closed when the Wallet
 	// client is unconfigured or its flags are off.
 	CompanyWallet *walletusecases.Service
-	Integrations  *integrationsfeature.Service
+	Integrations  *integrationsusecases.Service
 }
 
 // BuildComponents assembles the domain services.
@@ -716,12 +719,12 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// docs/section28-security-privacy-audit.md.
 	stepUpVerifier := stepUpAdapter{auth: c.Auth}
 	securitySettingsService := securitysettingsusecases.NewService(c.Pool, stepUpVerifier)
-	integrationService := integrationsfeature.NewService(integrationsfeature.Options{
-		Pool: c.Pool, Config: cfg, Metrics: c.Metrics, StepUp: stepUpVerifier,
+	integrationService := integrationsusecases.NewService(integrationsusecases.Options{
+		Store: integrationsrepos.NewRepository(c.Pool), Publisher: events.NewDomainPublisher(events.NewOutboxRepository(c.Pool)), Config: cfg, Metrics: c.Metrics, StepUp: stepUpVerifier,
 		SecurityPolicy: securitySettingsService,
 	})
 	c.Integrations = integrationService
-	integrationHandler := integrationsfeature.NewHandler(integrationService, c.Authorizer)
+	integrationHandler := integrationshttp.NewHandler(integrationService, c.Authorizer)
 
 	// Section 10: the organization-member layer. One person, several provider
 	// identities, each still owned by the service that issued it. The authority
@@ -947,7 +950,7 @@ func allowedFleetPartnerCallers(cfg config.Config) []string {
 func (c *Components) OrganizationAPIRoutes() RouteRegistrar {
 	return func(group *gin.RouterGroup) {
 		if c.Integrations != nil {
-			integrationsfeature.NewHandler(c.Integrations, nil).RegisterOrganizationAPIRoutes(group)
+			integrationshttp.NewHandler(c.Integrations, nil).RegisterOrganizationAPIRoutes(group)
 		}
 	}
 }
@@ -956,7 +959,7 @@ func (c *Components) OrganizationAPIAuth() gin.HandlerFunc {
 	if c.Integrations == nil {
 		return func(ctx *gin.Context) { ctx.AbortWithStatus(503) }
 	}
-	return c.Integrations.ClientAuthMiddleware(integrationsfeature.ScopeIntegrationContextRead)
+	return integrationshttp.ClientAuthMiddleware(c.Integrations, integrationsmodels.ScopeIntegrationContextRead)
 }
 
 // CustomerRoutes mounts the unauthenticated customer quotation routes.

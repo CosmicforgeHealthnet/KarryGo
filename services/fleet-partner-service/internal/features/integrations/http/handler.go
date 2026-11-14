@@ -1,6 +1,12 @@
-package integrations
+// Package http serves the Section 55 integration management routes, the
+// organization API-client routes and the client credential middleware.
+package http
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -9,19 +15,50 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/auth"
+	"cosmicforge/logistics/shared/go/httpx"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
+// Permissions guarding the management routes.
+const (
+	PermissionIntegrationsRead   = "integrations.read"
+	PermissionIntegrationsManage = "integrations.manage"
+	PermissionWebhooksManage     = "webhooks.manage"
+)
+
+// Service is the slice of the integration use cases the handler calls.
+type Service interface {
+	ListAPIClients(ctx context.Context, organizationID string) ([]models.APIClient, error)
+	CreateAPIClient(ctx context.Context, actor models.Actor, in models.CreateAPIClientInput) (models.APIClient, string, bool, error)
+	RotateAPIClient(ctx context.Context, actor models.Actor, id string, expected int64, idempotencyKey string, overlap time.Duration) (models.APIClient, string, bool, error)
+	RevokeAPIClient(ctx context.Context, actor models.Actor, id string, expected int64, key string) (models.APIClient, bool, error)
+	ListWebhooks(ctx context.Context, org string) ([]models.WebhookSubscription, error)
+	CreateWebhook(ctx context.Context, actor models.Actor, in models.CreateWebhookInput) (models.WebhookSubscription, string, bool, error)
+	UpdateWebhook(ctx context.Context, actor models.Actor, id string, in models.UpdateWebhookInput) (models.WebhookSubscription, bool, error)
+	RotateWebhookSecret(ctx context.Context, actor models.Actor, id string, expected int64, key string, overlap time.Duration) (models.WebhookSubscription, string, bool, error)
+	ListDeliveries(ctx context.Context, org, subscriptionID string) ([]models.WebhookDelivery, error)
+	ReplayDelivery(ctx context.Context, actor models.Actor, deliveryID, key string) (models.WebhookDelivery, bool, error)
+}
+
+// Authenticator is the use case the client credential middleware calls.
+type Authenticator interface {
+	Authenticate(ctx context.Context, clientID, secret, sourceIP, requiredScope, requestID, correlationID string) (models.AuthenticatedClient, error)
+	RecordAuthOutcome(class string)
+}
+
+// Handler serves the integration routes.
 type Handler struct {
-	service    *Service
+	service    Service
 	authorizer *accesscontrol.Authorizer
 }
 
-func NewHandler(service *Service, authorizer *accesscontrol.Authorizer) *Handler {
+// NewHandler builds the handler.
+func NewHandler(service Service, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{service: service, authorizer: authorizer}
 }
 
@@ -63,9 +100,9 @@ func (h *Handler) tenantAndAuthorize(c *gin.Context, permission string) (tenant.
 	}
 	return t, true
 }
-func actorFrom(c *gin.Context, t tenant.Context, step string) Actor {
+func actorFrom(c *gin.Context, t tenant.Context, step string) models.Actor {
 	claims, _ := auth.ClaimsFromContext(c)
-	return Actor{Tenant: t, IdentityID: claims.Subject, SessionID: claims.SessionID, StepUpReference: step}
+	return models.Actor{Tenant: t, IdentityID: claims.Subject, SessionID: claims.SessionID, StepUpReference: step}
 }
 func bind(c *gin.Context, value any) bool {
 	if c.ShouldBindJSON(value) != nil {
@@ -83,13 +120,13 @@ func versionFrom(c *gin.Context, body int64) int64 {
 	return body
 }
 
-func apiClientResponse(c APIClient) map[string]any {
+func apiClientResponse(c models.APIClient) map[string]any {
 	return map[string]any{"id": c.ID, "organizationId": c.OrganizationID, "name": c.Name, "clientId": c.ClientID, "scopes": c.Scopes, "ipAllowlist": c.IPAllowlist, "status": c.Status, "expiresAt": c.ExpiresAt, "lastUsedAt": c.LastUsedAt, "rotatedAt": c.RotatedAt, "revokedAt": c.RevokedAt, "secretVersion": c.SecretVersion, "version": c.Version, "createdAt": c.CreatedAt, "updatedAt": c.UpdatedAt}
 }
-func webhookResponse(s WebhookSubscription) map[string]any {
+func webhookResponse(s models.WebhookSubscription) map[string]any {
 	return map[string]any{"id": s.ID, "organizationId": s.OrganizationID, "endpointUrl": s.EndpointURL, "eventTypes": s.EventTypes, "status": s.Status, "failureCount": s.FailureCount, "disabledAt": s.DisabledAt, "secretVersion": s.SecretVersion, "version": s.Version, "createdAt": s.CreatedAt, "updatedAt": s.UpdatedAt}
 }
-func deliveryResponse(d WebhookDelivery) map[string]any {
+func deliveryResponse(d models.WebhookDelivery) map[string]any {
 	return map[string]any{"id": d.ID, "organizationId": d.OrganizationID, "subscriptionId": d.SubscriptionID, "eventId": d.SourceEventID, "eventType": d.EventType, "attempt": d.AttemptNo, "status": d.Status, "responseStatus": d.ResponseStatus, "responseExcerpt": d.ResponseExcerpt, "scheduledAt": d.ScheduledAt, "deliveredAt": d.DeliveredAt, "nextAttemptAt": d.NextAttemptAt, "errorClass": d.ErrorClass, "errorCode": d.ErrorCode, "correlationId": d.CorrelationID, "replayOfDeliveryId": d.ReplayOfDeliveryID, "version": d.Version, "createdAt": d.CreatedAt, "updatedAt": d.UpdatedAt}
 }
 
@@ -124,7 +161,7 @@ func (h *Handler) createAPIClient(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
-	item, secret, replay, err := h.service.CreateAPIClient(c, actorFrom(c, t, body.StepUpReference), CreateAPIClientInput{Name: body.Name, Scopes: body.Scopes, IPAllowlist: body.IPAllowlist, ExpiresAt: body.ExpiresAt, IdempotencyKey: c.GetHeader("Idempotency-Key")})
+	item, secret, replay, err := h.service.CreateAPIClient(c, actorFrom(c, t, body.StepUpReference), models.CreateAPIClientInput{Name: body.Name, Scopes: body.Scopes, IPAllowlist: body.IPAllowlist, ExpiresAt: body.ExpiresAt, IdempotencyKey: c.GetHeader("Idempotency-Key")})
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -205,7 +242,7 @@ func (h *Handler) createWebhook(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
-	item, secret, replay, err := h.service.CreateWebhook(c, actorFrom(c, t, body.StepUpReference), CreateWebhookInput{EndpointURL: body.EndpointURL, EventTypes: body.EventTypes, IdempotencyKey: c.GetHeader("Idempotency-Key")})
+	item, secret, replay, err := h.service.CreateWebhook(c, actorFrom(c, t, body.StepUpReference), models.CreateWebhookInput{EndpointURL: body.EndpointURL, EventTypes: body.EventTypes, IdempotencyKey: c.GetHeader("Idempotency-Key")})
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -230,7 +267,7 @@ func (h *Handler) updateWebhook(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
-	item, _, err := h.service.UpdateWebhook(c, actorFrom(c, t, body.StepUpReference), c.Param("id"), UpdateWebhookInput{EndpointURL: body.EndpointURL, EventTypes: body.EventTypes, Status: body.Status, ExpectedVersion: versionFrom(c, body.ExpectedVersion), IdempotencyKey: c.GetHeader("Idempotency-Key")})
+	item, _, err := h.service.UpdateWebhook(c, actorFrom(c, t, body.StepUpReference), c.Param("id"), models.UpdateWebhookInput{EndpointURL: body.EndpointURL, EventTypes: body.EventTypes, Status: body.Status, ExpectedVersion: versionFrom(c, body.ExpectedVersion), IdempotencyKey: c.GetHeader("Idempotency-Key")})
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -302,4 +339,53 @@ func (h *Handler) organizationContext(c *gin.Context) {
 		return
 	}
 	respond.OK(c, map[string]any{"organizationId": t.OrganizationID, "apiClientId": t.ActorID, "scopes": c.MustGet("organization_api_client_scopes")})
+}
+
+// ClientAuthMiddleware resolves the organization exclusively from the API
+// credential. Organization identifiers supplied in headers, query or JSON
+// bodies are rejected rather than allowed to override that trusted scope.
+func ClientAuthMiddleware(s Authenticator, requiredScope string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		clientID, secret, ok := c.Request.BasicAuth()
+		if !ok || strings.TrimSpace(clientID) == "" || secret == "" {
+			s.RecordAuthOutcome("malformed_authorization")
+			respond.Error(c, apperrors.Unauthorized("Client authentication is required.", nil))
+			return
+		}
+		if c.GetHeader("X-Organization-ID") != "" || c.Query("organizationId") != "" || bodyContainsOrganizationID(c) {
+			s.RecordAuthOutcome("organization_override_denied")
+			respond.Error(c, apperrors.Forbidden("Organization scope is derived from the client credential.", nil))
+			return
+		}
+		resolved, err := s.Authenticate(c, clientID, secret, c.ClientIP(), requiredScope, httpx.GetRequestID(c), middleware.GetCorrelationID(c))
+		if err != nil {
+			respond.Error(c, err)
+			return
+		}
+		t := tenant.Context{OrganizationID: resolved.OrganizationID, ActorType: tenant.ActorTypeOrganizationAPIClient,
+			ActorID: resolved.APIClientID, RequestID: httpx.GetRequestID(c), CorrelationID: middleware.GetCorrelationID(c)}
+		c.Set(middleware.TenantContextKey, t)
+		c.Set(middleware.TenantOrganizationIDKey, t.OrganizationID)
+		c.Set("organization_api_client_id", resolved.APIClientID)
+		c.Set("organization_api_client_scopes", resolved.Scopes)
+		c.Request = c.Request.WithContext(tenant.Into(c.Request.Context(), t))
+		c.Next()
+	}
+}
+
+func bodyContainsOrganizationID(c *gin.Context) bool {
+	if c.Request.Body == nil || c.Request.ContentLength == 0 {
+		return false
+	}
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return true
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+	var value map[string]json.RawMessage
+	if json.Unmarshal(raw, &value) != nil {
+		return false
+	}
+	_, exists := value["organizationId"]
+	return exists
 }
