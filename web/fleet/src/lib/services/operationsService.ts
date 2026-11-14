@@ -13,17 +13,29 @@ import type {
   LeadHistoryEntry,
   LeadInput,
   LeadPatch,
+  Manifest,
+  ManifestDetail,
+  ManifestInput,
+  ManifestItem,
+  ManifestPatch,
   OpenRescueInput,
   Order,
   OrderHistoryEntry,
   OrderInput,
+  OrderImport,
+  OrderImportDetail,
   OrderPatch,
   OrderStop,
   PackageView,
   Page,
+  PrivateAssignment,
+  RecurringOrderInput,
+  RecurringOrderTemplate,
   RescueCase,
   RescueReplacementInput,
+  ServiceCatalogInput,
   ServiceCatalogItem,
+  ServiceCatalogPatch,
   Shipment,
   SpecializedRecord,
 } from '@/lib/types/operations';
@@ -222,5 +234,146 @@ export const tripService = {
   },
   async get(tripId: string): Promise<CorporateTripDetail> {
     return (await apiClient.get<{ data: CorporateTripDetail }>(`/marketplace/trips/${enc(tripId)}`)).data.data;
+  },
+};
+
+// Service catalogue (Section 15.1). Create and lifecycle commands are
+// idempotent; edits and lifecycle commands carry the version the user saw.
+export const serviceCatalogService = {
+  async list(params: { status?: string; category?: string; cursor?: string; limit?: number } = {}): Promise<Page<ServiceCatalogItem>> {
+    return page((await apiClient.get<ListEnvelope<ServiceCatalogItem>>(`/service-catalog${query(params)}`)).data);
+  },
+  async get(serviceId: string): Promise<ServiceCatalogItem> {
+    return (await apiClient.get<{ data: ServiceCatalogItem }>(`/service-catalog/${enc(serviceId)}`)).data.data;
+  },
+  async create(input: ServiceCatalogInput, idempotencyKey: string): Promise<ServiceCatalogItem> {
+    return (await apiClient.post<{ data: ServiceCatalogItem }>('/service-catalog', input, commandHeaders({ idempotencyKey }))).data.data;
+  },
+  async update(serviceId: string, patch: ServiceCatalogPatch, expectedVersion: number): Promise<ServiceCatalogItem> {
+    const res = await apiClient.patch<{ data: ServiceCatalogItem }>(`/service-catalog/${enc(serviceId)}`, patch, commandHeaders({ expectedVersion }));
+    return res.data.data;
+  },
+  async command(
+    serviceId: string,
+    command: 'activate' | 'deactivate' | 'archive',
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<ServiceCatalogItem> {
+    const res = await apiClient.post<{ data: ServiceCatalogItem }>(
+      `/service-catalog/${enc(serviceId)}/${command}`,
+      { expectedVersion },
+      commandHeaders({ idempotencyKey, expectedVersion }),
+    );
+    return res.data.data;
+  },
+};
+
+// Manifests (Section 15.7).
+export const manifestService = {
+  async list(params: { status?: string; branchId?: string } = {}): Promise<Manifest[]> {
+    return (await apiClient.get<{ data: Manifest[] | null }>(`/manifests${query(params)}`)).data.data ?? [];
+  },
+  async get(manifestId: string): Promise<ManifestDetail> {
+    return (await apiClient.get<{ data: ManifestDetail }>(`/manifests/${enc(manifestId)}`)).data.data;
+  },
+  async create(input: ManifestInput, idempotencyKey: string): Promise<Manifest> {
+    return (await apiClient.post<{ data: Manifest }>('/manifests', input, commandHeaders({ idempotencyKey }))).data.data;
+  },
+  async update(manifestId: string, patch: ManifestPatch, expectedVersion: number): Promise<Manifest> {
+    const res = await apiClient.patch<{ data: Manifest }>(
+      `/manifests/${enc(manifestId)}`,
+      { ...patch, expectedVersion },
+      commandHeaders({ expectedVersion }),
+    );
+    return res.data.data;
+  },
+  async addItem(manifestId: string, itemType: string, itemId: string, idempotencyKey: string): Promise<ManifestItem> {
+    const res = await apiClient.post<{ data: ManifestItem }>(
+      `/manifests/${enc(manifestId)}/items`,
+      { itemType, itemId },
+      commandHeaders({ idempotencyKey }),
+    );
+    return res.data.data;
+  },
+  async close(manifestId: string, expectedVersion: number, idempotencyKey: string): Promise<Manifest> {
+    const res = await apiClient.post<{ data: { manifest: Manifest } }>(
+      `/manifests/${enc(manifestId)}/close`,
+      { expectedVersion },
+      commandHeaders({ idempotencyKey, expectedVersion }),
+    );
+    return res.data.data.manifest;
+  },
+  async amendSeal(manifestId: string, sealNumber: string, reasonCode: string, expectedVersion: number, idempotencyKey: string): Promise<Manifest> {
+    const res = await apiClient.post<{ data: Manifest }>(
+      `/manifests/${enc(manifestId)}/seal-amendments`,
+      { sealNumber, reasonCode, expectedVersion },
+      commandHeaders({ idempotencyKey, expectedVersion }),
+    );
+    return res.data.data;
+  },
+  async cancel(manifestId: string, reasonCode: string, expectedVersion: number, idempotencyKey: string): Promise<Manifest> {
+    const res = await apiClient.post<{ data: Manifest }>(
+      `/manifests/${enc(manifestId)}/cancel`,
+      { reasonCode, expectedVersion },
+      commandHeaders({ idempotencyKey, expectedVersion }),
+    );
+    return res.data.data;
+  },
+};
+
+// Recurring order templates (Section 15.9). The backend offers activate,
+// deactivate and replay (a dead-lettered occurrence); there is no cancel.
+export const recurringOrderService = {
+  async list(params: { status?: string } = {}): Promise<RecurringOrderTemplate[]> {
+    return (await apiClient.get<{ data: RecurringOrderTemplate[] | null }>(`/recurring-orders${query(params)}`)).data.data ?? [];
+  },
+  async get(templateId: string): Promise<RecurringOrderTemplate> {
+    return (await apiClient.get<{ data: RecurringOrderTemplate }>(`/recurring-orders/${enc(templateId)}`)).data.data;
+  },
+  async create(input: RecurringOrderInput, idempotencyKey: string): Promise<RecurringOrderTemplate> {
+    return (await apiClient.post<{ data: RecurringOrderTemplate }>('/recurring-orders', input, commandHeaders({ idempotencyKey }))).data.data;
+  },
+  async setActive(templateId: string, active: boolean, expectedVersion: number, idempotencyKey: string): Promise<RecurringOrderTemplate> {
+    const res = await apiClient.post<{ data: RecurringOrderTemplate }>(
+      `/recurring-orders/${enc(templateId)}/${active ? 'activate' : 'deactivate'}`,
+      { expectedVersion },
+      commandHeaders({ idempotencyKey, expectedVersion }),
+    );
+    return res.data.data;
+  },
+  async replay(templateId: string, idempotencyKey: string): Promise<void> {
+    await apiClient.post(`/recurring-orders/${enc(templateId)}/replay`, {}, commandHeaders({ idempotencyKey }));
+  },
+};
+
+// Order imports (Section 15.8, the /orders/imports surface).
+export const orderImportService = {
+  async list(): Promise<OrderImport[]> {
+    return (await apiClient.get<{ data: OrderImport[] | null }>('/orders/imports')).data.data ?? [];
+  },
+  async get(importId: string): Promise<OrderImportDetail> {
+    return (await apiClient.get<{ data: OrderImportDetail }>(`/orders/imports/${enc(importId)}`)).data.data;
+  },
+  async create(input: { branchId: string; mediaFileId: string; fileFormat: string }, idempotencyKey: string): Promise<OrderImport> {
+    return (await apiClient.post<{ data: OrderImport }>('/orders/imports', input, commandHeaders({ idempotencyKey }))).data.data;
+  },
+  async cancel(importId: string, expectedVersion: number, idempotencyKey: string): Promise<OrderImport> {
+    const res = await apiClient.post<{ data: OrderImport }>(
+      `/orders/imports/${enc(importId)}/cancel`,
+      { expectedVersion },
+      commandHeaders({ idempotencyKey, expectedVersion }),
+    );
+    return res.data.data;
+  },
+  async replay(importId: string, idempotencyKey: string): Promise<void> {
+    await apiClient.post(`/orders/imports/${enc(importId)}/replay`, {}, commandHeaders({ idempotencyKey }));
+  },
+};
+
+// Private (company-provider) assignments. The list is capped at 100 rows and
+// has no order filter, so callers narrow it client-side.
+export const privateAssignmentService = {
+  async list(params: { status?: string } = {}): Promise<PrivateAssignment[]> {
+    return (await apiClient.get<{ data: PrivateAssignment[] | null }>(`/private-assignments${query(params)}`)).data.data ?? [];
   },
 };

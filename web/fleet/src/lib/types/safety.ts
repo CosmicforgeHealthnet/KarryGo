@@ -142,3 +142,35 @@ export interface Restriction {
   ClearanceReason: string;
   CreatedAt: string;
 }
+
+// Compliance status of one subject against one requirement (serialized with
+// Go field names). States: UNKNOWN, PENDING, COMPLIANT, DUE_SOON, EXPIRED,
+// NON_COMPLIANT, RESTRICTED.
+export interface ComplianceStatus {
+  ID: string;
+  SubjectType: string;
+  SubjectReference: string;
+  RequirementID: string;
+  State: string;
+  DueAt: string | null;
+  ExpiresAt: string | null;
+  SourceType: string;
+  SourceReference: string;
+  SourceVersion: number;
+  EvaluatedAt: string;
+  ReasonCodes: unknown;
+  RestrictionReference: string;
+  Version: number;
+}
+
+export interface ComplianceRequirement {
+  ID: string;
+  Code: string;
+  Name: string;
+  SubjectType: string;
+  RequirementType: string;
+  RequiredDocumentType: string;
+  Severity: string;
+  BlocksOperation: boolean;
+  Status: string;
+}

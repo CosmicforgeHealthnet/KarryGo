@@ -1,14 +1,28 @@
 import apiClient from '@/lib/api/client';
 import type {
+  AssetReference,
   CreateMaintenanceScheduleInput,
   CreateWorkOrderInput,
   MaintenanceSchedule,
+  MaintenanceScheduleRecord,
   UpdateMaintenanceScheduleInput,
   WorkActionInput,
   WorkOrder,
 } from '@/lib/types/maintenance';
 
 export const maintenanceService = {
+  // Schedule list with the field names the server actually sends.
+  async listScheduleRecords(): Promise<MaintenanceScheduleRecord[]> {
+    const res = await apiClient.get<{ data: MaintenanceScheduleRecord[] | null }>('/maintenance/schedules');
+    return res.data.data ?? [];
+  },
+
+  // Asset codes and branches used to label schedule rows (first 200 assets).
+  async listAssetReferences(): Promise<AssetReference[]> {
+    const res = await apiClient.get<{ data: AssetReference[] | null }>('/assets?limit=200');
+    return res.data.data ?? [];
+  },
+
   async listSchedules(): Promise<MaintenanceSchedule[]> {
     const res = await apiClient.get<{ data: MaintenanceSchedule[] }>(
       '/maintenance/schedules',
