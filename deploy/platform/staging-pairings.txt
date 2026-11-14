@@ -4,6 +4,7 @@
 #   PAIR <caller> <callee>              shared HMAC secret, generated on the server
 #   SET  <service> NAME=true|false
 #   URL  <service> NAME=http://karrygo-<container>:<port>
+#   CALLERS <service> NAME_CALLERS=<known service>,<known service>
 # No secret is ever written here.
 
 # Company activation (Fleet ADR-006): Fleet submits companies to Verification
@@ -32,3 +33,29 @@ SET fleet-partner-service WALLET_RECONCILIATION_ENABLED=true
 # provisioned through the pair above; then set it to false. Refused in
 # production by Fleet's configuration validation.
 SET fleet-partner-service FLEET_ACTIVATION_WALLET_GATE_WAIVED=true
+
+# Managed providers (spec 10) and marketplace work (spec 11-12) with Hauling
+# and Taxi. Dispatch is not paired here: its deploys are held behind the
+# reviewed migration-070 transition (deploy/platform/bin/deploy-service.sh).
+PAIR fleet-partner-service driver-hauling-service
+PAIR fleet-partner-service driver-taxi-service
+PAIR driver-hauling-service fleet-partner-service
+PAIR driver-taxi-service fleet-partner-service
+URL fleet-partner-service FLEET_PARTNER_HAULING_SERVICE_BASE_URL=http://karrygo-hauling-service:8104
+URL fleet-partner-service FLEET_PARTNER_TAXI_SERVICE_BASE_URL=http://karrygo-taxi-service:8102
+URL driver-hauling-service HAULING_FLEET_EVENT_URL=http://karrygo-fleet-partner-api:8113
+URL driver-taxi-service FLEET_PARTNER_SERVICE_URL=http://karrygo-fleet-partner-api:8113
+SET fleet-partner-service FLEET_HAULING_INTEGRATION_ENABLED=true
+SET fleet-partner-service FLEET_TAXI_INTEGRATION_ENABLED=true
+SET fleet-partner-service FLEET_TAXI_MANAGED_PROVIDERS_ENABLED=true
+SET fleet-partner-service FLEET_MARKETPLACE_EVENT_INGESTION_ENABLED=true
+CALLERS fleet-partner-service FLEET_MARKETPLACE_ALLOWED_CALLERS=driver-hauling-service,driver-taxi-service,driver-dispatch-delivery-service
+SET fleet-partner-service ASSIGNMENT_EXPIRY_WORKER_ENABLED=true
+SET fleet-partner-service REASSIGNMENT_WORKER_ENABLED=true
+SET fleet-partner-service FLEET_MARKETPLACE_RECONCILIATION_ENABLED=true
+SET driver-hauling-service HAULING_FLEET_INTEGRATION_ENABLED=true
+SET driver-hauling-service HAULING_FLEET_MARKETPLACE_FEED_ENABLED=true
+SET driver-hauling-service HAULING_OUTBOX_WORKER_ENABLED=true
+SET driver-taxi-service TAXI_ORGANIZATION_PROVIDERS_ENABLED=true
+SET driver-taxi-service TAXI_FLEET_MARKETPLACE_FEED_ENABLED=true
+SET driver-taxi-service TAXI_FLEET_MANAGED_EXECUTION_ENABLED=true

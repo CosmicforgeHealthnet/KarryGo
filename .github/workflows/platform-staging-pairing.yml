@@ -60,4 +60,11 @@ jobs:
           printf '%s\n' "$KEY" > "$scratch/key"
           printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
           desired=$(base64 -w0 deploy/platform/staging-pairings.txt)
-          ssh -T -i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$scratch/known_hosts" -o ConnectTimeout=12 "$USER_@$HOST" bash -se -- "$desired" < scripts/platform/staging-pairing.sh
+          ssh -T -i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$scratch/known_hosts" -o ConnectTimeout=12 "$USER_@$HOST" bash -se -- "$desired" < scripts/platform/staging-pairing.sh | tee "$scratch/pairing.out"
+          # Services whose settings file is unsafe were left untouched (their
+          # pairings dropped, everything else applied); fail visibly with the
+          # owner action the script printed.
+          if grep -q '^BLOCKED: ' "$scratch/pairing.out"; then
+            grep '^BLOCKED: ' "$scratch/pairing.out" | sed 's/^/::error::/'
+            exit 1
+          fi

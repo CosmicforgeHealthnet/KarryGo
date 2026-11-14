@@ -10,6 +10,7 @@
 #   SET  <service> NAME=true|false      an on/off setting
 #   URL  <service> NAME=http://karrygo-<container>:<port>
 #                                       an internal service address
+#   CALLERS <service> NAME_CALLERS=a,b  a list of known service identities
 #
 # A pair is left alone when both sides already agree; otherwise a new secret
 # is generated and written to both settings files. Secret values are never
@@ -29,7 +30,12 @@ FILES = {
     "fleet-partner-service": "/opt/karrygo/fleet-partner-service/fleet.service.env",
     "verification-compliance-service": "/opt/karrygo/verification-service/verification.env",
     "payment-wallet-service": "/opt/karrygo/payment-wallet-service/wallet.env",
+    "driver-hauling-service": "/opt/karrygo/hauling-service/hauling.env",
+    "driver-taxi-service": "/opt/karrygo/taxi-service/taxi.env",
 }
+# Service identities that may appear in a CALLERS list.
+KNOWN_CALLERS = {"fleet-partner-service", "verification-compliance-service", "payment-wallet-service",
+                 "driver-hauling-service", "driver-taxi-service", "driver-dispatch-delivery-service"}
 # (caller, callee) -> where each side keeps the shared secret.
 #   caller_var: the caller's single secret setting
 #   callee_list: the callee's "name=secret,..." list the caller is added to
@@ -44,6 +50,20 @@ PAIRS = {
     ("fleet-partner-service", "payment-wallet-service"): {
         "caller_var": "FLEET_PARTNER_PAYMENT_WALLET_SERVICE_SECRET",
         "callee_list": "PAYMENT_WALLET_SERVICE_SECRETS"},
+    # Fleet -> Hauling / Taxi internal provider, execution and work APIs.
+    ("fleet-partner-service", "driver-hauling-service"): {
+        "caller_var": "FLEET_PARTNER_HAULING_SERVICE_SECRET",
+        "callee_list": "HAULING_SERVICE_SECRETS"},
+    ("fleet-partner-service", "driver-taxi-service"): {
+        "caller_var": "FLEET_PARTNER_TAXI_SERVICE_SECRET",
+        "callee_list": "TAXI_SERVICE_SECRETS"},
+    # Hauling / Taxi -> Fleet marketplace and trip events.
+    ("driver-hauling-service", "fleet-partner-service"): {
+        "caller_var": "HAULING_FLEET_EVENT_SECRET",
+        "callee_list": "FLEET_PARTNER_SERVICE_SECRETS"},
+    ("driver-taxi-service", "fleet-partner-service"): {
+        "caller_var": "FLEET_PARTNER_SERVICE_SECRET",
+        "callee_list": "FLEET_PARTNER_SERVICE_SECRETS"},
     # Wallet -> Fleet finance events (wallet/payment projections).
     ("payment-wallet-service", "fleet-partner-service"): {
         "caller_var": "PAYMENT_WALLET_FINANCE_OUTBOX_SECRET",
@@ -58,6 +78,9 @@ for raw in sys.argv[1].splitlines():
     if parts[0] == "PAIR" and len(parts) == 3 and (parts[1], parts[2]) in PAIRS:
         plan["pairs"].append({"caller": parts[1], "callee": parts[2], **PAIRS[(parts[1], parts[2])]})
     elif parts[0] == "SET" and len(parts) == 3 and parts[1] in FILES and re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}=(true|false)", parts[2]):
+        plan["sets"].append({"service": parts[1], "line": parts[2]})
+    elif parts[0] == "CALLERS" and len(parts) == 3 and parts[1] in FILES and re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}_CALLERS=[a-z-]+(,[a-z-]+)*", parts[2]) \
+            and all(name in KNOWN_CALLERS for name in parts[2].split("=", 1)[1].split(",")):
         plan["sets"].append({"service": parts[1], "line": parts[2]})
     elif parts[0] == "URL" and len(parts) == 3 and parts[1] in FILES and re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}_URL=http://karrygo-[a-z0-9-]+:[0-9]{2,5}", parts[2]):
         plan["urls"].append({"service": parts[1], "line": parts[2]})
@@ -82,11 +105,52 @@ PY
 )"
 [[ -n "$touched" ]] || { echo '== Nothing requested'; exit 0; }
 
+# A settings file that is missing, a link, not mode 600 or not owned by this
+# account is never touched or loosened. Every request involving that service
+# is dropped (both sides of a pair, so nothing is half-paired), the rest is
+# applied, and the service is reported as BLOCKED so the workflow fails
+# visibly with the exact owner action.
+blocked=""
+for service in $touched; do
+  file="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["files"][sys.argv[2]])' "$plan_file" "$service")"
+  reason=""
+  if [[ ! -f "$file" || -L "$file" ]]; then
+    reason="settings file missing or a link"
+  elif [[ "$(stat -c %a "$file")" != 600 || "$(stat -c %u "$file")" != "$(id -u)" ]]; then
+    reason="settings file is not mode 600 owned by $(id -un) (owner $(stat -c %U "$file"), mode $(stat -c %a "$file")). Owner action, as root: chown $(id -un):$(id -gn) $file && chmod 600 $file"
+  fi
+  if [[ -n "$reason" ]]; then
+    echo "BLOCKED: $service: $reason"
+    blocked="$blocked $service"
+  fi
+done
+if [[ -n "$blocked" ]]; then
+  python3 - "$plan_file" $blocked <<'PY'
+import json, sys
+path, blocked = sys.argv[1], set(sys.argv[2:])
+plan = json.load(open(path))
+plan["pairs"] = [p for p in plan["pairs"] if p["caller"] not in blocked and p["callee"] not in blocked]
+plan["sets"] = [x for x in plan["sets"] if x["service"] not in blocked]
+plan["urls"] = [x for x in plan["urls"] if x["service"] not in blocked]
+json.dump(plan, open(path, "w"))
+PY
+  touched="$(python3 - "$plan_file" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+services = set()
+for p in plan["pairs"]:
+    services.update([p["caller"], p["callee"]])
+for item in plan["sets"] + plan["urls"]:
+    services.add(item["service"])
+print(" ".join(sorted(services)))
+PY
+)"
+  [[ -n "$touched" ]] || { echo '== Nothing left to apply'; exit 0; }
+fi
+
 declare -A backups paths
 for service in $touched; do
   file="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["files"][sys.argv[2]])' "$plan_file" "$service")"
-  [[ -f "$file" && ! -L "$file" ]] || { echo "Settings file for $service missing or unsafe"; exit 1; }
-  [[ "$(stat -c %a "$file")" == 600 && "$(stat -c %u "$file")" == "$(id -u)" ]] || { echo "Settings file for $service has unsafe ownership or mode"; exit 1; }
   paths[$service]="$file"
   backups[$service]="$(mktemp "${file}.pairing-backup.XXXXXXXX")"
   cp -p -- "$file" "${backups[$service]}"
