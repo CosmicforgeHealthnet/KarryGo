@@ -251,13 +251,14 @@ func (r *Repository) InsertCompletedWork(ctx context.Context, q database.Querier
 	}
 	err := r.q(q).QueryRow(ctx, `
 		INSERT INTO fleet_partner_completed_work_records
-		(id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,work_type,completed_at,currency,eligible_basis_minor,source_version,ingestion_status,request_fingerprint,idempotency_key,correlation_id,version)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,1)
+		(id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,work_type,completed_at,currency,eligible_basis_minor,source_version,ingestion_status,request_fingerprint,idempotency_key,correlation_id,version,payment_source_reference)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,1,$17)
 		RETURNING created_at`,
 		record.ID, record.OrganizationID, record.MembershipID, record.ProviderID, record.SourceService,
 		record.SourceJobID, record.SourceAssignmentID, record.WorkType, record.CompletedAt,
 		record.Currency, record.EligibleBasisMinor, record.SourceVersion, record.IngestionStatus,
-		record.RequestFingerprint, record.IdempotencyKey, record.CorrelationID).Scan(&record.CreatedAt)
+		record.RequestFingerprint, record.IdempotencyKey, record.CorrelationID,
+		record.PaymentSourceReference).Scan(&record.CreatedAt)
 	if err == nil {
 		return record, false, nil
 	}
@@ -276,7 +277,7 @@ func (r *Repository) InsertCompletedWork(ctx context.Context, q database.Querier
 }
 
 func (r *Repository) CompletedWorkByIdempotency(ctx context.Context, organizationID, key string) (CompletedWorkRecord, error) {
-	row := r.db.QueryRow(ctx, `SELECT id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,work_type,completed_at,currency,eligible_basis_minor,source_version,ingestion_status,request_fingerprint,idempotency_key,correlation_id,version,created_at FROM fleet_partner_completed_work_records WHERE organization_id=$1 AND idempotency_key=$2`, organizationID, key)
+	row := r.db.QueryRow(ctx, `SELECT id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,work_type,completed_at,currency,eligible_basis_minor,source_version,ingestion_status,request_fingerprint,idempotency_key,correlation_id,version,created_at,payment_source_reference FROM fleet_partner_completed_work_records WHERE organization_id=$1 AND idempotency_key=$2`, organizationID, key)
 	return scanCompletedWork(row)
 }
 
@@ -312,14 +313,14 @@ func (r *Repository) InsertSettlementInstruction(ctx context.Context, q database
 	visibility, _ := json.Marshal(in.VisibilityPolicySnapshot)
 	err := r.q(q).QueryRow(ctx, `
 		INSERT INTO fleet_partner_managed_work_settlement_instructions
-		(instruction_id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,compensation_plan_id,compensation_plan_version,compensation_resolution_version,gross_basis_minor,provider_share_minor,organization_share_minor,platform_share_minor,currency,visibility_policy_snapshot,status,idempotency_key,request_fingerprint,version)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,1)
+		(instruction_id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,compensation_plan_id,compensation_plan_version,compensation_resolution_version,gross_basis_minor,provider_share_minor,organization_share_minor,platform_share_minor,currency,visibility_policy_snapshot,status,idempotency_key,request_fingerprint,version,payment_source_reference)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,1,$20)
 		RETURNING created_at`,
 		in.InstructionID, in.OrganizationID, in.MembershipID, in.ProviderID, in.SourceService,
 		in.SourceJobID, in.SourceAssignmentID, in.CompensationPlanID, in.CompensationPlanVersion,
 		in.CompensationResolutionVersion, in.GrossBasisMinor, in.ProviderShareMinor,
 		in.OrganizationShareMinor, in.PlatformShareMinor, in.Currency, visibility, in.Status,
-		in.IdempotencyKey, in.RequestFingerprint).Scan(&in.CreatedAt)
+		in.IdempotencyKey, in.RequestFingerprint, in.PaymentSourceReference).Scan(&in.CreatedAt)
 	if err == nil {
 		return in, false, nil
 	}
@@ -335,7 +336,7 @@ func scanCompletedWork(row pgx.Row) (CompletedWorkRecord, error) {
 	err := row.Scan(&r.ID, &r.OrganizationID, &r.MembershipID, &r.ProviderID, &r.SourceService,
 		&r.SourceJobID, &r.SourceAssignmentID, &r.WorkType, &r.CompletedAt, &r.Currency,
 		&r.EligibleBasisMinor, &r.SourceVersion, &r.IngestionStatus, &r.RequestFingerprint,
-		&r.IdempotencyKey, &r.CorrelationID, &r.Version, &r.CreatedAt)
+		&r.IdempotencyKey, &r.CorrelationID, &r.Version, &r.CreatedAt, &r.PaymentSourceReference)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CompletedWorkRecord{}, ErrNotFound
 	}

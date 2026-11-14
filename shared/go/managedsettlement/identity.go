@@ -43,3 +43,58 @@ func (i Identity) Key() string { return i.SourceService + ":" + i.SourceJobID }
 func (c Client) Lookup(ctx context.Context, identity Identity) (Outcome, error) {
 	return c.ForJob(ctx, identity.SourceService, identity.SourceJobID)
 }
+
+// paymentSourceServices is, for each canonical execution service, every
+// source_service spelling its payment intents are created under in
+// payment-wallet-service.
+//
+// The settlement identity and the payment identity are deliberately different
+// things. The settlement identity is canonical (TAXI, DISPATCH, HAULING plus
+// the service's own job id) because Fleet, Wallet and the execution service
+// must all name a settlement the same way. The payment intent, though, was
+// created long before -- by the execution service, under the name it was
+// provisioned with in Wallet -- and those names are neither canonical nor
+// uniform: Taxi pays as "taxi-service", Dispatch as
+// "dispatch-delivery-service", Hauling as "driver-hauling-service". The
+// directory-style spellings and the canonical lower-case name are listed too,
+// so an intent created under any of them resolves.
+//
+// The list is closed on purpose. Wallet resolves a canonical settlement to a
+// payment only through this table, and refuses when more than one intent
+// matches, so widening it can never make a settlement pick between two
+// payments -- it can only make a payment findable.
+var paymentSourceServices = map[string][]string{
+	SourceTaxi:     {"taxi-service", "driver-taxi-service", "taxi"},
+	SourceDispatch: {"dispatch-delivery-service", "driver-dispatch-delivery-service", "dispatch"},
+	SourceHauling:  {"driver-hauling-service", "hauling-service", "hauling"},
+}
+
+// CanonicalSource maps any recognised spelling of an execution service --
+// the canonical name in any case, or one of its payment source_service
+// spellings -- onto its canonical name. ok is false for anything else.
+func CanonicalSource(name string) (canonical string, ok bool) {
+	normalized := strings.ToUpper(strings.TrimSpace(name))
+	if _, known := paymentSourceServices[normalized]; known {
+		return normalized, true
+	}
+	lower := strings.ToLower(strings.TrimSpace(name))
+	for canonicalName, spellings := range paymentSourceServices {
+		for _, spelling := range spellings {
+			if spelling == lower {
+				return canonicalName, true
+			}
+		}
+	}
+	return "", false
+}
+
+// PaymentSourceServices returns the payment-intent source_service spellings
+// for a canonical execution service, or nil when the name is not one. The
+// returned slice is a copy.
+func PaymentSourceServices(canonical string) []string {
+	spellings := paymentSourceServices[strings.ToUpper(strings.TrimSpace(canonical))]
+	if spellings == nil {
+		return nil
+	}
+	return append([]string(nil), spellings...)
+}

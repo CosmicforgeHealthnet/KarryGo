@@ -95,6 +95,7 @@ func asInput(request providercompat.CompletedWorkRequest) fleetpartner.Completed
 		CompletedAt: request.CompletedAt, Currency: request.Currency,
 		EligibleBasisMinor: request.EligibleBasisMinor, SourceVersion: request.SourceVersion,
 		IdempotencyKey: request.IdempotencyKey, CorrelationID: request.CorrelationID,
+		PaymentSourceReference: request.PaymentSourceReference,
 	}
 }
 

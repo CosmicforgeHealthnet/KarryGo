@@ -28,6 +28,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
+	"cosmicforge/logistics/shared/go/providercompat"
 )
 
 const walletSettlementPath = "/api/v1/payment-wallet/internal/finance/v1/managed-settlements"
@@ -158,6 +159,15 @@ func settlementFlags() fleetpartner.Flags {
 // delivery job.
 func newSettlementHarness(t *testing.T, financeFlags financeops.Flags) *settlementHarness {
 	t.Helper()
+	return newSettlementHarnessFor(t, financeFlags, fleetpartner.ServiceTaxi, nil)
+}
+
+// newSettlementHarnessFor records the managed completion for the given
+// execution service, letting the caller shape the completed-work request the
+// way that service builds it.
+func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, category string,
+	shape func(*providercompat.CompletedWorkRequest)) *settlementHarness {
+	t.Helper()
 	pool := testPool(t)
 	ctx := context.Background()
 	h := &settlementHarness{pool: pool, wallet: newFakeWallet()}
@@ -178,7 +188,7 @@ func newSettlementHarness(t *testing.T, financeFlags financeops.Flags) *settleme
 		audit.NewRecorder(), publisher, settlementFlags())
 	h.fleet.SetSettlementSubmitter(app.ManagedSettlementSubmitter{Finance: h.finance})
 
-	orgID, membershipID, providerID := seedManagedMembership(t, pool, fleetpartner.ServiceTaxi)
+	orgID, membershipID, providerID := seedManagedMembership(t, pool, category)
 	h.orgID = orgID
 	if _, err := pool.Exec(ctx, `INSERT INTO fleet_partner_organization_settings (organization_id, operating_mode) VALUES ($1,'CENTRALIZED') ON CONFLICT (organization_id) DO NOTHING`, orgID); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -202,8 +212,16 @@ func newSettlementHarness(t *testing.T, financeFlags financeops.Flags) *settleme
 		t.Fatalf("assign plan: %v", err)
 	}
 	jobID := ids.New("job")
-	_, _, instruction, err := h.fleet.RecordCompletedWork(ctx, "driver-taxi-service",
-		asInput(canonicalRequest(orgID, membershipID, providerID, fleetpartner.ServiceTaxi, jobID)))
+	request := canonicalRequest(orgID, membershipID, providerID, category, jobID)
+	if shape != nil {
+		shape(&request)
+	}
+	caller := map[string]string{
+		fleetpartner.ServiceTaxi:     "driver-taxi-service",
+		fleetpartner.ServiceDispatch: "driver-dispatch-delivery-service",
+		fleetpartner.ServiceHauling:  "driver-hauling-service",
+	}[category]
+	_, _, instruction, err := h.fleet.RecordCompletedWork(ctx, caller, asInput(request))
 	if err != nil {
 		t.Fatalf("record completed work: %v", err)
 	}
@@ -586,5 +604,107 @@ func TestManagedSettlementJobRejectsForeignTenantPayload(t *testing.T) {
 	}
 	if posts, _, _ := h.wallet.counts(); posts != 0 {
 		t.Fatal("no call may be made for a foreign tenant")
+	}
+}
+
+// Dispatch takes its payment per booking and completes per trip. The booking
+// it reports on completed work travels, unchanged, into the instruction and
+// onto the wire, beside the canonical settlement identity it does not replace.
+func TestManagedSettlementCarriesDispatchsPaymentReferenceToWallet(t *testing.T) {
+	bookingID := ids.New("booking")
+	h := newSettlementHarnessFor(t, postingOn(), fleetpartner.ServiceDispatch, func(r *providercompat.CompletedWorkRequest) {
+		r.PaymentSourceReference = bookingID
+	})
+	if h.instruction.PaymentSourceReference != bookingID {
+		t.Fatalf("instruction payment reference = %q, want %q", h.instruction.PaymentSourceReference, bookingID)
+	}
+	if got := h.reload(t); got.PaymentSourceReference != bookingID {
+		t.Fatalf("stored instruction payment reference = %q, want %q", got.PaymentSourceReference, bookingID)
+	}
+	if got := h.count(t, `SELECT count(*) FROM fleet_partner_completed_work_records WHERE organization_id=$1 AND source_job_id=$2 AND payment_source_reference=$3`,
+		h.orgID, h.instruction.SourceJobID, bookingID); got != 1 {
+		t.Fatalf("completed-work records carrying the booking = %d, want 1", got)
+	}
+
+	got, err := h.deliver(t)
+	if err != nil || got.Status != fleetpartner.InstructionPosted {
+		t.Fatalf("delivery status=%s err=%v", got.Status, err)
+	}
+	body := h.wallet.bodies[0]
+	for field, want := range map[string]any{
+		"source_service": "dispatch", "provider_type": "dispatch",
+		"source_job_id": h.instruction.SourceJobID, "payment_source_reference": bookingID,
+	} {
+		if body[field] != want {
+			t.Fatalf("wire %s = %v, want %v", field, body[field], want)
+		}
+	}
+
+	// A retry after an ambiguous outcome sends the identical body: the
+	// posting fingerprint covers the payment reference, so it must never move.
+	h.wallet.set(func(f *fakeWallet) { delete(f.postings, h.instruction.IdempotencyKey) })
+	if _, err := h.pool.Exec(context.Background(),
+		`UPDATE fleet_partner_managed_work_settlement_instructions SET status='RECONCILIATION_REQUIRED' WHERE instruction_id=$1`, h.instruction.InstructionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(context.Background(),
+		`UPDATE fleet_partner_financial_posting_operations SET status='OUTCOME_UNKNOWN' WHERE organization_id=$1 AND operation_type=$2`,
+		h.orgID, financeops.OperationManagedWorkSettlement); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := h.deliver(t); err != nil || got.Status != fleetpartner.InstructionPosted {
+		t.Fatalf("redelivery after unknown outcome status=%s err=%v", got.Status, err)
+	}
+	if len(h.wallet.bodies) != 2 || h.wallet.bodies[1]["payment_source_reference"] != bookingID ||
+		h.wallet.bodies[1]["source_job_id"] != h.instruction.SourceJobID {
+		t.Fatalf("retry body changed identity: %v", h.wallet.bodies)
+	}
+	if h.postingOperations(t) != 1 {
+		t.Fatal("one instruction must have exactly one posting operation")
+	}
+}
+
+// Taxi and Hauling key their payment by the job id and report no payment
+// reference; their wire body stays exactly what it was, so operations and
+// Wallet postings recorded before the field existed keep matching.
+func TestManagedSettlementWithoutAPaymentReferenceSendsNoSuchField(t *testing.T) {
+	h := newSettlementHarnessFor(t, postingOn(), fleetpartner.ServiceHauling, nil)
+	if _, err := h.deliver(t); err != nil {
+		t.Fatalf("delivery: %v", err)
+	}
+	body := h.wallet.bodies[0]
+	if _, present := body["payment_source_reference"]; present {
+		t.Fatalf("payment_source_reference sent without one: %v", body)
+	}
+	if body["source_service"] != "hauling" || body["provider_type"] != "truck_provider" {
+		t.Fatalf("hauling wire identity = %v / %v", body["source_service"], body["provider_type"])
+	}
+}
+
+// The payment reference is part of the completed work's identity: a replay
+// that names a different payment is a contradiction, not a duplicate.
+func TestCompletedWorkReplayCannotChangeThePaymentReference(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	service := newCompletedWorkService(t, pool, fleetpartner.Flags{CompletedWorkProjection: true})
+	orgID, membershipID, providerID := seedManagedMembership(t, pool, fleetpartner.ServiceDispatch)
+	request := canonicalRequest(orgID, membershipID, providerID, fleetpartner.ServiceDispatch, ids.New("trip"))
+	request.PaymentSourceReference = ids.New("booking")
+
+	first, _, _, err := service.RecordCompletedWork(ctx, "driver-dispatch-delivery-service", asInput(request))
+	if err != nil || first.PaymentSourceReference != request.PaymentSourceReference {
+		t.Fatalf("record = %+v err=%v", first, err)
+	}
+	replay, _, _, err := service.RecordCompletedWork(ctx, "driver-dispatch-delivery-service", asInput(request))
+	if err != nil || replay.ID != first.ID {
+		t.Fatalf("identical replay = %+v err=%v", replay, err)
+	}
+	changed := request
+	changed.PaymentSourceReference = ids.New("booking")
+	if _, _, _, err := service.RecordCompletedWork(ctx, "driver-dispatch-delivery-service", asInput(changed)); err == nil {
+		t.Fatal("a replay naming a different payment must be refused")
+	}
+	if n := countCompletedWork(t, pool, request.SourceJobID); n != 1 {
+		t.Fatalf("completed-work records = %d, want 1", n)
 	}
 }

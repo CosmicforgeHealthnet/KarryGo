@@ -160,6 +160,11 @@ type CompletedWorkRecord struct {
 	EligibleBasisMinor, SourceVersion, Version        int64
 	RequestFingerprint, IdempotencyKey, CorrelationID string
 	CreatedAt                                         time.Time
+
+	// PaymentSourceReference is the reference the execution service created
+	// the job's payment under in payment-wallet, when it is not SourceJobID
+	// (Dispatch: the booking a trip executes). Empty means the job id.
+	PaymentSourceReference string
 }
 
 type CompensationResolution struct {
@@ -202,8 +207,11 @@ type MatchedRule struct {
 }
 
 type ManagedWorkSettlementInstruction struct {
-	InstructionID, OrganizationID, MembershipID, ProviderID     string
-	SourceService, SourceJobID, SourceAssignmentID              string
+	InstructionID, OrganizationID, MembershipID, ProviderID string
+	SourceService, SourceJobID, SourceAssignmentID          string
+	// PaymentSourceReference is copied from the completed-work record and is
+	// immutable: it is part of what Wallet resolves and fingerprints.
+	PaymentSourceReference                                      string
 	CompensationPlanID                                          string
 	CompensationPlanVersion, CompensationResolutionVersion      int64
 	GrossBasisMinor, ProviderShareMinor, OrganizationShareMinor int64

@@ -44,6 +44,15 @@ type CompletedWorkRequest struct {
 	SourceVersion      int64     `json:"sourceVersion"`
 	IdempotencyKey     string    `json:"idempotencyKey"`
 	CorrelationID      string    `json:"correlationId"`
+
+	// PaymentSourceReference is the source_reference the execution service
+	// created this job's payment intent under in payment-wallet-service, when
+	// it is not SourceJobID. Dispatch pays per booking and completes per trip,
+	// so it sends the booking id here; Taxi and Hauling key both by the same
+	// id and leave it empty. Fleet carries it unchanged into the settlement
+	// instruction so Wallet finds the payment without guessing a mapping.
+	// Omitted when empty, so payloads that never had it stay byte-identical.
+	PaymentSourceReference string `json:"paymentSourceReference,omitempty"`
 }
 
 // Validate applies the rules Fleet itself enforces, so an unsubmittable
