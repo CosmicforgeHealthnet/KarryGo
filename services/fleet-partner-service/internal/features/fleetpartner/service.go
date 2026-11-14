@@ -334,7 +334,15 @@ func (s *Service) CorporateContext(ctx context.Context, providerID, service stri
 	if err != nil {
 		return CorporateContext{}, asAppError(err)
 	}
-	eligible := membership.Status == "ACTIVE" && membership.ServiceCategory == service
+	// Spec 10.3: suspending (or closing) the organization immediately removes
+	// every managed provider from organization work, whatever the membership
+	// row still says.
+	organizationStatus, err := s.repo.OrganizationStatus(ctx, membership.OrganizationID)
+	if err != nil {
+		return CorporateContext{}, asAppError(err)
+	}
+	eligible := membership.Status == "ACTIVE" && membership.ServiceCategory == service &&
+		organizationStatus == "ACTIVE"
 	return CorporateContext{
 		ProviderID: providerID, IsManagedProvider: true, MembershipID: membership.ID,
 		OrganizationID: membership.OrganizationID, MembershipStatus: membership.Status,

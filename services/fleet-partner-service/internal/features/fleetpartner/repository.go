@@ -49,6 +49,19 @@ func (r *Repository) UpdateOperatingMode(ctx context.Context, q database.Querier
 	return expectedVersion + 1, nil
 }
 
+// OrganizationStatus reads the organization's lifecycle status.
+func (r *Repository) OrganizationStatus(ctx context.Context, organizationID string) (string, error) {
+	var status string
+	err := r.db.QueryRow(ctx, `SELECT status FROM fleet_partner_organizations WHERE id=$1`, organizationID).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("fleetpartner: read organization status: %w", err)
+	}
+	return status, nil
+}
+
 func (r *Repository) OperatingSettings(ctx context.Context, organizationID string) (string, map[string]bool, int64, error) {
 	var mode string
 	var policyRaw []byte

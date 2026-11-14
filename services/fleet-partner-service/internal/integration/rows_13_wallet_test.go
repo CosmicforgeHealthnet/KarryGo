@@ -126,6 +126,25 @@ func newRows13Wallet(t *testing.T) *rows13Wallet {
 				"id": prefix + "_rows13", "status": "POSTED", "version": 1}})
 		}
 	}
+	// Provider sub-wallet provisioning (EnsureProviderSubWallet). Idempotent
+	// per provider reference; the created account becomes readable.
+	group.POST("/earning-accounts/ensure", func(c *gin.Context) {
+		record(c, "POST /earning-accounts/ensure")
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if w.failSubmissions {
+			c.Header("Retry-After", "0")
+			c.JSON(http.StatusServiceUnavailable, gin.H{"success": false,
+				"error": gin.H{"code": "temporarily_unavailable"}})
+			return
+		}
+		body := w.bodies["POST /earning-accounts/ensure"]
+		organizationID, _ := body["organizationId"].(string)
+		reference, _ := body["providerReference"].(string)
+		id := "fear_" + reference
+		w.accounts[id] = rows13Account{organizationID: organizationID, status: "ACTIVE", version: 1}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"id": id, "status": "ACTIVE", "version": 1}})
+	})
 	group.POST("/provider-allocations", submit("POST /provider-allocations", "fpal"))
 	group.POST("/provider-withdrawals", submit("POST /provider-withdrawals", "fpwd"))
 	w.server = httptest.NewServer(engine)
