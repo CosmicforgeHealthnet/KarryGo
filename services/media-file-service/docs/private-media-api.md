@@ -366,6 +366,7 @@ Every write and worker flag defaults to `false`, and example secrets are empty.
 | `MEDIA_FILE_PRIVATE_ALLOWED_CALLERS` | `fleet-partner-service` | Caller allowlist |
 | `MEDIA_FILE_DOWNLOAD_SIGNING_SECRET` | *(empty)* | Signs content grants; **mandatory** when the private API is on |
 | `MEDIA_FILE_PRIVATE_STORAGE_DIR` | *(temp dir)* | Filesystem private storage when no bucket is configured |
+| `MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS` | *(empty)* | Encrypts private objects at rest: `keyId:base64(32 bytes)[,keyId:base64,...]`. First entry writes, every entry reads. **Mandatory** in staging/production when the private API is on |
 | `MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS` | `900` | Upload grant lifetime |
 | `MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS` | `300` | Content grant lifetime |
 | `MEDIA_FILE_PRIVATE_MAX_UPLOAD_BYTES` | `26214400` | Size ceiling |
@@ -383,6 +384,46 @@ Every write and worker flag defaults to `false`, and example secrets are empty.
 Enabling the private API without `MEDIA_FILE_DOWNLOAD_SIGNING_SECRET` refuses to
 boot. Starting anyway would leave the routes present and every private download
 failing at request time instead of at deploy time.
+
+## Encryption at rest
+
+When `MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS` is set, every private object (Fleet
+exports, documents, proof files) is sealed with AES-256-GCM by
+`uploadclients.EncryptingPrivateStorage` before it reaches the filesystem or
+bucket backend, and decrypted only inside Media while a validated upload or an
+authorized content grant is being served. Clients and grants are unchanged.
+
+Stored layout (format version 1): magic `0x89 'K' 'G' 'M'`, version byte
+`0x01`, one key-id length byte, the ASCII key id, a fresh random 12-byte nonce,
+then ciphertext and the 16-byte tag. The additional authenticated data binds
+the whole header and the object key, so an edited header, a ciphertext copied
+to another object key, or an object sealed with a key Media does not hold is
+refused (`ErrEncryptedObjectUnreadable`), never returned as raw bytes. `Stat`
+authenticates the object and reports the plaintext size, so the upload path's
+truncated-write check keeps working.
+
+Objects written before encryption was enabled have no header and are served as
+stored. Each such read increments
+`karry_media_private_legacy_plaintext_reads_total`, so the remaining legacy
+plaintext backlog is visible.
+
+Boot rules: a malformed key list (bad base64, not 32 bytes, duplicate or
+invalid ids) always refuses to boot. With `APP_ENV` `staging` or `production`
+and the private API enabled, an empty key list also refuses to boot. Local
+development without keys keeps working unencrypted (a notice is logged).
+
+Key rotation:
+
+1. Generate a new key: `printf 'k%s:%s' "$(date -u +%Y%m%d)" "$(head -c 32 /dev/urandom | base64)"`.
+2. Prepend it: `MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS=<new>,<old>`, then restart.
+   New writes use the new key; existing objects keep reading with the old one.
+3. Keep the old entry for as long as objects it sealed exist. Removing it makes
+   those objects unreadable (refused, not served), so never drop a key that
+   may still have objects, and never lose a key: there is no recovery.
+
+Staging keys are generated on the server by the pairing workflow's `KEYGEN`
+directive (`deploy/platform/staging-pairings.txt`), which only creates the
+setting when it is absent and never rotates or prints it.
 
 ## Testing
 

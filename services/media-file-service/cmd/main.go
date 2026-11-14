@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -223,6 +224,10 @@ func buildPrivateMediaService(cfg config.Config, db *pgxpool.Pool,
 		privateStorage = filesystem
 		bucket = "local:" + dir
 	}
+	privateStorage, err := encryptPrivateStorage(cfg, privateStorage)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	var scanner mediausecases.Scanner
 	if cfg.ScannerAddress != "" {
@@ -253,6 +258,44 @@ func buildPrivateMediaService(cfg config.Config, db *pgxpool.Pool,
 	})
 	return service, privateStorage, nil
 }
+
+// encryptPrivateStorage wraps the chosen private backend so objects are
+// encrypted at rest when MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS is set.
+//
+// A malformed key list always refuses to boot. In staging and production an
+// absent key list also refuses to boot: private objects there hold Fleet
+// exports, documents and proof files, and must never be written as plaintext.
+// Local development without keys keeps working unencrypted.
+func encryptPrivateStorage(cfg config.Config, inner uploadclients.PrivateStorage) (uploadclients.PrivateStorage, error) {
+	keys, err := uploadclients.ParseEncryptionKeys(cfg.PrivateEncryptionKeys)
+	if err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		if requiresEncryptionAtRest(cfg.AppEnv) {
+			return nil, errMissingEncryptionKeys
+		}
+		logging.Notice("media", "MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS not set: private objects are stored unencrypted (development only)")
+		return inner, nil
+	}
+	encrypted, err := uploadclients.NewEncryptingPrivateStorage(inner, keys, mediaMetrics)
+	if err != nil {
+		return nil, err
+	}
+	logging.Success("media", "private objects encrypted at rest (active key %s, %d key(s) readable)", encrypted.ActiveKeyID(), len(keys))
+	return encrypted, nil
+}
+
+// requiresEncryptionAtRest reports whether APP_ENV is a shared environment.
+func requiresEncryptionAtRest(appEnv string) bool {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
+	case "staging", "production", "prod":
+		return true
+	}
+	return false
+}
+
+var errMissingEncryptionKeys = configError("MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS is required in staging and production when the private media API is enabled")
 
 var errMissingDownloadSecret = configError("MEDIA_FILE_DOWNLOAD_SIGNING_SECRET is required when the private media API is enabled")
 
