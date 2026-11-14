@@ -387,6 +387,10 @@ func (s *Service) SupersedeQuotation(ctx context.Context, t tenant.Context, quot
 		return models.Quotation{}, badRequest(errorcodes.QuotationInvalidState,
 			"replacementQuotationId is required.")
 	}
+	if strings.TrimSpace(input.ReplacementQuotationID) == quotationID {
+		return models.Quotation{}, badRequest(errorcodes.QuotationInvalidState,
+			"A quotation cannot be superseded by itself.")
+	}
 	return s.resolveQuotation(ctx, t, quotationID, models.QuotationSuperseded,
 		EventQuotationSuperseded, "crm.quotation.superseded", input.ReasonCode,
 		input.ExpectedVersion, input.CorrelationID, input.CausationID,
