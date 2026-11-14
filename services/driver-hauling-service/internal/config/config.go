@@ -92,9 +92,13 @@ type Config struct {
 
 	// ServiceSecrets are HMAC secrets for inbound internal callers (e.g.
 	// support-dispute-service resolving a provider identity).
-	ServiceSecrets                string
-	FleetIntegrationEnabled       bool
-	FleetIntegrationKillSwitch    bool
+	ServiceSecrets             string
+	FleetIntegrationEnabled    bool
+	FleetIntegrationKillSwitch bool
+	// FleetMarketplaceFeedEnabled publishes open haulage requests to Fleet as
+	// marketplace opportunities (platform.request.offered/updated/cancelled/
+	// expired.v1) through the existing Fleet event outbox. Sections 11-12.
+	FleetMarketplaceFeedEnabled   bool
 	CommerceIntegrationEnabled    bool
 	CommerceIntegrationKillSwitch bool
 	FleetAllowedCallers           string
@@ -294,6 +298,7 @@ func Load() Config {
 		ServiceSecrets:                         os.Getenv("HAULING_SERVICE_SECRETS"),
 		FleetIntegrationEnabled:                getEnvBool("HAULING_FLEET_INTEGRATION_ENABLED", false),
 		FleetIntegrationKillSwitch:             getEnvBool("HAULING_FLEET_INTEGRATION_KILL_SWITCH", false),
+		FleetMarketplaceFeedEnabled:            getEnvBool("HAULING_FLEET_MARKETPLACE_FEED_ENABLED", false),
 		CommerceIntegrationEnabled:             getEnvBool("HAULING_COMMERCE_INTEGRATION_ENABLED", false),
 		CommerceIntegrationKillSwitch:          getEnvBool("HAULING_COMMERCE_INTEGRATION_KILL_SWITCH", false),
 		FleetAllowedCallers:                    getEnv("HAULING_FLEET_ALLOWED_CALLERS", "fleet-partner-service"),
@@ -349,6 +354,12 @@ func Load() Config {
 // Validate rejects unsafe partial enablement. Disabled integrations require
 // no downstream credentials, while enabled ones require explicit secrets and
 // identities; there are no development secret fallbacks.
+// FleetMarketplaceFeedActive reports whether open requests are published to
+// Fleet: the feed flag on, the Fleet integration on and not killed.
+func (c Config) FleetMarketplaceFeedActive() bool {
+	return c.FleetMarketplaceFeedEnabled && c.FleetIntegrationEnabled && !c.FleetIntegrationKillSwitch
+}
+
 func (c Config) Validate() error {
 	var problems []string
 	if c.ReferralFeedEnabled && (c.ReferralServiceURL == "" || len(c.ReferralServiceSecret) == 0 || len(c.ReferralIdentityPepper) == 0) {
@@ -386,6 +397,9 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(c.NotificationURL) == "" || len(c.NotificationSecret) == 0 {
 			problems = append(problems, "HAULING_NOTIFICATION_URL and HAULING_NOTIFICATION_SECRET are required when Fleet integration is enabled")
 		}
+	}
+	if c.FleetMarketplaceFeedEnabled && !c.FleetIntegrationEnabled {
+		problems = append(problems, "HAULING_FLEET_INTEGRATION_ENABLED must be true when the Fleet marketplace feed is enabled")
 	}
 	if c.PrivateExecutionEnabled && !c.FleetIntegrationKillSwitch {
 		if !c.FleetIntegrationEnabled {

@@ -99,7 +99,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := database.NewPool(ctx, cfg.DatabaseURL)
+	var poolOptions []database.PoolOption
+	if cfg.FleetMarketplaceFeedActive() {
+		// Switches the haulage_bookings feed triggers (migration 034) on for
+		// this service's own connections only.
+		poolOptions = append(poolOptions, database.WithSessionSetting(database.FleetMarketplaceFeedSetting, "on"))
+		logging.Notice("hauling-service", "Fleet marketplace request feed enabled")
+	}
+	db, err := database.NewPool(ctx, cfg.DatabaseURL, poolOptions...)
 	if err != nil {
 		logging.Fatal("database", "create hauling database pool: %v", err)
 	}

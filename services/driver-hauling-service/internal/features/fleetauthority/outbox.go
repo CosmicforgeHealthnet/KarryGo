@@ -73,7 +73,16 @@ func (w *OutboxWorker) deliver(ctx context.Context, r outboxRow) error {
 	if err := json.Unmarshal(r.Payload, &payload); err != nil {
 		return err
 	}
-	sum := sha256.Sum256(r.Payload)
+	// The hash covers the canonical encoding of the payload object (sorted
+	// keys, compact), which is exactly what Fleet recomputes from the payload
+	// it decodes. Hashing the raw jsonb text instead -- Postgres renders it
+	// with spaces -- made Fleet reject every Hauling event as
+	// payload_hash_mismatch.
+	canonical, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(canonical)
 	body, err := json.Marshal(map[string]any{"eventId": r.ID, "eventType": r.EventType, "schemaVersion": 1, "sourceService": "driver-hauling-service", "aggregateType": strings.ToLower(r.AggregateType), "aggregateId": r.AggregateID, "aggregateVersion": r.Version, "occurredAt": r.Occurred, "correlationId": r.CorrelationID, "payloadHash": hex.EncodeToString(sum[:]), "payload": payload})
 	if err != nil {
 		return err

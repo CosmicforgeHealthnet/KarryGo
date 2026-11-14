@@ -7,7 +7,26 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+// FleetMarketplaceFeedSetting is the per-connection setting that switches the
+// haulage_bookings -> Fleet marketplace request feed triggers on (migration
+// 034). Set only on connections of a deployment that enabled
+// HAULING_FLEET_MARKETPLACE_FEED_ENABLED.
+const FleetMarketplaceFeedSetting = "hauling.fleet_marketplace_feed"
+
+// PoolOption adjusts the pool configuration.
+type PoolOption func(*pgxpool.Config)
+
+// WithSessionSetting sets a run-time parameter on every pooled connection.
+func WithSessionSetting(name string, value string) PoolOption {
+	return func(cfg *pgxpool.Config) {
+		if cfg.ConnConfig.RuntimeParams == nil {
+			cfg.ConnConfig.RuntimeParams = map[string]string{}
+		}
+		cfg.ConnConfig.RuntimeParams[name] = value
+	}
+}
+
+func NewPool(ctx context.Context, databaseURL string, options ...PoolOption) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, err
@@ -17,6 +36,9 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg.MinConns = 1
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 10 * time.Minute
+	for _, option := range options {
+		option(cfg)
+	}
 
 	return pgxpool.NewWithConfig(ctx, cfg)
 }
