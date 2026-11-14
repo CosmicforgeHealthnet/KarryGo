@@ -9,9 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+
 	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
 
@@ -67,24 +70,24 @@ type verificationEvent struct {
 // 403 caller not allowed, 500 transient (retry).
 func (h *VerificationEventHandler) ingest(c *gin.Context) {
 	if !h.allowed[c.GetString(middleware.ServiceCallerKey)] {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"status": "REJECTED", "code": "caller_not_allowed"})
+		respond.Error(c, ingestRejection(http.StatusForbidden, "caller_not_allowed"))
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 64<<10))
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"status": "ERROR", "code": "body_read_failed"})
+		respond.Error(c, ingestRejection(http.StatusInternalServerError, "body_read_failed"))
 		return
 	}
 	var event verificationEvent
 	if err := json.Unmarshal(body, &event); err != nil || event.EventID == "" || event.OrganizationID == "" ||
 		event.Payload.Status == "" || event.Payload.SourceVersion < 1 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "invalid_envelope"})
+		respond.Error(c, ingestRejection(http.StatusBadRequest, "invalid_envelope"))
 		return
 	}
 	switch event.EventType {
 	case "organization.verification.status_changed.v1", "organization.verification.submitted.v1":
 	default:
-		c.JSON(http.StatusOK, gin.H{"status": "IGNORED", "eventId": event.EventID, "code": "unsupported_event_type"})
+		respond.OK(c, gin.H{"status": "IGNORED", "eventId": event.EventID, "code": "unsupported_event_type"})
 		return
 	}
 	issues := make([]platformclients.VerificationIssue, 0, len(event.Payload.Issues))
@@ -112,17 +115,32 @@ func (h *VerificationEventHandler) ingest(c *gin.Context) {
 		if isNotFound(err) {
 			// The organization or submission does not exist here: retrying
 			// cannot help.
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "submission_not_found"})
+			respond.Error(c, ingestRejection(http.StatusBadRequest, "submission_not_found"))
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"status": "ERROR", "code": "ingest_failed"})
+		respond.Error(c, ingestRejection(http.StatusInternalServerError, "ingest_failed"))
 		return
 	}
 	status := "IGNORED"
 	if result.Applied {
 		status = "ACCEPTED"
 	}
-	c.JSON(http.StatusOK, gin.H{"status": status, "eventId": event.EventID, "activated": result.Activated})
+	// No top-level alias: verification-compliance-service's
+	// FleetDeliveryWorker classifies a delivery by HTTP status alone and
+	// discards the body.
+	respond.OK(c, gin.H{"status": status, "eventId": event.EventID, "activated": result.Activated})
+}
+
+// ingestRejection builds the standard error for the event ingestion contract,
+// keeping the stable machine code as error.code. 5xx failures are retryable.
+func ingestRejection(status int, code string) *apperrors.Error {
+	message := "The event was rejected."
+	if status >= http.StatusInternalServerError {
+		message = "The event could not be processed. Retry the same event."
+	}
+	appErr := apperrors.New(status, apperrors.Code(code), message, nil)
+	appErr.Retryable = status >= http.StatusInternalServerError
+	return appErr
 }
 
 func isNotFound(err error) bool {

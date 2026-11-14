@@ -14,9 +14,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
 // Route is one mounted internal operation, following the established
@@ -72,7 +75,8 @@ func (h *InternalHandler) dispatch(operationID string) gin.HandlerFunc {
 func (h *InternalHandler) requireAllowedCaller(c *gin.Context) bool {
 	caller := c.GetString(middleware.ServiceCallerKey)
 	if !h.allowed[caller] {
-		c.JSON(http.StatusForbidden, gin.H{"status": "REJECTED", "code": "caller_not_allowed"})
+		respond.Error(c, apperrors.New(http.StatusForbidden, "caller_not_allowed",
+			"Service is not allowed to call this endpoint.", nil))
 		return false
 	}
 	return true
@@ -162,14 +166,23 @@ func (h *InternalHandler) getMembershipSummary(c *gin.Context) {
 	providerService := strings.TrimSpace(c.Param("providerService"))
 	providerID := strings.TrimSpace(c.Param("providerId"))
 	if providerService == "" || providerID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "provider_identity_required"})
+		respond.Error(c, apperrors.New(http.StatusBadRequest, "provider_identity_required",
+			"Provider service and provider ID are required.", nil))
 		return
 	}
 
 	summary, err := h.service.GetMembershipSummaryForProvider(c.Request.Context(), providerService, providerID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("Membership summary is unavailable.", err))
 		return
 	}
-	c.JSON(http.StatusOK, newMembershipSummaryView(summary))
+	view := newMembershipSummaryView(summary)
+	// Deprecated alias (FLEET-6h): the summary fields are repeated at the top
+	// level because shared/go/providercompat.Client.ReadMembershipSummary
+	// decoded the bare view before it learned the envelope, and binaries
+	// built from that version (driver-taxi-service,
+	// driver-dispatch-delivery-service, driver-hauling-service,
+	// support-dispute-service) may still be running. Remove once every one of
+	// those services has been redeployed with the envelope-tolerant client.
+	respond.JSONWithAliases(c, http.StatusOK, view, respond.AliasesOf(view))
 }
