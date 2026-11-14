@@ -8,7 +8,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
+	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	exportsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/models"
 	exportsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/repositories"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
@@ -184,7 +186,7 @@ func TestSection25RemainingExportAdaptersAreScopedBoundedAndMinimized(t *testing
 	safetyService := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Flags: safetyfeature.OperationsFlags{Incidents: true}})
 	financeService := financeops.NewService(financeops.Options{Pool: pool, Events: publisher, Flags: financeops.Flags{Invoices: true, Receivables: true}})
 	warehouseService := warehousefeature.NewService(warehousefeature.Options{Pool: pool, Events: publisher, Flags: warehousefeature.Flags{Warehouses: true, Fulfilment: true}})
-	engagementService := engagement.NewService(engagement.Options{Pool: pool, Events: publisher, Flags: engagement.Flags{Support: true}})
+	engagementService := engagementusecases.NewService(engagementusecases.Options{Store: engagementrepos.NewRepository(pool), Events: publisher, Flags: engagementmodels.Flags{Support: true}})
 	actor := tenant.Context{OrganizationID: org.ID, PermittedBranchIDs: []string{}}
 	exporters := []exportsusecases.Exporter{
 		app.NewComplianceIncidentsExporter(safetyService), app.NewInvoicesReceivablesExporter(financeService),

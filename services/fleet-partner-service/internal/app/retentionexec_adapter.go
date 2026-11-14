@@ -2,8 +2,7 @@ package app
 
 import (
 	"context"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	retentionpolicyusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
 )
@@ -28,12 +27,12 @@ func (a retentionDaysAdapter) EffectiveRetentionDays(ctx context.Context, organi
 
 // retentionSupportAuthorityAdapter implements
 // retentionexec.SupportCaseAuthorityReader over the SAME real
-// engagement.SupportPort (supportCaseAdapter wrapping the real
+// engagementusecases.SupportPort (supportCaseAdapter wrapping the real
 // support-dispute-service HTTP client, section22_23_adapters.go) that
 // engagementService and registerSection26Authorities already use for
 // production -- no second Support Service client, no test double.
 type retentionSupportAuthorityAdapter struct {
-	port engagement.SupportPort
+	port engagementusecases.SupportPort
 }
 
 // CaseStatus implements retentionexec.SupportCaseAuthorityReader.

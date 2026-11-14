@@ -13,7 +13,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	exportsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/repositories"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
@@ -348,7 +348,7 @@ func (a fulfilmentOrdersExporter) Rows(ctx context.Context, t tenant.Context, fi
 	return rows, nil
 }
 
-type supportCasesExporter struct{ engagement *engagement.Service }
+type supportCasesExporter struct{ engagement *engagementusecases.Service }
 
 func (supportCasesExporter) Type() string { return "SUPPORT_CASE_PROJECTIONS" }
 func (supportCasesExporter) Columns() []string {
@@ -464,7 +464,7 @@ func BuildExportsService(cfg config.Config, pool *pgxpool.Pool, publisher *event
 	shipments *shipmentsusecases.Service, workforce *workforcefeature.Service,
 	assets *assetsfeature.Service, warehouse *warehousefeature.Service,
 	safety *safetyfeature.OperationsService, finance *financeops.Service,
-	engagementService *engagement.Service) *exportsusecases.Service {
+	engagementService *engagementusecases.Service) *exportsusecases.Service {
 	orders := BuildOrdersService(cfg, pool, nil, publisher, search)
 
 	var media exportsusecases.MediaPort
@@ -558,6 +558,6 @@ func NewFulfilmentOrdersExporter(warehouse *warehousefeature.Service) exportsuse
 }
 
 // NewSupportCasesExporter builds the data-minimized support projection adapter.
-func NewSupportCasesExporter(engagementService *engagement.Service) exportsusecases.Exporter {
+func NewSupportCasesExporter(engagementService *engagementusecases.Service) exportsusecases.Exporter {
 	return supportCasesExporter{engagement: engagementService}
 }

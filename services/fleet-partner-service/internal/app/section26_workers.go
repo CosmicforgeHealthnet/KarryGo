@@ -11,7 +11,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 )
@@ -45,7 +45,7 @@ func StartSection26Workers(ctx context.Context, cfg config.Config, components *C
 					if caseID == "" {
 						caseID = payload.SubjectReference
 					}
-					return components.Engagement.ApplySupportEventTx(runCtx, tx, engagement.SupportEvent{
+					return components.Engagement.ApplySupportEventTx(runCtx, tx, engagementmodels.SupportEvent{
 						EventID: envelope.EventID, OrganizationID: envelope.OrganizationID,
 						CaseID: caseID, EventType: envelope.EventType, Status: payload.Status,
 						Priority: payload.Priority, OwnerReference: payload.OwnerReference,

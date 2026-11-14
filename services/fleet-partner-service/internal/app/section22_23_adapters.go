@@ -2,15 +2,15 @@ package app
 
 import (
 	"context"
+	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
+	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
 
 type walletPostingAdapter struct{ client *platformclients.Client }
@@ -231,13 +231,13 @@ type notificationDeliveryAdapter struct{ client *platformclients.Client }
 func (a notificationDeliveryAdapter) Configured() bool {
 	return a.client != nil && a.client.Configured()
 }
-func (a notificationDeliveryAdapter) Submit(ctx context.Context, organizationID, key string, payload json.RawMessage) (engagement.DeliveryOutcome, error) {
+func (a notificationDeliveryAdapter) Submit(ctx context.Context, organizationID, key string, payload json.RawMessage) (communicationsmodels.DeliveryOutcome, error) {
 	if !a.Configured() {
-		return engagement.DeliveryOutcome{}, platformclients.ErrNotConfigured
+		return communicationsmodels.DeliveryOutcome{}, platformclients.ErrNotConfigured
 	}
 	var body map[string]any
 	if err := json.Unmarshal(payload, &body); err != nil {
-		return engagement.DeliveryOutcome{}, err
+		return communicationsmodels.DeliveryOutcome{}, err
 	}
 	var response struct {
 		Success bool `json:"success"`
@@ -249,11 +249,11 @@ func (a notificationDeliveryAdapter) Submit(ctx context.Context, organizationID,
 	}
 	meta := platformclients.CallMeta{OrganizationID: organizationID, IdempotencyKey: key}
 	err := a.client.Do(ctx, meta, http.MethodPost, "/api/v1/notifications/send", body, &response)
-	return engagement.DeliveryOutcome{Reference: response.Data.MessageID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
+	return communicationsmodels.DeliveryOutcome{Reference: response.Data.MessageID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
 }
-func (a notificationDeliveryAdapter) Read(ctx context.Context, organizationID, key string) (engagement.DeliveryOutcome, error) {
+func (a notificationDeliveryAdapter) Read(ctx context.Context, organizationID, key string) (communicationsmodels.DeliveryOutcome, error) {
 	if !a.Configured() {
-		return engagement.DeliveryOutcome{}, platformclients.ErrNotConfigured
+		return communicationsmodels.DeliveryOutcome{}, platformclients.ErrNotConfigured
 	}
 	var response struct {
 		Success bool `json:"success"`
@@ -265,15 +265,15 @@ func (a notificationDeliveryAdapter) Read(ctx context.Context, organizationID, k
 	}
 	path := "/api/v1/notifications/messages/by-idempotency/" + url.PathEscape(key)
 	err := a.client.Do(ctx, platformclients.CallMeta{OrganizationID: organizationID}, http.MethodGet, path, nil, &response)
-	return engagement.DeliveryOutcome{Reference: response.Data.MessageID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
+	return communicationsmodels.DeliveryOutcome{Reference: response.Data.MessageID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
 }
 
 type supportCaseAdapter struct{ client *platformclients.Client }
 
 func (a supportCaseAdapter) Configured() bool { return a.client != nil && a.client.Configured() }
-func (a supportCaseAdapter) Create(ctx context.Context, organizationID, key string, input engagement.SupportCreateInput) (engagement.SupportProjection, error) {
+func (a supportCaseAdapter) Create(ctx context.Context, organizationID, key string, input engagementmodels.SupportCreateInput) (engagementmodels.SupportProjection, error) {
 	if !a.Configured() {
-		return engagement.SupportProjection{}, platformclients.ErrNotConfigured
+		return engagementmodels.SupportProjection{}, platformclients.ErrNotConfigured
 	}
 	key = strings.TrimSpace(key)
 	body := map[string]any{"organization_reference": organizationID, "idempotency_key": key, "case_type": input.CaseType, "priority": input.Priority, "subject": input.Subject, "description": input.Description, "customer_reference": input.CustomerReference, "provider_reference": input.ProviderReference, "trip_reference": input.TripReference, "order_reference": input.OrderReference, "assignment_reference": input.AssignmentReference}
@@ -288,11 +288,11 @@ func (a supportCaseAdapter) Create(ctx context.Context, organizationID, key stri
 		} `json:"data"`
 	}
 	err := a.client.Do(ctx, platformclients.CallMeta{OrganizationID: organizationID, IdempotencyKey: key}, http.MethodPost, "/api/v1/support-disputes/admin/organization-cases", body, &response)
-	return engagement.SupportProjection{CaseID: response.Data.ID, Status: response.Data.Status, Priority: response.Data.Priority, OwnerReference: response.Data.OwnerReference, SourceVersion: response.Data.Version}, err
+	return engagementmodels.SupportProjection{CaseID: response.Data.ID, Status: response.Data.Status, Priority: response.Data.Priority, OwnerReference: response.Data.OwnerReference, SourceVersion: response.Data.Version}, err
 }
-func (a supportCaseAdapter) Read(ctx context.Context, organizationID, caseID string) (engagement.SupportProjection, error) {
+func (a supportCaseAdapter) Read(ctx context.Context, organizationID, caseID string) (engagementmodels.SupportProjection, error) {
 	if !a.Configured() {
-		return engagement.SupportProjection{}, platformclients.ErrNotConfigured
+		return engagementmodels.SupportProjection{}, platformclients.ErrNotConfigured
 	}
 	var response struct {
 		Success bool `json:"success"`
@@ -306,5 +306,5 @@ func (a supportCaseAdapter) Read(ctx context.Context, organizationID, caseID str
 	}
 	path := "/api/v1/support-disputes/admin/organization-cases/" + url.PathEscape(caseID) + "?organization_reference=" + url.QueryEscape(organizationID)
 	err := a.client.Do(ctx, platformclients.CallMeta{OrganizationID: organizationID}, http.MethodGet, path, nil, &response)
-	return engagement.SupportProjection{CaseID: response.Data.ID, Status: response.Data.Status, Priority: response.Data.Priority, OwnerReference: response.Data.OwnerReference, SourceVersion: response.Data.Version}, err
+	return engagementmodels.SupportProjection{CaseID: response.Data.ID, Status: response.Data.Status, Priority: response.Data.Priority, OwnerReference: response.Data.OwnerReference, SourceVersion: response.Data.Version}, err
 }

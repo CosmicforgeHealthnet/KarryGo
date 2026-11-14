@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
+	communicationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/repositories"
+	communicationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -21,9 +23,9 @@ import (
 // notification-service being unavailable must never: (a) block the core
 // domain mutation that triggered the notification, (b) lose the intent, or
 // (c) require Fleet to send email/SMS/push directly — see
-// internal/features/engagement/workers.go's submitIntent, which only ever
+// internal/features/communications/usecases/delivery.go's submitIntent, which only ever
 // calls s.o.Notification.Submit (an HTTP client to notification-service).
-// This test drives the REAL production path: engagement.Service.SendMessage
+// This test drives the REAL production path: communicationsusecases.Service.SendMessage
 // (the domain mutation) -> a real *jobs.Queue enqueue -> a real *jobs.Worker
 // claim/execute pass through the REAL registered handler
 // (Service.RegisterWorkers), not a reimplementation.
@@ -33,12 +35,12 @@ type alwaysFailingNotifications struct {
 }
 
 func (n *alwaysFailingNotifications) Configured() bool { return true }
-func (n *alwaysFailingNotifications) Submit(context.Context, string, string, json.RawMessage) (engagement.DeliveryOutcome, error) {
+func (n *alwaysFailingNotifications) Submit(context.Context, string, string, json.RawMessage) (communicationsmodels.DeliveryOutcome, error) {
 	n.calls.Add(1)
-	return engagement.DeliveryOutcome{}, errors.New("simulated notification-service outage")
+	return communicationsmodels.DeliveryOutcome{}, errors.New("simulated notification-service outage")
 }
-func (n *alwaysFailingNotifications) Read(context.Context, string, string) (engagement.DeliveryOutcome, error) {
-	return engagement.DeliveryOutcome{}, errors.New("simulated notification-service outage")
+func (n *alwaysFailingNotifications) Read(context.Context, string, string) (communicationsmodels.DeliveryOutcome, error) {
+	return communicationsmodels.DeliveryOutcome{}, errors.New("simulated notification-service outage")
 }
 
 func TestNotificationDegradedMode_CoreMutationPersistsRetriesDeadLettersAndReplays(t *testing.T) {
@@ -48,17 +50,16 @@ func TestNotificationDegradedMode_CoreMutationPersistsRetriesDeadLettersAndRepla
 
 	notifications := &alwaysFailingNotifications{}
 	jobQueue := jobs.NewQueue(pool)
-	svc := engagement.NewService(engagement.Options{
-		Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
-		Media: section2223Media{}, Support: &sectionSupport{cases: map[string]engagement.SupportProjection{}},
-		Notification: notifications, Queue: jobQueue,
-		Flags: engagement.Flags{Communications: true, NotificationRules: true, Support: true},
+	svc := communicationsusecases.NewService(communicationsusecases.Options{
+		Store: communicationsrepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+		Media: section2223Media{}, Notification: notifications, Queue: jobQueue,
+		Flags: communicationsmodels.Flags{Communications: true, NotificationRules: true},
 	})
 
-	thread, err := svc.CreateThread(ctx, scope, engagement.ThreadInput{
+	thread, err := svc.CreateThread(ctx, scope, communicationsmodels.ThreadInput{
 		BranchID: branch, SubjectType: "ORDER", SubjectReference: "order-degraded",
 		Title: "Degraded mode test", Visibility: "INTERNAL",
-		Participants: []engagement.ParticipantInput{{ParticipantType: "CUSTOMER", ParticipantReference: "customer-degraded"}},
+		Participants: []communicationsmodels.ParticipantInput{{ParticipantType: "CUSTOMER", ParticipantReference: "customer-degraded"}},
 	})
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
@@ -67,7 +68,7 @@ func TestNotificationDegradedMode_CoreMutationPersistsRetriesDeadLettersAndRepla
 	// The core mutation (the message itself) must succeed even though
 	// notification-service is about to be unreachable for every attempt —
 	// nothing about SendMessage synchronously calls Notification at all.
-	message, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-degraded", engagement.MessageInput{
+	message, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-degraded", communicationsmodels.MessageInput{
 		Channel: "IN_APP", Text: "degraded mode notice", SourceTimestamp: time.Now().UTC(),
 	})
 	if err != nil {
@@ -180,7 +181,7 @@ func TestNotificationDegradedMode_CoreMutationPersistsRetriesDeadLettersAndRepla
 	// is itself idempotent (see TestSection23CommunicationsSupportQualityAndSLA's
 	// own replay assertion for the general case); reconfirmed here so this
 	// test is self-contained.
-	replayed, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-degraded", engagement.MessageInput{
+	replayed, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-degraded", communicationsmodels.MessageInput{
 		Channel: "IN_APP", Text: "degraded mode notice", SourceTimestamp: time.Now().UTC(),
 	})
 	if err != nil || replayed["id"] != message["id"] {

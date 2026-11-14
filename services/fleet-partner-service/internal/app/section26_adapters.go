@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -66,7 +66,9 @@ func (a walletSyncAuthority) Read(ctx context.Context, org, ref string) (synchro
 	return synchronization.AuthoritativeState{SourceVersion: state.Version, SafeState: raw}, nil
 }
 
-type supportSyncAuthority struct{ port engagement.SupportPort }
+type supportSyncAuthority struct {
+	port engagementusecases.SupportPort
+}
 
 func (a supportSyncAuthority) Read(ctx context.Context, org, ref string) (synchronization.AuthoritativeState, error) {
 	state, err := a.port.Read(ctx, org, ref)
@@ -93,7 +95,7 @@ func (a mediaSyncAuthority) Read(ctx context.Context, org, ref string) (synchron
 	return synchronization.AuthoritativeState{SourceVersion: state.SourceVersion, SafeState: raw}, nil
 }
 
-func registerSection26Authorities(cfg config.Config, metrics *observability.Metrics, service *synchronization.Service, support engagement.SupportPort) {
+func registerSection26Authorities(cfg config.Config, metrics *observability.Metrics, service *synchronization.Service, support engagementusecases.SupportPort) {
 	if service == nil {
 		return
 	}

@@ -17,7 +17,10 @@ import (
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	documentrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/repositories"
 	documentusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
+	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
+	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	marketplaceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
@@ -198,8 +201,8 @@ func TestFinancePermission_CannotReachIncidentEvidenceSupportContentOrDocuments(
 	safetyService := safety.NewOperationsService(safety.OperationsOptions{Pool: pool, Flags: safety.OperationsFlags{Reports: true, Incidents: true}})
 	safety.NewOperationsHandler(safetyService, authorizer, nil).RegisterTenantRoutes(group)
 
-	engagementService := engagement.NewService(engagement.Options{Pool: pool, Flags: engagement.Flags{Support: true}})
-	engagement.NewHandler(engagementService, authorizer, nil).RegisterTenantRoutes(group)
+	engagementService := engagementusecases.NewService(engagementusecases.Options{Store: engagementrepos.NewRepository(pool), Flags: engagementmodels.Flags{Support: true}})
+	engagementhttp.NewHandler(engagementService, authorizer, nil).RegisterTenantRoutes(group)
 
 	documentService := documentusecases.NewService(documentusecases.Options{
 		Pool: pool, Documents: documentrepos.NewRepository(pool), Flags: documentusecases.Flags{},

@@ -11,7 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
+	communicationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/repositories"
+	communicationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/usecases"
+	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
+	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -66,22 +71,22 @@ func (p *sectionPosting) ReadByKey(_ context.Context, _ platformclients.CallMeta
 type sectionSupport struct {
 	mu      sync.Mutex
 	created int
-	cases   map[string]engagement.SupportProjection
+	cases   map[string]engagementmodels.SupportProjection
 }
 
 func (s *sectionSupport) Configured() bool { return true }
-func (s *sectionSupport) Create(_ context.Context, org, key string, _ engagement.SupportCreateInput) (engagement.SupportProjection, error) {
+func (s *sectionSupport) Create(_ context.Context, org, key string, _ engagementmodels.SupportCreateInput) (engagementmodels.SupportProjection, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if v, ok := s.cases[org+":"+key]; ok {
 		return v, nil
 	}
 	s.created++
-	v := engagement.SupportProjection{CaseID: ids.New("sup"), Status: "open", Priority: "high", SourceVersion: 1}
+	v := engagementmodels.SupportProjection{CaseID: ids.New("sup"), Status: "open", Priority: "high", SourceVersion: 1}
 	s.cases[org+":"+key] = v
 	return v, nil
 }
-func (s *sectionSupport) Read(_ context.Context, org, id string) (engagement.SupportProjection, error) {
+func (s *sectionSupport) Read(_ context.Context, org, id string) (engagementmodels.SupportProjection, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for k, v := range s.cases {
@@ -89,28 +94,28 @@ func (s *sectionSupport) Read(_ context.Context, org, id string) (engagement.Sup
 			return v, nil
 		}
 	}
-	return engagement.SupportProjection{}, errors.New("not found")
+	return engagementmodels.SupportProjection{}, errors.New("not found")
 }
 
 type sectionNotifications struct {
 	mu        sync.Mutex
-	submitted map[string]engagement.DeliveryOutcome
+	submitted map[string]communicationsmodels.DeliveryOutcome
 }
 
 func (n *sectionNotifications) Configured() bool { return true }
-func (n *sectionNotifications) Submit(_ context.Context, org, key string, _ json.RawMessage) (engagement.DeliveryOutcome, error) {
+func (n *sectionNotifications) Submit(_ context.Context, org, key string, _ json.RawMessage) (communicationsmodels.DeliveryOutcome, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	v := engagement.DeliveryOutcome{Reference: "notification-" + key, Status: "queued", SourceVersion: 1}
+	v := communicationsmodels.DeliveryOutcome{Reference: "notification-" + key, Status: "queued", SourceVersion: 1}
 	n.submitted[org+":"+key] = v
 	return v, nil
 }
-func (n *sectionNotifications) Read(_ context.Context, org, key string) (engagement.DeliveryOutcome, error) {
+func (n *sectionNotifications) Read(_ context.Context, org, key string) (communicationsmodels.DeliveryOutcome, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	v, ok := n.submitted[org+":"+key]
 	if !ok {
-		return engagement.DeliveryOutcome{}, errors.New("not found")
+		return communicationsmodels.DeliveryOutcome{}, errors.New("not found")
 	}
 	return v, nil
 }
@@ -310,20 +315,22 @@ func TestSection23CommunicationsSupportQualityAndSLA(t *testing.T) {
 	pool := testPool(t)
 	scope, branch, _ := section2223Scope(t, pool)
 	ctx := context.Background()
-	support := &sectionSupport{cases: map[string]engagement.SupportProjection{}}
-	notifications := &sectionNotifications{submitted: map[string]engagement.DeliveryOutcome{}}
-	svc := engagement.NewService(engagement.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Media: section2223Media{}, Support: support, Notification: notifications, Flags: engagement.Flags{Communications: true, NotificationRules: true, Support: true, Quality: true, SLA: true, Escalations: true}})
-	thread, err := svc.CreateThread(ctx, scope, engagement.ThreadInput{BranchID: branch, SubjectType: "ORDER", SubjectReference: "order-1", Title: "Restricted work", Visibility: "RESTRICTED", Participants: []engagement.ParticipantInput{{ParticipantType: "CUSTOMER", ParticipantReference: "customer-1"}}})
+	support := &sectionSupport{cases: map[string]engagementmodels.SupportProjection{}}
+	notifications := &sectionNotifications{submitted: map[string]communicationsmodels.DeliveryOutcome{}}
+	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
+	comms := communicationsusecases.NewService(communicationsusecases.Options{Store: communicationsrepos.NewRepository(pool), Events: publisher, Media: section2223Media{}, Notification: notifications, Flags: communicationsmodels.Flags{Communications: true, NotificationRules: true}})
+	svc := engagementusecases.NewService(engagementusecases.Options{Store: engagementrepos.NewRepository(pool), Events: publisher, Support: support, Flags: engagementmodels.Flags{Support: true, Quality: true, SLA: true, Escalations: true}})
+	thread, err := comms.CreateThread(ctx, scope, communicationsmodels.ThreadInput{BranchID: branch, SubjectType: "ORDER", SubjectReference: "order-1", Title: "Restricted work", Visibility: "RESTRICTED", Participants: []communicationsmodels.ParticipantInput{{ParticipantType: "CUSTOMER", ParticipantReference: "customer-1"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	outsider := scope
 	outsider.ActorID = ids.New("usr")
 	outsider.OrganizationUserID = outsider.ActorID
-	if _, err = svc.GetThread(ctx, outsider, thread["id"].(string)); err == nil {
+	if _, err = comms.GetThread(ctx, outsider, thread["id"].(string)); err == nil {
 		t.Fatal("restricted thread disclosed to non-participant")
 	}
-	note, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-note", engagement.MessageInput{Channel: "INTERNAL_NOTE", Text: "internal only", SourceTimestamp: time.Now().UTC()})
+	note, err := comms.SendMessage(ctx, scope, thread["id"].(string), "message-note", communicationsmodels.MessageInput{Channel: "INTERNAL_NOTE", Text: "internal only", SourceTimestamp: time.Now().UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,11 +339,11 @@ func TestSection23CommunicationsSupportQualityAndSLA(t *testing.T) {
 	if intents != 0 {
 		t.Fatal("internal note generated external delivery")
 	}
-	message, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-external", engagement.MessageInput{Channel: "IN_APP", Text: "safe update", MediaFileIDs: []string{"media-message"}, SourceTimestamp: time.Now().UTC()})
+	message, err := comms.SendMessage(ctx, scope, thread["id"].(string), "message-external", communicationsmodels.MessageInput{Channel: "IN_APP", Text: "safe update", MediaFileIDs: []string{"media-message"}, SourceTimestamp: time.Now().UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := svc.SendMessage(ctx, scope, thread["id"].(string), "message-external", engagement.MessageInput{Channel: "IN_APP", Text: "safe update", SourceTimestamp: time.Now().UTC()})
+	replayed, err := comms.SendMessage(ctx, scope, thread["id"].(string), "message-external", communicationsmodels.MessageInput{Channel: "IN_APP", Text: "safe update", SourceTimestamp: time.Now().UTC()})
 	if err != nil || replayed["id"] != message["id"] {
 		t.Fatalf("message replay=%+v err=%v", replayed, err)
 	}
@@ -344,30 +351,30 @@ func TestSection23CommunicationsSupportQualityAndSLA(t *testing.T) {
 	if intents != 1 {
 		t.Fatalf("notification intents=%d", intents)
 	}
-	if _, err = svc.SaveNotificationRule(ctx, scope, engagement.NotificationRuleInput{EventType: "invoice.overdue", RecipientScope: "OPERATIONS", Timezone: "Invalid/Timezone", Channels: json.RawMessage(`["IN_APP"]`), ExpectedVersion: 1}); err == nil {
+	if _, err = comms.SaveNotificationRule(ctx, scope, communicationsmodels.NotificationRuleInput{EventType: "invoice.overdue", RecipientScope: "OPERATIONS", Timezone: "Invalid/Timezone", Channels: json.RawMessage(`["IN_APP"]`), ExpectedVersion: 1}); err == nil {
 		t.Fatal("invalid timezone accepted")
 	}
-	if _, err = svc.SaveNotificationRule(ctx, scope, engagement.NotificationRuleInput{EventType: "invoice.overdue", RecipientScope: "OPERATIONS", Timezone: "Europe/Rome", Channels: json.RawMessage(`["IN_APP"]`), QuietHours: json.RawMessage(`{"start":"22:00","end":"07:00"}`), ExpectedVersion: 1}); err != nil {
+	if _, err = comms.SaveNotificationRule(ctx, scope, communicationsmodels.NotificationRuleInput{EventType: "invoice.overdue", RecipientScope: "OPERATIONS", Timezone: "Europe/Rome", Channels: json.RawMessage(`["IN_APP"]`), QuietHours: json.RawMessage(`{"start":"22:00","end":"07:00"}`), ExpectedVersion: 1}); err != nil {
 		t.Fatal(err)
 	}
 
-	case1, err := svc.CreateSupportCase(ctx, scope, "support-create-1", engagement.SupportCreateInput{CaseType: "PLATFORM", Priority: "HIGH", Subject: "Need help", Description: "Canonical support case"})
+	case1, err := svc.CreateSupportCase(ctx, scope, "support-create-1", engagementmodels.SupportCreateInput{CaseType: "PLATFORM", Priority: "HIGH", Subject: "Need help", Description: "Canonical support case"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	case2, err := svc.CreateSupportCase(ctx, scope, "support-create-1", engagement.SupportCreateInput{CaseType: "PLATFORM", Priority: "HIGH", Subject: "Need help", Description: "Canonical support case"})
+	case2, err := svc.CreateSupportCase(ctx, scope, "support-create-1", engagementmodels.SupportCreateInput{CaseType: "PLATFORM", Priority: "HIGH", Subject: "Need help", Description: "Canonical support case"})
 	if err != nil || case1["id"] != case2["id"] || support.created != 1 {
 		t.Fatalf("support idempotency c1=%+v c2=%+v created=%d err=%v", case1, case2, support.created, err)
 	}
 	caseID := case1["support_service_case_id"].(string)
-	if err = svc.ApplySupportEvent(ctx, engagement.SupportEvent{EventID: "support-event-3", OrganizationID: scope.OrganizationID, CaseID: caseID, EventType: "status_changed", Status: "under_review", Priority: "high", SourceVersion: 3}); err != nil {
+	if err = svc.ApplySupportEvent(ctx, engagementmodels.SupportEvent{EventID: "support-event-3", OrganizationID: scope.OrganizationID, CaseID: caseID, EventType: "status_changed", Status: "under_review", Priority: "high", SourceVersion: 3}); err != nil {
 		t.Fatal(err)
 	}
 	projection, err := svc.GetSupportCase(ctx, scope, caseID)
 	if err != nil || projection["gap_status"] != "GAP_DETECTED" {
 		t.Fatalf("projection=%+v err=%v", projection, err)
 	}
-	if err = svc.ApplySupportEvent(ctx, engagement.SupportEvent{EventID: "support-event-3", OrganizationID: scope.OrganizationID, CaseID: caseID, EventType: "status_changed", Status: "under_review", Priority: "high", SourceVersion: 3}); err != nil {
+	if err = svc.ApplySupportEvent(ctx, engagementmodels.SupportEvent{EventID: "support-event-3", OrganizationID: scope.OrganizationID, CaseID: caseID, EventType: "status_changed", Status: "under_review", Priority: "high", SourceVersion: 3}); err != nil {
 		t.Fatal(err)
 	}
 	var supportEvents int
@@ -376,14 +383,14 @@ func TestSection23CommunicationsSupportQualityAndSLA(t *testing.T) {
 		t.Fatalf("support inbox duplicates=%d", supportEvents)
 	}
 
-	quality, err := svc.CreateQualityCase(ctx, scope, engagement.QualityInput{BranchID: branch, Category: "DELIVERY", Severity: "HIGH", SourceType: "SHIPMENT", SourceReference: "shipment-1"})
+	quality, err := svc.CreateQualityCase(ctx, scope, engagementmodels.QualityInput{BranchID: branch, Category: "DELIVERY", Severity: "HIGH", SourceType: "SHIPMENT", SourceReference: "shipment-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = svc.UpdateQualityCase(ctx, scope, quality["id"].(string), engagement.QualityInput{ExpectedVersion: v64(quality, "version")}, true); err == nil {
+	if _, err = svc.UpdateQualityCase(ctx, scope, quality["id"].(string), engagementmodels.QualityInput{ExpectedVersion: v64(quality, "version")}, true); err == nil {
 		t.Fatal("quality resolved without root cause/action")
 	}
-	quality, err = svc.UpdateQualityCase(ctx, scope, quality["id"].(string), engagement.QualityInput{ExpectedVersion: v64(quality, "version"), RootCause: "routing", CorrectiveActionSummary: "new review gate"}, true)
+	quality, err = svc.UpdateQualityCase(ctx, scope, quality["id"].(string), engagementmodels.QualityInput{ExpectedVersion: v64(quality, "version"), RootCause: "routing", CorrectiveActionSummary: "new review gate"}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,11 +398,11 @@ func TestSection23CommunicationsSupportQualityAndSLA(t *testing.T) {
 		t.Fatalf("quality status=%v", quality["status"])
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	unknown, err := svc.RecordMeasurement(ctx, engagement.MeasurementInput{OrganizationID: scope.OrganizationID, AgreementReference: "sla-1", MetricCode: "ON_TIME", FormulaVersion: 1, PeriodStart: now.Add(-time.Hour), PeriodEnd: now, TargetValue: "95.00", Unit: "PERCENT", Complete: false})
+	unknown, err := svc.RecordMeasurement(ctx, engagementmodels.MeasurementInput{OrganizationID: scope.OrganizationID, AgreementReference: "sla-1", MetricCode: "ON_TIME", FormulaVersion: 1, PeriodStart: now.Add(-time.Hour), PeriodEnd: now, TargetValue: "95.00", Unit: "PERCENT", Complete: false})
 	if err != nil || unknown["breach_status"] != "UNKNOWN" {
 		t.Fatalf("unknown=%+v err=%v", unknown, err)
 	}
-	breach, err := svc.RecordMeasurement(ctx, engagement.MeasurementInput{OrganizationID: scope.OrganizationID, AgreementReference: "sla-1", MetricCode: "ON_TIME", FormulaVersion: 1, PeriodStart: now, PeriodEnd: now.Add(time.Hour), TargetValue: "95.00", MeasuredValue: "90.00", Unit: "PERCENT", Complete: true, HigherIsBetter: true})
+	breach, err := svc.RecordMeasurement(ctx, engagementmodels.MeasurementInput{OrganizationID: scope.OrganizationID, AgreementReference: "sla-1", MetricCode: "ON_TIME", FormulaVersion: 1, PeriodStart: now, PeriodEnd: now.Add(time.Hour), TargetValue: "95.00", MeasuredValue: "90.00", Unit: "PERCENT", Complete: true, HigherIsBetter: true})
 	if err != nil || breach["breach_status"] != "BREACHED" {
 		t.Fatalf("breach=%+v err=%v", breach, err)
 	}

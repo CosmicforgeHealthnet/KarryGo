@@ -29,11 +29,12 @@ import (
 	auditrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
 	backgroundopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/backgroundops/http"
 	bulkimportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
+	communicationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/http"
 	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
 	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
@@ -264,7 +265,12 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	engagementH := engagement.NewHandler(nil, nil, nil)
+	communicationsH := communicationshttp.NewHandler(nil, nil, nil)
+	for _, r := range communicationsH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+
+	engagementH := engagementhttp.NewHandler(nil, nil, nil)
 	for _, r := range engagementH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

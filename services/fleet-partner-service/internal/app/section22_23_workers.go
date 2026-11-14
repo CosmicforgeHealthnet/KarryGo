@@ -21,6 +21,9 @@ func RegisterSections22And23Workers(cfg config.Config, c *Components, worker *jo
 	if cfg.Section23WorkersEnabled && c.Engagement != nil {
 		c.Engagement.RegisterWorkers(worker)
 	}
+	if cfg.Section23WorkersEnabled && c.Communications != nil {
+		c.Communications.RegisterWorkers(worker)
+	}
 }
 
 func StartSections22And23Workers(ctx context.Context, cfg config.Config, c *Components, wg *sync.WaitGroup) {
@@ -38,6 +41,9 @@ func StartSections22And23Workers(ctx context.Context, cfg config.Config, c *Comp
 			}
 			if cfg.Section23WorkersEnabled && c.Engagement != nil {
 				_ = c.Engagement.ScheduleMaintenance(ctx)
+			}
+			if cfg.Section23WorkersEnabled && c.Communications != nil {
+				_ = c.Communications.ScheduleMaintenance(ctx)
 			}
 		}
 		run()

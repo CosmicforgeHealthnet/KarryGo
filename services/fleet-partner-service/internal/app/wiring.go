@@ -28,6 +28,8 @@ import (
 	backgroundopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/backgroundops/http"
 	bulkhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
+	communicationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/http"
+	communicationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/usecases"
 	wallethttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/http"
 	walletusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/usecases"
 	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
@@ -42,7 +44,8 @@ import (
 	eligibilityhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/http"
 	eligibilityrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/repositories"
 	eligibilityusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
+	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
+	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
@@ -175,7 +178,8 @@ type Components struct {
 	Specialized       *specializedfeature.Service
 	Warehouse         *warehousefeature.Service
 	FinanceOperations *financeops.Service
-	Engagement        *engagement.Service
+	Engagement        *engagementusecases.Service
+	Communications    *communicationsusecases.Service
 	Marketplace       *mktusecases.Service
 	FleetPartner      *fleetpartnerfeature.Service
 	// Search is the Section 25 (partial slice) full-text search projection.
@@ -452,7 +456,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	supportHTTP := platformclients.New(platformclients.Options{ServiceName: "support-dispute-service", BaseURL: supportCfg.BaseURL, Secret: supportCfg.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}})
 	financePosting := financialPostingAdapter{wallet: walletPostingAdapter{client: walletHTTP}, accounting: accountingPostingAdapter{client: accountingHTTP}}
 	financeOperations := financeops.NewService(financeops.Options{Pool: pool, Events: publisher, Media: contracts.Media, Wallet: financePosting, Flags: financeops.Flags{Invoices: cfg.InvoicesEnabled, Receivables: cfg.ReceivablesEnabled, Expenses: cfg.ExpensesEnabled, Budgets: cfg.BudgetsEnabled, Compensation: cfg.CompensationEnabled, Payroll: cfg.PayrollEnabled, Settlements: cfg.SubcontractorSettlementsEnabled, Claims: cfg.ClaimsEnabled, Posting: cfg.FinancePostingEnabled, Workers: cfg.Section22WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
-	engagementService := engagement.NewService(engagement.Options{Pool: pool, Events: publisher, Media: contracts.Media, Support: supportCaseAdapter{client: supportHTTP}, Notification: notificationDeliveryAdapter{client: notificationHTTP}, Flags: engagement.Flags{Communications: cfg.CommunicationsEnabled, NotificationRules: cfg.NotificationRulesEnabled, Support: cfg.SupportProjectionsEnabled, Quality: cfg.QualityCasesEnabled, SLA: cfg.SLAMeasurementsEnabled, Escalations: cfg.EscalationsEnabled, Workers: cfg.Section23WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	communicationsService, engagementService := newSection23Services(cfg, pool, publisher, contracts.Media, supportCaseAdapter{client: supportHTTP}, notificationDeliveryAdapter{client: notificationHTTP})
 	authorizer := accesscontrol.NewAuthorizer(roles, entryCache, cfg.AuthorizationCacheTTL)
 	searchService := BuildSearchService(cfg, pool, authorizer, metrics)
 	shipmentsService := BuildShipmentsService(cfg, pool, metrics, publisher)
@@ -512,6 +516,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		Warehouse:         warehouseService,
 		FinanceOperations: financeOperations,
 		Engagement:        engagementService,
+		Communications:    communicationsService,
 		Marketplace:       BuildMarketplaceService(cfg, pool, metrics),
 		FleetPartner:      fleetPartnerService,
 		Search:            searchService,
@@ -681,7 +686,8 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	specializedHandler := specializedfeature.NewHandler(c.Specialized, c.Authorizer, c.Idempotency)
 	warehouseHandler := warehousefeature.NewHandler(c.Warehouse, c.Authorizer, c.Idempotency)
 	financeOperationsHandler := financeops.NewHandler(c.FinanceOperations, c.Authorizer, c.Idempotency)
-	engagementHandler := engagement.NewHandler(c.Engagement, c.Authorizer, c.Idempotency)
+	engagementHandler := engagementhttp.NewHandler(c.Engagement, c.Authorizer, c.Idempotency)
+	communicationsHandler := communicationshttp.NewHandler(c.Communications, c.Authorizer, c.Idempotency)
 	searchHandler := searchhttp.NewHandler(c.Search, c.Authorizer)
 	exportsHandler := exportshttp.NewHandler(c.Exports, c.Authorizer, c.Idempotency)
 	synchronizationHandler := synchronization.NewHandler(c.Synchronization, c.Authorizer)
@@ -873,6 +879,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		warehouseHandler.RegisterTenantRoutes(group)
 		financeOperationsHandler.RegisterTenantRoutes(group)
 		engagementHandler.RegisterTenantRoutes(group)
+		communicationsHandler.RegisterTenantRoutes(group)
 		searchHandler.RegisterTenantRoutes(group)
 		exportsHandler.RegisterTenantRoutes(group)
 		synchronizationHandler.RegisterTenantRoutes(group)
@@ -987,7 +994,7 @@ func (c *Components) InternalSection16Routes() RouteRegistrar {
 // only on the HMAC-authenticated service surface.
 func (c *Components) InternalSection22To23Routes() RouteRegistrar {
 	financeHandler := financeops.NewInternalHandler(c.FinanceOperations)
-	engagementHandler := engagement.NewInternalHandler(c.Engagement)
+	engagementHandler := engagementhttp.NewInternalHandler(c.Engagement)
 	return func(group *gin.RouterGroup) {
 		financeHandler.RegisterInternalRoutes(group)
 		engagementHandler.RegisterInternalRoutes(group)

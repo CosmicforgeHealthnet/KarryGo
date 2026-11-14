@@ -5,14 +5,14 @@
 package main
 
 import (
+	communicationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/http"
+	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 )
 
 type object = map[string]any
@@ -27,7 +27,10 @@ func main() {
 		finance = append(finance, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	var communications []route
-	for _, r := range engagement.TenantRoutes() {
+	for _, r := range communicationshttp.TenantRoutes() {
+		communications = append(communications, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
+	}
+	for _, r := range engagementhttp.TenantRoutes() {
 		communications = append(communications, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	_, here, _, _ := runtime.Caller(0)
