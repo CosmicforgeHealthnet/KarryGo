@@ -199,6 +199,12 @@ func (s *Service) ensureWalletRequested(ctx context.Context, organizationID stri
 	if err != nil && !errors.Is(err, orgrepos.ErrNotFound) {
 		return
 	}
+	if err == nil && wallet.WalletAccountID != nil && *wallet.WalletAccountID != "" {
+		// The wallet service already confirmed an account for this company:
+		// read its state back instead of sending another provisioning request.
+		s.readBackWallet(ctx, organizationID, *wallet.WalletAccountID, correlationID)
+		return
+	}
 	_, _ = s.RequestWalletProvisioning(ctx, tenant.Context{
 		OrganizationID: organizationID,
 		ActorType:      tenant.ActorTypeSystem,

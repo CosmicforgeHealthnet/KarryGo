@@ -18,6 +18,7 @@ import (
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cache"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"cosmicforge/logistics/shared/go/auth"
 	"cosmicforge/logistics/shared/go/browserauth"
@@ -65,6 +66,16 @@ func buildOnboardingRouter(t *testing.T, configureMedia ...func(*mediaTestServer
 // gate, step-up), for features the organizations handler does not serve.
 func buildOnboardingRouterWith(t *testing.T, extraTenantRoutes func(*pgxpool.Pool, *gin.RouterGroup), configureMedia ...func(*mediaTestServer)) (*gin.Engine, *authHarness) {
 	t.Helper()
+	return buildOnboardingRouterWithCache(t, nil, extraTenantRoutes, configureMedia...)
+}
+
+// buildOnboardingRouterWithCache is buildOnboardingRouterWith with the
+// authorizer's decision cache configured the way production configures it
+// (internal/app/wiring.go: a cache.Cache over the Redis client and the
+// default 30s FLEET_PARTNER_AUTHORIZATION_CACHE_TTL). A nil cache is the
+// uncached authorizer the other harness callers use.
+func buildOnboardingRouterWithCache(t *testing.T, authzCache *cache.Cache, extraTenantRoutes func(*pgxpool.Pool, *gin.RouterGroup), configureMedia ...func(*mediaTestServer)) (*gin.Engine, *authHarness) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	var org *orgusecases.Service
 	var staff *staffusecases.Service
@@ -88,7 +99,7 @@ func buildOnboardingRouterWith(t *testing.T, extraTenantRoutes func(*pgxpool.Poo
 	// checked against the real auth service's grants.
 	ah := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test", "http://127.0.0.1:3417"}}).
 		WithOrganizationScope(app.StepUpOrganizationScope(sessions, resolver))
-	oh := orghttp.NewHandler(org, staff, providerusecases.NewService(providerusecases.Options{Pool: h.pool, Providers: providerrepos.NewRepository(h.pool)}), accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(h.pool), nil, 0), nil)
+	oh := orghttp.NewHandler(org, staff, providerusecases.NewService(providerusecases.Options{Pool: h.pool, Providers: providerrepos.NewRepository(h.pool)}), accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(h.pool), authzCache, 30*time.Second), nil)
 	return app.BuildRouter(app.Options{Metrics: observability.NewMetrics(), Config: config.Config{AppEnv: "test", MaxRequestBodyBytes: 32 << 20}, TokenSigner: auth.NewTokenSigner([]byte("test-access-secret")), Resolver: resolver, SessionStatus: sessions, OrganizationStatus: app.OrganizationStatusFromPool(h.pool), StepUp: authStepUpVerifier{service: h.service}, PublicAuthRoutes: ah.RegisterPublicRoutes, IdentityRoutes: func(g *gin.RouterGroup) { ah.RegisterAuthenticatedRoutes(g); oh.RegisterOnboardingRoutes(g) }, TenantRoutes: func(g *gin.RouterGroup) {
 		oh.RegisterTenantRoutes(g)
 		if extraTenantRoutes != nil {

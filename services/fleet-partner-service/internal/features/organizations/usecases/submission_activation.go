@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -290,24 +291,55 @@ func (s *Service) RequestWalletProvisioning(ctx context.Context, tenantCtx tenan
 	}
 
 	// The account ID is stored only from a confirmed response.
-	status := models.WalletStatusProvisioning
-	if account.Status == "ACTIVE" {
-		status = models.WalletStatusActive
+	status := walletStatusForAccount(account.Status)
+	if err := s.recordWalletAccount(ctx, tenantCtx.OrganizationID, status, account.AccountID); err != nil {
+		return nil, err
 	}
-	if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
-		if err := s.opts.Onboarding.SetWalletStatus(ctx, tx, tenantCtx.OrganizationID, status, account.AccountID, "", nil); err != nil {
+	s.opts.Metrics.IncCounter("fleet_partner_wallet_provisioning_total", map[string]string{"outcome": status}, 1)
+	return s.opts.Onboarding.GetWalletProvisioning(ctx, tenantCtx.OrganizationID)
+}
+
+// walletStatusForAccount maps the wallet service's account status onto the
+// provisioning projection. A restricted, suspended or closed wallet is
+// recorded as such rather than as "still provisioning", so the activation
+// gate and operators see the real reason activation is blocked.
+func walletStatusForAccount(status string) string {
+	switch normalized := strings.ToUpper(strings.TrimSpace(status)); normalized {
+	case models.WalletStatusActive:
+		return models.WalletStatusActive
+	case "RESTRICTED", "SUSPENDED", "CLOSED":
+		return normalized
+	}
+	return models.WalletStatusProvisioning
+}
+
+// recordWalletAccount stores a confirmed wallet answer together with the
+// matching WALLET_PROVISIONING stage status.
+func (s *Service) recordWalletAccount(ctx context.Context, organizationID, status, accountID string) error {
+	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		if err := s.opts.Onboarding.SetWalletStatus(ctx, tx, organizationID, status, accountID, "", nil); err != nil {
 			return err
 		}
 		stageStatus := models.StageStatusInProgress
 		if status == models.WalletStatusActive {
 			stageStatus = models.StageStatusComplete
 		}
-		return s.opts.Onboarding.UpsertStage(ctx, tx, tenantCtx.OrganizationID, models.StageWalletProvisioning, stageStatus, nil, nil)
-	}); err != nil {
-		return nil, err
+		return s.opts.Onboarding.UpsertStage(ctx, tx, organizationID, models.StageWalletProvisioning, stageStatus, nil, nil)
+	})
+}
+
+// readBackWallet asks the wallet service for the current state of an account
+// Fleet already holds a confirmed id for, and records the answer. This is how
+// a PROVISIONING (or restricted) wallet is observed becoming ACTIVE without a
+// second provisioning request being sent.
+func (s *Service) readBackWallet(ctx context.Context, organizationID, accountID, correlationID string) {
+	account, err := s.opts.Contracts.Wallet.ReadAccount(ctx, platformclients.CallMeta{
+		OrganizationID: organizationID, CorrelationID: correlationID,
+	}, accountID)
+	if err != nil || account.AccountID == "" {
+		return
 	}
-	s.opts.Metrics.IncCounter("fleet_partner_wallet_provisioning_total", map[string]string{"outcome": status}, 1)
-	return s.opts.Onboarding.GetWalletProvisioning(ctx, tenantCtx.OrganizationID)
+	_ = s.recordWalletAccount(ctx, organizationID, walletStatusForAccount(account.Status), account.AccountID)
 }
 
 // ActivationGate is one activation precondition.
