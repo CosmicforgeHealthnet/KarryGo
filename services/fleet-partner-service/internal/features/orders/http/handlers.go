@@ -32,13 +32,13 @@ const (
 
 // Handler serves the Section 15 private order routes.
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
 // NewHandler builds the handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{service: service, authorizer: authorizer}
 }
 

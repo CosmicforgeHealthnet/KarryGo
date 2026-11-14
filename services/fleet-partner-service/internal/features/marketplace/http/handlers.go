@@ -22,13 +22,13 @@ import (
 
 // Handler serves the corporate (Fleet manager) marketplace endpoints.
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
 // NewHandler constructs the corporate marketplace handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
 	return &Handler{
 		service:     service,
 		authorizer:  authorizer,

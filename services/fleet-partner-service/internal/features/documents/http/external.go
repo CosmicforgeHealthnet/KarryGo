@@ -39,7 +39,7 @@ var callerOwnsProviderService = map[string]string{
 // ExternalHandler serves the provider-facing and customer-facing document
 // routes on the HMAC-authenticated internal surface.
 type ExternalHandler struct {
-	service *usecases.Service
+	service UseCases
 	// allowedProviderCallers and allowedCustomerCallers are separate
 	// allowlists: a caller trusted to relay provider identity is not
 	// automatically trusted to relay customer identity, and vice versa.
@@ -48,7 +48,7 @@ type ExternalHandler struct {
 }
 
 // NewExternalHandler builds the handler with independent caller allowlists.
-func NewExternalHandler(service *usecases.Service, providerCallers []string,
+func NewExternalHandler(service UseCases, providerCallers []string,
 	customerCallers []string) *ExternalHandler {
 	toSet := func(names []string) map[string]bool {
 		set := map[string]bool{}

@@ -24,12 +24,12 @@ import (
 
 // InternalHandler serves the service-to-service document surface.
 type InternalHandler struct {
-	service *usecases.Service
+	service UseCases
 	allowed map[string]bool
 }
 
 // NewInternalHandler builds the handler with a caller allowlist.
-func NewInternalHandler(service *usecases.Service, allowedCallers []string) *InternalHandler {
+func NewInternalHandler(service UseCases, allowedCallers []string) *InternalHandler {
 	allowed := map[string]bool{}
 	for _, caller := range allowedCallers {
 		if name := strings.TrimSpace(caller); name != "" {

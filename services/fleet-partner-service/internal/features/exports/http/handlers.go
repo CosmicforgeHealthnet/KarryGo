@@ -33,12 +33,12 @@ const (
 )
 
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer,
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer,
 	idempotencyStore *idempotency.Store) *Handler {
 	return &Handler{service: service, authorizer: authorizer, idempotency: idempotencyStore}
 }

@@ -24,12 +24,12 @@ const VerificationEventsPath = "/organization-verification/events"
 
 // VerificationEventHandler ingests organization verification decisions.
 type VerificationEventHandler struct {
-	organizations *usecases.Service
+	organizations OrganizationUseCases
 	allowed       map[string]bool
 }
 
 // NewVerificationEventHandler builds the handler for the allowlisted callers.
-func NewVerificationEventHandler(organizations *usecases.Service, allowedCallers []string) *VerificationEventHandler {
+func NewVerificationEventHandler(organizations OrganizationUseCases, allowedCallers []string) *VerificationEventHandler {
 	allowed := map[string]bool{}
 	for _, caller := range allowedCallers {
 		if name := strings.TrimSpace(caller); name != "" {

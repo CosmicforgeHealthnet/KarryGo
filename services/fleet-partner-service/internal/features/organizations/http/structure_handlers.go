@@ -569,7 +569,7 @@ func (h *Handler) getRole(c *gin.Context) {
 	if !ok {
 		return
 	}
-	role, err := h.staff.Roles().GetRole(c.Request.Context(), tenantCtx.OrganizationID, c.Param("roleId"))
+	role, err := h.staff.GetRole(c.Request.Context(), tenantCtx.OrganizationID, c.Param("roleId"))
 	if err != nil {
 		respond.Error(c, apperrors.NotFound("Role not found.", nil))
 		return

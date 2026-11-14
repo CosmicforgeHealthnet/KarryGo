@@ -7,7 +7,6 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -32,12 +31,12 @@ import (
 // own response and returns ok=false. It satisfies both the companywallet and
 // workforce self-service resolver interfaces structurally.
 type SelfResolver struct {
-	service *usecases.Service
+	service UseCases
 	allowed map[string]bool
 }
 
 // NewSelfResolver builds the resolver over the caller allowlist.
-func NewSelfResolver(service *usecases.Service, allowedCallers []string) *SelfResolver {
+func NewSelfResolver(service UseCases, allowedCallers []string) *SelfResolver {
 	allowed := map[string]bool{}
 	for _, caller := range allowedCallers {
 		if name := strings.TrimSpace(caller); name != "" {

@@ -17,13 +17,12 @@ import (
 	"cosmicforge/logistics/shared/go/httpx"
 	"cosmicforge/logistics/shared/go/providerreceipt"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
 // InternalHandler serves service-to-service marketplace routes.
 type InternalHandler struct {
-	service *usecases.Service
+	service UseCases
 	// allowedCallers is the per-endpoint authorization gate. Service
 	// authentication proves WHO is calling; this decides whether that caller
 	// may reach this particular route.
@@ -31,7 +30,7 @@ type InternalHandler struct {
 }
 
 // NewInternalHandler builds the handler.
-func NewInternalHandler(service *usecases.Service, allowedCallers []string) *InternalHandler {
+func NewInternalHandler(service UseCases, allowedCallers []string) *InternalHandler {
 	permitted := make(map[string]bool, len(allowedCallers))
 	for _, name := range allowedCallers {
 		permitted[name] = true

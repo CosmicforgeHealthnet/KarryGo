@@ -39,12 +39,12 @@ var callerExecutionService = map[string]string{
 }
 
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer, store *idempotency.Store) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer, store *idempotency.Store) *Handler {
 	return &Handler{service: service, authorizer: authorizer, idempotency: store}
 }
 

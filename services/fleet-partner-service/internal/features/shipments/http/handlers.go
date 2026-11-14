@@ -32,14 +32,14 @@ const (
 
 // Handler serves the Section 15 shipment and cargo item routes.
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
 // NewHandler builds the handler. idempotencyStore may be nil only in tests
 // that never exercise a write route.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer,
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer,
 	idempotencyStore *idempotency.Store) *Handler {
 	return &Handler{service: service, authorizer: authorizer, idempotency: idempotencyStore}
 }

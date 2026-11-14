@@ -27,12 +27,12 @@ const PermissionSearchReplay = "search.replay"
 
 // Handler serves the Section 25 search route.
 type Handler struct {
-	service    *usecases.Service
+	service    UseCases
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler builds the handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{service: service, authorizer: authorizer}
 }
 

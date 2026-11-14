@@ -23,12 +23,12 @@ const (
 )
 
 type Handler struct {
-	s *usecases.Service
+	s UseCases
 	a *accesscontrol.Authorizer
 	i *idempotency.Store
 }
 
-func NewHandler(s *usecases.Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
 	return &Handler{s, a, i}
 }
 func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
