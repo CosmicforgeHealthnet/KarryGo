@@ -57,7 +57,11 @@ type OrganizationUseCases interface {
 	PreviewDocument(ctx context.Context, t tenant.Context, documentID string) (*usecases.DocumentPreview, error)
 	RejectClosure(ctx context.Context, t tenant.Context, reasonText string) (*models.ClosureRequest, error)
 	RemoveDocument(ctx context.Context, t tenant.Context, id string) error
-	Repositories() (*repositories.OrganizationRepository, *repositories.OnboardingRepository)
+	GetOrganization(ctx context.Context, organizationID string) (*models.Organization, error)
+	ListDocuments(ctx context.Context, organizationID string) ([]models.Document, error)
+	LatestVerificationRequest(ctx context.Context, organizationID string) (*models.VerificationRequest, error)
+	GetWalletProvisioning(ctx context.Context, organizationID string) (*models.WalletProvisioning, error)
+	ListVerificationIssues(ctx context.Context, organizationID string, requestID string) ([]models.VerificationIssue, error)
 	RequestClosure(ctx context.Context, input usecases.RequestClosureInput) (*models.ClosureRequest, error)
 	RequestDocumentUploadAuthorization(ctx context.Context, input usecases.RequestDocumentUploadAuthorizationInput) (*platformclients.MediaUploadGrant, error)
 	RequestWalletProvisioning(ctx context.Context, tenantCtx tenant.Context) (*models.WalletProvisioning, error)

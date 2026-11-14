@@ -46,7 +46,7 @@ type Flags struct {
 // Options configure the service catalogue service.
 type Options struct {
 	Pool       *pgxpool.Pool
-	Repository *repositories.Repository
+	Repository Store
 	Events     EventPublisher
 	Audit      *audit.Recorder
 	Metrics    *observability.Metrics

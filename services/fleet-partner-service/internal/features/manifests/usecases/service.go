@@ -32,7 +32,7 @@ type EventPublisher interface {
 type Flags struct{ Enabled, WritesEnabled, KillSwitch bool }
 type Options struct {
 	Pool       *pgxpool.Pool
-	Repository *repositories.Repository
+	Repository Store
 	Resources  ResourcesPort
 	Authority  AuthorityPort
 	Events     EventPublisher

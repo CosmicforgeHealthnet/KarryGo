@@ -30,7 +30,7 @@ var branchTypes = map[string]bool{"BRANCH": true, "HUB": true, "DEPOT": true, "W
 
 // SetDepartments wires the department repository (kept optional so older
 // constructors keep compiling).
-func (s *Service) SetDepartments(departments *orgrepos.DepartmentRepository) {
+func (s *Service) SetDepartments(departments DepartmentStore) {
 	s.opts.Departments = departments
 }
 
@@ -309,7 +309,7 @@ func emptyToNil(value *string) *string {
 	return &trimmed
 }
 
-func (s *Service) departments() (*orgrepos.DepartmentRepository, error) {
+func (s *Service) departments() (DepartmentStore, error) {
 	if s.opts.Departments == nil {
 		return nil, apperrors.Unavailable("Departments are not available.", nil)
 	}

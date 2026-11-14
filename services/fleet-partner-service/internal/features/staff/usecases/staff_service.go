@@ -46,9 +46,9 @@ type SessionRevoker interface {
 // Options configure the staff service.
 type Options struct {
 	Pool          *pgxpool.Pool
-	Members       *staffrepos.MemberRepository
-	Invitations   *staffrepos.InvitationRepository
-	Roles         *staffrepos.RoleRepository
+	Members       MemberStore
+	Invitations   InvitationStore
+	Roles         RoleStore
 	Organizations OrganizationReader
 	Sender        authclients.Sender
 	Sessions      SessionRevoker

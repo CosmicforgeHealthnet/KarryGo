@@ -35,7 +35,7 @@ type Flags struct {
 // Options configure the search service.
 type Options struct {
 	Pool       *pgxpool.Pool
-	Repository *repositories.Repository
+	Repository Store
 	Authorizer *accesscontrol.Authorizer
 	Metrics    *observability.Metrics
 	Flags      Flags

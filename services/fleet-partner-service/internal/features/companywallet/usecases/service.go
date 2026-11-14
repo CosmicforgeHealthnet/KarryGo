@@ -91,7 +91,7 @@ type Flags struct {
 // Options wires the service.
 type Options struct {
 	Pool        *pgxpool.Pool
-	Repository  *repositories.Repository
+	Repository  Store
 	Wallet      platformclients.FinanceWalletContract
 	Approvals   ApprovalPort
 	Eligibility EligibilityPort
@@ -124,7 +124,7 @@ func NewService(opts Options) *Service {
 }
 
 // Repository exposes persistence for composition and tests.
-func (s *Service) Repository() *repositories.Repository { return s.opts.Repository }
+func (s *Service) Repository() Store { return s.opts.Repository }
 
 // Flags reports the configured feature switches.
 func (s *Service) Flags() Flags { return s.opts.Flags }

@@ -780,8 +780,7 @@ func (h *Handler) currentOrganization(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	organizations, _ := h.organizations.Repositories()
-	organization, err := organizations.GetByID(c.Request.Context(), tenantCtx.OrganizationID)
+	organization, err := h.organizations.GetOrganization(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -884,8 +883,7 @@ func (h *Handler) listDocuments(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	_, onboarding := h.organizations.Repositories()
-	documents, err := onboarding.ListDocuments(c.Request.Context(), tenantCtx.OrganizationID)
+	documents, err := h.organizations.ListDocuments(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -932,8 +930,7 @@ func (h *Handler) verificationStatus(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	_, onboarding := h.organizations.Repositories()
-	request, err := onboarding.LatestVerificationRequest(c.Request.Context(), tenantCtx.OrganizationID)
+	request, err := h.organizations.LatestVerificationRequest(c.Request.Context(), tenantCtx.OrganizationID)
 	if errors.Is(err, orgrepos.ErrNotFound) {
 		// Nothing has been submitted for verification yet.
 		respond.OK(c, gin.H{"status": "NOT_SUBMITTED", "submissionVersion": 0, "issues": []any{}})
@@ -943,7 +940,7 @@ func (h *Handler) verificationStatus(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	issues, err := onboarding.ListVerificationIssues(c.Request.Context(), tenantCtx.OrganizationID, request.ID)
+	issues, err := h.organizations.ListVerificationIssues(c.Request.Context(), tenantCtx.OrganizationID, request.ID)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -961,8 +958,7 @@ func (h *Handler) walletStatus(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	_, onboarding := h.organizations.Repositories()
-	wallet, err := onboarding.GetWalletProvisioning(c.Request.Context(), tenantCtx.OrganizationID)
+	wallet, err := h.organizations.GetWalletProvisioning(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		if errors.Is(err, orgrepos.ErrNotFound) {
 			respond.OK(c, gin.H{"status": orgmodels.WalletStatusNotRequested, "attempts": 0})

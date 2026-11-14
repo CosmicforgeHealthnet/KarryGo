@@ -74,15 +74,15 @@ func (f Flags) SourceEnabled(category string) bool {
 // Options configure the assignment service.
 type Options struct {
 	Pool           *pgxpool.Pool
-	Projections    *repositories.ProjectionRepository
-	Offers         *repositories.OfferRepository
-	Assignments    *repositories.AssignmentRepository
+	Projections    ProjectionStore
+	Offers         OfferStore
+	Assignments    AssignmentStore
 	OperatingModes OperatingModeReader
 	// ExecutionStarts holds durable execution-start work created atomically
 	// with a provider's acceptance.
-	ExecutionStarts *repositories.ExecutionStartRepository
-	Trips           *repositories.TripRepository
-	Commands        *repositories.CommandRepository
+	ExecutionStarts ExecutionStartStore
+	Trips           TripStore
+	Commands        CommandStore
 	Executions      platformclients.ExecutionSet
 	Eligibility     *EligibilityChecker
 	// DurableEligibility records and enforces the durable decision layer. The
@@ -722,7 +722,7 @@ func apperrorsCode(reason string) apperrors.Code {
 }
 
 // Repositories exposes read paths to handlers.
-func (s *Service) Repositories() (*repositories.ProjectionRepository, *repositories.OfferRepository, *repositories.AssignmentRepository, *repositories.TripRepository) {
+func (s *Service) Repositories() (ProjectionStore, OfferStore, AssignmentStore, TripStore) {
 	return s.opts.Projections, s.opts.Offers, s.opts.Assignments, s.opts.Trips
 }
 
