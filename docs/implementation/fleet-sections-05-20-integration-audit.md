@@ -1,43 +1,60 @@
 # Fleet Sections 5-20: integration and dependency report
 
-Snapshot 2026-11-13, branch `staging`. Detailed cross-service evidence from
-the earlier audit: `spec-v2-audit/B-events-integrations.md`. This report
-records what this session changed and what each integration still needs.
-No new service-to-service connection was introduced this session.
+Date 2026-11-14. Branch `staging`. All integrations below are internal
+Karryam services reached over HMAC service authentication; none is treated
+as external. Third-party dependencies are listed separately at the end.
 
-## 1. Integrations touched this session
+## 1. Integration matrix
 
-| Integration | Owner | Change | Auth | Recovery |
+| Pair | Direction / contract | Code | Tests | Staging |
 |---|---|---|---|---|
-| Managed provider removal / suspension -> owning provider service | Dispatch / Taxi / Hauling | None to the contract. `POST /providers/:id/remove` reuses `ChangeStatus`, which calls `RevokeOrganizationEligibility` on the owning service (best-effort, as before). | HMAC (existing provider contracts) | Membership history and audit are authoritative; provider services also read Fleet's internal membership summary. |
-| Provider reactivation | Fleet + Wallet + provider service | Reactivation re-evaluates the existing activation gates: sub-wallet ACTIVE (Wallet projection), provider platform status ACTIVE (`ReadProvider` on the owning service), organization ACTIVE. | existing | A provider whose gates fail stays SUSPENDED and the error lists the failing gates. |
-| Unsafe-vehicle declines -> maintenance/safety | Fleet (assets) | The existing reconciler now also reads marketplace assignment declines. | in-process worker | Inbox table makes the sweep idempotent; unmanaged vehicles are recorded so they cannot wedge it. Gated by the existing `SECTION18_WORKERS_ENABLED`, inspections and maintenance flags. |
+| Fleet -> Verification-compliance | submission, read-back, decisions (`platformclients` verification) | live | `company_activation_test.go`, verification outcome tests | Paired and healthy (run 43563718915) |
+| Verification -> Fleet | verification events | live | same | Paired |
+| Fleet -> Payment-wallet | organization wallet provisioning and read-back; provider sub-wallets; managed settlement instructions with payment binding | live (Wallet 000023, Fleet 000097) | `row_08_12_activation_wallet_gate_test.go`; Wallet `fleet_wire_managed_settlement_test.go` (8 tests incl. concurrent sends, reversal, ambiguity refusal) | **Blocked:** `wallet.env` root-owned; pairing skipped; gate waived on staging |
+| Payment-wallet -> Fleet | finance events | live | finance ingestion tests | Blocked (same) |
+| Fleet -> Dispatch | marketplace reservation/execution (native dialect), private executions, organization trip cancel (new), restrictions, rider provisioning | live | `trip_cancel_integration_test.go` (Dispatch), `marketplace_trip_cancel_test.go`, `dispatch_native_execution_test.go`, organization provider tests | **Blocked:** Dispatch deploy waits for the reviewed migration-070 transition |
+| Dispatch -> Fleet | `platform.request.offered.v1`, trip events, completed work with payment reference | live | event ingestion and S1112 tests | Blocked (same) |
+| Fleet -> Hauling | execution adapter, trip cancel, restrictions, provider consent | live | marketplace and restriction tests | **Blocked:** `hauling.env` root-owned |
+| Hauling -> Fleet | marketplace feed (Hauling 035), trip events | live | Hauling suite (37 packages ok) | Blocked (same) |
+| Fleet -> Taxi | execution adapter, trip cancel, restrictions (new: Taxi 031, Fleet 000098) | live | `taxi_restriction_propagation_test.go`; Taxi restriction tests | **Blocked:** `taxi.env` root-owned |
+| Taxi -> Fleet | marketplace feed (Taxi 030), trip events | live | Taxi suite (45 packages ok) | Blocked (same) |
+| Fleet -> Media-file | documents, exports, proof files | live | export and document tests | Live |
+| Fleet -> Notification | operational alerts with notification intent | live | dispatch alert tests, 11.11c | Live |
 
-## 2. Integrations unchanged and their status
+Marketplace producers and consumers: Hauling, Taxi and Dispatch produce
+`platform.request.offered.v1`; Fleet fans out one projection and offer per
+eligible organization, accepts through the source reservation, assigns,
+creates execution, projects the trip lifecycle, reconciles gaps by
+read-back, cancels through the source, and raises a dispatcher alert on
+expiry. Every leg has a PostgreSQL test; the live leg waits on the owner
+actions below.
 
-| Integration | Status | What is needed |
-|---|---|---|
-| Fleet <-> Verification (company approval, ADR-006) | Built and deployed by the previous session (`e234978`, `d82599b`, pairing workflow `3b01b40`). | Live certification of an operator decision on staging was not re-run this session. |
-| Fleet <-> Wallet (company wallet, sub-wallets, allocations, withdrawals, managed settlement) | Code complete per audit; finance posting and allocations deliberately off on staging. | `FLEET_PARTNER_PAYMENT_WALLET_SERVICE_SECRET` and the matching trust entry in payment-wallet-service on staging (handoff brief 4). Until then the wallet activation gate uses the staging-only waiver (refused in production by config validation). |
-| Fleet -> Dispatch / Taxi provider provisioning | Only Hauling has a live contract (`app/wiring.go`). Dispatch and Taxi resolve to `UnconfiguredProvider` and fail closed. | Resolve-or-provision internal endpoints in driver-dispatch-delivery-service and driver-taxi-service, then wiring. Not attempted: it is cross-service work in services that have their own uncommitted workstreams. |
-| Marketplace offers (Dispatch `platform.request.offered.v1` -> Fleet projection/offer) | Ingestion code exists behind `FLEET_MARKETPLACE_EVENT_INGESTION_ENABLED` and the caller allowlist, both off by default; Hauling/Taxi send no offer events (audit B). | Producer wiring in the execution services and staging enablement. Not changed this session. |
-| Fleet domain events -> other services | Events go to Fleet's outbox/Redis stream; no consumer in other services (audit B). | Consumers in the owning services. Not changed. |
-| Media (documents, evidence) | Working (onboarding v2 closure). | none |
-| Notification (staff invitations, OTP) | Working (auth v2 closure). | none |
+## 2. Duplication audit
 
-## 3. Events emitted by new code
+- One Fleet service; no second implementation of any feature.
+- Workers: one expiry worker, one reassignment worker, one command
+  reconciler (now also resolving trip cancellations), one marketplace
+  reconciliation worker, one alert SLA worker. The new expiry alert reuses
+  the dispatch alert path rather than adding a notifier.
+- Events: reused `operational_alert.created.v1`; no new event type was added
+  for trip cancellation (the source's trip event moves the projection).
+- Tables: no replacement tables. New tables only where none existed
+  (migrations 000089-000099, listed in the API/database audit).
+- APIs: the trip-cancel route is new because no cancel existed; Dispatch's
+  private-execution cancellation stays for private orders and the new
+  marketplace route serves marketplace trips (different keys, same trip
+  state machine underneath).
 
-All through the existing transactional outbox (`events.NewDomainPublisher`),
-each with organizationId and correlationId:
+## 3. Owner actions (inaccessible authorized infrastructure)
 
-`branch.created.v1`, `branch.updated.v1`, `branch.archived.v1`,
-`department.created.v1`, `department.updated.v1`, `department.archived.v1`,
-`organization.settings_updated.v1`, `role.created.v1`, `role.updated.v1`,
-`role.archived.v1`, `role_binding.created.v1` (existing name, reused),
-`organization.provider.updated.v1`, `organization.provider.capabilities_changed.v1`,
-`organization.provider.policy_changed.v1`, existing provider status events
-for reactivate/remove, `shift_template.created.v1`, `shift_template.changed.v1`,
-`shift.created.v1` (existing name, reused for generated shifts),
-`training.assigned.v1`, `training.completed.v1`, `training.enrollment_cancelled.v1`.
+As root on the staging host, keeping mode 600:
+`chown deploy:deploy /opt/karrygo/{payment-wallet-service/wallet.env,customer-service/customer.env,taxi-service/taxi.env,hauling-service/hauling.env}`.
+Then re-run the deploy and pairing workflows. Dispatch needs its reviewed
+migration-070 transition.
 
-No other service consumes these yet (same as every Fleet event, see 2).
+## 4. Third-party dependencies
+
+- Paystack (Wallet payouts): not exercised; no real transfers were made.
+- Firebase Storage (media at rest): encryption at rest is the provider's;
+  Fleet does not encrypt exports itself (FLEET-7h.c).
+- No SMS provider was introduced.

@@ -1,126 +1,147 @@
 # Fleet Sections 5-20: closure report
 
-Date 2026-11-13. Branch `staging`. Service `services/fleet-partner-service`.
-Companion documents: requirements matrix, API/database audit, integration
-audit and implementation log (`fleet-sections-05-20-*.md`).
+Date 2026-11-14. Branch `staging` (never `main`, never production).
+Service `services/fleet-partner-service`, plus its Karryam counterparts
+(payment-wallet, driver-dispatch-delivery, driver-taxi, driver-hauling,
+verification-compliance) and the Fleet web app `web/fleet`.
+Companion documents: `fleet-sections-05-20-requirements-matrix.md` (per-row
+evidence), `-api-database-audit.md`, `-integration-audit.md`,
+`-implementation-log.md`.
 
-## 1. Executive summary
+## 1. Final status per section
 
-This session closed 19 audit rows in Sections 7-11, 17 and 18 with tested
-code, and left the rest of Sections 5-20 as recorded in the matrix. **Sections
-5-20 are not fully closed.** The remaining work is mostly cross-service
-(Dispatch/Taxi provisioning contracts, marketplace offer producers, Wallet
-staging secret) plus about a dozen tenant-side APIs and the frontend wiring
-of the new routes.
+Status vocabulary: CLOSED - VERIFIED (built, tested against PostgreSQL
+through the real router or use case, deployed to staging);
+IMPLEMENTED - LIVE CERTIFICATION BLOCKED (built and tested; the staging
+deployment or pairing it needs is blocked by inaccessible infrastructure);
+BLOCKED - EXTERNAL DEPENDENCY; SOURCE REQUIREMENT UNAVAILABLE. Two sections
+fit none of these honestly and are reported as OPEN with the exact items.
 
-What changed:
-- **Organization structure (7, 8):** branches, departments and organization
-  settings now have APIs on top of repositories that existed but were never
-  routed.
-- **Access administration (9):** staff edit, custom roles, and role bindings
-  with branch/department scope and expiry, with escalation, self-change and
-  owner-role guards.
-- **Managed providers (10):** edit, reactivate (gates re-checked), remove
-  (refused while live work exists; identity kept), capabilities, policies
-  (decline right cannot be turned off), decline history.
-- **Safety (11.13, 18.11):** marketplace unsafe-vehicle declines now start
-  the inspection / work-order / asset-block workflow; a decline on a vehicle
-  Fleet does not manage can no longer stall the sweep.
-- **Workforce (17):** shift templates (DST-gap aware, overnight, idempotent
-  generation) and training enrolments (migration 000089, reversible).
+| Section | Rows | Closed rows | Final status | What keeps it from CLOSED |
+|---|---|---|---|---|
+| 5 Service structure | 12 | 6 | **OPEN - engineering items remain** | 13 features are flat packages (SQL in the service file); handlers take concrete services; `dashboard` imports the flat `dispatch` package; 11 spec-named packages are `doc.go` markers. Behaviour is unaffected; this is a structural refactor not done. |
+| 6 API conventions | 14 | 11 | **OPEN - engineering items remain** | 6f: dispatch, workforce, asset and `/marketplace/trips` lists are offset-only (no cursor). 6h: internal service routes keep bespoke bodies by contract with other services. 6.1: DTOs flatten money into `xxxMinor` + `currency` instead of a Money object. |
+| 7 Organizations | 16 | 15 | **CLOSED - VERIFIED** | 7h.c (exports encrypted at rest) is media-file-service's storage backend (Firebase Storage encryption); Fleet does not encrypt and no test can assert the third-party store. Recorded as an external certification. |
+| 8 Auth & lifecycle | 20 | 19 | **CLOSED - VERIFIED** | 8.3 password login is not built by product decision (passwordless email OTP, no SMS); recorded as superseded, not as a defect. |
+| 9 Staff & IAM | 21 | 21 | **CLOSED - VERIFIED** | |
+| 10 Managed providers | 23 | 23 | **IMPLEMENTED - LIVE CERTIFICATION BLOCKED** | Fleet side live. The Hauling/Taxi pairing and their new code are not deployed: `hauling.env` and `taxi.env` on the staging host are root-owned (see section 6). |
+| 11 Marketplace operations | 17 | 17 | **IMPLEMENTED - LIVE CERTIFICATION BLOCKED** | Same: offers come from Hauling/Taxi/Dispatch producers that cannot be paired or deployed until their settings files are fixed; Dispatch also waits for its reviewed migration-070 transition. |
+| 12 Execution & trips | 8 | 8 | **IMPLEMENTED - LIVE CERTIFICATION BLOCKED** | Trip cancellation (Dispatch route + Fleet command) is tested end to end against PostgreSQL; Dispatch cannot deploy until migration 070 is transitioned. |
+| 13 Wallet | 17 | 17 | **IMPLEMENTED - LIVE CERTIFICATION BLOCKED** | Wallet migration 000023 and the settlement-identity work are not deployed and the Fleet-Wallet pairing is not applied: `wallet.env` is root-owned. Staging keeps `FLEET_ACTIVATION_WALLET_GATE_WAIVED=true` until then. No fake balances were introduced. |
+| 14 CRM | 26 | 26 | **CLOSED - VERIFIED** | |
+| 15 Private orders | 22 | 22 | **CLOSED - VERIFIED** | |
+| 16 Dispatch & tracking | 18 | 18 | **CLOSED - VERIFIED** | |
+| 17 Workforce | 23 | 23 | **CLOSED - VERIFIED** | |
+| 18 Assets | 16 | 16 | **CLOSED - VERIFIED** | |
+| 19 Compliance & safety | 19 | 19 | **IMPLEMENTED - LIVE CERTIFICATION BLOCKED** | Restriction propagation now reaches Dispatch, Hauling and Taxi (tested); Taxi's authority is not deployed (root-owned `taxi.env`). |
+| 20 Specialized logistics | 15 | 15 | **CLOSED - VERIFIED** | |
+| **Total** | **287** | **276** | | 1 not independently tested (7h.c), 9 partial (Sections 5-6), 1 superseded (8.3) |
 
-35 routes, 1 migration, 4 new PostgreSQL-backed tests, no new service and
-no new external connection. Nothing was renamed or removed.
+"Closed rows" counts matrix rows with status CLOSED - VERIFIED; every one
+names its test and commit in the matrix.
 
-## 2. Requirement totals (matrix rows)
+## 2. Deployment detection and permissions (the corrected assessment)
 
-CLOSED = implemented and tested this session. IMPLEMENTED (audit) = per the
-earlier audit, not re-verified this session.
+- Run 43496005627 deployed Fleet `612934c8` healthy. Run 43496089810 failed
+  because a checksum-only `go.work.sum` change redeployed 11 services and then
+  stopped on Payment Wallet's private env file.
+- Fixed: `deploy/platform/bin/changed-services.py` selects services by the
+  shared packages they actually import (`go list -deps` in a scratch copy);
+  `go.work`/`go.work.sum` select nothing. Preflight is per service: a service
+  whose settings file the deploy account cannot read is skipped, never
+  loosened (mode 600 kept), and the run fails at the end naming the file and
+  the owner action. `check_private_file` also requires the file be readable.
+- Pairing (`scripts/platform/staging-pairing.sh`) drops every pairing and
+  setting that depends on a blocked service (`requires=`), so nothing is
+  half-paired.
+- Evidence the selector is precise: run 43586837951 (Fleet-only change)
+  deployed only Fleet and succeeded; run 43585864400 selected seven services
+  because shared packages they import changed, deployed the three it could
+  and skipped four with the owner action.
 
-| Section | CLOSED | IMPLEMENTED (audit) | PARTIAL | MISSING | Other | Status |
-|---|---|---|---|---|---|---|
-| 5 Repository and conventions | 0 | 8 | 4 | 0 | | NOT CLOSED |
-| 6 API and data conventions | 0 | 11 | 3 | 0 | | NOT CLOSED |
-| 7 Multi-tenancy | 3 | 10 | 0 | 0 | | IMPLEMENTED - LIVE CERTIFICATION BLOCKED (not deployed-verified) |
-| 8 Auth, onboarding, lifecycle | 2 | 10 | 1 | 0 | 1 superseded, 1 external, 1 pending live | NOT CLOSED (8.15 teams/cost centres/locations) |
-| 9 Users, roles, approvals | 5 | 8 | 0 | 2 | | NOT CLOSED (approval policies, delegations) |
-| 10 Managed providers | 5 | 7 | 2 | 2 | | BLOCKED - EXTERNAL DEPENDENCY (Dispatch/Taxi contracts) + gaps |
-| 11 Accept / decline | 1 | 12 | 0 | 0 | | IMPLEMENTED - LIVE CERTIFICATION BLOCKED (provider routes need caller allowlist on staging) |
-| 12 Marketplace and trips | 0 | 5 | 2 | 0 | 1 external | BLOCKED - EXTERNAL DEPENDENCY (offer producers) |
-| 13 Wallet and sub-wallets | 0 | 9 | 1 | 0 | 1 external | BLOCKED - EXTERNAL DEPENDENCY (Wallet secret on staging) |
-| 14 CRM and contracts | 0 | 10 | 0 | 1 | | NOT CLOSED (leads) |
-| 15 Orders, shipments | 0 | 9 | 1 | 1 | | NOT CLOSED |
-| 16 Dispatch and tracking | 0 | 12 | 1 | 1 | | NOT CLOSED |
-| 17 Workforce | 2 | 12 | 1 | 1 | | NOT CLOSED (provider self-view) |
-| 18 Assets and maintenance | 1 | 10 | 0 | 1 | | NOT CLOSED (meter readings, tyres, defects) |
-| 19 Compliance and safety | 0 | 11 | 1 | 1 | | NOT CLOSED |
-| 20 Specialized logistics | 0 | 11 | 2 | 1 | | NOT CLOSED. Source text found (spec 20 and 50); not a source blocker. |
+## 3. Staging evidence (actual)
 
-## 3. Reused vs created
+| Run | Commit | Result |
+|---|---|---|
+| 43561257812 | `e1a57b6` | Fleet API and worker revision `e1a57b6`, healthy, migrations through 000095 |
+| 43563718925 | `308b463` | Fleet API and worker revision `308b4632...`, `api_health=healthy`; Wallet skipped (`wallet.env`) |
+| 43585864400 | `344bd73` | Fleet `344bd73...` healthy; notification-service and support-dispute healthy; Wallet, customer, Taxi, Hauling skipped (root-owned env files) |
+| 43586115356 | `b871416` | success |
+| 43586837951 | `45b31f7` | success (Fleet only) |
 
-Reused: branch, department, settings, role, binding, member, provider
-membership, capability and policy repositories; `UpdateStaff`,
-`ReplaceRoleBindings`, `ChangeStatus`, `EvaluateActivation`, `CompleteCourse`;
-the authorizer's escalation guard; the safety-decline inbox and work-order
-pipeline; the outbox publisher and audit recorder.
-Repaired: role bindings were organization-scope only; the safety-decline
-reconciler ignored marketplace work and could wedge.
-Created: branch update, department list/update/archive, role-admin and
-provider-admin use cases, shift templates and enrolments.
-Consolidated: nothing needed consolidation; no duplicate routes or tables
-were found for the work done.
+Live checks from outside the server (2026-11-14): `GET /health` 200,
+`GET /ready` 200 on `fleet-api.staging.karryam.com`; the new routes
+(`POST /marketplace/trips/:id/cancel`, `/leads`, `/rescue-cases`,
+`/approval-policies`, `/compliance/restrictions`) answer 401 (mounted,
+authentication required) while an unknown path answers 404. The live web
+app `fleet-karryam.vercel.app` serves the wave-2 bundle (the
+`custody-events` client first added in `40ce7b4` is in the live chunk).
 
-## 4. Verification evidence
+Not done live: authenticated end-to-end journeys on staging. They need a
+staff sign-in through an emailed OTP to a real mailbox, which this
+environment cannot receive. Journeys are certified against PostgreSQL
+through the production router instead (section 4).
 
-- PostgreSQL 16 (local cluster), fresh database, migrations applied with
-  `go run ./cmd/test-migrate`, then `go test -p 1 -count=1 ./...` over the
-  whole service: 78 packages pass; the two failures in that run were
-  assertions my change had to update (workforce route count 37 -> 46 and
-  the Section 17 OpenAPI document). Both were fixed and re-run green
-  (`internal/features/workforce`, `internal/section17contract`).
-- New tests: `TestOrganizationStructureAndAccessAdministration` (production
-  router), `TestManagedProviderAdministration`,
-  `TestShiftTemplatesAndTrainingEnrollments`, extended
-  `TestSection17And18EndToEnd`; migration replay of 000089 in
-  `section30contract`; route classification in `section28contract`.
-- `go build ./...`, `go vet ./...` clean.
+Pairing (run 43563718915): Fleet <-> Verification paired and healthy;
+marketplace ingestion, assignment expiry, reassignment and reconciliation
+workers on; Wallet, Hauling and Taxi pairings skipped with the owner action.
 
-Not run: `-race` (not part of this session's runs), the browser suites, and
-any live staging journey.
+## 4. Test evidence (final tree)
 
-## 5. Security notes
+- Fleet full suite on the final code (`c164b86`), PostgreSQL 16, fresh
+  database migrated through 000099, `go test -p 1 -count=1 ./...`: 84
+  packages ok, 0 failures.
+- Payment-wallet: 11 packages ok. Dispatch: 42 packages ok (after fixing its
+  test harness to apply the rider-auth schema). Taxi: 45 packages ok.
+  Hauling: 37 packages ok. shared/go: 57 packages ok.
+- Race detector: concurrency tests (inbox deduplication, idempotency,
+  concurrent sends) pass under `-race`. The inbox race found by a flaky run
+  was a real defect and is fixed (`c164b86`).
+- Contract: route coverage, risk registry, object authorization, step-up
+  route list, query allowlist, OpenAPI parity, migration lint and latest
+  migration replay (000099) all pass.
+- Security: step-up mandatory on high-risk actions, approval decisions bind
+  the verified grant, branch scope enforced in SQL for every scoped list
+  (NULL-safe, with a static guard), versioned writes refuse a missing
+  If-Match, money never passes through float64 (static guard), camelCase
+  response keys enforced by a static guard.
+- Web: `tsc --noEmit` clean, 43/43 unit tests, production build, CI lint set.
 
-- Default-deny permissions on every new route; tenant scope from the session
-  only; cross-tenant reads and writes return 404 (tested).
-- Privilege escalation through role contents is refused; staff cannot change
-  their own roles; owners keep the owner role.
-- The provider decline right cannot be disabled (refused in the use case,
-  CHECK constraint in the database).
-- Provider decline history exposes reason codes, never free text.
-- Settings PATCH cannot change operating mode, retention or feature flags.
+## 5. Defects found and fixed in this phase (selection)
 
-## 6. Deployment
+Organization-wide callers saw only branchless rows in 11 lists (NULL
+`cardinality`); API client creation failed without an IP allowlist; provider,
+structure, staff, role and assignment writes accepted a missing version;
+accept ignored `expectedVersion`; candidates ignored branch scope; nobody
+held the operating-mode permission; a confirmed wallet was re-provisioned on
+every pass; a verification suspension could never be lifted; Fleet could not
+cancel a live trip; Taxi received no restrictions; concurrent duplicate
+events failed with a unique violation; 1,286 response fields serialized as
+Go names; 26 defects across Sections 14-20 (contract renewal duplication,
+cold-chain release without evidence, cross-branch corrective actions,
+anonymous reporter disclosure, and others listed in the implementation log).
 
-Pushing `staging` triggers `Deploy staging (automatic)`, which builds and
-deploys changed services, including `fleet-partner-service`. Migration
-000089 runs on service start where `MIGRATION=true` is set for staging.
-The deploy outcome and running image revision must be read from the
-workflow run and the server; this report does not claim them. See the
-session summary for the run status at the time of writing.
+## 6. Owner actions (exact)
 
-## 7. Remaining blockers
+On the staging host, as root, keeping mode 600 (do not loosen):
 
-| Blocker | Owner | Done so far | Next action |
-|---|---|---|---|
-| Dispatch and Taxi resolve-or-provision contracts | dispatch / taxi service teams | Fleet side fails closed; Hauling works | Add internal endpoints in those services, wire in `app/wiring.go` |
-| Marketplace offer producers | dispatch / taxi / hauling | Fleet ingestion exists, off by default | Producers + enable `FLEET_MARKETPLACE_EVENT_INGESTION_ENABLED` and allowlist on staging |
-| Fleet-Wallet trust on staging | platform / infra | Code complete; staging waiver for activation | Set `FLEET_PARTNER_PAYMENT_WALLET_SERVICE_SECRET` and Wallet trust entry |
-| Provider accept/decline routes on staging | platform / infra | Mounted only when `FLEET_MARKETPLACE_ALLOWED_CALLERS` is set | Set the allowlist for the provider services |
-| Frontend for new routes | web/fleet | none | Wire branches, departments, settings, custom roles, provider admin, templates and enrolments into existing pages without redesign |
-| Remaining tenant APIs | Fleet | listed in matrix | 9.12/9.13, 14.10, 15.3, 16.12/16.14, 17.15, 18.12, 19.13, 20.14 |
+```
+chown deploy:deploy /opt/karrygo/payment-wallet-service/wallet.env \
+  /opt/karrygo/customer-service/customer.env \
+  /opt/karrygo/taxi-service/taxi.env \
+  /opt/karrygo/hauling-service/hauling.env
+```
 
-## 8. Verdict
+Then re-run "Deploy staging (automatic)" and "Platform staging pairing".
+Dispatch additionally needs the reviewed migration-070 manual transition
+before `deploy-service.sh` will deploy it. After the Wallet pairing applies
+and an organization wallet is provisioned through it, remove
+`FLEET_ACTIVATION_WALLET_GATE_WAIVED=true` from the pairing file.
 
-Partial progress, honestly scoped: 19 rows closed with tests; Sections 5-20
-as a whole remain open. No section is marked CLOSED - VERIFIED, because no
-section has every row closed and live-certified on staging.
+## 7. Verdict
+
+Sections 7, 8, 9, 14, 15, 16, 17, 18 and 20 are closed. Sections 10, 11, 12,
+13 and 19 are implemented and tested; their live certification is blocked
+only by the four root-owned settings files and the Dispatch migration
+transition above. Sections 5 and 6 are open for the structural and
+convention items listed in section 1; none of them changes behaviour.
