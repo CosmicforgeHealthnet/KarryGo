@@ -39,6 +39,15 @@ func main() {
 		os.Exit(1)
 	}
 	sort.Strings(files)
+	// The legacy rider-auth schema (dispatch_rider_identities and friends)
+	// predates the numbered .up.sql files and is applied first, exactly as
+	// scripts/bootstrap_services/dispatch-local-bootstrap.sh does. Without it
+	// the organization-provider tests have no rider identity table.
+	files = append([]string{
+		filepath.Join("migrations", "001_dispatch_rider_auth.sql"),
+		filepath.Join("migrations", "002_dispatch_rider_auth_alter.sql"),
+		filepath.Join("migrations", "003_dispatch_rider_auth_signup.sql"),
+	}, files...)
 
 	if len(files) == 0 {
 		fmt.Fprintln(os.Stderr, "no Dispatch .up.sql migrations found")
