@@ -466,6 +466,7 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/marketplace/offers/:offerId/decline", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/marketplace/requests/:projectionId/assign", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/marketplace/assignments/:assignmentId/cancel", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/marketplace/trips/:tripId/cancel", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/marketplace/assignments/:assignmentId/reassign", RiskClass: ratelimit.RiskSensitive},
 	// Shift templates and training enrolments (Sections 17, 46.3).
 	{Method: "GET", Path: "/fleet-partner/v1/shift-templates", RiskClass: ratelimit.RiskStandard},

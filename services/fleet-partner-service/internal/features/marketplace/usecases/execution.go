@@ -308,6 +308,9 @@ func (s *Service) reconcileCommand(ctx context.Context, operation *models.Comman
 		s.recordCommand(ctx, operation, models.CommandRejected, "", outcome.RejectionCode)
 		return true
 
+	case models.CommandCancelExecution:
+		return s.reconcileCancel(ctx, operation, contract)
+
 	default:
 		s.backoffCommand(ctx, operation, "unsupported_operation")
 		return false

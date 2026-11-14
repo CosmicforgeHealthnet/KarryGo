@@ -46,6 +46,8 @@ func TenantRoutes() []Route {
 		{Method: "POST", Path: "/marketplace/offers/:offerId/decline", OperationID: "declineCorporateOffer", Permission: PermissionMarketplaceDecline, AuthClass: "corporate", IdempotencyRequired: true},
 		{Method: "POST", Path: "/marketplace/requests/:projectionId/assign", OperationID: "assignCorporateRequest", Permission: PermissionMarketplaceAssign, AuthClass: "corporate", IdempotencyRequired: true, ExpectedVersionRequired: true},
 		{Method: "POST", Path: "/marketplace/assignments/:assignmentId/cancel", OperationID: "cancelCorporateAssignment", Permission: PermissionMarketplaceCancel, AuthClass: "corporate", IdempotencyRequired: true, ExpectedVersionRequired: true},
+		// FLEET-12.2: cancel a live canonical trip through its source service.
+		{Method: "POST", Path: "/marketplace/trips/:tripId/cancel", OperationID: "cancelCorporateTrip", Permission: PermissionMarketplaceCancel, AuthClass: "corporate", IdempotencyRequired: true},
 		{Method: "POST", Path: "/marketplace/assignments/:assignmentId/reassign", OperationID: "reassignCorporateAssignment", Permission: PermissionMarketplaceReassign, AuthClass: "corporate", IdempotencyRequired: true},
 	}
 }
@@ -71,6 +73,7 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 		"assignCorporateRequest":         h.Assign,
 		"cancelCorporateAssignment":      h.CancelAssignment,
 		"reassignCorporateAssignment":    h.ReassignAssignment,
+		"cancelCorporateTrip":            h.CancelTrip,
 	}
 	for _, r := range TenantRoutes() {
 		handler, ok := handlers[r.OperationID]

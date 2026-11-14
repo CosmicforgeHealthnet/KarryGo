@@ -53,6 +53,8 @@ func TestDispatchNativeExecutionSpeaksDispatchDialect(t *testing.T) {
 		case "GET " + dispatchInternalBase + "/requests/req-1":
 			write(map[string]any{"requestId": "req-1", "bookingId": "bkg-1", "broadcastStatus": "broadcasting",
 				"reservedOrganizationId": "org-1", "sourceVersion": 7, "expiresAt": time.Now().UTC().Format(time.RFC3339)})
+		case "POST " + dispatchInternalBase + "/trips/trip-1/cancel":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"tripId":"trip-1","status":"cancelled","sourceVersion":4}}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -101,8 +103,14 @@ func TestDispatchNativeExecutionSpeaksDispatchDialect(t *testing.T) {
 	if err != nil || view.Status != "broadcasting" || view.WinnerOrganizationID != "org-1" || view.SourceVersion != 7 {
 		t.Fatalf("read request = %+v, %v", view, err)
 	}
-	if err := native.CancelExecution(ctx, meta, "trip-1", "x", "k"); err != ErrDispatchTripCancelUnsupported {
+	// FLEET-12.2: cancellation goes to Dispatch's organization trip-cancel
+	// route and names the asking organization, which Dispatch checks.
+	if err := native.CancelExecution(ctx, meta, "trip-1", "customer withdrew", "cancel-k"); err != nil {
 		t.Fatalf("cancel = %v", err)
+	}
+	cancelBody := bodies["POST "+dispatchInternalBase+"/trips/trip-1/cancel"]
+	if cancelBody["organizationId"] != "org-1" || cancelBody["idempotencyKey"] != "cancel-k" || cancelBody["reason"] != "customer withdrew" {
+		t.Fatalf("cancel body = %v", cancelBody)
 	}
 	for _, path := range seen {
 		if path == "GET "+dispatchInternalBase+"/eligibility" {

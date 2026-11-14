@@ -355,6 +355,34 @@ func (h *Handler) CancelAssignment(c *gin.Context) {
 	})
 }
 
+type cancelTripBody struct {
+	Reason string `json:"reason"`
+}
+
+// CancelTrip asks the source service to cancel a live canonical trip.
+// POST /marketplace/trips/:tripId/cancel
+func (h *Handler) CancelTrip(c *gin.Context) {
+	t, ok := h.gate(c, PermissionMarketplaceCancel)
+	if !ok {
+		return
+	}
+	var body cancelTripBody
+	if !bindJSON(c, &body) {
+		return
+	}
+	h.command(c, t, "POST /marketplace/trips/:tripId/cancel", body, func() (int, any, error) {
+		result, err := h.service.CancelCorporateTrip(c.Request.Context(), t, usecases.CorporateCancelTripInput{
+			TripID: c.Param("tripId"), Reason: body.Reason,
+			IdempotencyKey: strings.TrimSpace(c.GetHeader("Idempotency-Key")),
+		})
+		status := http.StatusOK
+		if result != nil && result.Status == "CANCELLATION_PENDING" {
+			status = http.StatusAccepted
+		}
+		return status, result, err
+	})
+}
+
 type reassignBody struct {
 	MembershipID           string `json:"membershipId"`
 	AssetReference         string `json:"assetReference"`

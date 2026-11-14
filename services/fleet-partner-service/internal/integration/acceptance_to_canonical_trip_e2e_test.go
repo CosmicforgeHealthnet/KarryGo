@@ -576,8 +576,11 @@ func TestAcceptanceToOneCanonicalTrip(t *testing.T) {
 		t.Fatalf("native eligibility=%+v, want ineligible with a reason at version %d",
 			eligibility, requestView.SourceVersion)
 	}
-	if err := native.CancelExecution(ctx, nativeMeta, canonicalTripID, "test", "cancel-1"); err != platformclients.ErrDispatchTripCancelUnsupported {
-		t.Fatalf("native CancelExecution err=%v, want unsupported", err)
+	// FLEET-12.2: another organization cannot cancel this trip through
+	// Dispatch's organization trip-cancel route; the trip stays live for the
+	// rest of this journey.
+	if err := native.CancelExecution(ctx, platformclients.CallMeta{OrganizationID: "org_not_the_owner"}, canonicalTripID, "test", "cancel-1"); err == nil {
+		t.Fatal("native CancelExecution by another organization succeeded")
 	}
 
 	// Section 15 private-order boundary: use the production Fleet adapter and

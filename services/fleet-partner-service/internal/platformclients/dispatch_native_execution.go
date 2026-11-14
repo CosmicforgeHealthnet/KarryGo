@@ -273,19 +273,25 @@ func (d *DispatchNativeExecution) ReadTrip(ctx context.Context, meta CallMeta,
 	}, nil
 }
 
-// ErrDispatchTripCancelUnsupported is returned by CancelExecution: Dispatch
-// exposes no internal cancel route for an organization-managed trip, so Fleet
-// cannot cancel one remotely. A live trip is never cancelled locally without
-// source confirmation, so this is a permanent refusal, not a retry.
-var ErrDispatchTripCancelUnsupported = &Error{
-	Service: "driver-dispatch-delivery-service",
-	Outcome: OutcomePermanent,
-	Message: "dispatch does not expose organization trip cancellation",
-}
-
-// CancelExecution refuses: see ErrDispatchTripCancelUnsupported.
-func (d *DispatchNativeExecution) CancelExecution(context.Context, CallMeta, string, string, string) error {
-	return ErrDispatchTripCancelUnsupported
+// CancelExecution cancels an organization-managed canonical trip through
+// Dispatch's internal marketplace API:
+//
+//	POST {base}/trips/{sourceTripId}/cancel
+//
+// Dispatch checks that the trip belongs to meta.OrganizationID (another
+// organization's trip, or an independent one, is not found) and cancels it
+// through its own trip state machine. A repeat returns the cancelled trip, so
+// a retry after an unknown outcome is safe. A trip past pickup is refused
+// with a conflict; Fleet never cancels a live trip locally.
+func (d *DispatchNativeExecution) CancelExecution(ctx context.Context, meta CallMeta,
+	sourceTripID string, reason string, idempotencyKey string) error {
+	meta.IdempotencyKey = idempotencyKey
+	body := map[string]any{
+		"organizationId": meta.OrganizationID, "reason": reason,
+		"idempotencyKey": idempotencyKey, "correlationId": meta.CorrelationID,
+	}
+	return d.client.Do(ctx, meta, http.MethodPost,
+		d.apiBase+"/trips/"+url.PathEscape(sourceTripID)+"/cancel", body, nil)
 }
 
 var _ ExecutionContract = (*DispatchNativeExecution)(nil)
