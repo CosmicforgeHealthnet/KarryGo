@@ -12,7 +12,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	eligibilitymodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/models"
 	eligibilityusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/usecases"
 	ordersmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/models"
@@ -155,7 +155,7 @@ func privateExecutionPayload(pickup, dropoff ordersmodels.OrderStop, shipment sh
 type privateEligibilityAdapter struct {
 	service      *eligibilityusecases.Service
 	workforce    *workforceusecases.Service
-	assets       *assetsfeature.Service
+	assets       *assetsusecases.Service
 	restrictions interface {
 		Restricted(context.Context, string, string, string) (bool, error)
 	}
@@ -206,7 +206,7 @@ func (a privateEligibilityAdapter) Validate(ctx context.Context, organizationID,
 	return true, nil
 }
 
-func BuildPrivateOperationsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, metrics *observability.Metrics, workforce *workforceusecases.Service, assets *assetsfeature.Service, restrictions interface {
+func BuildPrivateOperationsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, metrics *observability.Metrics, workforce *workforceusecases.Service, assets *assetsusecases.Service, restrictions interface {
 	Restricted(context.Context, string, string, string) (bool, error)
 }) *privateusecases.Service {
 	dispatchConfigured := cfg.DispatchServiceURL != "" && len(cfg.DispatchServiceSecret) > 0

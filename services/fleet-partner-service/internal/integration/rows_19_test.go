@@ -16,7 +16,10 @@ import (
 	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
 	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
 	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
+	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
+	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
+	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -32,7 +35,7 @@ type rows19 struct {
 	rowsOrgs
 	compliance *complianceusecases.Service
 	safety     *safety.OperationsService
-	proof      *proof.Service
+	proof      *proofusecases.Service
 	router     http.Handler
 	branchA    string
 	branchX    string
@@ -52,14 +55,14 @@ func newRows19(t *testing.T) *rows19 {
 	f := &rows19{rowsOrgs: orgs, now: now}
 	f.compliance = complianceusecases.NewService(complianceusecases.Options{Pool: orgs.pool, Repository: compliancerepos.NewRepository(orgs.pool), Events: publisher, Flags: compliancemodels.Flags{Compliance: true}, Now: func() time.Time { return now }})
 	f.safety = safety.NewOperationsService(safety.OperationsOptions{Pool: orgs.pool, Events: publisher, Media: media, Flags: safety.OperationsFlags{Reports: true, Incidents: true}, Now: func() time.Time { return now }})
-	f.proof = proof.NewService(proof.Options{Pool: orgs.pool, Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proof.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
+	f.proof = proofusecases.NewService(proofusecases.Options{Pool: orgs.pool, Repository: proofrepos.NewRepository(orgs.pool), Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proofmodels.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
 	f.NoPermission = rowsActor{Org: orgs.A.Org, Member: seedApprovalMember(t, orgs.pool, orgs.A.Org, "", "no-role")}
 	f.branchA = seedBranch(t, orgs.pool, orgs.A.Org, "Rows19 Main")
 	f.branchX = seedBranch(t, orgs.pool, orgs.A.Org, "Rows19 Other")
 	f.router = rowsRouter(t, orgs.pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
 		compliancehttp.NewHandler(f.compliance, a, s).RegisterTenantRoutes(g)
 		safety.NewOperationsHandler(f.safety, a, s).RegisterTenantRoutes(g)
-		proof.NewHandler(f.proof, a, s).RegisterTenantRoutes(g)
+		proofhttp.NewHandler(f.proof, a, s).RegisterTenantRoutes(g)
 	})
 	return f
 }
@@ -409,11 +412,11 @@ func TestRow19_9_CorrectiveActions(t *testing.T) {
 func TestRow19_10b_ProofPolicyListGet(t *testing.T) {
 	f := newRows19(t)
 	ctx := context.Background()
-	policy, _, err := f.proof.SavePolicy(ctx, f.tenantA(), "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.A.Org, RequiredProofTypes: json.RawMessage(`["SIGNATURE","PHOTO"]`), MinimumCount: 2, FailurePolicy: "BLOCK"})
+	policy, _, err := f.proof.SavePolicy(ctx, f.tenantA(), "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.A.Org, RequiredProofTypes: json.RawMessage(`["SIGNATURE","PHOTO"]`), MinimumCount: 2, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreign, _, err := f.proof.SavePolicy(ctx, f.tenantB(), "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.B.Org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
+	foreign, _, err := f.proof.SavePolicy(ctx, f.tenantB(), "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.B.Org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,19 +436,19 @@ func TestRow19_10b_ProofPolicyListGet(t *testing.T) {
 func TestRow19_11b_ProofRecordList(t *testing.T) {
 	f := newRows19(t)
 	ctx := context.Background()
-	_, snap, err := f.proof.SavePolicy(ctx, f.tenantA(), "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.A.Org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
+	_, snap, err := f.proof.SavePolicy(ctx, f.tenantA(), "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.A.Org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, err := f.proof.CreateRecord(ctx, f.tenantA(), proof.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-19", ActorType: "ORGANIZATION_USER", Value: "731905", SourceTimestamp: f.now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "rows19-proof"})
+	record, err := f.proof.CreateRecord(ctx, f.tenantA(), proofmodels.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-19", ActorType: "ORGANIZATION_USER", Value: "731905", SourceTimestamp: f.now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "rows19-proof"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, foreignSnap, err := f.proof.SavePolicy(ctx, f.tenantB(), "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.B.Org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
+	_, foreignSnap, err := f.proof.SavePolicy(ctx, f.tenantB(), "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: f.B.Org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.proof.CreateRecord(ctx, f.tenantB(), proof.RecordInput{PolicySnapshotReference: foreignSnap.ID, ProofType: "OTP", OrderID: "order-b", ActorType: "ORGANIZATION_USER", Value: "111111", SourceTimestamp: f.now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "rows19-proof-b"}); err != nil {
+	if _, err = f.proof.CreateRecord(ctx, f.tenantB(), proofmodels.RecordInput{PolicySnapshotReference: foreignSnap.ID, ProofType: "OTP", OrderID: "order-b", ActorType: "ORGANIZATION_USER", Value: "111111", SourceTimestamp: f.now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "rows19-proof-b"}); err != nil {
 		t.Fatal(err)
 	}
 	resp := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/proof-records", nil, nil), 200, "list")

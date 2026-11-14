@@ -24,7 +24,7 @@ import (
 	"sort"
 	"testing"
 
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/http"
 	audithttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/http"
 	auditrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
 	backgroundopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/backgroundops/http"
@@ -36,13 +36,16 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	fuelhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/http"
+	inspectionshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/http"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
+	maintenancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/http"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
 	packageshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/packages/http"
 	privatehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/http"
-	prooffeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
 	recurringhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/http"
 	retentionexecutionhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionexecution/http"
 	retentionpolicyhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/http"
@@ -55,8 +58,9 @@ import (
 	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
 	trackinghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/http"
-	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/http"
 	workforcehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/http"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/riskregistry"
 )
 
@@ -216,8 +220,17 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 	// classification and, before this fix, could have had no
 	// object-authorization declaration either, invisible to both coverage
 	// tests. Fixed here as the direct root cause, not a separate cleanup.
-	assetsH := assetsfeature.NewHandler(nil, nil, nil)
+	assetsH := assetshttp.NewHandler(nil, nil, nil)
 	for _, r := range assetsH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range inspectionshttp.NewHandler(nil, nil, nil).TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range maintenancehttp.NewHandler(nil, nil, nil).TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range fuelhttp.NewHandler(nil, nil, nil).TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
@@ -248,7 +261,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 	// manifestlessRoutes() below instead, permissions read directly from
 	// each handler function's own h.gate(c, "...") call.
 
-	proofH := prooffeature.NewHandler(nil, nil, nil)
+	proofH := proofhttp.NewHandler(nil, nil, nil)
 	for _, r := range proofH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
@@ -258,7 +271,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	warehouseH := warehousefeature.NewHandler(nil, nil, nil)
+	warehouseH := warehousehttp.NewHandler(nil, nil, nil)
 	for _, r := range warehouseH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

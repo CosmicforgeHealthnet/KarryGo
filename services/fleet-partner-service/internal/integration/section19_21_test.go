@@ -15,11 +15,15 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
 	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
+	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
+	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
 	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
+	warehouserepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/repositories"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -167,16 +171,16 @@ func TestSection19ComplianceRestrictionSafetyAndProof(t *testing.T) {
 		t.Fatalf("incident=%+v err=%v", incident, err)
 	}
 
-	p := proof.NewService(proof.Options{Pool: pool, Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proof.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
-	_, snap, err := p.SavePolicy(ctx, scope, "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: scope.OrganizationID, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
+	p := proofusecases.NewService(proofusecases.Options{Pool: pool, Repository: proofrepos.NewRepository(pool), Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proofmodels.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
+	_, snap, err := p.SavePolicy(ctx, scope, "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: scope.OrganizationID, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, err := p.CreateRecord(ctx, scope, proof.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "246810", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
+	record, err := p.CreateRecord(ctx, scope, proofmodels.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "246810", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
 	if err != nil || record.ValueHash == "" {
 		t.Fatalf("record=%+v err=%v", record, err)
 	}
-	replay, err := p.CreateRecord(ctx, scope, proof.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "different", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
+	replay, err := p.CreateRecord(ctx, scope, proofmodels.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "different", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
 	if err != nil || replay.ID != record.ID {
 		t.Fatalf("replay=%+v err=%v", replay, err)
 	}
@@ -217,28 +221,28 @@ func TestSection21WarehouseReceiptConcurrencyAndNegativeStock(t *testing.T) {
 	}
 	actor := ids.New("usr")
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: actor, ActorType: tenant.ActorTypeOrganizationUser, ActorID: actor, CorrelationID: "s21", PermittedBranchIDs: []string{branch}}
-	svc := warehouse.NewService(warehouse.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Restrictions: unrestrictedWarehouseGate{}, Flags: warehouse.Flags{Warehouses: true, Inventory: true, Fulfilment: true, Dock: true, Yard: true, Terminal: true, Returns: true}})
-	w, err := svc.CreateWarehouse(context.Background(), scope, warehouse.Warehouse{BranchID: branch, Code: "WH1", Name: "Main", AddressReference: "addr-1", Timezone: "Europe/Rome"})
+	svc := warehouseusecases.NewService(warehouseusecases.Options{Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Restrictions: unrestrictedWarehouseGate{}, Flags: warehousemodels.Flags{Warehouses: true, Inventory: true, Fulfilment: true, Dock: true, Yard: true, Terminal: true, Returns: true}})
+	w, err := svc.CreateWarehouse(context.Background(), scope, warehousemodels.Warehouse{BranchID: branch, Code: "WH1", Name: "Main", AddressReference: "addr-1", Timezone: "Europe/Rome"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, err = svc.UpdateWarehouse(context.Background(), scope, w.ID, w.Version, warehouse.Warehouse{Status: "ACTIVE"}, false)
+	w, err = svc.UpdateWarehouse(context.Background(), scope, w.ID, w.Version, warehousemodels.Warehouse{Status: "ACTIVE"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loc, err := svc.CreateLocation(context.Background(), scope, w.ID, warehouse.Location{Code: "A1", Name: "Bin 1", LocationType: "BIN"})
+	loc, err := svc.CreateLocation(context.Background(), scope, w.ID, warehousemodels.Location{Code: "A1", Name: "Bin 1", LocationType: "BIN"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := svc.Receipt(context.Background(), scope, warehouse.ReceiptInput{WarehouseID: w.ID, LocationID: loc.ID, OwnerType: "ORGANIZATION", OwnerReference: org.ID, SKU: "SKU-1", Unit: "EA", Condition: "GOOD", Quantity: 10, CorrelationID: "receipt-once"})
+	item, err := svc.Receipt(context.Background(), scope, warehousemodels.ReceiptInput{WarehouseID: w.ID, LocationID: loc.ID, OwnerType: "ORGANIZATION", OwnerReference: org.ID, SKU: "SKU-1", Unit: "EA", Condition: "GOOD", Quantity: 10, CorrelationID: "receipt-once"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := svc.Receipt(context.Background(), scope, warehouse.ReceiptInput{WarehouseID: w.ID, LocationID: loc.ID, OwnerType: "ORGANIZATION", OwnerReference: org.ID, SKU: "SKU-1", Unit: "EA", Condition: "GOOD", Quantity: 10, CorrelationID: "receipt-once"})
+	again, err := svc.Receipt(context.Background(), scope, warehousemodels.ReceiptInput{WarehouseID: w.ID, LocationID: loc.ID, OwnerType: "ORGANIZATION", OwnerReference: org.ID, SKU: "SKU-1", Unit: "EA", Condition: "GOOD", Quantity: 10, CorrelationID: "receipt-once"})
 	if err != nil || again.ID != item.ID || again.QuantityProjection != 10 {
 		t.Fatalf("receipt replay=%+v err=%v", again, err)
 	}
-	if _, err = svc.Move(context.Background(), scope, item.ID, warehouse.MovementInput{MovementType: "ADJUSTMENT", Quantity: 11, ReasonCode: "COUNT", CorrelationID: "negative", ExpectedVersion: item.Version}); err == nil {
+	if _, err = svc.Move(context.Background(), scope, item.ID, warehousemodels.MovementInput{MovementType: "ADJUSTMENT", Quantity: 11, ReasonCode: "COUNT", CorrelationID: "negative", ExpectedVersion: item.Version}); err == nil {
 		t.Fatal("negative inventory accepted")
 	}
 	errs := make(chan error, 2)
@@ -247,7 +251,7 @@ func TestSection21WarehouseReceiptConcurrencyAndNegativeStock(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, e := svc.Move(context.Background(), scope, item.ID, warehouse.MovementInput{MovementType: "ADJUSTMENT", Quantity: 6, ReasonCode: "COUNT", CorrelationID: "concurrent-" + string(rune('a'+i)), ExpectedVersion: item.Version})
+			_, e := svc.Move(context.Background(), scope, item.ID, warehousemodels.MovementInput{MovementType: "ADJUSTMENT", Quantity: 6, ReasonCode: "COUNT", CorrelationID: "concurrent-" + string(rune('a'+i)), ExpectedVersion: item.Version})
 			errs <- e
 		}(i)
 	}

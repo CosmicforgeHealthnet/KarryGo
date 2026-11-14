@@ -20,7 +20,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
 	dispatchrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/repositories"
 	dispatchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/usecases"
@@ -40,7 +40,7 @@ type section16CandidateSource struct {
 	pool         *pgxpool.Pool
 	eligibility  *eligibilityusecases.Service
 	workforce    *workforceusecases.Service
-	assets       *assetsfeature.Service
+	assets       *assetsusecases.Service
 	restrictions interface {
 		Restricted(context.Context, string, string, string) (bool, error)
 	}
@@ -204,7 +204,7 @@ func NewSection16(o Section16Options) *Section16 {
 	return &Section16{Dispatch: dispatch, Routes: routes, Tracking: tracking}
 }
 
-func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, private *privateusecases.Service, eligibility *eligibilityusecases.Service, workforce *workforceusecases.Service, assets *assetsfeature.Service, restrictions interface {
+func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, private *privateusecases.Service, eligibility *eligibilityusecases.Service, workforce *workforceusecases.Service, assets *assetsusecases.Service, restrictions interface {
 	Restricted(context.Context, string, string, string) (bool, error)
 }) *Section16 {
 	var optimizer routesusecases.OptimizationPort

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	specializedrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/repositories"
 	"net/http"
 	"strings"
@@ -12,7 +13,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
 	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
 	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
 	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
@@ -157,13 +158,13 @@ func TestRow20_4_To_20_11_SpecializedModulesPersistAndIsolate(t *testing.T) {
 	if _, err := f.pool.Exec(ctx, `INSERT INTO fleet_partner_qualifications(id,organization_id,code,name)VALUES($1,$2,'MED_HANDLING','Medical handling')`, qualification, f.A.Org); err != nil {
 		t.Fatal(err)
 	}
-	assetService := assets.NewService(assets.Options{Pool: f.pool, Flags: assets.Flags{Assets: true}})
-	towTruck, err := assetService.CreateAsset(ctx, f.tenantA(), assets.Asset{BranchID: f.branchA, AssetCode: "TOW-1", AssetType: "TOW_TRUCK", OwnershipType: "OWNED"})
+	assetService := newSection18(app.Section18Options{Pool: f.pool, Flags: assetsmodels.Flags{Assets: true}})
+	towTruck, err := assetService.CreateAsset(ctx, f.tenantA(), assetsmodels.Asset{BranchID: f.branchA, AssetCode: "TOW-1", AssetType: "TOW_TRUCK", OwnershipType: "OWNED"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	foreignBranch := seedBranch(t, f.pool, f.B.Org, "Rows20 B")
-	foreignTow, err := assetService.CreateAsset(ctx, f.tenantB(), assets.Asset{BranchID: foreignBranch, AssetCode: "TOW-B", AssetType: "TOW_TRUCK", OwnershipType: "OWNED"})
+	foreignTow, err := assetService.CreateAsset(ctx, f.tenantB(), assetsmodels.Asset{BranchID: foreignBranch, AssetCode: "TOW-B", AssetType: "TOW_TRUCK", OwnershipType: "OWNED"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,17 +1,18 @@
 package section19_21contract
 
 import (
-	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
+	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
+	warehousehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/http"
 )
 
 type route struct {
@@ -92,7 +93,7 @@ func TestSection19BidirectionalRouteParity(t *testing.T) {
 	for _, r := range safety.OperationsTenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
-	for _, r := range proof.TenantRoutes() {
+	for _, r := range proofhttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	check(t, "section19-compliance-safety-proof.openapi.json", rs)
@@ -106,7 +107,7 @@ func TestSection20BidirectionalRouteParity(t *testing.T) {
 }
 func TestSection21BidirectionalRouteParity(t *testing.T) {
 	var rs []route
-	for _, r := range warehouse.TenantRoutes() {
+	for _, r := range warehousehttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	check(t, "section21-warehouse-fulfilment.openapi.json", rs)

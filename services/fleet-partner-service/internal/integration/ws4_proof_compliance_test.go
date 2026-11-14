@@ -11,7 +11,9 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
 	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
+	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
+	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -31,14 +33,14 @@ func TestWS4ProofVerifyAndReject(t *testing.T) {
 	reviewer := scope
 	reviewer.ActorID, reviewer.OrganizationUserID = ids.New("usr"), ids.New("usr")
 	otherScope, _ := section1921Scope(t, pool)
-	p := proof.NewService(proof.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proof.Flags{Policies: true, Records: true}})
+	p := proofusecases.NewService(proofusecases.Options{Pool: pool, Repository: proofrepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proofmodels.Flags{Policies: true, Records: true}})
 
-	_, snap, err := p.SavePolicy(ctx, scope, "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
+	_, snap, err := p.SavePolicy(ctx, scope, "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: org, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	newOTP := func(key, order string) proof.Record {
-		r, err := p.CreateRecord(ctx, submitter, proof.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: order, ActorType: "ORGANIZATION_USER", Value: "135790", SourceTimestamp: time.Now().UTC(), Source: "MANUAL", IdempotencyKey: key})
+	newOTP := func(key, order string) proofmodels.Record {
+		r, err := p.CreateRecord(ctx, submitter, proofmodels.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: order, ActorType: "ORGANIZATION_USER", Value: "135790", SourceTimestamp: time.Now().UTC(), Source: "MANUAL", IdempotencyKey: key})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,20 +50,20 @@ func TestWS4ProofVerifyAndReject(t *testing.T) {
 	if ok, _ := p.MandatorySatisfied(ctx, org, snap.ID, "order-ws4-1", "", "", ""); ok {
 		t.Fatal("pending proof satisfied the policy")
 	}
-	if _, err = p.Decide(ctx, submitter, first.ID, "VERIFIED", proof.DecisionInput{}); appStatus(err) != 403 {
+	if _, err = p.Decide(ctx, submitter, first.ID, "VERIFIED", proofmodels.DecisionInput{}); appStatus(err) != 403 {
 		t.Fatalf("self verification = %v", err)
 	}
-	if _, err = p.Decide(ctx, otherScope, first.ID, "VERIFIED", proof.DecisionInput{}); appStatus(err) != 404 {
+	if _, err = p.Decide(ctx, otherScope, first.ID, "VERIFIED", proofmodels.DecisionInput{}); appStatus(err) != 404 {
 		t.Fatalf("cross-tenant verification = %v", err)
 	}
-	verified, err := p.Decide(ctx, reviewer, first.ID, "verified", proof.DecisionInput{})
-	if err != nil || verified.EffectiveStatus != "VERIFIED" || len(verified.Verifications) != 1 || verified.Verifications[0].AuthorityType != proof.AuthorityOrganization {
+	verified, err := p.Decide(ctx, reviewer, first.ID, "verified", proofmodels.DecisionInput{})
+	if err != nil || verified.EffectiveStatus != "VERIFIED" || len(verified.Verifications) != 1 || verified.Verifications[0].AuthorityType != proofmodels.AuthorityOrganization {
 		t.Fatalf("verify = %+v %v", verified, err)
 	}
 	if verified.Record.VerificationStatus != "PENDING" {
 		t.Fatal("the immutable record was rewritten")
 	}
-	if _, err = p.Decide(ctx, reviewer, first.ID, "REJECTED", proof.DecisionInput{ReasonCodes: []string{"LATE"}}); appStatus(err) != 409 {
+	if _, err = p.Decide(ctx, reviewer, first.ID, "REJECTED", proofmodels.DecisionInput{ReasonCodes: []string{"LATE"}}); appStatus(err) != 409 {
 		t.Fatalf("second decision = %v", err)
 	}
 	if ok, err := p.MandatorySatisfied(ctx, org, snap.ID, "order-ws4-1", "", "", ""); err != nil || !ok {
@@ -69,10 +71,10 @@ func TestWS4ProofVerifyAndReject(t *testing.T) {
 	}
 
 	second := newOTP("ws4-proof-2", "order-ws4-2")
-	if _, err = p.Decide(ctx, reviewer, second.ID, "REJECTED", proof.DecisionInput{}); appStatus(err) != 400 {
+	if _, err = p.Decide(ctx, reviewer, second.ID, "REJECTED", proofmodels.DecisionInput{}); appStatus(err) != 400 {
 		t.Fatalf("rejection without reason = %v", err)
 	}
-	rejected, err := p.Decide(ctx, reviewer, second.ID, "REJECTED", proof.DecisionInput{ReasonCodes: []string{"wrong_recipient"}})
+	rejected, err := p.Decide(ctx, reviewer, second.ID, "REJECTED", proofmodels.DecisionInput{ReasonCodes: []string{"wrong_recipient"}})
 	if err != nil || rejected.EffectiveStatus != "REJECTED" {
 		t.Fatalf("reject = %+v %v", rejected, err)
 	}
@@ -87,7 +89,7 @@ func TestWS4ProofVerifyAndReject(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO fleet_partner_proof_records(id,organization_id,policy_snapshot_reference,proof_type,order_id,actor_type,actor_reference,media_file_id,source_timestamp,source,idempotency_key)VALUES($1,$2,$3,'PHOTO','order-ws4-3','ORGANIZATION_USER',$4,'media-x',now(),'IMPORT',$1)`, photo, org, snap.ID, submitter.ActorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = p.Decide(ctx, reviewer, photo, "VERIFIED", proof.DecisionInput{}); appStatus(err) != 409 {
+	if _, err = p.Decide(ctx, reviewer, photo, "VERIFIED", proofmodels.DecisionInput{}); appStatus(err) != 409 {
 		t.Fatalf("verifying a proof outside its policy = %v", err)
 	}
 
@@ -110,7 +112,7 @@ func TestWS4ProofVerifyAndReject(t *testing.T) {
 		wg.Add(1)
 		go func(d string) {
 			defer wg.Done()
-			_, e := p.Decide(ctx, reviewer, third.ID, d, proof.DecisionInput{ReasonCodes: []string{"RACE"}})
+			_, e := p.Decide(ctx, reviewer, third.ID, d, proofmodels.DecisionInput{ReasonCodes: []string{"RACE"}})
 			outcomes <- e
 		}(d)
 	}
