@@ -60,12 +60,19 @@ func roleVersion(c *gin.Context) int64 {
 	}
 	return 1
 }
-func (h *Handler) auth(c *gin.Context, t tenant.Context, p string) bool {
+func (h *Handler) auth(c *gin.Context, t *tenant.Context, p string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("Permission denied.", nil))
 		return false
 	}
-	if e := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID, roleVersion(c), p, accesscontrol.Target{BranchID: c.Query("branchId")}); e != nil {
+	scoped, e := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersion(c), p)
+	if e == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if e != nil {
 		respond.Error(c, e)
 		return false
 	}
@@ -183,7 +190,7 @@ type createRequest struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionPackagesManage) {
+	if !ok || !h.auth(c, &t, PermissionPackagesManage) {
 		return
 	}
 	var b createRequest
@@ -197,7 +204,7 @@ func (h *Handler) create(c *gin.Context) {
 }
 func (h *Handler) list(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionPackagesRead) {
+	if !ok || !h.auth(c, &t, PermissionPackagesRead) {
 		return
 	}
 	items, e := h.service.List(c.Request.Context(), t, c.Param("shipmentId"))
@@ -213,7 +220,7 @@ func (h *Handler) list(c *gin.Context) {
 }
 func (h *Handler) get(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionPackagesRead) {
+	if !ok || !h.auth(c, &t, PermissionPackagesRead) {
 		return
 	}
 	p, e := h.service.Get(c.Request.Context(), t, c.Param("packageId"))
@@ -225,7 +232,7 @@ func (h *Handler) get(c *gin.Context) {
 }
 func (h *Handler) history(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionPackagesRead) {
+	if !ok || !h.auth(c, &t, PermissionPackagesRead) {
 		return
 	}
 	v, e := h.service.History(c.Request.Context(), t, c.Param("packageId"))
@@ -245,7 +252,7 @@ type transitionRequest struct {
 
 func (h *Handler) transition(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionPackagesManage) {
+	if !ok || !h.auth(c, &t, PermissionPackagesManage) {
 		return
 	}
 	var b transitionRequest
@@ -273,7 +280,7 @@ type scanRequest struct {
 
 func (h *Handler) scan(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionPackagesScan) {
+	if !ok || !h.auth(c, &t, PermissionPackagesScan) {
 		return
 	}
 	var b scanRequest
@@ -288,7 +295,7 @@ func (h *Handler) scan(c *gin.Context) {
 }
 func (h *Handler) custody(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionCustodyRead) {
+	if !ok || !h.auth(c, &t, PermissionCustodyRead) {
 		return
 	}
 	v, e := h.service.Custody(c.Request.Context(), t, c.Param("packageId"))
@@ -314,7 +321,7 @@ type custodyRequest struct {
 
 func (h *Handler) recordCustody(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.auth(c, t, PermissionCustodyRecord) {
+	if !ok || !h.auth(c, &t, PermissionCustodyRecord) {
 		return
 	}
 	var b custodyRequest

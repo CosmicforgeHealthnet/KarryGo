@@ -94,12 +94,18 @@ func roleVersion(c *gin.Context) int64 {
 	return version
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("Permission denied.", nil))
 		return false
 	}
-	err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID, roleVersion(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")})
+	// Narrowed to the branches where the permission is granted; a
+	// caller-chosen ?branchId never widens it.
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersion(c), permission)
+	if err == nil {
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
 	if err != nil {
 		respond.Error(c, err)
 		return false
@@ -185,7 +191,7 @@ type createRequest struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionManage) {
+	if !ok || !h.authorize(c, &t, PermissionManage) {
 		return
 	}
 	var body createRequest
@@ -205,7 +211,7 @@ func (h *Handler) create(c *gin.Context) {
 
 func (h *Handler) list(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionRead) {
+	if !ok || !h.authorize(c, &t, PermissionRead) {
 		return
 	}
 	items, err := h.service.List(c.Request.Context(), t, c.Query("status"))
@@ -218,7 +224,7 @@ func (h *Handler) list(c *gin.Context) {
 
 func (h *Handler) get(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionRead) {
+	if !ok || !h.authorize(c, &t, PermissionRead) {
 		return
 	}
 	item, err := h.service.Get(c.Request.Context(), t, c.Param("assignmentId"))
@@ -235,7 +241,7 @@ type versionRequest struct {
 
 func (h *Handler) cancel(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionManage) {
+	if !ok || !h.authorize(c, &t, PermissionManage) {
 		return
 	}
 	var body versionRequest
@@ -260,7 +266,7 @@ type reassignRequest struct {
 
 func (h *Handler) reassign(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionManage) {
+	if !ok || !h.authorize(c, &t, PermissionManage) {
 		return
 	}
 	var body reassignRequest
@@ -280,7 +286,7 @@ func (h *Handler) reassign(c *gin.Context) {
 
 func (h *Handler) getExecution(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionExecutionRead) {
+	if !ok || !h.authorize(c, &t, PermissionExecutionRead) {
 		return
 	}
 	item, err := h.service.GetExecution(c.Request.Context(), t, c.Param("executionId"))
@@ -293,7 +299,7 @@ func (h *Handler) getExecution(c *gin.Context) {
 
 func (h *Handler) replayExecution(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionExecutionReplay) {
+	if !ok || !h.authorize(c, &t, PermissionExecutionReplay) {
 		return
 	}
 	body := struct{}{}
@@ -306,7 +312,7 @@ func (h *Handler) replayExecution(c *gin.Context) {
 
 func (h *Handler) replayReconciliation(c *gin.Context) {
 	t, ok := tenantContext(c)
-	if !ok || !h.authorize(c, t, PermissionExecutionReplay) {
+	if !ok || !h.authorize(c, &t, PermissionExecutionReplay) {
 		return
 	}
 	body := struct{}{}

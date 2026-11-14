@@ -134,12 +134,15 @@ func (h *Handler) gate(c *gin.Context, permission string) (tenant.Context, bool)
 	if raw, ok := c.Get(middleware.TenantRoleVersionKey); ok {
 		rv, _ = raw.(int64)
 	}
-	e := h.a.Require(c, t.OrganizationID, t.OrganizationUserID, rv, permission, accesscontrol.Target{BranchID: c.Query("branchId")})
+	// Narrowed to the branches where the permission is granted; a
+	// caller-chosen ?branchId never widens it.
+	scoped, e := h.a.RequireScoped(c, t, rv, permission)
 	if e != nil {
 		respond.Error(c, e)
 		return t, false
 	}
-	return t, true
+	middleware.SetTenant(c, scoped)
+	return scoped, true
 }
 func parseFilter(c *gin.Context) PageFilter {
 	limit, _ := strconv.Atoi(c.Query("limit"))

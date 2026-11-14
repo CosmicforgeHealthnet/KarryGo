@@ -28,7 +28,7 @@ type createImportReq struct {
 
 func (h *Handler) createImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b createImportReq
@@ -46,7 +46,7 @@ func (h *Handler) createImport(c *gin.Context) {
 
 func (h *Handler) listImports(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRead) {
+	if !ok || !h.auth(c, &t, PermissionRead) {
 		return
 	}
 	v, e := h.s.ListGeneric(c.Request.Context(), t)
@@ -59,7 +59,7 @@ func (h *Handler) listImports(c *gin.Context) {
 
 func (h *Handler) getImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRead) {
+	if !ok || !h.auth(c, &t, PermissionRead) {
 		return
 	}
 	v, rows, e := h.s.GetGeneric(c.Request.Context(), t, c.Param("importId"))
@@ -72,7 +72,7 @@ func (h *Handler) getImport(c *gin.Context) {
 
 func (h *Handler) listImportRows(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRead) {
+	if !ok || !h.auth(c, &t, PermissionRead) {
 		return
 	}
 	_, rows, e := h.s.GetGeneric(c.Request.Context(), t, c.Param("importId"))
@@ -85,7 +85,7 @@ func (h *Handler) listImportRows(c *gin.Context) {
 
 func (h *Handler) validateImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionValidate) {
+	if !ok || !h.auth(c, &t, PermissionValidate) {
 		return
 	}
 	h.run(c, "POST /imports/:importId/validate", t, struct{}{}, func() (int, any, error) {
@@ -96,7 +96,7 @@ func (h *Handler) validateImport(c *gin.Context) {
 
 func (h *Handler) commitImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionCommit) {
+	if !ok || !h.auth(c, &t, PermissionCommit) {
 		return
 	}
 	h.run(c, "POST /imports/:importId/commit", t, struct{}{}, func() (int, any, error) {
@@ -107,7 +107,7 @@ func (h *Handler) commitImport(c *gin.Context) {
 
 func (h *Handler) retryImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRetry) {
+	if !ok || !h.auth(c, &t, PermissionRetry) {
 		return
 	}
 	h.run(c, "POST /imports/:importId/retry", t, struct{}{}, func() (int, any, error) {
@@ -118,7 +118,7 @@ func (h *Handler) retryImport(c *gin.Context) {
 
 func (h *Handler) retryImportRow(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRetry) {
+	if !ok || !h.auth(c, &t, PermissionRetry) {
 		return
 	}
 	h.run(c, "POST /imports/:importId/rows/:rowId/retry", t, struct{}{}, func() (int, any, error) {
@@ -133,7 +133,7 @@ type cancelImportReq struct {
 
 func (h *Handler) cancelImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b cancelImportReq
@@ -149,7 +149,7 @@ func (h *Handler) cancelImport(c *gin.Context) {
 
 func (h *Handler) replayImport(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRetry) {
+	if !ok || !h.auth(c, &t, PermissionRetry) {
 		return
 	}
 	h.run(c, "POST /imports/:importId/replay", t, struct{}{}, func() (int, any, error) {
@@ -171,7 +171,7 @@ type correctImportRowReq struct {
 // without a stated reason to.
 func (h *Handler) correctImportRow(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRetry) {
+	if !ok || !h.auth(c, &t, PermissionRetry) {
 		return
 	}
 	var b correctImportRowReq

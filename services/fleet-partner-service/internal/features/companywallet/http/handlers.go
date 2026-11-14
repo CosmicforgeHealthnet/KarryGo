@@ -152,13 +152,19 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 	return tenantCtx, true
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -216,7 +222,7 @@ func pageParams(c *gin.Context) (cursor.Cursor, bool, int, error) {
 
 func (h *Handler) getWallet(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionWalletRead) {
+	if !ok || !h.authorize(c, &t, PermissionWalletRead) {
 		return
 	}
 	// authoritative=true asks payment-wallet-service directly. The default is
@@ -257,7 +263,7 @@ const timeLayout = "2006-01-02T15:04:05.000000000Z07:00"
 
 func (h *Handler) listTransactions(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionTransactionsRead) {
+	if !ok || !h.authorize(c, &t, PermissionTransactionsRead) {
 		return
 	}
 	position, hasCursor, limit, err := pageParams(c)
@@ -289,7 +295,7 @@ func (h *Handler) listTransactions(c *gin.Context) {
 
 func (h *Handler) getTransaction(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionTransactionsRead) {
+	if !ok || !h.authorize(c, &t, PermissionTransactionsRead) {
 		return
 	}
 	row, err := h.service.Repository().GetTransaction(c.Request.Context(), t.OrganizationID,
@@ -307,7 +313,7 @@ func (h *Handler) getTransaction(c *gin.Context) {
 
 func (h *Handler) getPolicy(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionWalletRead) {
+	if !ok || !h.authorize(c, &t, PermissionWalletRead) {
 		return
 	}
 	policy, err := h.service.GetPolicy(c.Request.Context(), t)
@@ -337,7 +343,7 @@ func policyView(policy models.WithdrawalPolicy) gin.H {
 
 func (h *Handler) setPolicy(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionPoliciesManage) {
+	if !ok || !h.authorize(c, &t, PermissionPoliciesManage) {
 		return
 	}
 	var body policyBody
@@ -363,7 +369,7 @@ func (h *Handler) setPolicy(c *gin.Context) {
 
 func (h *Handler) getSubWallet(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSubWalletRead) {
+	if !ok || !h.authorize(c, &t, PermissionSubWalletRead) {
 		return
 	}
 	view, err := h.service.GetSubWallet(c.Request.Context(), t, c.Param("membershipId"))
@@ -376,7 +382,7 @@ func (h *Handler) getSubWallet(c *gin.Context) {
 
 func (h *Handler) getStatement(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSubWalletRead) {
+	if !ok || !h.authorize(c, &t, PermissionSubWalletRead) {
 		return
 	}
 	statement, err := h.service.ProviderStatement(c.Request.Context(), usecases.StatementInput{
@@ -439,7 +445,7 @@ type allocationBody struct {
 
 func (h *Handler) createAllocation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionAllocationCreate) {
+	if !ok || !h.authorize(c, &t, PermissionAllocationCreate) {
 		return
 	}
 	var body allocationBody
@@ -449,7 +455,7 @@ func (h *Handler) createAllocation(c *gin.Context) {
 	}
 	// An approved deduction needs the approve permission on top of the create
 	// permission. Holding one is not holding the other.
-	if models.DebitsProvider(body.AllocationType) && !h.authorize(c, t, PermissionAllocationApprove) {
+	if models.DebitsProvider(body.AllocationType) && !h.authorize(c, &t, PermissionAllocationApprove) {
 		return
 	}
 	instruction, err := h.service.RequestAllocation(c.Request.Context(), usecases.AllocationInput{
@@ -478,7 +484,7 @@ func (h *Handler) rejectAllocation(c *gin.Context)  { h.decideAllocation(c, fals
 
 func (h *Handler) decideAllocation(c *gin.Context, approve bool) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionAllocationApprove) {
+	if !ok || !h.authorize(c, &t, PermissionAllocationApprove) {
 		return
 	}
 	var body decisionBody
@@ -494,7 +500,7 @@ func (h *Handler) decideAllocation(c *gin.Context, approve bool) {
 
 func (h *Handler) replayAllocation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionAllocationApprove) {
+	if !ok || !h.authorize(c, &t, PermissionAllocationApprove) {
 		return
 	}
 	if err := h.service.ReplayAllocation(c.Request.Context(), t, c.Param("allocationId")); err != nil {
@@ -506,7 +512,7 @@ func (h *Handler) replayAllocation(c *gin.Context) {
 
 func (h *Handler) listAllocations(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSubWalletRead) {
+	if !ok || !h.authorize(c, &t, PermissionSubWalletRead) {
 		return
 	}
 	position, hasCursor, limit, err := pageParams(c)
@@ -575,7 +581,7 @@ type withdrawalBody struct {
 
 func (h *Handler) createWithdrawal(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionWithdrawalsApprove) {
+	if !ok || !h.authorize(c, &t, PermissionWithdrawalsApprove) {
 		return
 	}
 	var body withdrawalBody
@@ -607,7 +613,7 @@ func (h *Handler) decideWithdrawal(c *gin.Context, approve bool) {
 	if !approve {
 		permission = PermissionWithdrawalsReject
 	}
-	if !h.authorize(c, t, permission) {
+	if !h.authorize(c, &t, permission) {
 		return
 	}
 	var body decisionBody
@@ -623,7 +629,7 @@ func (h *Handler) decideWithdrawal(c *gin.Context, approve bool) {
 
 func (h *Handler) replayWithdrawal(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionWithdrawalsApprove) {
+	if !ok || !h.authorize(c, &t, PermissionWithdrawalsApprove) {
 		return
 	}
 	if err := h.service.ReplayWithdrawal(c.Request.Context(), t, c.Param("withdrawalId")); err != nil {
@@ -635,7 +641,7 @@ func (h *Handler) replayWithdrawal(c *gin.Context) {
 
 func (h *Handler) listWithdrawals(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionWithdrawalsRead) {
+	if !ok || !h.authorize(c, &t, PermissionWithdrawalsRead) {
 		return
 	}
 	position, hasCursor, limit, err := pageParams(c)

@@ -81,13 +81,19 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 	return tenantCtx, true
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -163,7 +169,7 @@ func newAttemptView(a jobs.Attempt) AttemptView {
 
 func (h *Handler) listJobs(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionJobsRead) {
+	if !ok || !h.authorize(c, &t, PermissionJobsRead) {
 		return
 	}
 	limit := 0
@@ -191,7 +197,7 @@ func (h *Handler) listJobs(c *gin.Context) {
 
 func (h *Handler) getJob(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionJobsRead) {
+	if !ok || !h.authorize(c, &t, PermissionJobsRead) {
 		return
 	}
 	item, err := h.jobs.Get(c.Request.Context(), t.OrganizationID, c.Param("jobId"))
@@ -204,7 +210,7 @@ func (h *Handler) getJob(c *gin.Context) {
 
 func (h *Handler) listJobAttempts(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionJobsRead) {
+	if !ok || !h.authorize(c, &t, PermissionJobsRead) {
 		return
 	}
 	attempts, err := h.jobs.ListAttempts(c.Request.Context(), t.OrganizationID, c.Param("jobId"))
@@ -225,7 +231,7 @@ func (h *Handler) listJobAttempts(c *gin.Context) {
 // this route.
 func (h *Handler) retryJob(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionJobsRetry) {
+	if !ok || !h.authorize(c, &t, PermissionJobsRetry) {
 		return
 	}
 	if err := h.jobs.Replay(c.Request.Context(), t.OrganizationID, c.Param("jobId")); err != nil {
@@ -242,7 +248,7 @@ func (h *Handler) retryJob(c *gin.Context) {
 
 func (h *Handler) cancelJob(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionJobsCancel) {
+	if !ok || !h.authorize(c, &t, PermissionJobsCancel) {
 		return
 	}
 	if err := h.jobs.Cancel(c.Request.Context(), t.OrganizationID, c.Param("jobId")); err != nil {
@@ -309,7 +315,7 @@ func newRunView(run scheduler.RunRecord) RunView {
 
 func (h *Handler) listScheduledTasks(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionScheduledTasksRead) {
+	if !ok || !h.authorize(c, &t, PermissionScheduledTasksRead) {
 		return
 	}
 	limit := 0
@@ -335,7 +341,7 @@ func (h *Handler) listScheduledTasks(c *gin.Context) {
 
 func (h *Handler) getScheduledTask(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionScheduledTasksRead) {
+	if !ok || !h.authorize(c, &t, PermissionScheduledTasksRead) {
 		return
 	}
 	task, err := h.scheduler.Get(c.Request.Context(), t.OrganizationID, c.Param("taskId"))
@@ -348,7 +354,7 @@ func (h *Handler) getScheduledTask(c *gin.Context) {
 
 func (h *Handler) listScheduledTaskRuns(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionScheduledTasksRead) {
+	if !ok || !h.authorize(c, &t, PermissionScheduledTasksRead) {
 		return
 	}
 	limit := 0
@@ -403,7 +409,7 @@ func actorFrom(t tenant.Context) string {
 
 func (h *Handler) enableScheduledTask(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionScheduledTasksManage) {
+	if !ok || !h.authorize(c, &t, PermissionScheduledTasksManage) {
 		return
 	}
 	version, ok := expectedVersionFrom(c)
@@ -420,7 +426,7 @@ func (h *Handler) enableScheduledTask(c *gin.Context) {
 
 func (h *Handler) disableScheduledTask(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionScheduledTasksManage) {
+	if !ok || !h.authorize(c, &t, PermissionScheduledTasksManage) {
 		return
 	}
 	version, ok := expectedVersionFrom(c)
@@ -440,7 +446,7 @@ func (h *Handler) disableScheduledTask(c *gin.Context) {
 // on this request, and it does not alter the task's ordinary schedule.
 func (h *Handler) runScheduledTaskNow(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionScheduledTasksRun) {
+	if !ok || !h.authorize(c, &t, PermissionScheduledTasksRun) {
 		return
 	}
 	version, ok := expectedVersionFrom(c)

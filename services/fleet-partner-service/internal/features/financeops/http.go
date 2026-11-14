@@ -65,7 +65,14 @@ func (h *Handler) gate(c *gin.Context, p string) (tenant.Context, bool) {
 	if x, ok := c.Get(middleware.TenantRoleVersionKey); ok {
 		rv, _ = x.(int64)
 	}
-	if err := h.a.Require(c, t.OrganizationID, t.OrganizationUserID, rv, p, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.a.RequireScoped(c, t, rv, p)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return t, false
 	}

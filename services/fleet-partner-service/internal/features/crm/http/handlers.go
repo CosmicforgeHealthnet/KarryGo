@@ -201,15 +201,20 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 }
 
 // authorize is default-deny: a nil authorizer refuses rather than allows.
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden(
 			"You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission,
-		accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -344,7 +349,7 @@ type createCustomerRequest struct {
 
 func (h *Handler) createCustomer(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body createCustomerRequest
@@ -371,7 +376,7 @@ func (h *Handler) createCustomer(c *gin.Context) {
 
 func (h *Handler) listCustomers(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersRead) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersRead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "riskStatus", "customerType", "branchId",
@@ -420,7 +425,7 @@ func (h *Handler) listCustomers(c *gin.Context) {
 
 func (h *Handler) getCustomer(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersRead) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersRead) {
 		return
 	}
 	customer, err := h.service.GetCustomer(c.Request.Context(), t, c.Param("customerId"))
@@ -450,7 +455,7 @@ type updateCustomerRequest struct {
 
 func (h *Handler) updateCustomer(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body updateCustomerRequest
@@ -484,7 +489,7 @@ type statusChangeRequest struct {
 
 func (h *Handler) changeCustomerStatus(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body statusChangeRequest
@@ -511,7 +516,7 @@ type reasonedRequest struct {
 
 func (h *Handler) archiveCustomer(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body reasonedRequest
@@ -536,7 +541,7 @@ type riskChangeRequest struct {
 
 func (h *Handler) changeCustomerRisk(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body riskChangeRequest
@@ -558,7 +563,7 @@ func (h *Handler) changeCustomerRisk(c *gin.Context) {
 
 func (h *Handler) customerHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersRead) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersRead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)
@@ -603,7 +608,7 @@ type createContactRequest struct {
 
 func (h *Handler) createContact(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContactsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContactsManage) {
 		return
 	}
 	var body createContactRequest
@@ -628,7 +633,7 @@ func (h *Handler) createContact(c *gin.Context) {
 
 func (h *Handler) listContacts(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContactsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContactsRead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "contactPurpose"); err != nil {
@@ -674,7 +679,7 @@ func contactCursor(contacts []models.Contact, limit int) string {
 
 func (h *Handler) getContact(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContactsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContactsRead) {
 		return
 	}
 	contact, err := h.service.GetContact(c.Request.Context(), t, c.Param("customerId"),
@@ -706,7 +711,7 @@ type updateContactRequest struct {
 
 func (h *Handler) updateContact(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContactsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContactsManage) {
 		return
 	}
 	var body updateContactRequest
@@ -733,7 +738,7 @@ func (h *Handler) updateContact(c *gin.Context) {
 
 func (h *Handler) archiveContact(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContactsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContactsManage) {
 		return
 	}
 	var body reasonedRequest
@@ -752,7 +757,7 @@ func (h *Handler) archiveContact(c *gin.Context) {
 
 func (h *Handler) makeContactPrimary(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContactsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContactsManage) {
 		return
 	}
 	var body reasonedRequest
@@ -804,7 +809,7 @@ type createLocationRequest struct {
 
 func (h *Handler) createLocation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionLocationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionLocationsManage) {
 		return
 	}
 	var body createLocationRequest
@@ -831,7 +836,7 @@ func (h *Handler) createLocation(c *gin.Context) {
 
 func (h *Handler) listLocations(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionLocationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionLocationsRead) {
 		return
 	}
 	if err := allowedQuery(c, "locationType", "status"); err != nil {
@@ -872,7 +877,7 @@ func (h *Handler) listLocations(c *gin.Context) {
 
 func (h *Handler) getLocation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionLocationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionLocationsRead) {
 		return
 	}
 	location, err := h.service.GetLocation(c.Request.Context(), t, c.Param("customerId"),
@@ -907,7 +912,7 @@ type updateLocationRequest struct {
 
 func (h *Handler) updateLocation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionLocationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionLocationsManage) {
 		return
 	}
 	var body updateLocationRequest
@@ -940,7 +945,7 @@ func (h *Handler) updateLocation(c *gin.Context) {
 
 func (h *Handler) archiveLocation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionLocationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionLocationsManage) {
 		return
 	}
 	var body reasonedRequest
@@ -977,7 +982,7 @@ type createOpportunityRequest struct {
 
 func (h *Handler) createOpportunity(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesWrite) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesWrite) {
 		return
 	}
 	var body createOpportunityRequest
@@ -1025,7 +1030,7 @@ func (h *Handler) createOpportunity(c *gin.Context) {
 
 func (h *Handler) listOpportunities(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesRead) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesRead) {
 		return
 	}
 	if err := allowedQuery(c, "stage", "customerId", "branchId", "accountOwnerUserId",
@@ -1072,7 +1077,7 @@ func (h *Handler) listOpportunities(c *gin.Context) {
 
 func (h *Handler) getOpportunity(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesRead) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesRead) {
 		return
 	}
 	opportunity, err := h.service.GetOpportunity(c.Request.Context(), t,
@@ -1098,7 +1103,7 @@ type updateOpportunityRequest struct {
 
 func (h *Handler) updateOpportunity(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesWrite) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesWrite) {
 		return
 	}
 	var body updateOpportunityRequest
@@ -1152,7 +1157,7 @@ type resumeOpportunityRequest struct {
 // verifies it against the immutable history.
 func (h *Handler) resumeOpportunity(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesWrite) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesWrite) {
 		return
 	}
 	var body resumeOpportunityRequest
@@ -1174,7 +1179,7 @@ func (h *Handler) resumeOpportunity(c *gin.Context) {
 
 func (h *Handler) transitionOpportunity(c *gin.Context, stage string) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesWrite) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesWrite) {
 		return
 	}
 	var body reasonedRequest
@@ -1196,7 +1201,7 @@ func (h *Handler) transitionOpportunity(c *gin.Context, stage string) {
 
 func (h *Handler) opportunityHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOpportunitiesRead) {
+	if !ok || !h.authorize(c, &t, PermissionOpportunitiesRead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)
@@ -1236,7 +1241,7 @@ type setCreditProfileRequest struct {
 
 func (h *Handler) setCreditProfile(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCreditManage) {
+	if !ok || !h.authorize(c, &t, PermissionCreditManage) {
 		return
 	}
 	var body setCreditProfileRequest
@@ -1267,7 +1272,7 @@ func (h *Handler) setCreditProfile(c *gin.Context) {
 
 func (h *Handler) getCreditProfile(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCreditRead) {
+	if !ok || !h.authorize(c, &t, PermissionCreditRead) {
 		return
 	}
 	profile, err := h.service.GetCreditProfile(c.Request.Context(), t, c.Param("customerId"))
@@ -1288,7 +1293,7 @@ type creditHoldRequest struct {
 
 func (h *Handler) applyCreditHold(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCreditManage) {
+	if !ok || !h.authorize(c, &t, PermissionCreditManage) {
 		return
 	}
 	var body creditHoldRequest
@@ -1308,7 +1313,7 @@ func (h *Handler) applyCreditHold(c *gin.Context) {
 
 func (h *Handler) releaseCreditHold(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCreditManage) {
+	if !ok || !h.authorize(c, &t, PermissionCreditManage) {
 		return
 	}
 	var body creditHoldRequest
@@ -1328,7 +1333,7 @@ func (h *Handler) releaseCreditHold(c *gin.Context) {
 
 func (h *Handler) creditHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCreditRead) {
+	if !ok || !h.authorize(c, &t, PermissionCreditRead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)
@@ -1365,7 +1370,7 @@ func (h *Handler) creditHistory(c *gin.Context) {
 
 func (h *Handler) listNotificationOperations(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "subjectId"); err != nil {
@@ -1392,7 +1397,7 @@ func (h *Handler) listNotificationOperations(c *gin.Context) {
 
 func (h *Handler) replayNotification(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsManage) {
 		return
 	}
 	operation, err := h.service.ReplayNotification(c.Request.Context(), t,

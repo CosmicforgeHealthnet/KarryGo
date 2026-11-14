@@ -61,7 +61,7 @@ type createQuotationRequest struct {
 
 func (h *Handler) createQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsManage) {
 		return
 	}
 	var body createQuotationRequest
@@ -96,7 +96,7 @@ func (h *Handler) createQuotation(c *gin.Context) {
 
 func (h *Handler) listQuotations(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "customerId", "opportunityId", "branchId",
@@ -145,7 +145,7 @@ func (h *Handler) listQuotations(c *gin.Context) {
 
 func (h *Handler) getQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	detail, err := h.service.GetQuotation(c.Request.Context(), t, c.Param("quotationId"))
@@ -174,7 +174,7 @@ type updateQuotationRequest struct {
 
 func (h *Handler) updateQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsManage) {
 		return
 	}
 	var body updateQuotationRequest
@@ -217,7 +217,7 @@ func (h *Handler) updateQuotation(c *gin.Context) {
 
 func (h *Handler) submitQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsSubmit) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsSubmit) {
 		return
 	}
 	var body reasonedRequest
@@ -256,7 +256,7 @@ type issueQuotationResponse struct {
 
 func (h *Handler) issueQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsIssue) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsIssue) {
 		return
 	}
 	var body issueQuotationRequest
@@ -301,7 +301,7 @@ type acceptQuotationResponse struct {
 
 func (h *Handler) acceptQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsAccept) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsAccept) {
 		return
 	}
 	var body acceptQuotationRequest
@@ -339,7 +339,7 @@ type rejectQuotationRequest struct {
 
 func (h *Handler) rejectQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsAccept) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsAccept) {
 		return
 	}
 	var body rejectQuotationRequest
@@ -363,7 +363,7 @@ func (h *Handler) rejectQuotation(c *gin.Context) {
 
 func (h *Handler) cancelQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsManage) {
 		return
 	}
 	var body reasonedRequest
@@ -391,7 +391,7 @@ type supersedeQuotationRequest struct {
 
 func (h *Handler) supersedeQuotation(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsManage) {
 		return
 	}
 	var body supersedeQuotationRequest
@@ -414,7 +414,7 @@ func (h *Handler) supersedeQuotation(c *gin.Context) {
 
 func (h *Handler) quotationVersions(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	_, _, limit, err := pageParams(c)
@@ -437,7 +437,7 @@ func (h *Handler) quotationVersions(c *gin.Context) {
 
 func (h *Handler) quotationVersion(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	version, err := h.service.QuotationVersion(c.Request.Context(), t,
@@ -451,7 +451,7 @@ func (h *Handler) quotationVersion(c *gin.Context) {
 
 func (h *Handler) quotationHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)
@@ -485,7 +485,7 @@ type attachDocumentRequest struct {
 
 func (h *Handler) attachQuotationDocument(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsManage) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsManage) {
 		return
 	}
 	var body attachDocumentRequest
@@ -506,7 +506,7 @@ func (h *Handler) attachQuotationDocument(c *gin.Context) {
 
 func (h *Handler) quotationDocuments(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionQuotationsRead) {
+	if !ok || !h.authorize(c, &t, PermissionQuotationsRead) {
 		return
 	}
 	documents, err := h.service.QuotationDocuments(c.Request.Context(), t,
@@ -541,7 +541,7 @@ type createContractRequest struct {
 
 func (h *Handler) createContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body createContractRequest
@@ -580,7 +580,7 @@ func (h *Handler) createContract(c *gin.Context) {
 
 func (h *Handler) listContracts(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContractsRead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "customerId", "branchId", "createdAfter",
@@ -626,7 +626,7 @@ func (h *Handler) listContracts(c *gin.Context) {
 
 func (h *Handler) getContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContractsRead) {
 		return
 	}
 	contract, err := h.service.GetContract(c.Request.Context(), t, c.Param("contractId"))
@@ -654,7 +654,7 @@ type updateContractRequest struct {
 
 func (h *Handler) updateContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body updateContractRequest
@@ -697,7 +697,7 @@ func (h *Handler) updateContract(c *gin.Context) {
 
 func (h *Handler) submitContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body reasonedRequest
@@ -725,7 +725,7 @@ type activateContractResponse struct {
 
 func (h *Handler) activateContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsActivate) {
+	if !ok || !h.authorize(c, &t, PermissionContractsActivate) {
 		return
 	}
 	var body activateContractRequest
@@ -777,7 +777,7 @@ func (h *Handler) contractLifecycleInput(c *gin.Context,
 
 func (h *Handler) suspendContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body contractLifecycleRequest
@@ -799,7 +799,7 @@ func (h *Handler) suspendContract(c *gin.Context) {
 
 func (h *Handler) resumeContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsActivate) {
+	if !ok || !h.authorize(c, &t, PermissionContractsActivate) {
 		return
 	}
 	var body contractLifecycleRequest
@@ -821,7 +821,7 @@ func (h *Handler) resumeContract(c *gin.Context) {
 
 func (h *Handler) terminateContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsTerminate) {
+	if !ok || !h.authorize(c, &t, PermissionContractsTerminate) {
 		return
 	}
 	var body contractLifecycleRequest
@@ -851,7 +851,7 @@ type renewContractRequest struct {
 
 func (h *Handler) renewContract(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body renewContractRequest
@@ -890,7 +890,7 @@ func (h *Handler) renewContract(c *gin.Context) {
 
 func (h *Handler) contractVersions(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContractsRead) {
 		return
 	}
 	_, _, limit, err := pageParams(c)
@@ -913,7 +913,7 @@ func (h *Handler) contractVersions(c *gin.Context) {
 
 func (h *Handler) contractVersion(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContractsRead) {
 		return
 	}
 	version, err := h.service.ContractVersion(c.Request.Context(), t, c.Param("contractId"),
@@ -927,7 +927,7 @@ func (h *Handler) contractVersion(c *gin.Context) {
 
 func (h *Handler) contractHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContractsRead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)
@@ -955,7 +955,7 @@ func (h *Handler) contractHistory(c *gin.Context) {
 
 func (h *Handler) attachContractDocument(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body attachDocumentRequest
@@ -976,7 +976,7 @@ func (h *Handler) attachContractDocument(c *gin.Context) {
 
 func (h *Handler) contractDocuments(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsRead) {
+	if !ok || !h.authorize(c, &t, PermissionContractsRead) {
 		return
 	}
 	documents, err := h.service.ContractDocuments(c.Request.Context(), t,
@@ -994,7 +994,7 @@ func (h *Handler) contractDocuments(c *gin.Context) {
 
 func (h *Handler) replaceContractDocument(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body attachDocumentRequest
@@ -1016,7 +1016,7 @@ func (h *Handler) replaceContractDocument(c *gin.Context) {
 
 func (h *Handler) removeContractDocument(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionContractsManage) {
+	if !ok || !h.authorize(c, &t, PermissionContractsManage) {
 		return
 	}
 	var body reasonedRequest
@@ -1053,7 +1053,7 @@ type createSLARequest struct {
 
 func (h *Handler) createSLA(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSLAManage) {
+	if !ok || !h.authorize(c, &t, PermissionSLAManage) {
 		return
 	}
 	var body createSLARequest
@@ -1093,7 +1093,7 @@ func (h *Handler) createSLA(c *gin.Context) {
 
 func (h *Handler) listSLAs(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSLARead) {
+	if !ok || !h.authorize(c, &t, PermissionSLARead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "customerId", "contractId", "metricCode"); err != nil {
@@ -1127,7 +1127,7 @@ func (h *Handler) listSLAs(c *gin.Context) {
 
 func (h *Handler) getSLA(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSLARead) {
+	if !ok || !h.authorize(c, &t, PermissionSLARead) {
 		return
 	}
 	sla, err := h.service.GetSLA(c.Request.Context(), t, c.Param("slaId"))
@@ -1150,7 +1150,7 @@ type updateSLARequest struct {
 
 func (h *Handler) updateSLA(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSLAManage) {
+	if !ok || !h.authorize(c, &t, PermissionSLAManage) {
 		return
 	}
 	var body updateSLARequest
@@ -1203,7 +1203,7 @@ func (h *Handler) terminateSLA(c *gin.Context) {
 
 func (h *Handler) transitionSLA(c *gin.Context, permission, action string) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, permission) {
+	if !ok || !h.authorize(c, &t, permission) {
 		return
 	}
 	var body reasonedRequest
@@ -1234,7 +1234,7 @@ func (h *Handler) transitionSLA(c *gin.Context, permission, action string) {
 
 func (h *Handler) slaObservations(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSLARead) {
+	if !ok || !h.authorize(c, &t, PermissionSLARead) {
 		return
 	}
 	if err := allowedQuery(c, "outcome"); err != nil {
@@ -1266,7 +1266,7 @@ func (h *Handler) slaObservations(c *gin.Context) {
 
 func (h *Handler) slaHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSLARead) {
+	if !ok || !h.authorize(c, &t, PermissionSLARead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)

@@ -51,7 +51,7 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 
 func (h *Handler) replayIndexJob(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSearchReplay) {
+	if !ok || !h.authorize(c, &t, PermissionSearchReplay) {
 		return
 	}
 	if err := h.service.ReplayIndexJob(c, t.OrganizationID, c.Param("jobId")); err != nil {
@@ -80,13 +80,19 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 	return tenantCtx, true
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -130,7 +136,7 @@ func NewDocumentView(d models.Document) DocumentView {
 
 func (h *Handler) search(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSearchRead) {
+	if !ok || !h.authorize(c, &t, PermissionSearchRead) {
 		return
 	}
 	limit := 0
@@ -182,7 +188,7 @@ type reindexSubjectBody struct {
 // backwards past a version the owning feature has already indexed.
 func (h *Handler) reindexSubject(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSearchRepair) {
+	if !ok || !h.authorize(c, &t, PermissionSearchRepair) {
 		return
 	}
 	var body reindexSubjectBody
@@ -215,7 +221,7 @@ type removeSubjectBody struct {
 // the case where that call was missed or failed.
 func (h *Handler) removeSubject(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionSearchRepair) {
+	if !ok || !h.authorize(c, &t, PermissionSearchRepair) {
 		return
 	}
 	var body removeSubjectBody

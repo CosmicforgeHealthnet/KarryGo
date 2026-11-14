@@ -83,13 +83,19 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 	return tenantCtx, true
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -198,7 +204,7 @@ func NewCatalogItemView(item models.CatalogItem) CatalogItemView {
 
 func (h *Handler) list(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogRead) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogRead) {
 		return
 	}
 	limit := 0
@@ -227,7 +233,7 @@ func (h *Handler) list(c *gin.Context) {
 
 func (h *Handler) get(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogRead) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogRead) {
 		return
 	}
 	item, err := h.service.Get(c.Request.Context(), t, c.Param("serviceId"))
@@ -255,7 +261,7 @@ type createCatalogItemRequest struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogManage) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogManage) {
 		return
 	}
 	var body createCatalogItemRequest
@@ -294,7 +300,7 @@ type updateCatalogItemRequest struct {
 
 func (h *Handler) update(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogManage) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogManage) {
 		return
 	}
 	var body updateCatalogItemRequest
@@ -324,7 +330,7 @@ type versionOnlyRequest struct {
 
 func (h *Handler) activate(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogActivate) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogActivate) {
 		return
 	}
 	var body versionOnlyRequest
@@ -342,7 +348,7 @@ func (h *Handler) activate(c *gin.Context) {
 
 func (h *Handler) deactivate(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogDeactivate) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogDeactivate) {
 		return
 	}
 	var body versionOnlyRequest
@@ -360,7 +366,7 @@ func (h *Handler) deactivate(c *gin.Context) {
 
 func (h *Handler) archive(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCatalogArchive) {
+	if !ok || !h.authorize(c, &t, PermissionCatalogArchive) {
 		return
 	}
 	var body versionOnlyRequest

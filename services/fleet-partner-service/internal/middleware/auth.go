@@ -259,3 +259,11 @@ func MetricsAuth(token string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// SetTenant replaces the request's tenant context, for example with the
+// branch-narrowed context returned by accesscontrol.RequireScoped, so later
+// readers of TenantFromGin and tenant.From see the same scope.
+func SetTenant(c *gin.Context, t tenant.Context) {
+	c.Set(TenantContextKey, t)
+	c.Request = c.Request.WithContext(tenant.Into(c.Request.Context(), t))
+}

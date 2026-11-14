@@ -56,12 +56,19 @@ func rv(c *gin.Context) int64 {
 	}
 	return 1
 }
-func (h *Handler) auth(c *gin.Context, t tenant.Context, p string) bool {
+func (h *Handler) auth(c *gin.Context, t *tenant.Context, p string) bool {
 	if h.a == nil {
 		respond.Error(c, apperrors.Forbidden("Permission denied.", nil))
 		return false
 	}
-	if e := h.a.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID, rv(c), p, accesscontrol.Target{BranchID: c.Query("branchId")}); e != nil {
+	scoped, e := h.a.RequireScoped(c.Request.Context(), *t, rv(c), p)
+	if e == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if e != nil {
 		respond.Error(c, e)
 		return false
 	}
@@ -141,7 +148,7 @@ type createReq struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b createReq
@@ -155,7 +162,7 @@ func (h *Handler) create(c *gin.Context) {
 }
 func (h *Handler) list(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRead) {
+	if !ok || !h.auth(c, &t, PermissionRead) {
 		return
 	}
 	v, e := h.s.List(c.Request.Context(), t, c.Query("status"), c.Query("branchId"))
@@ -167,7 +174,7 @@ func (h *Handler) list(c *gin.Context) {
 }
 func (h *Handler) get(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionRead) {
+	if !ok || !h.auth(c, &t, PermissionRead) {
 		return
 	}
 	m, i, e := h.s.Get(c.Request.Context(), t, c.Param("manifestId"))
@@ -188,7 +195,7 @@ type updateReq struct {
 
 func (h *Handler) update(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b updateReq
@@ -210,7 +217,7 @@ type itemReq struct {
 
 func (h *Handler) addItem(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b itemReq
@@ -229,7 +236,7 @@ type closeReq struct {
 
 func (h *Handler) close(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b closeReq
@@ -251,7 +258,7 @@ type sealAmendReq struct {
 
 func (h *Handler) amendSeal(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionSealAmend) {
+	if !ok || !h.auth(c, &t, PermissionSealAmend) {
 		return
 	}
 	var b sealAmendReq
@@ -273,7 +280,7 @@ type cancelReq struct {
 
 func (h *Handler) cancel(c *gin.Context) {
 	t, ok := ten(c)
-	if !ok || !h.auth(c, t, PermissionManage) {
+	if !ok || !h.auth(c, &t, PermissionManage) {
 		return
 	}
 	var b cancelReq

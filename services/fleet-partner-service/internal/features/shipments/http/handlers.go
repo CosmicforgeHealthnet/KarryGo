@@ -84,13 +84,19 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 	return tenantCtx, true
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -287,7 +293,7 @@ func NewCargoItemView(c models.CargoItem) CargoItemView {
 
 func (h *Handler) list(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsRead) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsRead) {
 		return
 	}
 	limit := 0
@@ -316,7 +322,7 @@ func (h *Handler) list(c *gin.Context) {
 
 func (h *Handler) get(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsRead) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsRead) {
 		return
 	}
 	shipment, err := h.service.Get(c.Request.Context(), t, c.Param("shipmentId"))
@@ -343,7 +349,7 @@ type createShipmentRequest struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsManage) {
 		return
 	}
 	var body createShipmentRequest
@@ -379,7 +385,7 @@ type updateShipmentRequest struct {
 
 func (h *Handler) update(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsManage) {
 		return
 	}
 	var body updateShipmentRequest
@@ -402,7 +408,7 @@ func (h *Handler) update(c *gin.Context) {
 
 func (h *Handler) listCargoItems(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsRead) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsRead) {
 		return
 	}
 	items, err := h.service.ListCargoItems(c.Request.Context(), t, c.Param("shipmentId"))
@@ -432,7 +438,7 @@ type addCargoItemRequest struct {
 
 func (h *Handler) addCargoItem(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsManage) {
 		return
 	}
 	var body addCargoItemRequest
@@ -463,7 +469,7 @@ type shipmentCommandRequest struct {
 // markReady moves a DRAFT shipment to READY (Section 58.6).
 func (h *Handler) markReady(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsManage) {
 		return
 	}
 	var body shipmentCommandRequest
@@ -484,7 +490,7 @@ func (h *Handler) markReady(c *gin.Context) {
 // cancel cancels a DRAFT or READY shipment.
 func (h *Handler) cancel(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionShipmentsManage) {
+	if !ok || !h.authorize(c, &t, PermissionShipmentsManage) {
 		return
 	}
 	var body shipmentCommandRequest

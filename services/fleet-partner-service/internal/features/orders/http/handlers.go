@@ -123,13 +123,19 @@ func requireTenant(c *gin.Context) (tenant.Context, bool) {
 	return tenantCtx, true
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -303,7 +309,7 @@ func NewOrderHistoryView(h models.OrderHistory) OrderHistoryView {
 
 func (h *Handler) list(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersRead) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersRead) {
 		return
 	}
 	limit := 0
@@ -332,7 +338,7 @@ func (h *Handler) list(c *gin.Context) {
 
 func (h *Handler) get(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersRead) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersRead) {
 		return
 	}
 	order, err := h.service.Get(c.Request.Context(), t, c.Param("orderId"))
@@ -345,7 +351,7 @@ func (h *Handler) get(c *gin.Context) {
 
 func (h *Handler) history(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersRead) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersRead) {
 		return
 	}
 	history, err := h.service.History(c.Request.Context(), t, c.Param("orderId"))
@@ -362,7 +368,7 @@ func (h *Handler) history(c *gin.Context) {
 
 func (h *Handler) listStops(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersRead) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersRead) {
 		return
 	}
 	stops, err := h.service.ListStops(c.Request.Context(), t, c.Param("orderId"))
@@ -393,7 +399,7 @@ type createOrderRequest struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersManage) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersManage) {
 		return
 	}
 	var body createOrderRequest
@@ -438,7 +444,7 @@ type addStopRequest struct {
 
 func (h *Handler) addStop(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrderStopsManage) {
+	if !ok || !h.authorize(c, &t, PermissionOrderStopsManage) {
 		return
 	}
 	var body addStopRequest
@@ -474,7 +480,7 @@ type versionOnlyRequest struct {
 
 func (h *Handler) confirm(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersConfirm) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersConfirm) {
 		return
 	}
 	var body versionOnlyRequest
@@ -496,7 +502,7 @@ type cancelOrderRequest struct {
 
 func (h *Handler) cancel(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersCancel) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersCancel) {
 		return
 	}
 	var body cancelOrderRequest
@@ -532,7 +538,7 @@ type convertConversionIntentRequest struct {
 // order rather than creating a second one.
 func (h *Handler) convertConversionIntent(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersManage) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersManage) {
 		return
 	}
 	var body convertConversionIntentRequest
@@ -578,7 +584,7 @@ type updateOrderRequest struct {
 // update edits a DRAFT or AWAITING_APPROVAL order (PATCH /orders/{id}).
 func (h *Handler) update(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersManage) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersManage) {
 		return
 	}
 	var body updateOrderRequest
@@ -611,7 +617,7 @@ func (h *Handler) update(c *gin.Context) {
 // submit moves a DRAFT order to AWAITING_APPROVAL.
 func (h *Handler) submit(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersManage) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersManage) {
 		return
 	}
 	var body versionOnlyRequest
@@ -630,7 +636,7 @@ func (h *Handler) submit(c *gin.Context) {
 // approve confirms an order that is AWAITING_APPROVAL.
 func (h *Handler) approve(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersConfirm) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersConfirm) {
 		return
 	}
 	var body versionOnlyRequest
@@ -653,7 +659,7 @@ type rejectOrderRequest struct {
 // reject returns an order under review to DRAFT.
 func (h *Handler) reject(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionOrdersConfirm) {
+	if !ok || !h.authorize(c, &t, PermissionOrdersConfirm) {
 		return
 	}
 	var body rejectOrderRequest

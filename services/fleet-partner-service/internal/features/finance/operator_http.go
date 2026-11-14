@@ -80,12 +80,15 @@ func (h *OperatorHandler) gate(c *gin.Context, permission string) (tenant.Contex
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return tenant.Context{}, Scope{}, false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), tenantCtx.OrganizationID,
-		tenantCtx.OrganizationUserID, roleVersionFrom(c), permission,
-		accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	// Narrowed to the branches where the permission is granted; a
+	// caller-chosen ?branchId never widens it.
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), tenantCtx, roleVersionFrom(c), permission)
+	if err != nil {
 		respond.Error(c, err)
 		return tenant.Context{}, Scope{}, false
 	}
+	tenantCtx = scoped
+	middleware.SetTenant(c, scoped)
 	if h.service == nil {
 		respond.Error(c, apperrors.Unavailable("Financial integration is not available.", nil))
 		return tenant.Context{}, Scope{}, false

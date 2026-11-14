@@ -128,7 +128,7 @@ type createLeadRequest struct {
 
 func (h *Handler) createLead(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body createLeadRequest
@@ -155,7 +155,7 @@ func (h *Handler) createLead(c *gin.Context) {
 
 func (h *Handler) listLeads(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersRead) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersRead) {
 		return
 	}
 	if err := allowedQuery(c, "status", "source", "ownerUserId", "branchId",
@@ -206,7 +206,7 @@ func (h *Handler) listLeads(c *gin.Context) {
 
 func (h *Handler) getLead(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersRead) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersRead) {
 		return
 	}
 	lead, err := h.service.GetLead(c.Request.Context(), t, c.Param("leadId"))
@@ -231,7 +231,7 @@ type updateLeadRequest struct {
 
 func (h *Handler) updateLead(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body updateLeadRequest
@@ -263,7 +263,7 @@ type assignLeadRequest struct {
 
 func (h *Handler) assignLead(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body assignLeadRequest
@@ -289,7 +289,7 @@ type changeLeadStatusRequest struct {
 
 func (h *Handler) changeLeadStatus(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body changeLeadStatusRequest
@@ -331,7 +331,7 @@ type convertLeadRequest struct {
 
 func (h *Handler) convertLead(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersManage) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersManage) {
 		return
 	}
 	var body convertLeadRequest
@@ -359,7 +359,7 @@ func (h *Handler) convertLead(c *gin.Context) {
 	}
 	if body.Opportunity != nil {
 		// Opening an opportunity is a separate grant from managing customers.
-		if !h.authorize(c, t, PermissionOpportunitiesWrite) {
+		if !h.authorize(c, &t, PermissionOpportunitiesWrite) {
 			return
 		}
 		opportunity := &usecases.CreateOpportunityInput{
@@ -406,7 +406,7 @@ func (h *Handler) convertLead(c *gin.Context) {
 
 func (h *Handler) leadHistory(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionCustomersRead) {
+	if !ok || !h.authorize(c, &t, PermissionCustomersRead) {
 		return
 	}
 	page, hasCursor, limit, err := pageParams(c)

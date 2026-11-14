@@ -78,13 +78,19 @@ func roleVersionFrom(c *gin.Context) int64 {
 	return 1
 }
 
-func (h *Handler) authorize(c *gin.Context, t tenant.Context, permission string) bool {
+func (h *Handler) authorize(c *gin.Context, t *tenant.Context, permission string) bool {
 	if h.authorizer == nil {
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
 		return false
 	}
-	if err := h.authorizer.Require(c.Request.Context(), t.OrganizationID, t.OrganizationUserID,
-		roleVersionFrom(c), permission, accesscontrol.Target{BranchID: c.Query("branchId")}); err != nil {
+	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), *t, roleVersionFrom(c), permission)
+	if err == nil {
+		// Narrowed to the branches where the permission is granted;
+		// a caller-chosen ?branchId never widens it.
+		*t = scoped
+		middleware.SetTenant(c, scoped)
+	}
+	if err != nil {
 		respond.Error(c, err)
 		return false
 	}
@@ -212,7 +218,7 @@ type createExportRequest struct {
 
 func (h *Handler) create(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionManage) {
+	if !ok || !h.authorize(c, &t, PermissionManage) {
 		return
 	}
 	var body createExportRequest
@@ -220,7 +226,7 @@ func (h *Handler) create(c *gin.Context) {
 		return
 	}
 	for _, permission := range datasetPermissions(body.ExportType) {
-		if !h.authorize(c, t, permission) {
+		if !h.authorize(c, &t, permission) {
 			return
 		}
 	}
@@ -256,7 +262,7 @@ func datasetPermissions(exportType string) []string {
 
 func (h *Handler) list(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionRead) {
+	if !ok || !h.authorize(c, &t, PermissionRead) {
 		return
 	}
 	limit := 0
@@ -282,7 +288,7 @@ func (h *Handler) list(c *gin.Context) {
 
 func (h *Handler) get(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionRead) {
+	if !ok || !h.authorize(c, &t, PermissionRead) {
 		return
 	}
 	job, err := h.service.Get(c.Request.Context(), t.OrganizationID, c.Param("exportId"))
@@ -295,7 +301,7 @@ func (h *Handler) get(c *gin.Context) {
 
 func (h *Handler) downloadURL(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionDownload) {
+	if !ok || !h.authorize(c, &t, PermissionDownload) {
 		return
 	}
 	grant, err := h.service.RequestDownloadURL(c.Request.Context(), t, c.Param("exportId"))
@@ -319,7 +325,7 @@ type cancelExportRequest struct {
 
 func (h *Handler) cancel(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionManage) {
+	if !ok || !h.authorize(c, &t, PermissionManage) {
 		return
 	}
 	var body cancelExportRequest
@@ -338,7 +344,7 @@ func (h *Handler) cancel(c *gin.Context) {
 
 func (h *Handler) replay(c *gin.Context) {
 	t, ok := requireTenant(c)
-	if !ok || !h.authorize(c, t, PermissionManage) {
+	if !ok || !h.authorize(c, &t, PermissionManage) {
 		return
 	}
 	h.runIdempotent(c, "POST /exports/:exportId/replay", t, struct{}{}, func() (int, any, error) {
