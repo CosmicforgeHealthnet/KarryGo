@@ -265,12 +265,29 @@ func (r *Repository) TransitionMembership(ctx context.Context, q database.Querie
 
 // ListHistory returns the append-only membership history.
 func (r *Repository) ListHistory(ctx context.Context, organizationID string, membershipID string) ([]models.HistoryEntry, error) {
+	return r.ListHistoryPage(ctx, organizationID, membershipID, HistoryPageMaxLimit, nil, "")
+}
+
+// HistoryPageMaxLimit is the largest history page served (spec 36).
+const HistoryPageMaxLimit = 200
+
+// ListHistoryPage returns one keyset page of a membership's history, newest
+// first, ordered by (occurred_at DESC, id DESC). afterOccurredAt/afterID are
+// the last entry of the previous page; nil starts from the newest. limit is
+// capped at HistoryPageMaxLimit+1 so a caller can ask for one extra row to
+// learn whether another page exists.
+func (r *Repository) ListHistoryPage(ctx context.Context, organizationID string, membershipID string, limit int, afterOccurredAt *time.Time, afterID string) ([]models.HistoryEntry, error) {
+	if limit <= 0 || limit > HistoryPageMaxLimit+1 {
+		limit = HistoryPageMaxLimit
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id, organization_id, membership_id, from_status, to_status, actor_type, actor_id,
 			reason_code, reason_text, request_id, correlation_id, occurred_at
 		FROM fleet_partner_provider_membership_history
 		WHERE organization_id = $1 AND membership_id = $2
-		ORDER BY occurred_at DESC, id`, organizationID, membershipID)
+		  AND ($4::timestamptz IS NULL OR (occurred_at, id) < ($4::timestamptz, $5))
+		ORDER BY occurred_at DESC, id DESC
+		LIMIT $3`, organizationID, membershipID, limit, afterOccurredAt, afterID)
 	if err != nil {
 		return nil, fmt.Errorf("providers: list history: %w", err)
 	}

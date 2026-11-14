@@ -3,11 +3,13 @@ package managedmembers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -128,8 +130,8 @@ func write(c *gin.Context, value any, err error) {
 	case errors.Is(err, ErrConflict):
 		respond.Error(c, apperrors.Conflict("That provider is already linked in this organization.", err))
 	case errors.Is(err, ErrAuthorityRefused):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"success": false, "error": gin.H{
-			"code": "AUTHORITY_REFUSED", "message": "The owning service declined this provider."}})
+		respond.Error(c, apperrors.New(http.StatusUnprocessableEntity, "authority_refused",
+			"The owning service declined this provider.", err))
 	case errors.Is(err, ErrAuthorityUnavailable):
 		respond.Error(c, apperrors.Unavailable("The owning service could not be reached.", err))
 	case errors.Is(err, ErrValidation):
@@ -163,8 +165,47 @@ func (h *Handler) listMembers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	members, err := h.s.ListMembers(c, t, 0)
-	write(c, gin.H{"members": members}, err)
+	page, ok := pageFrom(c)
+	if !ok {
+		return
+	}
+	members, more, err := h.s.ListMembersPage(c, t, page)
+	if err != nil {
+		write(c, nil, err)
+		return
+	}
+	next := ""
+	if more {
+		last := members[len(members)-1]
+		next = cursor.EncodeTime(last.CreatedAt, last.ID)
+	}
+	respond.List(c, gin.H{"members": members}, next)
+}
+
+// pageFrom reads limit (1-200, default 200) and an opaque cursor. Malformed
+// values are answered with a validation error and ok=false.
+func pageFrom(c *gin.Context) (Page, bool) {
+	var page Page
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > MaxPageSize {
+			respond.Error(c, apperrors.Validation("limit must be between 1 and 200.",
+				[]apperrors.FieldViolation{{Field: "limit", Message: "Out of range."}}))
+			return Page{}, false
+		}
+		page.Limit = parsed
+	}
+	position, hasCursor, err := cursor.Decode(c.Query("cursor"))
+	if err != nil {
+		respond.Error(c, apperrors.Validation("The cursor is not valid.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Malformed."}}))
+		return Page{}, false
+	}
+	if hasCursor {
+		after := position.SortTime()
+		page.After, page.AfterID = &after, position.LastID
+	}
+	return page, true
 }
 
 func (h *Handler) getMember(c *gin.Context) {
@@ -274,8 +315,21 @@ func (h *Handler) listAssets(c *gin.Context) {
 	if !ok {
 		return
 	}
-	assets, err := h.s.ListAssets(c, t, c.Query("memberId"))
-	write(c, gin.H{"assets": assets}, err)
+	page, ok := pageFrom(c)
+	if !ok {
+		return
+	}
+	assets, more, err := h.s.ListAssetsPage(c, t, c.Query("memberId"), page)
+	if err != nil {
+		write(c, nil, err)
+		return
+	}
+	next := ""
+	if more {
+		last := assets[len(assets)-1]
+		next = cursor.EncodeTime(last.LinkedAt, last.ID)
+	}
+	respond.List(c, gin.H{"assets": assets}, next)
 }
 
 type assetStatusBody struct {

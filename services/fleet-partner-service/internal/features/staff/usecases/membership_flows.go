@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -292,8 +293,38 @@ func (s *Service) Roles() *staffrepos.RoleRepository { return s.opts.Roles }
 func (s *Service) Members() *staffrepos.MemberRepository { return s.opts.Members }
 
 // StaffDirectory lists staff with verified contacts and current roles.
-func (s *Service) StaffDirectory(ctx context.Context, organizationID string) ([]models.StaffDirectoryEntry, error) {
-	return s.opts.Members.Directory(ctx, organizationID, "", 0)
+func (s *Service) StaffDirectory(ctx context.Context, organizationID string, page StaffDirectoryPage) (*StaffDirectoryResult, error) {
+	limit := page.Limit
+	if limit <= 0 || limit > staffrepos.StaffDirectoryMaxLimit {
+		limit = staffrepos.StaffDirectoryMaxLimit
+	}
+	// One extra row tells whether another page exists without a count query.
+	entries, err := s.opts.Members.DirectoryPage(ctx, organizationID, limit+1, page.AfterCreatedAt, page.AfterID)
+	if err != nil {
+		return nil, err
+	}
+	result := &StaffDirectoryResult{Entries: entries}
+	if len(entries) > limit {
+		result.Entries = entries[:limit]
+		result.HasMore = true
+	}
+	return result, nil
+}
+
+// StaffDirectoryPage selects one keyset page of the staff directory. A zero
+// Limit means the maximum page (200), which keeps an unpaginated caller's
+// response identical for directories of up to 200 members.
+type StaffDirectoryPage struct {
+	Limit          int
+	AfterCreatedAt *time.Time
+	AfterID        string
+}
+
+// StaffDirectoryResult is one page of the staff directory. HasMore reports
+// that rows beyond this page exist, so the list is never silently truncated.
+type StaffDirectoryResult struct {
+	Entries []models.StaffDirectoryEntry
+	HasMore bool
 }
 
 // StaffMember returns one staff member with contacts and current roles.

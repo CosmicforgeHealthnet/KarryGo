@@ -25,6 +25,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -1188,12 +1189,26 @@ func (h *Handler) listStaff(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "staff.read") {
 		return
 	}
-	members, err := h.staff.StaffDirectory(c.Request.Context(), tenantCtx.OrganizationID)
+	// Spec 6/36: cursor pagination, at most 200 per page. Without a limit the
+	// page is the full 200, so existing callers see the same rows as before;
+	// the difference is that a larger directory now returns nextCursor instead
+	// of being cut off silently.
+	limit, after, afterID, ok := timeCursorPage(c)
+	if !ok {
+		return
+	}
+	result, err := h.staff.StaffDirectory(c.Request.Context(), tenantCtx.OrganizationID,
+		staffusecases.StaffDirectoryPage{Limit: limit, AfterCreatedAt: after, AfterID: afterID})
 	if err != nil {
 		respond.Error(c, err)
 		return
 	}
-	respond.List(c, members, "")
+	next := ""
+	if result.HasMore && len(result.Entries) > 0 {
+		last := result.Entries[len(result.Entries)-1]
+		next = cursor.EncodeTime(last.CreatedAt, last.ID)
+	}
+	respond.List(c, result.Entries, next)
 }
 
 func (h *Handler) getStaffMember(c *gin.Context) {
@@ -1496,12 +1511,48 @@ func (h *Handler) providerHistory(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.read") {
 		return
 	}
-	history, err := h.providers.History(c.Request.Context(), tenantCtx, c.Param("membershipId"))
+	limit, after, afterID, ok := timeCursorPage(c)
+	if !ok {
+		return
+	}
+	page, err := h.providers.HistoryPageOf(c.Request.Context(), tenantCtx, c.Param("membershipId"), limit, after, afterID)
 	if err != nil {
 		respond.Error(c, err)
 		return
 	}
-	respond.List(c, history, "")
+	next := ""
+	if page.HasMore && len(page.Entries) > 0 {
+		last := page.Entries[len(page.Entries)-1]
+		next = cursor.EncodeTime(last.OccurredAt, last.ID)
+	}
+	respond.List(c, page.Entries, next)
+}
+
+// timeCursorPage reads limit and cursor for a list keyed on (timestamp DESC,
+// id DESC). limit is 1-200 (absent means the full page of 200, so callers
+// that never paginated see the same rows as before); a malformed value or
+// cursor is answered with a validation error and ok=false.
+func timeCursorPage(c *gin.Context) (limit int, after *time.Time, afterID string, ok bool) {
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > pagination.MaxLimit {
+			respond.Error(c, apperrors.Validation("limit must be between 1 and 200.",
+				[]apperrors.FieldViolation{{Field: "limit", Message: "Out of range."}}))
+			return 0, nil, "", false
+		}
+		limit = parsed
+	}
+	position, hasCursor, err := cursor.Decode(c.Query("cursor"))
+	if err != nil {
+		respond.Error(c, apperrors.Validation("The cursor is not valid.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Malformed."}}))
+		return 0, nil, "", false
+	}
+	if hasCursor {
+		sortTime := position.SortTime()
+		after, afterID = &sortTime, position.LastID
+	}
+	return limit, after, afterID, true
 }
 
 func expectedVersionFrom(c *gin.Context) (int64, error) {

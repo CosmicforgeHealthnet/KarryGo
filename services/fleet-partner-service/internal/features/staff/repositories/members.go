@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -313,11 +314,27 @@ func orEmpty(values []string) []string {
 // the roles they currently hold (unrevoked, unexpired bindings). When
 // memberID is set, only that member is returned.
 func (r *MemberRepository) Directory(ctx context.Context, organizationID string, memberID string, limit int) ([]models.StaffDirectoryEntry, error) {
+	return r.directory(ctx, organizationID, memberID, limit, nil, "")
+}
+
+// StaffDirectoryMaxLimit is the largest staff page served (spec 36).
+const StaffDirectoryMaxLimit = 200
+
+// DirectoryPage returns one keyset page of the staff directory, newest first,
+// ordered by (created_at DESC, id DESC) so it stays stable while members are
+// added. afterCreatedAt/afterID are the last row of the previous page; a nil
+// afterCreatedAt starts from the beginning. Callers detect a further page by
+// asking for limit+1 rows.
+func (r *MemberRepository) DirectoryPage(ctx context.Context, organizationID string, limit int, afterCreatedAt *time.Time, afterID string) ([]models.StaffDirectoryEntry, error) {
+	return r.directory(ctx, organizationID, "", limit, afterCreatedAt, afterID)
+}
+
+func (r *MemberRepository) directory(ctx context.Context, organizationID string, memberID string, limit int, afterCreatedAt *time.Time, afterID string) ([]models.StaffDirectoryEntry, error) {
 	if organizationID == "" {
 		return nil, fmt.Errorf("staff: organization id is required")
 	}
-	if limit <= 0 || limit > 200 {
-		limit = 200
+	if limit <= 0 || limit > StaffDirectoryMaxLimit+1 {
+		limit = StaffDirectoryMaxLimit
 	}
 	rows, err := r.db.Query(ctx, `
 		SELECT u.id, u.full_name, u.job_title, i.email_display, i.phone_display, u.status, u.is_owner,
@@ -332,8 +349,9 @@ func (r *MemberRepository) Directory(ctx context.Context, organizationID string,
 		FROM fleet_partner_organization_users u
 		JOIN fleet_partner_corporate_identities i ON i.id = u.identity_id
 		WHERE u.organization_id = $1 AND ($2 = '' OR u.id = $2)
-		ORDER BY u.created_at DESC, u.id
-		LIMIT $3`, organizationID, memberID, limit)
+		  AND ($4::timestamptz IS NULL OR (u.created_at, u.id) < ($4::timestamptz, $5))
+		ORDER BY u.created_at DESC, u.id DESC
+		LIMIT $3`, organizationID, memberID, limit, afterCreatedAt, afterID)
 	if err != nil {
 		return nil, fmt.Errorf("staff: directory: %w", err)
 	}

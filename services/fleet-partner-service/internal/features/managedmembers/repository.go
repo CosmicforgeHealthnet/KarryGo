@@ -10,6 +10,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// MaxPageSize is the largest list page served (spec 36).
+const MaxPageSize = 200
+
+func clampPage(limit int) int {
+	if limit <= 0 || limit > MaxPageSize+1 {
+		return MaxPageSize
+	}
+	return limit
+}
+
 // Repository owns this feature's statements.
 //
 // Every query is organization-scoped in SQL, not by a caller remembering to
@@ -55,13 +65,18 @@ func (r *Repository) GetMember(ctx context.Context, organizationID, memberID str
 }
 
 // ListMembers returns an organization's members.
-func (r *Repository) ListMembers(ctx context.Context, organizationID string, limit int) ([]Member, error) {
-	if limit <= 0 || limit > 200 {
-		limit = 100
-	}
+//
+// Keyset pagination on (created_at DESC, id DESC): after/afterID are the last
+// row of the previous page (nil starts at the newest). limit is clamped to
+// [1, MaxPageSize+1] so a caller can fetch one extra row to detect a further
+// page instead of being truncated silently.
+func (r *Repository) ListMembers(ctx context.Context, organizationID string, limit int, after *time.Time, afterID string) ([]Member, error) {
+	limit = clampPage(limit)
 	rows, err := r.db.Query(ctx,
 		`SELECT `+memberColumns+` FROM fleet_partner_managed_provider_members
-		  WHERE organization_id=$1 ORDER BY created_at DESC LIMIT $2`, organizationID, limit)
+		  WHERE organization_id=$1
+		    AND ($3::timestamptz IS NULL OR (created_at, id) < ($3::timestamptz, $4))
+		  ORDER BY created_at DESC, id DESC LIMIT $2`, organizationID, limit, after, afterID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,11 +268,16 @@ func (r *Repository) LinkAsset(ctx context.Context, a AssetLink) (AssetLink, err
 }
 
 // ListAssets returns an organization's asset links, optionally for one member.
-func (r *Repository) ListAssets(ctx context.Context, organizationID, memberID string) ([]AssetLink, error) {
+//
+// Keyset pagination on (linked_at DESC, id DESC), bounded like ListMembers.
+// The query used to have no LIMIT at all.
+func (r *Repository) ListAssets(ctx context.Context, organizationID, memberID string, limit int, after *time.Time, afterID string) ([]AssetLink, error) {
+	limit = clampPage(limit)
 	rows, err := r.db.Query(ctx,
 		`SELECT `+assetColumns+` FROM fleet_partner_managed_asset_links
 		  WHERE organization_id=$1 AND ($2='' OR member_id=$2)
-		  ORDER BY authority, asset_id`, organizationID, memberID)
+		    AND ($4::timestamptz IS NULL OR (linked_at, id) < ($4::timestamptz, $5))
+		  ORDER BY linked_at DESC, id DESC LIMIT $3`, organizationID, memberID, limit, after, afterID)
 	if err != nil {
 		return nil, err
 	}

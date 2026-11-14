@@ -88,16 +88,42 @@ func (s *Service) ReadMember(ctx context.Context, t tenant.Context, memberID str
 	if err != nil {
 		return MemberView{}, err
 	}
-	assets, err := s.repo.ListAssets(ctx, t.OrganizationID, memberID)
+	assets, _, err := s.ListAssetsPage(ctx, t, memberID, Page{})
 	if err != nil {
 		return MemberView{}, err
 	}
 	return MemberView{Member: member, Links: links, Assets: assets}, nil
 }
 
-// ListMembers returns the organization's members.
+// Page selects one keyset page of a list. A zero Limit means MaxPageSize.
+type Page struct {
+	Limit   int
+	After   *time.Time
+	AfterID string
+}
+
+func (p Page) size() int {
+	if p.Limit <= 0 || p.Limit > MaxPageSize {
+		return MaxPageSize
+	}
+	return p.Limit
+}
+
+// ListMembers returns the first page (newest first) of the organization's
+// members, at most limit (default and maximum MaxPageSize).
 func (s *Service) ListMembers(ctx context.Context, t tenant.Context, limit int) ([]Member, error) {
-	return s.repo.ListMembers(ctx, t.OrganizationID, limit)
+	members, _, err := s.ListMembersPage(ctx, t, Page{Limit: limit})
+	return members, err
+}
+
+// ListMembersPage returns one page of members and whether more exist.
+func (s *Service) ListMembersPage(ctx context.Context, t tenant.Context, page Page) ([]Member, bool, error) {
+	size := page.size()
+	members, err := s.repo.ListMembers(ctx, t.OrganizationID, size+1, page.After, page.AfterID)
+	if err != nil || len(members) <= size {
+		return members, false, err
+	}
+	return members[:size], true, nil
 }
 
 // LinkRequest asks Fleet to bind one authority's provider to a member.
@@ -267,9 +293,21 @@ func (s *Service) LinkAsset(ctx context.Context, t tenant.Context, request LinkA
 	})
 }
 
-// ListAssets returns the organization's asset links.
+// ListAssets returns the first page (newest first) of the organization's
+// asset links, optionally for one member.
 func (s *Service) ListAssets(ctx context.Context, t tenant.Context, memberID string) ([]AssetLink, error) {
-	return s.repo.ListAssets(ctx, t.OrganizationID, memberID)
+	assets, _, err := s.ListAssetsPage(ctx, t, memberID, Page{})
+	return assets, err
+}
+
+// ListAssetsPage returns one page of asset links and whether more exist.
+func (s *Service) ListAssetsPage(ctx context.Context, t tenant.Context, memberID string, page Page) ([]AssetLink, bool, error) {
+	size := page.size()
+	assets, err := s.repo.ListAssets(ctx, t.OrganizationID, memberID, size+1, page.After, page.AfterID)
+	if err != nil || len(assets) <= size {
+		return assets, false, err
+	}
+	return assets[:size], true, nil
 }
 
 // SetAssetLinkStatus suspends or removes an asset link.
