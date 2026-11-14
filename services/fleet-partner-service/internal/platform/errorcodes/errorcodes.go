@@ -79,6 +79,14 @@ const (
 	ApprovalNotExecutable       apperrors.Code = "approval_not_executable"
 	ApprovalPolicyMissing       apperrors.Code = "approval_policy_missing"
 	ApprovalSeparationOfDuties  apperrors.Code = "approval_separation_of_duties"
+	ApprovalPolicyNotFound      apperrors.Code = "approval_policy_not_found"
+	// ApprovalPolicyNotEditable refuses an edit to a policy the organization
+	// does not own (a platform template) or one that is already archived.
+	ApprovalPolicyNotEditable  apperrors.Code = "approval_policy_not_editable"
+	ApprovalDelegationNotFound apperrors.Code = "approval_delegation_not_found"
+	ApprovalDelegationInvalid  apperrors.Code = "approval_delegation_invalid"
+	ApprovalDelegationEnded    apperrors.Code = "approval_delegation_ended"
+	ApprovalDelegationOverlap  apperrors.Code = "approval_delegation_overlap"
 )
 
 // Eligibility codes.

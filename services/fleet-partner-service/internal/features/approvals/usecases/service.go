@@ -57,6 +57,17 @@ type RoleReader interface {
 	ListBindings(ctx context.Context, organizationID string, memberID string) ([]staffmodels.RoleBinding, error)
 }
 
+// PermissionReader exposes a member's live effective permissions, read from
+// role bindings only. Delegations never appear here, which is what stops a
+// delegate from re-delegating authority it only holds by delegation.
+type PermissionReader interface {
+	EffectivePermissions(ctx context.Context, organizationID string, memberID string) (map[string][]staffmodels.RoleBinding, error)
+}
+
+// PermissionDecide is the base permission every approver, delegator and
+// delegate must hold through their own role bindings.
+const PermissionDecide = "approvals.requests.decide"
+
 // SubjectVersionReader reports the current version of a controlled subject.
 //
 // The approval framework cannot know how every subject stores its version, so
@@ -74,6 +85,9 @@ type Options struct {
 	Approvals   *repositories.Repository
 	Eligibility *eligibilityusecases.Service
 	Roles       RoleReader
+	// Permissions defaults to Roles when Roles also implements it (the staff
+	// role repository does).
+	Permissions PermissionReader
 	Subjects    SubjectVersionReader
 	Events      EventPublisher
 	Audit       *audit.Recorder
@@ -96,6 +110,11 @@ func NewService(opts Options) *Service {
 	}
 	if opts.Audit == nil {
 		opts.Audit = audit.NewRecorder()
+	}
+	if opts.Permissions == nil {
+		if reader, ok := opts.Roles.(PermissionReader); ok {
+			opts.Permissions = reader
+		}
 	}
 	return &Service{opts: opts}
 }
@@ -160,6 +179,12 @@ func (s *Service) Request(ctx context.Context, input RequestInput) (*RequestResu
 		return replay, nil
 	}
 
+	amount, amountNamed, err := models.AmountFromPayload(input.Payload)
+	if err != nil {
+		return nil, errorcodes.UnprocessableEntity(errorcodes.ValidationFailed,
+			"payload.amountMinor must be a whole, non-negative number of minor units with a three-letter currency.")
+	}
+
 	policy, err := s.opts.Eligibility.Policy(ctx, input.Actor.OrganizationID, input.OperationType)
 	if err != nil {
 		return nil, err
@@ -209,6 +234,7 @@ func (s *Service) Request(ctx context.Context, input RequestInput) (*RequestResu
 		}
 	}
 
+	var selected *models.Policy
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		policyID, policyVersion, policyErr := s.opts.Approvals.EnsurePolicy(ctx, tx,
 			input.Actor.OrganizationID, input.ResourceType, input.Action,
@@ -229,6 +255,48 @@ func (s *Service) Request(ctx context.Context, input RequestInput) (*RequestResu
 		request.PolicyID = policyID
 		if policyVersion > 0 {
 			request.PolicyVersion = policyVersion
+		}
+
+		// An organization-authored policy, when one governs this request,
+		// replaces the template's rules — never below the platform floor —
+		// and is pinned by id and version. Every rule is frozen onto the
+		// request and its step rows, so a later edit of the policy cannot
+		// weaken (or strengthen) a request already in flight.
+		organizationPolicies, policiesErr := s.opts.Approvals.ActiveOrganizationPolicies(ctx, tx,
+			input.Actor.OrganizationID, input.ResourceType, input.Action)
+		if policiesErr != nil {
+			return policiesErr
+		}
+		if amount == nil && amountNamed {
+			for _, candidate := range organizationPolicies {
+				if candidate.InScope(input.Actor.BranchID) && candidate.HasThreshold() {
+					return errorcodes.UnprocessableEntity(errorcodes.ValidationFailed,
+						"payload.currency is required: an amount threshold policy governs this operation.")
+				}
+			}
+		}
+		selected = models.SelectPolicy(organizationPolicies, input.Actor.BranchID, amount)
+		rules := models.EffectiveRules(selected, models.PlatformRules{
+			MinimumApprovals:    policy.MinimumApprovals,
+			EligibleRoleIDs:     policy.EligibleRoleIDs,
+			SelfApprovalAllowed: policy.SelfApprovalAllowed,
+			SeparationOfDuties:  policy.SeparationOfDuties,
+			TTLSeconds:          policy.ApprovalTTLSeconds,
+		})
+		if selected != nil {
+			request.PolicyID = selected.ID
+			request.PolicyVersion = selected.Version
+		}
+		request.Steps = rules.Steps
+		request.MinimumApprovals = rules.TotalApprovals()
+		request.EligibleRoleIDs = rules.Steps[0].EligibleRoleIDs
+		request.SelfApprovalAllowed = rules.SelfApprovalAllowed
+		request.SeparationOfDuties = rules.SeparationOfDuties
+		request.ExpiresAt = now.Add(time.Duration(rules.TTLSeconds) * time.Second)
+		if amount != nil {
+			minor := amount.Minor
+			request.AmountMinor = &minor
+			request.AmountCurrency = amount.Currency
 		}
 
 		// An open request for the same resource and action whose payload has
@@ -279,7 +347,13 @@ func (s *Service) Request(ctx context.Context, input RequestInput) (*RequestResu
 				"requestFingerprint":     request.RequestFingerprint,
 				"expectedSubjectVersion": request.ExpectedSubjectVersion,
 				"minimumApprovals":       request.MinimumApprovals,
+				"steps":                  len(request.Steps),
+				"policyId":               request.PolicyID,
 				"policyVersion":          request.PolicyVersion,
+				"organizationPolicy":     selected != nil,
+				"platformPolicyVersion":  policy.Version,
+				"amountMinor":            request.AmountMinor,
+				"amountCurrency":         request.AmountCurrency,
 			},
 			RequestID:     input.CorrelationID,
 			CorrelationID: input.CorrelationID,
@@ -370,7 +444,13 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 			return errorcodes.Conflict(errorcodes.ApprovalFingerprintMismatch,
 				"The operation changed since it was presented for approval.")
 		}
-		if err := s.assertMayDecide(ctx, tx, request, input.Actor); err != nil {
+		step, err := s.opts.Approvals.CurrentStep(ctx, tx, request.OrganizationID,
+			request.ID, request.CurrentStep)
+		if err != nil {
+			return err
+		}
+		delegation, err := s.assertMayDecide(ctx, tx, request, step, input.Actor)
+		if err != nil {
 			return err
 		}
 
@@ -389,12 +469,6 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 				"The subject changed since approval was requested.")
 		}
 
-		step, err := s.opts.Approvals.CurrentStep(ctx, tx, request.OrganizationID,
-			request.ID, request.CurrentStep)
-		if err != nil {
-			return err
-		}
-
 		record := &models.Decision{
 			ApprovalRequestID:   request.ID,
 			ApprovalStepID:      step.ID,
@@ -409,6 +483,11 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 			clientID := input.ClientDecisionID
 			record.ClientDecisionID = &clientID
 		}
+		if delegation != nil {
+			delegationID, delegator := delegation.ID, delegation.DelegatorID
+			record.DelegationID = &delegationID
+			record.OnBehalfOf = &delegator
+		}
 		if err := s.opts.Approvals.RecordDecision(ctx, tx,
 			request.OrganizationID, record); err != nil {
 			if errors.Is(err, repositories.ErrConflict) {
@@ -419,6 +498,7 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 		}
 
 		nextStatus := models.StatusPending
+		advancedTo := 0
 		if decision == models.DecisionRejected {
 			// One rejection ends it. A quorum of approvals cannot outvote a
 			// documented objection: an approval framework that lets it is a
@@ -428,16 +508,46 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 				return err
 			}
 		} else {
-			approvals, countErr := s.opts.Approvals.CountApprovals(ctx, tx, request.ID)
+			// Quorum is counted per step, against the quorum frozen onto that
+			// step when the request was raised.
+			approvals, countErr := s.opts.Approvals.CountStepApprovals(ctx, tx, step.ID)
 			if countErr != nil {
 				return countErr
 			}
-			if approvals >= request.MinimumApprovals {
-				nextStatus = models.StatusApproved
+			if approvals >= step.RequiredQuorum {
 				if err := s.opts.Approvals.CompleteStep(ctx, tx, step.ID, "COMPLETED"); err != nil {
 					return err
 				}
+				_, nextErr := s.opts.Approvals.CurrentStep(ctx, tx, request.OrganizationID,
+					request.ID, step.StepNumber+1)
+				switch {
+				case nextErr == nil:
+					advancedTo = step.StepNumber + 1
+				case errors.Is(nextErr, repositories.ErrNotFound):
+					nextStatus = models.StatusApproved
+				default:
+					return nextErr
+				}
 			}
+		}
+
+		if advancedTo > 0 {
+			if err := s.opts.Approvals.AdvanceStep(ctx, tx, request.OrganizationID,
+				request.ID, request.Version, advancedTo); err != nil {
+				if errors.Is(err, repositories.ErrConflict) {
+					return errorcodes.Conflict(errorcodes.ApprovalAlreadyResolved,
+						"This approval request changed while you were deciding it.")
+				}
+				return err
+			}
+			if err := s.opts.Approvals.AppendHistory(ctx, tx, request.OrganizationID,
+				request.ID, models.StatusPending, models.StatusPending,
+				strings.ToLower(input.Actor.ActorType), input.Actor.ActorID,
+				"step_completed", input.CorrelationID); err != nil {
+				return err
+			}
+			request.CurrentStep = advancedTo
+			request.Version++
 		}
 
 		if nextStatus != request.Status {
@@ -470,7 +580,11 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 				"approvalRequestId": request.ID,
 				"decision":          decision,
 				"status":            request.Status,
+				"step":              step.StepNumber,
+				"currentStep":       request.CurrentStep,
 				"policyVersion":     request.PolicyVersion,
+				"delegationId":      record.DelegationID,
+				"onBehalfOf":        record.OnBehalfOf,
 			},
 			Reason:        input.Reason,
 			CorrelationID: input.CorrelationID,
@@ -834,6 +948,15 @@ func (s *Service) Decisions(ctx context.Context, organizationID string,
 	return s.opts.Approvals.ListDecisions(ctx, nil, requestID)
 }
 
+// Steps returns the frozen approval sequence of one request.
+func (s *Service) Steps(ctx context.Context, organizationID string,
+	requestID string) ([]models.Step, error) {
+	if _, err := s.Get(ctx, organizationID, requestID); err != nil {
+		return nil, err
+	}
+	return s.opts.Approvals.ListSteps(ctx, nil, organizationID, requestID)
+}
+
 // History returns the append-only history of one request.
 func (s *Service) History(ctx context.Context, organizationID string,
 	requestID string) ([]repositories.HistoryEntry, error) {
@@ -985,7 +1108,11 @@ func (s *Service) assertDecidable(request *models.Request, now time.Time) error 
 	case request.Status == models.StatusInvalidated:
 		return errorcodes.Conflict(errorcodes.ApprovalInvalidated,
 			"This approval request no longer describes the operation and must be raised again.")
-	case request.Terminal():
+	case request.Terminal() || request.Status != models.StatusPending:
+		// APPROVED is not terminal (it can still be executed or invalidated)
+		// but it no longer takes decisions: a decision after quorum would
+		// be counted on a closed step, and a late rejection would flip an
+		// approval that already completed.
 		return errorcodes.Conflict(errorcodes.ApprovalAlreadyResolved,
 			"This approval request is no longer open.")
 	case !request.ExpiresAt.After(now):
@@ -997,54 +1124,195 @@ func (s *Service) assertDecidable(request *models.Request, now time.Time) error 
 }
 
 // assertMayDecide enforces self-approval policy, separation of duties and the
-// eligible-role list.
+// current step's eligible-role list, and resolves the delegation the actor
+// decides under when they hold no eligible role of their own.
+//
+// It returns the delegation the decision is cast under, or nil when the actor
+// decides on their own authority.
 func (s *Service) assertMayDecide(ctx context.Context, q pgx.Tx, request *models.Request,
-	actor Actor) error {
+	step *models.Step, actor Actor) (*models.Delegation, error) {
 	if !request.SelfApprovalAllowed && actor.OrganizationUserID == request.RequesterID {
-		return errorcodes.Forbidden(errorcodes.ApprovalSelfDecisionForbidden,
+		return nil, errorcodes.Forbidden(errorcodes.ApprovalSelfDecisionForbidden,
 			"You cannot approve a request you raised.")
 	}
 	// Separation of duties goes further than self-approval: even where the
 	// requester is allowed to approve, someone who already acted on this
 	// request in another capacity cannot also be the one who completes quorum.
 	if request.SeparationOfDuties {
-		if existing, err := s.opts.Approvals.FindDecisionByApprover(ctx, q,
+		if _, err := s.opts.Approvals.FindDecisionByApprover(ctx, q,
 			request.ID, actor.OrganizationUserID); err == nil {
-			_ = existing
-			return errorcodes.Forbidden(errorcodes.ApprovalSeparationOfDuties,
+			return nil, errorcodes.Forbidden(errorcodes.ApprovalSeparationOfDuties,
 				"You have already acted on this approval request.")
 		} else if !errors.Is(err, repositories.ErrNotFound) {
-			return err
+			return nil, err
 		}
 	}
+	// One person's authority counts once. If a delegate already decided on
+	// this person's authority, they cannot add a second decision of their own:
+	// on this step always, and anywhere on the request under separation of
+	// duties.
+	scope := step.ID
+	if request.SeparationOfDuties {
+		scope = ""
+	}
+	if _, err := s.opts.Approvals.FindDecisionOnBehalfOf(ctx, q, request.ID, scope,
+		actor.OrganizationUserID); err == nil {
+		return nil, errorcodes.Forbidden(errorcodes.ApprovalSeparationOfDuties,
+			"Your authority on this approval request was already exercised by your delegate.")
+	} else if !errors.Is(err, repositories.ErrNotFound) {
+		return nil, err
+	}
 
-	if len(request.EligibleRoleIDs) == 0 {
-		return nil
+	if len(step.EligibleRoleIDs) == 0 {
+		return nil, nil
 	}
 	if s.opts.Roles == nil {
 		// Eligible roles were specified and there is no way to check them.
 		// Denying is the only safe reading of a missing gate.
-		return errorcodes.Forbidden(errorcodes.ApprovalActorNotEligible,
+		return nil, errorcodes.Forbidden(errorcodes.ApprovalActorNotEligible,
 			"Your eligibility to decide this request could not be established.")
 	}
-	bindings, err := s.opts.Roles.ListBindings(ctx, request.OrganizationID,
-		actor.OrganizationUserID)
-	if err != nil {
-		return err
-	}
 	now := s.opts.Now()
+	eligible, err := s.holdsEligibleRole(ctx, request.OrganizationID,
+		actor.OrganizationUserID, step.EligibleRoleIDs, now)
+	if err != nil {
+		return nil, err
+	}
+	if eligible {
+		return nil, nil
+	}
+
+	delegation, err := s.usableDelegation(ctx, q, request, step, actor, now)
+	if err != nil {
+		return nil, err
+	}
+	if delegation != nil {
+		return delegation, nil
+	}
+	return nil, errorcodes.Forbidden(errorcodes.ApprovalActorNotEligible,
+		"You do not hold a role that may decide this request.")
+}
+
+// holdsEligibleRole reports whether member holds, through an active role
+// binding, one of the eligible roles.
+func (s *Service) holdsEligibleRole(ctx context.Context, organizationID string,
+	memberID string, eligibleRoleIDs []string, now time.Time) (bool, error) {
+	bindings, err := s.opts.Roles.ListBindings(ctx, organizationID, memberID)
+	if err != nil {
+		return false, err
+	}
 	for _, binding := range bindings {
 		if !binding.Active(now) {
 			continue
 		}
-		for _, eligible := range request.EligibleRoleIDs {
+		for _, eligible := range eligibleRoleIDs {
 			if binding.RoleID == eligible {
-				return nil
+				return true, nil
 			}
 		}
 	}
-	return errorcodes.Forbidden(errorcodes.ApprovalActorNotEligible,
-		"You do not hold a role that may decide this request.")
+	return false, nil
+}
+
+// usableDelegation finds a delegation under which actor may decide this step.
+//
+// Every condition is checked live, at decision time, against the delegator's
+// own standing, never against what was true when the delegation was made:
+//
+//   - the requester can never approve their own request through a delegation,
+//     and a requester's authority cannot be delegated to approve it either
+//     unless the request allows self-approval;
+//   - the delegator must still be an ACTIVE member holding the decide
+//     permission and an eligible role through their own role bindings, so a
+//     delegation never exceeds what the delegator possesses and authority
+//     held only by delegation can never be passed on;
+//   - the delegator's authority must not already have been exercised on this
+//     step (or on this request under separation of duties), by themselves or
+//     by another delegate.
+func (s *Service) usableDelegation(ctx context.Context, q pgx.Tx, request *models.Request,
+	step *models.Step, actor Actor, now time.Time) (*models.Delegation, error) {
+	if actor.OrganizationUserID == request.RequesterID {
+		return nil, nil
+	}
+	if s.opts.Permissions == nil {
+		return nil, nil
+	}
+	delegations, err := s.opts.Approvals.ActiveDelegationsTo(ctx, q, request.OrganizationID,
+		actor.OrganizationUserID, now)
+	if err != nil {
+		return nil, err
+	}
+	branchID := ""
+	if request.BranchID != nil {
+		branchID = *request.BranchID
+	}
+	scope := step.ID
+	if request.SeparationOfDuties {
+		scope = ""
+	}
+	for index := range delegations {
+		delegation := delegations[index]
+		if !delegation.Covers(request.ResourceType, request.Action, branchID, now) {
+			continue
+		}
+		delegator := delegation.DelegatorID
+		if delegator == request.RequesterID && !request.SelfApprovalAllowed {
+			continue
+		}
+		status, statusErr := s.opts.Approvals.MemberStatus(ctx, q, request.OrganizationID, delegator)
+		if statusErr != nil {
+			if errors.Is(statusErr, repositories.ErrNotFound) {
+				continue
+			}
+			return nil, statusErr
+		}
+		if status != staffmodels.UserStatusActive {
+			continue
+		}
+		permissions, permErr := s.opts.Permissions.EffectivePermissions(ctx,
+			request.OrganizationID, delegator)
+		if permErr != nil {
+			return nil, permErr
+		}
+		if !anyActiveBinding(permissions[PermissionDecide], now) {
+			continue
+		}
+		eligible, roleErr := s.holdsEligibleRole(ctx, request.OrganizationID, delegator,
+			step.EligibleRoleIDs, now)
+		if roleErr != nil {
+			return nil, roleErr
+		}
+		if !eligible {
+			continue
+		}
+		// The delegator already decided themselves: their authority is spent.
+		if existing, findErr := s.opts.Approvals.FindDecisionByApprover(ctx, q, request.ID,
+			delegator); findErr == nil {
+			if scope == "" || existing.ApprovalStepID == step.ID {
+				continue
+			}
+		} else if !errors.Is(findErr, repositories.ErrNotFound) {
+			return nil, findErr
+		}
+		// Another delegate already decided on this delegator's authority.
+		if _, findErr := s.opts.Approvals.FindDecisionOnBehalfOf(ctx, q, request.ID, scope,
+			delegator); findErr == nil {
+			continue
+		} else if !errors.Is(findErr, repositories.ErrNotFound) {
+			return nil, findErr
+		}
+		return &delegation, nil
+	}
+	return nil, nil
+}
+
+func anyActiveBinding(bindings []staffmodels.RoleBinding, now time.Time) bool {
+	for _, binding := range bindings {
+		if binding.Active(now) {
+			return true
+		}
+	}
+	return false
 }
 
 // subjectChanged reports whether the subject moved since approval was asked

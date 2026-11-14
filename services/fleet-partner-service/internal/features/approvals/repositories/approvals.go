@@ -53,7 +53,8 @@ const requestColumns = `id, organization_id, branch_id, policy_id, policy_versio
 	eligible_role_ids, self_approval_allowed, separation_of_duties,
 	eligibility_decision_id, status, current_step, expires_at, executed_at,
 	execution_reference, invalidated_at, invalidation_reason, idempotency_key,
-	correlation_id, causation_id, version, created_at, updated_at`
+	correlation_id, causation_id, version, created_at, updated_at,
+	amount_minor, amount_currency`
 
 // EnsurePolicy resolves the approval policy row for a controlled operation,
 // creating it from the governing eligibility policy when absent.
@@ -74,7 +75,8 @@ func (r *Repository) EnsurePolicy(ctx context.Context, q database.Querier,
 	err := q.QueryRow(ctx, `
 		SELECT id, version FROM fleet_partner_approval_policies
 		WHERE organization_id = $1 AND resource_type = $2 AND action = $3
-		  AND status = 'ACTIVE'`, organizationID, resourceType, action).Scan(&id, &version)
+		  AND status = 'ACTIVE' AND origin = 'TEMPLATE'
+		ORDER BY created_at, id LIMIT 1`, organizationID, resourceType, action).Scan(&id, &version)
 	if err == nil {
 		return id, version, nil
 	}
@@ -134,6 +136,18 @@ func (r *Repository) CreateRequest(ctx context.Context, q database.Querier,
 	if err != nil {
 		return fmt.Errorf("approvals: encode payload: %w", err)
 	}
+	var amountMinor *int64
+	var amountCurrency *string
+	if request.AmountMinor != nil && request.AmountCurrency != "" {
+		amountMinor = request.AmountMinor
+		currency := request.AmountCurrency
+		amountCurrency = &currency
+	}
+	steps := request.Steps
+	if len(steps) == 0 {
+		steps = []models.StepSpec{{Quorum: request.MinimumApprovals,
+			EligibleRoleIDs: request.EligibleRoleIDs}}
+	}
 
 	_, err = q.Exec(ctx, `
 		INSERT INTO fleet_partner_approval_requests
@@ -142,16 +156,18 @@ func (r *Repository) CreateRequest(ctx context.Context, q database.Querier,
 			 payload_snapshot, expected_subject_version, minimum_approvals,
 			 eligible_role_ids, self_approval_allowed, separation_of_duties,
 			 eligibility_decision_id, status, current_step, expires_at,
-			 idempotency_key, correlation_id, causation_id, version)
+			 idempotency_key, correlation_id, causation_id, version,
+			 amount_minor, amount_currency)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-		        $16, $17, $18, 'PENDING', 1, $19, $20, $21, $22, 1)`,
+		        $16, $17, $18, 'PENDING', 1, $19, $20, $21, $22, 1, $23, $24)`,
 		request.ID, organizationID, request.BranchID, request.PolicyID,
 		request.PolicyVersion, request.ResourceType, request.ResourceID, request.Action,
 		request.RequesterID, request.RequestFingerprint, request.PayloadVersion,
 		snapshot, request.ExpectedSubjectVersion, request.MinimumApprovals,
 		jsonArray(request.EligibleRoleIDs), request.SelfApprovalAllowed,
 		request.SeparationOfDuties, request.EligibilityDecisionID, request.ExpiresAt,
-		request.IdempotencyKey, request.CorrelationID, request.CausationID)
+		request.IdempotencyKey, request.CorrelationID, request.CausationID,
+		amountMinor, amountCurrency)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrConflict
@@ -159,15 +175,18 @@ func (r *Repository) CreateRequest(ctx context.Context, q database.Querier,
 		return fmt.Errorf("approvals: create request: %w", err)
 	}
 
-	stepID := ids.New(prefixStep)
-	if _, err := q.Exec(ctx, `
-		INSERT INTO fleet_partner_approval_steps
-			(id, organization_id, approval_request_id, step_number, required_quorum,
-			 eligible_role_ids, status)
-		VALUES ($1, $2, $3, 1, $4, $5, 'PENDING')`,
-		stepID, organizationID, request.ID, request.MinimumApprovals,
-		jsonArray(request.EligibleRoleIDs)); err != nil {
-		return fmt.Errorf("approvals: create step: %w", err)
+	// Every step of the sequence is frozen now, so a policy edited while the
+	// request is open cannot change what this request still needs.
+	for index, step := range steps {
+		if _, err := q.Exec(ctx, `
+			INSERT INTO fleet_partner_approval_steps
+				(id, organization_id, approval_request_id, step_number, required_quorum,
+				 eligible_role_ids, status)
+			VALUES ($1, $2, $3, $4, $5, $6, 'PENDING')`,
+			ids.New(prefixStep), organizationID, request.ID, index+1, step.Quorum,
+			jsonArray(step.EligibleRoleIDs)); err != nil {
+			return fmt.Errorf("approvals: create step: %w", err)
+		}
 	}
 	return nil
 }
@@ -321,6 +340,55 @@ func (r *Repository) MarkExecuted(ctx context.Context, q database.Querier,
 	return nil
 }
 
+// AdvanceStep moves a pending request on to its next step under optimistic
+// concurrency.
+func (r *Repository) AdvanceStep(ctx context.Context, q database.Querier,
+	organizationID string, requestID string, expectedVersion int64, nextStep int) error {
+	tag, err := q.Exec(ctx, `
+		UPDATE fleet_partner_approval_requests
+		SET current_step = $4, version = version + 1, updated_at = now()
+		WHERE organization_id = $1 AND id = $2 AND version = $3 AND status = 'PENDING'`,
+		organizationID, requestID, expectedVersion, nextStep)
+	if err != nil {
+		return fmt.Errorf("approvals: advance step: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+// ListSteps returns every step of a request in sequence order.
+func (r *Repository) ListSteps(ctx context.Context, q database.Querier,
+	organizationID string, requestID string) ([]models.Step, error) {
+	if q == nil {
+		q = r.db
+	}
+	rows, err := q.Query(ctx, `
+		SELECT id, organization_id, approval_request_id, step_number, required_quorum,
+		       eligible_role_ids, status, completed_at, version
+		FROM fleet_partner_approval_steps
+		WHERE organization_id = $1 AND approval_request_id = $2
+		ORDER BY step_number`, organizationID, requestID)
+	if err != nil {
+		return nil, fmt.Errorf("approvals: list steps: %w", err)
+	}
+	defer rows.Close()
+	steps := make([]models.Step, 0, 2)
+	for rows.Next() {
+		var step models.Step
+		var roleIDs []byte
+		if err := rows.Scan(&step.ID, &step.OrganizationID, &step.ApprovalRequestID,
+			&step.StepNumber, &step.RequiredQuorum, &roleIDs, &step.Status,
+			&step.CompletedAt, &step.Version); err != nil {
+			return nil, fmt.Errorf("approvals: scan step: %w", err)
+		}
+		step.EligibleRoleIDs = decodeStrings(roleIDs)
+		steps = append(steps, step)
+	}
+	return steps, rows.Err()
+}
+
 // CurrentStep loads the open step of a request.
 func (r *Repository) CurrentStep(ctx context.Context, q database.Querier,
 	organizationID string, requestID string, stepNumber int) (*models.Step, error) {
@@ -356,12 +424,12 @@ func (r *Repository) RecordDecision(ctx context.Context, q database.Querier,
 		INSERT INTO fleet_partner_approval_decisions
 			(id, organization_id, approval_request_id, approval_step_id, approver_id,
 			 decision, reason, client_decision_id, step_up_reference, request_version,
-			 approved_fingerprint, actor_role_id, correlation_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+			 approved_fingerprint, actor_role_id, correlation_id, delegation_id, on_behalf_of)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 		decision.ID, organizationID, decision.ApprovalRequestID, decision.ApprovalStepID,
 		decision.ApproverID, decision.Decision, decision.Reason, decision.ClientDecisionID,
 		decision.StepUpReference, decision.RequestVersion, decision.ApprovedFingerprint,
-		decision.ActorRoleID, decision.CorrelationID)
+		decision.ActorRoleID, decision.CorrelationID, decision.DelegationID, decision.OnBehalfOf)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrConflict
@@ -383,7 +451,8 @@ func (r *Repository) FindDecisionByClientID(ctx context.Context, q database.Quer
 	return scanDecision(q.QueryRow(ctx, `
 		SELECT id, organization_id, approval_request_id, approval_step_id, approver_id,
 		       decision, reason, client_decision_id, step_up_reference, request_version,
-		       approved_fingerprint, actor_role_id, correlation_id, decided_at
+		       approved_fingerprint, actor_role_id, correlation_id, decided_at,
+		       delegation_id, on_behalf_of
 		FROM fleet_partner_approval_decisions
 		WHERE approval_request_id = $1 AND client_decision_id = $2`,
 		requestID, clientDecisionID))
@@ -398,7 +467,8 @@ func (r *Repository) FindDecisionByApprover(ctx context.Context, q database.Quer
 	return scanDecision(q.QueryRow(ctx, `
 		SELECT id, organization_id, approval_request_id, approval_step_id, approver_id,
 		       decision, reason, client_decision_id, step_up_reference, request_version,
-		       approved_fingerprint, actor_role_id, correlation_id, decided_at
+		       approved_fingerprint, actor_role_id, correlation_id, decided_at,
+		       delegation_id, on_behalf_of
 		FROM fleet_partner_approval_decisions
 		WHERE approval_request_id = $1 AND approver_id = $2`, requestID, approverID))
 }
@@ -412,7 +482,8 @@ func (r *Repository) ListDecisions(ctx context.Context, q database.Querier,
 	rows, err := q.Query(ctx, `
 		SELECT id, organization_id, approval_request_id, approval_step_id, approver_id,
 		       decision, reason, client_decision_id, step_up_reference, request_version,
-		       approved_fingerprint, actor_role_id, correlation_id, decided_at
+		       approved_fingerprint, actor_role_id, correlation_id, decided_at,
+		       delegation_id, on_behalf_of
 		FROM fleet_partner_approval_decisions
 		WHERE approval_request_id = $1 ORDER BY decided_at`, requestID)
 	if err != nil {
@@ -429,6 +500,37 @@ func (r *Repository) ListDecisions(ctx context.Context, q database.Querier,
 		decisions = append(decisions, *decision)
 	}
 	return decisions, rows.Err()
+}
+
+// FindDecisionOnBehalfOf resolves a decision cast under a delegation on
+// person's authority. An empty stepID searches the whole request.
+func (r *Repository) FindDecisionOnBehalfOf(ctx context.Context, q database.Querier,
+	requestID string, stepID string, person string) (*models.Decision, error) {
+	if q == nil {
+		q = r.db
+	}
+	return scanDecision(q.QueryRow(ctx, `
+		SELECT id, organization_id, approval_request_id, approval_step_id, approver_id,
+		       decision, reason, client_decision_id, step_up_reference, request_version,
+		       approved_fingerprint, actor_role_id, correlation_id, decided_at,
+		       delegation_id, on_behalf_of
+		FROM fleet_partner_approval_decisions
+		WHERE approval_request_id = $1 AND on_behalf_of = $3
+		  AND ($2 = '' OR approval_step_id = $2)
+		ORDER BY decided_at LIMIT 1`, requestID, stepID, person))
+}
+
+// CountStepApprovals counts the approvals recorded on one step.
+func (r *Repository) CountStepApprovals(ctx context.Context, q database.Querier,
+	stepID string) (int, error) {
+	var count int
+	err := q.QueryRow(ctx, `
+		SELECT count(*) FROM fleet_partner_approval_decisions
+		WHERE approval_step_id = $1 AND decision = 'APPROVED'`, stepID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("approvals: count step approvals: %w", err)
+	}
+	return count, nil
 }
 
 // CountApprovals counts the approvals recorded on a request.
@@ -613,6 +715,7 @@ func scanRequest(row pgx.Row) (*models.Request, error) { return scanRequestRow(r
 func scanRequestRow(row rowScanner) (*models.Request, error) {
 	var request models.Request
 	var snapshot, roleIDs []byte
+	var amountCurrency *string
 	err := row.Scan(&request.ID, &request.OrganizationID, &request.BranchID,
 		&request.PolicyID, &request.PolicyVersion, &request.ResourceType,
 		&request.ResourceID, &request.Action, &request.RequesterID,
@@ -623,7 +726,7 @@ func scanRequestRow(row rowScanner) (*models.Request, error) {
 		&request.ExpiresAt, &request.ExecutedAt, &request.ExecutionReference,
 		&request.InvalidatedAt, &request.InvalidationReason, &request.IdempotencyKey,
 		&request.CorrelationID, &request.CausationID, &request.Version,
-		&request.CreatedAt, &request.UpdatedAt)
+		&request.CreatedAt, &request.UpdatedAt, &request.AmountMinor, &amountCurrency)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -631,6 +734,9 @@ func scanRequestRow(row rowScanner) (*models.Request, error) {
 		return nil, fmt.Errorf("approvals: scan request: %w", err)
 	}
 	request.EligibleRoleIDs = decodeStrings(roleIDs)
+	if amountCurrency != nil {
+		request.AmountCurrency = *amountCurrency
+	}
 	if len(snapshot) > 0 {
 		_ = json.Unmarshal(snapshot, &request.PayloadSnapshot)
 	}
@@ -645,7 +751,8 @@ func scanDecisionRow(row rowScanner) (*models.Decision, error) {
 		&decision.ApprovalStepID, &decision.ApproverID, &decision.Decision,
 		&decision.Reason, &decision.ClientDecisionID, &decision.StepUpReference,
 		&decision.RequestVersion, &decision.ApprovedFingerprint, &decision.ActorRoleID,
-		&decision.CorrelationID, &decision.DecidedAt)
+		&decision.CorrelationID, &decision.DecidedAt, &decision.DelegationID,
+		&decision.OnBehalfOf)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

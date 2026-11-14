@@ -80,6 +80,16 @@ type Request struct {
 	SelfApprovalAllowed bool
 	SeparationOfDuties  bool
 
+	// AmountMinor and AmountCurrency are read from the fingerprinted payload
+	// when it carries amountMinor/currency. They select threshold policies.
+	AmountMinor    *int64
+	AmountCurrency string
+
+	// Steps is the approval sequence frozen onto the request at creation. It
+	// is persisted as step rows, not on the request row; it is only populated
+	// on a request being created.
+	Steps []StepSpec
+
 	EligibilityDecisionID *string
 
 	Status             string
@@ -137,8 +147,12 @@ type Decision struct {
 	RequestVersion      int64
 	ApprovedFingerprint string
 	ActorRoleID         string
-	CorrelationID       string
-	DecidedAt           time.Time
+	// DelegationID and OnBehalfOf are set when the approver decided under a
+	// delegation: OnBehalfOf is the person whose authority was exercised.
+	DelegationID  *string
+	OnBehalfOf    *string
+	CorrelationID string
+	DecidedAt     time.Time
 }
 
 // Step is one approval stage of a request.

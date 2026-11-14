@@ -55,6 +55,9 @@ func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.POST("/approvals/requests/:approvalId/reject", h.reject)
 	group.POST("/approvals/requests/:approvalId/cancel", h.cancel)
 	group.POST("/approvals/requests/:approvalId/execute", h.execute)
+
+	h.registerPolicyRoutes(group)
+	h.registerDelegationRoutes(group)
 }
 
 func requireTenant(c *gin.Context) (tenant.Context, bool) {
@@ -119,7 +122,11 @@ type RequestView struct {
 	MinimumApprovals       int    `json:"minimumApprovals"`
 	SelfApprovalAllowed    bool   `json:"selfApprovalAllowed"`
 	SeparationOfDuties     bool   `json:"separationOfDuties"`
+	PolicyID               string `json:"policyId"`
 	PolicyVersion          int64  `json:"policyVersion"`
+	CurrentStep            int    `json:"currentStep"`
+	AmountMinor            *int64 `json:"amountMinor,omitempty"`
+	AmountCurrency         string `json:"amountCurrency,omitempty"`
 	EligibilityDecisionID  string `json:"eligibilityDecisionId,omitempty"`
 	ExpiresAt              string `json:"expiresAt"`
 	ExecutedAt             string `json:"executedAt,omitempty"`
@@ -145,7 +152,11 @@ func newRequestView(request *models.Request) RequestView {
 		MinimumApprovals:       request.MinimumApprovals,
 		SelfApprovalAllowed:    request.SelfApprovalAllowed,
 		SeparationOfDuties:     request.SeparationOfDuties,
+		PolicyID:               request.PolicyID,
 		PolicyVersion:          request.PolicyVersion,
+		CurrentStep:            request.CurrentStep,
+		AmountMinor:            request.AmountMinor,
+		AmountCurrency:         request.AmountCurrency,
 		InvalidationReason:     request.InvalidationReason,
 		ExpiresAt:              request.ExpiresAt.UTC().Format(timeFormat),
 		Version:                request.Version,
@@ -282,7 +293,27 @@ func (h *Handler) get(c *gin.Context) {
 		respond.Error(c, apperrors.NotFound("Approval request not found.", nil))
 		return
 	}
-	respond.OK(c, newRequestView(request))
+	steps, err := h.service.Steps(c.Request.Context(), tenantCtx.OrganizationID, request.ID)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	stepViews := make([]gin.H, 0, len(steps))
+	for _, step := range steps {
+		roles := step.EligibleRoleIDs
+		if roles == nil {
+			roles = []string{}
+		}
+		stepViews = append(stepViews, gin.H{
+			"stepNumber": step.StepNumber, "requiredQuorum": step.RequiredQuorum,
+			"eligibleRoleIds": roles, "status": step.Status, "completedAt": step.CompletedAt,
+		})
+	}
+	// The detail view is the list view plus the frozen approval sequence.
+	respond.OK(c, struct {
+		RequestView
+		Steps []gin.H `json:"steps"`
+	}{RequestView: newRequestView(request), Steps: stepViews})
 }
 
 // decisions returns the immutable decisions on one request.
@@ -309,6 +340,9 @@ func (h *Handler) decisions(c *gin.Context) {
 			"reason":              decision.Reason,
 			"requestVersion":      decision.RequestVersion,
 			"approvedFingerprint": decision.ApprovedFingerprint,
+			"approvalStepId":      decision.ApprovalStepID,
+			"delegationId":        decision.DelegationID,
+			"onBehalfOf":          decision.OnBehalfOf,
 			"decidedAt":           decision.DecidedAt,
 		})
 	}
