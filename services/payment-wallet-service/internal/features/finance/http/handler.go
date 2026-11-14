@@ -607,6 +607,8 @@ func (h *Handler) readOperationByKey(c *gin.Context) {
 		value, err = h.service.Marketplace().FindAllocationByIdempotencyKey(c, nil, org, key)
 	case "PROVIDER_ALLOCATION":
 		value, err = h.service.FindProviderAllocationByKey(c, h.readMeta(c, org), org, key)
+	case "PROVIDER_WITHDRAWAL":
+		value, err = h.service.FindProviderWithdrawalByKey(c, h.readMeta(c, org), org, key)
 	case "SUBSCRIPTION_INVOICE":
 		value, err = h.service.Billing().FindInvoiceByIdempotencyKey(c, nil, org, key)
 	case "REVERSAL", "REVERSAL_REQUEST":

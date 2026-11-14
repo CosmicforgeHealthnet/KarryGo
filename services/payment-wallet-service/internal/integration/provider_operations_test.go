@@ -365,3 +365,33 @@ func TestProviderSubWalletIsSingularPerMembership(t *testing.T) {
 		t.Fatalf("sub-wallets for one membership = %d, want 1", count)
 	}
 }
+
+// An uncertain withdrawal submission is recovered by reading it back by its
+// idempotency key (GET /operations/PROVIDER_WITHDRAWAL/by-idempotency), so
+// the caller never submits twice. Another organization cannot read it.
+func TestProviderWithdrawalCanBeReadBackByIdempotencyKey(t *testing.T) {
+	f := newProviderFixture(t, "org_wdr_readback")
+	ctx := context.Background()
+	f.allocate(t, "wdr-readback-fund", 300_000)
+	created, err := f.fixture.service.RequestProviderWithdrawal(ctx, usecases.ProviderWithdrawalInput{
+		Meta:           serviceMeta("fleet-partner-service", "wdr-readback", f.organizationID),
+		OrganizationID: f.organizationID, EarningAccountID: f.earningAccountID,
+		OrganizationMembershipID: f.membershipID, AmountMinor: 100_000, Currency: "NGN",
+		DestinationReference: "payout_dest_opaque", PolicyMode: models.WithdrawalPolicyCompanyApproval})
+	if err != nil {
+		t.Fatalf("request withdrawal: %v", err)
+	}
+	found, err := f.fixture.service.FindProviderWithdrawalByKey(ctx,
+		serviceMeta("fleet-partner-service", "read", f.organizationID), f.organizationID, "wdr-readback")
+	if err != nil || found == nil || found.ID != created.ID || found.AmountMinor != 100_000 {
+		t.Fatalf("read back = %+v, %v; want the created withdrawal %s", found, err, created.ID)
+	}
+	if _, err := f.fixture.service.FindProviderWithdrawalByKey(ctx,
+		serviceMeta("fleet-partner-service", "read", f.organizationID), f.organizationID, "wdr-unknown"); err == nil {
+		t.Fatal("unknown key must not resolve to a withdrawal")
+	}
+	if _, err := f.fixture.service.FindProviderWithdrawalByKey(ctx,
+		serviceMeta("fleet-partner-service", "read", "org_someone_else"), f.organizationID, "wdr-readback"); err == nil {
+		t.Fatal("another organization read another organization's withdrawal")
+	}
+}

@@ -385,6 +385,20 @@ func (s *Service) FindProviderAllocationByKey(ctx context.Context, meta Meta, or
 	return s.providerOps.FindAllocationByKey(ctx, nil, organizationID, key)
 }
 
+// FindProviderWithdrawalByKey answers "what happened to my withdrawal
+// request?" for a caller whose submission outcome was unknown, so it can
+// recover without submitting twice.
+func (s *Service) FindProviderWithdrawalByKey(ctx context.Context, meta Meta, organizationID,
+	key string) (*models.ProviderWithdrawal, error) {
+	if err := s.AuthorizeRead(ctx, meta, financeauth.PermTransactionView); err != nil {
+		return nil, err
+	}
+	if meta.Actor.OrganizationID != "" && meta.Actor.OrganizationID != organizationID {
+		return nil, financeauth.ErrForbidden
+	}
+	return s.providerOps.FindWithdrawalByKey(ctx, nil, organizationID, key)
+}
+
 // ProviderWithdrawalInput is one payout request against a provider sub-wallet.
 type ProviderWithdrawalInput struct {
 	Meta                     Meta
