@@ -147,7 +147,9 @@ func (h *Handler) gate(c *gin.Context, permission string) (tenant.Context, bool)
 func parseFilter(c *gin.Context) PageFilter {
 	limit, _ := strconv.Atoi(c.Query("limit"))
 	offset, _ := strconv.Atoi(c.Query("offset"))
-	return PageFilter{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Service: strings.ToUpper(c.Query("service")), ProviderID: c.Query("providerId"), VehicleReference: c.Query("vehicleOrTruckReference"), AlertType: strings.ToUpper(c.Query("alertType")), Limit: limit, Offset: offset}
+	// A negative page window is clamped like the geofence-event and rescue
+	// lists, so it never reaches PostgreSQL as a negative OFFSET.
+	return PageFilter{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Service: strings.ToUpper(c.Query("service")), ProviderID: c.Query("providerId"), VehicleReference: c.Query("vehicleOrTruckReference"), AlertType: strings.ToUpper(c.Query("alertType")), Limit: max(limit, 0), Offset: max(offset, 0)}
 }
 func version(c *gin.Context, body int64) int64 {
 	if body > 0 {

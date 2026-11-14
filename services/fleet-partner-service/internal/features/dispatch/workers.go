@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -414,7 +415,22 @@ func (s *Service) ReplayJob(ctx context.Context, t tenant.Context, id string) er
 	if e := s.gate(s.o.Flags.Workers, true, "section16_workers_disabled"); e != nil {
 		return e
 	}
-	return s.o.Queue.Replay(ctx, t.OrganizationID, id)
+	// The alerts.replay permission covers Section 16 work only. Another
+	// organization's job, an unknown job and another feature's job are the
+	// same safe not-found; a job that is not dead-lettered is a conflict.
+	job, e := s.o.Queue.Get(ctx, t.OrganizationID, id)
+	if e != nil || !strings.HasPrefix(job.JobType, "section16.") {
+		return nf()
+	}
+	if job.Status != jobs.StatusDeadLettered {
+		return errorcodes.Conflict("job_not_dead_lettered", "Only dead-lettered work can be replayed.")
+	}
+	if e = s.o.Queue.Replay(ctx, t.OrganizationID, id); e != nil {
+		return errorcodes.Conflict("job_not_dead_lettered", "Only dead-lettered work can be replayed.")
+	}
+	return s.tx(ctx, func(tx pgx.Tx) error {
+		return s.record(ctx, tx, t, "section16_job.replayed.v1", "job", id, job.Version+1, map[string]any{"jobId": id, "jobType": job.JobType})
+	})
 }
 func (s *Service) RunMaintenance(ctx context.Context) error {
 	if e := s.workerGate(); e != nil {
