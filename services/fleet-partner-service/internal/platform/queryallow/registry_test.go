@@ -117,9 +117,12 @@ func TestPagingStylesAreExclusive(t *testing.T) {
 		schema, _ := Lookup("GET", strings.TrimPrefix(key, "GET "))
 		_, offset := schema.Fields["offset"]
 		_, cursor := schema.Fields["cursor"]
-		if offset && cursor {
+		// Only a route migrating from offset to cursor (dualPage) may accept
+		// both; its handler refuses a request that sends both.
+		if offset && cursor && !DualPaging(key) {
 			t.Fatalf("%s declares both offset and cursor paging", key)
 		}
+
 		if offset && schema.Fields["offset"].Kind != filters.KindOffset {
 			t.Fatalf("%s: offset is not validated as an offset", key)
 		}

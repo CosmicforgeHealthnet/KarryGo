@@ -15,6 +15,8 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -264,6 +266,9 @@ type CorporateTripFilter struct {
 	MembershipID  string
 	Limit         int
 	Offset        int
+	// Cursor is the opaque meta.nextCursor of a previous page (FLEET-6f).
+	// Offset stays only for compatibility; the handler refuses both together.
+	Cursor string
 }
 
 // CorporateTripView is the organization-facing trip lifecycle projection.
@@ -297,6 +302,9 @@ type CorporateTripPage struct {
 	Items      []CorporateTripView `json:"items"`
 	HasMore    bool                `json:"hasMore"`
 	NextOffset int                 `json:"nextOffset,omitempty"`
+	// NextCursor continues the list after the last item; the handler puts it
+	// in meta.nextCursor, so the data shape is unchanged.
+	NextCursor string `json:"-"`
 }
 
 // CorporateDeliveryOutcomeView is the projected delivery outcome.
@@ -365,12 +373,22 @@ func (s *Service) ListCorporateTrips(ctx context.Context, t tenant.Context,
 				[]apperrors.FieldViolation{{Field: "sourceService", Message: "Use DISPATCH, TAXI or HAULING."}})
 		}
 	}
-	trips, hasMore, err := s.opts.Trips.ListPage(ctx, tenant.Query{
-		OrganizationID: t.OrganizationID, PermittedBranchIDs: t.PermittedBranchIDs,
-	}, repositories.TripPageFilter{
+	pageFilter := repositories.TripPageFilter{
 		Status: filter.Status, SourceService: source, MembershipID: filter.MembershipID,
 		Limit: filter.Limit, Offset: filter.Offset,
-	})
+	}
+	position, hasCursor, err := cursor.Decode(strings.TrimSpace(filter.Cursor))
+	if err != nil {
+		return nil, apperrors.Validation("Invalid cursor.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Use the meta.nextCursor of a previous page."}})
+	}
+	if hasCursor {
+		pageFilter.After = &repositories.TripPageCursor{UpdatedAt: position.SortTime(), ID: position.LastID}
+		pageFilter.Offset = 0
+	}
+	trips, hasMore, err := s.opts.Trips.ListPage(ctx, tenant.Query{
+		OrganizationID: t.OrganizationID, PermittedBranchIDs: t.PermittedBranchIDs,
+	}, pageFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -379,11 +397,17 @@ func (s *Service) ListCorporateTrips(ctx context.Context, t tenant.Context,
 		page.Items = append(page.Items, tripView(&trips[index]))
 	}
 	if hasMore {
-		offset := filter.Offset
-		if offset < 0 {
-			offset = 0
+		if !hasCursor {
+			// nextOffset belongs to offset paging only; a cursor page
+			// continues through NextCursor.
+			offset := pageFilter.Offset
+			if offset < 0 {
+				offset = 0
+			}
+			page.NextOffset = offset + len(trips)
 		}
-		page.NextOffset = offset + len(trips)
+		last := trips[len(trips)-1]
+		page.NextCursor = cursor.EncodeTime(last.UpdatedAt, last.ID)
 	}
 	return page, nil
 }

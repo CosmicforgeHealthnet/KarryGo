@@ -46,6 +46,10 @@ const (
 	cursorPage = "@cursor"
 	// limitOnly is a capped list with no continuation.
 	limitOnly = "limit"
+	// dualPage expands to limit + offset + cursor: an offset list that now
+	// also pages by cursor (FLEET-6f keeps offset only for compatibility).
+	// The handler refuses a request carrying both offset and cursor with 422.
+	dualPage = "@offset+cursor"
 )
 
 // crmList are the parameters every CRM list endpoint already permitted through
@@ -241,7 +245,7 @@ var declared = map[string][]string{
 	"/marketplace/assignments/:assignmentId/history": {},
 	"/marketplace/metrics":                           {},
 	"/marketplace/requests/:projectionId/candidates": {},
-	"/marketplace/trips":                             {"status", "sourceService", "membershipId", offsetPage},
+	"/marketplace/trips":                             {"status", "sourceService", "membershipId", dualPage},
 
 	// Workforce.
 	"/workforce/profiles":   {"branchId", "status", offsetPage},
@@ -293,11 +297,17 @@ var declared = map[string][]string{
 
 var schemas = buildSchemas()
 
+// dualPaging records the routes declared with dualPage.
+var dualPaging = map[string]bool{}
+
 func buildSchemas() map[string]filters.Schema {
 	out := make(map[string]filters.Schema, len(declared))
 	for path, params := range declared {
 		fields := map[string]filters.Field{}
 		for _, param := range params {
+			if param == dualPage {
+				dualPaging["GET "+TenantPrefix+path] = true
+			}
 			for name, field := range expand(param) {
 				fields[name] = field
 			}
@@ -313,6 +323,9 @@ func expand(param string) map[string]filters.Field {
 		return map[string]filters.Field{"limit": {Kind: filters.KindLimit}, "offset": {Kind: filters.KindOffset}}
 	case cursorPage:
 		return map[string]filters.Field{"cursor": {Kind: filters.KindCursor}, "limit": {Kind: filters.KindLimit}}
+	case dualPage:
+		return map[string]filters.Field{"cursor": {Kind: filters.KindCursor},
+			"limit": {Kind: filters.KindLimit}, "offset": {Kind: filters.KindOffset}}
 	case "limit":
 		return map[string]filters.Field{"limit": {Kind: filters.KindLimit}}
 	case "offset":
@@ -333,7 +346,14 @@ func Lookup(method, fullPath string) (filters.Schema, bool) {
 	return schema, ok
 }
 
+// DualPaging reports whether a declared route key ("GET <full path>") accepts
+// both offset and cursor paging while it migrates to cursors.
+func DualPaging(key string) bool {
+	return dualPaging[key]
+}
+
 // Declared returns every declared route key ("GET <full path>").
+
 func Declared() []string {
 	out := make([]string, 0, len(schemas))
 	for key := range schemas {
