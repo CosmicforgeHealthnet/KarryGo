@@ -43,6 +43,7 @@ import (
 type rows10Authority struct {
 	mu       sync.Mutex
 	statuses map[string]string // providerID -> platform status
+	revoked  []string          // providerID|organizationID eligibility revocations
 }
 
 func rows10ProviderID(email string) string {
@@ -84,7 +85,10 @@ func (a *rows10Authority) ReadAssociation(_ context.Context, _ platformclients.C
 	return platformclients.ProviderAssociation{AssociationID: id, Status: platformclients.AssociationAwaitingProvider, SourceVersion: 1}, nil
 }
 
-func (a *rows10Authority) RevokeOrganizationEligibility(context.Context, platformclients.CallMeta, string, string, string) error {
+func (a *rows10Authority) RevokeOrganizationEligibility(_ context.Context, _ platformclients.CallMeta, providerID, organizationID, _ string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.revoked = append(a.revoked, providerID+"|"+organizationID)
 	return nil
 }
 
@@ -481,5 +485,71 @@ func TestRow10_16b_CorporateContextForManagedProvider(t *testing.T) {
 	if code, _ := rows10Signed(t, router, "driver-dispatch-delivery-service",
 		"/internal/fleet-partner/v1/providers/"+providerID+"/corporate-context", true); code != http.StatusBadRequest {
 		t.Fatalf("missing service = %d, want 400", code)
+	}
+}
+
+// FLEET-10.5 POST /providers/{membershipId}/suspend over HTTP: suspends an
+// ACTIVE managed provider from company operations (audit, event, history),
+// asks the owning provider service to revoke organization matching
+// eligibility without touching the platform identity, and refuses stale
+// versions, repeated suspension, missing permission and other tenants.
+func TestRow10_5_SuspendProviderOverHTTP(t *testing.T) {
+	f := newRows10Fixture(t)
+	ctx := context.Background()
+	membership := f.createProvider(t, "chidi.suspend@example.com", "+2348031110004")
+	if err := f.service.RecordAssociationOutcome(ctx, f.org, membership, true, "corr-r105"); err != nil {
+		t.Fatal(err)
+	}
+	if status := f.membershipStatus(t, membership); status != providermodels.StatusActive {
+		t.Fatalf("seeded provider = %s, want ACTIVE", status)
+	}
+	var version int
+	if err := f.pool.QueryRow(ctx, `SELECT version FROM fleet_partner_organization_provider_memberships WHERE id = $1`, membership).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	path := "/fleet-partner/v1/providers/" + membership + "/suspend"
+
+	crm := seedApprovalMember(t, f.pool, f.org, "rol_system_crm", "r105-crm")
+	if code, _ := rowsCall(t, providerAdminRouter(t, f.pool, f.service, f.org, crm, nil), "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version)}); code != http.StatusForbidden {
+		t.Fatalf("suspend without providers.suspend = %d, want 403", code)
+	}
+	other := createOrganization(t, f.pool, "Rows105 Other Org", "RC-R105-"+randomHex()[:6])
+	otherOwner := seedApprovalMember(t, f.pool, other.ID, staffmodels.SystemOwnerRoleID, "r105-other")
+	if code, _ := rowsCall(t, providerAdminRouter(t, f.pool, f.service, other.ID, otherOwner, nil), "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version)}); code != http.StatusNotFound {
+		t.Fatalf("cross-tenant suspend = %d, want 404", code)
+	}
+	if code, _ := rowsCall(t, f.router, "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version + 7)}); code != http.StatusConflict {
+		t.Fatalf("stale suspend = %d, want 409", code)
+	}
+	code, body := rowsCall(t, f.router, "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version)})
+	if code != http.StatusOK || rowsData(t, body)["status"] != providermodels.StatusSuspended {
+		t.Fatalf("suspend = %d %v", code, body)
+	}
+	if status := f.membershipStatus(t, membership); status != providermodels.StatusSuspended {
+		t.Fatalf("after suspend = %s", status)
+	}
+	if n := rowsCount(t, f.pool, `SELECT count(*) FROM fleet_partner_audit_records WHERE organization_id = $1 AND action = 'provider.status_changed' AND resource_id = $2`, f.org, membership); n != 1 {
+		t.Fatalf("suspension audit rows = %d", n)
+	}
+	if n := rowsCount(t, f.pool, `SELECT count(*) FROM fleet_partner_provider_membership_history WHERE membership_id = $1 AND to_status = 'SUSPENDED'`, membership); n != 1 {
+		t.Fatalf("suspension history rows = %d", n)
+	}
+	f.authority.mu.Lock()
+	revoked := append([]string(nil), f.authority.revoked...)
+	f.authority.mu.Unlock()
+	if len(revoked) != 1 || revoked[0] != rows10ProviderID("chidi.suspend@example.com")+"|"+f.org {
+		t.Fatalf("owning service eligibility revocations = %v", revoked)
+	}
+	// The provider identity is untouched: the membership still names it.
+	var providerID string
+	if err := f.pool.QueryRow(ctx, `SELECT provider_id FROM fleet_partner_organization_provider_memberships WHERE id = $1`, membership).Scan(&providerID); err != nil || providerID != rows10ProviderID("chidi.suspend@example.com") {
+		t.Fatalf("provider identity after suspension = %q (%v)", providerID, err)
+	}
+	if code, _ := rowsCall(t, f.router, "POST", path, map[string]any{}, map[string]string{"If-Match": itoaRows(version + 1)}); code != http.StatusConflict {
+		t.Fatalf("suspending a suspended provider = %d, want 409", code)
+	}
+	// The detail read reflects it.
+	if code, body := rowsCall(t, f.router, "GET", "/fleet-partner/v1/providers/"+membership, nil, nil); code != http.StatusOK || rowsData(t, body)["status"] != providermodels.StatusSuspended {
+		t.Fatalf("provider detail after suspension = %d %v", code, body)
 	}
 }
