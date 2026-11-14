@@ -1,17 +1,32 @@
-package proof
+package http
 
 import (
+	"context"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
-	"github.com/gin-gonic/gin"
-	"net/http"
-	"strconv"
-	"strings"
 )
+
+// UseCases is the slice of the proof use cases the handler calls.
+type UseCases interface {
+	ListPolicies(ctx context.Context, t tenant.Context) ([]models.Policy, error)
+	GetPolicy(ctx context.Context, t tenant.Context, id string) (models.Policy, error)
+	SavePolicy(ctx context.Context, t tenant.Context, id string, expected int64, v models.Policy) (models.Policy, models.PolicySnapshot, error)
+	CreateRecord(ctx context.Context, t tenant.Context, in models.RecordInput) (models.Record, error)
+	ListRecords(ctx context.Context, t tenant.Context) ([]models.Record, error)
+	GetRecord(ctx context.Context, t tenant.Context, id string) (models.RecordDetail, error)
+	Decide(ctx context.Context, t tenant.Context, id, decision string, in models.DecisionInput) (models.RecordDetail, error)
+}
 
 type Route struct {
 	Method, Path, OperationID, Permission, FeatureFlag, AuthClass string
@@ -27,12 +42,12 @@ func TenantRoutes() []Route {
 func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
 
 type Handler struct {
-	s    *Service
+	s    UseCases
 	a    *accesscontrol.Authorizer
 	idem *idempotency.Store
 }
 
-func NewHandler(s *Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
 	return &Handler{s: s, a: a, idem: i}
 }
 func (h *Handler) TenantRoutes() []Route { return TenantRoutes() }
@@ -99,7 +114,7 @@ func (h *Handler) putPolicy(c *gin.Context) {
 		return
 	}
 	idempotency.ExecuteHTTP(c, h.idem, t.OrganizationID, "PUT /proof-policies", func() {
-		var b Policy
+		var b models.Policy
 		if c.ShouldBindJSON(&b) != nil {
 			respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
 			return
@@ -134,7 +149,7 @@ type recordView struct {
 	Version                 int64  `json:"version"`
 }
 
-func view(r Record) recordView {
+func view(r models.Record) recordView {
 	return recordView{r.ID, r.PolicySnapshotReference, r.ProofType, r.OrderID, r.ShipmentID, r.PackageID, r.RouteStopID, r.AssignmentID, r.CanonicalTripReference, r.ActorType, r.ActorReference, r.MediaFileID, r.SafeValueMetadata, r.SourceTimestamp, r.ReceivedAt, r.Source, r.VerificationStatus, r.Version}
 }
 func (h *Handler) createRecord(c *gin.Context) {
@@ -143,7 +158,7 @@ func (h *Handler) createRecord(c *gin.Context) {
 		return
 	}
 	idempotency.ExecuteHTTP(c, h.idem, t.OrganizationID, "POST /proof-records", func() {
-		var b RecordInput
+		var b models.RecordInput
 		if c.ShouldBindJSON(&b) != nil {
 			respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
 			return
@@ -175,12 +190,12 @@ func (h *Handler) listRecords(c *gin.Context) {
 }
 
 type detailView struct {
-	Record          recordView     `json:"record"`
-	EffectiveStatus string         `json:"effectiveStatus"`
-	Verifications   []Verification `json:"verifications"`
+	Record          recordView            `json:"record"`
+	EffectiveStatus string                `json:"effectiveStatus"`
+	Verifications   []models.Verification `json:"verifications"`
 }
 
-func detail(d RecordDetail) detailView {
+func detail(d models.RecordDetail) detailView {
 	return detailView{Record: view(d.Record), EffectiveStatus: d.EffectiveStatus, Verifications: d.Verifications}
 }
 func (h *Handler) getRecord(c *gin.Context) {
@@ -216,7 +231,7 @@ func (h *Handler) decide(c *gin.Context, decision string) {
 			respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
 			return
 		}
-		d, e := h.s.Decide(c, t, c.Param("recordId"), decision, DecisionInput{ReasonCodes: b.ReasonCodes})
+		d, e := h.s.Decide(c, t, c.Param("recordId"), decision, models.DecisionInput{ReasonCodes: b.ReasonCodes})
 		if e != nil {
 			respond.Error(c, e)
 			return

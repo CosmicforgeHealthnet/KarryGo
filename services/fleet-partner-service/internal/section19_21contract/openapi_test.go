@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
@@ -93,7 +93,7 @@ func TestSection19BidirectionalRouteParity(t *testing.T) {
 	for _, r := range safety.OperationsTenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
-	for _, r := range proof.TenantRoutes() {
+	for _, r := range proofhttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	check(t, "section19-compliance-safety-proof.openapi.json", rs)

@@ -42,7 +42,7 @@ import (
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
 	packageshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/packages/http"
 	privatehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/http"
-	prooffeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
 	recurringhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/http"
 	retentionexecutionhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionexecution/http"
 	retentionpolicyhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/http"
@@ -239,7 +239,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 	// manifestlessRoutes() below instead, permissions read directly from
 	// each handler function's own h.gate(c, "...") call.
 
-	proofH := prooffeature.NewHandler(nil, nil, nil)
+	proofH := proofhttp.NewHandler(nil, nil, nil)
 	for _, r := range proofH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

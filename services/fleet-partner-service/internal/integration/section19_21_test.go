@@ -12,7 +12,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
+	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
+	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
@@ -163,16 +165,16 @@ func TestSection19ComplianceRestrictionSafetyAndProof(t *testing.T) {
 		t.Fatalf("incident=%+v err=%v", incident, err)
 	}
 
-	p := proof.NewService(proof.Options{Pool: pool, Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proof.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
-	_, snap, err := p.SavePolicy(ctx, scope, "", 0, proof.Policy{PolicyScope: "ORGANIZATION", ScopeReference: scope.OrganizationID, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
+	p := proofusecases.NewService(proofusecases.Options{Pool: pool, Repository: proofrepos.NewRepository(pool), Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proofmodels.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
+	_, snap, err := p.SavePolicy(ctx, scope, "", 0, proofmodels.Policy{PolicyScope: "ORGANIZATION", ScopeReference: scope.OrganizationID, RequiredProofTypes: json.RawMessage(`["OTP"]`), MinimumCount: 1, FailurePolicy: "BLOCK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, err := p.CreateRecord(ctx, scope, proof.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "246810", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
+	record, err := p.CreateRecord(ctx, scope, proofmodels.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "246810", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
 	if err != nil || record.ValueHash == "" {
 		t.Fatalf("record=%+v err=%v", record, err)
 	}
-	replay, err := p.CreateRecord(ctx, scope, proof.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "different", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
+	replay, err := p.CreateRecord(ctx, scope, proofmodels.RecordInput{PolicySnapshotReference: snap.ID, ProofType: "OTP", OrderID: "order-proof-1", ActorType: "ORGANIZATION_USER", Value: "different", SourceTimestamp: now, Source: "MANUAL", SourceVersion: 1, IdempotencyKey: "proof-once"})
 	if err != nil || replay.ID != record.ID {
 		t.Fatalf("replay=%+v err=%v", replay, err)
 	}

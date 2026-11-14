@@ -67,7 +67,10 @@ import (
 	privatehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/http"
 	privaterepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/repositories"
 	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
-	prooffeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
+	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
+	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
+	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
 	providershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/http"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	providerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
@@ -171,7 +174,7 @@ type Components struct {
 	Assets            *assetsfeature.Service
 	Compliance        *compliancefeature.Service
 	SafetyOperations  *safetyfeature.OperationsService
-	Proof             *prooffeature.Service
+	Proof             *proofusecases.Service
 	Specialized       *specializedfeature.Service
 	Warehouse         *warehousefeature.Service
 	FinanceOperations *financeops.Service
@@ -442,7 +445,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	assetsService.SetAlertSink(dispatchControl)
 
 	safetyOperations := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Media: contracts.Media, Flags: safetyfeature.OperationsFlags{Reports: cfg.SafetyReportsEnabled, Incidents: cfg.IncidentsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
-	proofService := prooffeature.NewService(prooffeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, HashSecret: cfg.ProofHMACSecret, Flags: prooffeature.Flags{Policies: cfg.ProofPoliciesEnabled, Records: cfg.ProofRecordsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	proofService := proofusecases.NewService(proofusecases.Options{Pool: pool, Repository: proofrepos.NewRepository(pool), Events: publisher, Media: contracts.Media, HashSecret: cfg.ProofHMACSecret, Flags: proofmodels.Flags{Policies: cfg.ProofPoliciesEnabled, Records: cfg.ProofRecordsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	specializedService := specializedfeature.NewService(specializedfeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Flags: specializedfeature.Flags{Enabled: cfg.SpecializedLogisticsEnabled, Workers: cfg.Section20WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch, Modules: map[string]bool{specializedfeature.Courier: cfg.CourierLastMileEnabled, specializedfeature.Taxi: cfg.TaxiPassengerEnabled, specializedfeature.Hauling: cfg.TruckingHaulageEnabled, specializedfeature.Heavy: cfg.HeavySpecializedEnabled, specializedfeature.Freight: cfg.FreightForwardingEnabled, specializedfeature.ColdChain: cfg.ColdChainEnabled, specializedfeature.Medical: cfg.MedicalSensitiveEnabled, specializedfeature.Agricultural: cfg.AgriculturalFoodEnabled, specializedfeature.Moving: cfg.MovingRelocationEnabled, specializedfeature.Towing: cfg.TowingRecoveryEnabled}}})
 	warehouseService := warehousefeature.NewService(warehousefeature.Options{Pool: pool, Events: publisher, Proof: proofService, Restrictions: restrictionGate, Flags: warehousefeature.Flags{Warehouses: cfg.WarehousesEnabled, Inventory: cfg.WarehouseInventoryEnabled, Fulfilment: cfg.FulfilmentEnabled, Dock: cfg.DockOperationsEnabled, Yard: cfg.YardOperationsEnabled, Terminal: cfg.TerminalTransfersEnabled, Returns: cfg.ReturnsEnabled, Workers: cfg.Section21WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	walletHTTP := platformclients.New(platformclients.Options{ServiceName: "payment-wallet-service", BaseURL: walletCfg.BaseURL, Secret: walletCfg.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}})
@@ -677,7 +680,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	assetsHandler := assetsfeature.NewHandler(c.Assets, c.Authorizer, c.Idempotency)
 	complianceHandler := compliancefeature.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
 	safetyOperationsHandler := safetyfeature.NewOperationsHandler(c.SafetyOperations, c.Authorizer, c.Idempotency)
-	proofHandler := prooffeature.NewHandler(c.Proof, c.Authorizer, c.Idempotency)
+	proofHandler := proofhttp.NewHandler(c.Proof, c.Authorizer, c.Idempotency)
 	specializedHandler := specializedfeature.NewHandler(c.Specialized, c.Authorizer, c.Idempotency)
 	warehouseHandler := warehousefeature.NewHandler(c.Warehouse, c.Authorizer, c.Idempotency)
 	financeOperationsHandler := financeops.NewHandler(c.FinanceOperations, c.Authorizer, c.Idempotency)
