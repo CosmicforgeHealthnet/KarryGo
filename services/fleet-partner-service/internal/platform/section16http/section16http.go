@@ -1,5 +1,9 @@
 // Package section16http holds the gin plumbing the three Section 16 handler
-// packages (dispatch, routes, tracking) share, so the split features keep
+// packages (dispatch, routes, tracking) share. Binding and the If-Match rule
+// delegate to tenantcmd; the gate message, the parsed-body idempotency
+// fingerprint, use-case-chosen status codes, field details, the 409 mapping
+// of the persistence conflict sentinel and the paging error text are the
+// Section 16 contract and stay here unchanged. It exists so the split features keep
 // one implementation of the permission gate, the idempotent command
 // envelope, the If-Match version rule and list paging. It holds no domain
 // logic.
@@ -9,7 +13,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +24,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenantcmd"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/httpx"
 )
@@ -65,22 +69,11 @@ func (k Kit) Gate(c *gin.Context, permission string) (tenant.Context, bool) {
 }
 
 // Version returns the body's expected version, else the If-Match header's.
-func Version(c *gin.Context, body int64) int64 {
-	if body > 0 {
-		return body
-	}
-	v, _ := strconv.ParseInt(strings.Trim(strings.TrimSpace(c.GetHeader("If-Match")), `"`), 10, 64)
-	return v
-}
+// It is the same rule every table-driven handler uses (tenantcmd).
+func Version(c *gin.Context, body int64) int64 { return tenantcmd.ExpectedVersion(c, body) }
 
 // Bind decodes the JSON body, answering 400 when it is not valid JSON.
-func Bind(c *gin.Context, v any) bool {
-	if e := c.ShouldBindJSON(v); e != nil {
-		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", e))
-		return false
-	}
-	return true
-}
+func Bind(c *gin.Context, v any) bool { return tenantcmd.Bind(c, v) }
 
 func (k Kit) mapErr(e error) error {
 	if k.Conflict != nil && errors.Is(e, k.Conflict) {
