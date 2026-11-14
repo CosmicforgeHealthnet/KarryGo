@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -378,7 +377,11 @@ func CalculateRuleShare(rule CompensationRule, basisMinor int64, currency string
 		return out, nil
 	case RuleCommission:
 		share := (basisMinor*int64(rule.Config.RateBps) + 5000) / 10000
-		out.AmountMinor = int64(math.Max(0, float64(share)))
+		// Integer clamp: money never passes through float64 (FLEET-6d).
+		if share < 0 {
+			share = 0
+		}
+		out.AmountMinor = share
 		out.BasisMinor = basisMinor
 		out.RateBps = rule.Config.RateBps
 		return out, nil
