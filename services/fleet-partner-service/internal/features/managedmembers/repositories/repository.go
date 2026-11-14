@@ -1,4 +1,4 @@
-package managedmembers
+package repositories
 
 import (
 	"context"
@@ -10,14 +10,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/models"
 )
 
-// MaxPageSize is the largest list page served (spec 36).
-const MaxPageSize = 200
-
 func clampPage(limit int) int {
-	if limit <= 0 || limit > MaxPageSize+1 {
-		return MaxPageSize
+	if limit <= 0 || limit > models.MaxPageSize+1 {
+		return models.MaxPageSize
 	}
 	return limit
 }
@@ -32,34 +30,25 @@ type Repository struct{ db database.Querier }
 // NewRepository builds the repository.
 func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
 
-// with returns the same statements bound to a transaction, so a mutation, its
+// With returns the same statements bound to a transaction, so a mutation, its
 // audit record and its outbox event commit together.
-func (r *Repository) with(q database.Querier) *Repository { return &Repository{db: q} }
-
-// pool returns the connection pool the repository was built over, if any.
-func (r *Repository) pool() *pgxpool.Pool {
-	if r == nil {
-		return nil
-	}
-	p, _ := r.db.(*pgxpool.Pool)
-	return p
-}
+func (r *Repository) With(q database.Querier) *Repository { return &Repository{db: q} }
 
 const memberColumns = `id, organization_id, member_ref, display_name, status,
 	consent_status, suspended_at, ended_at, version, created_at, updated_at`
 
-func scanMember(row pgx.Row) (Member, error) {
-	var m Member
+func scanMember(row pgx.Row) (models.Member, error) {
+	var m models.Member
 	err := row.Scan(&m.ID, &m.OrganizationID, &m.MemberRef, &m.DisplayName, &m.Status,
 		&m.ConsentStatus, &m.SuspendedAt, &m.EndedAt, &m.Version, &m.CreatedAt, &m.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return m, ErrNotFound
+		return m, models.ErrNotFound
 	}
 	return m, err
 }
 
 // CreateMember records a person the organization employs.
-func (r *Repository) CreateMember(ctx context.Context, m Member) (Member, error) {
+func (r *Repository) CreateMember(ctx context.Context, m models.Member) (models.Member, error) {
 	created, err := scanMember(r.db.QueryRow(ctx, `
 		INSERT INTO fleet_partner_managed_provider_members(
 			id, organization_id, member_ref, display_name, status, consent_status)
@@ -67,13 +56,13 @@ func (r *Repository) CreateMember(ctx context.Context, m Member) (Member, error)
 		RETURNING `+memberColumns,
 		m.ID, m.OrganizationID, m.MemberRef, m.DisplayName, m.Status, m.ConsentStatus))
 	if isUniqueViolation(err) {
-		return Member{}, ErrConflict
+		return models.Member{}, models.ErrConflict
 	}
 	return created, err
 }
 
 // GetMember reads one member, scoped to the organization that owns it.
-func (r *Repository) GetMember(ctx context.Context, organizationID, memberID string) (Member, error) {
+func (r *Repository) GetMember(ctx context.Context, organizationID, memberID string) (models.Member, error) {
 	return scanMember(r.db.QueryRow(ctx,
 		`SELECT `+memberColumns+` FROM fleet_partner_managed_provider_members
 		  WHERE id=$1 AND organization_id=$2`, memberID, organizationID))
@@ -85,7 +74,7 @@ func (r *Repository) GetMember(ctx context.Context, organizationID, memberID str
 // row of the previous page (nil starts at the newest). limit is clamped to
 // [1, MaxPageSize+1] so a caller can fetch one extra row to detect a further
 // page instead of being truncated silently.
-func (r *Repository) ListMembers(ctx context.Context, organizationID string, limit int, after *time.Time, afterID string) ([]Member, error) {
+func (r *Repository) ListMembers(ctx context.Context, organizationID string, limit int, after *time.Time, afterID string) ([]models.Member, error) {
 	limit = clampPage(limit)
 	rows, err := r.db.Query(ctx,
 		`SELECT `+memberColumns+` FROM fleet_partner_managed_provider_members
@@ -96,9 +85,9 @@ func (r *Repository) ListMembers(ctx context.Context, organizationID string, lim
 		return nil, err
 	}
 	defer rows.Close()
-	out := []Member{}
+	out := []models.Member{}
 	for rows.Next() {
-		var m Member
+		var m models.Member
 		if err = rows.Scan(&m.ID, &m.OrganizationID, &m.MemberRef, &m.DisplayName, &m.Status,
 			&m.ConsentStatus, &m.SuspendedAt, &m.EndedAt, &m.Version, &m.CreatedAt,
 			&m.UpdatedAt); err != nil {
@@ -115,12 +104,12 @@ func (r *Repository) ListMembers(ctx context.Context, organizationID string, lim
 // win. A suspension lost to a concurrent reactivation is a person still being
 // offered work after somebody decided they should not be.
 func (r *Repository) SetMemberStatus(ctx context.Context, organizationID, memberID string,
-	expectedVersion int64, status, consent string, now time.Time) (Member, error) {
+	expectedVersion int64, status, consent string, now time.Time) (models.Member, error) {
 	var suspendedAt, endedAt *time.Time
 	switch status {
-	case MemberSuspended:
+	case models.MemberSuspended:
 		suspendedAt = &now
-	case MemberEnded:
+	case models.MemberEnded:
 		endedAt = &now
 	}
 	// The timestamp parameters are cast explicitly. Inside a CASE expression
@@ -136,12 +125,12 @@ func (r *Repository) SetMemberStatus(ctx context.Context, organizationID, member
 		 WHERE id=$1 AND organization_id=$2 AND version=$3
 		RETURNING `+memberColumns,
 		memberID, organizationID, expectedVersion, status, consent, suspendedAt, endedAt))
-	if errors.Is(err, ErrNotFound) {
+	if errors.Is(err, models.ErrNotFound) {
 		// Either no such member in this tenant, or the version moved. Both are
 		// reported as a version conflict rather than "not found": telling an
 		// unauthorized caller which of the two it was would confirm whether a
 		// member id exists in another organization.
-		return Member{}, ErrVersion
+		return models.Member{}, models.ErrVersion
 	}
 	return updated, err
 }
@@ -149,18 +138,18 @@ func (r *Repository) SetMemberStatus(ctx context.Context, organizationID, member
 const linkColumns = `id, COALESCE(member_id,''), organization_id, service_category,
 	COALESCE(provider_id,''), status, source_version, joined_at, suspended_at, updated_at`
 
-func scanLink(row pgx.Row) (ServiceLink, error) {
-	var l ServiceLink
+func scanLink(row pgx.Row) (models.ServiceLink, error) {
+	var l models.ServiceLink
 	err := row.Scan(&l.MembershipID, &l.MemberID, &l.OrganizationID, &l.Authority,
 		&l.ProviderID, &l.LinkStatus, &l.SourceVersion, &l.LinkedAt, &l.SuspendedAt, &l.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return l, ErrNotFound
+		return l, models.ErrNotFound
 	}
 	return l, err
 }
 
 // ListLinks returns every service link a member holds.
-func (r *Repository) ListLinks(ctx context.Context, organizationID, memberID string) ([]ServiceLink, error) {
+func (r *Repository) ListLinks(ctx context.Context, organizationID, memberID string) ([]models.ServiceLink, error) {
 	rows, err := r.db.Query(ctx,
 		`SELECT `+linkColumns+` FROM fleet_partner_organization_provider_memberships
 		  WHERE organization_id=$1 AND member_id=$2 ORDER BY service_category`,
@@ -169,9 +158,9 @@ func (r *Repository) ListLinks(ctx context.Context, organizationID, memberID str
 		return nil, err
 	}
 	defer rows.Close()
-	out := []ServiceLink{}
+	out := []models.ServiceLink{}
 	for rows.Next() {
-		var l ServiceLink
+		var l models.ServiceLink
 		if err = rows.Scan(&l.MembershipID, &l.MemberID, &l.OrganizationID, &l.Authority,
 			&l.ProviderID, &l.LinkStatus, &l.SourceVersion, &l.LinkedAt, &l.SuspendedAt,
 			&l.UpdatedAt); err != nil {
@@ -187,7 +176,7 @@ func (r *Repository) ListLinks(ctx context.Context, organizationID, memberID str
 // The membership is matched on organization as well as id, so a membership
 // belonging to another organization cannot be pulled into this one's member
 // even with a correct membership id.
-func (r *Repository) AttachLink(ctx context.Context, organizationID, memberID, membershipID string) (ServiceLink, error) {
+func (r *Repository) AttachLink(ctx context.Context, organizationID, memberID, membershipID string) (models.ServiceLink, error) {
 	attached, err := scanLink(r.db.QueryRow(ctx, `
 		UPDATE fleet_partner_organization_provider_memberships
 		   SET member_id=$3, updated_at=now()
@@ -195,14 +184,14 @@ func (r *Repository) AttachLink(ctx context.Context, organizationID, memberID, m
 		RETURNING `+linkColumns, membershipID, organizationID, memberID))
 	if isUniqueViolation(err) {
 		// The member already holds a live link for this authority.
-		return ServiceLink{}, ErrConflict
+		return models.ServiceLink{}, models.ErrConflict
 	}
 	return attached, err
 }
 
 // LinkForAuthority finds a member's live link for one authority.
 func (r *Repository) LinkForAuthority(ctx context.Context, organizationID, memberID string,
-	authority Authority) (ServiceLink, error) {
+	authority models.Authority) (models.ServiceLink, error) {
 	return scanLink(r.db.QueryRow(ctx,
 		`SELECT `+linkColumns+` FROM fleet_partner_organization_provider_memberships
 		  WHERE organization_id=$1 AND member_id=$2 AND service_category=$3
@@ -216,7 +205,7 @@ func (r *Repository) LinkForAuthority(ctx context.Context, organizationID, membe
 // authority actually resolved: attaching a membership for provider X while
 // claiming to have resolved provider Y would record a corporate identity
 // nobody verified.
-func (r *Repository) GetMembership(ctx context.Context, organizationID, membershipID string) (ServiceLink, error) {
+func (r *Repository) GetMembership(ctx context.Context, organizationID, membershipID string) (models.ServiceLink, error) {
 	return scanLink(r.db.QueryRow(ctx,
 		`SELECT `+linkColumns+` FROM fleet_partner_organization_provider_memberships
 		  WHERE id=$1 AND organization_id=$2`, membershipID, organizationID))
@@ -230,7 +219,7 @@ func (r *Repository) GetMembership(ctx context.Context, organizationID, membersh
 // attached -- so a check that merely asked "is this provider linked?" would
 // answer yes to the row it is about to link and refuse every first link.
 func (r *Repository) ProviderHeldElsewhere(ctx context.Context, organizationID string,
-	authority Authority, providerID, excludeMembershipID string) (bool, error) {
+	authority models.Authority, providerID, excludeMembershipID string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(
@@ -245,19 +234,19 @@ func (r *Repository) ProviderHeldElsewhere(ctx context.Context, organizationID s
 const assetColumns = `id, organization_id, authority, asset_id, COALESCE(member_id,''),
 	link_status, source_version, linked_at, suspended_at, removed_at, version, updated_at`
 
-func scanAsset(row pgx.Row) (AssetLink, error) {
-	var a AssetLink
+func scanAsset(row pgx.Row) (models.AssetLink, error) {
+	var a models.AssetLink
 	err := row.Scan(&a.ID, &a.OrganizationID, &a.Authority, &a.AssetID, &a.MemberID,
 		&a.LinkStatus, &a.SourceVersion, &a.LinkedAt, &a.SuspendedAt, &a.RemovedAt,
 		&a.Version, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return a, ErrNotFound
+		return a, models.ErrNotFound
 	}
 	return a, err
 }
 
 // LinkAsset records an asset the organization operates.
-func (r *Repository) LinkAsset(ctx context.Context, a AssetLink) (AssetLink, error) {
+func (r *Repository) LinkAsset(ctx context.Context, a models.AssetLink) (models.AssetLink, error) {
 	var memberID *string
 	if a.MemberID != "" {
 		memberID = &a.MemberID
@@ -274,10 +263,10 @@ func (r *Repository) LinkAsset(ctx context.Context, a AssetLink) (AssetLink, err
 		 WHERE fleet_partner_managed_asset_links.source_version <= EXCLUDED.source_version
 		RETURNING `+assetColumns,
 		a.ID, a.OrganizationID, a.Authority, a.AssetID, memberID, a.LinkStatus, a.SourceVersion))
-	if errors.Is(err, ErrNotFound) {
+	if errors.Is(err, models.ErrNotFound) {
 		// The row exists at a newer source version: a stale report must not
 		// overwrite a fresher one.
-		return AssetLink{}, ErrVersion
+		return models.AssetLink{}, models.ErrVersion
 	}
 	return created, err
 }
@@ -286,7 +275,7 @@ func (r *Repository) LinkAsset(ctx context.Context, a AssetLink) (AssetLink, err
 //
 // Keyset pagination on (linked_at DESC, id DESC), bounded like ListMembers.
 // The query used to have no LIMIT at all.
-func (r *Repository) ListAssets(ctx context.Context, organizationID, memberID string, limit int, after *time.Time, afterID string) ([]AssetLink, error) {
+func (r *Repository) ListAssets(ctx context.Context, organizationID, memberID string, limit int, after *time.Time, afterID string) ([]models.AssetLink, error) {
 	limit = clampPage(limit)
 	rows, err := r.db.Query(ctx,
 		`SELECT `+assetColumns+` FROM fleet_partner_managed_asset_links
@@ -297,9 +286,9 @@ func (r *Repository) ListAssets(ctx context.Context, organizationID, memberID st
 		return nil, err
 	}
 	defer rows.Close()
-	out := []AssetLink{}
+	out := []models.AssetLink{}
 	for rows.Next() {
-		var a AssetLink
+		var a models.AssetLink
 		if err = rows.Scan(&a.ID, &a.OrganizationID, &a.Authority, &a.AssetID, &a.MemberID,
 			&a.LinkStatus, &a.SourceVersion, &a.LinkedAt, &a.SuspendedAt, &a.RemovedAt,
 			&a.Version, &a.UpdatedAt); err != nil {
@@ -312,7 +301,7 @@ func (r *Repository) ListAssets(ctx context.Context, organizationID, memberID st
 
 // SetAssetLinkStatus suspends or removes an asset link.
 func (r *Repository) SetAssetLinkStatus(ctx context.Context, organizationID, linkID string,
-	expectedVersion int64, status string, now time.Time) (AssetLink, error) {
+	expectedVersion int64, status string, now time.Time) (models.AssetLink, error) {
 	updated, err := scanAsset(r.db.QueryRow(ctx, `
 		UPDATE fleet_partner_managed_asset_links
 		   SET link_status=$4,
@@ -321,8 +310,8 @@ func (r *Repository) SetAssetLinkStatus(ctx context.Context, organizationID, lin
 		       version=version+1, updated_at=now()
 		 WHERE id=$1 AND organization_id=$2 AND version=$3
 		RETURNING `+assetColumns, linkID, organizationID, expectedVersion, status, now))
-	if errors.Is(err, ErrNotFound) {
-		return AssetLink{}, ErrVersion
+	if errors.Is(err, models.ErrNotFound) {
+		return models.AssetLink{}, models.ErrVersion
 	}
 	return updated, err
 }

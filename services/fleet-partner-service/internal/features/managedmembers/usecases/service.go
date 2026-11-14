@@ -1,4 +1,4 @@
-package managedmembers
+package usecases
 
 import (
 	"context"
@@ -11,10 +11,40 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
+
+// ProviderAuthority is the resolve-before-link contract.
+//
+// It returns a resolution or one of the two distinguishable failures. An
+// implementation that cannot reach its service must return
+// ErrAuthorityUnavailable rather than an empty resolution: a zero ProviderID
+// that reads as success would let Fleet record a link to a provider that no
+// service has ever heard of.
+type ProviderAuthority interface {
+	ResolveProvider(ctx context.Context, authority models.Authority, providerRef string) (models.ProviderResolution, error)
+}
+
+// Repository is the persistence the member use cases need. Every statement
+// is organization-scoped in SQL. The Postgres implementation lives in
+// managedmembers/repositories and is wired at the composition root.
+type Repository interface {
+	CreateMember(ctx context.Context, m models.Member) (models.Member, error)
+	GetMember(ctx context.Context, organizationID, memberID string) (models.Member, error)
+	ListMembers(ctx context.Context, organizationID string, limit int, after *time.Time, afterID string) ([]models.Member, error)
+	SetMemberStatus(ctx context.Context, organizationID, memberID string, expectedVersion int64, status, consent string, now time.Time) (models.Member, error)
+	ListLinks(ctx context.Context, organizationID, memberID string) ([]models.ServiceLink, error)
+	AttachLink(ctx context.Context, organizationID, memberID, membershipID string) (models.ServiceLink, error)
+	LinkForAuthority(ctx context.Context, organizationID, memberID string, authority models.Authority) (models.ServiceLink, error)
+	GetMembership(ctx context.Context, organizationID, membershipID string) (models.ServiceLink, error)
+	ProviderHeldElsewhere(ctx context.Context, organizationID string, authority models.Authority, providerID, excludeMembershipID string) (bool, error)
+	LinkAsset(ctx context.Context, a models.AssetLink) (models.AssetLink, error)
+	ListAssets(ctx context.Context, organizationID, memberID string, limit int, after *time.Time, afterID string) ([]models.AssetLink, error)
+	SetAssetLinkStatus(ctx context.Context, organizationID, linkID string, expectedVersion int64, status string, now time.Time) (models.AssetLink, error)
+}
 
 // EventPublisher appends a domain event to the transactional outbox.
 type EventPublisher interface {
@@ -28,7 +58,8 @@ type EventPublisher interface {
 // event (spec 6l): a member suspended without a trace, or a link no consumer
 // ever hears about, is a state change nobody can reconstruct.
 type Service struct {
-	repo      *Repository
+	repo      Repository
+	bind      func(database.Querier) Repository
 	pool      *pgxpool.Pool
 	audit     *audit.Recorder
 	events    EventPublisher
@@ -39,7 +70,12 @@ type Service struct {
 
 // Options configures the service.
 type Options struct {
-	Repository *Repository
+	Repository Repository
+
+	// Bind returns Repository's statements bound to a transaction querier.
+	// Every mutation runs through it so the change, its audit record and its
+	// outbox event commit together.
+	Bind func(database.Querier) Repository
 
 	// Authority resolves a provider with its owning service before Fleet
 	// records a link. Nil means no authority is reachable, and linking is
@@ -49,7 +85,7 @@ type Options struct {
 	// Enabled is FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED.
 	Enabled bool
 
-	// Pool runs the write transactions. Defaults to the repository's pool.
+	// Pool runs the write transactions.
 	Pool *pgxpool.Pool
 	// Audit defaults to the platform recorder.
 	Audit *audit.Recorder
@@ -66,9 +102,6 @@ func NewService(options Options) *Service {
 		now = time.Now
 	}
 	pool := options.Pool
-	if pool == nil {
-		pool = options.Repository.pool()
-	}
 	recorder := options.Audit
 	if recorder == nil {
 		recorder = audit.NewRecorder()
@@ -77,7 +110,7 @@ func NewService(options Options) *Service {
 	if publisher == nil && pool != nil {
 		publisher = events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	}
-	return &Service{repo: options.Repository, pool: pool, audit: recorder, events: publisher,
+	return &Service{repo: options.Repository, bind: options.Bind, pool: pool, audit: recorder, events: publisher,
 		authority: options.Authority, enabled: options.Enabled, now: now}
 }
 
@@ -86,12 +119,12 @@ func NewService(options Options) *Service {
 // the values to record; a zero id means fn made no change (an idempotent
 // retry) and nothing is recorded.
 func (s *Service) mutate(ctx context.Context, t tenant.Context, event, aggregate string,
-	fn func(r *Repository) (id string, version int64, previous, next map[string]any, err error)) error {
-	if s.pool == nil {
+	fn func(r Repository) (id string, version int64, previous, next map[string]any, err error)) error {
+	if s.pool == nil || s.bind == nil {
 		return fmt.Errorf("managedmembers: no database pool configured")
 	}
 	return database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
-		id, version, previous, next, err := fn(s.repo.with(tx))
+		id, version, previous, next, err := fn(s.bind(tx))
 		if err != nil || id == "" {
 			return err
 		}
@@ -117,33 +150,33 @@ func (s *Service) Enabled() bool { return s != nil && s.enabled }
 
 func (s *Service) gate() error {
 	if !s.Enabled() {
-		return ErrDisabled
+		return models.ErrDisabled
 	}
 	return nil
 }
 
 // CreateMember records a person the organization employs.
-func (s *Service) CreateMember(ctx context.Context, t tenant.Context, memberRef, displayName string) (Member, error) {
+func (s *Service) CreateMember(ctx context.Context, t tenant.Context, memberRef, displayName string) (models.Member, error) {
 	if err := s.gate(); err != nil {
-		return Member{}, err
+		return models.Member{}, err
 	}
 	if err := t.Validate(); err != nil {
-		return Member{}, fmt.Errorf("%w: %s", ErrValidation, err)
+		return models.Member{}, fmt.Errorf("%w: %s", models.ErrValidation, err)
 	}
 	if strings.TrimSpace(memberRef) == "" {
-		return Member{}, fmt.Errorf("%w: a member reference is required", ErrValidation)
+		return models.Member{}, fmt.Errorf("%w: a member reference is required", models.ErrValidation)
 	}
-	var created Member
+	var created models.Member
 	err := s.mutate(ctx, t, "managed_member.created.v1", "managed_member",
-		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+		func(r Repository) (string, int64, map[string]any, map[string]any, error) {
 			var err error
-			created, err = r.CreateMember(ctx, Member{
+			created, err = r.CreateMember(ctx, models.Member{
 				ID:             ids.New("mbr"),
 				OrganizationID: t.OrganizationID,
 				MemberRef:      strings.TrimSpace(memberRef),
 				DisplayName:    strings.TrimSpace(displayName),
-				Status:         MemberActive,
-				ConsentStatus:  ConsentPending,
+				Status:         models.MemberActive,
+				ConsentStatus:  models.ConsentPending,
 			})
 			if err != nil {
 				return "", 0, nil, nil, err
@@ -153,7 +186,7 @@ func (s *Service) CreateMember(ctx context.Context, t tenant.Context, memberRef,
 			}, nil
 		})
 	if err != nil {
-		return Member{}, err
+		return models.Member{}, err
 	}
 	return created, nil
 }
@@ -163,20 +196,20 @@ func (s *Service) CreateMember(ctx context.Context, t tenant.Context, memberRef,
 // It is the read that makes the member layer worth having: one call answers
 // "who is this person, and which of our three services do they work in", which
 // previously required three queries and a human to correlate them.
-func (s *Service) ReadMember(ctx context.Context, t tenant.Context, memberID string) (MemberView, error) {
+func (s *Service) ReadMember(ctx context.Context, t tenant.Context, memberID string) (models.MemberView, error) {
 	member, err := s.repo.GetMember(ctx, t.OrganizationID, memberID)
 	if err != nil {
-		return MemberView{}, err
+		return models.MemberView{}, err
 	}
 	links, err := s.repo.ListLinks(ctx, t.OrganizationID, memberID)
 	if err != nil {
-		return MemberView{}, err
+		return models.MemberView{}, err
 	}
 	assets, _, err := s.ListAssetsPage(ctx, t, memberID, Page{})
 	if err != nil {
-		return MemberView{}, err
+		return models.MemberView{}, err
 	}
-	return MemberView{Member: member, Links: links, Assets: assets}, nil
+	return models.MemberView{Member: member, Links: links, Assets: assets}, nil
 }
 
 // Page selects one keyset page of a list. A zero Limit means MaxPageSize.
@@ -187,21 +220,21 @@ type Page struct {
 }
 
 func (p Page) size() int {
-	if p.Limit <= 0 || p.Limit > MaxPageSize {
-		return MaxPageSize
+	if p.Limit <= 0 || p.Limit > models.MaxPageSize {
+		return models.MaxPageSize
 	}
 	return p.Limit
 }
 
 // ListMembers returns the first page (newest first) of the organization's
 // members, at most limit (default and maximum MaxPageSize).
-func (s *Service) ListMembers(ctx context.Context, t tenant.Context, limit int) ([]Member, error) {
+func (s *Service) ListMembers(ctx context.Context, t tenant.Context, limit int) ([]models.Member, error) {
 	members, _, err := s.ListMembersPage(ctx, t, Page{Limit: limit})
 	return members, err
 }
 
 // ListMembersPage returns one page of members and whether more exist.
-func (s *Service) ListMembersPage(ctx context.Context, t tenant.Context, page Page) ([]Member, bool, error) {
+func (s *Service) ListMembersPage(ctx context.Context, t tenant.Context, page Page) ([]models.Member, bool, error) {
 	size := page.size()
 	members, err := s.repo.ListMembers(ctx, t.OrganizationID, size+1, page.After, page.AfterID)
 	if err != nil || len(members) <= size {
@@ -213,7 +246,7 @@ func (s *Service) ListMembersPage(ctx context.Context, t tenant.Context, page Pa
 // LinkRequest asks Fleet to bind one authority's provider to a member.
 type LinkRequest struct {
 	MemberID  string
-	Authority Authority
+	Authority models.Authority
 	// ProviderRef is whatever the owning service can resolve: its own provider
 	// id, or an identifier the organization supplies for it to look up. Fleet
 	// does not interpret it and never generates one.
@@ -230,18 +263,18 @@ type LinkRequest struct {
 // records the link. At no step does Fleet create a provider id: doing so would
 // give the platform two answers to "who is this driver", and the one Fleet
 // invented would be the one nobody could dispatch.
-func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, request LinkRequest) (ServiceLink, error) {
+func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, request LinkRequest) (models.ServiceLink, error) {
 	if err := s.gate(); err != nil {
-		return ServiceLink{}, err
+		return models.ServiceLink{}, err
 	}
 	if err := t.Validate(); err != nil {
-		return ServiceLink{}, fmt.Errorf("%w: %s", ErrValidation, err)
+		return models.ServiceLink{}, fmt.Errorf("%w: %s", models.ErrValidation, err)
 	}
 	if strings.TrimSpace(request.MembershipID) == "" {
-		return ServiceLink{}, fmt.Errorf("%w: a membership reference is required", ErrValidation)
+		return models.ServiceLink{}, fmt.Errorf("%w: a membership reference is required", models.ErrValidation)
 	}
 	if request.Authority.OwningService() == "" {
-		return ServiceLink{}, fmt.Errorf("%w: %q is not a provider authority", ErrValidation, request.Authority)
+		return models.ServiceLink{}, fmt.Errorf("%w: %q is not a provider authority", models.ErrValidation, request.Authority)
 	}
 
 	// The member must exist in THIS organization. Reading it first is what
@@ -249,20 +282,20 @@ func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, req
 	// attached to somebody else's person.
 	member, err := s.repo.GetMember(ctx, t.OrganizationID, request.MemberID)
 	if err != nil {
-		return ServiceLink{}, err
+		return models.ServiceLink{}, err
 	}
 
 	if s.authority == nil {
-		return ServiceLink{}, ErrAuthorityUnavailable
+		return models.ServiceLink{}, models.ErrAuthorityUnavailable
 	}
 	resolution, err := s.authority.ResolveProvider(ctx, request.Authority, request.ProviderRef)
 	if err != nil {
-		return ServiceLink{}, err
+		return models.ServiceLink{}, err
 	}
 	if strings.TrimSpace(resolution.ProviderID) == "" {
 		// A resolution with no id is not a provider. Recording it would create
 		// a link to nothing that later reads as a real corporate identity.
-		return ServiceLink{}, ErrAuthorityRefused
+		return models.ServiceLink{}, models.ErrAuthorityRefused
 	}
 
 	// The membership being attached must be this organization's, must be for
@@ -272,39 +305,39 @@ func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, req
 	// link whose provider nobody verified.
 	membership, err := s.repo.GetMembership(ctx, t.OrganizationID, request.MembershipID)
 	if err != nil {
-		return ServiceLink{}, err
+		return models.ServiceLink{}, err
 	}
 	if membership.Authority != request.Authority {
-		return ServiceLink{}, fmt.Errorf("%w: membership %s is a %s link, not %s",
-			ErrValidation, request.MembershipID, membership.Authority, request.Authority)
+		return models.ServiceLink{}, fmt.Errorf("%w: membership %s is a %s link, not %s",
+			models.ErrValidation, request.MembershipID, membership.Authority, request.Authority)
 	}
 	if membership.ProviderID != resolution.ProviderID {
-		return ServiceLink{}, fmt.Errorf("%w: membership %s names a different provider than the authority resolved",
-			ErrValidation, request.MembershipID)
+		return models.ServiceLink{}, fmt.Errorf("%w: membership %s names a different provider than the authority resolved",
+			models.ErrValidation, request.MembershipID)
 	}
 	if membership.MemberID != "" {
 		if membership.MemberID == member.ID {
 			// Already attached to this very member: the caller retried.
 			return membership, nil
 		}
-		return ServiceLink{}, ErrConflict
+		return models.ServiceLink{}, models.ErrConflict
 	}
 
 	heldElsewhere, err := s.repo.ProviderHeldElsewhere(ctx, t.OrganizationID,
 		request.Authority, resolution.ProviderID, request.MembershipID)
 	if err != nil {
-		return ServiceLink{}, err
+		return models.ServiceLink{}, err
 	}
 	if heldElsewhere {
 		// The same provider already occupies this organization's slot for this
 		// authority through a different membership. Linking again would give
 		// one driver two corporate identities and two settlement slots.
-		return ServiceLink{}, ErrConflict
+		return models.ServiceLink{}, models.ErrConflict
 	}
 
-	var attached ServiceLink
+	var attached models.ServiceLink
 	err = s.mutate(ctx, t, "managed_member.service_linked.v1", "managed_member",
-		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+		func(r Repository) (string, int64, map[string]any, map[string]any, error) {
 			var err error
 			attached, err = r.AttachLink(ctx, t.OrganizationID, member.ID, request.MembershipID)
 			if err != nil {
@@ -316,7 +349,7 @@ func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, req
 			}, nil
 		})
 	if err != nil {
-		return ServiceLink{}, err
+		return models.ServiceLink{}, err
 	}
 	return attached, nil
 }
@@ -329,44 +362,44 @@ func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, req
 // and could silently fail on one. Assignability is the member gate; the links
 // stay as they are, which is also what makes "suspended, then reinstated"
 // return the person to exactly the state they left.
-func (s *Service) SuspendMember(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (Member, error) {
+func (s *Service) SuspendMember(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (models.Member, error) {
 	if err := s.gate(); err != nil {
-		return Member{}, err
+		return models.Member{}, err
 	}
-	return s.setMemberStatus(ctx, t, "managed_member.suspended.v1", memberID, expectedVersion, MemberSuspended)
+	return s.setMemberStatus(ctx, t, "managed_member.suspended.v1", memberID, expectedVersion, models.MemberSuspended)
 }
 
 // ReinstateMember returns a suspended member to assignment.
-func (s *Service) ReinstateMember(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (Member, error) {
+func (s *Service) ReinstateMember(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (models.Member, error) {
 	if err := s.gate(); err != nil {
-		return Member{}, err
+		return models.Member{}, err
 	}
-	return s.setMemberStatus(ctx, t, "managed_member.reinstated.v1", memberID, expectedVersion, MemberActive)
+	return s.setMemberStatus(ctx, t, "managed_member.reinstated.v1", memberID, expectedVersion, models.MemberActive)
 }
 
 // GrantConsent records the member's consent to work for the organization.
-func (s *Service) GrantConsent(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (Member, error) {
+func (s *Service) GrantConsent(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (models.Member, error) {
 	if err := s.gate(); err != nil {
-		return Member{}, err
+		return models.Member{}, err
 	}
-	return s.setMemberStatus(ctx, t, "managed_member.consent_granted.v1", memberID, expectedVersion, MemberActive)
+	return s.setMemberStatus(ctx, t, "managed_member.consent_granted.v1", memberID, expectedVersion, models.MemberActive)
 }
 
 // setMemberStatus applies one organization-level standing change under its
 // version guard, recording the previous standing for the audit trail.
 func (s *Service) setMemberStatus(ctx context.Context, t tenant.Context, event, memberID string,
-	expectedVersion int64, status string) (Member, error) {
-	var updated Member
+	expectedVersion int64, status string) (models.Member, error) {
+	var updated models.Member
 	err := s.mutate(ctx, t, event, "managed_member",
-		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+		func(r Repository) (string, int64, map[string]any, map[string]any, error) {
 			previous, err := r.GetMember(ctx, t.OrganizationID, memberID)
 			if err != nil {
 				// Reported as a version conflict, like the update itself, so a
 				// caller cannot probe other organizations' member ids.
-				return "", 0, nil, nil, ErrVersion
+				return "", 0, nil, nil, models.ErrVersion
 			}
 			updated, err = r.SetMemberStatus(ctx, t.OrganizationID, memberID, expectedVersion,
-				status, ConsentGranted, s.now().UTC())
+				status, models.ConsentGranted, s.now().UTC())
 			if err != nil {
 				return "", 0, nil, nil, err
 			}
@@ -376,14 +409,14 @@ func (s *Service) setMemberStatus(ctx context.Context, t tenant.Context, event, 
 				nil
 		})
 	if err != nil {
-		return Member{}, err
+		return models.Member{}, err
 	}
 	return updated, nil
 }
 
 // LinkAssetRequest records an asset the organization operates.
 type LinkAssetRequest struct {
-	Authority     Authority
+	Authority     models.Authority
 	AssetID       string
 	MemberID      string
 	SourceVersion int64
@@ -396,29 +429,29 @@ type LinkAssetRequest struct {
 // service's answer and a cached copy here would be consulted after it went
 // stale. An organization saying "this truck is ours" is not an organization
 // saying the truck is roadworthy.
-func (s *Service) LinkAsset(ctx context.Context, t tenant.Context, request LinkAssetRequest) (AssetLink, error) {
+func (s *Service) LinkAsset(ctx context.Context, t tenant.Context, request LinkAssetRequest) (models.AssetLink, error) {
 	if err := s.gate(); err != nil {
-		return AssetLink{}, err
+		return models.AssetLink{}, err
 	}
 	if request.Authority.OwningService() == "" {
-		return AssetLink{}, fmt.Errorf("%w: %q is not an asset authority", ErrValidation, request.Authority)
+		return models.AssetLink{}, fmt.Errorf("%w: %q is not an asset authority", models.ErrValidation, request.Authority)
 	}
 	if strings.TrimSpace(request.AssetID) == "" {
-		return AssetLink{}, fmt.Errorf("%w: an asset reference is required", ErrValidation)
+		return models.AssetLink{}, fmt.Errorf("%w: an asset reference is required", models.ErrValidation)
 	}
 	if request.MemberID != "" {
 		if _, err := s.repo.GetMember(ctx, t.OrganizationID, request.MemberID); err != nil {
-			return AssetLink{}, err
+			return models.AssetLink{}, err
 		}
 	}
-	var linked AssetLink
+	var linked models.AssetLink
 	err := s.mutate(ctx, t, "managed_asset_link.linked.v1", "managed_asset_link",
-		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+		func(r Repository) (string, int64, map[string]any, map[string]any, error) {
 			var err error
-			linked, err = r.LinkAsset(ctx, AssetLink{
+			linked, err = r.LinkAsset(ctx, models.AssetLink{
 				ID: ids.New("mal"), OrganizationID: t.OrganizationID,
 				Authority: request.Authority, AssetID: strings.TrimSpace(request.AssetID),
-				MemberID: request.MemberID, LinkStatus: AssetLinkActive,
+				MemberID: request.MemberID, LinkStatus: models.AssetLinkActive,
 				SourceVersion: request.SourceVersion,
 			})
 			if err != nil {
@@ -430,20 +463,20 @@ func (s *Service) LinkAsset(ctx context.Context, t tenant.Context, request LinkA
 			}, nil
 		})
 	if err != nil {
-		return AssetLink{}, err
+		return models.AssetLink{}, err
 	}
 	return linked, nil
 }
 
 // ListAssets returns the first page (newest first) of the organization's
 // asset links, optionally for one member.
-func (s *Service) ListAssets(ctx context.Context, t tenant.Context, memberID string) ([]AssetLink, error) {
+func (s *Service) ListAssets(ctx context.Context, t tenant.Context, memberID string) ([]models.AssetLink, error) {
 	assets, _, err := s.ListAssetsPage(ctx, t, memberID, Page{})
 	return assets, err
 }
 
 // ListAssetsPage returns one page of asset links and whether more exist.
-func (s *Service) ListAssetsPage(ctx context.Context, t tenant.Context, memberID string, page Page) ([]AssetLink, bool, error) {
+func (s *Service) ListAssetsPage(ctx context.Context, t tenant.Context, memberID string, page Page) ([]models.AssetLink, bool, error) {
 	size := page.size()
 	assets, err := s.repo.ListAssets(ctx, t.OrganizationID, memberID, size+1, page.After, page.AfterID)
 	if err != nil || len(assets) <= size {
@@ -454,18 +487,18 @@ func (s *Service) ListAssetsPage(ctx context.Context, t tenant.Context, memberID
 
 // SetAssetLinkStatus suspends or removes an asset link.
 func (s *Service) SetAssetLinkStatus(ctx context.Context, t tenant.Context, linkID string,
-	expectedVersion int64, status string) (AssetLink, error) {
+	expectedVersion int64, status string) (models.AssetLink, error) {
 	if err := s.gate(); err != nil {
-		return AssetLink{}, err
+		return models.AssetLink{}, err
 	}
 	switch status {
-	case AssetLinkActive, AssetLinkSuspended, AssetLinkRemoved:
+	case models.AssetLinkActive, models.AssetLinkSuspended, models.AssetLinkRemoved:
 	default:
-		return AssetLink{}, fmt.Errorf("%w: %q is not an asset link status", ErrValidation, status)
+		return models.AssetLink{}, fmt.Errorf("%w: %q is not an asset link status", models.ErrValidation, status)
 	}
-	var updated AssetLink
+	var updated models.AssetLink
 	err := s.mutate(ctx, t, "managed_asset_link.status_changed.v1", "managed_asset_link",
-		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+		func(r Repository) (string, int64, map[string]any, map[string]any, error) {
 			var err error
 			updated, err = r.SetAssetLinkStatus(ctx, t.OrganizationID, linkID, expectedVersion,
 				status, s.now().UTC())
@@ -476,7 +509,7 @@ func (s *Service) SetAssetLinkStatus(ctx context.Context, t tenant.Context, link
 				map[string]any{"linkStatus": updated.LinkStatus, "version": updated.Version}, nil
 		})
 	if err != nil {
-		return AssetLink{}, err
+		return models.AssetLink{}, err
 	}
 	return updated, nil
 }
@@ -490,7 +523,7 @@ func (s *Service) SetAssetLinkStatus(ctx context.Context, t tenant.Context, link
 // and may never widen it. An organization cannot decide that a driver a taxi
 // service has not qualified is nonetheless a taxi driver.
 func (s *Service) AssignableForAuthority(ctx context.Context, t tenant.Context,
-	memberID string, authority Authority) (bool, string, error) {
+	memberID string, authority models.Authority) (bool, string, error) {
 	member, err := s.repo.GetMember(ctx, t.OrganizationID, memberID)
 	if err != nil {
 		return false, "", err
@@ -500,7 +533,7 @@ func (s *Service) AssignableForAuthority(ctx context.Context, t tenant.Context,
 	}
 	link, err := s.repo.LinkForAuthority(ctx, t.OrganizationID, memberID, authority)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == models.ErrNotFound {
 			return false, "NO_LINK_FOR_AUTHORITY", nil
 		}
 		return false, "", err

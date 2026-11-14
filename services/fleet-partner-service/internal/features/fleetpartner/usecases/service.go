@@ -2,7 +2,6 @@ package usecases
 
 import (
 	"context"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -16,6 +15,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )

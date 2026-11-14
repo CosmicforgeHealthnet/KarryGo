@@ -1,4 +1,4 @@
-package managedmembers
+package usecases_test
 
 import (
 	"context"
@@ -10,6 +10,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/repositories"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -25,8 +29,8 @@ import (
 // half-migrated owning service would return.
 type emptyAuthority struct{}
 
-func (emptyAuthority) ResolveProvider(context.Context, Authority, string) (ProviderResolution, error) {
-	return ProviderResolution{}, nil
+func (emptyAuthority) ResolveProvider(context.Context, models.Authority, string) (models.ProviderResolution, error) {
+	return models.ProviderResolution{}, nil
 }
 
 // TestAuthorityOutageIsNotARefusal keeps the two failures apart.
@@ -36,10 +40,10 @@ func (emptyAuthority) ResolveProvider(context.Context, Authority, string) (Provi
 // was able to ask about, and the driver would stay unlinkable until somebody
 // noticed and retried by hand.
 func TestAuthorityOutageIsNotARefusal(t *testing.T) {
-	if errors.Is(ErrAuthorityUnavailable, ErrAuthorityRefused) {
+	if errors.Is(models.ErrAuthorityUnavailable, models.ErrAuthorityRefused) {
 		t.Fatal("an outage must not satisfy a refusal check")
 	}
-	if errors.Is(ErrAuthorityRefused, ErrAuthorityUnavailable) {
+	if errors.Is(models.ErrAuthorityRefused, models.ErrAuthorityUnavailable) {
 		t.Fatal("a refusal must not satisfy an outage check")
 	}
 }
@@ -48,17 +52,17 @@ func TestAuthorityOutageIsNotARefusal(t *testing.T) {
 // identities. A wrong entry would send a resolve to a service that has never
 // heard of the provider and read its honest "no" as a refusal.
 func TestOwningServiceMapping(t *testing.T) {
-	expected := map[Authority]string{
-		AuthorityDispatch: "driver-dispatch-delivery-service",
-		AuthorityTaxi:     "driver-taxi-service",
-		AuthorityHauling:  "driver-hauling-service",
+	expected := map[models.Authority]string{
+		models.AuthorityDispatch: "driver-dispatch-delivery-service",
+		models.AuthorityTaxi:     "driver-taxi-service",
+		models.AuthorityHauling:  "driver-hauling-service",
 	}
 	for authority, service := range expected {
 		if got := authority.OwningService(); got != service {
 			t.Fatalf("%s owning service = %q, want %q", authority, got, service)
 		}
 	}
-	if Authority("FLEET").OwningService() != "" {
+	if models.Authority("FLEET").OwningService() != "" {
 		t.Fatal("an unknown authority must own no service")
 	}
 }
@@ -66,15 +70,15 @@ func TestOwningServiceMapping(t *testing.T) {
 // TestMemberAssignabilityIsAnOrganizationGate documents what the member layer
 // adds on top of the per-authority links: one switch for the whole person.
 func TestMemberAssignabilityIsAnOrganizationGate(t *testing.T) {
-	active := Member{Status: MemberActive, ConsentStatus: ConsentGranted}
+	active := models.Member{Status: models.MemberActive, ConsentStatus: models.ConsentGranted}
 	if !active.Assignable() {
 		t.Fatal("an active consenting member should be assignable")
 	}
-	for _, member := range []Member{
-		{Status: MemberSuspended, ConsentStatus: ConsentGranted},
-		{Status: MemberActive, ConsentStatus: ConsentPending},
-		{Status: MemberActive, ConsentStatus: ConsentWithdrawn},
-		{Status: MemberEnded, ConsentStatus: ConsentGranted},
+	for _, member := range []models.Member{
+		{Status: models.MemberSuspended, ConsentStatus: models.ConsentGranted},
+		{Status: models.MemberActive, ConsentStatus: models.ConsentPending},
+		{Status: models.MemberActive, ConsentStatus: models.ConsentWithdrawn},
+		{Status: models.MemberEnded, ConsentStatus: models.ConsentGranted},
 	} {
 		if member.Assignable() {
 			t.Fatalf("%+v should not be assignable", member)
@@ -84,10 +88,10 @@ func TestMemberAssignabilityIsAnOrganizationGate(t *testing.T) {
 
 // TestDisabledFeatureRefusesWrites keeps the rollout flag meaningful.
 func TestDisabledFeatureRefusesWrites(t *testing.T) {
-	service := NewService(Options{Repository: &Repository{}, Enabled: false})
+	service := usecases.NewService(usecases.Options{Repository: &repositories.Repository{}, Enabled: false})
 	_, err := service.CreateMember(context.Background(),
 		tenant.Context{OrganizationID: "org-1", ActorType: "USER", ActorID: "u1"}, "EMP-1", "A")
-	if !errors.Is(err, ErrDisabled) {
+	if !errors.Is(err, models.ErrDisabled) {
 		t.Fatalf("create with the flag off = %v, want ErrDisabled", err)
 	}
 }
@@ -145,7 +149,7 @@ func seedOrganizations(t *testing.T, pool *pgxpool.Pool, ids ...string) {
 // feature does, so the member layer is tested against real rows rather than
 // ones shaped to suit it.
 func seedMembership(t *testing.T, pool *pgxpool.Pool, id, organizationID string,
-	authority Authority, providerID string) {
+	authority models.Authority, providerID string) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO fleet_partner_organization_provider_memberships(
@@ -158,25 +162,32 @@ func seedMembership(t *testing.T, pool *pgxpool.Pool, id, organizationID string,
 }
 
 type stubAuthority struct {
-	resolutions map[string]ProviderResolution
+	resolutions map[string]models.ProviderResolution
 	err         error
 }
 
-func (s stubAuthority) ResolveProvider(_ context.Context, authority Authority,
-	providerRef string) (ProviderResolution, error) {
+func (s stubAuthority) ResolveProvider(_ context.Context, authority models.Authority,
+	providerRef string) (models.ProviderResolution, error) {
 	if s.err != nil {
-		return ProviderResolution{}, s.err
+		return models.ProviderResolution{}, s.err
 	}
 	resolution, ok := s.resolutions[string(authority)+":"+providerRef]
 	if !ok {
-		return ProviderResolution{}, ErrAuthorityRefused
+		return models.ProviderResolution{}, models.ErrAuthorityRefused
 	}
 	return resolution, nil
 }
 
-func newTestService(pool *pgxpool.Pool, authority ProviderAuthority) *Service {
-	return NewService(Options{
-		Repository: NewRepository(pool), Authority: authority, Enabled: true,
+// bindRepository binds the Postgres repository to a transaction, as the
+// composition root does.
+func bindRepository(q database.Querier) usecases.Repository {
+	return repositories.NewRepository(nil).With(q)
+}
+
+func newTestService(pool *pgxpool.Pool, authority usecases.ProviderAuthority) *usecases.Service {
+	return usecases.NewService(usecases.Options{
+		Repository: repositories.NewRepository(pool), Bind: bindRepository, Pool: pool,
+		Authority: authority, Enabled: true,
 		Now: func() time.Time { return time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC) },
 	})
 }
@@ -210,12 +221,12 @@ func TestFleetCannotMintAProviderIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedMembership(t, pool, "mb-mint-1", "org-mint-1", AuthorityTaxi, "prv-mint-t")
+	seedMembership(t, pool, "mb-mint-1", "org-mint-1", models.AuthorityTaxi, "prv-mint-t")
 
-	_, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
-		MemberID: member.ID, Authority: AuthorityTaxi,
+	_, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
+		MemberID: member.ID, Authority: models.AuthorityTaxi,
 		ProviderRef: "whoever", MembershipID: "mb-mint-1"})
-	if !errors.Is(err, ErrAuthorityRefused) {
+	if !errors.Is(err, models.ErrAuthorityRefused) {
 		t.Fatalf("an unnamed provider was accepted: %v", err)
 	}
 
@@ -236,7 +247,7 @@ func TestOneMemberHoldsThreeAuthorities(t *testing.T) {
 	ctx := context.Background()
 	seedOrganizations(t, pool, "org-e2e-1")
 
-	authority := stubAuthority{resolutions: map[string]ProviderResolution{
+	authority := stubAuthority{resolutions: map[string]models.ProviderResolution{
 		"DISPATCH:ref-d": {ProviderID: "prv-d", QualificationStatus: "ACTIVE", SourceVersion: 4},
 		"TAXI:ref-t":     {ProviderID: "prv-t", QualificationStatus: "ACTIVE", SourceVersion: 7},
 		"HAULING:ref-h":  {ProviderID: "prv-h", QualificationStatus: "ACTIVE", SourceVersion: 2},
@@ -250,17 +261,17 @@ func TestOneMemberHoldsThreeAuthorities(t *testing.T) {
 	}
 
 	for _, link := range []struct {
-		authority  Authority
+		authority  models.Authority
 		membership string
 		ref        string
 	}{
-		{AuthorityDispatch, "mb-e2e-d", "ref-d"},
-		{AuthorityTaxi, "mb-e2e-t", "ref-t"},
-		{AuthorityHauling, "mb-e2e-h", "ref-h"},
+		{models.AuthorityDispatch, "mb-e2e-d", "ref-d"},
+		{models.AuthorityTaxi, "mb-e2e-t", "ref-t"},
+		{models.AuthorityHauling, "mb-e2e-h", "ref-h"},
 	} {
 		seedMembership(t, pool, link.membership, "org-e2e-1", link.authority,
 			authority.resolutions[string(link.authority)+":"+link.ref].ProviderID)
-		if _, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
+		if _, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
 			MemberID: member.ID, Authority: link.authority,
 			ProviderRef: link.ref, MembershipID: link.membership,
 		}); err != nil {
@@ -276,7 +287,7 @@ func TestOneMemberHoldsThreeAuthorities(t *testing.T) {
 		t.Fatalf("links = %d, want 3: one member must be able to hold all three authorities",
 			len(view.Links))
 	}
-	for _, expected := range Authorities() {
+	for _, expected := range models.Authorities() {
 		link, ok := view.AuthorityLink(expected)
 		if !ok {
 			t.Fatalf("no live %s link on the member", expected)
@@ -293,7 +304,7 @@ func TestDuplicateProviderLinkIsRefused(t *testing.T) {
 	ctx := context.Background()
 	seedOrganizations(t, pool, "org-dup-1")
 
-	authority := stubAuthority{resolutions: map[string]ProviderResolution{
+	authority := stubAuthority{resolutions: map[string]models.ProviderResolution{
 		"TAXI:ref-t": {ProviderID: "prv-dup-t", QualificationStatus: "ACTIVE"},
 	}}
 	service := newTestService(pool, authority)
@@ -308,9 +319,9 @@ func TestDuplicateProviderLinkIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	seedMembership(t, pool, "mb-dup-1", "org-dup-1", AuthorityTaxi, "prv-dup-t")
-	if _, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
-		MemberID: first.ID, Authority: AuthorityTaxi,
+	seedMembership(t, pool, "mb-dup-1", "org-dup-1", models.AuthorityTaxi, "prv-dup-t")
+	if _, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
+		MemberID: first.ID, Authority: models.AuthorityTaxi,
 		ProviderRef: "ref-t", MembershipID: "mb-dup-1"}); err != nil {
 		t.Fatal(err)
 	}
@@ -334,11 +345,11 @@ func TestDuplicateProviderLinkIsRefused(t *testing.T) {
 	// member when it already carries the provider the authority resolved.
 	// Without it a caller could resolve one provider and attach a membership
 	// for another, recording a corporate identity nobody verified.
-	seedMembership(t, pool, "mb-dup-3", "org-dup-1", AuthorityTaxi, "prv-dup-other")
-	_, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
-		MemberID: second.ID, Authority: AuthorityTaxi,
+	seedMembership(t, pool, "mb-dup-3", "org-dup-1", models.AuthorityTaxi, "prv-dup-other")
+	_, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
+		MemberID: second.ID, Authority: models.AuthorityTaxi,
 		ProviderRef: "ref-t", MembershipID: "mb-dup-3"})
-	if !errors.Is(err, ErrValidation) {
+	if !errors.Is(err, models.ErrValidation) {
 		t.Fatalf("attaching a membership for a different provider = %v, want a refusal", err)
 	}
 
@@ -362,16 +373,16 @@ func TestDuplicateProviderLinkIsRefused(t *testing.T) {
 		   SET member_id=$1 WHERE id='mb-dup-3'`, first.ID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
-		MemberID: second.ID, Authority: AuthorityTaxi,
+	_, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
+		MemberID: second.ID, Authority: models.AuthorityTaxi,
 		ProviderRef: "ref-t", MembershipID: "mb-dup-3"})
-	if !errors.Is(err, ErrConflict) {
+	if !errors.Is(err, models.ErrConflict) {
 		t.Fatalf("claiming another member's membership = %v, want ErrConflict", err)
 	}
 
 	// A retry of the ORIGINAL link is not a duplicate: it converges.
-	replay, err := service.LinkServiceIdentity(ctx, scope, LinkRequest{
-		MemberID: first.ID, Authority: AuthorityTaxi,
+	replay, err := service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
+		MemberID: first.ID, Authority: models.AuthorityTaxi,
 		ProviderRef: "ref-t", MembershipID: "mb-dup-1"})
 	if err != nil {
 		t.Fatalf("replaying the original link = %v, want it to converge", err)
@@ -394,11 +405,11 @@ func TestCrossTenantMemberAccessIsImpossible(t *testing.T) {
 	}
 
 	// The rival organization knows the id and still cannot read it.
-	if _, err = service.ReadMember(ctx, tenantOf("org-iso-2"), member.ID); !errors.Is(err, ErrNotFound) {
+	if _, err = service.ReadMember(ctx, tenantOf("org-iso-2"), member.ID); !errors.Is(err, models.ErrNotFound) {
 		t.Fatalf("cross-tenant read = %v, want ErrNotFound", err)
 	}
 	// Nor suspend it.
-	if _, err = service.SuspendMember(ctx, tenantOf("org-iso-2"), member.ID, 1); !errors.Is(err, ErrVersion) {
+	if _, err = service.SuspendMember(ctx, tenantOf("org-iso-2"), member.ID, 1); !errors.Is(err, models.ErrVersion) {
 		t.Fatalf("cross-tenant suspend = %v, want a refusal", err)
 	}
 	// And it does not appear in their list.
@@ -422,7 +433,7 @@ func TestSuspendingOneAuthorityLeavesTheOthersAlone(t *testing.T) {
 	ctx := context.Background()
 	seedOrganizations(t, pool, "org-susp-1")
 
-	authority := stubAuthority{resolutions: map[string]ProviderResolution{
+	authority := stubAuthority{resolutions: map[string]models.ProviderResolution{
 		"DISPATCH:d": {ProviderID: "prv-susp-d"},
 		"TAXI:t":     {ProviderID: "prv-susp-t"},
 		"HAULING:h":  {ProviderID: "prv-susp-h"},
@@ -434,17 +445,17 @@ func TestSuspendingOneAuthorityLeavesTheOthersAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, link := range []struct {
-		authority  Authority
+		authority  models.Authority
 		membership string
 		ref        string
 		provider   string
 	}{
-		{AuthorityDispatch, "mb-susp-d", "d", "prv-susp-d"},
-		{AuthorityTaxi, "mb-susp-t", "t", "prv-susp-t"},
-		{AuthorityHauling, "mb-susp-h", "h", "prv-susp-h"},
+		{models.AuthorityDispatch, "mb-susp-d", "d", "prv-susp-d"},
+		{models.AuthorityTaxi, "mb-susp-t", "t", "prv-susp-t"},
+		{models.AuthorityHauling, "mb-susp-h", "h", "prv-susp-h"},
 	} {
 		seedMembership(t, pool, link.membership, "org-susp-1", link.authority, link.provider)
-		if _, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
+		if _, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
 			MemberID: member.ID, Authority: link.authority,
 			ProviderRef: link.ref, MembershipID: link.membership}); err != nil {
 			t.Fatal(err)
@@ -463,26 +474,26 @@ func TestSuspendingOneAuthorityLeavesTheOthersAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	statuses := map[Authority]string{}
+	statuses := map[models.Authority]string{}
 	for _, link := range view.Links {
 		statuses[link.Authority] = link.LinkStatus
 	}
-	if statuses[AuthorityTaxi] != "SUSPENDED" {
-		t.Fatalf("taxi link = %q, want SUSPENDED", statuses[AuthorityTaxi])
+	if statuses[models.AuthorityTaxi] != "SUSPENDED" {
+		t.Fatalf("taxi link = %q, want SUSPENDED", statuses[models.AuthorityTaxi])
 	}
-	if statuses[AuthorityDispatch] != "ACTIVE" || statuses[AuthorityHauling] != "ACTIVE" {
+	if statuses[models.AuthorityDispatch] != "ACTIVE" || statuses[models.AuthorityHauling] != "ACTIVE" {
 		t.Fatalf("suspending taxi disturbed the others: dispatch=%q hauling=%q",
-			statuses[AuthorityDispatch], statuses[AuthorityHauling])
+			statuses[models.AuthorityDispatch], statuses[models.AuthorityHauling])
 	}
 
 	// Assignability follows each authority independently.
 	for _, expected := range []struct {
-		authority Authority
+		authority models.Authority
 		want      bool
-	}{{AuthorityDispatch, true}, {AuthorityHauling, true}, {AuthorityTaxi, false}} {
+	}{{models.AuthorityDispatch, true}, {models.AuthorityHauling, true}, {models.AuthorityTaxi, false}} {
 		// Consent must be granted before the member gate opens at all.
 		if _, err = service.GrantConsent(ctx, scope, member.ID, view.Member.Version); err != nil &&
-			!errors.Is(err, ErrVersion) {
+			!errors.Is(err, models.ErrVersion) {
 			t.Fatal(err)
 		}
 		assignable, reason, checkErr := service.AssignableForAuthority(ctx, scope, member.ID, expected.authority)
@@ -506,7 +517,7 @@ func TestOrganizationSuspensionBlocksEveryAuthorityWithoutDeletingLinks(t *testi
 	ctx := context.Background()
 	seedOrganizations(t, pool, "org-global-1")
 
-	authority := stubAuthority{resolutions: map[string]ProviderResolution{
+	authority := stubAuthority{resolutions: map[string]models.ProviderResolution{
 		"DISPATCH:d": {ProviderID: "prv-glob-d"},
 		"TAXI:t":     {ProviderID: "prv-glob-t"},
 	}}
@@ -516,14 +527,14 @@ func TestOrganizationSuspensionBlocksEveryAuthorityWithoutDeletingLinks(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedMembership(t, pool, "mb-glob-d", "org-global-1", AuthorityDispatch, "prv-glob-d")
-	seedMembership(t, pool, "mb-glob-t", "org-global-1", AuthorityTaxi, "prv-glob-t")
+	seedMembership(t, pool, "mb-glob-d", "org-global-1", models.AuthorityDispatch, "prv-glob-d")
+	seedMembership(t, pool, "mb-glob-t", "org-global-1", models.AuthorityTaxi, "prv-glob-t")
 	for _, link := range []struct {
-		authority  Authority
+		authority  models.Authority
 		membership string
 		ref        string
-	}{{AuthorityDispatch, "mb-glob-d", "d"}, {AuthorityTaxi, "mb-glob-t", "t"}} {
-		if _, err = service.LinkServiceIdentity(ctx, scope, LinkRequest{
+	}{{models.AuthorityDispatch, "mb-glob-d", "d"}, {models.AuthorityTaxi, "mb-glob-t", "t"}} {
+		if _, err = service.LinkServiceIdentity(ctx, scope, usecases.LinkRequest{
 			MemberID: member.ID, Authority: link.authority,
 			ProviderRef: link.ref, MembershipID: link.membership}); err != nil {
 			t.Fatal(err)
@@ -539,7 +550,7 @@ func TestOrganizationSuspensionBlocksEveryAuthorityWithoutDeletingLinks(t *testi
 		t.Fatal(err)
 	}
 
-	for _, expected := range []Authority{AuthorityDispatch, AuthorityTaxi} {
+	for _, expected := range []models.Authority{models.AuthorityDispatch, models.AuthorityTaxi} {
 		assignable, reason, checkErr := service.AssignableForAuthority(ctx, scope, member.ID, expected)
 		if checkErr != nil {
 			t.Fatal(checkErr)
@@ -565,7 +576,7 @@ func TestOrganizationSuspensionBlocksEveryAuthorityWithoutDeletingLinks(t *testi
 	if _, err = service.ReinstateMember(ctx, scope, member.ID, suspended.Version); err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []Authority{AuthorityDispatch, AuthorityTaxi} {
+	for _, expected := range []models.Authority{models.AuthorityDispatch, models.AuthorityTaxi} {
 		assignable, reason, checkErr := service.AssignableForAuthority(ctx, scope, member.ID, expected)
 		if checkErr != nil {
 			t.Fatal(checkErr)
@@ -595,7 +606,7 @@ func TestStaleVersionCannotOverwriteANewerDecision(t *testing.T) {
 	// A second operator acting on the version they read before the suspension
 	// must lose, or a suspension could be silently undone by a reinstatement
 	// decided without knowledge of it.
-	if _, err = service.ReinstateMember(ctx, scope, member.ID, staleVersion); !errors.Is(err, ErrVersion) {
+	if _, err = service.ReinstateMember(ctx, scope, member.ID, staleVersion); !errors.Is(err, models.ErrVersion) {
 		t.Fatalf("stale reinstatement = %v, want ErrVersion", err)
 	}
 }
@@ -616,20 +627,20 @@ func TestAssetLinksCarryNoFitnessClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	link, err := service.LinkAsset(ctx, scope, LinkAssetRequest{
-		Authority: AuthorityHauling, AssetID: "truck-1",
+	link, err := service.LinkAsset(ctx, scope, usecases.LinkAssetRequest{
+		Authority: models.AuthorityHauling, AssetID: "truck-1",
 		MemberID: member.ID, SourceVersion: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if link.AssetID != "truck-1" || link.LinkStatus != AssetLinkActive {
+	if link.AssetID != "truck-1" || link.LinkStatus != models.AssetLinkActive {
 		t.Fatalf("asset link = %+v", link)
 	}
 
 	// A stale report must not overwrite a newer one.
-	if _, err = service.LinkAsset(ctx, scope, LinkAssetRequest{
-		Authority: AuthorityHauling, AssetID: "truck-1",
-		MemberID: member.ID, SourceVersion: 1}); !errors.Is(err, ErrVersion) {
+	if _, err = service.LinkAsset(ctx, scope, usecases.LinkAssetRequest{
+		Authority: models.AuthorityHauling, AssetID: "truck-1",
+		MemberID: member.ID, SourceVersion: 1}); !errors.Is(err, models.ErrVersion) {
 		t.Fatalf("stale asset report = %v, want ErrVersion", err)
 	}
 

@@ -1,6 +1,7 @@
-package managedmembers
+package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,13 +9,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
-	"cosmicforge/logistics/shared/go/apperrors"
 )
 
 // Permissions this feature checks.
@@ -50,15 +54,31 @@ func TenantRoutes() []Route {
 }
 
 // Handler serves the member surface.
+// UseCases is the member use-case surface the handler needs.
+// *usecases.Service satisfies it; the composition root passes the concrete
+// service.
+type UseCases interface {
+	CreateMember(ctx context.Context, t tenant.Context, memberRef, displayName string) (models.Member, error)
+	ReadMember(ctx context.Context, t tenant.Context, memberID string) (models.MemberView, error)
+	ListMembersPage(ctx context.Context, t tenant.Context, page usecases.Page) ([]models.Member, bool, error)
+	LinkServiceIdentity(ctx context.Context, t tenant.Context, request usecases.LinkRequest) (models.ServiceLink, error)
+	SuspendMember(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (models.Member, error)
+	ReinstateMember(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (models.Member, error)
+	GrantConsent(ctx context.Context, t tenant.Context, memberID string, expectedVersion int64) (models.Member, error)
+	LinkAsset(ctx context.Context, t tenant.Context, request usecases.LinkAssetRequest) (models.AssetLink, error)
+	ListAssetsPage(ctx context.Context, t tenant.Context, memberID string, page usecases.Page) ([]models.AssetLink, bool, error)
+	SetAssetLinkStatus(ctx context.Context, t tenant.Context, linkID string, expectedVersion int64, status string) (models.AssetLink, error)
+}
+
 type Handler struct {
-	s    *Service
+	s    UseCases
 	a    *accesscontrol.Authorizer
 	idem *idempotency.Store
 }
 
 // NewHandler builds the handler. idem is the shared durable idempotency store
 // that backs every route this table marks IdempotencyRequired.
-func NewHandler(s *Service, a *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
 	return &Handler{s: s, a: a, idem: idem}
 }
 
@@ -147,20 +167,20 @@ func write(c *gin.Context, value any, err error) {
 		return
 	}
 	switch {
-	case errors.Is(err, ErrDisabled):
+	case errors.Is(err, models.ErrDisabled):
 		respond.Error(c, apperrors.Unavailable("Multi-service provider links are not enabled.", err))
-	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, models.ErrNotFound):
 		respond.Error(c, apperrors.NotFound("No such member or link.", err))
-	case errors.Is(err, ErrVersion):
+	case errors.Is(err, models.ErrVersion):
 		respond.Error(c, apperrors.Conflict("The record moved since it was read; re-read and retry.", err))
-	case errors.Is(err, ErrConflict):
+	case errors.Is(err, models.ErrConflict):
 		respond.Error(c, apperrors.Conflict("That provider is already linked in this organization.", err))
-	case errors.Is(err, ErrAuthorityRefused):
+	case errors.Is(err, models.ErrAuthorityRefused):
 		respond.Error(c, apperrors.New(http.StatusUnprocessableEntity, "authority_refused",
 			"The owning service declined this provider.", err))
-	case errors.Is(err, ErrAuthorityUnavailable):
+	case errors.Is(err, models.ErrAuthorityUnavailable):
 		respond.Error(c, apperrors.Unavailable("The owning service could not be reached.", err))
-	case errors.Is(err, ErrValidation):
+	case errors.Is(err, models.ErrValidation):
 		respond.Error(c, apperrors.BadRequest(err.Error(), err))
 	default:
 		respond.Error(c, err)
@@ -210,14 +230,14 @@ func (h *Handler) listMembers(c *gin.Context) {
 
 // pageFrom reads limit (1-200, default 200) and an opaque cursor. Malformed
 // values are answered with a validation error and ok=false.
-func pageFrom(c *gin.Context) (Page, bool) {
-	var page Page
+func pageFrom(c *gin.Context) (usecases.Page, bool) {
+	var page usecases.Page
 	if raw := c.Query("limit"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 || parsed > MaxPageSize {
+		if err != nil || parsed < 1 || parsed > models.MaxPageSize {
 			respond.Error(c, apperrors.Validation("limit must be between 1 and 200.",
 				[]apperrors.FieldViolation{{Field: "limit", Message: "Out of range."}}))
-			return Page{}, false
+			return usecases.Page{}, false
 		}
 		page.Limit = parsed
 	}
@@ -225,7 +245,7 @@ func pageFrom(c *gin.Context) (Page, bool) {
 	if err != nil {
 		respond.Error(c, apperrors.Validation("The cursor is not valid.",
 			[]apperrors.FieldViolation{{Field: "cursor", Message: "Malformed."}}))
-		return Page{}, false
+		return usecases.Page{}, false
 	}
 	if hasCursor {
 		after := position.SortTime()
@@ -259,12 +279,12 @@ func (h *Handler) linkService(c *gin.Context) {
 		respond.Error(c, apperrors.BadRequest("Request body is invalid.", nil))
 		return
 	}
-	authority, err := ParseAuthority(body.Authority)
+	authority, err := models.ParseAuthority(body.Authority)
 	if err != nil {
 		write(c, nil, err)
 		return
 	}
-	link, err := h.s.LinkServiceIdentity(c, t, LinkRequest{
+	link, err := h.s.LinkServiceIdentity(c, t, usecases.LinkRequest{
 		MemberID: c.Param("memberId"), Authority: authority,
 		ProviderRef: body.ProviderRef, MembershipID: body.MembershipID,
 	})
@@ -304,24 +324,24 @@ func expectedVersion(c *gin.Context, camel, snake int64) int64 {
 }
 
 func (h *Handler) suspend(c *gin.Context) {
-	h.memberStatus(c, func(t tenant.Context, memberID string, version int64) (Member, error) {
+	h.memberStatus(c, func(t tenant.Context, memberID string, version int64) (models.Member, error) {
 		return h.s.SuspendMember(c, t, memberID, version)
 	})
 }
 
 func (h *Handler) reinstate(c *gin.Context) {
-	h.memberStatus(c, func(t tenant.Context, memberID string, version int64) (Member, error) {
+	h.memberStatus(c, func(t tenant.Context, memberID string, version int64) (models.Member, error) {
 		return h.s.ReinstateMember(c, t, memberID, version)
 	})
 }
 
 func (h *Handler) grantConsent(c *gin.Context) {
-	h.memberStatus(c, func(t tenant.Context, memberID string, version int64) (Member, error) {
+	h.memberStatus(c, func(t tenant.Context, memberID string, version int64) (models.Member, error) {
 		return h.s.GrantConsent(c, t, memberID, version)
 	})
 }
 
-func (h *Handler) memberStatus(c *gin.Context, apply func(tenant.Context, string, int64) (Member, error)) {
+func (h *Handler) memberStatus(c *gin.Context, apply func(tenant.Context, string, int64) (models.Member, error)) {
 	t, ok := h.gate(c, PermissionMembersManage)
 	if !ok {
 		return
@@ -357,12 +377,12 @@ func (h *Handler) linkAsset(c *gin.Context) {
 		respond.Error(c, apperrors.BadRequest("Request body is invalid.", nil))
 		return
 	}
-	authority, err := ParseAuthority(body.Authority)
+	authority, err := models.ParseAuthority(body.Authority)
 	if err != nil {
 		write(c, nil, err)
 		return
 	}
-	link, err := h.s.LinkAsset(c, t, LinkAssetRequest{
+	link, err := h.s.LinkAsset(c, t, usecases.LinkAssetRequest{
 		Authority: authority, AssetID: body.AssetID,
 		MemberID: body.MemberID, SourceVersion: body.SourceVersion,
 	})

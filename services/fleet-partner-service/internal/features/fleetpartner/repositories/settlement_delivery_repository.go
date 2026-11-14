@@ -2,15 +2,15 @@ package repositories
 
 import (
 	"context"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 )
 
 const settlementInstructionColumns = `instruction_id,organization_id,membership_id,provider_id,source_service,source_job_id,

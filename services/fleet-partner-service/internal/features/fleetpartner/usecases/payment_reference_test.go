@@ -1,10 +1,11 @@
 package usecases
 
 import (
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"strings"
 	"testing"
 	"time"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 )
 
 // FLEET-13.11. Completed work is fingerprinted as JSON. A submission without a

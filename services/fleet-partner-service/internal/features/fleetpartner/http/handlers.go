@@ -4,7 +4,6 @@ package http
 
 import (
 	"context"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"

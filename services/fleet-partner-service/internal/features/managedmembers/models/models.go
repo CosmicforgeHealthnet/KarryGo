@@ -15,10 +15,9 @@
 // resolve-before-link call, and Fleet stores the answer as an opaque
 // reference. A member record is an organization's view of a person, never an
 // operational profile.
-package managedmembers
+package models
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -212,13 +211,5 @@ type ProviderResolution struct {
 	SourceVersion       int64
 }
 
-// ProviderAuthority is the resolve-before-link contract.
-//
-// It returns a resolution or one of the two distinguishable failures. An
-// implementation that cannot reach its service must return
-// ErrAuthorityUnavailable rather than an empty resolution: a zero ProviderID
-// that reads as success would let Fleet record a link to a provider that no
-// service has ever heard of.
-type ProviderAuthority interface {
-	ResolveProvider(ctx context.Context, authority Authority, providerRef string) (ProviderResolution, error)
-}
+// MaxPageSize is the largest list page served (spec 36).
+const MaxPageSize = 200

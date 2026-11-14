@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	managedmembersmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/models"
+	managedmembersrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/repositories"
+	managedmembersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
 
@@ -30,7 +33,7 @@ type providerAuthorityAdapter struct {
 // "success" would let Fleet record an organization link to a provider no
 // service has ever heard of, and the error would surface later, as work
 // dispatched to nobody.
-func BuildProviderAuthorityAdapter(contracts platformclients.ContractSet) managedmembers.ProviderAuthority {
+func BuildProviderAuthorityAdapter(contracts platformclients.ContractSet) managedmembersusecases.ProviderAuthority {
 	providers := contracts.Providers
 	if providers == nil {
 		providers = platformclients.NewUnconfiguredContracts().Providers
@@ -40,22 +43,22 @@ func BuildProviderAuthorityAdapter(contracts platformclients.ContractSet) manage
 
 // ResolveProvider asks one authority to identify a provider.
 func (a *providerAuthorityAdapter) ResolveProvider(ctx context.Context,
-	authority managedmembers.Authority, providerRef string) (managedmembers.ProviderResolution, error) {
+	authority managedmembersmodels.Authority, providerRef string) (managedmembersmodels.ProviderResolution, error) {
 	contract, ok := a.providers[string(authority)]
 	if !ok || contract == nil {
-		return managedmembers.ProviderResolution{}, managedmembers.ErrAuthorityUnavailable
+		return managedmembersmodels.ProviderResolution{}, managedmembersmodels.ErrAuthorityUnavailable
 	}
 	view, err := contract.ReadProvider(ctx, platformclients.CallMeta{}, providerRef)
 	if err != nil {
-		return managedmembers.ProviderResolution{}, classifyAuthorityError(err)
+		return managedmembersmodels.ProviderResolution{}, classifyAuthorityError(err)
 	}
 	if view.ProviderID == "" {
 		// The authority answered without naming a provider. That is a refusal
 		// with extra steps, and recording it as a resolution would create a
 		// link to an identity that does not exist.
-		return managedmembers.ProviderResolution{}, managedmembers.ErrAuthorityRefused
+		return managedmembersmodels.ProviderResolution{}, managedmembersmodels.ErrAuthorityRefused
 	}
-	return managedmembers.ProviderResolution{
+	return managedmembersmodels.ProviderResolution{
 		ProviderID:          view.ProviderID,
 		QualificationStatus: view.PlatformStatus,
 		SourceVersion:       view.SourceVersion,
@@ -74,13 +77,20 @@ func classifyAuthorityError(err error) error {
 	if errors.As(err, &contractErr) {
 		switch contractErr.Outcome {
 		case platformclients.OutcomeUnknown, platformclients.OutcomeTransient:
-			return managedmembers.ErrAuthorityUnavailable
+			return managedmembersmodels.ErrAuthorityUnavailable
 		default:
-			return managedmembers.ErrAuthorityRefused
+			return managedmembersmodels.ErrAuthorityRefused
 		}
 	}
 	if errors.Is(err, platformclients.ErrNotConfigured) {
-		return managedmembers.ErrAuthorityUnavailable
+		return managedmembersmodels.ErrAuthorityUnavailable
 	}
-	return managedmembers.ErrAuthorityUnavailable
+	return managedmembersmodels.ErrAuthorityUnavailable
+}
+
+// ManagedMembersRepositoryBinder binds the member repository to a transaction
+// querier, so the member use cases commit a change, its audit record and its
+// outbox event together.
+func ManagedMembersRepositoryBinder(q database.Querier) managedmembersusecases.Repository {
+	return managedmembersrepositories.NewRepository(nil).With(q)
 }
