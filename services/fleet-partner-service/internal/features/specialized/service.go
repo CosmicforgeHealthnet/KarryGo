@@ -12,6 +12,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"strings"
@@ -440,25 +443,27 @@ func (s *Service) AddTemperature(ctx context.Context, t tenant.Context, id strin
 	if r.RecordType != "TEMPERATURE_REQUIREMENT" {
 		return v, apperrors.BadRequest("Temperature events require a temperature-requirement record.", nil)
 	}
-	var p map[string]any
-	_ = json.Unmarshal(r.Payload, &p)
-	min, _ := p["minimumTemperature"].(float64)
-	max, _ := p["maximumTemperature"].(float64)
-	requiredUnit, _ := p["unit"].(string)
 	if v.SensorReference == "" || v.SourceTime.IsZero() || v.SourceVersion < 0 || (v.Unit != "C" && v.Unit != "F") {
 		return v, apperrors.BadRequest("Sensor, source time, source version and temperature unit are required.", nil)
+	}
+	// FLEET-20.7: the excursion decision is made only against thresholds the
+	// requirement record actually states. A missing or unreadable bound used
+	// to read as 0, which turned every frozen-goods reading into an excursion
+	// (and every reading above 0 into one for a record with no maximum).
+	minimum, maximum, requiredUnit, e := temperatureThresholds(r.Payload)
+	if e != nil {
+		return v, e
 	}
 	if requiredUnit != "" && v.Unit != requiredUnit {
 		return v, apperrors.BadRequest("Temperature unit does not match the requirement.", nil)
 	}
-	existing, existingErr := scanTemperature(s.o.Pool.QueryRow(ctx, `SELECT `+temperatureCols+` FROM fleet_partner_temperature_events WHERE organization_id=$1 AND sensor_reference=$2 AND source_version=$3`, t.OrganizationID, v.SensorReference, v.SourceVersion))
-	if existingErr == nil {
-		return existing, nil
+	// A reading is replayed per record: one sensor may serve several
+	// cold-chain records, and the same (sensor, source version) sent against
+	// a second record is a different reading, not a replay of the first.
+	if existing, err := s.temperatureReplay(ctx, t, id, v); err == nil || !errors.Is(err, pgx.ErrNoRows) {
+		return existing, err
 	}
-	if !errors.Is(existingErr, pgx.ErrNoRows) {
-		return v, existingErr
-	}
-	v.Excursion = v.Temperature < min || v.Temperature > max
+	v.Excursion = v.Temperature < minimum || v.Temperature > maximum
 	v.ID = ids.New("tmp")
 	v.OrganizationID = t.OrganizationID
 	v.RecordID = id
@@ -466,24 +471,111 @@ func (s *Service) AddTemperature(ctx context.Context, t tenant.Context, id strin
 		v.SafeMetadata = json.RawMessage(`{}`)
 	}
 	e = s.tx(ctx, func(tx pgx.Tx) error {
-		x := tx.QueryRow(ctx, `INSERT INTO fleet_partner_temperature_events(id,organization_id,record_id,sensor_reference,temperature,unit,source_version,source_time,excursion,safe_metadata)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING received_at`, v.ID, v.OrganizationID, v.RecordID, v.SensorReference, v.Temperature, v.Unit, v.SourceVersion, v.SourceTime, v.Excursion, v.SafeMetadata).Scan(&v.ReceivedAt)
+		tag, x := tx.Exec(ctx, `INSERT INTO fleet_partner_temperature_events(id,organization_id,record_id,sensor_reference,temperature,unit,source_version,source_time,excursion,safe_metadata)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (organization_id,record_id,sensor_reference,source_version) DO NOTHING`, v.ID, v.OrganizationID, v.RecordID, v.SensorReference, v.Temperature, v.Unit, v.SourceVersion, v.SourceTime, v.Excursion, v.SafeMetadata)
 		if x != nil {
 			return x
 		}
-		if v.Excursion {
-			_, x = tx.Exec(ctx, `UPDATE fleet_partner_specialized_records SET status='QUARANTINED',version=version+1,updated_at=now() WHERE id=$1`, id)
-			if x != nil {
-				return x
-			}
-			if x = s.record(ctx, tx, t, "cold_chain.excursion.v1", "specialized_record", id, r.Version+1, map[string]any{"recordId": id, "sensorReference": v.SensorReference, "sourceVersion": v.SourceVersion, "quarantined": true}); x != nil {
-				return x
-			}
-			if s.o.Events != nil {
-				return s.o.Events.Publish(ctx, tx, "cold_chain.quarantined.v1", "specialized_record", id, r.Version+1, t.OrganizationID, t.CorrelationID, map[string]any{"recordId": id, "sourceVersion": v.SourceVersion})
-			}
+		if tag.RowsAffected() == 0 {
+			// A concurrent delivery of the same reading won the insert.
+			return errTemperatureRaced
+		}
+		if x = tx.QueryRow(ctx, `SELECT received_at FROM fleet_partner_temperature_events WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID).Scan(&v.ReceivedAt); x != nil {
+			return x
+		}
+		if x = s.record(ctx, tx, t, "cold_chain.temperature_recorded.v1", "temperature_event", v.ID, 1, map[string]any{"recordId": id, "sensorReference": v.SensorReference, "sourceVersion": v.SourceVersion, "excursion": v.Excursion}); x != nil {
+			return x
+		}
+		if !v.Excursion {
+			return nil
+		}
+		var version int64
+		x = tx.QueryRow(ctx, `UPDATE fleet_partner_specialized_records SET status='QUARANTINED',version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND status<>'QUARANTINED' RETURNING version`, t.OrganizationID, id).Scan(&version)
+		if errors.Is(x, pgx.ErrNoRows) {
+			// Already quarantined: the excursion is recorded, the status
+			// does not move again.
+			return nil
+		}
+		if x != nil {
+			return x
+		}
+		if x = s.record(ctx, tx, t, "cold_chain.excursion.v1", "specialized_record", id, version, map[string]any{"recordId": id, "sensorReference": v.SensorReference, "sourceVersion": v.SourceVersion, "quarantined": true}); x != nil {
+			return x
+		}
+		if s.o.Events != nil {
+			return s.o.Events.Publish(ctx, tx, "cold_chain.quarantined.v1", "specialized_record", id, version, t.OrganizationID, t.CorrelationID, map[string]any{"recordId": id, "sourceVersion": v.SourceVersion})
 		}
 		return nil
 	})
+	if errors.Is(e, errTemperatureRaced) {
+		return s.temperatureReplay(ctx, t, id, v)
+	}
 	return v, e
+}
+
+var errTemperatureRaced = errors.New("specialized: temperature reading inserted concurrently")
+
+// temperatureReplay returns the stored reading for (record, sensor, source
+// version). The same identity with a different reading is a conflict: a
+// sensor that reports two values for one source version is not a replay.
+func (s *Service) temperatureReplay(ctx context.Context, t tenant.Context, recordID string, v TemperatureEvent) (TemperatureEvent, error) {
+	existing, err := scanTemperature(s.o.Pool.QueryRow(ctx, `SELECT `+temperatureCols+` FROM fleet_partner_temperature_events WHERE organization_id=$1 AND record_id=$2 AND sensor_reference=$3 AND source_version=$4`, t.OrganizationID, recordID, v.SensorReference, v.SourceVersion))
+	if err != nil {
+		return v, err
+	}
+	if existing.Unit != v.Unit || math.Abs(existing.Temperature-v.Temperature) > 0.0005 || !existing.SourceTime.Equal(v.SourceTime) {
+		return v, apperrors.Conflict("This sensor already reported a different reading for this source version.", nil)
+	}
+	return existing, nil
+}
+
+// temperatureThresholds reads the requirement's bounds. Both bounds must be
+// present and numeric (a JSON number or a numeric string), and the minimum
+// may not exceed the maximum.
+func temperatureThresholds(payload json.RawMessage) (float64, float64, string, error) {
+	var p map[string]any
+	if json.Unmarshal(payload, &p) != nil {
+		return 0, 0, "", apperrors.Validation("The temperature requirement is unreadable.", nil)
+	}
+	unit, _ := p["unit"].(string)
+	minimum, minOK := thresholdNumber(p["minimumTemperature"])
+	maximum, maxOK := thresholdNumber(p["maximumTemperature"])
+	var fields []apperrors.FieldViolation
+	if !minOK {
+		fields = append(fields, apperrors.FieldViolation{Field: "minimumTemperature", Message: "The requirement record has no numeric minimum temperature."})
+	}
+	if !maxOK {
+		fields = append(fields, apperrors.FieldViolation{Field: "maximumTemperature", Message: "The requirement record has no numeric maximum temperature."})
+	}
+	if len(fields) > 0 {
+		return 0, 0, "", apperrors.Validation("The temperature requirement has no usable thresholds; update the record before recording readings.", fields)
+	}
+	if minimum > maximum {
+		return 0, 0, "", apperrors.Validation("The temperature requirement's minimum exceeds its maximum.", []apperrors.FieldViolation{{Field: "minimumTemperature", Message: "Must not exceed maximumTemperature."}})
+	}
+	return minimum, maximum, unit, nil
+}
+
+func thresholdNumber(raw any) (float64, bool) {
+	var f float64
+	switch x := raw.(type) {
+	case float64:
+		f = x
+	case json.Number:
+		var err error
+		if f, err = x.Float64(); err != nil {
+			return 0, false
+		}
+	case string:
+		var err error
+		if f, err = strconv.ParseFloat(strings.TrimSpace(x), 64); err != nil {
+			return 0, false
+		}
+	default:
+		return 0, false
+	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	return f, true
 }
 func mustJSON(v any) []byte { b, _ := json.Marshal(v); return b }
