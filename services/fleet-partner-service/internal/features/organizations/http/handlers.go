@@ -1400,7 +1400,7 @@ func (h *Handler) listProviders(c *gin.Context) {
 	if hasCursor {
 		query.CursorSortValue, query.CursorLastID = position.SortValue, position.LastID
 	}
-	memberships, err := h.providers.Repository().ListMemberships(c.Request.Context(), query)
+	memberships, err := h.providers.ListMemberships(c.Request.Context(), query)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -1473,13 +1473,9 @@ func (h *Handler) providerProvisioningStatus(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.read") {
 		return
 	}
-	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
-		return
-	}
-	saga, err := h.providers.Repository().GetSaga(c.Request.Context(),
-		tenantCtx.OrganizationID, c.Param("membershipId"))
+	saga, err := h.providers.ProvisioningStatus(c.Request.Context(), tenantCtx, c.Param("membershipId"))
 	if err != nil {
-		respond.Error(c, apperrors.NotFound("Provisioning status not found.", nil))
+		respond.Error(c, err)
 		return
 	}
 	respond.OK(c, gin.H{
@@ -1500,11 +1496,7 @@ func (h *Handler) providerHistory(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.read") {
 		return
 	}
-	if _, ok := h.visibleProvider(c, tenantCtx); !ok {
-		return
-	}
-	history, err := h.providers.Repository().ListHistory(c.Request.Context(),
-		tenantCtx.OrganizationID, c.Param("membershipId"))
+	history, err := h.providers.History(c.Request.Context(), tenantCtx, c.Param("membershipId"))
 	if err != nil {
 		respond.Error(c, err)
 		return

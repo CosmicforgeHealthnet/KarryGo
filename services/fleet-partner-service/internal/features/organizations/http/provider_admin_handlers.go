@@ -108,7 +108,7 @@ func (h *Handler) removeProvider(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	membership, err := h.providers.Repository().GetMembership(c.Request.Context(), tenantCtx.OrganizationID, c.Param("membershipId"))
+	membership, err := h.providers.VisibleMembership(c.Request.Context(), tenantCtx, c.Param("membershipId"))
 	if err != nil {
 		respond.Error(c, err)
 		return
