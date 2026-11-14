@@ -2,9 +2,9 @@ package usecases
 
 import (
 	"context"
-		"errors"
+	"errors"
 	"strings"
-	
+
 	"github.com/jackc/pgx/v5"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"

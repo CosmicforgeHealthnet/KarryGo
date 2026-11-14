@@ -9,7 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/models"
-	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
+	routemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/models"
+	trackingmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/logging"
@@ -23,12 +25,18 @@ import (
 // database or from the in-process dispatch service.
 type Service struct {
 	pool     *pgxpool.Pool
-	dispatch *dispatchfeature.Service
+	dispatch BoardReader
 	now      func() time.Time
 }
 
+// BoardReader is the dispatch control-tower board the dashboard aggregates.
+// The composition root adapts the dispatch feature to it.
+type BoardReader interface {
+	Board(ctx context.Context, t tenant.Context, f dispatchmodels.PageFilter) (dispatchmodels.Board, error)
+}
+
 // NewService creates a new dashboard service.
-func NewService(pool *pgxpool.Pool, dispatchService *dispatchfeature.Service) *Service {
+func NewService(pool *pgxpool.Pool, dispatchService BoardReader) *Service {
 	return &Service{
 		pool:     pool,
 		dispatch: dispatchService,
@@ -47,7 +55,7 @@ func (s *Service) GetDashboard(ctx context.Context, t tenant.Context) (*models.D
 	board, err := s.getDispatchBoard(ctx, t)
 	if err != nil {
 		logging.Error("dashboard", "dispatch board unavailable org=%s: %v", orgID, err)
-		board = &dispatchfeature.Board{}
+		board = &dispatchmodels.Board{}
 	}
 
 	fleet := s.getFleetStats(ctx, orgID)
@@ -103,11 +111,11 @@ type weeklySeries struct {
 // Dispatch board
 // ---------------------------------------------------------------------------
 
-func (s *Service) getDispatchBoard(ctx context.Context, t tenant.Context) (*dispatchfeature.Board, error) {
+func (s *Service) getDispatchBoard(ctx context.Context, t tenant.Context) (*dispatchmodels.Board, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	board, err := s.dispatch.Board(timeoutCtx, t, dispatchfeature.PageFilter{Limit: 100})
+	board, err := s.dispatch.Board(timeoutCtx, t, dispatchmodels.PageFilter{Limit: 100})
 	if err != nil {
 		return nil, fmt.Errorf("dispatch board: %w", err)
 	}
@@ -534,7 +542,7 @@ func (s *Service) getSystemStatus(ctx context.Context) []models.SystemStatusItem
 // Builders
 // ---------------------------------------------------------------------------
 
-func (s *Service) buildStats(board *dispatchfeature.Board, f fleetStats, t tripStats) models.DashboardStats {
+func (s *Service) buildStats(board *dispatchmodels.Board, f fleetStats, t tripStats) models.DashboardStats {
 	activeWork := len(board.ActiveTrips)
 	if activeWork == 0 && len(board.ActiveRoutes) > 0 {
 		activeWork = len(board.ActiveRoutes)
@@ -565,7 +573,7 @@ func (s *Service) buildStats(board *dispatchfeature.Board, f fleetStats, t tripS
 	}
 }
 
-func (s *Service) mapAlerts(alerts []dispatchfeature.OperationalAlert) []models.DashboardAlert {
+func (s *Service) mapAlerts(alerts []dispatchmodels.OperationalAlert) []models.DashboardAlert {
 	if len(alerts) == 0 {
 		return []models.DashboardAlert{}
 	}
@@ -589,7 +597,7 @@ func (s *Service) mapAlerts(alerts []dispatchfeature.OperationalAlert) []models.
 	return out
 }
 
-func alertTitle(a dispatchfeature.OperationalAlert) string {
+func alertTitle(a dispatchmodels.OperationalAlert) string {
 	switch a.AlertType {
 	case "SAFETY_BLOCK":
 		return fmt.Sprintf("Vehicle %s safety block", a.SourceID)
@@ -606,7 +614,7 @@ func alertTitle(a dispatchfeature.OperationalAlert) string {
 	}
 }
 
-func alertDetail(a dispatchfeature.OperationalAlert) string {
+func alertDetail(a dispatchmodels.OperationalAlert) string {
 	switch a.AlertType {
 	case "SAFETY_BLOCK":
 		return "Inspection failed"
@@ -624,14 +632,14 @@ func alertDetail(a dispatchfeature.OperationalAlert) string {
 func (s *Service) mapActiveTrips(
 	ctx context.Context,
 	orgID string,
-	trips []dispatchfeature.TrackingProjection,
-	routes []dispatchfeature.RoutePlan,
+	trips []trackingmodels.TrackingProjection,
+	routes []routemodels.RoutePlan,
 ) []models.DashboardTrip {
 	if len(trips) == 0 {
 		return []models.DashboardTrip{}
 	}
 
-	routeMap := make(map[string]dispatchfeature.RoutePlan, len(routes))
+	routeMap := make(map[string]routemodels.RoutePlan, len(routes))
 	for _, r := range routes {
 		routeMap[r.ID] = r
 	}
@@ -711,7 +719,7 @@ func (s *Service) buildRouteText(ctx context.Context, orgID, routeID string) str
 	return first + " → " + last
 }
 
-func (s *Service) calculateETA(trip dispatchfeature.TrackingProjection) string {
+func (s *Service) calculateETA(trip trackingmodels.TrackingProjection) string {
 	if trip.ReceivedAt.IsZero() {
 		return "Pending"
 	}

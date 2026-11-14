@@ -39,7 +39,6 @@ import (
 	crmusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/usecases"
 	dashboardhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/http"
 	dashboardusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/usecases"
-	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	documentrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/repositories"
 	documentusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/usecases"
@@ -99,6 +98,7 @@ import (
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
+	trackinghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/http"
 	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
@@ -172,7 +172,7 @@ type Components struct {
 	RecurringOrders   *recurringusecases.Service
 	BulkImports       *bulkusecases.Service
 	PrivateOperations *privateusecases.Service
-	DispatchControl   *dispatchfeature.Service
+	DispatchControl   *Section16
 	Workforce         *workforcefeature.Service
 	Assets            *assetsfeature.Service
 	Compliance        *complianceusecases.Service
@@ -445,7 +445,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	assetsService := assetsfeature.NewService(assetsfeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: assetsfeature.Flags{Assets: cfg.AssetsEnabled, Assignments: cfg.AssetAssignmentsEnabled, Inspections: cfg.InspectionsEnabled, Maintenance: cfg.MaintenanceEnabled, Breakdowns: cfg.BreakdownsEnabled, Inventory: cfg.PartsInventoryEnabled, Fuel: cfg.FuelRecordsEnabled, Workers: cfg.Section18WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	privateOperations := BuildPrivateOperationsService(cfg, pool, publisher, metrics, workforceService, assetsService, restrictionGate)
 	dispatchControl := BuildSection16Service(cfg, pool, publisher, privateOperations, eligibilityService, workforceService, assetsService, restrictionGate)
-	assetsService.SetAlertSink(dispatchControl)
+	assetsService.SetAlertSink(dispatchControl.Dispatch)
 
 	safetyOperations := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Media: contracts.Media, Flags: safetyfeature.OperationsFlags{Reports: cfg.SafetyReportsEnabled, Incidents: cfg.IncidentsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	proofService := prooffeature.NewService(prooffeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, HashSecret: cfg.ProofHMACSecret, Flags: prooffeature.Flags{Policies: cfg.ProofPoliciesEnabled, Records: cfg.ProofRecordsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
@@ -678,7 +678,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	recurringHandler := recurringhttp.NewHandler(c.RecurringOrders, c.Authorizer, c.Idempotency)
 	bulkHandler := bulkhttp.NewHandler(c.BulkImports, c.Authorizer, c.Idempotency)
 	privateHandler := privatehttp.NewHandler(c.PrivateOperations, c.Authorizer, c.Idempotency)
-	dispatchHandler := dispatchfeature.NewHandler(c.DispatchControl, c.Authorizer, c.Idempotency)
+	section16 := c.section16()
 	workforceHandler := workforcefeature.NewHandler(c.Workforce, c.Authorizer, c.Idempotency)
 	assetsHandler := assetsfeature.NewHandler(c.Assets, c.Authorizer, c.Idempotency)
 	complianceHandler := compliancehttp.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
@@ -828,7 +828,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// ============================================================
 	// DASHBOARD ROUTES - ADDED FOR PRODUCTION DASHBOARD
 	// ============================================================
-	dashboardService := dashboardusecases.NewService(c.Pool, c.DispatchControl)
+	dashboardService := dashboardusecases.NewService(c.Pool, section16.Dispatch)
 	dashboardHandler := dashboardhttp.NewHandler(dashboardService, c.Authorizer)
 
 	// ============================================================
@@ -869,7 +869,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		recurringHandler.RegisterTenantRoutes(group)
 		bulkHandler.RegisterTenantRoutes(group)
 		privateHandler.RegisterTenantRoutes(group)
-		dispatchHandler.RegisterTenantRoutes(group)
+		section16.RegisterTenantRoutes(group, c.Authorizer, c.Idempotency)
 		workforceHandler.RegisterTenantRoutes(group)
 		assetsHandler.RegisterTenantRoutes(group)
 		complianceHandler.RegisterTenantRoutes(group)
@@ -985,7 +985,7 @@ func (c *Components) InternalPrivateOperationsRoutes() RouteRegistrar {
 // InternalSection16Routes mounts authoritative Dispatch/Hauling tracking
 // ingestion only on the HMAC-authenticated internal surface.
 func (c *Components) InternalSection16Routes() RouteRegistrar {
-	handler := dispatchfeature.NewHandler(c.DispatchControl, c.Authorizer, c.Idempotency)
+	handler := trackinghttp.NewHandler(c.section16().Tracking, c.Authorizer)
 	return func(group *gin.RouterGroup) { handler.RegisterInternalRoutes(group) }
 }
 

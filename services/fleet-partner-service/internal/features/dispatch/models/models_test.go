@@ -1,15 +1,16 @@
-package dispatch
+package models
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	trackingmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/models"
 )
 
 func eligibleFact() CandidateFact {
-	return CandidateFact{ProviderID: "provider-1", ProviderMembershipID: "membership-1", VehicleReference: "vehicle-1", ExecutionService: "DISPATCH", MembershipActive: true, ProviderActive: true, CapabilityMatch: true, Available: true, VehicleEligible: true, CapacityOK: true, BranchAllowed: true, CargoAllowed: true, SafetyAllowed: true, ReservationFree: true, ActiveWorkFree: true, TrackingFreshness: Fresh, SourceVersions: map[string]int64{"provider": 4, "vehicle": 7}}
+	return CandidateFact{ProviderID: "provider-1", ProviderMembershipID: "membership-1", VehicleReference: "vehicle-1", ExecutionService: "DISPATCH", MembershipActive: true, ProviderActive: true, CapabilityMatch: true, Available: true, VehicleEligible: true, CapacityOK: true, BranchAllowed: true, CargoAllowed: true, SafetyAllowed: true, ReservationFree: true, ActiveWorkFree: true, TrackingFreshness: trackingmodels.Fresh, SourceVersions: map[string]int64{"provider": 4, "vehicle": 7}}
 }
 func TestCandidateScoringIsExplainableDeterministicAndFailClosed(t *testing.T) {
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
@@ -48,7 +49,7 @@ func TestCandidateHardBlocksAndFreshnessWarnings(t *testing.T) {
 		})
 	}
 	f := eligibleFact()
-	f.TrackingFreshness = Stale
+	f.TrackingFreshness = trackingmodels.Stale
 	c := ScoreCandidate("o", "b", "ROUTE", "r", f, time.Now(), time.Minute)
 	if c.EligibilityStatus != "ELIGIBLE" || !contains(c.Warnings, "TRACKING_STALE") {
 		t.Fatalf("stale authoritative location should warn, got %+v", c)
@@ -61,34 +62,6 @@ func contains(v []string, w string) bool {
 		}
 	}
 	return false
-}
-func TestCentralStateTransitions(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		ok, bad bool
-	}{{"manual plan approval", ValidPlanTransition(PlanDraft, PlanApproved), ValidPlanTransition(PlanCompleted, PlanDraft)}, {"manual route approval", ValidRouteTransition(RouteDraft, RouteApproved), ValidRouteTransition(RoutePublished, RouteDraft)}, {"route lifecycle", ValidRouteTransition(RoutePublished, RouteInProgress), ValidRouteTransition(RouteCompleted, RouteInProgress)}, {"stop lifecycle", ValidStopTransition(StopArrived, StopServiceStarted), ValidStopTransition(StopCompleted, StopPlanned)}, {"alert lifecycle", ValidAlertTransition(AlertAcknowledged, AlertResolved), ValidAlertTransition(AlertResolved, AlertOpen)}} {
-		if !tc.ok || tc.bad {
-			t.Errorf("%s ok=%v bad=%v", tc.name, tc.ok, tc.bad)
-		}
-	}
-}
-func TestTrackingFreshnessAndGap(t *testing.T) {
-	now := time.Now()
-	if got := Freshness(now.Add(-time.Minute), now, 2*time.Minute, 10*time.Minute, false); got != Fresh {
-		t.Fatal(got)
-	}
-	if got := Freshness(now.Add(-5*time.Minute), now, 2*time.Minute, 10*time.Minute, false); got != Aging {
-		t.Fatal(got)
-	}
-	if got := Freshness(now.Add(-20*time.Minute), now, 2*time.Minute, 10*time.Minute, false); got != Stale {
-		t.Fatal(got)
-	}
-	if got := Freshness(time.Time{}, now, 2*time.Minute, 10*time.Minute, false); got != Unknown {
-		t.Fatal(got)
-	}
-	if got := Freshness(now, now, 2*time.Minute, 10*time.Minute, true); got != Gapped {
-		t.Fatal(got)
-	}
 }
 func TestGeofenceValidationAndContainment(t *testing.T) {
 	circle := Geofence{GeometryType: "CIRCLE", Geometry: Geometry{Center: &Point{0, 0}, RadiusMeters: 1000}}
@@ -113,52 +86,13 @@ func TestGeofenceValidationAndContainment(t *testing.T) {
 		t.Fatal("invalid circle accepted")
 	}
 }
-func TestOptimizationFingerprintCoversRouteVersionAndInputs(t *testing.T) {
-	a := OptimizationInput{RouteID: "r", RouteVersion: 1, Stops: []RouteStop{{ID: "s1", Sequence: 1}}}
-	b := a
-	if OptimizationFingerprint(a) != OptimizationFingerprint(a) {
-		t.Fatal("fingerprint must be deterministic")
-	}
-	b.RouteVersion = 2
-	if OptimizationFingerprint(a) == OptimizationFingerprint(b) {
-		t.Fatal("changed route version must create a new fingerprint")
-	}
-	b = a
-	b.Stops = append([]RouteStop(nil), a.Stops...)
-	b.Stops[0].Sequence = 2
-	if OptimizationFingerprint(a) == OptimizationFingerprint(b) {
-		t.Fatal("changed route input must create a new fingerprint")
-	}
-	raw, _ := json.Marshal(a)
-	if len(raw) == 0 {
-		t.Fatal("optimization input must be serializable")
-	}
-}
-func TestSection16RouteCatalogue(t *testing.T) {
-	routes := TenantRoutes()
-	if len(routes) != 44 {
-		t.Fatalf("tenant route count=%d", len(routes))
-	}
-	seen := map[string]bool{}
-	for _, r := range routes {
-		k := r.Method + " " + r.Path
-		if seen[k] {
-			t.Fatalf("duplicate route %s", k)
-		}
-		seen[k] = true
-		if r.Permission == "" || r.FeatureFlag == "" || r.AuthClass != "corporate" {
-			t.Fatalf("incomplete route metadata %+v", r)
-		}
-	}
-	for _, required := range []string{"GET /dispatch/board", "GET /dispatch/unassigned", "GET /dispatch/candidates", "POST /routes/:routeId/publish", "GET /control-tower", "GET /tracking/:canonicalTripReference", "POST /alerts/:alertId/resolve"} {
-		if !seen[required] {
-			t.Errorf("missing %s", required)
-		}
-	}
-	for key := range seen {
-		lower := strings.ToLower(key)
-		if strings.Contains(lower, "/partner") || strings.Contains(lower, "/taxi") {
-			t.Errorf("deferred route present: %s", key)
+func TestCentralStateTransitions(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		ok, bad bool
+	}{{"manual plan approval", ValidPlanTransition(PlanDraft, PlanApproved), ValidPlanTransition(PlanCompleted, PlanDraft)}, {"alert lifecycle", ValidAlertTransition(AlertAcknowledged, AlertResolved), ValidAlertTransition(AlertResolved, AlertOpen)}} {
+		if !tc.ok || tc.bad {
+			t.Errorf("%s ok=%v bad=%v", tc.name, tc.ok, tc.bad)
 		}
 	}
 }

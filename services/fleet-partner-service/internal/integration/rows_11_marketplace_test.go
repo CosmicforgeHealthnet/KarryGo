@@ -15,7 +15,9 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
+	dispatchrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/repositories"
+	dispatchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
@@ -694,11 +696,12 @@ func TestRow11_7a_CancelAssignment(t *testing.T) {
 // s11AlertSink is the Section 16 operational alert service as the expiry
 // worker builds it (app.BuildMarketplaceExpiryAlertSink), with the alerts
 // flag under test control.
-func s11AlertSink(pool *pgxpool.Pool, enabled bool) *dispatch.Service {
-	return dispatch.NewService(dispatch.Options{
-		Pool:   pool,
-		Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
-		Flags:  dispatch.Flags{OperationalAlerts: enabled},
+func s11AlertSink(pool *pgxpool.Pool, enabled bool) *dispatchusecases.Service {
+	return dispatchusecases.NewService(dispatchusecases.Options{
+		Pool:       pool,
+		Repository: dispatchrepos.NewRepository(pool),
+		Events:     events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+		Flags:      dispatchmodels.Flags{OperationalAlerts: enabled},
 	})
 }
 

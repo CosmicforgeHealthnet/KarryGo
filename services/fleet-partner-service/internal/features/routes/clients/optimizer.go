@@ -1,4 +1,5 @@
-package dispatch
+// Package clients holds the route optimizer transport.
+package clients
 
 import (
 	"bytes"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/models"
 	"cosmicforge/logistics/shared/go/serviceauth"
 )
 
@@ -28,7 +30,7 @@ func NewHTTPOptimizer(baseURL string, secret []byte, timeout time.Duration) *HTT
 	}
 	return &HTTPOptimizer{strings.TrimRight(baseURL, "/"), secret, &http.Client{Timeout: timeout}}
 }
-func (c *HTTPOptimizer) Submit(ctx context.Context, input OptimizationInput) (string, bool, error) {
+func (c *HTTPOptimizer) Submit(ctx context.Context, input models.OptimizationInput) (string, bool, error) {
 	raw, _ := json.Marshal(input)
 	req, e := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/internal/optimization/v1/routes", bytes.NewReader(raw))
 	if e != nil {
@@ -67,30 +69,30 @@ func (c *HTTPOptimizer) Submit(ctx context.Context, input OptimizationInput) (st
 	}
 	return "", false, errors.New("optimization provider rejected request")
 }
-func (c *HTTPOptimizer) ReadBack(ctx context.Context, ref string) (OptimizationResult, bool, error) {
+func (c *HTTPOptimizer) ReadBack(ctx context.Context, ref string) (models.OptimizationResult, bool, error) {
 	req, e := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/internal/optimization/v1/routes/"+url.PathEscape(ref), nil)
 	if e != nil {
-		return OptimizationResult{}, false, e
+		return models.OptimizationResult{}, false, e
 	}
 	if e = serviceauth.SignRequest(req, "fleet-partner-service", c.secret, nil, time.Time{}); e != nil {
-		return OptimizationResult{}, false, e
+		return models.OptimizationResult{}, false, e
 	}
 	resp, e := c.client.Do(req)
 	if e != nil {
-		return OptimizationResult{}, false, e
+		return models.OptimizationResult{}, false, e
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusAccepted {
-		return OptimizationResult{}, false, nil
+		return models.OptimizationResult{}, false, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return OptimizationResult{}, false, errors.New("optimization read-back failed")
+		return models.OptimizationResult{}, false, errors.New("optimization read-back failed")
 	}
 	var envelope struct {
-		Data OptimizationResult `json:"data"`
+		Data models.OptimizationResult `json:"data"`
 	}
 	if e = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&envelope); e != nil {
-		return OptimizationResult{}, false, e
+		return models.OptimizationResult{}, false, e
 	}
 	return envelope.Data, true, nil
 }

@@ -17,7 +17,9 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	dispatch "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	app "cosmicforge/logistics/services/fleet-partner-service/internal/app"
+	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
+	trackingmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/models"
 	privatemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/models"
 	privaterepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/repositories"
 	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
@@ -42,7 +44,7 @@ func (w rescueWorkStub) Resolve(context.Context, database.Querier, string, strin
 
 type rescueFixture struct {
 	pool        *pgxpool.Pool
-	dispatch    *dispatch.Service
+	dispatch    *app.Section16
 	private     *privateusecases.Service
 	t           tenant.Context
 	org, branch string
@@ -58,7 +60,7 @@ func newRescueFixture(t *testing.T) *rescueFixture {
 	}
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	private := privateusecases.NewService(privateusecases.Options{Pool: pool, Repository: privaterepos.NewRepository(pool), Work: rescueWorkStub{branch: branch}, Eligibility: privateEligibilityAlways{}, Events: publisher, Flags: privateusecases.Flags{Enabled: true, WritesEnabled: true, DispatchEnabled: true, HaulingEnabled: true}})
-	svc := dispatch.NewService(dispatch.Options{Pool: pool, PrivateAssignments: private, Rescue: private, Candidates: candidateFactsStub{}, Events: publisher, Flags: dispatch.Flags{DispatchPlanning: true, ControlTower: true, TrackingProjections: true, Geofences: true, OperationalAlerts: true, Workers: true}})
+	svc := app.NewSection16(app.Section16Options{Pool: pool, PrivateAssignments: private, Rescue: private, Candidates: candidateFactsStub{}, Events: publisher, Flags: dispatchmodels.Flags{DispatchPlanning: true, ControlTower: true, TrackingProjections: true, Geofences: true, OperationalAlerts: true, Workers: true}})
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: "user-rescue", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "user-rescue", CorrelationID: "rescue-test"}
 	return &rescueFixture{pool: pool, dispatch: svc, private: private, t: scope, org: org.ID, branch: branch}
 }
@@ -89,7 +91,7 @@ func errStatus(e error) int {
 	if e == nil {
 		return 0
 	}
-	if errors.Is(e, dispatch.ErrConflict) {
+	if errors.Is(e, dispatchmodels.ErrConflict) {
 		return http.StatusConflict
 	}
 	return apperrors.From(e).Status
@@ -101,30 +103,30 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 	original := f.assignment(t, "PENDING_PROVIDER_RESPONSE", "mem-a", "prov-a")
 
 	// Validation.
-	if _, e := f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{TriggerType: "BREAKDOWN", Severity: "HIGH", PrivateAssignmentID: original, IdempotencyKey: "k0"}); errStatus(e) != 400 {
+	if _, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{TriggerType: "BREAKDOWN", Severity: "HIGH", PrivateAssignmentID: original, IdempotencyKey: "k0"}); errStatus(e) != 400 {
 		t.Fatalf("missing reason accepted: %v", e)
 	}
-	if _, e := f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{TriggerType: "MAGIC", Severity: "HIGH", Reason: "x", PrivateAssignmentID: original, IdempotencyKey: "k0"}); errStatus(e) != 400 {
+	if _, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{TriggerType: "MAGIC", Severity: "HIGH", Reason: "x", PrivateAssignmentID: original, IdempotencyKey: "k0"}); errStatus(e) != 400 {
 		t.Fatalf("invalid trigger accepted: %v", e)
 	}
-	if _, e := f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{TriggerType: "BREAKDOWN", Severity: "HIGH", Reason: "x", PrivateAssignmentID: "pas_unknown", IdempotencyKey: "k0"}); errStatus(e) != 404 {
+	if _, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{TriggerType: "BREAKDOWN", Severity: "HIGH", Reason: "x", PrivateAssignmentID: "pas_unknown", IdempotencyKey: "k0"}); errStatus(e) != 404 {
 		t.Fatalf("unknown assignment status=%d %v", errStatus(e), e)
 	}
 
-	open := dispatch.OpenRescueCaseInput{TriggerType: "BREAKDOWN", Severity: "HIGH", Reason: "Truck broke down on the expressway", PrivateAssignmentID: original, IdempotencyKey: "rescue-1"}
-	rc, e := f.dispatch.OpenRescueCase(ctx, f.t, open)
+	open := dispatchmodels.OpenRescueCaseInput{TriggerType: "BREAKDOWN", Severity: "HIGH", Reason: "Truck broke down on the expressway", PrivateAssignmentID: original, IdempotencyKey: "rescue-1"}
+	rc, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, open)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if rc.Status != dispatch.RescueOpen || rc.BranchID != f.branch || rc.CurrentAssignmentID != original || rc.AlertID == "" || rc.Version != 1 {
+	if rc.Status != dispatchmodels.RescueOpen || rc.BranchID != f.branch || rc.CurrentAssignmentID != original || rc.AlertID == "" || rc.Version != 1 {
 		t.Fatalf("opened case %+v", rc)
 	}
-	replay, e := f.dispatch.OpenRescueCase(ctx, f.t, open)
+	replay, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, open)
 	if e != nil || replay.ID != rc.ID {
 		t.Fatalf("idempotent replay %+v %v", replay, e)
 	}
 	open.IdempotencyKey = "rescue-dup"
-	if _, e = f.dispatch.OpenRescueCase(ctx, f.t, open); errStatus(e) != 409 {
+	if _, e = f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, open); errStatus(e) != 409 {
 		t.Fatalf("second open case for same work/trigger: %v", e)
 	}
 	if n := countRows(t, f.pool, `SELECT count(*) FROM fleet_partner_operational_alerts WHERE organization_id=$1 AND alert_type='RESCUE_REQUIRED' AND source_id=$2 AND status='OPEN'`, f.org, rc.ID); n != 1 {
@@ -133,19 +135,19 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 
 	// The original assignment still holds the work (awaiting its provider):
 	// no replacement may be forced past it.
-	repl := dispatch.RescueReplacementInput{ProviderMembershipID: "mem-b", ProviderID: "prov-b", VehicleOrTruckReference: "vehicle-b", ExpectedVersion: rc.Version}
-	if _, e = f.dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, repl); errStatus(e) != 409 {
+	repl := dispatchmodels.RescueReplacementInput{ProviderMembershipID: "mem-b", ProviderID: "prov-b", VehicleOrTruckReference: "vehicle-b", ExpectedVersion: rc.Version}
+	if _, e = f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, repl); errStatus(e) != 409 {
 		t.Fatalf("replacement while original active: %v", e)
 	}
 	f.respond(t, original, "prov-a", "DECLINE")
 	stale := repl
 	stale.ExpectedVersion = 99
-	if _, e = f.dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, stale); errStatus(e) != 409 {
+	if _, e = f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, stale); errStatus(e) != 409 {
 		t.Fatalf("stale version accepted: %v", e)
 	}
 	same := repl
 	same.ProviderMembershipID = "mem-a"
-	if _, e = f.dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, same); errStatus(e) != 400 {
+	if _, e = f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, same); errStatus(e) != 400 {
 		t.Fatalf("same provider re-offered: %v", e)
 	}
 
@@ -156,7 +158,7 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, x := f.dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, repl)
+			_, x := f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, repl)
 			results <- x
 		}()
 	}
@@ -173,14 +175,14 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 	if ok != 1 {
 		t.Fatalf("concurrent offers succeeded=%d", ok)
 	}
-	rc, e = f.dispatch.GetRescueCase(ctx, f.t, rc.ID)
-	if e != nil || rc.Status != dispatch.RescueReplacementPending || rc.ReplacementAttempts != 1 || rc.ReplacementAssignmentStatus != privatemodels.StatusPending {
+	rc, e = f.dispatch.Dispatch.GetRescueCase(ctx, f.t, rc.ID)
+	if e != nil || rc.Status != dispatchmodels.RescueReplacementPending || rc.ReplacementAttempts != 1 || rc.ReplacementAssignmentStatus != privatemodels.StatusPending {
 		t.Fatalf("after offer %+v %v", rc, e)
 	}
 	if n := countRows(t, f.pool, `SELECT count(*) FROM fleet_partner_private_assignments WHERE organization_id=$1 AND provider_id='prov-b' AND status='PENDING_PROVIDER_RESPONSE'`, f.org); n != 1 {
 		t.Fatalf("replacement assignments=%d", n)
 	}
-	if _, e = f.dispatch.ResolveRescueCase(ctx, f.t, rc.ID, dispatch.ResolveRescueCaseInput{ResolutionCode: "RECOVERED_ON_SITE", Notes: "n", ExpectedVersion: rc.Version}); errStatus(e) != 409 {
+	if _, e = f.dispatch.Dispatch.ResolveRescueCase(ctx, f.t, rc.ID, dispatchmodels.ResolveRescueCaseInput{ResolutionCode: "RECOVERED_ON_SITE", Notes: "n", ExpectedVersion: rc.Version}); errStatus(e) != 409 {
 		t.Fatalf("resolve while replacement pending: %v", e)
 	}
 
@@ -189,23 +191,23 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 	if e = f.dispatch.RunMaintenance(ctx); e != nil {
 		t.Fatal(e)
 	}
-	rc, _ = f.dispatch.GetRescueCase(ctx, f.t, rc.ID)
-	if rc.Status != dispatch.RescueOpen {
+	rc, _ = f.dispatch.Dispatch.GetRescueCase(ctx, f.t, rc.ID)
+	if rc.Status != dispatchmodels.RescueOpen {
 		t.Fatalf("declined replacement did not reopen case: %+v", rc)
 	}
 
 	// A second provider is offered the work and explicitly accepts it.
-	repl = dispatch.RescueReplacementInput{ProviderMembershipID: "mem-c", ProviderID: "prov-c", ExpectedVersion: rc.Version}
-	rc, e = f.dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, repl)
+	repl = dispatchmodels.RescueReplacementInput{ProviderMembershipID: "mem-c", ProviderID: "prov-c", ExpectedVersion: rc.Version}
+	rc, e = f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, repl)
 	if e != nil || rc.ReplacementAttempts != 2 {
 		t.Fatalf("second offer %+v %v", rc, e)
 	}
 	f.respond(t, rc.ReplacementAssignmentID, "prov-c", "ACCEPT")
-	resolved, e := f.dispatch.ResolveRescueCase(ctx, f.t, rc.ID, dispatch.ResolveRescueCaseInput{ResolutionCode: "REPLACEMENT_COMPLETED", Notes: "Cargo transferred to replacement rider", ExpectedVersion: rc.Version})
-	if e != nil || resolved.Status != dispatch.RescueResolved || resolved.ResolvedAt == nil {
+	resolved, e := f.dispatch.Dispatch.ResolveRescueCase(ctx, f.t, rc.ID, dispatchmodels.ResolveRescueCaseInput{ResolutionCode: "REPLACEMENT_COMPLETED", Notes: "Cargo transferred to replacement rider", ExpectedVersion: rc.Version})
+	if e != nil || resolved.Status != dispatchmodels.RescueResolved || resolved.ResolvedAt == nil {
 		t.Fatalf("resolve %+v %v", resolved, e)
 	}
-	if _, e = f.dispatch.ResolveRescueCase(ctx, f.t, rc.ID, dispatch.ResolveRescueCaseInput{ResolutionCode: "NO_ACTION_REQUIRED", Notes: "n", ExpectedVersion: resolved.Version}); errStatus(e) != 409 {
+	if _, e = f.dispatch.Dispatch.ResolveRescueCase(ctx, f.t, rc.ID, dispatchmodels.ResolveRescueCaseInput{ResolutionCode: "NO_ACTION_REQUIRED", Notes: "n", ExpectedVersion: resolved.Version}); errStatus(e) != 409 {
 		t.Fatalf("resolved twice: %v", e)
 	}
 	var alertStatus string
@@ -232,21 +234,21 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 	// safe not-found.
 	other := f.t
 	other.OrganizationID = createOrganization(t, f.pool, "Rescue Other", "RESCUE-O-"+ids.New("reg")).ID
-	if _, e = f.dispatch.GetRescueCase(ctx, other, rc.ID); errStatus(e) != 404 {
+	if _, e = f.dispatch.Dispatch.GetRescueCase(ctx, other, rc.ID); errStatus(e) != 404 {
 		t.Fatalf("cross-tenant read: %v", e)
 	}
-	if _, e = f.dispatch.ResolveRescueCase(ctx, other, rc.ID, dispatch.ResolveRescueCaseInput{ResolutionCode: "NO_ACTION_REQUIRED", Notes: "n", ExpectedVersion: resolved.Version}); errStatus(e) != 404 {
+	if _, e = f.dispatch.Dispatch.ResolveRescueCase(ctx, other, rc.ID, dispatchmodels.ResolveRescueCaseInput{ResolutionCode: "NO_ACTION_REQUIRED", Notes: "n", ExpectedVersion: resolved.Version}); errStatus(e) != 404 {
 		t.Fatalf("cross-tenant write: %v", e)
 	}
 	restricted := f.t
 	restricted.PermittedBranchIDs = []string{"brn_elsewhere"}
-	if _, e = f.dispatch.GetRescueCase(ctx, restricted, rc.ID); errStatus(e) != 404 {
+	if _, e = f.dispatch.Dispatch.GetRescueCase(ctx, restricted, rc.ID); errStatus(e) != 404 {
 		t.Fatalf("cross-branch read: %v", e)
 	}
-	if list, _ := f.dispatch.ListRescueCases(ctx, restricted, dispatch.RescueFilter{}); len(list) != 0 {
+	if list, _, _ := f.dispatch.Dispatch.ListRescueCases(ctx, restricted, dispatchmodels.RescueFilter{}); len(list) != 0 {
 		t.Fatalf("cross-branch list leaked %d", len(list))
 	}
-	if _, e = f.dispatch.OpenRescueCase(ctx, other, dispatch.OpenRescueCaseInput{TriggerType: "DELAY", Severity: "LOW", Reason: "x", PrivateAssignmentID: original, IdempotencyKey: "other"}); errStatus(e) != 404 {
+	if _, e = f.dispatch.Dispatch.OpenRescueCase(ctx, other, dispatchmodels.OpenRescueCaseInput{TriggerType: "DELAY", Severity: "LOW", Reason: "x", PrivateAssignmentID: original, IdempotencyKey: "other"}); errStatus(e) != 404 {
 		t.Fatalf("cross-tenant link accepted: %v", e)
 	}
 }
@@ -254,21 +256,21 @@ func TestSection16RescueCaseReplacementRequiresProviderAcceptance(t *testing.T) 
 func TestSection16RescueCaseCancelAndTripOnlyCase(t *testing.T) {
 	f := newRescueFixture(t)
 	ctx := context.Background()
-	if _, e := f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{TriggerType: "DELAY", Severity: "MEDIUM", Reason: "Stuck in traffic", CanonicalTripReference: "trip-rescue-1", IdempotencyKey: "trip-1"}); errStatus(e) != 400 {
+	if _, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{TriggerType: "DELAY", Severity: "MEDIUM", Reason: "Stuck in traffic", CanonicalTripReference: "trip-rescue-1", IdempotencyKey: "trip-1"}); errStatus(e) != 400 {
 		t.Fatalf("trip-only case without branch: %v", e)
 	}
-	rc, e := f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{BranchID: f.branch, TriggerType: "DELAY", Severity: "MEDIUM", Reason: "Stuck in traffic", CanonicalTripReference: "trip-rescue-1", IdempotencyKey: "trip-2"})
+	rc, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{BranchID: f.branch, TriggerType: "DELAY", Severity: "MEDIUM", Reason: "Stuck in traffic", CanonicalTripReference: "trip-rescue-1", IdempotencyKey: "trip-2"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, dispatch.RescueReplacementInput{ProviderMembershipID: "m", ProviderID: "p", ExpectedVersion: rc.Version}); errStatus(e) != 409 {
+	if _, e = f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, rc.ID, dispatchmodels.RescueReplacementInput{ProviderMembershipID: "m", ProviderID: "p", ExpectedVersion: rc.Version}); errStatus(e) != 409 {
 		t.Fatalf("replacement without assignment link: %v", e)
 	}
-	if _, e = f.dispatch.CancelRescueCase(ctx, f.t, rc.ID, dispatch.CancelRescueCaseInput{ExpectedVersion: rc.Version}); errStatus(e) != 400 {
+	if _, e = f.dispatch.Dispatch.CancelRescueCase(ctx, f.t, rc.ID, dispatchmodels.CancelRescueCaseInput{ExpectedVersion: rc.Version}); errStatus(e) != 400 {
 		t.Fatalf("cancel without reason: %v", e)
 	}
-	cancelled, e := f.dispatch.CancelRescueCase(ctx, f.t, rc.ID, dispatch.CancelRescueCaseInput{Reason: "Traffic cleared", ExpectedVersion: rc.Version})
-	if e != nil || cancelled.Status != dispatch.RescueCancelled {
+	cancelled, e := f.dispatch.Dispatch.CancelRescueCase(ctx, f.t, rc.ID, dispatchmodels.CancelRescueCaseInput{Reason: "Traffic cleared", ExpectedVersion: rc.Version})
+	if e != nil || cancelled.Status != dispatchmodels.RescueCancelled {
 		t.Fatalf("cancel %+v %v", cancelled, e)
 	}
 	var alertStatus string
@@ -279,12 +281,12 @@ func TestSection16RescueCaseCancelAndTripOnlyCase(t *testing.T) {
 	// A cancelled original releases the work: the replacement is a fresh
 	// pending assignment for the same route stop, still awaiting acceptance.
 	cancelledOriginal := f.assignment(t, "CANCELLED", "mem-d", "prov-d")
-	cc, e := f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{TriggerType: "FAILED_DELIVERY", Severity: "LOW", Reason: "Recipient absent; redeliver", PrivateAssignmentID: cancelledOriginal, IdempotencyKey: "cancelled-orig"})
+	cc, e := f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{TriggerType: "FAILED_DELIVERY", Severity: "LOW", Reason: "Recipient absent; redeliver", PrivateAssignmentID: cancelledOriginal, IdempotencyKey: "cancelled-orig"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	cc, e = f.dispatch.AssignRescueReplacement(ctx, f.t, cc.ID, dispatch.RescueReplacementInput{ProviderMembershipID: "mem-e", ProviderID: "prov-e", ExpectedVersion: cc.Version})
-	if e != nil || cc.Status != dispatch.RescueReplacementPending || cc.ReplacementAssignmentStatus != privatemodels.StatusPending {
+	cc, e = f.dispatch.Dispatch.AssignRescueReplacement(ctx, f.t, cc.ID, dispatchmodels.RescueReplacementInput{ProviderMembershipID: "mem-e", ProviderID: "prov-e", ExpectedVersion: cc.Version})
+	if e != nil || cc.Status != dispatchmodels.RescueReplacementPending || cc.ReplacementAssignmentStatus != privatemodels.StatusPending {
 		t.Fatalf("replacement after cancellation %+v %v", cc, e)
 	}
 	var stop string
@@ -292,18 +294,18 @@ func TestSection16RescueCaseCancelAndTripOnlyCase(t *testing.T) {
 	if stop != "stop-"+cancelledOriginal {
 		t.Fatalf("replacement work=%s", stop)
 	}
-	if _, e = f.dispatch.CancelRescueCase(ctx, f.t, cc.ID, dispatch.CancelRescueCaseInput{Reason: "x", ExpectedVersion: cc.Version}); errStatus(e) != 409 {
+	if _, e = f.dispatch.Dispatch.CancelRescueCase(ctx, f.t, cc.ID, dispatchmodels.CancelRescueCaseInput{Reason: "x", ExpectedVersion: cc.Version}); errStatus(e) != 409 {
 		t.Fatalf("cancel with pending replacement: %v", e)
 	}
 	// A closed case frees the subject for a new case.
-	if _, e = f.dispatch.OpenRescueCase(ctx, f.t, dispatch.OpenRescueCaseInput{BranchID: f.branch, TriggerType: "DELAY", Severity: "MEDIUM", Reason: "Delayed again", CanonicalTripReference: "trip-rescue-1", IdempotencyKey: "trip-3"}); e != nil {
+	if _, e = f.dispatch.Dispatch.OpenRescueCase(ctx, f.t, dispatchmodels.OpenRescueCaseInput{BranchID: f.branch, TriggerType: "DELAY", Severity: "MEDIUM", Reason: "Delayed again", CanonicalTripReference: "trip-rescue-1", IdempotencyKey: "trip-3"}); e != nil {
 		t.Fatal(e)
 	}
 }
 
 // rescueHTTPRouter mounts the real dispatch handler with the real authorizer
 // and idempotency store behind a test-only tenant injector.
-func rescueHTTPRouter(t *testing.T, pool *pgxpool.Pool, svc *dispatch.Service) http.Handler {
+func rescueHTTPRouter(t *testing.T, pool *pgxpool.Pool, svc *app.Section16) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -313,7 +315,7 @@ func rescueHTTPRouter(t *testing.T, pool *pgxpool.Pool, svc *dispatch.Service) h
 		c.Set(middleware.TenantRoleVersionKey, int64(1))
 		c.Next()
 	})
-	dispatch.NewHandler(svc, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), idempotency.NewStore(pool, 0)).RegisterTenantRoutes(engine.Group("/fleet-partner/v1"))
+	svc.RegisterTenantRoutes(engine.Group("/fleet-partner/v1"), accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), idempotency.NewStore(pool, 0))
 	return engine
 }
 
@@ -396,12 +398,12 @@ func TestSection16GeofenceEventsReadScopedWithFreshness(t *testing.T) {
 	clock := f.now
 	var mu sync.Mutex
 	now := func() time.Time { mu.Lock(); defer mu.Unlock(); return clock }
-	svc := dispatch.NewService(dispatch.Options{Pool: f.pool, Candidates: candidateFactsStub{}, Events: events.NewDomainPublisher(events.NewOutboxRepository(f.pool)), Flags: dispatch.Flags{ControlTower: true, TrackingProjections: true, Geofences: true, OperationalAlerts: true, Workers: true, TrackingSourceConfigured: true}, Now: now})
-	geo, e := svc.CreateGeofence(ctx, f.t, dispatch.CreateGeofenceInput{BranchID: f.branch, Name: "Depot gate", GeometryType: "CIRCLE", Geometry: dispatch.Geometry{Center: &dispatch.Point{Latitude: 6.5, Longitude: 3.3}, RadiusMeters: 500}, EventRules: []string{"ENTER", "EXIT"}, IdempotencyKey: "geo-read"})
+	svc := app.NewSection16(app.Section16Options{Pool: f.pool, Candidates: candidateFactsStub{}, Events: events.NewDomainPublisher(events.NewOutboxRepository(f.pool)), Flags: dispatchmodels.Flags{ControlTower: true, TrackingProjections: true, Geofences: true, OperationalAlerts: true, Workers: true, TrackingSourceConfigured: true}, Now: now})
+	geo, e := svc.Dispatch.CreateGeofence(ctx, f.t, dispatchmodels.CreateGeofenceInput{BranchID: f.branch, Name: "Depot gate", GeometryType: "CIRCLE", Geometry: dispatchmodels.Geometry{Center: &dispatchmodels.Point{Latitude: 6.5, Longitude: 3.3}, RadiusMeters: 500}, EventRules: []string{"ENTER", "EXIT"}, IdempotencyKey: "geo-read"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if geo, e = svc.SetGeofenceActive(ctx, f.t, geo.ID, "ACTIVE", geo.Version); e != nil {
+	if geo, e = svc.Dispatch.SetGeofenceActive(ctx, f.t, geo.ID, "ACTIVE", geo.Version); e != nil {
 		t.Fatal(e)
 	}
 	worker := &jobs.Worker{Queue: jobs.NewQueue(f.pool), Metrics: observability.NewMetrics(), Owner: "section16-geofence-read", PollInterval: 5 * time.Millisecond, LeaseDuration: time.Second, HeartbeatInterval: 100 * time.Millisecond, BatchSize: 10}
@@ -413,42 +415,42 @@ func TestSection16GeofenceEventsReadScopedWithFreshness(t *testing.T) {
 
 	lat, lon := 6.5001, 3.3001
 	trip := "trip-geo-read-" + ids.New("t")
-	if _, _, e = svc.IngestTracking(ctx, dispatch.TrackingEvent{EventID: trip + "-1", OrganizationID: f.org, SourceService: "driver-dispatch-delivery-service", CanonicalTripReference: trip, OperationalStatus: "IN_PROGRESS", Latitude: &lat, Longitude: &lon, SourceTimestamp: f.now, SourceVersion: 1}); e != nil {
+	if _, _, e = svc.Tracking.IngestTracking(ctx, trackingmodels.TrackingEvent{EventID: trip + "-1", OrganizationID: f.org, SourceService: "driver-dispatch-delivery-service", CanonicalTripReference: trip, OperationalStatus: "IN_PROGRESS", Latitude: &lat, Longitude: &lon, SourceTimestamp: f.now, SourceVersion: 1}); e != nil {
 		t.Fatal(e)
 	}
 	waitForSection16Count(t, f.pool, `SELECT count(*) FROM fleet_partner_geofence_events WHERE organization_id=$1 AND geofence_id=$2 AND event_rule='ENTER'`, []any{f.org, geo.ID}, 1)
 
-	list, e := svc.ListGeofenceEvents(ctx, f.t, dispatch.GeofenceEventFilter{GeofenceID: geo.ID})
+	list, _, e := svc.Dispatch.ListGeofenceEvents(ctx, f.t, dispatchmodels.GeofenceEventFilter{GeofenceID: geo.ID})
 	if e != nil || len(list) != 1 {
 		t.Fatalf("events %+v %v", list, e)
 	}
-	if ev := list[0]; ev.EventRule != "ENTER" || ev.CanonicalTripReference != trip || ev.BranchID != f.branch || ev.GeofenceName != "Depot gate" || ev.DataFreshness != dispatch.Fresh || ev.SourceVersion != 1 {
+	if ev := list[0]; ev.EventRule != "ENTER" || ev.CanonicalTripReference != trip || ev.BranchID != f.branch || ev.GeofenceName != "Depot gate" || ev.DataFreshness != trackingmodels.Fresh || ev.SourceVersion != 1 {
 		t.Fatalf("event %+v", ev)
 	}
 	// Filters.
-	if l, _ := svc.ListGeofenceEvents(ctx, f.t, dispatch.GeofenceEventFilter{EventRule: "EXIT", GeofenceID: geo.ID}); len(l) != 0 {
+	if l, _, _ := svc.Dispatch.ListGeofenceEvents(ctx, f.t, dispatchmodels.GeofenceEventFilter{EventRule: "EXIT", GeofenceID: geo.ID}); len(l) != 0 {
 		t.Fatalf("rule filter leaked %d", len(l))
 	}
 	future := f.now.Add(time.Hour)
-	if l, _ := svc.ListGeofenceEvents(ctx, f.t, dispatch.GeofenceEventFilter{GeofenceID: geo.ID, From: &future}); len(l) != 0 {
+	if l, _, _ := svc.Dispatch.ListGeofenceEvents(ctx, f.t, dispatchmodels.GeofenceEventFilter{GeofenceID: geo.ID, From: &future}); len(l) != 0 {
 		t.Fatalf("from filter leaked %d", len(l))
 	}
 	// Read-time freshness: the same event is reported STALE once its fix ages.
 	mu.Lock()
 	clock = f.now.Add(time.Hour)
 	mu.Unlock()
-	if l, _ := svc.ListGeofenceEvents(ctx, f.t, dispatch.GeofenceEventFilter{GeofenceID: geo.ID}); len(l) != 1 || l[0].DataFreshness != dispatch.Stale || l[0].AgeSeconds != 3600 {
+	if l, _, _ := svc.Dispatch.ListGeofenceEvents(ctx, f.t, dispatchmodels.GeofenceEventFilter{GeofenceID: geo.ID}); len(l) != 1 || l[0].DataFreshness != trackingmodels.Stale || l[0].AgeSeconds != 3600 {
 		t.Fatalf("aged event %+v", l)
 	}
 	// Tenant and branch isolation.
 	other := f.t
 	other.OrganizationID = createOrganization(t, f.pool, "Geo Other", "GEO-O-"+ids.New("reg")).ID
-	if l, _ := svc.ListGeofenceEvents(ctx, other, dispatch.GeofenceEventFilter{}); len(l) != 0 {
+	if l, _, _ := svc.Dispatch.ListGeofenceEvents(ctx, other, dispatchmodels.GeofenceEventFilter{}); len(l) != 0 {
 		t.Fatalf("cross-tenant events leaked %d", len(l))
 	}
 	restricted := f.t
 	restricted.PermittedBranchIDs = []string{"brn_elsewhere"}
-	if l, _ := svc.ListGeofenceEvents(ctx, restricted, dispatch.GeofenceEventFilter{}); len(l) != 0 {
+	if l, _, _ := svc.Dispatch.ListGeofenceEvents(ctx, restricted, dispatchmodels.GeofenceEventFilter{}); len(l) != 0 {
 		t.Fatalf("cross-branch events leaked %d", len(l))
 	}
 }
@@ -460,19 +462,19 @@ func TestSection16BoardNeverPresentsStaleLocationAsLive(t *testing.T) {
 	f := newSection16Fixture(t)
 	ctx := context.Background()
 	clock := f.now
-	svc := dispatch.NewService(dispatch.Options{Pool: f.pool, Candidates: candidateFactsStub{}, Flags: dispatch.Flags{DispatchPlanning: true, ControlTower: true, TrackingProjections: true, Geofences: true, OperationalAlerts: true, TrackingSourceConfigured: true}, Now: func() time.Time { return clock }})
+	svc := app.NewSection16(app.Section16Options{Pool: f.pool, Candidates: candidateFactsStub{}, Flags: dispatchmodels.Flags{DispatchPlanning: true, ControlTower: true, TrackingProjections: true, Geofences: true, OperationalAlerts: true, TrackingSourceConfigured: true}, Now: func() time.Time { return clock }})
 	lat, lon := 6.6, 3.4
 	trip := "trip-board-fresh-" + ids.New("t")
-	if _, _, e := svc.IngestTracking(ctx, dispatch.TrackingEvent{EventID: trip, OrganizationID: f.org, SourceService: "driver-dispatch-delivery-service", CanonicalTripReference: trip, OperationalStatus: "IN_PROGRESS", Latitude: &lat, Longitude: &lon, SourceTimestamp: f.now, SourceVersion: 1}); e != nil {
+	if _, _, e := svc.Tracking.IngestTracking(ctx, trackingmodels.TrackingEvent{EventID: trip, OrganizationID: f.org, SourceService: "driver-dispatch-delivery-service", CanonicalTripReference: trip, OperationalStatus: "IN_PROGRESS", Latitude: &lat, Longitude: &lon, SourceTimestamp: f.now, SourceVersion: 1}); e != nil {
 		t.Fatal(e)
 	}
 	var stored string
 	_ = f.pool.QueryRow(ctx, `SELECT freshness_status FROM fleet_partner_tracking_projections WHERE canonical_trip_reference=$1`, trip).Scan(&stored)
-	if stored != dispatch.Fresh {
+	if stored != trackingmodels.Fresh {
 		t.Fatalf("stored freshness=%s", stored)
 	}
 	clock = f.now.Add(time.Hour)
-	board, e := svc.Board(ctx, f.t, dispatch.PageFilter{})
+	board, e := svc.Dispatch.Board(ctx, f.t, dispatchmodels.PageFilter{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -480,16 +482,16 @@ func TestSection16BoardNeverPresentsStaleLocationAsLive(t *testing.T) {
 	for _, trip2 := range board.ActiveTrips {
 		if trip2.CanonicalTripReference == trip {
 			found = true
-			if trip2.FreshnessStatus != dispatch.Stale || trip2.SourceTimestamp.IsZero() {
+			if trip2.FreshnessStatus != trackingmodels.Stale || trip2.SourceTimestamp.IsZero() {
 				t.Fatalf("stale fix presented as %s", trip2.FreshnessStatus)
 			}
 		}
 	}
-	if !found || board.TrackingSummary[dispatch.Stale] < 1 || !board.ProjectionIncomplete {
+	if !found || board.TrackingSummary[trackingmodels.Stale] < 1 || !board.ProjectionIncomplete {
 		t.Fatalf("board found=%v summary=%v incomplete=%v", found, board.TrackingSummary, board.ProjectionIncomplete)
 	}
-	projection, e := svc.GetTracking(ctx, f.t, trip)
-	if e != nil || projection.FreshnessStatus != dispatch.Stale {
+	projection, e := svc.Tracking.GetTracking(ctx, f.t, trip)
+	if e != nil || projection.FreshnessStatus != trackingmodels.Stale {
 		t.Fatalf("tracking read %+v %v", projection, e)
 	}
 }

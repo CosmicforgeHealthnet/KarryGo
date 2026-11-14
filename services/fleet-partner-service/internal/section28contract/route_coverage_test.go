@@ -31,7 +31,7 @@ import (
 	bulkimportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
 	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
-	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/http"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
@@ -46,6 +46,7 @@ import (
 	recurringhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/http"
 	retentionexecutionhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionexecution/http"
 	retentionpolicyhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/http"
+	routeshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/http"
 	safetyfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	searchhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/http"
 	securitysettingshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/securitysettings/http"
@@ -53,6 +54,7 @@ import (
 	shipmentshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/http"
 	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
+	trackinghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/http"
 	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 
@@ -225,11 +227,19 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	dispatchH := dispatchfeature.NewHandler(nil, nil, nil)
+	dispatchH := dispatchhttp.NewHandler(nil, nil, nil)
 	for _, r := range dispatchH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
-	for _, r := range dispatchH.InternalRoutes() {
+	routesH := routeshttp.NewHandler(nil, nil, nil)
+	for _, r := range routesH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	trackingH := trackinghttp.NewHandler(nil, nil)
+	for _, r := range trackingH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range trackingH.InternalRoutes() {
 		add(internalPrefix, r.Path, r.Method, r.Permission)
 	}
 
