@@ -117,8 +117,8 @@ func TestRow18_1b_AssetList(t *testing.T) {
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/assets", nil, nil), 403, "no permission")
 	// An invalid page window is a client error, never a server error.
-	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/assets?offset=-1", nil, nil), 400, "negative offset")
-	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/assets?limit=-5", nil, nil), 400, "negative limit")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/assets?offset=-1", nil, nil), 422, "negative offset")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/assets?limit=-5", nil, nil), 422, "negative limit")
 }
 
 // TestRow18_2_AssetArchiveRetire covers FLEET-18.2: POST /assets/:id/archive

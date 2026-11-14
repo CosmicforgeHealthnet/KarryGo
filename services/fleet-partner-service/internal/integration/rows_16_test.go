@@ -182,7 +182,7 @@ func TestRow16_4b_DispatchPlanListPatchCancel(t *testing.T) {
 		t.Fatalf("paging: %v", rowsIDs(paged, "id"))
 	}
 	// A negative page window is a validation error, never a server error.
-	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/dispatch/plans?offset=-1", nil, nil), 400, "negative offset")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/dispatch/plans?offset=-1", nil, nil), 422, "negative offset")
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/dispatch/plans", nil, nil), 403, "no permission")
 
 	path := "/fleet-partner/v1/dispatch/plans/" + first["id"].(string)
@@ -359,7 +359,7 @@ func TestRow16_11b_GeofenceListGetPatch(t *testing.T) {
 		t.Fatalf("confined geofences: %v", rowsIDs(c, "id"))
 	}
 	// A negative page window is refused before it can reach PostgreSQL.
-	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/geofences?offset=-1", nil, nil), 400, "negative offset")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/geofences?offset=-1", nil, nil), 422, "negative offset")
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/geofences", nil, nil), 403, "no permission")
 
 	path := "/fleet-partner/v1/geofences/" + depot["id"].(string)

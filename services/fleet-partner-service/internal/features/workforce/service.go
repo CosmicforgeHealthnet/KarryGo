@@ -152,9 +152,6 @@ func (s *Service) ListProfiles(ctx context.Context, t tenant.Context, f Page) ([
 	if e := s.gate(s.o.Flags.Workforce, false); e != nil {
 		return nil, e
 	}
-	if e := validPage(f); e != nil {
-		return nil, e
-	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+profileCols+` FROM fleet_partner_workforce_profiles WHERE organization_id=$1 AND($2='' OR branch_id=$2)AND($3='' OR status=$3) ORDER BY created_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
@@ -255,9 +252,6 @@ func (s *Service) GetShift(ctx context.Context, t tenant.Context, id string) (Sh
 }
 func (s *Service) ListShifts(ctx context.Context, t tenant.Context, f Page) ([]Shift, error) {
 	if e := s.gate(s.o.Flags.Shifts, false); e != nil {
-		return nil, e
-	}
-	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+shiftCols+` FROM fleet_partner_shifts WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR status=$3)ORDER BY start_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), pagination.ClampOffset(f.Offset))
@@ -458,9 +452,6 @@ func (s *Service) GetLeave(ctx context.Context, t tenant.Context, id string) (Le
 }
 func (s *Service) ListLeave(ctx context.Context, t tenant.Context, f Page) ([]Leave, error) {
 	if e := s.gate(s.o.Flags.Leave, false); e != nil {
-		return nil, e
-	}
-	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+leaveCols+` FROM fleet_partner_leave_records WHERE organization_id=$1 AND($2=''OR status=$2)ORDER BY start_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.Status, limit(f.Limit), pagination.ClampOffset(f.Offset))

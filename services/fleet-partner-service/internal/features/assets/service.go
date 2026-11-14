@@ -148,9 +148,6 @@ func (s *Service) ListAssets(ctx context.Context, t tenant.Context, f Page) ([]A
 	if e := s.gate(s.o.Flags.Assets, false); e != nil {
 		return nil, e
 	}
-	if e := validPage(f); e != nil {
-		return nil, e
-	}
 	// The caller's permitted branches are applied in SQL, before LIMIT, so a
 	// branch-scoped member gets full pages of their own assets.
 	permitted := t.PermittedBranchIDs
@@ -231,15 +228,6 @@ func (s *Service) UpdateAsset(ctx context.Context, t tenant.Context, id string, 
 	return v, e
 }
 func mustJSON(v any) []byte { b, _ := json.Marshal(v); return b }
-
-// validPage refuses a negative page window as a client error instead of
-// letting PostgreSQL reject the OFFSET with a server error.
-func validPage(f Page) error {
-	if f.Limit < 0 || f.Offset < 0 {
-		return apperrors.BadRequest("limit and offset must not be negative.", nil)
-	}
-	return nil
-}
 
 func (s *Service) Assign(ctx context.Context, t tenant.Context, assetID string, v Assignment) (Assignment, error) {
 	if e := s.gate(s.o.Flags.Assignments, true); e != nil {
@@ -427,9 +415,6 @@ func (s *Service) GetInspection(ctx context.Context, t tenant.Context, id string
 }
 func (s *Service) ListInspections(ctx context.Context, t tenant.Context, f Page) ([]Inspection, error) {
 	if e := s.gate(s.o.Flags.Inspections, false); e != nil {
-		return nil, e
-	}
-	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+inspectionCols+` FROM fleet_partner_inspections WHERE organization_id=$1 AND($2=''OR status=$2)ORDER BY created_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset))

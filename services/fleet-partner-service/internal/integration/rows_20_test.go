@@ -268,8 +268,10 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 	if inRange["Excursion"] != false || inRange["RecordID"] != vaccines {
 		t.Fatalf("in-range event: %v", inRange)
 	}
-	// The same sensor reading replays to the stored event.
-	replay := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 30, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 201, "replay").Object(t)
+	// A different value under the same source version is a conflict, not a
+	// silent replay; the identical reading replays to the stored event.
+	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 30, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 409, "changed reading")
+	replay := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 5, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 201, "replay").Object(t)
 	if replay["ID"] != inRange["ID"] || replay["Excursion"] != false {
 		t.Fatalf("replay must return the stored event: %v", replay)
 	}
