@@ -11,6 +11,13 @@ import type {
   ProvisioningStatus,
   UpdateProviderInput,
 } from '@/lib/types/provider';
+import type {
+  ProviderAvailability,
+  ProviderBranchLink,
+  ProviderResendLoginResult,
+  ProviderServiceRoles,
+  ProviderVehicle,
+} from '@/lib/types/providerAdmin';
 
 const mid = (membershipId: string) => encodeURIComponent(membershipId);
 
@@ -18,6 +25,52 @@ export const providerService = {
   async list(): Promise<ProviderMembership[]> {
     const res = await apiClient.get<{ data: ProviderMembership[] }>('/providers');
     return res.data.data ?? [];
+  },
+
+  // One page of providers; pass the previous page's nextCursor to continue.
+  async listPage(
+    cursor?: string,
+    limit = 50,
+  ): Promise<{ items: ProviderMembership[]; nextCursor?: string }> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set('cursor', cursor);
+    const res = await apiClient.get<{ data: ProviderMembership[]; meta?: { nextCursor?: string } }>(
+      `/providers?${params.toString()}`,
+    );
+    return { items: res.data.data ?? [], nextCursor: res.data.meta?.nextCursor };
+  },
+
+  // Re-sends the invitation or first-login notice; the key keeps a retry
+  // of the same attempt from sending twice.
+  async resendLogin(membershipId: string, idempotencyKey: string): Promise<ProviderResendLoginResult> {
+    const res = await apiClient.post<{ data: ProviderResendLoginResult }>(
+      `/providers/${mid(membershipId)}/resend-login`,
+      {},
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return res.data.data;
+  },
+
+  async availability(membershipId: string): Promise<ProviderAvailability> {
+    const res = await apiClient.get<{ data: ProviderAvailability }>(`/providers/${mid(membershipId)}/availability`);
+    return res.data.data;
+  },
+
+  async branches(membershipId: string): Promise<ProviderBranchLink[]> {
+    const res = await apiClient.get<{ data: ProviderBranchLink[] }>(`/providers/${mid(membershipId)}/branches`);
+    return res.data.data ?? [];
+  },
+
+  async vehicles(membershipId: string, includeHistory = false): Promise<ProviderVehicle[]> {
+    const res = await apiClient.get<{ data: ProviderVehicle[] }>(
+      `/providers/${mid(membershipId)}/vehicles${includeHistory ? '?includeHistory=true' : ''}`,
+    );
+    return res.data.data ?? [];
+  },
+
+  async serviceRoles(membershipId: string): Promise<ProviderServiceRoles> {
+    const res = await apiClient.get<{ data: ProviderServiceRoles }>(`/providers/${mid(membershipId)}/service-roles`);
+    return res.data.data;
   },
 
   async get(membershipId: string): Promise<ProviderMembership> {

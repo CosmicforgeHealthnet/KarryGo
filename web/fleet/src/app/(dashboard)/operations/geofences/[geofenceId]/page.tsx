@@ -20,6 +20,7 @@ import {
 import EmptyState from "@/components/EmptyState";
 import { geofenceService } from "@/lib/services/geofenceService";
 import type { Geofence, Point } from "@/lib/types/geofence";
+import { GeofenceEvents } from "./geofence-events";
 
 function geometrySummary(g: Geofence): {
   type: string;
@@ -413,6 +414,8 @@ export default function GeofenceDetailPage() {
           </div>
         </div>
       </div>
+
+      <GeofenceEvents geofenceId={geofence.id} />
     </div>
   );
 }

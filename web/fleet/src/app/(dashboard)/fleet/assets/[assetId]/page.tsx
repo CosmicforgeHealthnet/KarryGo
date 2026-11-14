@@ -31,6 +31,7 @@ import {
   ownershipTypeLabel,
 } from '@/lib/utils/assetLabels';
 import type { Asset } from '@/lib/types/asset';
+import { AssetCare } from './asset-care';
 
 const TYPE_ICON: Record<string, typeof Truck> = {
   MOTORCYCLE: Bike,
@@ -261,6 +262,8 @@ export default function AssetDetailPage() {
           ))}
         </dl>
       </div>
+
+      <AssetCare assetId={asset.id} />
 
       {(canArchive || canRetire) && (
         <div className="rounded-lg border border-line bg-surface p-4">

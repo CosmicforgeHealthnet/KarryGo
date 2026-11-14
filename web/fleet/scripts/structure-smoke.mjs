@@ -64,17 +64,92 @@ const enrollment = {
   createdAt: now, updatedAt: now,
 };
 
+// Sections 5-20 fixtures (leads, orders, rescue, defects, approval policies,
+// incidents, compliance checks, provider paging).
+const lead = {
+  id: "led_1", source: "REFERRAL", companyName: "Acme Distribution", status: "QUALIFIED", version: 2,
+  createdAt: now, updatedAt: now, contactSnapshot: { name: "Bola" },
+};
+const customer = {
+  id: "cus_1", customerType: "BUSINESS", legalName: "Acme Distribution", displayName: "Acme Distribution",
+  status: "ACTIVE", riskStatus: "NORMAL", defaultCurrency: "NGN", version: 1, createdAt: now, updatedAt: now,
+};
+const order = (status, version) => ({
+  id: "ord_1", organizationId: "org_1", orderNumber: "ORD-0001", customerId: "cus_1", source: "MANUAL",
+  serviceCatalogItemId: "svc_1", serviceFields: {}, timezone: "Africa/Lagos", priority: "STANDARD", status, version,
+  createdAt: now, updatedAt: now,
+});
+const rescueCase = {
+  id: "rsc_1", branchId: "brn_1", triggerType: "BREAKDOWN", severity: "HIGH", status: "OPEN", reason: "Engine failure",
+  replacementAttempts: 0, createdBy: "stf_1", version: 1, createdAt: now, updatedAt: now,
+};
+const defect = (status, version) => ({
+  id: "dfc_1", branchId: "brn_1", assetId: "ast_1", sourceType: "MANUAL_REPORT", description: "Brake pads worn",
+  severity: "MEDIUM", critical: false, status, reportedBy: "stf_1", version, createdAt: now, updatedAt: now,
+});
+const policy = {
+  id: "apl_1", code: "WALLET_WITHDRAWAL", name: "Wallet withdrawal", description: "", resourceType: "company_wallet",
+  action: "withdraw", scopeType: "ORGANIZATION", branchId: null, thresholdAmountMinor: null, thresholdCurrency: null,
+  steps: [{ quorum: 1, eligibleRoleIds: ["rol_custom"] }], requesterMayApprove: false, separationOfDuties: true,
+  expirySeconds: 259200, origin: "ORGANIZATION", status: "ACTIVE", version: 1, createdBy: "stf_1", updatedBy: "stf_1",
+  createdAt: now, updatedAt: now, archivedAt: null,
+};
+const incident = (status, version) => ({
+  ID: "inc_1", BranchID: "brn_1", IncidentType: "ROAD_ACCIDENT", Severity: "HIGH", Status: status, OccurredAt: now,
+  LocationReference: "Third Mainland Bridge", RouteID: "", AssignmentID: "", TripReference: "", ExternalReference: "",
+  Description: "Minor collision", ReportedBy: "stf_1", OwnerUserID: "", ResolutionAction: "", ResolutionReason: "",
+  Version: version, CreatedAt: now, UpdatedAt: now, ClosedAt: null, ImmediateActions: "", TriagedAt: null,
+  ContainmentSummary: "", ContainedAt: null, EscalationReason: "", EscalationTrigger: "", PreEscalationStatus: "",
+  EscalatedAt: null, ClosureReason: "",
+});
+const check = {
+  ID: "cmpchk_1", SubjectType: "PROVIDER", SubjectReference: "mem_1", SourceType: "MANUAL_REVIEW", SourceReference: "",
+  SourceVersion: 0, OverallState: "COMPLIANT", GoverningRequirementID: "", RequirementCount: 1,
+  Results: [{ requirementId: "req_1", requirementCode: "DRIVER_LICENCE", severity: "HIGH", blocksOperation: true, complianceStatusId: "cst_1", state: "COMPLIANT" }],
+  RestrictionReferences: [], RequestedBy: "stf_1", CreatedAt: now,
+};
+const membership2 = { ...membership, membershipId: "mem_2", providerId: "prv_2", status: "ACTIVE" };
+
 const ok = (data) => ({ status: 200, body: { data, meta: { requestId: "req-ok" } } });
+const paged = (data, nextCursor) => ({ status: 200, body: { data, meta: { requestId: "req-ok", nextCursor } } });
 const refused = (status, code, message) => ({
   status,
   body: { error: { code, message, retryable: false, details: [], requestId: "req-smoke-1" } },
 });
 
-// Every write the screens send, for assertions.
+// Every write (and read) the screens send, for assertions.
 const writes = [];
+const reads = [];
 
-function answer(method, path) {
+let currentOrder = order("DRAFT", 3);
+
+function answer(method, path, search = "") {
+  const query = new URLSearchParams(search);
   const routes = [
+    // Sections 5-20.
+    ["GET", /^\/leads\/led_1$/, () => ok(lead)],
+    ["GET", /^\/leads\/led_1\/history$/, () => ok([])],
+    ["POST", /^\/leads\/led_1\/convert$/, () => ({ status: 201, body: { data: { lead: { ...lead, status: "CONVERTED", convertedCustomerId: "cus_1", version: 3 }, customer, customerCreated: true, replayed: false } } })],
+    ["GET", /^\/customers$/, () => ok([customer])],
+    ["GET", /^\/orders\/ord_1$/, () => ok(currentOrder)],
+    ["POST", /^\/orders\/ord_1\/submit$/, () => ok((currentOrder = order("AWAITING_APPROVAL", 4)))],
+    ["POST", /^\/orders\/ord_1\/approve$/, () => ok((currentOrder = order("CONFIRMED", 5)))],
+    ["GET", /^\/rescue-cases$/, () => ok([])],
+    ["POST", /^\/rescue-cases$/, () => ({ status: 201, body: { data: rescueCase } })],
+    ["GET", /^\/defects$/, () => ok([])],
+    ["POST", /^\/defects$/, () => ok(defect("OPEN", 1))],
+    ["POST", /^\/defects\/dfc_1\/resolve$/, () => ok({ ...defect("RESOLVED", 2), resolutionNotes: "Pads replaced" })],
+    ["GET", /^\/approval-policies$/, () => ok([])],
+    ["POST", /^\/approval-policies$/, () => ({ status: 201, body: { data: policy, meta: { replayed: false } } })],
+    ["GET", /^\/incidents\/inc_1$/, () => ok(incident("OPEN", 5))],
+    ["GET", /^\/incidents\/inc_1\/investigations$/, () => ok([])],
+    ["POST", /^\/incidents\/inc_1\/triage$/, () => ok({ ...incident("TRIAGED", 6), ImmediateActions: "Area made safe", TriagedAt: now })],
+    ["GET", /^\/compliance\/checks$/, () => ok([])],
+    ["POST", /^\/compliance\/checks$/, () => ok(check)],
+    ["GET", /^\/providers$/, () => (query.get("cursor") === "c2" ? paged([membership2]) : paged([membership], "c2"))],
+    ["GET", /^\/providers\/mem_1\/service-roles$/, () => ok({ membershipId: "mem_1", serviceCategory: "DISPATCH", providerService: "driver-dispatch-delivery-service", relationshipType: "EMPLOYEE", capabilities: [] })],
+    ["GET", /^\/providers\/mem_1\/availability$/, () => ok({ membershipId: "mem_1", status: "UNAVAILABLE", evaluatedAt: now, reasons: [{ code: "MEMBERSHIP_SUSPENDED", effect: "BLOCKING", source: "MEMBERSHIP" }], derivation: "", inputs: { membershipStatus: "SUSPENDED", shift: { scheduleInForce: false, onShift: false }, qualifications: { mandatoryCount: 0, expired: [], missing: [], expiringSoon: [] }, activeWork: { marketplace: 0, private: 0, total: 0 }, tracking: { freshnessStatus: "UNKNOWN" } } })],
+
     ["GET", /^\/organizations\/current$/, () => ok({ organizationId: "org_1", legalName: "Smoke Logistics Ltd", tradingName: "Smoke", status: "ACTIVE", registrationNumber: "RC1", organizationType: "LIMITED", countryCode: "NG", timezone: "Africa/Lagos", defaultCurrency: "NGN", version: 1 })],
     ["GET", /^\/branches$/, () => ok([branch])],
     ["POST", /^\/branches$/, () => refused(409, "branch_code_taken", "A branch with this code already exists.")],
@@ -137,11 +212,14 @@ try {
   await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort());
   await context.route(`${origin}/api/**`, async (route) => {
     const request = route.request();
-    const path = new URL(request.url()).pathname.replace(/^\/api/, "");
+    const url = new URL(request.url());
+    const path = url.pathname.replace(/^\/api/, "");
     if (request.method() !== "GET") {
       writes.push({ method: request.method(), path, headers: request.headers(), body: request.postData() });
+    } else {
+      reads.push(path + url.search);
     }
-    const { status, body } = answer(request.method(), path);
+    const { status, body } = answer(request.method(), path, url.search);
     await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   });
   const page = await context.newPage();
@@ -225,6 +303,107 @@ try {
   await page.goto(origin + "/workforce/training");
   await page.getByRole("heading", { name: "Enrolments" }).waitFor();
   await page.getByRole("button", { name: "Record result" }).waitFor();
+
+  // ── Sections 5-20 ─────────────────────────────────────────────────────
+  const keyed = (w, version) => {
+    assert.ok(w, "write was sent");
+    assert.ok(w.headers["idempotency-key"], `${w.method} ${w.path} sends an idempotency key`);
+    if (version != null) assert.equal(w.headers["if-match"], String(version), `${w.path} sends If-Match`);
+  };
+
+  // Lead conversion into a new customer: idempotent and versioned.
+  await page.goto(origin + "/crm/leads/led_1");
+  await page.getByRole("heading", { name: "Acme Distribution", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Convert lead" }).click();
+  await page.getByText("Lead converted into a new customer: Acme Distribution.").waitFor();
+  const convertWrite = write("POST", "/leads/led_1/convert");
+  keyed(convertWrite, 2);
+  assert.equal(JSON.parse(convertWrite.body).newCustomer.legalName, "Acme Distribution");
+
+  // Order: submit a draft, then approve it with the new version.
+  await page.goto(origin + "/private-ops/orders/ord_1");
+  await page.getByRole("heading", { name: "Order ORD-0001" }).waitFor();
+  await page.getByRole("button", { name: "Submit order" }).click();
+  await page.getByText("Order submitted for approval.").waitFor();
+  keyed(write("POST", "/orders/ord_1/submit"), 3);
+  await page.getByRole("button", { name: "Approve order" }).click();
+  await page.getByText("Order approved.").waitFor();
+  keyed(write("POST", "/orders/ord_1/approve"), 4);
+  assert.notEqual(
+    write("POST", "/orders/ord_1/submit").headers["idempotency-key"],
+    write("POST", "/orders/ord_1/approve").headers["idempotency-key"],
+    "each command has its own key",
+  );
+
+  // Rescue case.
+  await page.goto(origin + "/operations/dispatch/rescue");
+  await page.getByRole("heading", { name: "Rescue cases", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Open rescue case" }).click();
+  await page.locator("textarea").first().fill("Engine failure on the expressway");
+  await page.getByRole("button", { name: "Open case" }).click();
+  await page.getByText("Rescue case opened.").waitFor();
+  const rescueWrite = write("POST", "/rescue-cases");
+  keyed(rescueWrite);
+  assert.equal(JSON.parse(rescueWrite.body).triggerType, "BREAKDOWN");
+
+  // Defect: report, then resolve with its version.
+  await page.goto(origin + "/fleet/defects");
+  await page.getByRole("heading", { name: "Defects", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Report defect" }).click();
+  await page.getByPlaceholder("ast_...").fill("ast_1");
+  await page.locator("textarea").first().fill("Brake pads worn");
+  await page.getByRole("button", { name: "Save defect" }).click();
+  await page.getByText("Defect reported.").waitFor();
+  keyed(write("POST", "/defects"));
+  await page.getByRole("button", { name: "Resolve defect" }).click();
+  await page.getByText("Defect resolved.").waitFor();
+  keyed(write("POST", "/defects/dfc_1/resolve"), 1);
+
+  // Approval policy with one step for a chosen role.
+  await page.goto(origin + "/settings/approval-policies");
+  await page.getByRole("heading", { name: "Approval Policies", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Create Policy" }).click();
+  await page.getByPlaceholder("WALLET_WITHDRAWAL").fill("WALLET_WITHDRAWAL");
+  await page.getByPlaceholder("Wallet withdrawal").fill("Wallet withdrawal");
+  await page.getByPlaceholder("company_wallet").fill("company_wallet");
+  await page.getByPlaceholder("withdraw", { exact: true }).fill("withdraw");
+  await page.getByRole("button", { name: "Dispatch lead" }).click();
+  await page.getByRole("button", { name: "Save policy" }).click();
+  await page.getByText("Approval policy Wallet withdrawal created.").waitFor();
+  const policyWrite = write("POST", "/approval-policies");
+  keyed(policyWrite);
+  assert.deepEqual(JSON.parse(policyWrite.body).steps, [{ quorum: 1, eligibleRoleIds: ["rol_custom"] }]);
+
+  // Incident triage carries the incident version.
+  await page.goto(origin + "/compliance/incidents/inc_1");
+  await page.getByRole("heading", { name: "Incident inc_1" }).waitFor();
+  await page.getByPlaceholder("Area made safe, first aid given").fill("Area made safe");
+  await page.getByRole("button", { name: "Triage incident" }).click();
+  await page.getByText("Incident triaged.").waitFor();
+  const triageWrite = write("POST", "/incidents/inc_1/triage");
+  keyed(triageWrite, 5);
+  assert.equal(JSON.parse(triageWrite.body).locationReference, "Third Mainland Bridge");
+
+  // Compliance check.
+  await page.goto(origin + "/compliance/checks");
+  await page.getByRole("heading", { name: "Compliance checks", exact: true }).waitFor();
+  await page.getByPlaceholder("Membership, asset or organization ID").fill("mem_1");
+  await page.getByRole("button", { name: "Run check" }).click();
+  await page.getByText("Check complete: Compliant.").waitFor();
+  const checkWrite = write("POST", "/compliance/checks");
+  keyed(checkWrite);
+  assert.equal(JSON.parse(checkWrite.body).SubjectReference, "mem_1");
+
+  // Provider list pages with the cursor instead of stopping at the first page.
+  await page.goto(origin + "/providers");
+  await page.getByRole("button", { name: "Load more providers" }).click();
+  await page.getByText("prv_2").waitFor();
+  assert.ok(reads.includes("/providers?limit=50&cursor=c2"), "second page requested with the cursor");
+  assert.equal(await page.getByRole("button", { name: "Load more providers" }).count(), 0, "no further pages");
+
+  // Provider availability (was sample data) comes from the API.
+  await page.goto(origin + "/providers/mem_1/availability");
+  await page.getByText("Membership suspended", { exact: true }).waitFor();
 
   assert.deepEqual(pageErrors, [], "no page errors");
   console.log(JSON.stringify({ status: "passed", writes: writes.length }));

@@ -9,6 +9,7 @@ import { providerService } from '@/lib/services/providerService';
 import { structureService } from '@/lib/services/structureService';
 import type { Branch } from '@/lib/types/structure';
 import { MembershipEditor, RemoveMembershipCard } from './membership-admin';
+import { ProviderLinks, ResendLoginCard } from './provider-links';
 import {
   formatDate,
   onboardingSourceLabel,
@@ -220,6 +221,9 @@ export default function ProviderOverviewPage() {
           ))}
         </dl>
       </div>
+
+      <ResendLoginCard membership={membership} />
+      <ProviderLinks membershipId={membership.membershipId} />
 
       {canSuspend && (
         <div className="rounded-lg border border-line bg-surface p-4">

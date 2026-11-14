@@ -9,6 +9,7 @@ import {
   newAssetIdempotencyKey,
 } from '@/lib/services/assetService';
 import type { Assignment } from '@/lib/types/asset';
+import { UnassignProvider } from './unassign-provider';
 
 const ASSIGNMENT_TYPES = ['PRIMARY', 'SECONDARY', 'TEMPORARY'] as const;
 
@@ -197,6 +198,8 @@ export default function AssetAssignmentsPage() {
           {busy ? 'Assigning…' : 'Assign asset'}
         </button>
       </form>
+
+      <UnassignProvider assetId={assetId} />
     </div>
   );
 }

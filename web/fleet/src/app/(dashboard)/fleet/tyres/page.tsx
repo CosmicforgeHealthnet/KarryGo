@@ -1,593 +1,195 @@
-﻿// src/app/(dashboard)/fleet/tyres/page.tsx
+﻿"use client";
 
-"use client";
-
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { CircleDot, Plus, RefreshCw, Save, Search } from "lucide-react";
+import { ApiErrorNotice } from "@/components/features/ApiErrorNotice";
+import { FORM_INPUT_CLASS as INPUT, FormField as Field } from "@/components/features/FormField";
 import {
-  Search,
-  Plus,
-  Circle,
-  RefreshCw,
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  MapPin,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Eye,
-  Filter,
-  ArrowRight,
-  Calendar,
-  User,
-  Truck,
-  FileText,
-  Sparkles,
-  TrendingUp,
-  TrendingDown,
-  Award,
-  Zap,
-  Gauge,
-  AlertTriangle,
-  MoreHorizontal,
-  Edit3,
-  Trash2,
-  Car,
-  Bike,
-  List,
-} from "lucide-react";
+  DataTable,
+  EmptyBlock,
+  Loading,
+  PageHeader,
+  Panel,
+  PrimaryButton,
+  SecondaryButton,
+  StatGrid,
+  StatusPill,
+  formatWhen,
+  humanize,
+} from "@/components/features/OpsUi";
+import { describeApiError, newIdempotencyKey, type ApiErrorInfo } from "@/lib/api/errors";
+import { assetCareService } from "@/lib/services/assetCareService";
+import { structureService } from "@/lib/services/structureService";
+import type { Tyre } from "@/lib/types/assetCare";
+import type { Branch } from "@/lib/types/structure";
 
-type Tyre = {
-  id: string;
-  assetId: string;
-  assetName: string;
-  assetType: string;
-  position: "FL" | "FR" | "RL" | "RR" | "Spare";
-  brand: string;
-  size: string;
-  condition: "New" | "Good" | "Worn" | "Critical" | "Replaced";
-  installedDate: string;
-  lastRotation: string;
-  mileage: string;
-  branch: string;
-  status: "Active" | "Inactive";
-};
+const EMPTY = { branchId: "", serialNumber: "", brand: "", size: "", minTreadDepthMm: "", treadDepthMm: "" };
+const num = (v: string) => (v.trim() === "" ? undefined : Number(v));
 
-const TYRES: Tyre[] = [
-  {
-    id: "TYR-001",
-    assetId: "BR-204",
-    assetName: "Honda ACE 110",
-    assetType: "Motorcycle",
-    position: "FL",
-    brand: "Michelin",
-    size: "120/80 R17",
-    condition: "Worn",
-    installedDate: "2026-03-10",
-    lastRotation: "2026-07-15",
-    mileage: "8,440 km",
-    branch: "Ikeja",
-    status: "Active",
-  },
-  {
-    id: "TYR-002",
-    assetId: "BR-204",
-    assetName: "Honda ACE 110",
-    assetType: "Motorcycle",
-    position: "FR",
-    brand: "Michelin",
-    size: "120/80 R17",
-    condition: "Good",
-    installedDate: "2026-03-10",
-    lastRotation: "2026-07-15",
-    mileage: "8,440 km",
-    branch: "Ikeja",
-    status: "Active",
-  },
-  {
-    id: "TYR-003",
-    assetId: "VN-041",
-    assetName: "Mercedes Sprinter",
-    assetType: "Van",
-    position: "FL",
-    brand: "Bridgestone",
-    size: "225/75 R16",
-    condition: "Good",
-    installedDate: "2026-01-20",
-    lastRotation: "2026-06-10",
-    mileage: "28,450 km",
-    branch: "Lekki",
-    status: "Active",
-  },
-  {
-    id: "TYR-004",
-    assetId: "VN-041",
-    assetName: "Mercedes Sprinter",
-    assetType: "Van",
-    position: "FR",
-    brand: "Bridgestone",
-    size: "225/75 R16",
-    condition: "Good",
-    installedDate: "2026-01-20",
-    lastRotation: "2026-06-10",
-    mileage: "28,450 km",
-    branch: "Lekki",
-    status: "Active",
-  },
-  {
-    id: "TYR-005",
-    assetId: "VN-041",
-    assetName: "Mercedes Sprinter",
-    assetType: "Van",
-    position: "RL",
-    brand: "Bridgestone",
-    size: "225/75 R16",
-    condition: "Worn",
-    installedDate: "2026-01-20",
-    lastRotation: "2026-06-10",
-    mileage: "28,450 km",
-    branch: "Lekki",
-    status: "Active",
-  },
-  {
-    id: "TYR-006",
-    assetId: "VN-041",
-    assetName: "Mercedes Sprinter",
-    assetType: "Van",
-    position: "RR",
-    brand: "Bridgestone",
-    size: "225/75 R16",
-    condition: "Critical",
-    installedDate: "2026-01-20",
-    lastRotation: "2026-06-10",
-    mileage: "28,450 km",
-    branch: "Lekki",
-    status: "Active",
-  },
-  {
-    id: "TYR-007",
-    assetId: "TR-112",
-    assetName: "Scania R500",
-    assetType: "Truck",
-    position: "FL",
-    brand: "Goodyear",
-    size: "295/80 R22.5",
-    condition: "Good",
-    installedDate: "2025-11-05",
-    lastRotation: "2026-05-20",
-    mileage: "65,220 km",
-    branch: "Apapa",
-    status: "Active",
-  },
-  {
-    id: "TYR-008",
-    assetId: "BR-188",
-    assetName: "Yamaha FZ",
-    assetType: "Motorcycle",
-    position: "FL",
-    brand: "Pirelli",
-    size: "110/70 R17",
-    condition: "New",
-    installedDate: "2026-08-01",
-    lastRotation: "2026-08-01",
-    mileage: "850 km",
-    branch: "Yaba",
-    status: "Active",
-  },
-  {
-    id: "TYR-009",
-    assetId: "BR-188",
-    assetName: "Yamaha FZ",
-    assetType: "Motorcycle",
-    position: "FR",
-    brand: "Pirelli",
-    size: "140/70 R17",
-    condition: "New",
-    installedDate: "2026-08-01",
-    lastRotation: "2026-08-01",
-    mileage: "850 km",
-    branch: "Yaba",
-    status: "Active",
-  },
-];
-
-const POSITION_LABELS: Record<string, string> = {
-  FL: "Front Left",
-  FR: "Front Right",
-  RL: "Rear Left",
-  RR: "Rear Right",
-  Spare: "Spare",
-};
-
-const POSITION_COLORS: Record<string, string> = {
-  FL: "bg-blue-500",
-  FR: "bg-blue-400",
-  RL: "bg-amber-500",
-  RR: "bg-amber-400",
-  Spare: "bg-ink-400",
-};
-
-const CONDITION_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-  New: { bg: "bg-green-bg", text: "text-green", dot: "bg-green" },
-  Good: { bg: "bg-blue-bg", text: "text-blue", dot: "bg-blue" },
-  Worn: { bg: "bg-amber-bg", text: "text-amber", dot: "bg-amber" },
-  Critical: { bg: "bg-red-bg", text: "text-red", dot: "bg-red" },
-  Replaced: { bg: "bg-surface-2", text: "text-ink-500", dot: "bg-ink-400" },
-};
-
-const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
-const CONDITION_FILTERS = ["All", "New", "Good", "Worn", "Critical", "Replaced"];
-
+// Tyre register: stock, fitted positions and tread depth. A reading below
+// the tyre's minimum opens a defect on the asset.
 export default function TyresPage() {
   const router = useRouter();
+  const [rows, setRows] = useState<Tyre[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
-  const [selectedCondition, setSelectedCondition] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
-  const [secondsAgo, setSecondsAgo] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Tyre[]>([]);
+  const [error, setError] = useState<ApiErrorInfo | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(TYRES);
+  const [show, setShow] = useState(false);
+  const [form, setForm] = useState(EMPTY);
+  const [key, setKey] = useState(newIdempotencyKey);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<ApiErrorInfo | null>(null);
+
+  const load = useCallback(async (s: string) => {
+    try {
+      setRows(await assetCareService.listTyres({ status: s || undefined }));
+      setError(null);
+    } catch (e) {
+      setError(describeApiError(e, "Tyres could not be loaded."));
+    } finally {
       setLoading(false);
-    };
-    loadData();
+    }
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(interval);
+    Promise.resolve().then(() => load(status));
+  }, [load, status]);
+  useEffect(() => {
+    structureService.listBranches().then(setBranches).catch(() => setBranches([]));
   }, []);
 
-  const filteredData = data.filter((item) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      item.id.toLowerCase().includes(search.toLowerCase()) ||
-      item.assetId.toLowerCase().includes(search.toLowerCase()) ||
-      item.assetName.toLowerCase().includes(search.toLowerCase()) ||
-      item.brand.toLowerCase().includes(search.toLowerCase()) ||
-      item.size.toLowerCase().includes(search.toLowerCase());
-
-    const matchesBranch =
-      selectedBranch === "All branches" || item.branch === selectedBranch;
-    const matchesCondition =
-      selectedCondition === "All" || item.condition === selectedCondition;
-
-    return matchesSearch && matchesBranch && matchesCondition;
-  });
-
-  const criticalCount = data.filter((d) => d.condition === "Critical").length;
-  const wornCount = data.filter((d) => d.condition === "Worn").length;
-  const goodCount = data.filter((d) => d.condition === "Good" || d.condition === "New").length;
-
-  // ===== NAVIGATION HANDLER =====
-  const goToTyreDetail = (tyreId: string) => {
-    router.push(`/fleet/tyres/${tyreId}`);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError(null);
+    try {
+      const tyre = await assetCareService.registerTyre(
+        {
+          branchId: form.branchId || undefined,
+          serialNumber: form.serialNumber.trim(),
+          brand: form.brand.trim() || undefined,
+          size: form.size.trim() || undefined,
+          minTreadDepthMm: num(form.minTreadDepthMm),
+          treadDepthMm: num(form.treadDepthMm),
+        },
+        key,
+      );
+      setKey(newIdempotencyKey());
+      router.push(`/fleet/tyres/${tyre.id}`);
+    } catch (err) {
+      setFormError(describeApiError(err, "The tyre could not be registered."));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-[1400px] py-12">
-        <div className="flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          <span className="ml-3 text-[13px] text-ink-600">Loading tyres...</span>
-        </div>
-      </div>
-    );
-  }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q === "" ? rows : rows.filter((t) => [t.serialNumber, t.brand ?? "", t.size ?? "", t.assetId ?? "", t.position ?? ""].join(" ").toLowerCase().includes(q));
+  }, [rows, search]);
 
-  const hasActiveFilters =
-    selectedBranch !== "All branches" ||
-    selectedCondition !== "All" ||
-    search !== "";
-
-  const clearFilters = () => {
-    setSearch("");
-    setSelectedBranch("All branches");
-    setSelectedCondition("All");
-  };
+  if (loading) return <Loading label="Loading tyres..." />;
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-5">
-      {/* ===== HEADER ===== */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="absolute -top-1 -right-1">
-                <Sparkles className="h-4 w-4 text-amber animate-pulse" />
-              </div>
-              <h1 className="font-display text-[22px] font-semibold tracking-[-0.015em] text-ink-950">
-                Tyres
-              </h1>
-            </div>
-            <span className="rounded-full bg-primary-bg px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-              {data.length}
-            </span>
-            <div className="flex items-center gap-1 rounded-full bg-red-bg px-2.5 py-0.5 text-[10px] font-semibold text-red">
-              <AlertCircle className="h-3 w-3" />
-              {criticalCount} critical
-            </div>
-          </div>
-          <p className="mt-1 text-[13.5px] text-ink-600">
-            Tyre identity, position, condition, and lifecycle history.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSecondsAgo(0)}
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3 text-[11.5px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
-          >
-            <RefreshCw className="h-3 w-3" />
-            {secondsAgo}s
-          </button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11.5px] font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90">
-            <Plus className="h-3.5 w-3.5" />
-            Add Tyre
-          </button>
-        </div>
-      </div>
-
-      {/* ===== STATS ===== */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-green-bg p-1.5 group-hover:scale-110 transition-transform">
-              <CheckCircle2 className="h-4 w-4 text-green" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Good / New</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">{goodCount}</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-green">
-            <TrendingUp className="h-3 w-3" />
-            <span>+2 this month</span>
-          </div>
-        </div>
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-amber-bg p-1.5 group-hover:scale-110 transition-transform">
-              <AlertTriangle className="h-4 w-4 text-amber" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Worn</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">{wornCount}</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-amber">
-            <Clock className="h-3 w-3" />
-            <span>Replace soon</span>
-          </div>
-        </div>
-        <div className="group rounded-xl border border-line bg-white p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-default">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-red-bg p-1.5 group-hover:scale-110 transition-transform">
-              <XCircle className="h-4 w-4 text-red" />
-            </div>
-            <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Critical</div>
-              <div className="font-display text-[18px] font-bold text-ink-950">{criticalCount}</div>
-            </div>
-          </div>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-red">
-            <AlertCircle className="h-3 w-3" />
-            <span>Immediate action</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== FILTERS ===== */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex h-11 flex-1 min-w-[240px] items-center gap-2.5 rounded-xl border border-line bg-white/70 px-4 shadow-sm">
-          <Search className="h-4 w-4 flex-shrink-0 text-ink-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by ID, asset, or brand..."
-            className="w-full bg-transparent text-[13px] text-ink-950 outline-none placeholder:text-ink-400 py-2"
-          />
-        </div>
-
-        <button
-          onClick={() => {
-            const branches = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
-            const currentIndex = branches.indexOf(selectedBranch);
-            const nextIndex = (currentIndex + 1) % branches.length;
-            setSelectedBranch(branches[nextIndex]);
-          }}
-          className="flex h-11 items-center gap-1.5 rounded-xl border border-line bg-white/70 px-3.5 text-[12px] font-medium text-ink-600 shadow-sm transition hover:bg-white"
-        >
-          <MapPin className="h-4 w-4 text-ink-400" />
-          {selectedBranch}
-          <ChevronDown className="h-4 w-4 text-ink-400" />
-        </button>
-
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-11 items-center gap-1.5 rounded-xl border px-3.5 text-[12px] font-medium transition ${
-            showFilters || hasActiveFilters
-              ? "border-primary bg-primary-bg text-primary"
-              : "border-line bg-white/70 text-ink-600 shadow-sm hover:bg-white"
-          }`}
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Filters
-          {hasActiveFilters && (
-            <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(selectedBranch !== "All branches" ? 1 : 0) +
-                (selectedCondition !== "All" ? 1 : 0)}
-            </span>
-          )}
-        </button>
-
-        {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="flex h-11 items-center gap-1 rounded-xl border border-line bg-white/70 px-3 text-[12px] font-medium text-ink-500 shadow-sm transition hover:bg-white"
-          >
-            <X className="h-4 w-4" />
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* ===== FILTER DRAWER ===== */}
-      {showFilters && (
-        <div className="rounded-xl border border-line bg-white/70 p-3.5 shadow-sm backdrop-blur-xl">
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Condition</div>
-              <div className="flex gap-1.5">
-                {CONDITION_FILTERS.map((condition) => (
-                  <button
-                    key={condition}
-                    onClick={() => setSelectedCondition(condition)}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                      selectedCondition === condition
-                        ? "bg-primary-bg text-primary ring-2 ring-primary/30"
-                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
-                    }`}
-                  >
-                    {condition}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={clearFilters}
-              className="rounded-lg border border-line px-3.5 py-1.5 text-[11px] font-medium text-ink-600 hover:bg-white transition-colors"
+    <div className="space-y-5">
+      <PageHeader
+        title="Tyres"
+        description="Tyre stock, fitted positions and tread depth."
+        actions={
+          <>
+            <SecondaryButton onClick={() => load(status)}>
+              <RefreshCw className="h-3 w-3" /> Refresh
+            </SecondaryButton>
+            <PrimaryButton
+              onClick={() => {
+                setShow(true);
+                setFormError(null);
+              }}
             >
-              Clear all
-            </button>
-          </div>
-        </div>
+              <Plus className="h-3.5 w-3.5" /> Register tyre
+            </PrimaryButton>
+          </>
+        }
+      />
+      <ApiErrorNotice error={error} />
+      <StatGrid
+        items={[
+          { label: "Total", value: rows.length },
+          { label: "In stock", value: rows.filter((t) => t.status === "IN_STOCK").length, tone: "green" },
+          { label: "Installed", value: rows.filter((t) => t.status === "INSTALLED").length, tone: "primary" },
+          {
+            label: "Below minimum tread",
+            value: rows.filter((t) => t.lastTreadDepthMm != null && t.lastTreadDepthMm < t.minTreadDepthMm).length,
+            tone: "red",
+          },
+        ]}
+      />
+
+      {show && (
+        <Panel title="Register a tyre" onClose={() => setShow(false)}>
+          <form onSubmit={submit} className="space-y-4">
+            <ApiErrorNotice error={formError} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Serial number" required>
+                <input required value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} className={INPUT} />
+              </Field>
+              <Field label="Brand">
+                <input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={INPUT} />
+              </Field>
+              <Field label="Size">
+                <input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} placeholder="295/80R22.5" className={INPUT} />
+              </Field>
+              <Field label="Branch">
+                <select value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })} className={INPUT}>
+                  <option value="">Choose a branch</option>
+                  {branches.filter((b) => b.status === "ACTIVE").map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Minimum tread (mm)">
+                <input inputMode="decimal" value={form.minTreadDepthMm} onChange={(e) => setForm({ ...form, minTreadDepthMm: e.target.value })} className={INPUT} />
+              </Field>
+              <Field label="Current tread (mm)">
+                <input inputMode="decimal" value={form.treadDepthMm} onChange={(e) => setForm({ ...form, treadDepthMm: e.target.value })} className={INPUT} />
+              </Field>
+            </div>
+            <PrimaryButton type="submit" disabled={saving}>
+              <Save className="h-3.5 w-3.5" /> {saving ? "Saving..." : "Register tyre"}
+            </PrimaryButton>
+          </form>
+        </Panel>
       )}
 
-      {/* ===== TYRES CARDS WITH NAVIGATION ===== */}
-      {filteredData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-white/50 py-14">
-          <div className="rounded-full bg-surface-2 p-4">
-            <Circle className="h-8 w-8 text-ink-400" />
-          </div>
-          <h3 className="mt-3 text-[15px] font-semibold text-ink-950">No tyres found</h3>
-          <p className="mt-1 max-w-sm text-center text-[13px] text-ink-500">
-            No tyres match your current filters. Add a new tyre to get started.
-          </p>
-          <button className="mt-3.5 rounded-lg bg-primary px-4 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-primary/90">
-            <Plus className="inline h-3.5 w-3.5 mr-1" />
-            Add Tyre
-          </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex h-11 min-w-[200px] flex-1 items-center gap-2.5 rounded-xl border border-line bg-white/70 px-4 shadow-sm">
+          <Search className="h-4 w-4 text-ink-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by serial, brand, asset..." className="w-full bg-transparent text-sm text-ink-950 outline-none placeholder:text-ink-400" />
         </div>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status" className="h-11 rounded-xl border border-line bg-white/70 px-3 text-sm text-ink-600 shadow-sm">
+          <option value="">All statuses</option>
+          {["IN_STOCK", "INSTALLED", "REMOVED", "SCRAPPED"].map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyBlock icon={<CircleDot className="h-8 w-8" />} title={rows.length === 0 ? "No tyres registered" : "No tyres found"} description="Register tyres to track fitting, rotation and tread wear." />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredData.map((item) => {
-            const conditionStyle = CONDITION_STYLES[item.condition] || CONDITION_STYLES.Good;
-            const isCritical = item.condition === "Critical";
-            const isWorn = item.condition === "Worn";
-
-            return (
-              <div
-                key={item.id}
-                onClick={() => goToTyreDetail(item.id)}
-                className={`group relative cursor-pointer rounded-xl border p-4 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
-                  isCritical
-                    ? "border-red/30 bg-red-bg/10 hover:border-red/50"
-                    : isWorn
-                    ? "border-amber/30 bg-amber-bg/10 hover:border-amber/50"
-                    : "border-line bg-white hover:border-ink-300"
-                }`}
-              >
-                {/* Glow effect */}
-                <div className={`absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-                  isCritical ? "bg-red-500/5" : isWorn ? "bg-amber-500/5" : "bg-primary/5"
-                }`} />
-
-                <div className="relative z-10 flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                        isCritical
-                          ? "bg-red-bg text-red"
-                          : isWorn
-                          ? "bg-amber-bg text-amber"
-                          : "bg-green-bg text-green"
-                      }`}
-                    >
-                      <Circle className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[15px] font-semibold text-ink-950">
-                          {item.id}
-                        </span>
-                        <span className="font-mono text-[11px] text-ink-400">
-                          {item.assetId}
-                        </span>
-                      </div>
-                      <div className="text-[12px] text-ink-500">{item.assetName}</div>
-                    </div>
-                  </div>
-                  <span
-                    className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${conditionStyle.bg} ${conditionStyle.text}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${conditionStyle.dot}`} />
-                    {item.condition}
-                  </span>
-                </div>
-
-                <div className="relative z-10 mt-3 grid grid-cols-2 gap-1.5">
-                  <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
-                    <span className={`h-2.5 w-2.5 rounded-full ${POSITION_COLORS[item.position]}`} />
-                    <span className="font-mono">{item.position}</span>
-                    <span className="text-ink-400">({POSITION_LABELS[item.position]})</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
-                    <Gauge className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.mileage}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
-                    <span className="font-semibold">{item.brand}</span>
-                    <span className="text-ink-400">·</span>
-                    <span>{item.size}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
-                    <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.branch}</span>
-                  </div>
-                </div>
-
-                <div className="relative z-10 mt-2 flex flex-wrap items-center gap-2 text-[11px] text-ink-500">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    Installed: {item.installedDate}
-                  </span>
-                  <span className="text-ink-300">·</span>
-                  <span className="flex items-center gap-1">
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Rotated: {item.lastRotation}
-                  </span>
-                </div>
-
-                <div className="relative z-10 mt-3 flex items-center justify-between border-t border-line pt-2.5">
-                  <span className={`text-[11px] font-medium ${
-                    isCritical ? "text-red" : isWorn ? "text-amber" : "text-ink-500"
-                  }`}>
-                    {isCritical ? "⚠ Replace immediately" : isWorn ? "⚠ Replace soon" : "✓ Good condition"}
-                  </span>
-                  <div className="flex items-center gap-1 text-[11px] font-medium text-ink-400 group-hover:text-primary transition-colors">
-                    View <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <DataTable
+          rows={filtered}
+          rowKey={(t) => t.id}
+          onRowClick={(t) => router.push(`/fleet/tyres/${t.id}`)}
+          columns={[
+            { header: "Serial", cell: (t) => <span className="font-mono text-ink-950">{t.serialNumber}</span> },
+            { header: "Brand / size", cell: (t) => [t.brand, t.size].filter(Boolean).join(" · ") || "—" },
+            { header: "Asset", cell: (t) => (t.assetId ? `${t.assetId} · ${t.position ?? ""}` : "—") },
+            { header: "Tread", cell: (t) => (t.lastTreadDepthMm != null ? `${t.lastTreadDepthMm} mm (min ${t.minTreadDepthMm})` : "—") },
+            { header: "Status", cell: (t) => <StatusPill status={t.status} /> },
+            { header: "Updated", cell: (t) => formatWhen(t.updatedAt) },
+          ]}
+        />
       )}
     </div>
   );
