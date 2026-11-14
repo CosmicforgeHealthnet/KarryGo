@@ -75,6 +75,23 @@ type ChangeStatusInput struct {
 	ExpectedVersion int64
 }
 
+// staffStatusTransitionAllowed is the staff membership state machine for the
+// suspend / reactivate / end commands: suspend an invited or active member,
+// reactivate only a suspended one, end any live one. ENDED is terminal.
+func staffStatusTransitionAllowed(from, to string) bool {
+	switch to {
+	case models.UserStatusSuspended:
+		return from == models.UserStatusActive || from == models.UserStatusInvited
+	case models.UserStatusActive:
+		return from == models.UserStatusSuspended
+	case models.UserStatusEnded:
+		return from == models.UserStatusActive || from == models.UserStatusInvited ||
+			from == models.UserStatusSuspended
+	default:
+		return false
+	}
+}
+
 // ChangeStaffStatus suspends, reactivates or ends a membership.
 //
 // Suspension and ending revoke the membership's organization-scoped sessions
@@ -88,6 +105,12 @@ func (s *Service) ChangeStaffStatus(ctx context.Context, input ChangeStatusInput
 				return apperrors.NotFound("Staff member not found.", nil)
 			}
 			return err
+		}
+		if !staffStatusTransitionAllowed(before.Status, input.Status) {
+			// Suspending a suspended member or reactivating an active one is
+			// not a change: refusing it keeps the audit trail and the
+			// suspended/reactivated events truthful.
+			return apperrors.Conflict("The staff member's current status does not allow this change.", nil)
 		}
 
 		if err := s.opts.Members.UpdateStatus(ctx, tx, input.Tenant.OrganizationID, input.MemberID,
