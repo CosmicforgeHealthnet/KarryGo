@@ -70,6 +70,26 @@ func TestBranchScopedRoleCannotBeWidenedByQueryParameter(t *testing.T) {
 			}
 		}
 	}
+	// Without any parameter the list is still limited to branch A, in SQL,
+	// so the page holds branch A's asset rather than being cut short.
+	status, list = assetsIDORCall(t, router, http.MethodGet, "/fleet-partner/v1/assets", org.ID, branchOnly.ID, nil, nil)
+	if status != http.StatusOK {
+		t.Fatalf("unfiltered list = %d %v", status, list)
+	}
+	sawA := false
+	if items, ok := list["data"].([]any); ok {
+		for _, item := range items {
+			switch item.(map[string]any)["BranchID"] {
+			case branchB:
+				t.Fatal("branch B asset in the unfiltered list of a branch-A-only member")
+			case branchA:
+				sawA = true
+			}
+		}
+	}
+	if !sawA {
+		t.Fatalf("branch-A-only member's unfiltered list lacks their own asset: %v", list)
+	}
 	// The organization-wide owner still sees both.
 	if status, _ := assetsIDORCall(t, router, http.MethodGet, "/fleet-partner/v1/assets/"+assetB, org.ID, owner, nil, nil); status != http.StatusOK {
 		t.Fatalf("org-wide owner reading branch B = %d", status)

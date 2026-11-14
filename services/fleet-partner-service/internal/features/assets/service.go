@@ -148,7 +148,13 @@ func (s *Service) ListAssets(ctx context.Context, t tenant.Context, f Page) ([]A
 	if e := s.gate(s.o.Flags.Assets, false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)ORDER BY created_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset))
+	// The caller's permitted branches are applied in SQL, before LIMIT, so a
+	// branch-scoped member gets full pages of their own assets.
+	permitted := t.PermittedBranchIDs
+	if permitted == nil {
+		permitted = []string{}
+	}
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)AND(cardinality($6::text[])=0 OR branch_id=ANY($6::text[]))ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset), permitted)
 	if e != nil {
 		return nil, e
 	}
