@@ -6,16 +6,24 @@ import (
 	"testing"
 )
 
-// The three latest migrations:
-//   - 000089 adds shift templates and training enrolments; rolling back
-//     drops them (and the template link on shifts), re-applying restores them.
+// The latest migrations, newest first. Each down file is exercised in
+// reverse order and must remove exactly what its up file added; re-applying
+// must restore it:
+//   - 000095 provider association read-back columns on provisioning sagas
+//   - 000094 provider invitation resend counters
+//   - 000093 custody subjects, incident investigations, compliance checks
+//   - 000092 rescue cases and the asset lifecycle tables
+//   - 000091 sales leads
+//   - 000090 approval policy versions, delegations, cost centres, teams,
+//     operating locations
+//   - 000089 shift templates and training enrolments
 //   - 000088 publishes company activation policy version 2 and archives
 //     version 1; rolling back restores version 1 and re-applying restores 2.
 //   - 000087 backfills an active Head Office branch for every company without
 //     one; rolling it back keeps the branches (other records may reference
 //     them) and re-applying it never duplicates them.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
-	if replayMigrationTip(t) != "000089_shift_templates_training_enrollments" {
+	if replayMigrationTip(t) != "000095_provider_association_readback" {
 		t.Fatal("review latest migration retention assertions")
 	}
 	pool := isolatedTestDatabase(t, "fleet_partner_onboarding_tip")
@@ -23,22 +31,42 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
 	}
-	tables := func() int {
+	type marker struct{ migration, table, column string }
+	markers := []marker{
+		{"000095", "fleet_partner_provider_provisioning_sagas", "association_id"},
+		{"000094", "fleet_partner_provider_invitations", "resend_count"},
+		{"000093", "fleet_partner_incident_investigations", ""},
+		{"000092", "fleet_partner_rescue_cases", ""},
+		{"000091", "fleet_partner_sales_leads", ""},
+		{"000090", "fleet_partner_cost_centres", ""},
+		{"000089", "fleet_partner_shift_templates", ""},
+	}
+	present := func(m marker) bool {
 		t.Helper()
 		var n int
-		if err := pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_name IN ('fleet_partner_shift_templates','fleet_partner_training_enrollments')`).Scan(&n); err != nil {
+		query := `SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1`
+		args := []any{m.table}
+		if m.column != "" {
+			query = `SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2`
+			args = append(args, m.column)
+		}
+		if err := pool.QueryRow(ctx, query, args...).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
-		return n
+		return n == 1
 	}
-	if tables() != 2 {
-		t.Fatal("000089 tables missing after apply")
+	for _, m := range markers {
+		if !present(m) {
+			t.Fatalf("%s marker %s.%s missing after apply", m.migration, m.table, m.column)
+		}
 	}
-	if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
-		t.Fatal(err)
-	}
-	if tables() != 0 {
-		t.Fatal("000089 tables survived rollback")
+	for _, m := range markers {
+		if err := database.RollbackLastMigration(ctx, pool, migrationsDir); err != nil {
+			t.Fatalf("rollback %s: %v", m.migration, err)
+		}
+		if present(m) {
+			t.Fatalf("%s marker %s.%s survived its rollback", m.migration, m.table, m.column)
+		}
 	}
 	activePolicy := func() string {
 		t.Helper()
@@ -72,8 +100,10 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	if err := database.ApplyMigrations(ctx, pool, migrationsDir); err != nil {
 		t.Fatal(err)
 	}
-	if tables() != 2 {
-		t.Fatal("000089 tables missing after re-apply")
+	for _, m := range markers {
+		if !present(m) {
+			t.Fatalf("%s marker %s.%s missing after re-apply", m.migration, m.table, m.column)
+		}
 	}
 	branches := func(org string) (count int, headOffice int) {
 		t.Helper()
