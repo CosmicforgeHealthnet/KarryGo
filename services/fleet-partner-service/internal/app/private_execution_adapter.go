@@ -28,7 +28,10 @@ type privateExecutionAdapter struct {
 const (
 	dispatchPrivateExecutionPath = "/api/v1/internal/private-executions"
 	taxiPrivateExecutionPath     = "/api/v1/taxi/internal/private-executions"
-	haulingPrivateExecutionPath  = "/api/v1/hauling/internal/private-executions"
+	// TaxiRestrictionsPath is driver-taxi-service's compliance-restriction
+	// authority (apply, clear, operations/:ref read-back).
+	TaxiRestrictionsPath        = "/api/v1/taxi/internal/restrictions"
+	haulingPrivateExecutionPath = "/api/v1/hauling/internal/private-executions"
 )
 
 func BuildPrivateExecutionAdapter(cfg config.Config, metrics *observability.Metrics) privateusecases.ExecutionPort {

@@ -78,6 +78,11 @@ func (r Requirement) ActiveAt(now time.Time) bool {
 	return r.Status == "ACTIVE" && !now.Before(r.EffectiveFrom) && (r.EffectiveUntil == nil || now.Before(*r.EffectiveUntil))
 }
 
+// AuthorityTaxi names driver-taxi-service as a restriction propagation
+// target. It is added per deployment (Service.requiredAuthorities), not here,
+// because Taxi is optional where Dispatch and Hauling are not.
+const AuthorityTaxi = "TAXI"
+
 func RequiredAuthorities(subject string) []string {
 	switch subject {
 	case "PROVIDER", "ASSET", "ORGANIZATION":

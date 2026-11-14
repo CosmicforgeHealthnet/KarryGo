@@ -30,8 +30,16 @@ type Options struct {
 	Queue    *jobs.Queue
 	Dispatch platformclients.RestrictionAuthority
 	Hauling  platformclients.RestrictionAuthority
-	Flags    Flags
-	Now      func() time.Time
+	// Taxi is driver-taxi-service's restriction authority. Unlike Dispatch
+	// and Hauling, which are required targets in every deployment, Taxi
+	// becomes a propagation target only when this deployment wires it: a
+	// deployment with no Taxi integration must not leave every restriction
+	// permanently short of FullyPropagated. Once Taxi is a target its
+	// operations are processed exactly like the others, including the
+	// retryable AUTHORITY_NOT_CONFIGURED outcome of an unconfigured client.
+	Taxi  platformclients.RestrictionAuthority
+	Flags Flags
+	Now   func() time.Time
 }
 
 type Service struct{ o Options }
@@ -319,7 +327,7 @@ func scanRestriction(row pgx.Row) (Restriction, error) {
 	return v, e
 }
 func (s *Service) createRestrictionTx(ctx context.Context, tx pgx.Tx, t tenant.Context, in RestrictInput) (Restriction, error) {
-	auth := RequiredAuthorities(strings.ToUpper(in.SubjectType))
+	auth := s.requiredAuthorities(strings.ToUpper(in.SubjectType))
 	raw, _ := json.Marshal(auth)
 	v := Restriction{ID: ids.New("rst"), OrganizationID: t.OrganizationID, SubjectType: strings.ToUpper(in.SubjectType), SubjectReference: in.SubjectReference, ReasonCode: strings.ToUpper(in.ReasonCode), SourceType: in.SourceType, SourceReference: in.SourceReference, Severity: strings.ToUpper(in.Severity), State: "APPLIED", RequiredAuthorities: raw, CreatedBy: t.ActorID}
 	var e error
@@ -468,7 +476,20 @@ func (s *Service) authority(name string) platformclients.RestrictionAuthority {
 	if name == "HAULING" {
 		return s.o.Hauling
 	}
+	if name == AuthorityTaxi {
+		return s.o.Taxi
+	}
 	return nil
+}
+
+// requiredAuthorities is RequiredAuthorities plus Taxi when this deployment
+// wires a Taxi restriction authority (see Options.Taxi).
+func (s *Service) requiredAuthorities(subject string) []string {
+	auth := RequiredAuthorities(subject)
+	if len(auth) > 0 && s.o.Taxi != nil {
+		auth = append(auth, AuthorityTaxi)
+	}
+	return auth
 }
 func (s *Service) ProcessRestriction(ctx context.Context, org, id string) error {
 	r, e := s.GetRestriction(ctx, org, id)
