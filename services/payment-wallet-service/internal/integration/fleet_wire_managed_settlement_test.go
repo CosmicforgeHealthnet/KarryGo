@@ -607,6 +607,13 @@ func TestExecutionServiceMarkerFindsTheRealPayment(t *testing.T) {
 		if err != nil || !containsStuck(stuck, job.intent.ID) {
 			t.Fatalf("%s: marked unsettled job not reported stuck: %v %v", job.canonical, stuck, err)
 		}
+		for _, stuckJob := range stuck {
+			if stuckJob.PaymentIntentID == job.intent.ID {
+				if _, err := repo.RecordManagedReconciliation(ctx, stuckJob); err != nil {
+					t.Fatalf("%s: open reconciliation: %v", job.canonical, err)
+				}
+			}
+		}
 		// ...the legacy path refuses it...
 		if _, err := executionWallet(server, job.walletName).CompleteJobAt(ctx, job.walletName, job.paymentRef, time.Now()); requestStatus(err) != http.StatusConflict {
 			t.Fatalf("%s: legacy CompleteJob on a marked job: err=%v, want 409", job.canonical, err)
@@ -619,6 +626,19 @@ func TestExecutionServiceMarkerFindsTheRealPayment(t *testing.T) {
 		stuck, err = repo.FindStuckManagedJobs(ctx, time.Now().Add(time.Hour), 100)
 		if err != nil || containsStuck(stuck, job.intent.ID) {
 			t.Fatalf("%s: settled job still reported stuck: %v %v", job.canonical, stuck, err)
+		}
+		// The reconciliation opened while it was stuck closes against the
+		// settlement that paid it, found by payment rather than by name.
+		if _, err := repo.ResolveManagedReconciliations(ctx); err != nil {
+			t.Fatal(err)
+		}
+		var status, instructionID string
+		if err := pool.QueryRow(ctx, `SELECT status, instruction_id FROM managed_settlement_reconciliations
+			WHERE payment_intent_id = $1`, job.intent.ID).Scan(&status, &instructionID); err != nil {
+			t.Fatalf("%s: read reconciliation: %v", job.canonical, err)
+		}
+		if status != "RESOLVED" || instructionID != "mwsi_"+job.jobID {
+			t.Fatalf("%s: reconciliation status=%s instruction=%s", job.canonical, status, instructionID)
 		}
 	}
 
