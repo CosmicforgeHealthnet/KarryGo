@@ -271,8 +271,8 @@ func (h *Handler) listTransactions(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	rows, err := h.service.Repository().ListTransactions(c.Request.Context(), t.OrganizationID,
-		t.PermittedBranchIDs, repositories.TransactionFilter{
+	rows, err := h.service.ListTransactions(c.Request.Context(), t,
+		repositories.TransactionFilter{
 			WalletReference: strings.TrimSpace(c.Query("walletReference")),
 			Category:        strings.TrimSpace(c.Query("category")),
 			Direction:       strings.TrimSpace(c.Query("direction")),
@@ -298,10 +298,9 @@ func (h *Handler) getTransaction(c *gin.Context) {
 	if !ok || !h.authorize(c, &t, PermissionTransactionsRead) {
 		return
 	}
-	row, err := h.service.Repository().GetTransaction(c.Request.Context(), t.OrganizationID,
-		c.Param("transactionId"), t.PermittedBranchIDs)
+	row, err := h.service.GetTransaction(c.Request.Context(), t, c.Param("transactionId"))
 	if err != nil {
-		respond.Error(c, apperrors.NotFound("Transaction was not found.", nil))
+		respond.Error(c, err)
 		return
 	}
 	respond.OK(c, transactionView(row))
@@ -503,7 +502,8 @@ func (h *Handler) replayAllocation(c *gin.Context) {
 	if !ok || !h.authorize(c, &t, PermissionAllocationApprove) {
 		return
 	}
-	if err := h.service.ReplayAllocation(c.Request.Context(), t, c.Param("allocationId")); err != nil {
+	if err := h.service.ReplayAllocation(c.Request.Context(), t, c.Param("membershipId"),
+		c.Param("allocationId")); err != nil {
 		respond.Error(c, err)
 		return
 	}
@@ -632,7 +632,8 @@ func (h *Handler) replayWithdrawal(c *gin.Context) {
 	if !ok || !h.authorize(c, &t, PermissionWithdrawalsApprove) {
 		return
 	}
-	if err := h.service.ReplayWithdrawal(c.Request.Context(), t, c.Param("withdrawalId")); err != nil {
+	if err := h.service.ReplayWithdrawal(c.Request.Context(), t, c.Param("membershipId"),
+		c.Param("withdrawalId")); err != nil {
 		respond.Error(c, err)
 		return
 	}

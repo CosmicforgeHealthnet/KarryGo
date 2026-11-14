@@ -249,6 +249,32 @@ func (s *Service) GetWallet(ctx context.Context, t tenant.Context, authoritative
 	return view, nil
 }
 
+// ListTransactions returns the organization's projected wallet transactions.
+//
+// It is part of the organization wallet read surface, so it is dark exactly
+// when GET /wallet is: a deployment that has not switched on wallet reads does
+// not expose the transaction history either.
+func (s *Service) ListTransactions(ctx context.Context, t tenant.Context,
+	filter repositories.TransactionFilter) ([]models.TransactionProjection, error) {
+	if !s.opts.Flags.WalletReadEnabled {
+		return nil, notFound("Wallet")
+	}
+	return s.opts.Repository.ListTransactions(ctx, t.OrganizationID, t.PermittedBranchIDs, filter)
+}
+
+// GetTransaction returns one projected transaction inside the caller's scope.
+func (s *Service) GetTransaction(ctx context.Context, t tenant.Context,
+	id string) (models.TransactionProjection, error) {
+	if !s.opts.Flags.WalletReadEnabled {
+		return models.TransactionProjection{}, notFound("Transaction")
+	}
+	row, err := s.opts.Repository.GetTransaction(ctx, t.OrganizationID, id, t.PermittedBranchIDs)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return row, notFound("Transaction")
+	}
+	return row, err
+}
+
 // linkStatusForAccount maps an authoritative account status onto a Fleet link
 // state. An unrecognized status becomes UNKNOWN rather than ACTIVE: a status
 // Fleet does not understand is not a status Fleet may act on.
@@ -352,6 +378,13 @@ func (s *Service) requireOperationalSubWallet(ctx context.Context, t tenant.Cont
 	return link, nil
 }
 
+// branchVisible applies the same branch rule the repositories apply to reads:
+// a row without a branch is organization-level and visible to every branch
+// scope; a branch row is visible only inside the caller's permitted branches.
+func branchVisible(t tenant.Context, branchID string) bool {
+	return branchID == "" || t.BranchPermitted(branchID)
+}
+
 func derefTime(value *time.Time) time.Time {
 	if value == nil {
 		return time.Time{}
@@ -422,9 +455,23 @@ func (s *Service) SetPolicy(ctx context.Context, in SetPolicyInput) (models.With
 		in.AllocationApprovalThresholdMinor < 0 {
 		return models.WithdrawalPolicy{}, apperrors.BadRequest("Thresholds must not be negative.", nil)
 	}
+	if strings.TrimSpace(in.Currency) != "" {
+		currency, err := validCurrency(in.Currency)
+		if err != nil {
+			return models.WithdrawalPolicy{}, err
+		}
+		in.Currency = currency
+	}
 	previous, err := s.opts.Repository.GetPolicy(ctx, nil, in.Tenant.OrganizationID)
 	if err != nil {
 		return models.WithdrawalPolicy{}, err
+	}
+	// A stored policy is a mutable aggregate: changing it requires the version
+	// the caller read, or two administrators silently overwrite each other.
+	// Only the very first write (nothing stored yet) may omit it.
+	if !previous.CreatedAt.IsZero() && in.ExpectedVersion == 0 {
+		return models.WithdrawalPolicy{}, apperrors.BadRequest(
+			"Provide the expected version via If-Match or expectedVersion.", nil)
 	}
 	var stored models.WithdrawalPolicy
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {

@@ -378,11 +378,26 @@ func (s *Service) ListAllocations(ctx context.Context, t tenant.Context,
 }
 
 // ReplayAllocation returns a dead-lettered instruction to the execution queue.
-func (s *Service) ReplayAllocation(ctx context.Context, t tenant.Context, id string) error {
+//
+// The instruction must belong to the membership named in the path and lie
+// inside the caller's branch scope, exactly as a read of it would; anything
+// else is answered as not found rather than replayed.
+func (s *Service) ReplayAllocation(ctx context.Context, t tenant.Context, membershipID, id string) error {
 	if err := s.writesEnabled(); err != nil {
 		return err
 	}
 	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		instruction, readErr := s.opts.Repository.LockAllocation(ctx, tx, t.OrganizationID, id)
+		if readErr != nil {
+			if errors.Is(readErr, repositories.ErrNotFound) {
+				return notFound("Allocation")
+			}
+			return readErr
+		}
+		if (membershipID != "" && instruction.ProviderMembershipID != membershipID) ||
+			!branchVisible(t, instruction.BranchID) {
+			return notFound("Allocation")
+		}
 		if err := s.opts.Repository.ReplayAllocation(ctx, tx, t.OrganizationID, id); err != nil {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return notFound("Allocation")

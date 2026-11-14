@@ -174,6 +174,10 @@ func (c *WalletClient) SubmitOperation(ctx context.Context, meta CallMeta, reque
 		path = "/earning-allocations"
 	case "PROVIDER_ALLOCATION":
 		path = "/provider-allocations"
+	case "PROVIDER_WITHDRAWAL":
+		// Section 13: the company wallet worker executes an approved
+		// provider withdrawal through Wallet's provider-withdrawal route.
+		path = "/provider-withdrawals"
 	case "SETTLEMENT_REQUEST":
 		path = "/settlements"
 	case "REFUND_REQUEST":

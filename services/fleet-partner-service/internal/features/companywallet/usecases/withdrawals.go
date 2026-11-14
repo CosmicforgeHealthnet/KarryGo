@@ -308,11 +308,27 @@ func (s *Service) ListWithdrawals(ctx context.Context, t tenant.Context,
 }
 
 // ReplayWithdrawal returns a dead-lettered request to the execution queue.
-func (s *Service) ReplayWithdrawal(ctx context.Context, t tenant.Context, id string) error {
+//
+// Like DecideWithdrawal, the request must belong to the membership named in
+// the path, and it must lie inside the caller's branch scope.
+func (s *Service) ReplayWithdrawal(ctx context.Context, t tenant.Context, membershipID, id string) error {
 	if err := s.writesEnabled(); err != nil {
 		return err
 	}
 	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		request, readErr := s.opts.Repository.LockWithdrawal(ctx, tx, t.OrganizationID, id)
+		if readErr != nil {
+			if errors.Is(readErr, repositories.ErrNotFound) {
+				return errorcodes.NotFound(errorcodes.ProviderWithdrawalNotFound,
+					"The withdrawal was not found.")
+			}
+			return readErr
+		}
+		if (membershipID != "" && request.ProviderMembershipID != membershipID) ||
+			!branchVisible(t, request.BranchID) {
+			return errorcodes.NotFound(errorcodes.ProviderWithdrawalNotFound,
+				"The withdrawal was not found.")
+		}
 		if err := s.opts.Repository.ReplayWithdrawal(ctx, tx, t.OrganizationID, id); err != nil {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return errorcodes.NotFound(errorcodes.ProviderWithdrawalNotFound,
