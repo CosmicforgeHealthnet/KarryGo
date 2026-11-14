@@ -33,12 +33,16 @@ func (s *Service) CreateFulfilment(ctx context.Context, t tenant.Context, v mode
 		v.Priority = "NORMAL"
 	}
 	v.PackingRequirements = models.Raw(v.PackingRequirements, "{}")
+	// The insert returns the stored order without its lines, so keep the
+	// requested lines to persist them after the order row exists.
+	requested := v.Lines
 	e = s.tx(ctx, func(tx pgx.Tx) error {
 		var x error
 		v, x = s.repo.InsertFulfilmentOrder(ctx, tx, v)
 		if x != nil {
 			return x
 		}
+		v.Lines = requested
 		for i := range v.Lines {
 			l := &v.Lines[i]
 			if l.InventoryItemID == "" || l.RequestedQuantity <= 0 {
