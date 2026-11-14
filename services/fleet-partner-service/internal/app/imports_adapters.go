@@ -19,7 +19,8 @@ import (
 	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
 	bulkmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/models"
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -289,7 +290,7 @@ func (a assetImportAdapter) Commit(ctx context.Context, t tenant.Context, _ stri
 // WAREHOUSE_INVENTORY
 // ---------------------------------------------------------------------------
 
-type warehouseImportAdapter struct{ warehouse *warehouse.Service }
+type warehouseImportAdapter struct{ warehouse *warehouseusecases.Service }
 
 func (warehouseImportAdapter) Type() string       { return bulkmodels.TypeWarehouseInventory }
 func (warehouseImportAdapter) SchemaVersion() int { return 1 }
@@ -336,14 +337,14 @@ func (warehouseImportAdapter) ValidateRow(raw map[string]string) bulkusecases.Ro
 }
 
 // Commit passes the row's own reference (its row_reference, unique per
-// version) as CorrelationID: warehouse.Receipt is itself idempotent by
+// version) as CorrelationID: warehousemodels.Receipt is itself idempotent by
 // correlation id, so a retried commit of the SAME row version never double-
 // receives stock, while a CORRECTED row (a new version, a new
 // row_reference) is free to apply its corrected quantity rather than being
 // silently short-circuited by the original version's now-stale result.
 func (a warehouseImportAdapter) Commit(ctx context.Context, t tenant.Context, correlationID string,
 	data map[string]any) (string, error) {
-	item, err := a.warehouse.Receipt(ctx, t, warehouse.ReceiptInput{
+	item, err := a.warehouse.Receipt(ctx, t, warehousemodels.ReceiptInput{
 		WarehouseID: str(data, "warehouseId"), LocationID: str(data, "locationId"), OwnerType: str(data, "ownerType"),
 		OwnerReference: str(data, "ownerReference"), SKU: str(data, "sku"), BatchReference: str(data, "batchReference"),
 		LotReference: str(data, "lotReference"), SerialReference: str(data, "serialReference"),

@@ -1,8 +1,10 @@
-package warehouse
+package http
 
 import (
 	"bytes"
+	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
@@ -36,13 +38,51 @@ func TenantRoutes() []Route {
 }
 func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
 
+// UseCases is the slice of the warehouse use cases the handler calls.
+type UseCases interface {
+	ListWarehouses(ctx context.Context, t tenant.Context) ([]models.Warehouse, error)
+	CreateWarehouse(ctx context.Context, t tenant.Context, v models.Warehouse) (models.Warehouse, error)
+	GetWarehouse(ctx context.Context, t tenant.Context, id string) (models.Warehouse, error)
+	UpdateWarehouse(ctx context.Context, t tenant.Context, id string, expected int64, v models.Warehouse, archive bool) (models.Warehouse, error)
+	ListLocations(ctx context.Context, t tenant.Context, warehouseID string) ([]models.Location, error)
+	CreateLocation(ctx context.Context, t tenant.Context, warehouseID string, v models.Location) (models.Location, error)
+	GetLocation(ctx context.Context, t tenant.Context, warehouseID, id string) (models.Location, error)
+	UpdateLocation(ctx context.Context, t tenant.Context, warehouseID, id string, expected int64, v models.Location) (models.Location, error)
+	ListItems(ctx context.Context, t tenant.Context) ([]models.Item, error)
+	Receipt(ctx context.Context, t tenant.Context, in models.ReceiptInput) (models.Item, error)
+	Move(ctx context.Context, t tenant.Context, id string, in models.MovementInput) (models.Movement, error)
+	GetItem(ctx context.Context, t tenant.Context, id string) (models.Item, error)
+	Movements(ctx context.Context, t tenant.Context, id string) ([]models.Movement, error)
+	ListFulfilment(ctx context.Context, t tenant.Context) ([]models.FulfilmentOrder, error)
+	CreateFulfilment(ctx context.Context, t tenant.Context, v models.FulfilmentOrder) (models.FulfilmentOrder, error)
+	GetFulfilment(ctx context.Context, t tenant.Context, id string) (models.FulfilmentOrder, error)
+	UpdateFulfilment(ctx context.Context, t tenant.Context, id string, expected int64, v models.FulfilmentOrder) (models.FulfilmentOrder, error)
+	FulfilmentCommand(ctx context.Context, t tenant.Context, id, command string, expected int64, in models.FulfilmentOrder) (models.FulfilmentOrder, error)
+	ListDocks(ctx context.Context, t tenant.Context) ([]models.DockAppointment, error)
+	CreateDock(ctx context.Context, t tenant.Context, v models.DockAppointment) (models.DockAppointment, error)
+	GetDock(ctx context.Context, t tenant.Context, id string) (models.DockAppointment, error)
+	DockCommand(ctx context.Context, t tenant.Context, id, command string, expected int64, v models.DockAppointment) (models.DockAppointment, error)
+	ListYards(ctx context.Context, t tenant.Context) ([]models.YardVisit, error)
+	CreateYard(ctx context.Context, t tenant.Context, v models.YardVisit) (models.YardVisit, error)
+	GetYard(ctx context.Context, t tenant.Context, id string) (models.YardVisit, error)
+	YardCommand(ctx context.Context, t tenant.Context, id, command, reason, newSeal string, expected int64) (models.YardVisit, error)
+	ListTransfers(ctx context.Context, t tenant.Context) ([]models.TerminalTransfer, error)
+	CreateTransfer(ctx context.Context, t tenant.Context, v models.TerminalTransfer) (models.TerminalTransfer, error)
+	GetTransfer(ctx context.Context, t tenant.Context, id string) (models.TerminalTransfer, error)
+	TransferCommand(ctx context.Context, t tenant.Context, id, command string, expected int64, actual json.RawMessage) (models.TerminalTransfer, error)
+	ListReturns(ctx context.Context, t tenant.Context) ([]models.Return, error)
+	CreateReturn(ctx context.Context, t tenant.Context, v models.Return) (models.Return, error)
+	GetReturn(ctx context.Context, t tenant.Context, id string) (models.Return, error)
+	ReturnCommand(ctx context.Context, t tenant.Context, id, command, disposition, reason string, expected int64) (models.Return, error)
+}
+
 type Handler struct {
-	s    *Service
+	s    UseCases
 	a    *accesscontrol.Authorizer
 	idem *idempotency.Store
 }
 
-func NewHandler(s *Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
 	return &Handler{s: s, a: a, idem: i}
 }
 func (h *Handler) TenantRoutes() []Route { return TenantRoutes() }
@@ -135,14 +175,14 @@ func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, run func() 
 }
 
 type cmdBody struct {
-	ExpectedVersion   int64            `json:"expectedVersion"`
-	Reason            string           `json:"reason"`
-	Disposition       string           `json:"disposition"`
-	NewSeal           string           `json:"newSeal"`
-	Snapshot          json.RawMessage  `json:"snapshot"`
-	ShipmentReference string           `json:"shipmentReference"`
-	ManifestReference string           `json:"manifestReference"`
-	Lines             []FulfilmentLine `json:"lines"`
+	ExpectedVersion   int64                   `json:"expectedVersion"`
+	Reason            string                  `json:"reason"`
+	Disposition       string                  `json:"disposition"`
+	NewSeal           string                  `json:"newSeal"`
+	Snapshot          json.RawMessage         `json:"snapshot"`
+	ShipmentReference string                  `json:"shipmentReference"`
+	ManifestReference string                  `json:"manifestReference"`
+	Lines             []models.FulfilmentLine `json:"lines"`
 }
 
 func (h *Handler) handle(c *gin.Context, r Route) {
@@ -155,7 +195,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "listWarehouses":
 			return h.s.ListWarehouses(c, t)
 		case "createWarehouse":
-			var b Warehouse
+			var b models.Warehouse
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -163,7 +203,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getWarehouse":
 			return h.s.GetWarehouse(c, t, c.Param("warehouseId"))
 		case "updateWarehouse":
-			var b Warehouse
+			var b models.Warehouse
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -173,11 +213,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
-			return h.s.UpdateWarehouse(c, t, c.Param("warehouseId"), whVer(c, b.ExpectedVersion), Warehouse{}, true)
+			return h.s.UpdateWarehouse(c, t, c.Param("warehouseId"), whVer(c, b.ExpectedVersion), models.Warehouse{}, true)
 		case "listStorageLocations":
 			return h.s.ListLocations(c, t, c.Param("warehouseId"))
 		case "createStorageLocation":
-			var b Location
+			var b models.Location
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -185,7 +225,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getStorageLocation":
 			return h.s.GetLocation(c, t, c.Param("warehouseId"), c.Param("locationId"))
 		case "updateStorageLocation":
-			var b Location
+			var b models.Location
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -193,14 +233,14 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "listWarehouseInventory":
 			return h.s.ListItems(c, t)
 		case "receiveWarehouseInventory":
-			var b ReceiptInput
+			var b models.ReceiptInput
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
 			b.CorrelationID = c.GetHeader("Idempotency-Key")
 			return h.s.Receipt(c, t, b)
 		case "moveWarehouseInventory":
-			var b MovementInput
+			var b models.MovementInput
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -214,7 +254,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "listFulfilmentOrders":
 			return h.s.ListFulfilment(c, t)
 		case "createFulfilmentOrder":
-			var b FulfilmentOrder
+			var b models.FulfilmentOrder
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -222,7 +262,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getFulfilmentOrder":
 			return h.s.GetFulfilment(c, t, c.Param("fulfilmentOrderId"))
 		case "updateFulfilmentOrder":
-			var b FulfilmentOrder
+			var b models.FulfilmentOrder
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -233,11 +273,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 				return nil, errors.New("bound")
 			}
 			cmd := map[string]string{"releaseFulfilmentOrder": "RELEASE", "pickFulfilmentOrder": "PICK", "packFulfilmentOrder": "PACK", "dispatchFulfilmentOrder": "DISPATCH", "cancelFulfilmentOrder": "CANCEL"}[r.OperationID]
-			return h.s.FulfilmentCommand(c, t, c.Param("fulfilmentOrderId"), cmd, whVer(c, b.ExpectedVersion), FulfilmentOrder{Lines: b.Lines, ShipmentReference: b.ShipmentReference, ManifestReference: b.ManifestReference})
+			return h.s.FulfilmentCommand(c, t, c.Param("fulfilmentOrderId"), cmd, whVer(c, b.ExpectedVersion), models.FulfilmentOrder{Lines: b.Lines, ShipmentReference: b.ShipmentReference, ManifestReference: b.ManifestReference})
 		case "listDockAppointments":
 			return h.s.ListDocks(c, t)
 		case "createDockAppointment":
-			var b DockAppointment
+			var b models.DockAppointment
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -245,7 +285,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getDockAppointment":
 			return h.s.GetDock(c, t, c.Param("appointmentId"))
 		case "updateDockAppointment":
-			var b DockAppointment
+			var b models.DockAppointment
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -259,11 +299,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if r.OperationID == "completeDockAppointment" {
 				cmd = "COMPLETE"
 			}
-			return h.s.DockCommand(c, t, c.Param("appointmentId"), cmd, whVer(c, b.ExpectedVersion), DockAppointment{})
+			return h.s.DockCommand(c, t, c.Param("appointmentId"), cmd, whVer(c, b.ExpectedVersion), models.DockAppointment{})
 		case "listYardVisits":
 			return h.s.ListYards(c, t)
 		case "createYardVisit":
-			var b YardVisit
+			var b models.YardVisit
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -280,7 +320,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "listTerminalTransfers":
 			return h.s.ListTransfers(c, t)
 		case "createTerminalTransfer":
-			var b TerminalTransfer
+			var b models.TerminalTransfer
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -297,7 +337,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "listReturns":
 			return h.s.ListReturns(c, t)
 		case "createReturn":
-			var b Return
+			var b models.Return
 			if !bindWH(c, &b) {
 				return nil, errors.New("bound")
 			}

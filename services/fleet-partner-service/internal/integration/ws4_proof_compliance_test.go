@@ -124,10 +124,10 @@ func TestWS4ProofVerifyAndReject(t *testing.T) {
 		t.Fatalf("concurrent decisions = %v", statuses)
 	}
 
-	if ws4CountOutbox(t, pool, org, "proofmodels.verified.v1")+ws4CountOutbox(t, pool, org, "proofmodels.rejected.v1") != 3 {
+	if ws4CountOutbox(t, pool, org, "proof.verified.v1")+ws4CountOutbox(t, pool, org, "proof.rejected.v1") != 3 {
 		t.Fatal("proof decision events missing")
 	}
-	if ws4CountAudit(t, pool, org, "proofmodels.verified") < 1 || ws4CountAudit(t, pool, org, "proofmodels.rejected") < 1 {
+	if ws4CountAudit(t, pool, org, "proof.verified") < 1 || ws4CountAudit(t, pool, org, "proof.rejected") < 1 {
 		t.Fatal("proof decision audit missing")
 	}
 }

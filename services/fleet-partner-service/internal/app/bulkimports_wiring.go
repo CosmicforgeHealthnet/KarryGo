@@ -11,7 +11,7 @@ import (
 	ordersmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/models"
 	ordersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
 	searchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -79,7 +79,7 @@ func (a bulkMediaAdapter) WriteErrorReport(ctx context.Context, t tenant.Context
 // parallel code path.
 func BuildBulkImportsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher,
 	metrics *observability.Metrics, workforceSvc *workforcefeature.Service, assetsSvc *assetsfeature.Service,
-	warehouseSvc *warehouse.Service, search *searchusecases.Service) *bulkusecases.Service {
+	warehouseSvc *warehouseusecases.Service, search *searchusecases.Service) *bulkusecases.Service {
 	var mp bulkusecases.MediaPort
 	mediaCfg := cfg.Clients["media-file-service"]
 	if !cfg.IntegrationsKillSwitch && mediaCfg.Configured() {

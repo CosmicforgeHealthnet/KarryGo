@@ -21,7 +21,7 @@ import (
 	safetyfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	searchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/usecases"
 	shipmentsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/usecases"
-	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -234,7 +234,7 @@ func (a assetsExporter) Rows(ctx context.Context, t tenant.Context, filters map[
 // this adapter's only job is truncating it to maxRows — matching the
 // established "BoundedGenerationTruncatesToMaxRows" convention every other
 // exporter in this service obeys.
-type warehouseInventoryExporter struct{ warehouse *warehousefeature.Service }
+type warehouseInventoryExporter struct{ warehouse *warehouseusecases.Service }
 
 func (warehouseInventoryExporter) Type() string { return "WAREHOUSE_INVENTORY" }
 
@@ -319,7 +319,7 @@ func (a invoicesReceivablesExporter) Rows(ctx context.Context, t tenant.Context,
 	return rows, nil
 }
 
-type fulfilmentOrdersExporter struct{ warehouse *warehousefeature.Service }
+type fulfilmentOrdersExporter struct{ warehouse *warehouseusecases.Service }
 
 func (fulfilmentOrdersExporter) Type() string { return "FULFILMENT_ORDERS" }
 func (fulfilmentOrdersExporter) Columns() []string {
@@ -462,7 +462,7 @@ func (a exportsMediaAdapter) AuthorizeDownload(ctx context.Context, t tenant.Con
 func BuildExportsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher,
 	metrics *observability.Metrics, search *searchusecases.Service,
 	shipments *shipmentsusecases.Service, workforce *workforcefeature.Service,
-	assets *assetsfeature.Service, warehouse *warehousefeature.Service,
+	assets *assetsfeature.Service, warehouse *warehouseusecases.Service,
 	safety *safetyfeature.OperationsService, finance *financeops.Service,
 	engagementService *engagement.Service) *exportsusecases.Service {
 	orders := BuildOrdersService(cfg, pool, nil, publisher, search)
@@ -538,7 +538,7 @@ func NewAssetsExporter(assets *assetsfeature.Service) exportsusecases.Exporter {
 
 // NewWarehouseInventoryExporter builds the WAREHOUSE_INVENTORY export
 // adapter.
-func NewWarehouseInventoryExporter(warehouse *warehousefeature.Service) exportsusecases.Exporter {
+func NewWarehouseInventoryExporter(warehouse *warehouseusecases.Service) exportsusecases.Exporter {
 	return warehouseInventoryExporter{warehouse: warehouse}
 }
 
@@ -553,7 +553,7 @@ func NewInvoicesReceivablesExporter(finance *financeops.Service) exportsusecases
 }
 
 // NewFulfilmentOrdersExporter builds the fulfilment-order adapter.
-func NewFulfilmentOrdersExporter(warehouse *warehousefeature.Service) exportsusecases.Exporter {
+func NewFulfilmentOrdersExporter(warehouse *warehouseusecases.Service) exportsusecases.Exporter {
 	return fulfilmentOrdersExporter{warehouse: warehouse}
 }
 

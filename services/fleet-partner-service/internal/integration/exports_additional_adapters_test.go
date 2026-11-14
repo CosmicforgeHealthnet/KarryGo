@@ -14,7 +14,9 @@ import (
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	safetyfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
+	warehouserepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/repositories"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -68,9 +70,9 @@ func TestExports_WarehouseInventoryAdapterGeneratesRealCSV(t *testing.T) {
 
 	metrics := observability.NewMetrics()
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
-	warehouseService := warehousefeature.NewService(warehousefeature.Options{
-		Pool: pool, Events: publisher,
-		Flags: warehousefeature.Flags{Warehouses: true, Inventory: true},
+	warehouseService := warehouseusecases.NewService(warehouseusecases.Options{
+		Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: publisher,
+		Flags: warehousemodels.Flags{Warehouses: true, Inventory: true},
 	})
 
 	// The real adapter (internal/app.NewWarehouseInventoryExporter), wired
@@ -183,7 +185,7 @@ func TestSection25RemainingExportAdaptersAreScopedBoundedAndMinimized(t *testing
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	safetyService := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Flags: safetyfeature.OperationsFlags{Incidents: true}})
 	financeService := financeops.NewService(financeops.Options{Pool: pool, Events: publisher, Flags: financeops.Flags{Invoices: true, Receivables: true}})
-	warehouseService := warehousefeature.NewService(warehousefeature.Options{Pool: pool, Events: publisher, Flags: warehousefeature.Flags{Warehouses: true, Fulfilment: true}})
+	warehouseService := warehouseusecases.NewService(warehouseusecases.Options{Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: publisher, Flags: warehousemodels.Flags{Warehouses: true, Fulfilment: true}})
 	engagementService := engagement.NewService(engagement.Options{Pool: pool, Events: publisher, Flags: engagement.Flags{Support: true}})
 	actor := tenant.Context{OrganizationID: org.ID, PermittedBranchIDs: []string{}}
 	exporters := []exportsusecases.Exporter{

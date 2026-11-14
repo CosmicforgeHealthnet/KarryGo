@@ -1,4 +1,7 @@
-package warehouse
+// Package models holds the Section 21 warehouse domain: warehouses, storage
+// locations, customer stock and its movements, fulfilment, dock, yard,
+// terminal transfer and return records.
+package models
 
 import (
 	"encoding/json"
@@ -215,4 +218,30 @@ type Return struct {
 	CreatedAt          time.Time  `json:"createdAt"`
 	UpdatedAt          time.Time  `json:"updatedAt"`
 	CompletedAt        *time.Time `json:"completedAt"`
+}
+
+// FulfilmentLineState is a locked fulfilment line as a command sees it.
+type FulfilmentLineState struct {
+	ID, InventoryItemID, PackageReference string
+	Requested, Picked                     float64
+}
+
+// FulfilmentOrderState is the locked header of a fulfilment order.
+type FulfilmentOrderState struct {
+	Status, WarehouseID, ProofPolicyReference, ShipmentReference string
+	Version                                                      int64
+}
+
+// ExpiredReservation is an active reservation past its expiry.
+type ExpiredReservation struct {
+	ID, InventoryItemID string
+	Quantity            float64
+}
+
+// Raw returns v, or the default document d when v is empty.
+func Raw(v json.RawMessage, d string) json.RawMessage {
+	if len(v) == 0 {
+		return json.RawMessage(d)
+	}
+	return v
 }

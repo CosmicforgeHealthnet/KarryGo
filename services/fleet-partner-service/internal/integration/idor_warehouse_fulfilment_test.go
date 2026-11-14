@@ -13,7 +13,10 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/http"
+	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
+	warehouserepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/repositories"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
@@ -33,8 +36,8 @@ import (
 func warehouseIDORRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	service := warehouse.NewService(warehouse.Options{
-		Pool: pool, Flags: warehouse.Flags{Warehouses: true, Fulfilment: true, Inventory: true},
+	service := warehouseusecases.NewService(warehouseusecases.Options{
+		Pool: pool, Repository: warehouserepos.NewRepository(pool), Flags: warehousemodels.Flags{Warehouses: true, Fulfilment: true, Inventory: true},
 	})
 	authorizer := accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0)
 	store := idempotency.NewStore(pool, 0)
@@ -55,7 +58,7 @@ func warehouseIDORRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 		c.Next()
 	})
 	group := engine.Group("/fleet-partner/v1")
-	warehouse.NewHandler(service, authorizer, store).RegisterTenantRoutes(group)
+	warehousehttp.NewHandler(service, authorizer, store).RegisterTenantRoutes(group)
 	return engine
 }
 
