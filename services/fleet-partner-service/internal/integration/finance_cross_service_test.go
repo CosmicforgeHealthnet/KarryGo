@@ -31,7 +31,10 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	authmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/models"
 	authrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/repositories"
-	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
+	financehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/http"
+	financemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
+	financerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/repositories"
+	financeusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/usecases"
 	staffmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/models"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
@@ -294,7 +297,7 @@ func TestFleetToWalletHMACTransport(t *testing.T) {
 // the real operator routes behind an injected tenant context.
 type financeHTTPFixture struct {
 	pool    *pgxpool.Pool
-	service *financefeature.Service
+	service *financeusecases.Service
 	orgID   string
 	stub    *walletStub
 }
@@ -308,7 +311,7 @@ func newFinanceHTTPFixture(t *testing.T, name, registration string) *financeHTTP
 	// default financial policy. A test that wants the gate to REFUSE removes
 	// one of those facts rather than removing the gate.
 	seedEligibleOrganization(t, pool, org.ID)
-	service := financefeature.NewService(pool, financefeature.NewRepository(pool),
+	service := financeusecases.NewService(financerepos.NewRepository(pool),
 		stub.client([]byte("fleet-wallet-shared-secret")),
 		events.NewDomainPublisher(events.NewOutboxRepository(pool))).
 		WithEligibility(newEligibilityService(pool, healthyAuthority("prv-finance", "")))
@@ -320,7 +323,7 @@ func (f *financeHTTPFixture) router(t *testing.T, organizationID, memberID strin
 	branchIDs []string) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	handler := financefeature.NewOperatorHandler(f.service,
+	handler := financehttp.NewOperatorHandler(f.service,
 		accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(f.pool), nil, 0))
 	engine := gin.New()
 	engine.Use(respond.ErrorHandler())
@@ -462,7 +465,7 @@ func TestFleetFinanceRoutesPreventCrossTenantAccess(t *testing.T) {
 	f := newFinanceHTTPFixture(t, "Finance Tenant A", "RC-FINR-2")
 	other := createOrganization(t, f.pool, "Finance Tenant B", "RC-FINR-3")
 
-	victim, err := f.service.Request(ctx, financefeature.Request{
+	victim, err := f.service.Request(ctx, financemodels.Request{
 		OrganizationID: other.ID, SubjectType: "JOURNAL", SubjectID: "fjrn_other",
 		OperationType: "REFUND_REQUEST", IdempotencyKey: "other-refund",
 		CorrelationID: "corr", ActorType: "SERVICE", ActorID: "seed",
@@ -502,7 +505,7 @@ func TestFleetFinanceRoutesPreventCrossTenantAccess(t *testing.T) {
 		victim.ID).Scan(&replayedStatus); err != nil {
 		t.Fatal(err)
 	}
-	if replayedStatus != financefeature.StatusPending {
+	if replayedStatus != financemodels.StatusPending {
 		t.Fatalf("cross-tenant replay changed the victim: status=%s", replayedStatus)
 	}
 }
@@ -527,7 +530,7 @@ func TestFleetFinanceOperatorReplayAndReadBack(t *testing.T) {
 	manager := seedFinanceMember(t, f.pool, f.orgID, "rol_system_finance")
 	router := f.router(t, f.orgID, manager, nil)
 
-	operation, err := f.service.Request(ctx, financefeature.Request{
+	operation, err := f.service.Request(ctx, financemodels.Request{
 		OrganizationID: f.orgID, SubjectType: "JOURNAL", SubjectID: "fjrn_recovery",
 		OperationType: "REFUND_REQUEST", IdempotencyKey: "recovery-refund",
 		CorrelationID: "corr-recovery", ActorType: "SERVICE", ActorID: "seed",
@@ -551,7 +554,7 @@ func TestFleetFinanceOperatorReplayAndReadBack(t *testing.T) {
 		operation.ID).Scan(&operationStatus); err != nil {
 		t.Fatal(err)
 	}
-	if operationStatus != financefeature.StatusPending {
+	if operationStatus != financemodels.StatusPending {
 		t.Fatalf("replayed status=%s", operationStatus)
 	}
 	// The replay is on the record, attributed to the operator who did it.
@@ -679,8 +682,8 @@ func TestFleetJobFinanceGatesUseAuthoritativeLookup(t *testing.T) {
 	f.stub.setPayment(f.orgID, "pay-gate-1", paidVerification("fjpv_gate1", 2500, "NGN"))
 	seedTripProjection(t, f.pool, f.orgID, "trip-gate-1", true, false, false, true)
 
-	earning := func(key, trip, payment string, requireConfirmation bool) (*financefeature.Operation, error) {
-		return f.service.RequestJobEarning(ctx, financefeature.JobEarningRequest{
+	earning := func(key, trip, payment string, requireConfirmation bool) (*financemodels.Operation, error) {
+		return f.service.RequestJobEarning(ctx, financemodels.JobEarningRequest{
 			OrganizationID: f.orgID, TripID: trip, PaymentReference: payment,
 			RequireRecipientConfirmation: requireConfirmation, IdempotencyKey: key,
 			CorrelationID: "corr-gate", ActorType: "SYSTEM", ActorID: "gate",
@@ -874,7 +877,7 @@ func TestFleetFinanceBranchScope(t *testing.T) {
 	f := newFinanceHTTPFixture(t, "Finance Branch Ltd", "RC-FINB-1")
 	manager := seedFinanceMember(t, f.pool, f.orgID, "rol_system_finance")
 
-	mine, err := f.service.Request(ctx, financefeature.Request{
+	mine, err := f.service.Request(ctx, financemodels.Request{
 		OrganizationID: f.orgID, BranchID: "branch-mine", SubjectType: "JOURNAL",
 		SubjectID: "fjrn_mine", OperationType: "REFUND_REQUEST", IdempotencyKey: "branch-mine",
 		CorrelationID: "corr", ActorType: "SERVICE", ActorID: "seed",
@@ -882,7 +885,7 @@ func TestFleetFinanceBranchScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := f.service.Request(ctx, financefeature.Request{
+	theirs, err := f.service.Request(ctx, financemodels.Request{
 		OrganizationID: f.orgID, BranchID: "branch-theirs", SubjectType: "JOURNAL",
 		SubjectID: "fjrn_theirs", OperationType: "REFUND_REQUEST", IdempotencyKey: "branch-theirs",
 		CorrelationID: "corr", ActorType: "SERVICE", ActorID: "seed",

@@ -1,67 +1,79 @@
-package finance
+// Package repositories persists finance operations, projections, their
+// histories and the Wallet source versions. Methods taking a
+// database.Querier run inside the caller's transaction; nil means the pool.
+package repositories
 
 import (
 	"context"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 )
 
-var (
-	ErrNotFound            = errors.New("finance projection: not found")
-	ErrFingerprintConflict = errors.New("finance operation: idempotency fingerprint conflict")
-)
+// Repository is the PostgreSQL finance store.
+type Repository struct {
+	pool *pgxpool.Pool
+	db   database.Querier
+}
 
-type Repository struct{ db database.Querier }
+// NewRepository builds the store.
+func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool, db: pool} }
 
-func NewRepository(db database.Querier) *Repository { return &Repository{db: db} }
+// WithinTx runs f in one transaction.
+func (r *Repository) WithinTx(ctx context.Context, f func(pgx.Tx) error) error {
+	return database.WithinTx(ctx, r.pool, f)
+}
 
-func scanOperation(row pgx.Row) (Operation, error) {
-	var o Operation
+func scanOperation(row pgx.Row) (models.Operation, error) {
+	var o models.Operation
 	err := row.Scan(&o.ID, &o.OrganizationID, &o.SubjectType, &o.SubjectID, &o.OperationType, &o.Payload, &o.PayloadVersion, &o.ExpectedVersion, &o.IdempotencyKey, &o.RequestFingerprint, &o.WalletReference, &o.Status, &o.Attempts, &o.NextAttemptAt, &o.LeaseOwner, &o.LeaseExpiresAt, &o.SafeErrorCode, &o.CorrelationID, &o.CausationID, &o.Version, &o.BranchID, &o.RequestedByActorType, &o.RequestedByActorID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return o, ErrNotFound
+		return o, models.ErrNotFound
 	}
 	return o, err
 }
 
 const opColumns = `id,organization_id,subject_type,subject_id,operation_type,payload,payload_version,expected_version,idempotency_key,request_fingerprint,COALESCE(wallet_reference,''),status,attempts,next_attempt_at,COALESCE(lease_owner,''),lease_expires_at,safe_error_code,correlation_id,causation_id,version,COALESCE(branch_id,''),requested_by_actor_type,requested_by_actor_id`
 
-func (r *Repository) Create(ctx context.Context, q database.Querier, o *Operation) (bool, error) {
+func (r *Repository) Create(ctx context.Context, q database.Querier, o *models.Operation) (bool, error) {
 	if q == nil {
 		q = r.db
 	}
 	existing, err := scanOperation(q.QueryRow(ctx, `SELECT `+opColumns+` FROM fleet_partner_finance_operations WHERE organization_id=$1 AND idempotency_key=$2 FOR UPDATE`, o.OrganizationID, o.IdempotencyKey))
 	if err == nil {
 		if existing.RequestFingerprint != o.RequestFingerprint {
-			return false, ErrFingerprintConflict
+			return false, models.ErrFingerprintConflict
 		}
 		*o = existing
 		return false, nil
 	}
-	if !errors.Is(err, ErrNotFound) {
+	if !errors.Is(err, models.ErrNotFound) {
 		return false, err
 	}
 	if o.ID == "" {
 		o.ID = ids.New("fop")
 	}
-	o.Status = StatusPending
+	o.Status = models.StatusPending
 	if o.RequestedByActorType == "" {
 		o.RequestedByActorType = "SERVICE"
 	}
 	err = q.QueryRow(ctx, `INSERT INTO fleet_partner_finance_operations(id,organization_id,subject_type,subject_id,operation_type,payload,payload_version,expected_version,idempotency_key,request_fingerprint,status,correlation_id,causation_id,branch_id,requested_by_actor_type,requested_by_actor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),$15,$16) RETURNING version,next_attempt_at`, o.ID, o.OrganizationID, o.SubjectType, o.SubjectID, o.OperationType, o.Payload, o.PayloadVersion, o.ExpectedVersion, o.IdempotencyKey, o.RequestFingerprint, o.Status, o.CorrelationID, o.CausationID, o.BranchID, o.RequestedByActorType, o.RequestedByActorID).Scan(&o.Version, &o.NextAttemptAt)
 	return true, err
 }
-func (r *Repository) Claim(ctx context.Context, owner string, lease time.Duration, limit int) ([]Operation, error) {
+func (r *Repository) Claim(ctx context.Context, owner string, lease time.Duration, limit int) ([]models.Operation, error) {
 	rows, err := r.db.Query(ctx, `WITH c AS(SELECT id FROM fleet_partner_finance_operations WHERE status IN ('PENDING','RETRYABLE_FAILURE','UNKNOWN','RECONCILING') AND next_attempt_at<=now() AND(lease_expires_at IS NULL OR lease_expires_at<now()) ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT $1) UPDATE fleet_partner_finance_operations o SET lease_owner=$2,lease_expires_at=now()+$3::interval,status=CASE WHEN o.status='UNKNOWN' THEN 'RECONCILING' ELSE 'PROCESSING' END,version=version+1,updated_at=now() FROM c WHERE o.id=c.id RETURNING `+prefixColumns("o."), limit, owner, lease.String())
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Operation
+	var out []models.Operation
 	for rows.Next() {
 		o, e := scanOperation(rows)
 		if e != nil {
@@ -74,7 +86,7 @@ func (r *Repository) Claim(ctx context.Context, owner string, lease time.Duratio
 func prefixColumns(p string) string {
 	return p + "id," + p + "organization_id," + p + "subject_type," + p + "subject_id," + p + "operation_type," + p + "payload," + p + "payload_version," + p + "expected_version," + p + "idempotency_key," + p + "request_fingerprint,COALESCE(" + p + "wallet_reference,'')," + p + "status," + p + "attempts," + p + "next_attempt_at,COALESCE(" + p + "lease_owner,'')," + p + "lease_expires_at," + p + "safe_error_code," + p + "correlation_id," + p + "causation_id," + p + "version,COALESCE(" + p + "branch_id,'')," + p + "requested_by_actor_type," + p + "requested_by_actor_id"
 }
-func (r *Repository) Outcome(ctx context.Context, q database.Querier, o Operation, status, reference, code string, next time.Time, max int) error {
+func (r *Repository) Outcome(ctx context.Context, q database.Querier, o models.Operation, status, reference, code string, next time.Time, max int) error {
 	if q == nil {
 		q = r.db
 	}
@@ -99,22 +111,22 @@ func (r *Repository) Replay(ctx context.Context, id string) error {
 func (r *Repository) ReplayIn(ctx context.Context, q database.Querier, id string) error {
 	tag, err := q.Exec(ctx, `UPDATE fleet_partner_finance_operations SET status='PENDING',attempts=0,next_attempt_at=now(),safe_error_code='',version=version+1 WHERE id=$1 AND status='DEAD_LETTER'`, id)
 	if err == nil && tag.RowsAffected() == 0 {
-		return ErrNotFound
+		return models.ErrNotFound
 	}
 	return err
 }
 
 const projectionColumns = `id,organization_id,projection_type,subject_type,subject_id,wallet_reference,amount_minor,COALESCE(currency,''),safe_status,source_version,freshness_state,COALESCE(last_event_id,''),last_synced_at,reconciliation_status,reconciliation_attempts,reconciliation_next_attempt_at,COALESCE(reconciliation_lease_owner,''),reconciliation_lease_expires_at,reconciliation_safe_error_code,version`
 
-func scanProjection(row pgx.Row) (Projection, error) {
-	var p Projection
+func scanProjection(row pgx.Row) (models.Projection, error) {
+	var p models.Projection
 	err := row.Scan(&p.ID, &p.OrganizationID, &p.ProjectionType, &p.SubjectType, &p.SubjectID,
 		&p.WalletReference, &p.AmountMinor, &p.Currency, &p.SafeStatus, &p.SourceVersion,
 		&p.FreshnessState, &p.LastEventID, &p.LastSyncedAt, &p.ReconciliationStatus,
 		&p.ReconciliationAttempts, &p.ReconciliationNextAttemptAt, &p.ReconciliationLeaseOwner,
 		&p.ReconciliationLeaseExpiresAt, &p.ReconciliationSafeErrorCode, &p.Version)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return p, ErrNotFound
+		return p, models.ErrNotFound
 	}
 	return p, err
 }
@@ -126,7 +138,7 @@ func projectionColumnsWithPrefix(p string) string {
 // QueueStale atomically fails old CURRENT projections closed and schedules
 // authoritative read-back. The caller records audit/outbox entries in the same
 // transaction before committing.
-func (r *Repository) QueueStale(ctx context.Context, q database.Querier, cutoff time.Time, limit int) ([]Projection, error) {
+func (r *Repository) QueueStale(ctx context.Context, q database.Querier, cutoff time.Time, limit int) ([]models.Projection, error) {
 	if q == nil {
 		q = r.db
 	}
@@ -142,7 +154,7 @@ func (r *Repository) QueueStale(ctx context.Context, q database.Querier, cutoff 
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Projection
+	var out []models.Projection
 	for rows.Next() {
 		p, scanErr := scanProjection(rows)
 		if scanErr != nil {
@@ -153,7 +165,7 @@ func (r *Repository) QueueStale(ctx context.Context, q database.Querier, cutoff 
 	return out, rows.Err()
 }
 
-func (r *Repository) ClaimProjections(ctx context.Context, owner string, lease time.Duration, limit int) ([]Projection, error) {
+func (r *Repository) ClaimProjections(ctx context.Context, owner string, lease time.Duration, limit int) ([]models.Projection, error) {
 	rows, err := r.db.Query(ctx, `WITH c AS (
 		SELECT id FROM fleet_partner_finance_projections
 		WHERE reconciliation_status IN ('PENDING','RETRYABLE_FAILURE','UNKNOWN')
@@ -168,7 +180,7 @@ func (r *Repository) ClaimProjections(ctx context.Context, owner string, lease t
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Projection
+	var out []models.Projection
 	for rows.Next() {
 		p, scanErr := scanProjection(rows)
 		if scanErr != nil {
@@ -189,14 +201,14 @@ func (r *Repository) RecoverProjectionLeases(ctx context.Context) (int64, error)
 	return tag.RowsAffected(), err
 }
 
-func (r *Repository) ProjectionOutcome(ctx context.Context, q database.Querier, p Projection,
+func (r *Repository) ProjectionOutcome(ctx context.Context, q database.Querier, p models.Projection,
 	reconciliationStatus, freshness, safeStatus, code string, sourceVersion int64, next time.Time, maxAttempts int) error {
 	if q == nil {
 		q = r.db
 	}
 	finalStatus := reconciliationStatus
-	if reconciliationStatus == StatusRetryable && p.ReconciliationAttempts+1 >= maxAttempts {
-		finalStatus = StatusDeadLetter
+	if reconciliationStatus == models.StatusRetryable && p.ReconciliationAttempts+1 >= maxAttempts {
+		finalStatus = models.StatusDeadLetter
 	}
 	tag, err := q.Exec(ctx, `UPDATE fleet_partner_finance_projections
 	SET reconciliation_status=$3,freshness_state=$4,
@@ -232,7 +244,7 @@ func (r *Repository) ReplayProjectionIn(ctx context.Context, q database.Querier,
 		reconciliation_next_attempt_at=now(),reconciliation_safe_error_code='',version=version+1,updated_at=now()
 	WHERE id=$1 AND reconciliation_status='DEAD_LETTER'`, id)
 	if err == nil && tag.RowsAffected() == 0 {
-		return ErrNotFound
+		return models.ErrNotFound
 	}
 	return err
 }

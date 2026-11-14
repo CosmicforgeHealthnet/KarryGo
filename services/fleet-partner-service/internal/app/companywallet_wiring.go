@@ -11,7 +11,7 @@ import (
 	walletrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/repositories"
 	walletusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/usecases"
 	eligibilityenforcement "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
-	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
+	financeusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
@@ -26,7 +26,7 @@ import (
 func BuildCompanyWalletService(cfg config.Config, pool *pgxpool.Pool,
 	metrics *observability.Metrics, publisher *events.DomainPublisher,
 	approvals *approvalusecases.Service, eligibility eligibilityenforcement.Gate,
-	finance *financefeature.Service) *walletusecases.Service {
+	finance *financeusecases.Service) *walletusecases.Service {
 	var wallet platformclients.FinanceWalletContract
 	walletCfg := cfg.Clients["payment-wallet-service"]
 	if !cfg.IntegrationsKillSwitch && !cfg.CompanyWalletKillSwitch && walletCfg.Configured() {
@@ -107,7 +107,7 @@ func (e eligibilityAdapter) Require(ctx context.Context, organizationID, branchI
 // workAdapter answers "did this job actually complete?" from the existing
 // finance gate, which reads the Dispatch-owned trip projection. Fleet does not
 // re-derive completion; it reuses the one place that already knows.
-type workAdapter struct{ finance *financefeature.Service }
+type workAdapter struct{ finance *financeusecases.Service }
 
 func (w workAdapter) RequireCompletedDelivery(ctx context.Context, organizationID, tripID string,
 	requireRecipientConfirmation bool) error {

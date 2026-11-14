@@ -48,7 +48,9 @@ import (
 	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
-	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
+	financehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/http"
+	financerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/repositories"
+	financeusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/usecases"
 	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
 	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
 	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
@@ -139,7 +141,7 @@ type Components struct {
 	// support-dispute client being configured, and an unconfigured client
 	// makes the write fail closed rather than the feature disappear.
 	Safety  *safetyusecases.Service
-	Finance *financefeature.Service
+	Finance *financeusecases.Service
 	// Documents is always constructed. Whether a document can be UPLOADED or
 	// DOWNLOADED depends on the media client being configured and the flags
 	// being on; an unconfigured client makes those paths fail closed, and it
@@ -622,7 +624,7 @@ func BuildDocumentService(cfg config.Config, pool *pgxpool.Pool,
 	})
 }
 
-func BuildFinanceService(cfg config.Config, pool *pgxpool.Pool, metrics *observability.Metrics) *financefeature.Service {
+func BuildFinanceService(cfg config.Config, pool *pgxpool.Pool, metrics *observability.Metrics) *financeusecases.Service {
 	if cfg.IntegrationsKillSwitch || cfg.FinanceExecutionKillSwitch {
 		return nil
 	}
@@ -631,7 +633,7 @@ func BuildFinanceService(cfg config.Config, pool *pgxpool.Pool, metrics *observa
 		return nil
 	}
 	client := platformclients.NewWalletClient(platformclients.Options{ServiceName: "payment-wallet-service", BaseURL: walletCfg.BaseURL, Secret: walletCfg.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}})
-	return financefeature.NewService(pool, financefeature.NewRepository(pool), client, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
+	return financeusecases.NewService(financerepos.NewRepository(pool), client, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
 }
 
 // Registrars builds the route registrars for the router.
@@ -652,7 +654,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// Where the Wallet client is unconfigured the routes still answer, and they
 	// answer "unavailable" — an absent integration must be visible rather than
 	// silently missing from the API surface.
-	financeHandler := financefeature.NewOperatorHandler(c.Finance, c.Authorizer)
+	financeHandler := financehttp.NewOperatorHandler(c.Finance, c.Authorizer)
 	eligibilityHandler := eligibilityhttp.NewHandler(c.Eligibility, c.Authorizer)
 	approvalHandler := approvalhttp.NewHandler(c.Approvals, c.Authorizer)
 	// The document routes are mounted whenever the service exists. Where the

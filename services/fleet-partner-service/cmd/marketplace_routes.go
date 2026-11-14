@@ -13,7 +13,9 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
-	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
+	financehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/http"
+	financerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/repositories"
+	financeusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/usecases"
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
@@ -71,9 +73,9 @@ func buildMarketplaceInternalRoutes(cfg config.Config, pool *pgxpool.Pool,
 				"marketplace event ingestion disabled by FLEET_MARKETPLACE_EVENT_INGESTION_ENABLED")
 		}
 		if cfg.FinanceEventIngestionEnabled {
-			financeService := financefeature.NewService(pool, financefeature.NewRepository(pool), nil,
+			financeService := financeusecases.NewService(financerepos.NewRepository(pool), nil,
 				events.NewDomainPublisher(events.NewOutboxRepository(pool)))
-			financefeature.RegisterInternalRoutes(group, financeService, financeCallers)
+			financehttp.RegisterInternalRoutes(group, financeService, financeCallers)
 		}
 		if documentsMountable {
 			documenthttp.RegisterInternalRoutes(group, documenthttp.NewInternalHandler(

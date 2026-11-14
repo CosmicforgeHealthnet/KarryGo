@@ -4,7 +4,9 @@ import (
 	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
+	financemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
+	financerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/repositories"
+	financeusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"encoding/json"
 	"errors"
@@ -95,8 +97,8 @@ func TestFinanceOperationsIdempotencyLeaseRecoveryAndReplay(t *testing.T) {
 	pool := testPool(t)
 	org := createOrganization(t, pool, "Finance Integration Ltd", "FIN-001")
 	ctx := context.Background()
-	repo := financefeature.NewRepository(pool)
-	original := &financefeature.Operation{OrganizationID: org.ID, SubjectType: "TRIP", SubjectID: "trip-1", OperationType: "EARNING_ALLOCATION", Payload: json.RawMessage(`{"grossMinor":1000,"currency":"NGN"}`), PayloadVersion: 1, IdempotencyKey: "earn-trip-1", RequestFingerprint: "fingerprint-a", CorrelationID: "corr-1"}
+	repo := financerepos.NewRepository(pool)
+	original := &financemodels.Operation{OrganizationID: org.ID, SubjectType: "TRIP", SubjectID: "trip-1", OperationType: "EARNING_ALLOCATION", Payload: json.RawMessage(`{"grossMinor":1000,"currency":"NGN"}`), PayloadVersion: 1, IdempotencyKey: "earn-trip-1", RequestFingerprint: "fingerprint-a", CorrelationID: "corr-1"}
 	if err := database.WithinTx(ctx, pool, func(tx pgx.Tx) error {
 		created, err := repo.Create(ctx, tx, original)
 		if err != nil || !created {
@@ -111,7 +113,7 @@ func TestFinanceOperationsIdempotencyLeaseRecoveryAndReplay(t *testing.T) {
 		conflict := duplicate
 		conflict.RequestFingerprint = "fingerprint-b"
 		_, err = repo.Create(ctx, tx, &conflict)
-		if !errors.Is(err, financefeature.ErrFingerprintConflict) {
+		if !errors.Is(err, financemodels.ErrFingerprintConflict) {
 			t.Fatalf("conflict err=%v", err)
 		}
 		return nil
@@ -131,14 +133,14 @@ func TestFinanceOperationsIdempotencyLeaseRecoveryAndReplay(t *testing.T) {
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("reclaim=%v err=%v", claimed, err)
 	}
-	if err = repo.Outcome(ctx, nil, claimed[0], financefeature.StatusRetryable, "", "temporary", time.Now(), 1); err != nil {
+	if err = repo.Outcome(ctx, nil, claimed[0], financemodels.StatusRetryable, "", "temporary", time.Now(), 1); err != nil {
 		t.Fatal(err)
 	}
 	var status string
 	if err = pool.QueryRow(ctx, `SELECT status FROM fleet_partner_finance_operations WHERE id=$1`, original.ID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != financefeature.StatusDeadLetter {
+	if status != financemodels.StatusDeadLetter {
 		t.Fatalf("status=%s", status)
 	}
 	if err = repo.Replay(ctx, original.ID); err != nil {
@@ -147,7 +149,7 @@ func TestFinanceOperationsIdempotencyLeaseRecoveryAndReplay(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT status FROM fleet_partner_finance_operations WHERE id=$1`, original.ID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != financefeature.StatusPending {
+	if status != financemodels.StatusPending {
 		t.Fatalf("replayed status=%s", status)
 	}
 }
@@ -156,7 +158,7 @@ func TestFinanceEventDuplicateConflictAndGap(t *testing.T) {
 	pool := testPool(t)
 	org := createOrganization(t, pool, "Finance Events Ltd", "FIN-002")
 	ctx := context.Background()
-	service := financefeature.NewService(pool, financefeature.NewRepository(pool), nil, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
+	service := financeusecases.NewService(financerepos.NewRepository(pool), nil, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
 	event := events.Envelope{EventID: "wallet-event-1", EventType: "wallet.invoice.created.v1", SchemaVersion: 1, AggregateType: "INVOICE", AggregateID: "inv-1", AggregateVersion: 1, OrganizationID: org.ID, CorrelationID: "corr", OccurredAt: time.Now(), Producer: "payment-wallet-service", Payload: json.RawMessage(`{"invoiceId":"inv-1","status":"OPEN","amountMinor":1000,"currency":"NGN"}`)}
 	raw, _ := json.Marshal(event)
 	status, err := service.IngestWalletEvent(ctx, raw)
@@ -195,12 +197,12 @@ func TestFinanceWorkerUnknownOutcomeUsesReadback(t *testing.T) {
 	org := createOrganization(t, pool, "Finance Worker Ltd", "FIN-003")
 	ctx := context.Background()
 	wallet := &unknownWallet{}
-	service := financefeature.NewService(pool, financefeature.NewRepository(pool), wallet, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
-	op, err := service.Request(ctx, financefeature.Request{OrganizationID: org.ID, SubjectType: "INCIDENT", SubjectID: "incident-1", OperationType: "HOLD_CREATE", IdempotencyKey: "hold-1", CorrelationID: "corr", ActorType: "USER", ActorID: "operator", Payload: json.RawMessage(`{"subjectType":"WALLET","subjectId":"wallet-1","amountMinor":100,"currency":"NGN"}`)})
+	service := financeusecases.NewService(financerepos.NewRepository(pool), wallet, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
+	op, err := service.Request(ctx, financemodels.Request{OrganizationID: org.ID, SubjectType: "INCIDENT", SubjectID: "incident-1", OperationType: "HOLD_CREATE", IdempotencyKey: "hold-1", CorrelationID: "corr", ActorType: "USER", ActorID: "operator", Payload: json.RawMessage(`{"subjectType":"WALLET","subjectId":"wallet-1","amountMinor":100,"currency":"NGN"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := financefeature.WorkerConfig{Owner: "worker", BatchSize: 1, Lease: time.Second, BaseBackoff: time.Nanosecond, MaxAttempts: 3}
+	cfg := financemodels.WorkerConfig{Owner: "worker", BatchSize: 1, Lease: time.Second, BaseBackoff: time.Nanosecond, MaxAttempts: 3}
 	if err = service.RunPass(ctx, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +210,7 @@ func TestFinanceWorkerUnknownOutcomeUsesReadback(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT status FROM fleet_partner_finance_operations WHERE id=$1`, op.ID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != financefeature.StatusUnknown {
+	if status != financemodels.StatusUnknown {
 		t.Fatalf("first status=%s", status)
 	}
 	time.Sleep(time.Millisecond)
@@ -218,7 +220,7 @@ func TestFinanceWorkerUnknownOutcomeUsesReadback(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT status FROM fleet_partner_finance_operations WHERE id=$1`, op.ID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != financefeature.StatusSucceeded || wallet.submits != 1 || wallet.reads != 1 {
+	if status != financemodels.StatusSucceeded || wallet.submits != 1 || wallet.reads != 1 {
 		t.Fatalf("status=%s submits=%d reads=%d", status, wallet.submits, wallet.reads)
 	}
 }
@@ -228,7 +230,7 @@ func TestFinanceProjectionGapReconciliation(t *testing.T) {
 	org := createOrganization(t, pool, "Finance Reconciliation Ltd", "FIN-004")
 	ctx := context.Background()
 	wallet := &unknownWallet{projectionVersion: 3, projectionID: "inv-reconcile"}
-	service := financefeature.NewService(pool, financefeature.NewRepository(pool), wallet, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
+	service := financeusecases.NewService(financerepos.NewRepository(pool), wallet, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
 
 	for _, version := range []int64{1, 3} {
 		event := events.Envelope{EventID: fmt.Sprintf("wallet-reconcile-%d", version), EventType: "wallet.invoice.paid.v1", SchemaVersion: 1, AggregateType: "INVOICE", AggregateID: "inv-reconcile", AggregateVersion: version, OrganizationID: org.ID, CorrelationID: "corr-reconcile", OccurredAt: time.Now(), Producer: "payment-wallet-service", Payload: json.RawMessage(`{"status":"PAID","amountMinor":1000,"currency":"NGN"}`)}
@@ -238,7 +240,7 @@ func TestFinanceProjectionGapReconciliation(t *testing.T) {
 		}
 	}
 
-	if err := service.RunPass(ctx, financefeature.WorkerConfig{Owner: "reconciler", BatchSize: 5, Lease: time.Second, BaseBackoff: time.Millisecond, MaxAttempts: 3, ProjectionStaleAfter: time.Hour}); err != nil {
+	if err := service.RunPass(ctx, financemodels.WorkerConfig{Owner: "reconciler", BatchSize: 5, Lease: time.Second, BaseBackoff: time.Millisecond, MaxAttempts: 3, ProjectionStaleAfter: time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 	var freshness, reconciliation, status string
@@ -263,7 +265,7 @@ func TestFinanceSubscriptionAndJobGatesFailClosed(t *testing.T) {
 	// must answer as the authority — a Fleet projection alone is not evidence.
 	wallet := &unknownWallet{verifications: map[string]platformclients.JobPaymentVerification{
 		"payment-job-1": settledPayment("payment-job-1", 2500, "NGN")}}
-	service := financefeature.NewService(pool, financefeature.NewRepository(pool), wallet, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
+	service := financeusecases.NewService(financerepos.NewRepository(pool), wallet, events.NewDomainPublisher(events.NewOutboxRepository(pool)))
 
 	subscription := events.Envelope{EventID: "wallet-subscription-active", EventType: "wallet.subscription.status_changed.v1", SchemaVersion: 1, AggregateType: "SUBSCRIPTION", AggregateID: "sub-1", AggregateVersion: 1, OrganizationID: org.ID, CorrelationID: "corr-gate", OccurredAt: time.Now(), Producer: "payment-wallet-service", Payload: json.RawMessage(`{"status":"ACTIVE"}`)}
 	raw, _ := json.Marshal(subscription)
@@ -285,20 +287,20 @@ func TestFinanceSubscriptionAndJobGatesFailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err := service.RequestJobEarning(ctx, financefeature.JobEarningRequest{OrganizationID: org.ID, TripID: "trip-finance-1", PaymentReference: "payment-job-1", IdempotencyKey: "earning-job-1", CorrelationID: "corr-gate", ActorType: "SYSTEM", ActorID: "finance-gate", Payload: json.RawMessage(`{"grossMinor":2500,"currency":"NGN"}`)})
+	op, err := service.RequestJobEarning(ctx, financemodels.JobEarningRequest{OrganizationID: org.ID, TripID: "trip-finance-1", PaymentReference: "payment-job-1", IdempotencyKey: "earning-job-1", CorrelationID: "corr-gate", ActorType: "SYSTEM", ActorID: "finance-gate", Payload: json.RawMessage(`{"grossMinor":2500,"currency":"NGN"}`)})
 	if err != nil || op.OperationType != "EARNING_ALLOCATION" {
 		t.Fatalf("earning op=%+v err=%v", op, err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE fleet_partner_trip_projections SET failed_at=now(),failure_reason_code='delivery_failed' WHERE organization_id=$1 AND platform_trip_id='trip-finance-1'`, org.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.RequestJobEarning(ctx, financefeature.JobEarningRequest{OrganizationID: org.ID, TripID: "trip-finance-1", PaymentReference: "payment-job-1", IdempotencyKey: "earning-job-2", ActorType: "SYSTEM", ActorID: "finance-gate", Payload: json.RawMessage(`{"grossMinor":2500,"currency":"NGN"}`)}); !errors.Is(err, financefeature.ErrFinancialStateBlocked) {
+	if _, err = service.RequestJobEarning(ctx, financemodels.JobEarningRequest{OrganizationID: org.ID, TripID: "trip-finance-1", PaymentReference: "payment-job-1", IdempotencyKey: "earning-job-2", ActorType: "SYSTEM", ActorID: "finance-gate", Payload: json.RawMessage(`{"grossMinor":2500,"currency":"NGN"}`)}); !errors.Is(err, financemodels.ErrFinancialStateBlocked) {
 		t.Fatalf("failed delivery authorized earning: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE fleet_partner_finance_projections SET freshness_state='STALE' WHERE organization_id=$1 AND projection_type='SUBSCRIPTION'`, org.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err = service.RequirePaidSubscription(ctx, org.ID); !errors.Is(err, financefeature.ErrFinancialStateBlocked) {
+	if err = service.RequirePaidSubscription(ctx, org.ID); !errors.Is(err, financemodels.ErrFinancialStateBlocked) {
 		t.Fatalf("stale subscription authorized paid feature: %v", err)
 	}
 }

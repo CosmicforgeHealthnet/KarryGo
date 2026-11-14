@@ -24,7 +24,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
+	financemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -165,7 +165,7 @@ func main() {
 			workers.Add(1)
 			go func() {
 				defer workers.Done()
-				_ = financeService.Run(ctx, financefeature.WorkerConfig{Owner: config.ServiceName + "-finance", BatchSize: cfg.FinanceWorkerBatchSize, Interval: cfg.FinanceWorkerInterval, Lease: cfg.FinanceWorkerLease, MaxAttempts: cfg.FinanceWorkerMaxAttempts, BaseBackoff: cfg.FinanceWorkerBackoff, ProjectionStaleAfter: cfg.FinanceProjectionStaleAfter})
+				_ = financeService.Run(ctx, financemodels.WorkerConfig{Owner: config.ServiceName + "-finance", BatchSize: cfg.FinanceWorkerBatchSize, Interval: cfg.FinanceWorkerInterval, Lease: cfg.FinanceWorkerLease, MaxAttempts: cfg.FinanceWorkerMaxAttempts, BaseBackoff: cfg.FinanceWorkerBackoff, ProjectionStaleAfter: cfg.FinanceProjectionStaleAfter})
 			}()
 		}
 	}

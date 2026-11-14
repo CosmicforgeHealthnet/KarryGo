@@ -1,14 +1,17 @@
-// Package finance also exposes the corporate finance operator API.
+// Package http serves the finance internal routes (Wallet event ingestion
+// and replay) and the corporate finance operator API.
 //
-// Every route here is tenant-scoped, permission-gated and branch-filtered.
+// Every operator route here is tenant-scoped, permission-gated and branch-filtered.
 // Reading a stuck payout, re-running it, and asking for money to move are three
 // separate permissions: someone who may investigate is not automatically
 // someone who may act, and neither is automatically someone who may spend.
-package finance
+package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -16,10 +19,11 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenantcmd"
 )
 
 // Permissions guarding the finance operator routes.
@@ -35,12 +39,29 @@ const (
 
 // OperatorHandler serves the corporate finance operator routes.
 type OperatorHandler struct {
-	service    *Service
-	authorizer *accesscontrol.Authorizer
+	service    OperatorService
+	authorizer tenantcmd.ScopedAuthorizer
+}
+
+// OperatorService is the slice of the finance use cases the operator
+// handler calls.
+type OperatorService interface {
+	ListOperations(ctx context.Context, scope models.Scope, filter models.OperationFilter) ([]models.OperationSummary, error)
+	GetOperation(ctx context.Context, scope models.Scope, id string) (models.OperationSummary, error)
+	OperationHistory(ctx context.Context, scope models.Scope, id string) ([]models.HistoryEntry, error)
+	OperationAudit(ctx context.Context, scope models.Scope, id string) ([]models.AuditEntry, error)
+	ReplayOperation(ctx context.Context, organizationID, operationID, actorID, correlationID string) error
+	ListProjections(ctx context.Context, scope models.Scope, filter models.ProjectionFilter) ([]models.ProjectionSummary, error)
+	GetProjection(ctx context.Context, scope models.Scope, id string) (models.ProjectionSummary, error)
+	ReplayProjection(ctx context.Context, organizationID, projectionID, actorID, correlationID string) error
+	RequestReadBack(ctx context.Context, scope models.Scope, id, actorType, actorID, correlationID string) error
+	RequestSettlement(ctx context.Context, in models.SettlementRequest) (*models.Operation, error)
+	RequestRefund(ctx context.Context, in models.RefundRequest) (*models.Operation, error)
+	RequestReversal(ctx context.Context, in models.ReversalRequest) (*models.Operation, error)
 }
 
 // NewOperatorHandler builds the handler.
-func NewOperatorHandler(service *Service, authorizer *accesscontrol.Authorizer) *OperatorHandler {
+func NewOperatorHandler(service OperatorService, authorizer tenantcmd.ScopedAuthorizer) *OperatorHandler {
 	return &OperatorHandler{service: service, authorizer: authorizer}
 }
 
@@ -69,32 +90,32 @@ func (h *OperatorHandler) RegisterTenantRoutes(group *gin.RouterGroup) {
 //
 // The scope is derived from the resolved membership, never from the request:
 // a caller cannot widen what it may see by asking for a different organization.
-func (h *OperatorHandler) gate(c *gin.Context, permission string) (tenant.Context, Scope, bool) {
+func (h *OperatorHandler) gate(c *gin.Context, permission string) (tenant.Context, models.Scope, bool) {
 	tenantCtx, ok := middleware.TenantFromGin(c)
 	if !ok {
 		respond.Error(c, apperrors.Forbidden("Organization scope is required.", nil))
-		return tenant.Context{}, Scope{}, false
+		return tenant.Context{}, models.Scope{}, false
 	}
-	if h.authorizer == nil {
+	if isNil(h.authorizer) {
 		// A missing gate must never read as an open one.
 		respond.Error(c, apperrors.Forbidden("You do not have permission to perform this action.", nil))
-		return tenant.Context{}, Scope{}, false
+		return tenant.Context{}, models.Scope{}, false
 	}
 	// Narrowed to the branches where the permission is granted; a
 	// caller-chosen ?branchId never widens it.
 	scoped, err := h.authorizer.RequireScoped(c.Request.Context(), tenantCtx, roleVersionFrom(c), permission)
 	if err != nil {
 		respond.Error(c, err)
-		return tenant.Context{}, Scope{}, false
+		return tenant.Context{}, models.Scope{}, false
 	}
 	tenantCtx = scoped
 	middleware.SetTenant(c, scoped)
-	if h.service == nil {
+	if isNil(h.service) {
 		respond.Error(c, apperrors.Unavailable("Financial integration is not available.", nil))
-		return tenant.Context{}, Scope{}, false
+		return tenant.Context{}, models.Scope{}, false
 	}
 	limit, _ := strconv.Atoi(c.Query("limit"))
-	return tenantCtx, Scope{OrganizationID: tenantCtx.OrganizationID,
+	return tenantCtx, models.Scope{OrganizationID: tenantCtx.OrganizationID,
 		BranchIDs: tenantCtx.PermittedBranchIDs, Limit: limit}, true
 }
 
@@ -114,15 +135,15 @@ func roleVersionFrom(c *gin.Context) int64 {
 // someone else is itself a disclosure.
 func failFinance(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, models.ErrNotFound):
 		respond.Error(c, apperrors.NotFound("The requested financial record was not found.", nil))
-	case errors.Is(err, ErrSeparationOfDuties):
+	case errors.Is(err, models.ErrSeparationOfDuties):
 		respond.Error(c, apperrors.Forbidden("You cannot act on a request you made yourself.", nil))
-	case errors.Is(err, ErrFingerprintConflict):
+	case errors.Is(err, models.ErrFingerprintConflict):
 		respond.Error(c, apperrors.Conflict("This idempotency key was already used with different values.", nil))
-	case errors.Is(err, ErrFinancialStateBlocked):
+	case errors.Is(err, models.ErrFinancialStateBlocked):
 		respond.Error(c, apperrors.Conflict("Authoritative financial state does not currently permit this action.", nil))
-	case errors.Is(err, ErrReadBackNotAvailable):
+	case errors.Is(err, models.ErrReadBackNotAvailable):
 		respond.Error(c, apperrors.Conflict("An authoritative read-back is already in progress.", nil))
 	default:
 		respond.Error(c, err)
@@ -138,8 +159,8 @@ func idempotencyKey(c *gin.Context) (string, bool) {
 	return key, true
 }
 
-func actorFrom(c *gin.Context, tenantCtx tenant.Context) Actor {
-	return Actor{Type: string(tenantCtx.ActorType), ID: tenantCtx.OrganizationUserID,
+func actorFrom(c *gin.Context, tenantCtx tenant.Context) models.Actor {
+	return models.Actor{Type: string(tenantCtx.ActorType), ID: tenantCtx.OrganizationUserID,
 		CorrelationID: middleware.GetCorrelationID(c), CausationID: c.GetHeader("X-Causation-ID")}
 }
 
@@ -148,7 +169,7 @@ func (h *OperatorHandler) listOperations(c *gin.Context) {
 	if !ok {
 		return
 	}
-	values, err := h.service.ListOperations(c.Request.Context(), scope, OperationFilter{
+	values, err := h.service.ListOperations(c.Request.Context(), scope, models.OperationFilter{
 		Status: c.Query("status"), OperationType: c.Query("operationType"),
 		SubjectID: c.Query("subjectId")})
 	if err != nil {
@@ -221,7 +242,7 @@ func (h *OperatorHandler) listProjections(c *gin.Context) {
 	if !ok {
 		return
 	}
-	values, err := h.service.ListProjections(c.Request.Context(), scope, ProjectionFilter{
+	values, err := h.service.ListProjections(c.Request.Context(), scope, models.ProjectionFilter{
 		ProjectionType: c.Query("projectionType"), Freshness: c.Query("freshness"),
 		SubjectID: c.Query("subjectId")})
 	if err != nil {
@@ -253,7 +274,7 @@ func (h *OperatorHandler) listReconciliationCases(c *gin.Context) {
 	if !ok {
 		return
 	}
-	values, err := h.service.ListProjections(c.Request.Context(), scope, ProjectionFilter{
+	values, err := h.service.ListProjections(c.Request.Context(), scope, models.ProjectionFilter{
 		ProjectionType: c.Query("projectionType"), SubjectID: c.Query("subjectId"),
 		ReconciliationOnly: true})
 	if err != nil {
@@ -319,7 +340,7 @@ func (h *OperatorHandler) requestSettlement(c *gin.Context) {
 	if !h.branchPermitted(c, tenantCtx, body.BranchID) {
 		return
 	}
-	operation, err := h.service.RequestSettlement(c.Request.Context(), SettlementRequest{
+	operation, err := h.service.RequestSettlement(c.Request.Context(), models.SettlementRequest{
 		Actor: actorFrom(c, tenantCtx), OrganizationID: tenantCtx.OrganizationID,
 		BranchID: body.BranchID, BeneficiaryType: body.BeneficiaryType,
 		BeneficiaryReference: body.BeneficiaryReference, EarningAccountID: body.EarningAccountID,
@@ -358,7 +379,7 @@ func (h *OperatorHandler) requestRefund(c *gin.Context) {
 	if !h.branchPermitted(c, tenantCtx, body.BranchID) {
 		return
 	}
-	operation, err := h.service.RequestRefund(c.Request.Context(), RefundRequest{
+	operation, err := h.service.RequestRefund(c.Request.Context(), models.RefundRequest{
 		Actor: actorFrom(c, tenantCtx), OrganizationID: tenantCtx.OrganizationID,
 		BranchID: body.BranchID, OriginalJournalID: body.OriginalJournalID,
 		PaymentReference: body.PaymentReference, AmountMinor: body.AmountMinor,
@@ -397,7 +418,7 @@ func (h *OperatorHandler) requestReversal(c *gin.Context) {
 	if !h.branchPermitted(c, tenantCtx, body.BranchID) {
 		return
 	}
-	operation, err := h.service.RequestReversal(c.Request.Context(), ReversalRequest{
+	operation, err := h.service.RequestReversal(c.Request.Context(), models.ReversalRequest{
 		Actor: actorFrom(c, tenantCtx), OrganizationID: tenantCtx.OrganizationID,
 		BranchID: body.BranchID, OriginalJournalID: body.OriginalJournalID,
 		SourceOperationID: body.SourceOperationID, AmountMinor: body.AmountMinor,
@@ -427,11 +448,21 @@ func (h *OperatorHandler) branchPermitted(c *gin.Context, tenantCtx tenant.Conte
 
 // operationAccepted is the queued-command acknowledgement. It never leaks the
 // Wallet reference before the operation has actually reached Wallet.
-func operationAccepted(operation *Operation) gin.H {
+func operationAccepted(operation *models.Operation) gin.H {
 	if operation == nil {
 		return gin.H{}
 	}
 	return gin.H{"id": operation.ID, "operationType": operation.OperationType,
 		"status": operation.Status, "subjectId": operation.SubjectID,
 		"version": operation.Version, "nextAttemptAt": operation.NextAttemptAt}
+}
+
+// isNil reports whether v is nil or an interface holding a nil pointer, so a
+// missing dependency wired as a typed nil still refuses rather than panics.
+func isNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }

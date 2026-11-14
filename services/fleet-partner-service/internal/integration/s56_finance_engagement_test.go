@@ -14,6 +14,8 @@ import (
 	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
 	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
 	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
+	financemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
+	financerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/repositories"
 	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
 	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
 	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
@@ -120,4 +122,48 @@ func TestFinanceOpsExpenseResponseCarriesMoneyObject(t *testing.T) {
 		t.Fatalf("list = %d items", len(list))
 	}
 	check("list", list[0])
+}
+
+// Finance projections carry the Money object for amountMinor and currency.
+func TestFinanceProjectionResponseCarriesMoneyObject(t *testing.T) {
+	f := newFinanceHTTPFixture(t, "Money Projection Ltd "+ids.New("org"), "RC-MP-"+ids.New("reg"))
+	amount := int64(9007199254740993)
+	walletReference := ids.New("wal")
+	if err := financerepos.NewRepository(f.pool).UpsertProjection(context.Background(), nil, financemodels.ProjectionWrite{
+		OrganizationID: f.orgID, ProjectionType: "SETTLEMENT", SubjectType: "AGGREGATE", SubjectID: walletReference,
+		WalletReference: walletReference, AmountMinor: &amount, Currency: "NGN", SafeStatus: "POSTED",
+		SourceVersion: 1, Freshness: "CURRENT", LastEventID: ids.New("evt"), ReconciliationStatus: "IDLE"}); err != nil {
+		t.Fatal(err)
+	}
+	owner := seedFinanceMember(t, f.pool, f.orgID, "rol_system_owner")
+	recorder := httptest.NewRecorder()
+	f.router(t, f.orgID, owner, nil).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/fleet-partner/v1/finance/projections?projectionType=SETTLEMENT", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", recorder.Code, recorder.Body.String())
+	}
+	var body struct {
+		Data struct {
+			Projections []struct {
+				AmountMinor *int64 `json:"amountMinor"`
+				Currency    string `json:"currency"`
+				Amount      *struct {
+					AmountMinor int64  `json:"amountMinor"`
+					Currency    string `json:"currency"`
+				} `json:"amount"`
+			} `json:"projections"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Data.Projections) != 1 {
+		t.Fatalf("projections = %d", len(body.Data.Projections))
+	}
+	p := body.Data.Projections[0]
+	if p.AmountMinor == nil || *p.AmountMinor != amount || p.Currency != "NGN" {
+		t.Fatalf("flat fields changed: %+v", p)
+	}
+	if p.Amount == nil || p.Amount.AmountMinor != amount || p.Amount.Currency != "NGN" {
+		t.Fatalf("money object = %+v", p.Amount)
+	}
 }

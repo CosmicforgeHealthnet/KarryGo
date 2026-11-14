@@ -1,35 +1,97 @@
-package finance
+// Package usecases implements finance orchestration: durable Wallet
+// operations with eligibility gates, wallet event ingestion into
+// projections, authoritative read-back and the operator views. Wallet remains
+// the only ledger writer.
+package usecases
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/enforcement"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/finance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"time"
 )
 
+// Store is the persistence finance orchestration needs.
+// repositories.Repository satisfies it; a nil Querier means the pool.
+type Store interface {
+	WithinTx(ctx context.Context, f func(pgx.Tx) error) error
+
+	Create(ctx context.Context, q database.Querier, o *models.Operation) (bool, error)
+	Claim(ctx context.Context, owner string, lease time.Duration, limit int) ([]models.Operation, error)
+	Outcome(ctx context.Context, q database.Querier, o models.Operation, status, reference, code string, next time.Time, max int) error
+	Recover(ctx context.Context) (int64, error)
+	ReplayIn(ctx context.Context, q database.Querier, id string) error
+	QueueStale(ctx context.Context, q database.Querier, cutoff time.Time, limit int) ([]models.Projection, error)
+	ClaimProjections(ctx context.Context, owner string, lease time.Duration, limit int) ([]models.Projection, error)
+	RecoverProjectionLeases(ctx context.Context) (int64, error)
+	ProjectionOutcome(ctx context.Context, q database.Querier, p models.Projection, reconciliationStatus, freshness, safeStatus, code string, sourceVersion int64, next time.Time, maxAttempts int) error
+	ReplayProjectionIn(ctx context.Context, q database.Querier, id string) error
+
+	LockOperationVersion(ctx context.Context, q database.Querier, organizationID, id string) (int64, error)
+	LockProjectionVersion(ctx context.Context, q database.Querier, organizationID, id string) (int64, error)
+	CurrentProjection(ctx context.Context, organizationID, projectionType, reference string) (models.Projection, error)
+	LatestSubscriptionStatus(ctx context.Context, organizationID string) (string, bool, error)
+	OpenReconciliation(ctx context.Context, organizationID, projectionType, reference string) (bool, error)
+	PaymentProjectionState(ctx context.Context, organizationID, reference string) (string, string, int64, bool, error)
+	TripCompletion(ctx context.Context, organizationID, tripID string) (models.TripCompletion, error)
+	OperationRequester(ctx context.Context, organizationID, id string) (string, string, error)
+
+	LockSourceVersion(ctx context.Context, q database.Querier, aggregateType, aggregateID string) (int64, string, bool, error)
+	UpsertProjection(ctx context.Context, q database.Querier, w models.ProjectionWrite) error
+	UpsertPaymentVerification(ctx context.Context, q database.Querier, w models.ProjectionWrite) error
+	UpsertSourceVersion(ctx context.Context, q database.Querier, aggregateType, aggregateID string, version int64, eventID, payloadHash string) error
+
+	ListOperations(ctx context.Context, scope models.Scope, filter models.OperationFilter) ([]models.OperationSummary, error)
+	GetOperation(ctx context.Context, scope models.Scope, id string) (models.OperationSummary, error)
+	OperationHistory(ctx context.Context, organizationID, id string) ([]models.HistoryEntry, error)
+	OperationAudit(ctx context.Context, organizationID, id string) ([]models.AuditEntry, error)
+	ListProjections(ctx context.Context, scope models.Scope, filter models.ProjectionFilter) ([]models.ProjectionSummary, error)
+	GetProjection(ctx context.Context, scope models.Scope, id string) (models.ProjectionSummary, error)
+	RequestReadBack(ctx context.Context, q database.Querier, organizationID, id string) (bool, error)
+}
+
+// Publisher publishes domain events inside the caller's transaction.
+type Publisher interface {
+	Publish(ctx context.Context, tx pgx.Tx, eventType string, aggregateType string, aggregateID string, aggregateVersion int64, organizationID string, correlationID string, payload any) error
+}
+
+// Inbox deduplicates consumed events inside the caller's transaction.
+type Inbox interface {
+	Begin(ctx context.Context, q database.Querier, consumerName string, eventID string, eventType string, schemaVersion int, payload []byte) error
+	MarkProcessed(ctx context.Context, q database.Querier, consumerName string, eventID string) error
+}
+
+// AuditRecorder writes audit records inside the caller's transaction.
+type AuditRecorder interface {
+	Record(ctx context.Context, q database.Querier, entry audit.Entry) error
+}
+
+// Service implements finance orchestration.
 type Service struct {
-	pool   *pgxpool.Pool
-	repo   *Repository
+	repo   Store
+	inbox  Inbox
 	wallet platformclients.FinanceWalletContract
-	audit  *audit.Recorder
-	events *events.DomainPublisher
+	audit  AuditRecorder
+	events Publisher
 	// eligibility gates every money-moving request. It is set by the
 	// composition root; a service without it refuses those requests rather
 	// than running them ungated.
 	eligibility enforcement.Gate
 }
 
-func NewService(pool *pgxpool.Pool, repo *Repository, wallet platformclients.FinanceWalletContract, publisher *events.DomainPublisher) *Service {
-	return &Service{pool: pool, repo: repo, wallet: wallet, audit: audit.NewRecorder(), events: publisher}
+// NewService builds the service.
+func NewService(repo Store, wallet platformclients.FinanceWalletContract, publisher Publisher) *Service {
+	return &Service{repo: repo, inbox: events.NewInboxRepository(nil), wallet: wallet, audit: audit.NewRecorder(), events: publisher}
 }
 
 // WithEligibility wires the durable eligibility gate.
@@ -53,7 +115,7 @@ func (s *Service) WithEligibility(gate enforcement.Gate) *Service {
 // the fingerprint and the expected version. What matters at this point is only
 // that the gate was passed and that refusing is the default.
 func (s *Service) requireEligible(ctx context.Context, organizationID string,
-	branchID string, operationType string, actor Actor) error {
+	branchID string, operationType string, actor models.Actor) error {
 	subject := enforcement.Company(organizationID, operationType)
 	subject.BranchID = branchID
 	subject.ActorType = actor.Type
@@ -64,14 +126,9 @@ func (s *Service) requireEligible(ctx context.Context, organizationID string,
 	return err
 }
 
-type Request struct {
-	OrganizationID, BranchID, SubjectType, SubjectID, OperationType, IdempotencyKey, CorrelationID, CausationID, ActorType, ActorID string
-	Payload                                                                                                                         json.RawMessage
-	PayloadVersion                                                                                                                  int
-	ExpectedVersion                                                                                                                 int64
-}
-
-func (s *Service) Request(ctx context.Context, in Request) (*Operation, error) {
+// models.Request records one durable Wallet operation, deduplicated by its
+// idempotency key and request fingerprint.
+func (s *Service) Request(ctx context.Context, in models.Request) (*models.Operation, error) {
 	if in.OrganizationID == "" || in.SubjectID == "" || in.IdempotencyKey == "" || in.ActorID == "" {
 		return nil, errors.New("finance operation: required field missing")
 	}
@@ -79,8 +136,8 @@ func (s *Service) Request(ctx context.Context, in Request) (*Operation, error) {
 		in.PayloadVersion = 1
 	}
 	sum := sha256.Sum256(append([]byte(in.OperationType+"\x00"+in.OrganizationID+"\x00"+in.SubjectID+"\x00"), in.Payload...))
-	o := &Operation{OrganizationID: in.OrganizationID, BranchID: in.BranchID, RequestedByActorType: in.ActorType, RequestedByActorID: in.ActorID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, OperationType: in.OperationType, Payload: in.Payload, PayloadVersion: in.PayloadVersion, ExpectedVersion: in.ExpectedVersion, IdempotencyKey: in.IdempotencyKey, RequestFingerprint: hex.EncodeToString(sum[:]), CorrelationID: in.CorrelationID, CausationID: in.CausationID}
-	err := database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
+	o := &models.Operation{OrganizationID: in.OrganizationID, BranchID: in.BranchID, RequestedByActorType: in.ActorType, RequestedByActorID: in.ActorID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, OperationType: in.OperationType, Payload: in.Payload, PayloadVersion: in.PayloadVersion, ExpectedVersion: in.ExpectedVersion, IdempotencyKey: in.IdempotencyKey, RequestFingerprint: hex.EncodeToString(sum[:]), CorrelationID: in.CorrelationID, CausationID: in.CausationID}
+	err := s.repo.WithinTx(ctx, func(tx pgx.Tx) error {
 		created, err := s.repo.Create(ctx, tx, o)
 		if err != nil {
 			return err
@@ -100,12 +157,9 @@ func (s *Service) ReplayOperation(ctx context.Context, organizationID, operation
 	if organizationID == "" || operationID == "" || actorID == "" {
 		return errors.New("finance replay: required field missing")
 	}
-	return database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
-		var version int64
-		if err := tx.QueryRow(ctx, `SELECT version FROM fleet_partner_finance_operations WHERE id=$1 AND organization_id=$2 FOR UPDATE`, operationID, organizationID).Scan(&version); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrNotFound
-			}
+	return s.repo.WithinTx(ctx, func(tx pgx.Tx) error {
+		version, err := s.repo.LockOperationVersion(ctx, tx, organizationID, operationID)
+		if err != nil {
 			return err
 		}
 		if err := s.repo.ReplayIn(ctx, tx, operationID); err != nil {
@@ -122,12 +176,9 @@ func (s *Service) ReplayProjection(ctx context.Context, organizationID, projecti
 	if organizationID == "" || projectionID == "" || actorID == "" {
 		return errors.New("finance projection replay: required field missing")
 	}
-	return database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
-		var version int64
-		if err := tx.QueryRow(ctx, `SELECT version FROM fleet_partner_finance_projections WHERE id=$1 AND organization_id=$2 FOR UPDATE`, projectionID, organizationID).Scan(&version); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrNotFound
-			}
+	return s.repo.WithinTx(ctx, func(tx pgx.Tx) error {
+		version, err := s.repo.LockProjectionVersion(ctx, tx, organizationID, projectionID)
+		if err != nil {
 			return err
 		}
 		if err := s.repo.ReplayProjectionIn(ctx, tx, projectionID); err != nil {
@@ -140,40 +191,9 @@ func (s *Service) ReplayProjection(ctx context.Context, organizationID, projecti
 	})
 }
 
-type WorkerConfig struct {
-	Owner                        string
-	BatchSize                    int
-	Lease, Interval, BaseBackoff time.Duration
-	ProjectionStaleAfter         time.Duration
-	MaxAttempts                  int
-}
-
-func (c WorkerConfig) norm() WorkerConfig {
-	if c.Owner == "" {
-		c.Owner = "fleet-finance"
-	}
-	if c.BatchSize <= 0 {
-		c.BatchSize = 25
-	}
-	if c.Lease <= 0 {
-		c.Lease = 30 * time.Second
-	}
-	if c.Interval <= 0 {
-		c.Interval = 5 * time.Second
-	}
-	if c.BaseBackoff <= 0 {
-		c.BaseBackoff = 2 * time.Second
-	}
-	if c.ProjectionStaleAfter <= 0 {
-		c.ProjectionStaleAfter = 15 * time.Minute
-	}
-	if c.MaxAttempts <= 0 {
-		c.MaxAttempts = 8
-	}
-	return c
-}
-func (s *Service) Run(ctx context.Context, c WorkerConfig) error {
-	c = c.norm()
+// Run runs the worker until ctx ends.
+func (s *Service) Run(ctx context.Context, c models.WorkerConfig) error {
+	c = c.Norm()
 	ticker := time.NewTicker(c.Interval)
 	defer ticker.Stop()
 	for {
@@ -185,8 +205,8 @@ func (s *Service) Run(ctx context.Context, c WorkerConfig) error {
 		}
 	}
 }
-func (s *Service) RunPass(ctx context.Context, c WorkerConfig) error {
-	c = c.norm()
+func (s *Service) RunPass(ctx context.Context, c models.WorkerConfig) error {
+	c = c.Norm()
 	if s.wallet == nil || !s.wallet.Configured() {
 		return platformclients.ErrNotConfigured
 	}
@@ -202,33 +222,33 @@ func (s *Service) RunPass(ctx context.Context, c WorkerConfig) error {
 	}
 	return s.runProjectionPass(ctx, c)
 }
-func (s *Service) process(ctx context.Context, c WorkerConfig, o Operation) error {
+func (s *Service) process(ctx context.Context, c models.WorkerConfig, o models.Operation) error {
 	meta := platformclients.CallMeta{OrganizationID: o.OrganizationID, CorrelationID: o.CorrelationID, CausationID: o.CausationID, IdempotencyKey: o.IdempotencyKey}
 	var result platformclients.WalletOperation
 	var err error
-	if o.Status == StatusReconciling || o.Status == StatusUnknown {
+	if o.Status == models.StatusReconciling || o.Status == models.StatusUnknown {
 		result, err = s.wallet.ReadOperationByKey(ctx, meta, o.OrganizationID, o.OperationType, o.IdempotencyKey)
 	} else {
 		result, err = s.wallet.SubmitOperation(ctx, meta, platformclients.WalletOperationRequest{OperationType: o.OperationType, OrganizationID: o.OrganizationID, SubjectID: o.SubjectID, Payload: o.Payload, PayloadVersion: o.PayloadVersion, ExpectedVersion: o.ExpectedVersion, IdempotencyKey: o.IdempotencyKey})
 	}
-	status, code := StatusSucceeded, ""
+	status, code := models.StatusSucceeded, ""
 	if err != nil {
-		status = StatusRetryable
+		status = models.StatusRetryable
 		code = "wallet_unavailable"
 		var e *platformclients.Error
 		if errors.As(err, &e) {
 			switch e.Outcome {
 			case platformclients.OutcomeUnknown:
-				status = StatusUnknown
+				status = models.StatusUnknown
 				code = "wallet_outcome_unknown"
 			case platformclients.OutcomeValidation, platformclients.OutcomeForbidden, platformclients.OutcomePermanent:
-				status = StatusPermanent
+				status = models.StatusPermanent
 				code = "wallet_rejected"
 			}
 		}
 	}
 	next := time.Now().Add(c.BaseBackoff * time.Duration(1<<min(o.Attempts, 8)))
-	return database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
+	return s.repo.WithinTx(ctx, func(tx pgx.Tx) error {
 		if err := s.repo.Outcome(ctx, tx, o, status, result.ID, code, next, c.MaxAttempts); err != nil {
 			return err
 		}
@@ -245,8 +265,8 @@ func min(a, b int) int {
 	return b
 }
 
-func (s *Service) runProjectionPass(ctx context.Context, c WorkerConfig) error {
-	if err := database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
+func (s *Service) runProjectionPass(ctx context.Context, c models.WorkerConfig) error {
+	if err := s.repo.WithinTx(ctx, func(tx pgx.Tx) error {
 		queued, err := s.repo.QueueStale(ctx, tx, time.Now().Add(-c.ProjectionStaleAfter), c.BatchSize)
 		if err != nil {
 			return err
@@ -276,31 +296,31 @@ func (s *Service) runProjectionPass(ctx context.Context, c WorkerConfig) error {
 	return nil
 }
 
-func (s *Service) processProjection(ctx context.Context, c WorkerConfig, p Projection) error {
+func (s *Service) processProjection(ctx context.Context, c models.WorkerConfig, p models.Projection) error {
 	meta := platformclients.CallMeta{OrganizationID: p.OrganizationID, CorrelationID: "finance-reconcile-" + p.ID, CausationID: p.LastEventID}
 	result, readErr := s.wallet.ReadProjection(ctx, meta, p.OrganizationID, p.ProjectionType, p.WalletReference)
 	reconciliationStatus, freshness, code := "IDLE", "CURRENT", ""
 	if readErr == nil && (result.ID != p.WalletReference || (result.OrganizationID != "" && result.OrganizationID != p.OrganizationID) || result.Version < p.SourceVersion) {
 		readErr = errors.New("authoritative read-back is older than projection")
-		reconciliationStatus, freshness, code = StatusRetryable, "GAP_DETECTED", "wallet_version_behind"
+		reconciliationStatus, freshness, code = models.StatusRetryable, "GAP_DETECTED", "wallet_version_behind"
 	}
 	if readErr != nil && code == "" {
-		reconciliationStatus, freshness, code = StatusRetryable, "UNKNOWN", "wallet_unavailable"
+		reconciliationStatus, freshness, code = models.StatusRetryable, "UNKNOWN", "wallet_unavailable"
 		var clientErr *platformclients.Error
 		if errors.As(readErr, &clientErr) {
 			switch clientErr.Outcome {
 			case platformclients.OutcomeUnknown:
-				reconciliationStatus, code = StatusUnknown, "wallet_outcome_unknown"
+				reconciliationStatus, code = models.StatusUnknown, "wallet_outcome_unknown"
 			case platformclients.OutcomeValidation, platformclients.OutcomeForbidden, platformclients.OutcomePermanent, platformclients.OutcomeNotFound:
-				reconciliationStatus, code = StatusDeadLetter, "wallet_projection_rejected"
+				reconciliationStatus, code = models.StatusDeadLetter, "wallet_projection_rejected"
 			}
 		}
 	}
-	if reconciliationStatus == StatusRetryable && p.ReconciliationAttempts+1 >= c.MaxAttempts {
-		reconciliationStatus = StatusDeadLetter
+	if reconciliationStatus == models.StatusRetryable && p.ReconciliationAttempts+1 >= c.MaxAttempts {
+		reconciliationStatus = models.StatusDeadLetter
 	}
 	next := time.Now().Add(c.BaseBackoff * time.Duration(1<<min(p.ReconciliationAttempts, 8)))
-	return database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
+	return s.repo.WithinTx(ctx, func(tx pgx.Tx) error {
 		if err := s.repo.ProjectionOutcome(ctx, tx, p, reconciliationStatus, freshness, result.Status, code, result.Version, next, c.MaxAttempts); err != nil {
 			return err
 		}
