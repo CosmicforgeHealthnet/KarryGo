@@ -281,6 +281,9 @@ func BuildRouter(opts Options) *gin.Engine {
 		if opts.OrganizationStatus != nil {
 			tenantScoped.Use(middleware.RequireOperationalOrganization(opts.OrganizationStatus))
 		}
+		// Spec 6: list routes accept only their declared filters and reject
+		// malformed paging values before a handler or SQL ever sees them.
+		tenantScoped.Use(middleware.QueryAllowlist())
 		if opts.TenantRoutes != nil {
 			opts.TenantRoutes(tenantScoped)
 		}

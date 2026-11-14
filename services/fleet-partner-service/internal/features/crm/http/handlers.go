@@ -16,6 +16,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/filters"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -291,17 +292,21 @@ func pageParams(c *gin.Context) (cursor.Cursor, bool, int, error) {
 // Silently ignoring an unknown filter is the failure mode where a caller
 // believes they narrowed a list and got everything instead. An explicit refusal
 // is the only honest answer.
+//
+// It uses the same strict validator as every other list route
+// (platform/filters.Validate, applied router-wide by middleware.QueryAllowlist
+// from internal/platform/queryallow), so a CRM list answers an unknown or
+// malformed parameter exactly like any other list: HTTP 422 naming the field.
 func allowedQuery(c *gin.Context, allowed ...string) error {
-	permitted := map[string]bool{"cursor": true, "limit": true, "sort": true}
+	schema := filters.Schema{Fields: map[string]filters.Field{
+		"cursor": {Kind: filters.KindCursor},
+		"limit":  {Kind: filters.KindLimit},
+		"sort":   {Kind: filters.KindString},
+	}}
 	for _, name := range allowed {
-		permitted[name] = true
+		schema.Fields[name] = filters.Field{Kind: filters.KindString}
 	}
-	for name := range c.Request.URL.Query() {
-		if !permitted[name] {
-			return apperrors.BadRequest("Unknown query parameter: "+name+".", nil)
-		}
-	}
-	return nil
+	return filters.Validate(c.Request.URL.Query(), schema)
 }
 
 func parseTimeQuery(c *gin.Context, name string) (*time.Time, error) {
