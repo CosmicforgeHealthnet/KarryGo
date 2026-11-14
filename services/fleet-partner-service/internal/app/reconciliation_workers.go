@@ -175,6 +175,7 @@ func StartAssignmentExpiryWorker(ctx context.Context, cfg config.Config, pool *p
 		return
 	}
 	service := BuildMarketplaceService(cfg, pool, metrics)
+	service.SetExpiryAlertSink(BuildMarketplaceExpiryAlertSink(cfg, pool))
 	interval := cfg.AssignmentExpiryInterval
 	if interval <= 0 {
 		interval = 15 * time.Second

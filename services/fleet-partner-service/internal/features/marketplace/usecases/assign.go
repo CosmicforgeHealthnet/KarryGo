@@ -275,6 +275,9 @@ func (s *Service) ExpireAssignments(ctx context.Context, limit int) (int, error)
 				}); err != nil {
 				return err
 			}
+			if err := s.raiseExpiryAlert(ctx, tx, &assignment); err != nil {
+				return err
+			}
 			expired++
 		}
 		return nil
@@ -286,6 +289,24 @@ func (s *Service) ExpireAssignments(ctx context.Context, limit int) (int, error)
 		s.opts.Metrics.IncCounter("fleet_partner_assignment_expiries_total", nil, float64(expired))
 	}
 	return expired, nil
+}
+
+// raiseExpiryAlert tells dispatchers the work is back with them (FLEET-11.11c).
+// The alert is scoped to the provider's home branch so a branch dispatcher sees
+// it; an unbranched provider raises an organization-wide alert.
+func (s *Service) raiseExpiryAlert(ctx context.Context, tx pgx.Tx, assignment *models.Assignment) error {
+	if s.expiryAlert == nil {
+		return nil
+	}
+	branchID := ""
+	branch, err := s.opts.Assignments.MembershipHomeBranch(ctx, assignment.OrganizationID, assignment.MembershipID)
+	if err != nil && !errors.Is(err, repositories.ErrNotFound) {
+		return err
+	}
+	if branch != nil {
+		branchID = *branch
+	}
+	return s.expiryAlert.MarketplaceAssignmentExpired(ctx, tx, assignment.OrganizationID, branchID, assignment.ID)
 }
 
 // CandidateMembershipLister lists active provider memberships eligible to be

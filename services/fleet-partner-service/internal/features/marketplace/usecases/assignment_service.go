@@ -119,9 +119,26 @@ type Options struct {
 	Now                    func() time.Time
 }
 
+// ExpiryAlertSink raises the dispatcher-facing operational alert for an
+// expired marketplace assignment. It runs inside the expiry transaction, so
+// the alert commits (or rolls back) with the expiry itself, and it must be
+// idempotent per assignment. The Section 16 operational alert service is the
+// production implementation; nil means no alert is raised.
+type ExpiryAlertSink interface {
+	MarketplaceAssignmentExpired(ctx context.Context, tx pgx.Tx, organizationID, branchID, assignmentID string) error
+}
+
 // Service implements marketplace acceptance, assignment and provider response.
 type Service struct {
-	opts Options
+	opts        Options
+	expiryAlert ExpiryAlertSink
+}
+
+// SetExpiryAlertSink attaches the dispatcher alert raised when an assignment
+// expires. It is set after construction because the alert service is built
+// from a different part of the composition root.
+func (s *Service) SetExpiryAlertSink(sink ExpiryAlertSink) {
+	s.expiryAlert = sink
 }
 
 // NewService builds the service.

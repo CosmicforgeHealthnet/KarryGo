@@ -80,6 +80,14 @@ func (s *Service) AcceptForOrganization(ctx context.Context, modes OperatingMode
 		return nil, errorcodes.Conflict(errorcodes.MarketplaceOfferExpired,
 			"This opportunity is no longer available.")
 	}
+	// The dispatcher accepts the offer version they were shown (the corporate
+	// offer list and detail expose it). A stale version must be refused before
+	// the source reservation, not after: once the source has reserved, the
+	// organization is committed.
+	if input.ExpectedVersion != 0 && input.ExpectedVersion != offer.Version {
+		return nil, errorcodes.Conflict(errorcodes.ExpectedVersionMismatch,
+			"This opportunity changed. Reload and try again.")
+	}
 
 	// The source service performs the canonical reservation and decides the
 	// single winner. Nothing is recorded locally until it confirms.

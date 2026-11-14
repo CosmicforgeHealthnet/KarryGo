@@ -96,3 +96,23 @@ func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *eve
 	trackingConfigured := cfg.Clients["driver-dispatch-delivery-service"].Configured() || cfg.Clients["driver-hauling-service"].Configured()
 	return dispatch.NewService(dispatch.Options{Pool: pool, Repository: dispatch.NewRepository(pool), PrivateAssignments: private, Rescue: private, Candidates: section16CandidateSource{pool: pool, eligibility: eligibility, workforce: workforce, assets: assets, restrictions: restrictions}, Optimizer: optimizer, Events: publisher, Flags: dispatch.Flags{DispatchPlanning: cfg.DispatchPlanningEnabled, RoutePlanning: cfg.RoutePlanningEnabled, RouteOptimization: cfg.RouteOptimizationEnabled, RoutePublication: cfg.RoutePublicationEnabled, ControlTower: cfg.ControlTowerEnabled, TrackingProjections: cfg.TrackingProjectionsEnabled, Geofences: cfg.GeofencesEnabled, OperationalAlerts: cfg.OperationalAlertsEnabled, Workers: cfg.Section16WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch || cfg.PrivateOperationsKillSwitch, OptimizationProviderConfigured: ocfg.Configured(), TrackingSourceConfigured: trackingConfigured}, CandidateTTL: cfg.Section16CandidateTTL, TrackingFreshAfter: cfg.Section16TrackingFreshAfter, TrackingStaleAfter: cfg.Section16TrackingStaleAfter, TrackingRetention: cfg.Section16TrackingRetention, AlertSLA: cfg.Section16AlertSLA, Now: time.Now})
 }
+
+// BuildMarketplaceExpiryAlertSink returns the Section 16 operational alert
+// service, configured only with what raising an alert needs, for the
+// marketplace assignment expiry worker (FLEET-11.11c). The worker runs in its
+// own loop without the full composition root, so it gets the same alert
+// service, flags, SLA and escalation queue rather than a second alerting
+// mechanism.
+func BuildMarketplaceExpiryAlertSink(cfg config.Config, pool *pgxpool.Pool) *dispatch.Service {
+	return dispatch.NewService(dispatch.Options{
+		Pool:   pool,
+		Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+		Flags: dispatch.Flags{
+			OperationalAlerts: cfg.OperationalAlertsEnabled,
+			Workers:           cfg.Section16WorkersEnabled,
+			KillSwitch:        cfg.IntegrationsKillSwitch || cfg.PrivateOperationsKillSwitch,
+		},
+		AlertSLA: cfg.Section16AlertSLA,
+		Now:      time.Now,
+	})
+}
