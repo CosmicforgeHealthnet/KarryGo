@@ -548,30 +548,52 @@ func (s *Service) GetQualification(ctx context.Context, t tenant.Context, id str
 	}
 	return Qualification{}, apperrors.NotFound("Resource not found.", nil)
 }
-func (s *Service) UpdateQualification(ctx context.Context, t tenant.Context, id string, expected int64, v Qualification) (Qualification, error) {
+
+// UpdateQualification applies a partial update. Fields left empty/nil keep
+// their stored value, so a rename never clears the applicability lists or
+// the evidence requirement.
+func (s *Service) UpdateQualification(ctx context.Context, t tenant.Context, id string, expected int64, p QualificationPatch) (Qualification, error) {
 	old, e := s.GetQualification(ctx, t, id)
 	if e != nil {
-		return v, e
+		return Qualification{}, e
 	}
 	if expected <= 0 {
-		return v, apperrors.BadRequest("expectedVersion is required.", nil)
+		return Qualification{}, apperrors.BadRequest("expectedVersion is required.", nil)
 	}
-	roles, _ := json.Marshal(v.ApplicableRoles)
-	services, _ := json.Marshal(v.ApplicableServices)
-	assets, _ := json.Marshal(v.ApplicableAssetTypes)
+	v := old
+	if p.Name != "" {
+		v.Name = p.Name
+	}
+	if p.ApplicableRoles != nil {
+		v.ApplicableRoles = p.ApplicableRoles
+	}
+	if p.ApplicableServices != nil {
+		v.ApplicableServices = p.ApplicableServices
+	}
+	if p.ApplicableAssetTypes != nil {
+		v.ApplicableAssetTypes = p.ApplicableAssetTypes
+	}
+	if p.EvidenceRequired != nil {
+		v.EvidenceRequired = *p.EvidenceRequired
+	}
+	roles, _ := json.Marshal(nonNilStrings(v.ApplicableRoles))
+	services, _ := json.Marshal(nonNilStrings(v.ApplicableServices))
+	assets, _ := json.Marshal(nonNilStrings(v.ApplicableAssetTypes))
 	e = s.tx(ctx, func(tx pgx.Tx) error {
-		e := tx.QueryRow(ctx, `UPDATE fleet_partner_qualifications SET name=COALESCE(NULLIF($4,''),name),applicable_roles=CASE WHEN $5::jsonb<>'[]' THEN $5 ELSE applicable_roles END,applicable_services=CASE WHEN $6::jsonb<>'[]' THEN $6 ELSE applicable_services END,applicable_asset_types=CASE WHEN $7::jsonb<>'[]' THEN $7 ELSE applicable_asset_types END,evidence_required=$8,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING version,updated_at`, t.OrganizationID, id, expected, v.Name, roles, services, assets, v.EvidenceRequired).Scan(&v.Version, &v.UpdatedAt)
+		e := tx.QueryRow(ctx, `UPDATE fleet_partner_qualifications SET name=$4,applicable_roles=$5,applicable_services=$6,applicable_asset_types=$7,evidence_required=$8,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING version,updated_at`, t.OrganizationID, id, expected, v.Name, roles, services, assets, v.EvidenceRequired).Scan(&v.Version, &v.UpdatedAt)
 		if e != nil {
 			return apperrors.Conflict("Version conflict.", e)
 		}
-		v.ID = id
-		v.OrganizationID = t.OrganizationID
-		v.Code = old.Code
-		v.Status = old.Status
-		v.CreatedAt = old.CreatedAt
 		return s.record(ctx, tx, t, "qualification.updated.v1", "qualification", id, v.Version, v)
 	})
 	return v, e
+}
+
+func nonNilStrings(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
 }
 func (s *Service) AddProviderQualification(ctx context.Context, t tenant.Context, membership string, v ProviderQualification) (ProviderQualification, error) {
 	if e := s.gate(s.o.Flags.Qualifications, true); e != nil {
@@ -691,24 +713,32 @@ func (s *Service) GetCourse(ctx context.Context, t tenant.Context, id string) (C
 	}
 	return Course{}, apperrors.NotFound("Resource not found.", nil)
 }
-func (s *Service) UpdateCourse(ctx context.Context, t tenant.Context, id string, expected int64, v Course) (Course, error) {
+
+// UpdateCourse applies a partial update. A nil PassingScore keeps the stored
+// threshold: a title-only change must never lower the pass mark to zero.
+func (s *Service) UpdateCourse(ctx context.Context, t tenant.Context, id string, expected int64, p CoursePatch) (Course, error) {
 	old, e := s.GetCourse(ctx, t, id)
 	if e != nil {
-		return v, e
+		return Course{}, e
 	}
 	if expected <= 0 {
-		return v, apperrors.BadRequest("expectedVersion is required.", nil)
+		return Course{}, apperrors.BadRequest("expectedVersion is required.", nil)
+	}
+	v := old
+	if p.Title != "" {
+		v.Title = p.Title
+	}
+	if p.PassingScore != nil {
+		if *p.PassingScore < 0 {
+			return Course{}, apperrors.BadRequest("passingScore must not be negative.", nil)
+		}
+		v.PassingScore = *p.PassingScore
 	}
 	e = s.tx(ctx, func(tx pgx.Tx) error {
-		e := tx.QueryRow(ctx, `UPDATE fleet_partner_training_courses SET title=COALESCE(NULLIF($4,''),title),passing_score=CASE WHEN $5>=0 THEN $5 ELSE passing_score END,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING version,updated_at`, t.OrganizationID, id, expected, v.Title, v.PassingScore).Scan(&v.Version, &v.UpdatedAt)
+		e := tx.QueryRow(ctx, `UPDATE fleet_partner_training_courses SET title=$4,passing_score=$5,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING version,updated_at`, t.OrganizationID, id, expected, v.Title, v.PassingScore).Scan(&v.Version, &v.UpdatedAt)
 		if e != nil {
 			return apperrors.Conflict("Version conflict.", e)
 		}
-		v.ID = id
-		v.OrganizationID = t.OrganizationID
-		v.Code = old.Code
-		v.Status = old.Status
-		v.CreatedAt = old.CreatedAt
 		return s.record(ctx, tx, t, "training.course_updated.v1", "training_course", id, v.Version, v)
 	})
 	return v, e

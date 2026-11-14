@@ -335,7 +335,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.CreateQualification(c, t, b)
 		case "updateQualification":
-			var b Qualification
+			var b QualificationPatch
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -366,7 +366,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.CreateCourse(c, t, b)
 		case "updateTrainingCourse":
-			var b Course
+			var b CoursePatch
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
