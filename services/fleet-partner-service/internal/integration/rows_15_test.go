@@ -24,7 +24,6 @@ import (
 // real use cases against PostgreSQL; route permissions and OpenAPI parity are
 // covered by the Section 15 contract tests.
 
-
 // TestRow15_1b_ServiceCatalogListGetPatch covers FLEET-15.1b:
 // GET /service-catalog, GET/PATCH /service-catalog/:id.
 func TestRow15_1b_ServiceCatalogListGetPatch(t *testing.T) {
