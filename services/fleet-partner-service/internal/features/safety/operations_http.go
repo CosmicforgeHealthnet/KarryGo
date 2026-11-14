@@ -230,13 +230,15 @@ func (h *OperationsHandler) handle(c *gin.Context, r OperationsRoute) {
 			if !bindSafety(c, &b) {
 				return nil, errors.New("bound")
 			}
-			return h.s.UpdateReport(c, t, c.Param("reportId"), safetyVersion(c, b.Version), b, false)
+			v, e := h.s.UpdateReport(c, t, c.Param("reportId"), safetyVersion(c, b.Version), b, false)
+			return publicReport(v), e
 		case "resolveSafetyReport":
 			var b actionBody
 			if !bindSafety(c, &b) {
 				return nil, errors.New("bound")
 			}
-			return h.s.UpdateReport(c, t, c.Param("reportId"), safetyVersion(c, b.ExpectedVersion), Report{ResolutionAction: b.ResolutionAction, ResolutionReason: b.ResolutionReason}, true)
+			v, e := h.s.UpdateReport(c, t, c.Param("reportId"), safetyVersion(c, b.ExpectedVersion), Report{ResolutionAction: b.ResolutionAction, ResolutionReason: b.ResolutionReason}, true)
+			return publicReport(v), e
 		case "listIncidents":
 			return h.s.ListIncidents(c, t)
 		case "createIncident":

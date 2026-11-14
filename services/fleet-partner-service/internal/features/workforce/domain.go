@@ -104,6 +104,26 @@ type ProviderQualification struct {
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
 }
+
+// QualificationPatch is a partial qualification update: empty/nil fields
+// keep their stored value.
+type QualificationPatch struct {
+	Name                 string   `json:"name"`
+	ApplicableRoles      []string `json:"applicableRoles"`
+	ApplicableServices   []string `json:"applicableServices"`
+	ApplicableAssetTypes []string `json:"applicableAssetTypes"`
+	EvidenceRequired     *bool    `json:"evidenceRequired"`
+	Version              int64    `json:"version"`
+}
+
+// CoursePatch is a partial training-course update: empty/nil fields keep
+// their stored value.
+type CoursePatch struct {
+	Title        string   `json:"title"`
+	PassingScore *float64 `json:"passingScore"`
+	Version      int64    `json:"version"`
+}
+
 type Course struct {
 	ID                    string    `json:"id"`
 	OrganizationID        string    `json:"organizationId"`

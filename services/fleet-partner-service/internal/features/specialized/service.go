@@ -11,7 +11,6 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"strconv"
 
@@ -308,7 +307,7 @@ func (s *Service) ListRecords(ctx context.Context, t tenant.Context, code string
 	if _, e := s.capability(ctx, t.OrganizationID, strings.ToUpper(code), false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+recordCols+` FROM fleet_partner_specialized_records WHERE organization_id=$1 AND capability_code=$2 AND(cardinality($3::text[])=0 OR branch_id IS NULL OR branch_id=ANY($3::text[])) ORDER BY created_at DESC`, t.OrganizationID, strings.ToUpper(code), t.PermittedBranchIDs)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+recordCols+` FROM fleet_partner_specialized_records WHERE organization_id=$1 AND capability_code=$2 AND(COALESCE(cardinality($3::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($3::text[])) ORDER BY created_at DESC`, t.OrganizationID, strings.ToUpper(code), t.PermittedBranchIDs)
 	if e != nil {
 		return nil, e
 	}
@@ -363,8 +362,15 @@ func (s *Service) UpdateRecord(ctx context.Context, t tenant.Context, code, id s
 	status := old.Status
 	event := "specialized_record.updated.v1"
 	if command != "" {
+		if old.Status == "COMPLETED" {
+			return v, apperrors.Conflict("The specialized record is already completed.", nil)
+		}
 		switch command {
 		case "COMPLETE":
+			// Quarantined cold-chain goods need an authorized release first.
+			if old.Status == "QUARANTINED" {
+				return v, apperrors.Conflict("A quarantined record must be released before it is completed.", nil)
+			}
 			status = "COMPLETED"
 		case "QUARANTINE":
 			if code != ColdChain {
@@ -377,7 +383,11 @@ func (s *Service) UpdateRecord(ctx context.Context, t tenant.Context, code, id s
 			}
 			var release map[string]any
 			_ = json.Unmarshal(v.Payload, &release)
-			if strings.TrimSpace(fmt.Sprint(release["releaseEvidenceReference"])) == "" || strings.TrimSpace(fmt.Sprint(release["authorizedBy"])) == "" {
+			// fmt.Sprint of a missing key is "<nil>", which is not empty, so
+			// read the values as strings.
+			evidence, _ := release["releaseEvidenceReference"].(string)
+			authorizedBy, _ := release["authorizedBy"].(string)
+			if strings.TrimSpace(evidence) == "" || strings.TrimSpace(authorizedBy) == "" {
 				return v, apperrors.BadRequest("Cold-chain release requires evidence and an authorized actor.", nil)
 			}
 			status = "RELEASED"

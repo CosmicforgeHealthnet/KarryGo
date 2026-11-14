@@ -127,7 +127,7 @@ func (s *OperationsService) ListReports(ctx context.Context, t tenant.Context) (
 	if e := s.gate(s.o.Flags.Reports, false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+reportCols+` FROM fleet_partner_safety_reports WHERE organization_id=$1 AND(cardinality($2::text[])=0 OR branch_id IS NULL OR branch_id=ANY($2::text[])) ORDER BY created_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+reportCols+` FROM fleet_partner_safety_reports WHERE organization_id=$1 AND(COALESCE(cardinality($2::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($2::text[])) ORDER BY created_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
 	if e != nil {
 		return nil, e
 	}
@@ -156,6 +156,18 @@ func (s *OperationsService) UpdateReport(ctx context.Context, t tenant.Context, 
 	status := strings.ToUpper(in.Status)
 	if status == "" {
 		status = old.Status
+	}
+	switch status {
+	case "OPEN", "UNDER_REVIEW", "ACTION_REQUIRED", "RESOLVED", "DISMISSED":
+	default:
+		return in, apperrors.BadRequest("Unknown safety report status.", nil)
+	}
+	if old.Status == "RESOLVED" || old.Status == "DISMISSED" {
+		return in, apperrors.Conflict("The safety report is closed.", nil)
+	}
+	// Resolution records its action and reason, so it has its own command.
+	if !resolve && status == "RESOLVED" {
+		return in, apperrors.Conflict("Resolve a safety report with the resolve command.", nil)
 	}
 	if resolve {
 		status = "RESOLVED"
@@ -238,7 +250,7 @@ func (s *OperationsService) ListIncidents(ctx context.Context, t tenant.Context)
 	if e := s.gate(s.o.Flags.Incidents, false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+incidentCols+` FROM fleet_partner_incidents WHERE organization_id=$1 AND(cardinality($2::text[])=0 OR branch_id IS NULL OR branch_id=ANY($2::text[])) ORDER BY occurred_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+incidentCols+` FROM fleet_partner_incidents WHERE organization_id=$1 AND(COALESCE(cardinality($2::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($2::text[])) ORDER BY occurred_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
 	if e != nil {
 		return nil, e
 	}
@@ -397,12 +409,16 @@ func (s *OperationsService) Action(ctx context.Context, t tenant.Context, id, co
 		status = "VERIFIED"
 	}
 	e := s.tx(ctx, func(tx pgx.Tx) error {
-		var old string
-		if x := tx.QueryRow(ctx, `SELECT status FROM fleet_partner_corrective_actions WHERE organization_id=$1 AND id=$2 FOR UPDATE`, t.OrganizationID, id).Scan(&old); x != nil {
+		var old, branch string
+		// The action inherits its incident's branch scope.
+		if x := tx.QueryRow(ctx, `SELECT a.status,COALESCE(i.branch_id,'') FROM fleet_partner_corrective_actions a JOIN fleet_partner_incidents i ON i.organization_id=a.organization_id AND i.id=a.incident_id WHERE a.organization_id=$1 AND a.id=$2 FOR UPDATE OF a`, t.OrganizationID, id).Scan(&old, &branch); x != nil || !t.BranchPermitted(branch) {
 			return apperrors.NotFound("Corrective action not found.", x)
 		}
 		if command == "VERIFY" && old != "COMPLETED" {
 			return apperrors.Conflict("Only completed corrective actions can be verified.", nil)
+		}
+		if command == "COMPLETE" && old != "OPEN" && old != "IN_PROGRESS" && old != "OVERDUE" {
+			return apperrors.Conflict("Only open corrective actions can be completed.", nil)
 		}
 		var x error
 		v, x = scanAction(tx.QueryRow(ctx, `UPDATE fleet_partner_corrective_actions SET status=$4,completion_notes=CASE WHEN $4='COMPLETED' THEN $5 ELSE completion_notes END,completed_at=CASE WHEN $4='COMPLETED' THEN now() ELSE completed_at END,verified_by=CASE WHEN $4='VERIFIED' THEN $6 ELSE verified_by END,verified_at=CASE WHEN $4='VERIFIED' THEN now() ELSE verified_at END,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING `+actionCols, t.OrganizationID, id, expected, status, notes, t.ActorID))

@@ -120,7 +120,18 @@ func (s *Service) List(ctx context.Context, t tenant.Context, status, branch str
 	if branch != "" && !t.BranchPermitted(branch) {
 		return []models.Manifest{}, nil
 	}
-	return s.opts.Repository.List(ctx, t.OrganizationID, status, branch)
+	items, e := s.opts.Repository.List(ctx, t.OrganizationID, status, branch)
+	if e != nil {
+		return nil, e
+	}
+	// The list honours branch scope the same way Get does.
+	out := make([]models.Manifest, 0, len(items))
+	for _, m := range items {
+		if t.BranchPermitted(m.BranchID) {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 type UpdateInput struct {

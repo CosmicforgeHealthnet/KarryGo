@@ -893,6 +893,25 @@ func (s *Service) RenewContract(ctx context.Context, t tenant.Context, contractI
 			return conflict(errorcodes.ContractInvalidState,
 				"Only an active, suspended or renewal-pending contract can be renewed.")
 		}
+		// One open successor per contract. A replay, or a second request
+		// against the version the renewal was opened from, gets that same
+		// successor instead of another draft; any other version conflicts.
+		if open, openErr := s.opts.Repository.OpenRenewalOf(ctx, tx, t.OrganizationID,
+			contractID); openErr == nil {
+			if contract.Status == models.ContractRenewalPending &&
+				input.ExpectedVersion == contract.Version-1 {
+				renewal = open
+				return nil
+			}
+			return conflict(errorcodes.ContractVersionConflict,
+				"This contract already has an open renewal.")
+		} else if !errors.Is(openErr, repositories.ErrNotFound) {
+			return openErr
+		}
+		if contract.Version != input.ExpectedVersion {
+			return conflict(errorcodes.ContractVersionConflict,
+				"This record changed elsewhere. Reload the saved record before retrying.")
+		}
 
 		customer, txErr := s.requireCustomer(ctx, tx, t, contract.CustomerID)
 		if txErr != nil {

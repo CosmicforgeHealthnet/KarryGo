@@ -108,6 +108,17 @@ func (r *Repository) LockContract(ctx context.Context, q database.Querier,
 		organizationID, contractID))
 }
 
+// OpenRenewalOf returns the newest successor of a contract that is not yet in
+// a final state, or pgx.ErrNoRows when the contract has no open renewal.
+func (r *Repository) OpenRenewalOf(ctx context.Context, q database.Querier,
+	organizationID, contractID string) (models.Contract, error) {
+	return scanContract(r.q(q).QueryRow(ctx, `SELECT `+contractColumns+`
+		FROM fleet_partner_contracts WHERE organization_id = $1 AND supersedes_id = $2
+		AND status NOT IN ('EXPIRED', 'TERMINATED', 'SUPERSEDED')
+		ORDER BY created_at DESC, id DESC LIMIT 1`,
+		organizationID, contractID))
+}
+
 // ContractFilter is the allowlisted contract list query.
 type ContractFilter struct {
 	Status        string
