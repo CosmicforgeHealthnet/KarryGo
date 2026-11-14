@@ -305,7 +305,7 @@ func (s *Service) ListRecords(ctx context.Context, t tenant.Context, code string
 	if _, e := s.capability(ctx, t.OrganizationID, strings.ToUpper(code), false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+recordCols+` FROM fleet_partner_specialized_records WHERE organization_id=$1 AND capability_code=$2 AND(cardinality($3::text[])=0 OR branch_id IS NULL OR branch_id=ANY($3::text[])) ORDER BY created_at DESC`, t.OrganizationID, strings.ToUpper(code), t.PermittedBranchIDs)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+recordCols+` FROM fleet_partner_specialized_records WHERE organization_id=$1 AND capability_code=$2 AND(COALESCE(cardinality($3::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($3::text[])) ORDER BY created_at DESC`, t.OrganizationID, strings.ToUpper(code), t.PermittedBranchIDs)
 	if e != nil {
 		return nil, e
 	}
