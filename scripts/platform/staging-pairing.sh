@@ -11,6 +11,8 @@
 #   URL  <service> NAME=http://karrygo-<container>:<port>
 #                                       an internal service address
 #   CALLERS <service> NAME_CALLERS=a,b  a list of known service identities
+#   SET/URL/CALLERS may end with requires=<service>[,<service>]: the line is
+#                                       dropped when any required service is BLOCKED
 #
 # A pair is left alone when both sides already agree; otherwise a new secret
 # is generated and written to both settings files. Secret values are never
@@ -75,15 +77,21 @@ for raw in sys.argv[1].splitlines():
     if not line or line.startswith("#"):
         continue
     parts = line.split()
+    requires = []
+    if parts[0] in ("SET", "URL", "CALLERS") and len(parts) == 4 and re.fullmatch(r"requires=[a-z-]+(,[a-z-]+)*", parts[3]):
+        requires = parts[3].split("=", 1)[1].split(",")
+        if not all(r in FILES for r in requires):
+            sys.exit(f"Refusing unknown requires= service on: {parts[0]} {parts[1]}")
+        parts = parts[:3]
     if parts[0] == "PAIR" and len(parts) == 3 and (parts[1], parts[2]) in PAIRS:
         plan["pairs"].append({"caller": parts[1], "callee": parts[2], **PAIRS[(parts[1], parts[2])]})
     elif parts[0] == "SET" and len(parts) == 3 and parts[1] in FILES and re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}=(true|false)", parts[2]):
-        plan["sets"].append({"service": parts[1], "line": parts[2]})
+        plan["sets"].append({"service": parts[1], "line": parts[2], "requires": requires})
     elif parts[0] == "CALLERS" and len(parts) == 3 and parts[1] in FILES and re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}_CALLERS=[a-z-]+(,[a-z-]+)*", parts[2]) \
             and all(name in KNOWN_CALLERS for name in parts[2].split("=", 1)[1].split(",")):
-        plan["sets"].append({"service": parts[1], "line": parts[2]})
+        plan["sets"].append({"service": parts[1], "line": parts[2], "requires": requires})
     elif parts[0] == "URL" and len(parts) == 3 and parts[1] in FILES and re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}_URL=http://karrygo-[a-z0-9-]+:[0-9]{2,5}", parts[2]):
-        plan["urls"].append({"service": parts[1], "line": parts[2]})
+        plan["urls"].append({"service": parts[1], "line": parts[2], "requires": requires})
     else:
         sys.exit(f"Refusing unsupported line: {parts[0]} {parts[1] if len(parts) > 1 else ''}")
 plan["files"] = FILES
@@ -130,8 +138,12 @@ import json, sys
 path, blocked = sys.argv[1], set(sys.argv[2:])
 plan = json.load(open(path))
 plan["pairs"] = [p for p in plan["pairs"] if p["caller"] not in blocked and p["callee"] not in blocked]
-plan["sets"] = [x for x in plan["sets"] if x["service"] not in blocked]
-plan["urls"] = [x for x in plan["urls"] if x["service"] not in blocked]
+# A setting on a healthy service that only makes sense with a blocked peer
+# (marked requires=<peer>) is dropped too, so the healthy service is never
+# configured for a connection that was not made.
+keep = lambda x: x["service"] not in blocked and not (set(x.get("requires", [])) & blocked)
+plan["sets"] = [x for x in plan["sets"] if keep(x)]
+plan["urls"] = [x for x in plan["urls"] if keep(x)]
 json.dump(plan, open(path, "w"))
 PY
   touched="$(python3 - "$plan_file" <<'PY'
