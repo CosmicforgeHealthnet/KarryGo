@@ -15,10 +15,12 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -89,6 +91,16 @@ func ExpectedVersion(c *gin.Context, v int64) int64 {
 // created selects 201 over 200 on success. run returning ErrBound means it has
 // already rendered the response.
 func Command(c *gin.Context, store *idempotency.Store, organizationID, method, path string, created bool, run func(key string) (any, error)) {
+	command(c, store, organizationID, method, path, created, false, run)
+}
+
+// StrictCommand is Command for routes whose contract has always required a
+// non-empty JSON body: an empty body is a 400 rather than an empty object.
+func StrictCommand(c *gin.Context, store *idempotency.Store, organizationID, method, path string, created bool, run func(key string) (any, error)) {
+	command(c, store, organizationID, method, path, created, true, run)
+}
+
+func command(c *gin.Context, store *idempotency.Store, organizationID, method, path string, created, requireBody bool, run func(key string) (any, error)) {
 	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
 	if key == "" {
 		respond.Error(c, apperrors.BadRequest("Idempotency-Key header is required.", nil))
@@ -99,6 +111,10 @@ func Command(c *gin.Context, store *idempotency.Store, organizationID, method, p
 		return
 	}
 	raw, err := c.GetRawData()
+	if err == nil && requireBody && len(raw) == 0 {
+		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
+		return
+	}
 	if err != nil || (!json.Valid(raw) && len(bytes.TrimSpace(raw)) > 0) {
 		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", err))
 		return
@@ -138,4 +154,48 @@ func Command(c *gin.Context, store *idempotency.Store, organizationID, method, p
 		return
 	}
 	c.Data(status, "application/json; charset=utf-8", payload)
+}
+
+// Page is a list result carrying the next keyset cursor; Render writes it
+// with meta.nextCursor.
+type Page struct {
+	Data any
+	Next string
+}
+
+// Render writes a read result: a Page as a list with meta.nextCursor, any
+// other value through the standard success envelope, and an error through the
+// standard error envelope. ErrBound means the response is already written.
+func Render(c *gin.Context, v any, err error) {
+	if errors.Is(err, ErrBound) {
+		return
+	}
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
+	if p, ok := v.(Page); ok {
+		respond.List(c, p.Data, p.Next)
+		return
+	}
+	respond.OK(c, v)
+}
+
+// Keyset reads ?cursor= into a keyset position. A malformed cursor, or a
+// cursor sent together with the compatibility offset, is a validation error.
+func Keyset(c *gin.Context) (*time.Time, string, error) {
+	if c.Query("cursor") != "" && c.Query("offset") != "" {
+		return nil, "", apperrors.Validation("Use either cursor or offset paging, not both.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Cannot be combined with offset."}})
+	}
+	position, ok, err := cursor.Decode(c.Query("cursor"))
+	if err != nil {
+		return nil, "", apperrors.Validation("The cursor is not valid.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Malformed."}})
+	}
+	if !ok {
+		return nil, "", nil
+	}
+	after := position.SortTime()
+	return &after, position.LastID, nil
 }

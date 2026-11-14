@@ -41,7 +41,7 @@ func (h *Handler) listInspections(c *gin.Context, t tenant.Context) (any, error)
 	if last != nil {
 		next = cursor.EncodeTime(last.CreatedAt, last.ID)
 	}
-	return listPage{data: items, next: next}, nil
+	return listPage{Data: items, Next: next}, nil
 }
 
 func (h *Handler) handle(c *gin.Context, r Route) {
