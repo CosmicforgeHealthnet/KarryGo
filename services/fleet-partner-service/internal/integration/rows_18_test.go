@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -11,7 +12,10 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	fuelmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/models"
+	inspectionsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/models"
+	maintenancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -23,7 +27,7 @@ import (
 
 type rows18 struct {
 	rowsOrgs
-	svc     *assets.Service
+	svc     *section18Svc
 	router  http.Handler
 	branchA string
 	branchX string
@@ -40,9 +44,9 @@ func newRows18(t *testing.T) *rows18 {
 		"a-quarantine": {FileID: "a-quarantine", OwnerID: orgs.A.Org, UploadState: "COMPLETED", ScanState: "QUARANTINED"},
 		"b-clean":      {FileID: "b-clean", OwnerID: orgs.B.Org, UploadState: "COMPLETED", ScanState: "CLEAN"},
 	}}
-	svc := assets.NewService(assets.Options{
+	svc := newSection18(app.Section18Options{
 		Pool: orgs.pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(orgs.pool)), Media: media,
-		Flags: assets.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true},
+		Flags: assetsmodels.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true},
 		Now:   func() time.Time { return now },
 	})
 	f := &rows18{rowsOrgs: orgs, svc: svc, now: now}
@@ -51,18 +55,18 @@ func newRows18(t *testing.T) *rows18 {
 	f.branchX = seedBranch(t, orgs.pool, orgs.A.Org, "Rows18 Other")
 	f.branchB = seedBranch(t, orgs.pool, orgs.B.Org, "Rows18 B")
 	f.router = rowsRouter(t, orgs.pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
-		assets.NewHandler(svc, a, s).RegisterTenantRoutes(g)
+		registerSection18(svc, a, s, g)
 	})
 	return f
 }
 
-func (f *rows18) asset(t *testing.T, org, branch, code string) assets.Asset {
+func (f *rows18) asset(t *testing.T, org, branch, code string) assetsmodels.Asset {
 	t.Helper()
 	scope := f.tenantA()
 	if org == f.B.Org {
 		scope = f.tenantB()
 	}
-	a, err := f.svc.CreateAsset(context.Background(), scope, assets.Asset{BranchID: branch, AssetCode: code, AssetType: "TRUCK", OwnershipType: "OWNED", Capacity: 1000, CapacityUnit: "KG"})
+	a, err := f.svc.CreateAsset(context.Background(), scope, assetsmodels.Asset{BranchID: branch, AssetCode: code, AssetType: "TRUCK", OwnershipType: "OWNED", Capacity: 1000, CapacityUnit: "KG"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +91,7 @@ func TestRow18_1b_AssetList(t *testing.T) {
 	second := f.asset(t, f.A.Org, f.branchA, "AST-2")
 	other := f.asset(t, f.A.Org, f.branchX, "AST-X")
 	foreign := f.asset(t, f.B.Org, f.branchB, "AST-B")
-	if _, err := f.svc.UpdateAsset(context.Background(), f.tenantA(), second.ID, second.Version, assets.Asset{Capacity: -1, Odometer: -1, OperatingHours: -1}, "ARCHIVE"); err != nil {
+	if _, err := f.svc.UpdateAsset(context.Background(), f.tenantA(), second.ID, second.Version, assetsmodels.Asset{Capacity: -1, Odometer: -1, OperatingHours: -1}, "ARCHIVE"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,7 +134,7 @@ func TestRow18_2_AssetArchiveRetire(t *testing.T) {
 	toRetire := f.asset(t, f.A.Org, f.branchA, "RET-1")
 	busy := f.asset(t, f.A.Org, f.branchA, "BUSY-1")
 	member := f.membership(t, f.A.Org)
-	if _, err := f.svc.Assign(ctx, f.tenantA(), busy.ID, assets.Assignment{ProviderMembershipID: member, AssignmentType: "PRIMARY", StartAt: f.now}); err != nil {
+	if _, err := f.svc.Assign(ctx, f.tenantA(), busy.ID, assetsmodels.Assignment{ProviderMembershipID: member, AssignmentType: "PRIMARY", StartAt: f.now}); err != nil {
 		t.Fatal(err)
 	}
 	busy, _ = f.svc.GetAsset(ctx, f.tenantA(), busy.ID)
@@ -158,7 +162,7 @@ func TestRow18_2_AssetArchiveRetire(t *testing.T) {
 	}
 	// An archived or retired asset is not assignable.
 	for _, id := range []string{toArchive.ID, toRetire.ID} {
-		if _, err := f.svc.Assign(ctx, f.tenantA(), id, assets.Assignment{ProviderMembershipID: member, AssignmentType: "PRIMARY", StartAt: f.now}); crmErrorCode(err) != "conflict" {
+		if _, err := f.svc.Assign(ctx, f.tenantA(), id, assetsmodels.Assignment{ProviderMembershipID: member, AssignmentType: "PRIMARY", StartAt: f.now}); crmErrorCode(err) != "conflict" {
 			t.Fatalf("assign to %s: want conflict, got %v", id, err)
 		}
 	}
@@ -198,11 +202,11 @@ func TestRow18_5c_InspectionTemplateAndInspectionReads(t *testing.T) {
 	ctx := context.Background()
 	checklist := json.RawMessage(`[{"code":"lights","required":true}]`)
 	rules := json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)
-	tpl, err := f.svc.SaveTemplate(ctx, f.tenantA(), "", 0, assets.Template{Name: "Daily", AssetTypes: []string{"TRUCK"}, ChecklistItems: checklist, CriticalityRules: rules})
+	tpl, err := f.svc.SaveTemplate(ctx, f.tenantA(), "", 0, inspectionsmodels.Template{Name: "Daily", AssetTypes: []string{"TRUCK"}, ChecklistItems: checklist, CriticalityRules: rules})
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignTpl, err := f.svc.SaveTemplate(ctx, f.tenantB(), "", 0, assets.Template{Name: "Foreign", ChecklistItems: checklist, CriticalityRules: rules})
+	foreignTpl, err := f.svc.SaveTemplate(ctx, f.tenantB(), "", 0, inspectionsmodels.Template{Name: "Foreign", ChecklistItems: checklist, CriticalityRules: rules})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,15 +224,15 @@ func TestRow18_5c_InspectionTemplateAndInspectionReads(t *testing.T) {
 	inspector := f.membership(t, f.A.Org)
 	main := f.asset(t, f.A.Org, f.branchA, "INS-1")
 	elsewhere := f.asset(t, f.A.Org, f.branchX, "INS-X")
-	open, err := f.svc.CreateInspection(ctx, f.tenantA(), assets.Inspection{AssetID: main.ID, TemplateID: tpl.ID, InspectorMembershipID: inspector})
+	open, err := f.svc.CreateInspection(ctx, f.tenantA(), inspectionsmodels.Inspection{AssetID: main.ID, TemplateID: tpl.ID, InspectorMembershipID: inspector})
 	if err != nil {
 		t.Fatal(err)
 	}
-	done, err := f.svc.CreateInspection(ctx, f.tenantA(), assets.Inspection{AssetID: elsewhere.ID, TemplateID: tpl.ID, InspectorMembershipID: inspector})
+	done, err := f.svc.CreateInspection(ctx, f.tenantA(), inspectionsmodels.Inspection{AssetID: elsewhere.ID, TemplateID: tpl.ID, InspectorMembershipID: inspector})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if done, err = f.svc.CompleteInspection(ctx, f.tenantA(), done.ID, assets.CompleteInspectionInput{ExpectedVersion: done.Version, Answers: []assets.Answer{{ItemCode: "lights", Passed: true}}}); err != nil {
+	if done, err = f.svc.CompleteInspection(ctx, f.tenantA(), done.ID, inspectionsmodels.CompleteInspectionInput{ExpectedVersion: done.Version, Answers: []inspectionsmodels.Answer{{ItemCode: "lights", Passed: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	all := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/inspections", nil, nil), 200, "inspections").Items(t)
@@ -258,16 +262,16 @@ func TestRow18_6_MaintenanceScheduleReadsAndPatch(t *testing.T) {
 	elsewhere := f.asset(t, f.A.Org, f.branchX, "MS-X")
 	due := f.now.Add(30 * 24 * time.Hour)
 	interval := 5000.0
-	sched, err := f.svc.SaveSchedule(ctx, f.tenantA(), "", 0, assets.Schedule{AssetID: main.ID, TriggerType: "DATE", NextDueDate: &due, Critical: true})
+	sched, err := f.svc.SaveSchedule(ctx, f.tenantA(), "", 0, maintenancemodels.Schedule{AssetID: main.ID, TriggerType: "DATE", NextDueDate: &due, Critical: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := f.svc.SaveSchedule(ctx, f.tenantA(), "", 0, assets.Schedule{AssetID: elsewhere.ID, TriggerType: "MILEAGE", IntervalValue: &interval, NextDueOdometer: &interval})
+	other, err := f.svc.SaveSchedule(ctx, f.tenantA(), "", 0, maintenancemodels.Schedule{AssetID: elsewhere.ID, TriggerType: "MILEAGE", IntervalValue: &interval, NextDueOdometer: &interval})
 	if err != nil {
 		t.Fatal(err)
 	}
 	foreignAsset := f.asset(t, f.B.Org, f.branchB, "MS-B")
-	if _, err = f.svc.SaveSchedule(ctx, f.tenantB(), "", 0, assets.Schedule{AssetID: foreignAsset.ID, TriggerType: "DATE", NextDueDate: &due}); err != nil {
+	if _, err = f.svc.SaveSchedule(ctx, f.tenantB(), "", 0, maintenancemodels.Schedule{AssetID: foreignAsset.ID, TriggerType: "DATE", NextDueDate: &due}); err != nil {
 		t.Fatal(err)
 	}
 	list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/maintenance/schedules", nil, nil), 200, "list").Items(t)
@@ -358,15 +362,15 @@ func TestRow18_8_BreakdownLifecycle(t *testing.T) {
 func TestRow18_9_PartsList(t *testing.T) {
 	f := newRows18(t)
 	ctx := context.Background()
-	b, err := f.svc.SavePart(ctx, f.tenantA(), "", 0, assets.Part{BranchID: f.branchA, SKU: "SKU-B", Name: "Brake pad", StockUnit: "EA", ReorderLevel: 4})
+	b, err := f.svc.SavePart(ctx, f.tenantA(), "", 0, assetsmodels.Part{BranchID: f.branchA, SKU: "SKU-B", Name: "Brake pad", StockUnit: "EA", ReorderLevel: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := f.svc.SavePart(ctx, f.tenantA(), "", 0, assets.Part{BranchID: f.branchX, SKU: "SKU-A", Name: "Air filter", StockUnit: "EA", ReorderLevel: 2})
+	a, err := f.svc.SavePart(ctx, f.tenantA(), "", 0, assetsmodels.Part{BranchID: f.branchX, SKU: "SKU-A", Name: "Air filter", StockUnit: "EA", ReorderLevel: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.svc.SavePart(ctx, f.tenantB(), "", 0, assets.Part{BranchID: f.branchB, SKU: "SKU-A", Name: "Foreign", StockUnit: "EA"}); err != nil {
+	if _, err = f.svc.SavePart(ctx, f.tenantB(), "", 0, assetsmodels.Part{BranchID: f.branchB, SKU: "SKU-A", Name: "Foreign", StockUnit: "EA"}); err != nil {
 		t.Fatal(err)
 	}
 	list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/inventory/parts", nil, nil), 200, "list").Items(t)
@@ -399,8 +403,8 @@ func TestRow18_10b_FuelApproveRejectList(t *testing.T) {
 	asset := f.asset(t, f.A.Org, f.branchA, "FUEL-1")
 	elsewhere := f.asset(t, f.A.Org, f.branchX, "FUEL-X")
 	member := f.membership(t, f.A.Org)
-	mk := func(assetID string, at time.Time) assets.FuelRecord {
-		r, err := f.svc.CreateFuel(ctx, f.tenantA(), assets.FuelRecord{AssetID: assetID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 120.5, Unit: "L", RecordedAt: at})
+	mk := func(assetID string, at time.Time) fuelmodels.FuelRecord {
+		r, err := f.svc.CreateFuel(ctx, f.tenantA(), fuelmodels.FuelRecord{AssetID: assetID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 120.5, Unit: "L", RecordedAt: at})
 		if err != nil {
 			t.Fatal(err)
 		}

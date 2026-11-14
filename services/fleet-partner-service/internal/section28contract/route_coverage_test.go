@@ -24,7 +24,7 @@ import (
 	"sort"
 	"testing"
 
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/http"
 	audithttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/http"
 	auditrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
 	backgroundopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/backgroundops/http"
@@ -36,7 +36,10 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	fuelhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/http"
+	inspectionshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/http"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
+	maintenancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/http"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	ordershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/http"
@@ -215,8 +218,17 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 	// classification and, before this fix, could have had no
 	// object-authorization declaration either, invisible to both coverage
 	// tests. Fixed here as the direct root cause, not a separate cleanup.
-	assetsH := assetsfeature.NewHandler(nil, nil, nil)
+	assetsH := assetshttp.NewHandler(nil, nil, nil)
 	for _, r := range assetsH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range inspectionshttp.NewHandler(nil, nil, nil).TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range maintenancehttp.NewHandler(nil, nil, nil).TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range fuelhttp.NewHandler(nil, nil, nil).TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 

@@ -19,7 +19,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
 	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	providermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
@@ -284,8 +284,8 @@ func TestOffsetListsServeValidPagesAfterValidation(t *testing.T) {
 	// clamp it, which used to surface as HTTP 500.
 	scope := tenant.Context{OrganizationID: h.org, OrganizationUserID: h.member,
 		ActorType: tenant.ActorTypeOrganizationUser, ActorID: h.member}
-	if rows, err := assetsfeature.NewService(assetsfeature.Options{Pool: h.pool, Flags: assetsfeature.Flags{Assets: true, Inspections: true}}).
-		ListAssets(ctx, scope, assetsfeature.Page{Offset: -1, Limit: -7}); err != nil || len(rows) != 3 {
+	if rows, err := newSection18(app.Section18Options{Pool: h.pool, Flags: assetsmodels.Flags{Assets: true, Inspections: true}}).
+		ListAssets(ctx, scope, assetsmodels.Page{Offset: -1, Limit: -7}); err != nil || len(rows) != 3 {
 		t.Fatalf("asset service with offset -1 = %d rows, %v", len(rows), err)
 	}
 	if _, err := workforcefeature.NewService(workforcefeature.Options{Pool: h.pool, Flags: workforcefeature.Flags{Workforce: true, Shifts: true, Leave: true, Training: true}}).

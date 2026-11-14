@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	providermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	"encoding/json"
 	"sync"
@@ -9,7 +10,10 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	fuelmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/models"
+	inspectionsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/models"
+	maintenancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -156,23 +160,23 @@ func TestSection17And18EndToEnd(t *testing.T) {
 		t.Fatal(explanation)
 	}
 
-	a := assets.NewService(assets.Options{Pool: pool, Events: publisher, Media: media, Flags: assets.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true, Workers: true}, Now: func() time.Time { return now }})
-	asset, e := a.CreateAsset(ctx, scope, assets.Asset{BranchID: branch, AssetCode: "TRUCK-1", AssetType: "TRUCK", OwnershipType: "OWNED", Capacity: 100, CapacityUnit: "KG"})
+	a := newSection18(app.Section18Options{Pool: pool, Events: publisher, Media: media, Flags: assetsmodels.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true, Workers: true}, Now: func() time.Time { return now }})
+	asset, e := a.CreateAsset(ctx, scope, assetsmodels.Asset{BranchID: branch, AssetCode: "TRUCK-1", AssetType: "TRUCK", OwnershipType: "OWNED", Capacity: 100, CapacityUnit: "KG"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = a.Assign(ctx, scope, asset.ID, assets.Assignment{ProviderMembershipID: member, AssignmentType: "PRIMARY", StartAt: now}); e != nil {
+	if _, e = a.Assign(ctx, scope, asset.ID, assetsmodels.Assignment{ProviderMembershipID: member, AssignmentType: "PRIMARY", StartAt: now}); e != nil {
 		t.Fatal(e)
 	}
-	tpl, e := a.SaveTemplate(ctx, scope, "", 0, assets.Template{Name: "Safety", ChecklistItems: json.RawMessage(`[{"code":"brakes","required":true,"critical":true}]`), CriticalityRules: json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)})
+	tpl, e := a.SaveTemplate(ctx, scope, "", 0, inspectionsmodels.Template{Name: "Safety", ChecklistItems: json.RawMessage(`[{"code":"brakes","required":true,"critical":true}]`), CriticalityRules: json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)})
 	if e != nil {
 		t.Fatal(e)
 	}
-	inspection, e := a.CreateInspection(ctx, scope, assets.Inspection{AssetID: asset.ID, TemplateID: tpl.ID, InspectorMembershipID: member})
+	inspection, e := a.CreateInspection(ctx, scope, inspectionsmodels.Inspection{AssetID: asset.ID, TemplateID: tpl.ID, InspectorMembershipID: member})
 	if e != nil {
 		t.Fatal(e)
 	}
-	inspection, e = a.CompleteInspection(ctx, scope, inspection.ID, assets.CompleteInspectionInput{ExpectedVersion: inspection.Version, Answers: []assets.Answer{{ItemCode: "brakes", Passed: false}}, DefectSummary: json.RawMessage(`[{"code":"brakes"}]`)})
+	inspection, e = a.CompleteInspection(ctx, scope, inspection.ID, inspectionsmodels.CompleteInspectionInput{ExpectedVersion: inspection.Version, Answers: []inspectionsmodels.Answer{{ItemCode: "brakes", Passed: false}}, DefectSummary: json.RawMessage(`[{"code":"brakes"}]`)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -195,14 +199,14 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	if e = pool.QueryRow(ctx, `UPDATE fleet_partner_work_orders SET status='COMPLETED',completed_at=now(),evidence_media_ids='["proof"]',version=version+1 WHERE organization_id=$1 AND source_type='INSPECTION' AND source_reference=$2 RETURNING id,version`, org.ID, inspection.ID).Scan(&workID, &workVersion); e != nil {
 		t.Fatal(e)
 	}
-	followup, e := a.CreateInspection(ctx, scope, assets.Inspection{AssetID: asset.ID, TemplateID: tpl.ID, InspectorMembershipID: member})
+	followup, e := a.CreateInspection(ctx, scope, inspectionsmodels.Inspection{AssetID: asset.ID, TemplateID: tpl.ID, InspectorMembershipID: member})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = a.CompleteInspection(ctx, scope, followup.ID, assets.CompleteInspectionInput{ExpectedVersion: followup.Version, Answers: []assets.Answer{{ItemCode: "brakes", Passed: true}}, DefectSummary: json.RawMessage(`[]`)}); e != nil {
+	if _, e = a.CompleteInspection(ctx, scope, followup.ID, inspectionsmodels.CompleteInspectionInput{ExpectedVersion: followup.Version, Answers: []inspectionsmodels.Answer{{ItemCode: "brakes", Passed: true}}, DefectSummary: json.RawMessage(`[]`)}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = a.ReturnToService(ctx, scope, workID, assets.WorkAction{ExpectedVersion: workVersion, Reason: "repairs verified"}); e != nil {
+	if _, e = a.ReturnToService(ctx, scope, workID, maintenancemodels.WorkAction{ExpectedVersion: workVersion, Reason: "repairs verified"}); e != nil {
 		t.Fatal(e)
 	}
 	available, _ := a.GetAsset(ctx, scope, asset.ID)
@@ -213,11 +217,11 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	if e != nil || !returned.Eligible {
 		t.Fatalf("returned asset eligibility=%+v err=%v", returned, e)
 	}
-	part, e := a.SavePart(ctx, scope, "", 0, assets.Part{BranchID: branch, SKU: "FILTER-1", Name: "Filter", StockUnit: "EA", ReorderLevel: 5})
+	part, e := a.SavePart(ctx, scope, "", 0, assetsmodels.Part{BranchID: branch, SKU: "FILTER-1", Name: "Filter", StockUnit: "EA", ReorderLevel: 5})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = a.CreateMovement(ctx, scope, assets.StockMovement{PartID: part.ID, LocationReference: "MAIN", MovementType: "RECEIPT", Quantity: 10, Reason: "opening", CorrelationID: "stock-receipt"}); e != nil {
+	if _, e = a.CreateMovement(ctx, scope, assetsmodels.StockMovement{PartID: part.ID, LocationReference: "MAIN", MovementType: "RECEIPT", Quantity: 10, Reason: "opening", CorrelationID: "stock-receipt"}); e != nil {
 		t.Fatal(e)
 	}
 	var wg sync.WaitGroup
@@ -226,7 +230,7 @@ func TestSection17And18EndToEnd(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, x := a.CreateMovement(ctx, scope, assets.StockMovement{PartID: part.ID, LocationReference: "MAIN", MovementType: "ISSUE", Quantity: 3, Reason: "work", CorrelationID: string(rune('A' + i))})
+			_, x := a.CreateMovement(ctx, scope, assetsmodels.StockMovement{PartID: part.ID, LocationReference: "MAIN", MovementType: "ISSUE", Quantity: 3, Reason: "work", CorrelationID: string(rune('A' + i))})
 			errs <- x
 		}(i)
 	}
@@ -248,20 +252,20 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	if e = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_outbox WHERE event_type='part.reorder_required.v1' AND aggregate_id=$1`, part.ID).Scan(&reorderEvents); e != nil || reorderEvents != 1 {
 		t.Fatalf("reorder events=%d err=%v", reorderEvents, e)
 	}
-	fuel, e := a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 20, Unit: "L", RecordedAt: now})
+	fuel, e := a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 20, Unit: "L", RecordedAt: now})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 0, Unit: "L", RecordedAt: now}); e == nil {
+	if _, e = a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 0, Unit: "L", RecordedAt: now}); e == nil {
 		t.Fatal("invalid fuel accepted")
 	}
-	if _, e = a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 5, Unit: "L", ReceiptMediaID: "other-clean", SupplierReference: "foreign-receipt", RecordedAt: now}); e == nil {
+	if _, e = a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 5, Unit: "L", ReceiptMediaID: "other-clean", SupplierReference: "foreign-receipt", RecordedAt: now}); e == nil {
 		t.Fatal("foreign fuel receipt accepted")
 	}
-	if _, e = a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 5, Unit: "L", ReceiptMediaID: "org-quarantine", SupplierReference: "quarantined-receipt", RecordedAt: now}); e == nil {
+	if _, e = a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 5, Unit: "L", ReceiptMediaID: "org-quarantine", SupplierReference: "quarantined-receipt", RecordedAt: now}); e == nil {
 		t.Fatal("unsafe fuel receipt accepted")
 	}
-	if _, e = a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 5, Unit: "L", ReceiptMediaID: "org-clean", SupplierReference: "safe-receipt", RecordedAt: now}); e != nil {
+	if _, e = a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: member, FuelOrEnergyType: "DIESEL", Quantity: 5, Unit: "L", ReceiptMediaID: "org-clean", SupplierReference: "safe-receipt", RecordedAt: now}); e != nil {
 		t.Fatal(e)
 	}
 	restricted := scope
@@ -331,7 +335,7 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	}
 	pastDate := now.Add(-time.Hour)
 	dueOdometer, dueHours := float64(0), float64(0)
-	for _, schedule := range []assets.Schedule{
+	for _, schedule := range []maintenancemodels.Schedule{
 		{AssetID: asset.ID, TriggerType: "DATE", NextDueDate: &pastDate},
 		{AssetID: asset.ID, TriggerType: "MILEAGE", NextDueOdometer: &dueOdometer},
 		{AssetID: asset.ID, TriggerType: "OPERATING_HOURS", NextDueHours: &dueHours},

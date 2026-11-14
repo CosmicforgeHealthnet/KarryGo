@@ -9,7 +9,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	dispatch "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	eligibilitymodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/models"
 	eligibilityusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/eligibility/usecases"
@@ -21,7 +21,7 @@ type section16CandidateSource struct {
 	pool         *pgxpool.Pool
 	eligibility  *eligibilityusecases.Service
 	workforce    *workforcefeature.Service
-	assets       *assetsfeature.Service
+	assets       *assetsusecases.Service
 	restrictions interface {
 		Restricted(context.Context, string, string, string) (bool, error)
 	}
@@ -85,7 +85,7 @@ func (a section16CandidateSource) Facts(ctx context.Context, org, branch, source
 	return out, rows.Err()
 }
 
-func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, private *privateusecases.Service, eligibility *eligibilityusecases.Service, workforce *workforcefeature.Service, assets *assetsfeature.Service, restrictions interface {
+func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, private *privateusecases.Service, eligibility *eligibilityusecases.Service, workforce *workforcefeature.Service, assets *assetsusecases.Service, restrictions interface {
 	Restricted(context.Context, string, string, string) (bool, error)
 }) *dispatch.Service {
 	var optimizer dispatch.OptimizationPort

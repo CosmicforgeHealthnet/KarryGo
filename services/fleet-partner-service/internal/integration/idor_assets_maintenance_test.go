@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -35,8 +36,8 @@ import (
 func assetsIDORRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	service := assets.NewService(assets.Options{
-		Pool: pool, Flags: assets.Flags{Assets: true, Maintenance: true},
+	service := newSection18(app.Section18Options{
+		Pool: pool, Flags: assetsmodels.Flags{Assets: true, Maintenance: true},
 	})
 	authorizer := accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0)
 	store := idempotency.NewStore(pool, 0)
@@ -64,7 +65,7 @@ func assetsIDORRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 		c.Next()
 	})
 	group := engine.Group("/fleet-partner/v1")
-	assets.NewHandler(service, authorizer, store).RegisterTenantRoutes(group)
+	registerSection18(service, authorizer, store, group)
 	return engine
 }
 

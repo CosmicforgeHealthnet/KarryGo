@@ -41,7 +41,7 @@ func TestQueryAllowlistMiddleware(t *testing.T) {
 		{"GET", "/fleet-partner/v1/assets?offset=-1", 422, "offset"},
 		{"GET", "/fleet-partner/v1/assets?limit=100000", 422, "limit"},
 		{"GET", "/fleet-partner/v1/assets?bogusFilter=1", 422, "bogusFilter"},
-		{"GET", "/fleet-partner/v1/assets?cursor=abc", 422, "cursor"},
+		{"GET", "/fleet-partner/v1/wallet/policy?cursor=abc", 422, "cursor"},
 		{"GET", "/fleet-partner/v1/staff?cursor=abc&limit=10", 200, ""},
 		{"GET", "/fleet-partner/v1/staff?offset=0", 422, "offset"},
 		{"GET", "/fleet-partner/v1/wallet/policy?organizationId=org_other", 422, "organizationId"},

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"errors"
 	"net/http"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
 	bulkhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
 	bulkmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/models"
 	bulkrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/repositories"
@@ -35,7 +36,7 @@ import (
 // ---------------------------------------------------------------------------
 // Section 25C generic import framework — fixture.
 //
-// A real workforce.Service, assets.Service and warehouseusecases.Service back the
+// A real workforce.Service, assets use-case service and warehouseusecases.Service back the
 // three new adapters, exactly as internal/app/bulkimports_wiring.go wires
 // the real ones — a commit in these tests is a real domain write, not a
 // simulation of one. PRIVATE_ORDER uses the same lightweight OrdersPort
@@ -74,7 +75,7 @@ func newGenericImportsFixture(t *testing.T, name, registration string) *genericI
 
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	workforceSvc := workforce.NewService(workforce.Options{Pool: pool, Events: publisher, Flags: workforce.Flags{Workforce: true, Workers: true}})
-	assetsSvc := assets.NewService(assets.Options{Pool: pool, Events: publisher, Flags: assets.Flags{Assets: true, Workers: true}})
+	assetsSvc := newSection18(app.Section18Options{Pool: pool, Events: publisher, Flags: assetsmodels.Flags{Assets: true, Workers: true}})
 	warehouseSvc := warehouseusecases.NewService(warehouseusecases.Options{Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: publisher, Restrictions: unrestrictedWarehouseGate{}, Flags: warehousemodels.Flags{Warehouses: true, Inventory: true}})
 
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: membership, ActorType: tenant.ActorTypeOrganizationUser, ActorID: membership}
@@ -267,7 +268,7 @@ func (a workforceImportAdapterForTest) Commit(ctx context.Context, t tenant.Cont
 	return p.ID, nil
 }
 
-type assetImportAdapterForTest struct{ assets *assets.Service }
+type assetImportAdapterForTest struct{ assets *section18Svc }
 
 func (assetImportAdapterForTest) Type() string       { return bulkmodels.TypeAsset }
 func (assetImportAdapterForTest) SchemaVersion() int { return 1 }
@@ -286,7 +287,7 @@ func (assetImportAdapterForTest) ValidateRow(raw map[string]string) bulkusecases
 }
 
 func (a assetImportAdapterForTest) Commit(ctx context.Context, t tenant.Context, _ string, data map[string]any) (string, error) {
-	out, err := a.assets.CreateAsset(ctx, t, assets.Asset{
+	out, err := a.assets.CreateAsset(ctx, t, assetsmodels.Asset{
 		BranchID: branchOfTest(t), AssetCode: data["assetCode"].(string), AssetType: data["assetType"].(string),
 	})
 	if err != nil {

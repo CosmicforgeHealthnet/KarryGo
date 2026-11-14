@@ -12,7 +12,8 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement"
 	exportsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/repositories"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
@@ -182,7 +183,7 @@ func (a workforceExporter) Rows(ctx context.Context, t tenant.Context, filters m
 
 // assetsExporter adapts assets.Service's fleet-asset listing to the exports
 // Exporter contract.
-type assetsExporter struct{ assets *assetsfeature.Service }
+type assetsExporter struct{ assets *assetsusecases.Service }
 
 func (assetsExporter) Type() string { return "ASSETS_MAINTENANCE" }
 
@@ -202,7 +203,7 @@ func (a assetsExporter) Rows(ctx context.Context, t tenant.Context, filters map[
 		if limit > 200 {
 			limit = 200
 		}
-		assets, err := a.assets.ListAssets(ctx, t, assetsfeature.Page{Status: status, Limit: limit, Offset: offset})
+		assets, err := a.assets.ListAssets(ctx, t, assetsmodels.Page{Status: status, Limit: limit, Offset: offset})
 		if err != nil {
 			return nil, err
 		}
@@ -462,7 +463,7 @@ func (a exportsMediaAdapter) AuthorizeDownload(ctx context.Context, t tenant.Con
 func BuildExportsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher,
 	metrics *observability.Metrics, search *searchusecases.Service,
 	shipments *shipmentsusecases.Service, workforce *workforcefeature.Service,
-	assets *assetsfeature.Service, warehouse *warehouseusecases.Service,
+	assets *assetsusecases.Service, warehouse *warehouseusecases.Service,
 	safety *safetyfeature.OperationsService, finance *financeops.Service,
 	engagementService *engagement.Service) *exportsusecases.Service {
 	orders := BuildOrdersService(cfg, pool, nil, publisher, search)
@@ -532,7 +533,7 @@ func NewWorkforceExporter(workforce *workforcefeature.Service) exportsusecases.E
 }
 
 // NewAssetsExporter builds the ASSETS_MAINTENANCE export adapter.
-func NewAssetsExporter(assets *assetsfeature.Service) exportsusecases.Exporter {
+func NewAssetsExporter(assets *assetsusecases.Service) exportsusecases.Exporter {
 	return assetsExporter{assets: assets}
 }
 

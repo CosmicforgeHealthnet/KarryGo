@@ -23,7 +23,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
 	authclients "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/clients"
 	mktrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
 	orghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/http"
@@ -534,13 +534,13 @@ func TestProviderBranchesVehiclesAndServiceRoles(t *testing.T) {
 	}
 
 	// Vehicles come from the asset allocation, current by default.
-	a := assets.NewService(assets.Options{Pool: f.pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(f.pool)),
-		Flags: assets.Flags{Assets: true, Assignments: true}})
-	asset, err := a.CreateAsset(ctx, f.scope, assets.Asset{BranchID: f.branch, AssetCode: "BIKE-" + randomHex()[:6], AssetType: "MOTORCYCLE", OwnershipType: "OWNED"})
+	a := newSection18(app.Section18Options{Pool: f.pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(f.pool)),
+		Flags: assetsmodels.Flags{Assets: true, Assignments: true}})
+	asset, err := a.CreateAsset(ctx, f.scope, assetsmodels.Asset{BranchID: f.branch, AssetCode: "BIKE-" + randomHex()[:6], AssetType: "MOTORCYCLE", OwnershipType: "OWNED"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = a.Assign(ctx, f.scope, asset.ID, assets.Assignment{ProviderMembershipID: m.ID, AssignmentType: "PRIMARY"}); err != nil {
+	if _, err = a.Assign(ctx, f.scope, asset.ID, assetsmodels.Assignment{ProviderMembershipID: m.ID, AssignmentType: "PRIMARY"}); err != nil {
 		t.Fatal(err)
 	}
 	vehicles, err := f.service.ProviderVehicles(ctx, f.scope, m.ID, false)

@@ -16,7 +16,8 @@ import (
 
 	"cosmicforge/logistics/shared/go/apperrors"
 
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	bulkmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/models"
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
 	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
@@ -228,7 +229,7 @@ func (a workforceImportAdapter) Commit(ctx context.Context, t tenant.Context, _ 
 // ASSET
 // ---------------------------------------------------------------------------
 
-type assetImportAdapter struct{ assets *assetsfeature.Service }
+type assetImportAdapter struct{ assets *assetsusecases.Service }
 
 func (assetImportAdapter) Type() string       { return bulkmodels.TypeAsset }
 func (assetImportAdapter) SchemaVersion() int { return 1 }
@@ -273,7 +274,7 @@ func (assetImportAdapter) ValidateRow(raw map[string]string) bulkusecases.RowOut
 
 func (a assetImportAdapter) Commit(ctx context.Context, t tenant.Context, _ string,
 	data map[string]any) (string, error) {
-	out, err := a.assets.CreateAsset(ctx, t, assetsfeature.Asset{
+	out, err := a.assets.CreateAsset(ctx, t, assetsmodels.Asset{
 		BranchID: branchOf(t), AssetCode: str(data, "assetCode"), AssetType: str(data, "assetType"),
 		Manufacturer: str(data, "manufacturer"), Model: str(data, "model"),
 		CapacityUnit: str(data, "capacityUnit"), OwnershipType: str(data, "ownershipType"),

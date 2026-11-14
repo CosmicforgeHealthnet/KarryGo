@@ -18,7 +18,9 @@ import (
 	approvalhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/http"
 	approvalrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/repositories"
 	approvalusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/usecases"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/http"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	audithttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/http"
 	auditrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
 	authclients "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/clients"
@@ -48,9 +50,15 @@ import (
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
 	fleetpartnerfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+	fuelhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/http"
+	fuelusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/usecases"
+	inspectionshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/http"
+	inspectionsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/usecases"
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
+	maintenancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/http"
+	maintenanceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	manifestsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/usecases"
@@ -174,7 +182,10 @@ type Components struct {
 	PrivateOperations *privateusecases.Service
 	DispatchControl   *dispatchfeature.Service
 	Workforce         *workforcefeature.Service
-	Assets            *assetsfeature.Service
+	Assets            *assetsusecases.Service
+	Inspections       *inspectionsusecases.Service
+	Maintenance       *maintenanceusecases.Service
+	Fuel              *fuelusecases.Service
 	Compliance        *compliancefeature.Service
 	SafetyOperations  *safetyfeature.OperationsService
 	Proof             *proofusecases.Service
@@ -442,10 +453,11 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	financeService := BuildFinanceService(cfg, pool, metrics).WithEligibility(eligibilityService)
 	restrictionGate := complianceRestrictionGate{service: complianceService}
 	workforceService := workforcefeature.NewService(workforcefeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: workforcefeature.Flags{Workforce: cfg.WorkforceEnabled, Shifts: cfg.ShiftsEnabled, Leave: cfg.LeaveEnabled, Qualifications: cfg.QualificationsEnabled, Training: cfg.TrainingEnabled, Performance: cfg.PerformanceSnapshotsEnabled, Workers: cfg.Section17WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
-	assetsService := assetsfeature.NewService(assetsfeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: assetsfeature.Flags{Assets: cfg.AssetsEnabled, Assignments: cfg.AssetAssignmentsEnabled, Inspections: cfg.InspectionsEnabled, Maintenance: cfg.MaintenanceEnabled, Breakdowns: cfg.BreakdownsEnabled, Inventory: cfg.PartsInventoryEnabled, Fuel: cfg.FuelRecordsEnabled, Workers: cfg.Section18WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	section18 := BuildSection18Services(Section18Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: assetsmodels.Flags{Assets: cfg.AssetsEnabled, Assignments: cfg.AssetAssignmentsEnabled, Inspections: cfg.InspectionsEnabled, Maintenance: cfg.MaintenanceEnabled, Breakdowns: cfg.BreakdownsEnabled, Inventory: cfg.PartsInventoryEnabled, Fuel: cfg.FuelRecordsEnabled, Workers: cfg.Section18WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	assetsService := section18.Assets
 	privateOperations := BuildPrivateOperationsService(cfg, pool, publisher, metrics, workforceService, assetsService, restrictionGate)
 	dispatchControl := BuildSection16Service(cfg, pool, publisher, privateOperations, eligibilityService, workforceService, assetsService, restrictionGate)
-	assetsService.SetAlertSink(dispatchControl)
+	section18.SetAlertSink(dispatchControl)
 
 	safetyOperations := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Media: contracts.Media, Flags: safetyfeature.OperationsFlags{Reports: cfg.SafetyReportsEnabled, Incidents: cfg.IncidentsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	proofService := proofusecases.NewService(proofusecases.Options{Pool: pool, Repository: proofrepos.NewRepository(pool), Events: publisher, Media: contracts.Media, HashSecret: cfg.ProofHMACSecret, Flags: proofmodels.Flags{Policies: cfg.ProofPoliciesEnabled, Records: cfg.ProofRecordsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
@@ -511,6 +523,9 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		DispatchControl:   dispatchControl,
 		Workforce:         workforceService,
 		Assets:            assetsService,
+		Inspections:       section18.Inspections,
+		Maintenance:       section18.Maintenance,
+		Fuel:              section18.Fuel,
 		Compliance:        complianceService,
 		SafetyOperations:  safetyOperations,
 		Proof:             proofService,
@@ -680,7 +695,10 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	privateHandler := privatehttp.NewHandler(c.PrivateOperations, c.Authorizer, c.Idempotency)
 	dispatchHandler := dispatchfeature.NewHandler(c.DispatchControl, c.Authorizer, c.Idempotency)
 	workforceHandler := workforcefeature.NewHandler(c.Workforce, c.Authorizer, c.Idempotency)
-	assetsHandler := assetsfeature.NewHandler(c.Assets, c.Authorizer, c.Idempotency)
+	assetsHandler := assetshttp.NewHandler(c.Assets, c.Authorizer, c.Idempotency)
+	inspectionsHandler := inspectionshttp.NewHandler(c.Inspections, c.Authorizer, c.Idempotency)
+	maintenanceHandler := maintenancehttp.NewHandler(c.Maintenance, c.Authorizer, c.Idempotency)
+	fuelHandler := fuelhttp.NewHandler(c.Fuel, c.Authorizer, c.Idempotency)
 	complianceHandler := compliancefeature.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
 	safetyOperationsHandler := safetyfeature.NewOperationsHandler(c.SafetyOperations, c.Authorizer, c.Idempotency)
 	proofHandler := proofhttp.NewHandler(c.Proof, c.Authorizer, c.Idempotency)
@@ -872,6 +890,9 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		dispatchHandler.RegisterTenantRoutes(group)
 		workforceHandler.RegisterTenantRoutes(group)
 		assetsHandler.RegisterTenantRoutes(group)
+		inspectionsHandler.RegisterTenantRoutes(group)
+		maintenanceHandler.RegisterTenantRoutes(group)
+		fuelHandler.RegisterTenantRoutes(group)
 		complianceHandler.RegisterTenantRoutes(group)
 		safetyOperationsHandler.RegisterTenantRoutes(group)
 		proofHandler.RegisterTenantRoutes(group)

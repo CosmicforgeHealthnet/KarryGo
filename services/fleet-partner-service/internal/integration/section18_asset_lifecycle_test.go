@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,7 +17,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	inspectionsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/models"
+	maintenancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/models"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -28,7 +31,7 @@ import (
 
 type assetLifecycleFixture struct {
 	pool                *pgxpool.Pool
-	svc                 *assets.Service
+	svc                 *section18Svc
 	t                   tenant.Context
 	org, branch, member string
 	now                 time.Time
@@ -50,21 +53,21 @@ func newAssetLifecycleFixture(t *testing.T) *assetLifecycleFixture {
 		"org-evidence": {FileID: "org-evidence", OwnerID: org.ID, UploadState: "COMPLETED", ScanState: "CLEAN"},
 	}}
 	now := time.Now().UTC().Truncate(time.Second)
-	svc := assets.NewService(assets.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Media: media, Flags: assets.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true, Workers: true}, Now: func() time.Time { return now }})
+	svc := newSection18(app.Section18Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Media: media, Flags: assetsmodels.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true, Workers: true}, Now: func() time.Time { return now }})
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: "user-18", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "user-18", CorrelationID: "section18-12"}
 	return &assetLifecycleFixture{pool: pool, svc: svc, t: scope, org: org.ID, branch: branch, member: member, now: now}
 }
 
-func (f *assetLifecycleFixture) asset(t *testing.T, code string) assets.Asset {
+func (f *assetLifecycleFixture) asset(t *testing.T, code string) assetsmodels.Asset {
 	t.Helper()
-	a, e := f.svc.CreateAsset(context.Background(), f.t, assets.Asset{BranchID: f.branch, AssetCode: code, AssetType: "TRUCK", OwnershipType: "OWNED", Capacity: 1000, CapacityUnit: "KG"})
+	a, e := f.svc.CreateAsset(context.Background(), f.t, assetsmodels.Asset{BranchID: f.branch, AssetCode: code, AssetType: "TRUCK", OwnershipType: "OWNED", Capacity: 1000, CapacityUnit: "KG"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	return a
 }
 
-func section18Router(t *testing.T, pool *pgxpool.Pool, svc *assets.Service) http.Handler {
+func section18Router(t *testing.T, pool *pgxpool.Pool, svc *section18Svc) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -74,7 +77,7 @@ func section18Router(t *testing.T, pool *pgxpool.Pool, svc *assets.Service) http
 		c.Set(middleware.TenantRoleVersionKey, int64(1))
 		c.Next()
 	})
-	assets.NewHandler(svc, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), idempotency.NewStore(pool, 0)).RegisterTenantRoutes(engine.Group("/fleet-partner/v1"))
+	registerSection18(svc, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), idempotency.NewStore(pool, 0), engine.Group("/fleet-partner/v1"))
 	return engine
 }
 
@@ -158,17 +161,17 @@ func TestSection18BlockedAssetCannotBeAssignedOrReleasedWithoutAuthorization(t *
 	}
 
 	// An unrelated, fully completed work order cannot release the asset.
-	unrelated, e := f.svc.CreateWorkOrder(ctx, f.t, assets.WorkOrder{AssetID: asset.ID, SourceType: "MANUAL", SourceReference: "wash-" + asset.ID, Priority: "LOW", RequiredWork: "Wash"})
+	unrelated, e := f.svc.CreateWorkOrder(ctx, f.t, maintenancemodels.WorkOrder{AssetID: asset.ID, SourceType: "MANUAL", SourceReference: "wash-" + asset.ID, Priority: "LOW", RequiredWork: "Wash"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	complete := func(id string, version int64) assets.WorkOrder {
+	complete := func(id string, version int64) maintenancemodels.WorkOrder {
 		t.Helper()
-		wo, x := f.svc.UpdateWorkOrder(ctx, f.t, id, "APPROVE", assets.WorkAction{ExpectedVersion: version})
+		wo, x := f.svc.UpdateWorkOrder(ctx, f.t, id, "APPROVE", maintenancemodels.WorkAction{ExpectedVersion: version})
 		if x != nil {
 			t.Fatal(x)
 		}
-		wo, x = f.svc.UpdateWorkOrder(ctx, f.t, id, "COMPLETE", assets.WorkAction{ExpectedVersion: wo.Version, EvidenceMediaIDs: []string{"org-evidence"}})
+		wo, x = f.svc.UpdateWorkOrder(ctx, f.t, id, "COMPLETE", maintenancemodels.WorkAction{ExpectedVersion: wo.Version, EvidenceMediaIDs: []string{"org-evidence"}})
 		if x != nil {
 			t.Fatal(x)
 		}
@@ -196,7 +199,7 @@ func TestSection18BlockedAssetCannotBeAssignedOrReleasedWithoutAuthorization(t *
 	}
 	released, _ := f.svc.GetAsset(ctx, f.t, asset.ID)
 	resolved, _ := f.svc.GetDefect(ctx, f.t, defectID)
-	if released.OperationalStatus != "AVAILABLE" || resolved.Status != assets.DefectResolved {
+	if released.OperationalStatus != "AVAILABLE" || resolved.Status != assetsmodels.DefectResolved {
 		t.Fatalf("after release asset=%s defect=%s", released.OperationalStatus, resolved.Status)
 	}
 	if code, out := section18Call(t, router, "POST", "/assets/"+asset.ID+"/assignments", f.org, dispatcher, map[string]any{"ProviderMembershipID": f.member, "AssignmentType": "PRIMARY"}, 0); code != 201 {
@@ -212,7 +215,7 @@ func TestSection18UnassignProviderNeverUnblocksAndRespectsActiveWork(t *testing.
 	f := newAssetLifecycleFixture(t)
 	ctx := context.Background()
 	asset := f.asset(t, "UNA-1")
-	assignment, e := f.svc.Assign(ctx, f.t, asset.ID, assets.Assignment{ProviderMembershipID: f.member, AssignmentType: "PRIMARY", StartAt: f.now.Add(-time.Hour)})
+	assignment, e := f.svc.Assign(ctx, f.t, asset.ID, assetsmodels.Assignment{ProviderMembershipID: f.member, AssignmentType: "PRIMARY", StartAt: f.now.Add(-time.Hour)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -220,28 +223,28 @@ func TestSection18UnassignProviderNeverUnblocksAndRespectsActiveWork(t *testing.
 	if asset.OperationalStatus != "ASSIGNED" {
 		t.Fatalf("assigned asset status=%s", asset.OperationalStatus)
 	}
-	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assets.UnassignInput{ExpectedVersion: asset.Version}); appStatus(e) != 400 {
+	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assetsmodels.UnassignInput{ExpectedVersion: asset.Version}); appStatus(e) != 400 {
 		t.Fatalf("unassign without reason: %v", e)
 	}
-	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assets.UnassignInput{Reason: "shift ended", ExpectedVersion: asset.Version + 7}); appStatus(e) != 409 {
+	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assetsmodels.UnassignInput{Reason: "shift ended", ExpectedVersion: asset.Version + 7}); appStatus(e) != 409 {
 		t.Fatalf("stale version: %v", e)
 	}
 	work := ids.New("pas")
 	if _, e = f.pool.Exec(ctx, `INSERT INTO fleet_partner_private_assignments(id,organization_id,branch_id,work_origin,route_stop_id,provider_membership_id,provider_id,vehicle_or_truck_reference,execution_service,status,response_deadline,created_by)VALUES($1,$2,$3,'ROUTE_STOP',$4,$5,$6,$7,'HAULING','IN_PROGRESS',now()+interval '1 hour','test')`, work, f.org, f.branch, "stop-"+work, f.member, "provider-"+f.member, asset.ID); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assets.UnassignInput{Reason: "shift ended", ExpectedVersion: asset.Version}); appStatus(e) != 409 {
+	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assetsmodels.UnassignInput{Reason: "shift ended", ExpectedVersion: asset.Version}); appStatus(e) != 409 {
 		t.Fatalf("unassign with active work: %v", e)
 	}
 	if _, e = f.pool.Exec(ctx, `UPDATE fleet_partner_private_assignments SET status='COMPLETED' WHERE id=$1`, work); e != nil {
 		t.Fatal(e)
 	}
 	// A safety block raised while assigned must survive the unassignment.
-	if _, e = f.svc.ReportDefect(ctx, f.t, assets.ReportDefectInput{AssetID: asset.ID, Severity: "CRITICAL", Description: "Cracked windscreen"}); e != nil {
+	if _, e = f.svc.ReportDefect(ctx, f.t, assetsmodels.ReportDefectInput{AssetID: asset.ID, Severity: "CRITICAL", Description: "Cracked windscreen"}); e != nil {
 		t.Fatal(e)
 	}
 	asset, _ = f.svc.GetAsset(ctx, f.t, asset.ID)
-	ended, e := f.svc.UnassignProvider(ctx, f.t, asset.ID, assets.UnassignInput{AssignmentID: assignment.ID, Reason: "shift ended", ExpectedVersion: asset.Version})
+	ended, e := f.svc.UnassignProvider(ctx, f.t, asset.ID, assetsmodels.UnassignInput{AssignmentID: assignment.ID, Reason: "shift ended", ExpectedVersion: asset.Version})
 	if e != nil || ended.Status != "COMPLETED" || ended.EndAt == nil {
 		t.Fatalf("unassign %+v %v", ended, e)
 	}
@@ -249,7 +252,7 @@ func TestSection18UnassignProviderNeverUnblocksAndRespectsActiveWork(t *testing.
 	if after.OperationalStatus != "BLOCKED" {
 		t.Fatalf("unassignment released a blocked asset: %s", after.OperationalStatus)
 	}
-	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assets.UnassignInput{Reason: "again", ExpectedVersion: after.Version}); appStatus(e) != 404 {
+	if _, e = f.svc.UnassignProvider(ctx, f.t, asset.ID, assetsmodels.UnassignInput{Reason: "again", ExpectedVersion: after.Version}); appStatus(e) != 404 {
 		t.Fatalf("second unassign: %v", e)
 	}
 	if n := countRows(t, f.pool, `SELECT count(*) FROM fleet_partner_outbox WHERE aggregate_id=$1 AND event_type='asset.unassigned.v1'`, asset.ID); n != 1 {
@@ -257,7 +260,7 @@ func TestSection18UnassignProviderNeverUnblocksAndRespectsActiveWork(t *testing.
 	}
 	other := f.t
 	other.OrganizationID = createOrganization(t, f.pool, "Unassign Other", "S1812-O-"+ids.New("reg")).ID
-	if _, e = f.svc.UnassignProvider(ctx, other, asset.ID, assets.UnassignInput{Reason: "x", ExpectedVersion: after.Version}); appStatus(e) != 404 {
+	if _, e = f.svc.UnassignProvider(ctx, other, asset.ID, assetsmodels.UnassignInput{Reason: "x", ExpectedVersion: after.Version}); appStatus(e) != 404 {
 		t.Fatalf("cross-tenant unassign: %v", e)
 	}
 }
@@ -267,24 +270,24 @@ func TestSection18MeterReadingsMonotonicAnomalyAndMaintenanceDue(t *testing.T) {
 	ctx := context.Background()
 	asset := f.asset(t, "MTR-1")
 	dueAt := float64(1000)
-	schedule, e := f.svc.SaveSchedule(ctx, f.t, "", 0, assets.Schedule{AssetID: asset.ID, TriggerType: "MILEAGE", NextDueOdometer: &dueAt})
+	schedule, e := f.svc.SaveSchedule(ctx, f.t, "", 0, maintenancemodels.Schedule{AssetID: asset.ID, TriggerType: "MILEAGE", NextDueOdometer: &dueAt})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "FUEL_GAUGE", Reading: 1}); appStatus(e) != 400 {
+	if _, e = f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "FUEL_GAUGE", Reading: 1}); appStatus(e) != 400 {
 		t.Fatalf("invalid meter type: %v", e)
 	}
-	first, e := f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 900, RecordedAt: f.now.Add(-10 * time.Hour)})
+	first, e := f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 900, RecordedAt: f.now.Add(-10 * time.Hour)})
 	if e != nil || len(first.DueScheduleIDs) != 0 {
 		t.Fatalf("first reading %+v %v", first, e)
 	}
-	if _, e = f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 899, RecordedAt: f.now.Add(-9 * time.Hour)}); appStatus(e) != 409 {
+	if _, e = f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 899, RecordedAt: f.now.Add(-9 * time.Hour)}); appStatus(e) != 409 {
 		t.Fatalf("decreasing reading accepted: %v", e)
 	}
-	if _, e = f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 950, RecordedAt: f.now.Add(-11 * time.Hour)}); appStatus(e) != 409 {
+	if _, e = f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 950, RecordedAt: f.now.Add(-11 * time.Hour)}); appStatus(e) != 409 {
 		t.Fatalf("out-of-order reading accepted: %v", e)
 	}
-	second, e := f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 1200, RecordedAt: f.now.Add(-8 * time.Hour)})
+	second, e := f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 1200, RecordedAt: f.now.Add(-8 * time.Hour)})
 	if e != nil || second.Anomaly || len(second.DueScheduleIDs) != 1 || second.DueScheduleIDs[0] != schedule.ID || second.PreviousReading != 900 {
 		t.Fatalf("second reading %+v %v", second, e)
 	}
@@ -293,15 +296,15 @@ func TestSection18MeterReadingsMonotonicAnomalyAndMaintenanceDue(t *testing.T) {
 		t.Fatalf("asset odometer=%v", moved.Odometer)
 	}
 	// An implausible jump is recorded and flagged for review, never rejected.
-	jump, e := f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 9000, RecordedAt: f.now.Add(-7 * time.Hour)})
+	jump, e := f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 9000, RecordedAt: f.now.Add(-7 * time.Hour)})
 	if e != nil || !jump.Anomaly || len(jump.AnomalyReasons) == 0 {
 		t.Fatalf("anomalous reading %+v %v", jump, e)
 	}
-	hours, e := f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ENGINE_HOURS", Reading: 10, RecordedAt: f.now.Add(-4 * time.Hour)})
+	hours, e := f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ENGINE_HOURS", Reading: 10, RecordedAt: f.now.Add(-4 * time.Hour)})
 	if e != nil || hours.Anomaly {
 		t.Fatalf("first hours %+v %v", hours, e)
 	}
-	hours, e = f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ENGINE_HOURS", Reading: 20, RecordedAt: f.now.Add(-2 * time.Hour)})
+	hours, e = f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ENGINE_HOURS", Reading: 20, RecordedAt: f.now.Add(-2 * time.Hour)})
 	if e != nil || !hours.Anomaly || hours.AnomalyReasons[0] != "ENGINE_HOURS_EXCEED_ELAPSED_TIME" {
 		t.Fatalf("engine hours anomaly %+v %v", hours, e)
 	}
@@ -335,7 +338,7 @@ func TestSection18MeterReadingsMonotonicAnomalyAndMaintenanceDue(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, x := f.svc.RecordMeterReading(ctx, f.t, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: float64(9100 - i*50), RecordedAt: f.now.Add(-time.Hour)})
+			_, x := f.svc.RecordMeterReading(ctx, f.t, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: float64(9100 - i*50), RecordedAt: f.now.Add(-time.Hour)})
 			errs <- x
 		}(i)
 	}
@@ -355,7 +358,7 @@ func TestSection18MeterReadingsMonotonicAnomalyAndMaintenanceDue(t *testing.T) {
 	}
 	other := f.t
 	other.OrganizationID = createOrganization(t, f.pool, "Meter Other", "S1812-M-"+ids.New("reg")).ID
-	if _, e = f.svc.RecordMeterReading(ctx, other, assets.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 99999}); appStatus(e) != 404 {
+	if _, e = f.svc.RecordMeterReading(ctx, other, assetsmodels.MeterReadingInput{AssetID: asset.ID, MeterType: "ODOMETER", Reading: 99999}); appStatus(e) != 404 {
 		t.Fatalf("cross-tenant reading: %v", e)
 	}
 }
@@ -364,40 +367,40 @@ func TestSection18DefectsAndInspectionDerivedDefects(t *testing.T) {
 	f := newAssetLifecycleFixture(t)
 	ctx := context.Background()
 	asset := f.asset(t, "DEF-1")
-	minor, e := f.svc.ReportDefect(ctx, f.t, assets.ReportDefectInput{AssetID: asset.ID, Severity: "LOW", Description: "Mirror scratched"})
-	if e != nil || minor.Critical || minor.Status != assets.DefectOpen {
+	minor, e := f.svc.ReportDefect(ctx, f.t, assetsmodels.ReportDefectInput{AssetID: asset.ID, Severity: "LOW", Description: "Mirror scratched"})
+	if e != nil || minor.Critical || minor.Status != assetsmodels.DefectOpen {
 		t.Fatalf("minor defect %+v %v", minor, e)
 	}
 	if a, _ := f.svc.GetAsset(ctx, f.t, asset.ID); a.OperationalStatus != "AVAILABLE" {
 		t.Fatalf("minor defect blocked asset: %s", a.OperationalStatus)
 	}
-	if _, e = f.svc.ReportDefect(ctx, f.t, assets.ReportDefectInput{AssetID: asset.ID, SourceType: "INSPECTION", Severity: "LOW", Description: "x"}); appStatus(e) != 400 {
+	if _, e = f.svc.ReportDefect(ctx, f.t, assetsmodels.ReportDefectInput{AssetID: asset.ID, SourceType: "INSPECTION", Severity: "LOW", Description: "x"}); appStatus(e) != 400 {
 		t.Fatalf("system source accepted from API: %v", e)
 	}
-	if _, e = f.svc.DefectTransition(ctx, f.t, minor.ID, "DEFER", assets.DefectAction{ExpectedVersion: minor.Version, Reason: "next service"}); appStatus(e) != 400 {
+	if _, e = f.svc.DefectTransition(ctx, f.t, minor.ID, "DEFER", assetsmodels.DefectAction{ExpectedVersion: minor.Version, Reason: "next service"}); appStatus(e) != 400 {
 		t.Fatalf("deferral without date: %v", e)
 	}
 	until := f.now.Add(72 * time.Hour)
-	deferred, e := f.svc.DefectTransition(ctx, f.t, minor.ID, "DEFER", assets.DefectAction{ExpectedVersion: minor.Version, Reason: "next service", DeferredUntil: &until})
-	if e != nil || deferred.Status != assets.DefectDeferred {
+	deferred, e := f.svc.DefectTransition(ctx, f.t, minor.ID, "DEFER", assetsmodels.DefectAction{ExpectedVersion: minor.Version, Reason: "next service", DeferredUntil: &until})
+	if e != nil || deferred.Status != assetsmodels.DefectDeferred {
 		t.Fatalf("defer %+v %v", deferred, e)
 	}
-	if _, e = f.svc.DefectTransition(ctx, f.t, minor.ID, "START_REPAIR", assets.DefectAction{ExpectedVersion: deferred.Version}); appStatus(e) != 400 {
+	if _, e = f.svc.DefectTransition(ctx, f.t, minor.ID, "START_REPAIR", assetsmodels.DefectAction{ExpectedVersion: deferred.Version}); appStatus(e) != 400 {
 		t.Fatalf("repair without work order: %v", e)
 	}
-	wo, e := f.svc.CreateWorkOrder(ctx, f.t, assets.WorkOrder{AssetID: asset.ID, SourceType: "MANUAL", SourceReference: "mirror-" + asset.ID, Priority: "LOW", RequiredWork: "Polish mirror"})
+	wo, e := f.svc.CreateWorkOrder(ctx, f.t, maintenancemodels.WorkOrder{AssetID: asset.ID, SourceType: "MANUAL", SourceReference: "mirror-" + asset.ID, Priority: "LOW", RequiredWork: "Polish mirror"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	repairing, e := f.svc.DefectTransition(ctx, f.t, minor.ID, "START_REPAIR", assets.DefectAction{ExpectedVersion: deferred.Version, WorkOrderID: wo.ID})
-	if e != nil || repairing.Status != assets.DefectRepairing || repairing.WorkOrderID != wo.ID {
+	repairing, e := f.svc.DefectTransition(ctx, f.t, minor.ID, "START_REPAIR", assetsmodels.DefectAction{ExpectedVersion: deferred.Version, WorkOrderID: wo.ID})
+	if e != nil || repairing.Status != assetsmodels.DefectRepairing || repairing.WorkOrderID != wo.ID {
 		t.Fatalf("start repair %+v %v", repairing, e)
 	}
-	if _, e = f.svc.DefectTransition(ctx, f.t, minor.ID, "RESOLVE", assets.DefectAction{ExpectedVersion: deferred.Version, Notes: "done"}); appStatus(e) != 409 {
+	if _, e = f.svc.DefectTransition(ctx, f.t, minor.ID, "RESOLVE", assetsmodels.DefectAction{ExpectedVersion: deferred.Version, Notes: "done"}); appStatus(e) != 409 {
 		t.Fatalf("stale resolve: %v", e)
 	}
-	done, e := f.svc.DefectTransition(ctx, f.t, minor.ID, "RESOLVE", assets.DefectAction{ExpectedVersion: repairing.Version, Notes: "Polished"})
-	if e != nil || done.Status != assets.DefectResolved || done.ResolvedAt == nil {
+	done, e := f.svc.DefectTransition(ctx, f.t, minor.ID, "RESOLVE", assetsmodels.DefectAction{ExpectedVersion: repairing.Version, Notes: "Polished"})
+	if e != nil || done.Status != assetsmodels.DefectResolved || done.ResolvedAt == nil {
 		t.Fatalf("resolve %+v %v", done, e)
 	}
 	if n := countRows(t, f.pool, `SELECT count(*) FROM fleet_partner_asset_defect_history WHERE defect_id=$1`, minor.ID); n != 4 {
@@ -406,18 +409,18 @@ func TestSection18DefectsAndInspectionDerivedDefects(t *testing.T) {
 
 	// A critical inspection failure turns each failed item into a defect;
 	// the critical item is linked to the repair work order.
-	tpl, e := f.svc.SaveTemplate(ctx, f.t, "", 0, assets.Template{Name: "Daily", ChecklistItems: json.RawMessage(`[{"code":"brakes","required":true,"critical":true},{"code":"wipers","required":true}]`), CriticalityRules: json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)})
+	tpl, e := f.svc.SaveTemplate(ctx, f.t, "", 0, inspectionsmodels.Template{Name: "Daily", ChecklistItems: json.RawMessage(`[{"code":"brakes","required":true,"critical":true},{"code":"wipers","required":true}]`), CriticalityRules: json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)})
 	if e != nil {
 		t.Fatal(e)
 	}
-	ins, e := f.svc.CreateInspection(ctx, f.t, assets.Inspection{AssetID: asset.ID, TemplateID: tpl.ID, InspectorMembershipID: f.member})
+	ins, e := f.svc.CreateInspection(ctx, f.t, inspectionsmodels.Inspection{AssetID: asset.ID, TemplateID: tpl.ID, InspectorMembershipID: f.member})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.CompleteInspection(ctx, f.t, ins.ID, assets.CompleteInspectionInput{ExpectedVersion: ins.Version, Answers: []assets.Answer{{ItemCode: "brakes", Passed: false}, {ItemCode: "wipers", Passed: false}}, DefectSummary: json.RawMessage(`[]`)}); e != nil {
+	if _, e = f.svc.CompleteInspection(ctx, f.t, ins.ID, inspectionsmodels.CompleteInspectionInput{ExpectedVersion: ins.Version, Answers: []inspectionsmodels.Answer{{ItemCode: "brakes", Passed: false}, {ItemCode: "wipers", Passed: false}}, DefectSummary: json.RawMessage(`[]`)}); e != nil {
 		t.Fatal(e)
 	}
-	derived, e := f.svc.ListDefects(ctx, f.t, assets.DefectFilter{AssetID: asset.ID, Status: "OPEN"})
+	derived, e := f.svc.ListDefects(ctx, f.t, assetsmodels.DefectFilter{AssetID: asset.ID, Status: "OPEN"})
 	if e != nil || len(derived) != 2 {
 		t.Fatalf("inspection defects %d %v", len(derived), e)
 	}
@@ -434,7 +437,7 @@ func TestSection18DefectsAndInspectionDerivedDefects(t *testing.T) {
 	if _, e = f.svc.GetDefect(ctx, restricted, minor.ID); appStatus(e) != 404 {
 		t.Fatalf("cross-branch defect read: %v", e)
 	}
-	if l, _ := f.svc.ListDefects(ctx, restricted, assets.DefectFilter{}); len(l) != 0 {
+	if l, _ := f.svc.ListDefects(ctx, restricted, assetsmodels.DefectFilter{}); len(l) != 0 {
 		t.Fatalf("cross-branch defects leaked %d", len(l))
 	}
 }
@@ -444,55 +447,55 @@ func TestSection18TyresPositionsRotationAndTread(t *testing.T) {
 	ctx := context.Background()
 	asset := f.asset(t, "TYR-1")
 	depth := 8.0
-	a, e := f.svc.RegisterTyre(ctx, f.t, assets.RegisterTyreInput{BranchID: f.branch, SerialNumber: "SN-A-" + asset.ID, Brand: "Michelin", Size: "295/80R22.5", TreadDepthMM: &depth})
+	a, e := f.svc.RegisterTyre(ctx, f.t, assetsmodels.RegisterTyreInput{BranchID: f.branch, SerialNumber: "SN-A-" + asset.ID, Brand: "Michelin", Size: "295/80R22.5", TreadDepthMM: &depth})
 	if e != nil || a.Status != "IN_STOCK" {
 		t.Fatalf("register %+v %v", a, e)
 	}
-	if _, e = f.svc.RegisterTyre(ctx, f.t, assets.RegisterTyreInput{BranchID: f.branch, SerialNumber: "SN-A-" + asset.ID}); appStatus(e) != 409 {
+	if _, e = f.svc.RegisterTyre(ctx, f.t, assetsmodels.RegisterTyreInput{BranchID: f.branch, SerialNumber: "SN-A-" + asset.ID}); appStatus(e) != 409 {
 		t.Fatalf("duplicate serial: %v", e)
 	}
-	b, e := f.svc.RegisterTyre(ctx, f.t, assets.RegisterTyreInput{BranchID: f.branch, SerialNumber: "SN-B-" + asset.ID})
+	b, e := f.svc.RegisterTyre(ctx, f.t, assetsmodels.RegisterTyreInput{BranchID: f.branch, SerialNumber: "SN-B-" + asset.ID})
 	if e != nil {
 		t.Fatal(e)
 	}
-	a, e = f.svc.TyreTransition(ctx, f.t, a.ID, "INSTALL", assets.TyreAction{ExpectedVersion: a.Version, AssetID: asset.ID, Position: "fl"})
+	a, e = f.svc.TyreTransition(ctx, f.t, a.ID, "INSTALL", assetsmodels.TyreAction{ExpectedVersion: a.Version, AssetID: asset.ID, Position: "fl"})
 	if e != nil || a.Status != "INSTALLED" || a.Position != "FL" || a.InstalledAt == nil {
 		t.Fatalf("install %+v %v", a, e)
 	}
-	if _, e = f.svc.TyreTransition(ctx, f.t, b.ID, "INSTALL", assets.TyreAction{ExpectedVersion: b.Version, AssetID: asset.ID, Position: "FL"}); appStatus(e) != 409 {
+	if _, e = f.svc.TyreTransition(ctx, f.t, b.ID, "INSTALL", assetsmodels.TyreAction{ExpectedVersion: b.Version, AssetID: asset.ID, Position: "FL"}); appStatus(e) != 409 {
 		t.Fatalf("occupied position accepted: %v", e)
 	}
-	b, e = f.svc.TyreTransition(ctx, f.t, b.ID, "INSTALL", assets.TyreAction{ExpectedVersion: b.Version, AssetID: asset.ID, Position: "FR"})
+	b, e = f.svc.TyreTransition(ctx, f.t, b.ID, "INSTALL", assetsmodels.TyreAction{ExpectedVersion: b.Version, AssetID: asset.ID, Position: "FR"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.TyreTransition(ctx, f.t, a.ID, "ROTATE", assets.TyreAction{ExpectedVersion: a.Version, ToPosition: "FR"}); appStatus(e) != 409 {
+	if _, e = f.svc.TyreTransition(ctx, f.t, a.ID, "ROTATE", assetsmodels.TyreAction{ExpectedVersion: a.Version, ToPosition: "FR"}); appStatus(e) != 409 {
 		t.Fatalf("rotation onto occupied position: %v", e)
 	}
-	a, e = f.svc.TyreTransition(ctx, f.t, a.ID, "ROTATE", assets.TyreAction{ExpectedVersion: a.Version, ToPosition: "RL"})
+	a, e = f.svc.TyreTransition(ctx, f.t, a.ID, "ROTATE", assetsmodels.TyreAction{ExpectedVersion: a.Version, ToPosition: "RL"})
 	if e != nil || a.Position != "RL" {
 		t.Fatalf("rotate %+v %v", a, e)
 	}
 	low := 1.0
-	a, e = f.svc.TyreTransition(ctx, f.t, a.ID, "TREAD", assets.TyreAction{ExpectedVersion: a.Version, TreadDepthMM: &low})
+	a, e = f.svc.TyreTransition(ctx, f.t, a.ID, "TREAD", assetsmodels.TyreAction{ExpectedVersion: a.Version, TreadDepthMM: &low})
 	if e != nil || a.LowTreadDefectID == "" || a.LastTreadDepthMM == nil || *a.LastTreadDepthMM != 1.0 {
 		t.Fatalf("low tread %+v %v", a, e)
 	}
-	again, e := f.svc.TyreTransition(ctx, f.t, a.ID, "TREAD", assets.TyreAction{ExpectedVersion: a.Version, TreadDepthMM: &low})
+	again, e := f.svc.TyreTransition(ctx, f.t, a.ID, "TREAD", assetsmodels.TyreAction{ExpectedVersion: a.Version, TreadDepthMM: &low})
 	if e != nil || again.LowTreadDefectID != "" {
 		t.Fatalf("second low reading duplicated defect %+v %v", again, e)
 	}
 	if st, _ := f.svc.GetAsset(ctx, f.t, asset.ID); st.OperationalStatus != "AVAILABLE" {
 		t.Fatalf("low tread (HIGH, non-critical) blocked the asset: %s", st.OperationalStatus)
 	}
-	if _, e = f.svc.TyreTransition(ctx, f.t, a.ID, "REMOVE", assets.TyreAction{ExpectedVersion: again.Version}); appStatus(e) != 400 {
+	if _, e = f.svc.TyreTransition(ctx, f.t, a.ID, "REMOVE", assetsmodels.TyreAction{ExpectedVersion: again.Version}); appStatus(e) != 400 {
 		t.Fatalf("remove without reason: %v", e)
 	}
-	scrapped, e := f.svc.TyreTransition(ctx, f.t, a.ID, "REMOVE", assets.TyreAction{ExpectedVersion: again.Version, Reason: "worn out", Scrap: true})
+	scrapped, e := f.svc.TyreTransition(ctx, f.t, a.ID, "REMOVE", assetsmodels.TyreAction{ExpectedVersion: again.Version, Reason: "worn out", Scrap: true})
 	if e != nil || scrapped.Status != "SCRAPPED" || scrapped.AssetID != "" || scrapped.Position != "" {
 		t.Fatalf("scrap %+v %v", scrapped, e)
 	}
-	if _, e = f.svc.TyreTransition(ctx, f.t, a.ID, "TREAD", assets.TyreAction{ExpectedVersion: scrapped.Version, TreadDepthMM: &low}); appStatus(e) != 409 {
+	if _, e = f.svc.TyreTransition(ctx, f.t, a.ID, "TREAD", assetsmodels.TyreAction{ExpectedVersion: scrapped.Version, TreadDepthMM: &low}); appStatus(e) != 409 {
 		t.Fatalf("tread on scrapped tyre: %v", e)
 	}
 	if n := countRows(t, f.pool, `SELECT count(*) FROM fleet_partner_tyre_events WHERE tyre_id=$1`, a.ID); n != 6 {
@@ -520,24 +523,24 @@ func TestSection18AssetCostHistoryMinorUnitsAndIsolation(t *testing.T) {
 	dispatcher := seedApprovalMember(t, f.pool, f.org, "rol_system_dispatcher", "s18-cost-dispatcher")
 	asset := f.asset(t, "CST-1")
 	otherAsset := f.asset(t, "CST-2")
-	wo, e := f.svc.CreateWorkOrder(ctx, f.t, assets.WorkOrder{AssetID: asset.ID, SourceType: "MANUAL", SourceReference: "svc-" + asset.ID, Priority: "MEDIUM", RequiredWork: "Service"})
+	wo, e := f.svc.CreateWorkOrder(ctx, f.t, maintenancemodels.WorkOrder{AssetID: asset.ID, SourceType: "MANUAL", SourceReference: "svc-" + asset.ID, Priority: "MEDIUM", RequiredWork: "Service"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	otherWO, e := f.svc.CreateWorkOrder(ctx, f.t, assets.WorkOrder{AssetID: otherAsset.ID, SourceType: "MANUAL", SourceReference: "svc-" + otherAsset.ID, Priority: "MEDIUM", RequiredWork: "Service"})
+	otherWO, e := f.svc.CreateWorkOrder(ctx, f.t, maintenancemodels.WorkOrder{AssetID: otherAsset.ID, SourceType: "MANUAL", SourceReference: "svc-" + otherAsset.ID, Priority: "MEDIUM", RequiredWork: "Service"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.RecordCost(ctx, f.t, asset.ID, assets.CostInput{CostType: "MAINTENANCE", SourceType: "WORK_ORDER", SourceReference: wo.ID, AmountMinor: 4500000, Currency: "ngn"}); e != nil {
+	if _, e = f.svc.RecordCost(ctx, f.t, asset.ID, assetsmodels.CostInput{CostType: "MAINTENANCE", SourceType: "WORK_ORDER", SourceReference: wo.ID, AmountMinor: 4500000, Currency: "ngn"}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.RecordCost(ctx, f.t, asset.ID, assets.CostInput{CostType: "PARTS", AmountMinor: 120050, Currency: "NGN", Description: "Filter"}); e != nil {
+	if _, e = f.svc.RecordCost(ctx, f.t, asset.ID, assetsmodels.CostInput{CostType: "PARTS", AmountMinor: 120050, Currency: "NGN", Description: "Filter"}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.svc.RecordCost(ctx, f.t, asset.ID, assets.CostInput{CostType: "MAINTENANCE", AmountMinor: 500000, Currency: "NGN"}); e != nil {
+	if _, e = f.svc.RecordCost(ctx, f.t, asset.ID, assetsmodels.CostInput{CostType: "MAINTENANCE", AmountMinor: 500000, Currency: "NGN"}); e != nil {
 		t.Fatal(e)
 	}
-	for name, in := range map[string]assets.CostInput{
+	for name, in := range map[string]assetsmodels.CostInput{
 		"zero amount":            {CostType: "FUEL", AmountMinor: 0, Currency: "NGN"},
 		"bad currency":           {CostType: "FUEL", AmountMinor: 10, Currency: "NAIRA"},
 		"bad type":               {CostType: "SALARY", AmountMinor: 10, Currency: "NGN"},

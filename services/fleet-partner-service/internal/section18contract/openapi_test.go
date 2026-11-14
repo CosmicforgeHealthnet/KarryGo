@@ -8,7 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/http"
+	fuelhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/http"
+	inspectionshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/http"
+	maintenancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/http"
 )
 
 func TestRouteOpenAPIParity(t *testing.T) {
@@ -27,7 +30,7 @@ func TestRouteOpenAPIParity(t *testing.T) {
 			ops[strings.ToUpper(m)+" "+p] = o.(map[string]any)
 		}
 	}
-	routes := assets.TenantRoutes()
+	routes := section18Routes()
 	if len(ops) != len(routes) {
 		t.Fatalf("spec operations=%d routes=%d", len(ops), len(routes))
 	}
@@ -54,5 +57,54 @@ func TestRouteOpenAPIParity(t *testing.T) {
 	}
 	if len(ops) > 0 {
 		t.Errorf("fictional spec operations: %v", ops)
+	}
+}
+
+// section18Route is the route metadata every Section 18 feature declares.
+type section18Route struct {
+	Method, Path, OperationID, Permission, FeatureFlag, AuthClass string
+	IdempotencyRequired, ExpectedVersionRequired                  bool
+}
+
+// section18Routes is the Section 18 route catalogue: assets, inspections,
+// maintenance and fuel together serve the one OpenAPI document.
+func section18Routes() []section18Route {
+	var out []section18Route
+	for _, r := range assetshttp.TenantRoutes() {
+		out = append(out, section18Route(r))
+	}
+	for _, r := range inspectionshttp.TenantRoutes() {
+		out = append(out, section18Route(r))
+	}
+	for _, r := range maintenancehttp.TenantRoutes() {
+		out = append(out, section18Route(r))
+	}
+	for _, r := range fuelhttp.TenantRoutes() {
+		out = append(out, section18Route(r))
+	}
+	return out
+}
+
+func TestSection18RouteCatalogueAndNoFinancialSurface(t *testing.T) {
+	routes := section18Routes()
+	if len(routes) != 62 {
+		t.Fatalf("routes=%d", len(routes))
+	}
+	seen := map[string]bool{}
+	for _, r := range routes {
+		k := r.Method + " " + r.Path
+		if seen[k] {
+			t.Fatalf("duplicate %s", k)
+		}
+		seen[k] = true
+		if r.Permission == "" || r.FeatureFlag == "" || r.AuthClass != "corporate" {
+			t.Fatalf("incomplete %+v", r)
+		}
+		lower := strings.ToLower(k)
+		for _, bad := range []string{"wallet", "ledger", "payroll", "procurement", "invoice"} {
+			if strings.Contains(lower, bad) {
+				t.Fatalf("excluded surface %s", k)
+			}
+		}
 	}
 }

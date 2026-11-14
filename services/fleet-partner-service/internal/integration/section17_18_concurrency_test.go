@@ -2,13 +2,17 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"encoding/json"
 	"sync"
 	"testing"
 	"time"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
+	fuelmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/models"
+	inspectionsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/models"
+	maintenancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -179,35 +183,35 @@ func TestSection17And18Concurrency(t *testing.T) {
 		t.Fatalf("performance replay IDs differ: %s %s", performance[0].ID, performance[1].ID)
 	}
 
-	a := assets.NewService(assets.Options{Pool: pool, Events: publisher, Flags: assets.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true, Workers: true}, Now: func() time.Time { return now }})
-	asset, err := a.CreateAsset(ctx, scope, assets.Asset{BranchID: branch, AssetCode: "CONCURRENT-ASSET", AssetType: "TRUCK", OwnershipType: "OWNED"})
+	a := newSection18(app.Section18Options{Pool: pool, Events: publisher, Flags: assetsmodels.Flags{Assets: true, Assignments: true, Inspections: true, Maintenance: true, Breakdowns: true, Inventory: true, Fuel: true, Workers: true}, Now: func() time.Time { return now }})
+	asset, err := a.CreateAsset(ctx, scope, assetsmodels.Asset{BranchID: branch, AssetCode: "CONCURRENT-ASSET", AssetType: "TRUCK", OwnershipType: "OWNED"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, assetAssignmentErrs := concurrentResults(
-		func() (assets.Assignment, error) {
-			return a.Assign(ctx, scope, asset.ID, assets.Assignment{ProviderMembershipID: memberA, AssignmentType: "PRIMARY", StartAt: now})
+		func() (assetsmodels.Assignment, error) {
+			return a.Assign(ctx, scope, asset.ID, assetsmodels.Assignment{ProviderMembershipID: memberA, AssignmentType: "PRIMARY", StartAt: now})
 		},
-		func() (assets.Assignment, error) {
-			return a.Assign(ctx, scope, asset.ID, assets.Assignment{ProviderMembershipID: memberB, AssignmentType: "PRIMARY", StartAt: now})
+		func() (assetsmodels.Assignment, error) {
+			return a.Assign(ctx, scope, asset.ID, assetsmodels.Assignment{ProviderMembershipID: memberB, AssignmentType: "PRIMARY", StartAt: now})
 		},
 	)
 	requireSuccesses(t, 1, assetAssignmentErrs)
 
-	template, err := a.SaveTemplate(ctx, scope, "", 0, assets.Template{Name: "Concurrent safety", ChecklistItems: json.RawMessage(`[{"code":"brakes","required":true,"critical":true}]`), CriticalityRules: json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)})
+	template, err := a.SaveTemplate(ctx, scope, "", 0, inspectionsmodels.Template{Name: "Concurrent safety", ChecklistItems: json.RawMessage(`[{"code":"brakes","required":true,"critical":true}]`), CriticalityRules: json.RawMessage(`{"criticalFailure":"BLOCK_ASSET"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	inspection, err := a.CreateInspection(ctx, scope, assets.Inspection{AssetID: asset.ID, TemplateID: template.ID, InspectorMembershipID: memberA})
+	inspection, err := a.CreateInspection(ctx, scope, inspectionsmodels.Inspection{AssetID: asset.ID, TemplateID: template.ID, InspectorMembershipID: memberA})
 	if err != nil {
 		t.Fatal(err)
 	}
-	complete := func() (assets.Inspection, error) {
-		return a.CompleteInspection(ctx, scope, inspection.ID, assets.CompleteInspectionInput{ExpectedVersion: inspection.Version, Answers: []assets.Answer{{ItemCode: "brakes", Passed: false}}, DefectSummary: json.RawMessage(`[{"code":"brakes"}]`)})
+	complete := func() (inspectionsmodels.Inspection, error) {
+		return a.CompleteInspection(ctx, scope, inspection.ID, inspectionsmodels.CompleteInspectionInput{ExpectedVersion: inspection.Version, Answers: []inspectionsmodels.Answer{{ItemCode: "brakes", Passed: false}}, DefectSummary: json.RawMessage(`[{"code":"brakes"}]`)})
 	}
 	_, inspectionErrs := concurrentResults(complete, complete)
 	requireSuccesses(t, 1, inspectionErrs)
-	var workOrder assets.WorkOrder
+	var workOrder maintenancemodels.WorkOrder
 	workOrders, err := a.ListWorkOrders(ctx, scope)
 	if err != nil {
 		t.Fatal(err)
@@ -220,40 +224,40 @@ func TestSection17And18Concurrency(t *testing.T) {
 	if workOrder.ID == "" {
 		t.Fatal("critical inspection did not create work order")
 	}
-	workOrder, err = a.UpdateWorkOrder(ctx, scope, workOrder.ID, "", assets.WorkAction{ExpectedVersion: workOrder.Version, Status: "PENDING_APPROVAL"})
+	workOrder, err = a.UpdateWorkOrder(ctx, scope, workOrder.ID, "", maintenancemodels.WorkAction{ExpectedVersion: workOrder.Version, Status: "PENDING_APPROVAL"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, workOrderErrs := concurrentResults(
-		func() (assets.WorkOrder, error) {
-			return a.UpdateWorkOrder(ctx, scope, workOrder.ID, "APPROVE", assets.WorkAction{ExpectedVersion: workOrder.Version})
+		func() (maintenancemodels.WorkOrder, error) {
+			return a.UpdateWorkOrder(ctx, scope, workOrder.ID, "APPROVE", maintenancemodels.WorkAction{ExpectedVersion: workOrder.Version})
 		},
-		func() (assets.WorkOrder, error) {
-			return a.UpdateWorkOrder(ctx, scope, workOrder.ID, "", assets.WorkAction{ExpectedVersion: workOrder.Version, Status: "CANCELLED"})
+		func() (maintenancemodels.WorkOrder, error) {
+			return a.UpdateWorkOrder(ctx, scope, workOrder.ID, "", maintenancemodels.WorkAction{ExpectedVersion: workOrder.Version, Status: "CANCELLED"})
 		},
 	)
 	requireSuccesses(t, 1, workOrderErrs)
 
 	_, fuelErrs := concurrentResults(
-		func() (assets.FuelRecord, error) {
-			return a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: memberA, FuelOrEnergyType: "DIESEL", Quantity: 10, Unit: "L", SupplierReference: "duplicate-receipt", RecordedAt: now})
+		func() (fuelmodels.FuelRecord, error) {
+			return a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: memberA, FuelOrEnergyType: "DIESEL", Quantity: 10, Unit: "L", SupplierReference: "duplicate-receipt", RecordedAt: now})
 		},
-		func() (assets.FuelRecord, error) {
-			return a.CreateFuel(ctx, scope, assets.FuelRecord{AssetID: asset.ID, ProviderMembershipID: memberA, FuelOrEnergyType: "DIESEL", Quantity: 10, Unit: "L", SupplierReference: "duplicate-receipt", RecordedAt: now})
+		func() (fuelmodels.FuelRecord, error) {
+			return a.CreateFuel(ctx, scope, fuelmodels.FuelRecord{AssetID: asset.ID, ProviderMembershipID: memberA, FuelOrEnergyType: "DIESEL", Quantity: 10, Unit: "L", SupplierReference: "duplicate-receipt", RecordedAt: now})
 		},
 	)
 	requireSuccesses(t, 1, fuelErrs)
 
-	archiveAsset, err := a.CreateAsset(ctx, scope, assets.Asset{BranchID: branch, AssetCode: "CONCURRENT-LIFECYCLE", AssetType: "TRUCK", OwnershipType: "OWNED"})
+	archiveAsset, err := a.CreateAsset(ctx, scope, assetsmodels.Asset{BranchID: branch, AssetCode: "CONCURRENT-LIFECYCLE", AssetType: "TRUCK", OwnershipType: "OWNED"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	patch := assets.Asset{Capacity: -1, Odometer: -1, OperatingHours: -1}
+	patch := assetsmodels.Asset{Capacity: -1, Odometer: -1, OperatingHours: -1}
 	_, lifecycleErrs := concurrentResults(
-		func() (assets.Asset, error) {
+		func() (assetsmodels.Asset, error) {
 			return a.UpdateAsset(ctx, scope, archiveAsset.ID, archiveAsset.Version, patch, "ARCHIVE")
 		},
-		func() (assets.Asset, error) {
+		func() (assetsmodels.Asset, error) {
 			return a.UpdateAsset(ctx, scope, archiveAsset.ID, archiveAsset.Version, patch, "RETIRE")
 		},
 	)
