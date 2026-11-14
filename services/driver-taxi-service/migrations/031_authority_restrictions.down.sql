@@ -1,0 +1,6 @@
+DROP TRIGGER IF EXISTS taxi_restriction_operations_append_only ON taxi_authority_restriction_operations;
+DROP TRIGGER IF EXISTS taxi_restriction_history_append_only ON taxi_authority_restriction_history;
+DROP FUNCTION IF EXISTS reject_taxi_restriction_history_mutation();
+DROP TABLE IF EXISTS taxi_authority_restriction_operations;
+DROP TABLE IF EXISTS taxi_authority_restriction_history;
+DROP TABLE IF EXISTS taxi_authority_restrictions;

@@ -159,7 +159,7 @@ func (h *Handler) ReleaseReservation(c *gin.Context) {
 
 // Eligibility answers Taxi's own readiness question for a provider.
 func (h *Handler) Eligibility(c *gin.Context) {
-	answer, err := h.service.Eligibility(c.Request.Context(),
+	answer, err := h.service.EligibilityFor(c.Request.Context(), c.Query("organization_id"),
 		c.Query("source_request_id"), c.Query("provider_id"), c.Query("vehicle_reference"))
 	if err != nil {
 		httpx.Abort(c, err)

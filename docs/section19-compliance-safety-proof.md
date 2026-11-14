@@ -4,7 +4,7 @@
 
 Fleet owns organization-scoped requirements, evaluations, restrictions, safety reports, incidents, corrective actions, proof policies and immutable proof records. Tenant routes are under `/fleet-partner/v1`; the exact paths and permission/flag metadata are in `openapi/section19-compliance-safety-proof.openapi.json`.
 
-Dispatch and Hauling remain canonical execution authorities. Fleet propagates restrictions to `/api/v1/internal/restrictions` and `/api/v1/hauling/internal/restrictions` using HMAC v2, caller allowlisting, timestamp and durable nonce replay protection. Each service supports apply, operation read-back, clear and clear read-back. Fleet records every operation and immutable attempt. An ambiguous mutation is read back before it is retried. Local clearance remains `CLEAR_PENDING` until every required authority confirms it.
+Dispatch and Hauling remain canonical execution authorities. Fleet propagates restrictions to `/api/v1/internal/restrictions`, `/api/v1/hauling/internal/restrictions` and, where the Taxi client is configured, `/api/v1/taxi/internal/restrictions` (Taxi migration 031, Fleet migration 000098) using HMAC v2, caller allowlisting, timestamp and durable nonce replay protection. Each service supports apply, operation read-back, clear and clear read-back. Fleet records every operation and immutable attempt. An ambiguous mutation is read back before it is retried. Local clearance remains `CLEAR_PENDING` until every required authority confirms it.
 
 ## State and safety rules
 

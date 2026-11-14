@@ -417,7 +417,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		Metrics:    metrics,
 	})
 
-	var dispatchRestrictions, haulingRestrictions platformclients.RestrictionAuthority
+	var dispatchRestrictions, haulingRestrictions, taxiRestrictions platformclients.RestrictionAuthority
 	if !cfg.IntegrationsKillSwitch {
 		if dc := cfg.Clients["driver-dispatch-delivery-service"]; dc.Configured() {
 			dispatchRestrictions = platformclients.NewRestrictionClient(platformclients.New(platformclients.Options{ServiceName: "driver-dispatch-delivery-service", BaseURL: dc.BaseURL, Secret: dc.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}}), "/api/v1/internal/restrictions")
@@ -425,8 +425,14 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		if hc := cfg.Clients["driver-hauling-service"]; hc.Configured() {
 			haulingRestrictions = platformclients.NewRestrictionClient(platformclients.New(platformclients.Options{ServiceName: "driver-hauling-service", BaseURL: hc.BaseURL, Secret: hc.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}}), "/api/v1/hauling/internal/restrictions")
 		}
+		// Taxi's restriction authority, on the same client config Fleet uses
+		// for Taxi execution. Unset, Taxi is simply not a propagation target
+		// (compliance.Options.Taxi).
+		if tc := cfg.Clients["driver-taxi-service"]; tc.Configured() {
+			taxiRestrictions = platformclients.NewRestrictionClient(platformclients.New(platformclients.Options{ServiceName: "driver-taxi-service", BaseURL: tc.BaseURL, Secret: tc.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}}), TaxiRestrictionsPath)
+		}
 	}
-	complianceService := compliancefeature.NewService(compliancefeature.Options{Pool: pool, Events: publisher, Dispatch: dispatchRestrictions, Hauling: haulingRestrictions, Flags: compliancefeature.Flags{Compliance: cfg.ComplianceEnabled, Restrictions: cfg.RestrictionPropagationEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	complianceService := compliancefeature.NewService(compliancefeature.Options{Pool: pool, Events: publisher, Dispatch: dispatchRestrictions, Hauling: haulingRestrictions, Taxi: taxiRestrictions, Flags: compliancefeature.Flags{Compliance: cfg.ComplianceEnabled, Restrictions: cfg.RestrictionPropagationEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	financeService := BuildFinanceService(cfg, pool, metrics).WithEligibility(eligibilityService)
 	restrictionGate := complianceRestrictionGate{service: complianceService}
 	workforceService := workforcefeature.NewService(workforcefeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: workforcefeature.Flags{Workforce: cfg.WorkforceEnabled, Shifts: cfg.ShiftsEnabled, Leave: cfg.LeaveEnabled, Qualifications: cfg.QualificationsEnabled, Training: cfg.TrainingEnabled, Performance: cfg.PerformanceSnapshotsEnabled, Workers: cfg.Section17WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})

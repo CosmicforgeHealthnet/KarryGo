@@ -51,13 +51,51 @@ type store interface {
 	Cancel(ctx context.Context, operationID, key, fingerprint, reason string) (CancelView, error)
 }
 
+// RestrictionGate answers whether Fleet has restricted a subject for an
+// organization (internal/features/restrictions).
+type RestrictionGate interface {
+	Restricted(ctx context.Context, organizationID, subjectType, subjectReference string) (bool, error)
+}
+
 // Service holds the rules for accepting a Fleet execution command.
 type Service struct {
-	repo       store
-	verifier   AcceptanceVerifier
-	zones      ZoneResolver
-	enabled    bool
-	killSwitch bool
+	repo         store
+	verifier     AcceptanceVerifier
+	zones        ZoneResolver
+	restrictions RestrictionGate
+	enabled      bool
+	killSwitch   bool
+}
+
+// WithRestrictions makes Create refuse an organization, driver, membership or
+// vehicle Fleet has restricted for that organization. nil keeps Create
+// unchanged.
+func (s *Service) WithRestrictions(gate RestrictionGate) *Service {
+	s.restrictions = gate
+	return s
+}
+
+// restricted reports whether any subject the command names is restricted by
+// its organization.
+func (s *Service) restricted(ctx context.Context, in CreateRequest) (bool, error) {
+	if s.restrictions == nil {
+		return false, nil
+	}
+	for _, subject := range [][2]string{
+		{"ORGANIZATION", in.OrganizationID},
+		{"PROVIDER", in.ExecutingProviderID},
+		{"PROVIDER", in.OrganizationMembershipID},
+		{"ASSET", in.VehicleID},
+	} {
+		if strings.TrimSpace(subject[1]) == "" {
+			continue
+		}
+		restricted, err := s.restrictions.Restricted(ctx, in.OrganizationID, subject[0], subject[1])
+		if err != nil || restricted {
+			return restricted, err
+		}
+	}
+	return false, nil
 }
 
 // NewService builds the feature service.
@@ -149,6 +187,15 @@ func (s *Service) Create(ctx context.Context, in CreateRequest) (View, error) {
 		return prior.View, nil
 	} else if !errors.Is(err, ErrNotFound) {
 		return View{}, err
+	}
+
+	// A Fleet compliance restriction refuses new work after the replay check,
+	// so work already created is still reported to a retrying Fleet. A read
+	// failure is a retryable fault, never an assumed "not restricted".
+	if restricted, err := s.restricted(ctx, in); err != nil {
+		return View{}, err
+	} else if restricted {
+		return View{}, ErrIneligible
 	}
 
 	if s.verifier == nil {

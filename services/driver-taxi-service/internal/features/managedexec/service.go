@@ -52,6 +52,17 @@ type AdminInterventionGate interface {
 	AssignmentBlock(ctx context.Context, providerID, vehicleID string) (string, error)
 }
 
+// RestrictionGate answers whether Fleet has restricted a subject for an
+// organization (internal/features/restrictions). An empty organization
+// matches a restriction from any organization.
+type RestrictionGate interface {
+	Restricted(ctx context.Context, organizationID, subjectType, subjectReference string) (bool, error)
+}
+
+// ReasonComplianceRestricted is the eligibility/rejection code for a provider,
+// vehicle or organization Fleet has restricted.
+const ReasonComplianceRestricted = "COMPLIANCE_RESTRICTED"
+
 // VehicleReader answers Taxi's own vehicle-capability question. Satisfied
 // directly by the existing provider_profile vehicle repository -- no adapter.
 type VehicleReader interface {
@@ -72,6 +83,9 @@ type Options struct {
 	// AdminGate is the Taxi-owned administrative overlay (Admin Section 8).
 	// nil keeps eligibility unchanged.
 	AdminGate AdminInterventionGate
+	// Restrictions is Fleet's compliance-restriction state as propagated to
+	// Taxi. nil keeps eligibility unchanged.
+	Restrictions RestrictionGate
 	// ReservationTTL bounds how long a reservation holds a booking before it
 	// can be reclaimed. Zero uses the default.
 	ReservationTTL time.Duration
@@ -149,7 +163,7 @@ func (s *Service) Reserve(ctx context.Context, in ReserveInput) (ReservationOutc
 	// readiness rules before the claim is taken. Fleet eligibility alone is
 	// never sufficient authority for taxi execution (TAX-004).
 	if provider := strings.TrimSpace(in.AcceptingProviderID); provider != "" {
-		answer, err := s.Eligibility(ctx, in.SourceRequestID, provider, "")
+		answer, err := s.EligibilityFor(ctx, in.OrganizationID, in.SourceRequestID, provider, "")
 		if err != nil {
 			return ReservationOutcome{}, err
 		}
@@ -251,6 +265,14 @@ func (s *Service) ReleaseReservation(ctx context.Context, sourceRequestID, organ
 // active vehicle is not eligible for taxi execution. Taxi keeps that
 // authority; it is never moved into Fleet.
 func (s *Service) Eligibility(ctx context.Context, sourceRequestID, providerID, vehicleReference string) (EligibilityAnswer, error) {
+	return s.EligibilityFor(ctx, "", sourceRequestID, providerID, vehicleReference)
+}
+
+// EligibilityFor is Eligibility for work offered by one organization. A Fleet
+// compliance restriction from that organization makes the provider (or the
+// vehicle, or the organization itself) ineligible; an empty organization
+// treats a restriction from any organization as binding.
+func (s *Service) EligibilityFor(ctx context.Context, organizationID, sourceRequestID, providerID, vehicleReference string) (EligibilityAnswer, error) {
 	snapshot, err := s.opts.Repo.ResolveBookingByRequest(ctx, sourceRequestID)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return EligibilityAnswer{}, apperrors.Unavailable("The taxi request could not be read.", err)
@@ -280,6 +302,16 @@ func (s *Service) Eligibility(ctx context.Context, sourceRequestID, providerID, 
 			answer.ReasonCode = "ADMIN_RESTRICTED"
 			return answer, nil
 		}
+	}
+
+	// 1c. Fleet compliance restrictions. Fail closed on a read error.
+	restricted, err := s.restricted(ctx, organizationID, providerID, "", vehicleReference)
+	if err != nil {
+		return EligibilityAnswer{}, apperrors.Unavailable("Driver readiness could not be verified.", err)
+	}
+	if restricted {
+		answer.ReasonCode = ReasonComplianceRestricted
+		return answer, nil
 	}
 
 	// 2. Taxi vehicle capability.
@@ -317,6 +349,31 @@ func (s *Service) Eligibility(ctx context.Context, sourceRequestID, providerID, 
 
 	answer.Eligible = true
 	return answer, nil
+}
+
+// restricted asks the restriction gate about every subject the work names.
+// The driver is checked by Taxi provider id and by Fleet membership id, since
+// Fleet may restrict either.
+func (s *Service) restricted(ctx context.Context, organizationID, providerID, membershipID, vehicleID string) (bool, error) {
+	if s.opts.Restrictions == nil {
+		return false, nil
+	}
+	subjects := [][2]string{
+		{"ORGANIZATION", organizationID},
+		{"PROVIDER", providerID},
+		{"PROVIDER", membershipID},
+		{"ASSET", vehicleID},
+	}
+	for _, subject := range subjects {
+		if strings.TrimSpace(subject[1]) == "" {
+			continue
+		}
+		restricted, err := s.opts.Restrictions.Restricted(ctx, organizationID, subject[0], subject[1])
+		if err != nil || restricted {
+			return restricted, err
+		}
+	}
+	return false, nil
 }
 
 // ConfirmProviderAndCreateExecution binds an organization's managed provider
@@ -364,6 +421,15 @@ func (s *Service) ConfirmProviderAndCreateExecution(ctx context.Context, in Conf
 	// exists to prevent.
 	if reservation.ProviderID != "" && reservation.ProviderID != in.ExecutingProviderID {
 		return ExecutionOutcome{Status: ExecutionRejected, RejectionCode: "PROVIDER_MISMATCH"}, nil
+	}
+
+	// A Fleet compliance restriction from this organization -- on the driver,
+	// their membership, the vehicle or the organization -- refuses the
+	// execution. Fail closed on a read error.
+	if restricted, err := s.restricted(ctx, in.OrganizationID, in.ExecutingProviderID, in.OrganizationMembershipID, in.VehicleID); err != nil {
+		return ExecutionOutcome{}, apperrors.Unavailable("Driver readiness could not be verified.", err)
+	} else if restricted {
+		return ExecutionOutcome{Status: ExecutionRejected, RejectionCode: ReasonComplianceRestricted}, nil
 	}
 
 	// Fail-closed re-verification against Fleet at the moment of execution.
