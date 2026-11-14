@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -124,6 +125,11 @@ type CreateProviderResult struct {
 //  5. create the association invitation — the provider must accept it
 //     themselves. The company can never accept on their behalf.
 func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput) (*CreateProviderResult, error) {
+	// Spec 6j: provisioning is never keyed on a value Fleet derives itself.
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if input.IdempotencyKey == "" {
+		return nil, apperrors.BadRequest("Idempotency-Key header is required.", nil)
+	}
 	pair, err := contact.NormalizePair(input.Email, input.Phone, s.opts.DefaultCountryCode)
 	if err != nil {
 		return nil, apperrors.Validation("A valid email address and phone number are both required.",
@@ -179,9 +185,6 @@ func (s *Service) CreateProvider(ctx context.Context, input CreateProviderInput)
 	}
 
 	idempotencyKey := input.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = "provider:" + input.Tenant.OrganizationID + ":" + pair.EmailNormalized + ":" + input.ServiceCategory
-	}
 
 	if err := database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
 		if err := s.opts.Providers.CreateMembership(ctx, tx, input.Tenant.OrganizationID, membership); err != nil {

@@ -25,6 +25,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -37,6 +38,16 @@ type Handler struct {
 	providers     *providerusecases.Service
 	authorizer    *accesscontrol.Authorizer
 	sessions      orgusecases.SessionRevoker
+	idempotency   *idempotency.Store
+}
+
+// WithIdempotency attaches the shared durable idempotency store. With it,
+// POST /providers replays the recorded response for a repeated key instead of
+// starting a second provisioning saga; without it (some test routers) the key
+// is still required and still carried to the saga.
+func (h *Handler) WithIdempotency(store *idempotency.Store) *Handler {
+	h.idempotency = store
+	return h
 }
 
 // NewHandler builds the handler. sessions may be nil (matches every other
@@ -1361,6 +1372,25 @@ func (h *Handler) createProvider(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "providers.create") {
 		return
 	}
+	// Spec 6j: provisioning requires a caller-supplied Idempotency-Key. A key
+	// derived from the email and category (the old fallback) made two
+	// deliberate provisioning attempts indistinguishable from one retried
+	// request, and gave no replay protection at all.
+	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if key == "" {
+		respond.Error(c, apperrors.BadRequest("Idempotency-Key header is required.", nil))
+		return
+	}
+	if h.idempotency != nil {
+		idempotency.ExecuteHTTP(c, h.idempotency, tenantCtx.OrganizationID, "POST /providers", func() {
+			h.provisionProvider(c, tenantCtx, key)
+		})
+		return
+	}
+	h.provisionProvider(c, tenantCtx, key)
+}
+
+func (h *Handler) provisionProvider(c *gin.Context, tenantCtx tenant.Context, key string) {
 	var request createProviderRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		respond.Error(c, apperrors.BadRequest("Request body must be valid JSON.", nil))
@@ -1370,7 +1400,7 @@ func (h *Handler) createProvider(c *gin.Context) {
 		Tenant: tenantCtx, LegalName: request.LegalName, Email: request.Email, Phone: request.Phone,
 		ServiceCategory: request.ServiceCategory, HomeBranchID: request.HomeBranchID,
 		RelationshipType: request.RelationshipType, EmploymentType: request.EmploymentType,
-		EmployeeNumber: request.EmployeeNumber, IdempotencyKey: c.GetHeader("Idempotency-Key"),
+		EmployeeNumber: request.EmployeeNumber, IdempotencyKey: key,
 	})
 	if err != nil {
 		respond.Error(c, err)

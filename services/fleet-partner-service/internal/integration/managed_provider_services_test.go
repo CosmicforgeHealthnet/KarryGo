@@ -231,7 +231,8 @@ func TestManagedProviderCreationForDispatchAndTaxiReachesActiveOnlyAfterProvider
 				ActorID: "oru_mp", RequestID: "req-mp-" + tc.category, CorrelationID: "cor-mp-" + tc.category}
 			create := func(email, phone string) string {
 				result, err := service.CreateProvider(ctx, providerusecases.CreateProviderInput{Tenant: actor, LegalName: "Ada Okafor",
-					Email: email, Phone: phone, ServiceCategory: tc.category, RelationshipType: "EMPLOYEE"})
+					Email: email, Phone: phone, ServiceCategory: tc.category, RelationshipType: "EMPLOYEE",
+					IdempotencyKey: "mp-create:" + tc.category + ":" + email})
 				if err != nil {
 					t.Fatalf("create %s provider: %v", tc.category, err)
 				}
@@ -359,6 +360,7 @@ func TestManagedProviderCreationFailsClosedWhenServiceUnconfigured(t *testing.T)
 	_, err := service.CreateProvider(context.Background(), providerusecases.CreateProviderInput{
 		Tenant:    tenant.Context{OrganizationID: organization.ID, OrganizationUserID: "oru_u", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "oru_u"},
 		LegalName: "Ada Okafor", Email: "unconfigured@example.test", Phone: "+2348031111111", ServiceCategory: platformclients.CategoryTaxi,
+		IdempotencyKey: "mp-unconfigured-taxi",
 	})
 	if appStatus(err) != http.StatusServiceUnavailable {
 		t.Fatalf("unconfigured taxi provider service: %v", err)

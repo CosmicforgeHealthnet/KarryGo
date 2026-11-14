@@ -624,7 +624,7 @@ func BuildFinanceService(cfg config.Config, pool *pgxpool.Pool, metrics *observa
 func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, identity RouteRegistrar, tenantScoped RouteRegistrar) {
 	authHandler := authhttp.NewHandler(c.Auth, cfg.ContactSecret, cfg.BrowserPolicy).
 		WithOrganizationScope(StepUpOrganizationScope(c.Sessions, c.Resolver))
-	corporateHandler := orghttp.NewHandler(c.Organizations, c.Staff, c.Providers, c.Authorizer, c.Sessions)
+	corporateHandler := orghttp.NewHandler(c.Organizations, c.Staff, c.Providers, c.Authorizer, c.Sessions).WithIdempotency(c.Idempotency)
 
 	public = func(group *gin.RouterGroup) {
 		authHandler.RegisterPublicRoutes(group)
