@@ -378,6 +378,15 @@
     "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
   },
   {
+    "table": "fleet_partner_managed_work_settlement_instructions",
+    "column": "wallet_settlement_reference",
+    "category": "FINANCIAL",
+    "sourceFile": "000096_settlement_delivery_and_temperature_replay.up.sql",
+    "auditRedacted": false,
+    "disposition": "SAFE_REFERENCE",
+    "justification": "an opaque reference string into payment-wallet-service (or another owning service's) records -- confirmed by reading the actual column usage; the sensitive payment/settlement data itself is never stored in fleet-partner-service's own tables, only pointed at, per this platform's service-ownership rules (payments/wallets/ledger belong exclusively to payment-wallet-service)."
+  },
+  {
     "table": "fleet_partner_operating_locations",
     "column": "latitude",
     "category": "LOCATION",
