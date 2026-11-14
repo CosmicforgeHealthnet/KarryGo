@@ -161,7 +161,7 @@ func (s *Service) ListQualityCases(ctx context.Context, t tenant.Context) ([]map
 	if err := s.gate(s.o.Flags.Quality, false); err != nil {
 		return nil, err
 	}
-	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(q) FROM fleet_partner_quality_cases q WHERE organization_id=$1 AND (cardinality($2::text[])=0 OR branch_id IS NULL OR branch_id=ANY($2)) ORDER BY created_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
+	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(q) FROM fleet_partner_quality_cases q WHERE organization_id=$1 AND (COALESCE(cardinality($2::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($2)) ORDER BY created_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
 	if err != nil {
 		return nil, err
 	}

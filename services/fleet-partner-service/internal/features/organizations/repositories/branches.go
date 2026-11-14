@@ -86,7 +86,7 @@ func (r *BranchRepository) List(ctx context.Context, query tenant.Query) ([]mode
 			status, version, created_at, updated_at, archived_at
 		FROM fleet_partner_branches
 		WHERE organization_id = $1
-		  AND (cardinality($2::text[]) = 0 OR id = ANY($2::text[]))
+		  AND (COALESCE(cardinality($2::text[]),0)=0 OR id = ANY($2::text[]))
 		ORDER BY created_at, id
 		LIMIT $3`,
 		query.OrganizationID, permittedBranchArray(query.PermittedBranchIDs), limit,

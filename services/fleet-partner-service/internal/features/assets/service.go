@@ -154,7 +154,7 @@ func (s *Service) ListAssets(ctx context.Context, t tenant.Context, f Page) ([]A
 	if permitted == nil {
 		permitted = []string{}
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)AND(cardinality($6::text[])=0 OR branch_id=ANY($6::text[]))ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset), permitted)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)AND(COALESCE(cardinality($6::text[]),0)=0 OR branch_id=ANY($6::text[]))ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset), permitted)
 	if e != nil {
 		return nil, e
 	}

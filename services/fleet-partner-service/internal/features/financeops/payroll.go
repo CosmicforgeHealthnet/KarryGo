@@ -174,7 +174,7 @@ func (s *Service) ListPayrollPeriods(ctx context.Context, t tenant.Context) ([]m
 	if err := s.gate(s.o.Flags.Payroll, false); err != nil {
 		return nil, err
 	}
-	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(p) FROM fleet_partner_payroll_periods p WHERE organization_id=$1 AND (cardinality($2::text[])=0 OR branch_id IS NULL OR branch_id=ANY($2)) ORDER BY period_start DESC`, t.OrganizationID, t.PermittedBranchIDs)
+	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(p) FROM fleet_partner_payroll_periods p WHERE organization_id=$1 AND (COALESCE(cardinality($2::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($2)) ORDER BY period_start DESC`, t.OrganizationID, t.PermittedBranchIDs)
 	if err != nil {
 		return nil, err
 	}

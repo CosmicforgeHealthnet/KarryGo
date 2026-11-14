@@ -86,7 +86,7 @@ func (s *Service) ListThreads(ctx context.Context, t tenant.Context) ([]map[stri
 	if err := s.gate(s.o.Flags.Communications, false); err != nil {
 		return nil, err
 	}
-	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(th) FROM fleet_partner_communication_threads th JOIN fleet_partner_communication_participants p ON p.thread_id=th.id AND p.organization_id=th.organization_id WHERE th.organization_id=$1 AND p.participant_type='USER' AND p.participant_reference=$2 AND (cardinality($3::text[])=0 OR th.branch_id IS NULL OR th.branch_id=ANY($3)) ORDER BY th.updated_at DESC`, t.OrganizationID, t.ActorID, t.PermittedBranchIDs)
+	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(th) FROM fleet_partner_communication_threads th JOIN fleet_partner_communication_participants p ON p.thread_id=th.id AND p.organization_id=th.organization_id WHERE th.organization_id=$1 AND p.participant_type='USER' AND p.participant_reference=$2 AND (COALESCE(cardinality($3::text[]),0)=0 OR th.branch_id IS NULL OR th.branch_id=ANY($3)) ORDER BY th.updated_at DESC`, t.OrganizationID, t.ActorID, t.PermittedBranchIDs)
 	if err != nil {
 		return nil, err
 	}

@@ -62,7 +62,7 @@ func (s *Service) ListExpenses(ctx context.Context, t tenant.Context) ([]map[str
 	if err := s.gate(s.o.Flags.Expenses, false); err != nil {
 		return nil, err
 	}
-	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(e) FROM fleet_partner_expenses e WHERE organization_id=$1 AND (cardinality($2::text[])=0 OR branch_id IS NULL OR branch_id=ANY($2)) ORDER BY created_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
+	rows, err := s.o.Pool.Query(ctx, `SELECT row_to_json(e) FROM fleet_partner_expenses e WHERE organization_id=$1 AND (COALESCE(cardinality($2::text[]),0)=0 OR branch_id IS NULL OR branch_id=ANY($2)) ORDER BY created_at DESC`, t.OrganizationID, t.PermittedBranchIDs)
 	if err != nil {
 		return nil, err
 	}

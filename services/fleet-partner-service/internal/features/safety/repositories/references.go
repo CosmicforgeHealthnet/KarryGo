@@ -163,7 +163,7 @@ func (r *ReferenceRepository) List(ctx context.Context, query tenant.Query,
 		  AND ($3 = '' OR s.assignment_id = $3)
 		  AND ($4 = '' OR s.platform_trip_id = $4)
 		  AND ($5 = '' OR s.executing_provider_id = $5)
-		  AND (cardinality($6::text[]) = 0 OR s.assignment_id IS NULL
+		  AND (COALESCE(cardinality($6::text[]),0)=0 OR s.assignment_id IS NULL
 		       OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($6::text[]))
 		ORDER BY s.created_at DESC, s.id
 		LIMIT $7`,

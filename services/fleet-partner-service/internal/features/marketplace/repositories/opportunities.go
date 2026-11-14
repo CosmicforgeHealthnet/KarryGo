@@ -66,8 +66,8 @@ func (r *ProjectionRepository) ListOpportunityCandidates(ctx context.Context, q 
 		  AND m.association_accepted_at IS NOT NULL
 		  AND m.provider_id IS NOT NULL AND m.provider_id <> ''
 		  AND o.status = 'ACTIVE'
-		  AND (cardinality($2::text[]) = 0 OR m.organization_id = ANY($2::text[]))
-		  AND (cardinality($3::text[]) = 0 OR m.provider_id = ANY($3::text[]))
+		  AND (COALESCE(cardinality($2::text[]),0)=0 OR m.organization_id = ANY($2::text[]))
+		  AND (COALESCE(cardinality($3::text[]),0)=0 OR m.provider_id = ANY($3::text[]))
 		ORDER BY m.organization_id, m.created_at, m.id
 		LIMIT $4`, serviceCategory, organizationIDs, providerIDs, limit)
 	if err != nil {
@@ -411,7 +411,7 @@ func (r *TripRepository) ListPage(ctx context.Context, query tenant.Query,
 		  AND ($2 = '' OR t.trip_status = $2)
 		  AND ($3 = '' OR t.source_service = $3)
 		  AND ($4 = '' OR t.organization_membership_id = $4)
-		  AND (cardinality($5::text[]) = 0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($5::text[]))
+		  AND (COALESCE(cardinality($5::text[]),0)=0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($5::text[]))
 		ORDER BY t.updated_at DESC, t.id
 		LIMIT $6 OFFSET $7`, query.OrganizationID, filter.Status, filter.SourceService,
 		filter.MembershipID, branches, limit+1, offset)
@@ -453,7 +453,7 @@ func (r *TripRepository) GetScoped(ctx context.Context, query tenant.Query,
 		LEFT JOIN fleet_partner_organization_provider_memberships m
 		  ON m.id = COALESCE(t.organization_membership_id, a.membership_id) AND m.organization_id = t.organization_id
 		WHERE t.organization_id = $1 AND t.id = $2
-		  AND (cardinality($3::text[]) = 0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($3::text[]))`,
+		  AND (COALESCE(cardinality($3::text[]),0)=0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($3::text[]))`,
 		query.OrganizationID, tripID, branches)
 	return scanTrip(row)
 }

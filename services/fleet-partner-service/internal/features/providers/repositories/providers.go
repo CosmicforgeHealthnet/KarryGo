@@ -169,7 +169,7 @@ func (r *Repository) ListMemberships(ctx context.Context, query tenant.Query) ([
 	rows, err := r.db.Query(ctx, `SELECT `+membershipColumns+`
 		FROM fleet_partner_organization_provider_memberships
 		WHERE organization_id = $1
-		  AND (cardinality($2::text[]) = 0 OR home_branch_id IS NULL OR home_branch_id = ANY($2::text[]))
+		  AND (COALESCE(cardinality($2::text[]),0)=0 OR home_branch_id IS NULL OR home_branch_id = ANY($2::text[]))
 		  AND ($4::timestamptz IS NULL OR (created_at, id) < ($4::timestamptz, $5))
 		ORDER BY created_at DESC, id DESC
 		LIMIT $3`, query.OrganizationID, branches, limit, afterTime, query.CursorLastID)

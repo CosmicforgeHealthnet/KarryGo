@@ -191,7 +191,7 @@ func (r *AssignmentRepository) List(ctx context.Context, query tenant.Query, sta
 		JOIN fleet_partner_organization_provider_memberships m ON m.id = a.membership_id
 		WHERE a.organization_id = $1
 		  AND ($2 = '' OR a.status = $2)
-		  AND (cardinality($3::text[]) = 0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($3::text[]))
+		  AND (COALESCE(cardinality($3::text[]),0)=0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($3::text[]))
 		ORDER BY a.created_at DESC, a.id
 		LIMIT $4`, query.OrganizationID, status, branches, limit)
 	if err != nil {
