@@ -714,7 +714,9 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		Repository: managedmembers.NewRepository(c.Pool),
 		Authority:  BuildProviderAuthorityAdapter(c.Contracts),
 		Enabled:    cfg.MultiServiceProviderLinksEnabled,
-	}), c.Authorizer)
+		Pool:       c.Pool,
+		Events:     events.NewDomainPublisher(events.NewOutboxRepository(c.Pool)),
+	}), c.Authorizer, c.Idempotency)
 	legalHoldService := legalholdusecases.NewService(c.Pool, stepUpVerifier, securitySettingsService)
 	legalHoldHandler := legalholdhttp.NewHandler(legalHoldService, c.Authorizer)
 	securitySettingsHandler := securitysettingshttp.NewHandler(securitySettingsService, c.Authorizer)

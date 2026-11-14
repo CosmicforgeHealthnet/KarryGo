@@ -6,13 +6,32 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
+// EventPublisher appends a domain event to the transactional outbox.
+type EventPublisher interface {
+	Publish(ctx context.Context, tx pgx.Tx, eventType, aggregateType, aggregateID string,
+		aggregateVersion int64, organizationID, correlationID string, payload any) error
+}
+
 // Service holds Section 10's member rules.
+//
+// Every mutation runs in one transaction with its audit record and its outbox
+// event (spec 6l): a member suspended without a trace, or a link no consumer
+// ever hears about, is a state change nobody can reconstruct.
 type Service struct {
 	repo      *Repository
+	pool      *pgxpool.Pool
+	audit     *audit.Recorder
+	events    EventPublisher
 	authority ProviderAuthority
 	enabled   bool
 	now       func() time.Time
@@ -30,6 +49,13 @@ type Options struct {
 	// Enabled is FLEET_MULTI_SERVICE_PROVIDER_LINKS_ENABLED.
 	Enabled bool
 
+	// Pool runs the write transactions. Defaults to the repository's pool.
+	Pool *pgxpool.Pool
+	// Audit defaults to the platform recorder.
+	Audit *audit.Recorder
+	// Events defaults to the transactional outbox over Pool.
+	Events EventPublisher
+
 	Now func() time.Time
 }
 
@@ -39,8 +65,51 @@ func NewService(options Options) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{repo: options.Repository, authority: options.Authority,
-		enabled: options.Enabled, now: now}
+	pool := options.Pool
+	if pool == nil {
+		pool = options.Repository.pool()
+	}
+	recorder := options.Audit
+	if recorder == nil {
+		recorder = audit.NewRecorder()
+	}
+	publisher := options.Events
+	if publisher == nil && pool != nil {
+		publisher = events.NewDomainPublisher(events.NewOutboxRepository(pool))
+	}
+	return &Service{repo: options.Repository, pool: pool, audit: recorder, events: publisher,
+		authority: options.Authority, enabled: options.Enabled, now: now}
+}
+
+// mutate runs fn in a transaction and records its audit entry and outbox
+// event in the same transaction. fn returns the aggregate id and version and
+// the values to record; a zero id means fn made no change (an idempotent
+// retry) and nothing is recorded.
+func (s *Service) mutate(ctx context.Context, t tenant.Context, event, aggregate string,
+	fn func(r *Repository) (id string, version int64, previous, next map[string]any, err error)) error {
+	if s.pool == nil {
+		return fmt.Errorf("managedmembers: no database pool configured")
+	}
+	return database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
+		id, version, previous, next, err := fn(s.repo.with(tx))
+		if err != nil || id == "" {
+			return err
+		}
+		entry := audit.EntryFromTenant(t, strings.TrimSuffix(event, ".v1"), aggregate, id)
+		entry.PreviousValues = previous
+		entry.NewValues = next
+		if err := s.audit.Record(ctx, tx, entry); err != nil {
+			return err
+		}
+		if s.events == nil {
+			return nil
+		}
+		payload := map[string]any{"id": id}
+		for k, v := range next {
+			payload[k] = v
+		}
+		return s.events.Publish(ctx, tx, event, aggregate, id, version, t.OrganizationID, t.CorrelationID, payload)
+	})
 }
 
 // Enabled reports whether the member layer is active.
@@ -64,14 +133,29 @@ func (s *Service) CreateMember(ctx context.Context, t tenant.Context, memberRef,
 	if strings.TrimSpace(memberRef) == "" {
 		return Member{}, fmt.Errorf("%w: a member reference is required", ErrValidation)
 	}
-	return s.repo.CreateMember(ctx, Member{
-		ID:             ids.New("mbr"),
-		OrganizationID: t.OrganizationID,
-		MemberRef:      strings.TrimSpace(memberRef),
-		DisplayName:    strings.TrimSpace(displayName),
-		Status:         MemberActive,
-		ConsentStatus:  ConsentPending,
-	})
+	var created Member
+	err := s.mutate(ctx, t, "managed_member.created.v1", "managed_member",
+		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+			var err error
+			created, err = r.CreateMember(ctx, Member{
+				ID:             ids.New("mbr"),
+				OrganizationID: t.OrganizationID,
+				MemberRef:      strings.TrimSpace(memberRef),
+				DisplayName:    strings.TrimSpace(displayName),
+				Status:         MemberActive,
+				ConsentStatus:  ConsentPending,
+			})
+			if err != nil {
+				return "", 0, nil, nil, err
+			}
+			return created.ID, created.Version, nil, map[string]any{
+				"memberRef": created.MemberRef, "status": created.Status, "consentStatus": created.ConsentStatus,
+			}, nil
+		})
+	if err != nil {
+		return Member{}, err
+	}
+	return created, nil
 }
 
 // ReadMember returns a member with every authority they hold.
@@ -218,7 +302,23 @@ func (s *Service) LinkServiceIdentity(ctx context.Context, t tenant.Context, req
 		return ServiceLink{}, ErrConflict
 	}
 
-	return s.repo.AttachLink(ctx, t.OrganizationID, member.ID, request.MembershipID)
+	var attached ServiceLink
+	err = s.mutate(ctx, t, "managed_member.service_linked.v1", "managed_member",
+		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+			var err error
+			attached, err = r.AttachLink(ctx, t.OrganizationID, member.ID, request.MembershipID)
+			if err != nil {
+				return "", 0, nil, nil, err
+			}
+			return member.ID, member.Version, nil, map[string]any{
+				"memberId": member.ID, "membershipId": attached.MembershipID,
+				"authority": string(attached.Authority), "providerId": attached.ProviderID,
+			}, nil
+		})
+	if err != nil {
+		return ServiceLink{}, err
+	}
+	return attached, nil
 }
 
 // SuspendMember withdraws a person from assignment organization-wide.
@@ -233,8 +333,7 @@ func (s *Service) SuspendMember(ctx context.Context, t tenant.Context, memberID 
 	if err := s.gate(); err != nil {
 		return Member{}, err
 	}
-	return s.repo.SetMemberStatus(ctx, t.OrganizationID, memberID, expectedVersion,
-		MemberSuspended, ConsentGranted, s.now().UTC())
+	return s.setMemberStatus(ctx, t, "managed_member.suspended.v1", memberID, expectedVersion, MemberSuspended)
 }
 
 // ReinstateMember returns a suspended member to assignment.
@@ -242,8 +341,7 @@ func (s *Service) ReinstateMember(ctx context.Context, t tenant.Context, memberI
 	if err := s.gate(); err != nil {
 		return Member{}, err
 	}
-	return s.repo.SetMemberStatus(ctx, t.OrganizationID, memberID, expectedVersion,
-		MemberActive, ConsentGranted, s.now().UTC())
+	return s.setMemberStatus(ctx, t, "managed_member.reinstated.v1", memberID, expectedVersion, MemberActive)
 }
 
 // GrantConsent records the member's consent to work for the organization.
@@ -251,8 +349,36 @@ func (s *Service) GrantConsent(ctx context.Context, t tenant.Context, memberID s
 	if err := s.gate(); err != nil {
 		return Member{}, err
 	}
-	return s.repo.SetMemberStatus(ctx, t.OrganizationID, memberID, expectedVersion,
-		MemberActive, ConsentGranted, s.now().UTC())
+	return s.setMemberStatus(ctx, t, "managed_member.consent_granted.v1", memberID, expectedVersion, MemberActive)
+}
+
+// setMemberStatus applies one organization-level standing change under its
+// version guard, recording the previous standing for the audit trail.
+func (s *Service) setMemberStatus(ctx context.Context, t tenant.Context, event, memberID string,
+	expectedVersion int64, status string) (Member, error) {
+	var updated Member
+	err := s.mutate(ctx, t, event, "managed_member",
+		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+			previous, err := r.GetMember(ctx, t.OrganizationID, memberID)
+			if err != nil {
+				// Reported as a version conflict, like the update itself, so a
+				// caller cannot probe other organizations' member ids.
+				return "", 0, nil, nil, ErrVersion
+			}
+			updated, err = r.SetMemberStatus(ctx, t.OrganizationID, memberID, expectedVersion,
+				status, ConsentGranted, s.now().UTC())
+			if err != nil {
+				return "", 0, nil, nil, err
+			}
+			return updated.ID, updated.Version,
+				map[string]any{"status": previous.Status, "consentStatus": previous.ConsentStatus, "version": previous.Version},
+				map[string]any{"status": updated.Status, "consentStatus": updated.ConsentStatus, "version": updated.Version},
+				nil
+		})
+	if err != nil {
+		return Member{}, err
+	}
+	return updated, nil
 }
 
 // LinkAssetRequest records an asset the organization operates.
@@ -285,12 +411,28 @@ func (s *Service) LinkAsset(ctx context.Context, t tenant.Context, request LinkA
 			return AssetLink{}, err
 		}
 	}
-	return s.repo.LinkAsset(ctx, AssetLink{
-		ID: ids.New("mal"), OrganizationID: t.OrganizationID,
-		Authority: request.Authority, AssetID: strings.TrimSpace(request.AssetID),
-		MemberID: request.MemberID, LinkStatus: AssetLinkActive,
-		SourceVersion: request.SourceVersion,
-	})
+	var linked AssetLink
+	err := s.mutate(ctx, t, "managed_asset_link.linked.v1", "managed_asset_link",
+		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+			var err error
+			linked, err = r.LinkAsset(ctx, AssetLink{
+				ID: ids.New("mal"), OrganizationID: t.OrganizationID,
+				Authority: request.Authority, AssetID: strings.TrimSpace(request.AssetID),
+				MemberID: request.MemberID, LinkStatus: AssetLinkActive,
+				SourceVersion: request.SourceVersion,
+			})
+			if err != nil {
+				return "", 0, nil, nil, err
+			}
+			return linked.ID, linked.Version, nil, map[string]any{
+				"authority": string(linked.Authority), "assetId": linked.AssetID,
+				"memberId": linked.MemberID, "linkStatus": linked.LinkStatus, "sourceVersion": linked.SourceVersion,
+			}, nil
+		})
+	if err != nil {
+		return AssetLink{}, err
+	}
+	return linked, nil
 }
 
 // ListAssets returns the first page (newest first) of the organization's
@@ -321,8 +463,22 @@ func (s *Service) SetAssetLinkStatus(ctx context.Context, t tenant.Context, link
 	default:
 		return AssetLink{}, fmt.Errorf("%w: %q is not an asset link status", ErrValidation, status)
 	}
-	return s.repo.SetAssetLinkStatus(ctx, t.OrganizationID, linkID, expectedVersion,
-		status, s.now().UTC())
+	var updated AssetLink
+	err := s.mutate(ctx, t, "managed_asset_link.status_changed.v1", "managed_asset_link",
+		func(r *Repository) (string, int64, map[string]any, map[string]any, error) {
+			var err error
+			updated, err = r.SetAssetLinkStatus(ctx, t.OrganizationID, linkID, expectedVersion,
+				status, s.now().UTC())
+			if err != nil {
+				return "", 0, nil, nil, err
+			}
+			return updated.ID, updated.Version, map[string]any{"version": expectedVersion},
+				map[string]any{"linkStatus": updated.LinkStatus, "version": updated.Version}, nil
+		})
+	if err != nil {
+		return AssetLink{}, err
+	}
+	return updated, nil
 }
 
 // AssignableForAuthority answers whether a member may be offered work by one

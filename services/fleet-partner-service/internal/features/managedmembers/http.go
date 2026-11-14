@@ -4,12 +4,14 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -49,13 +51,15 @@ func TenantRoutes() []Route {
 
 // Handler serves the member surface.
 type Handler struct {
-	s *Service
-	a *accesscontrol.Authorizer
+	s    *Service
+	a    *accesscontrol.Authorizer
+	idem *idempotency.Store
 }
 
-// NewHandler builds the handler.
-func NewHandler(s *Service, a *accesscontrol.Authorizer) *Handler {
-	return &Handler{s: s, a: a}
+// NewHandler builds the handler. idem is the shared durable idempotency store
+// that backs every route this table marks IdempotencyRequired.
+func NewHandler(s *Service, a *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
+	return &Handler{s: s, a: a, idem: idem}
 }
 
 // TenantRoutes exposes the route table for the router and its contract test.
@@ -76,9 +80,30 @@ func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
 		"setManagedAssetLinkStatus": h.setAssetStatus,
 	}
 	for _, route := range TenantRoutes() {
-		if handler, ok := handlers[route.OperationID]; ok {
-			g.Handle(route.Method, route.Path, handler)
+		handler, ok := handlers[route.OperationID]
+		if !ok {
+			continue
 		}
+		if route.IdempotencyRequired {
+			handler = h.idempotent(route, handler)
+		}
+		g.Handle(route.Method, route.Path, handler)
+	}
+}
+
+// idempotent makes the route table's IdempotencyRequired real: the request
+// must carry an Idempotency-Key, a replay with the same key and body returns
+// the recorded response without running the command again, and the same key
+// with a different body is refused. The tenant is resolved first so a key is
+// always scoped to the caller's organization.
+func (h *Handler) idempotent(route Route, next gin.HandlerFunc) gin.HandlerFunc {
+	endpoint := route.Method + " " + route.Path
+	return func(c *gin.Context) {
+		t, ok := h.gate(c, route.Permission)
+		if !ok {
+			return
+		}
+		idempotency.ExecuteHTTP(c, h.idem, t.OrganizationID, endpoint, func() { next(c) })
 	}
 }
 
@@ -101,12 +126,13 @@ func (h *Handler) gate(c *gin.Context, permission string) (tenant.Context, bool)
 	if raw, present := c.Get(middleware.TenantRoleVersionKey); present {
 		roleVersion, _ = raw.(int64)
 	}
-	if err := h.a.Require(c, t.OrganizationID, t.OrganizationUserID, roleVersion, permission,
-		accesscontrol.Target{}); err != nil {
+	scoped, err := h.a.RequireScoped(c, t, roleVersion, permission)
+	if err != nil {
 		respond.Error(c, err)
 		return t, false
 	}
-	return t, true
+	middleware.SetTenant(c, scoped)
+	return scoped, true
 }
 
 // write maps a domain error onto the wire.
@@ -245,8 +271,36 @@ func (h *Handler) linkService(c *gin.Context) {
 	write(c, link, err)
 }
 
+// versionBody accepts the expected version in the API's camelCase spelling
+// (expectedVersion) and, for clients written against the original surface,
+// the legacy snake_case spelling (expected_version). An If-Match header is
+// accepted too. All present values must agree.
 type versionBody struct {
-	ExpectedVersion int64 `json:"expected_version"`
+	ExpectedVersion       int64 `json:"expectedVersion"`
+	LegacyExpectedVersion int64 `json:"expected_version"`
+}
+
+// expectedVersion resolves the caller's expected version, or 0 when none (or
+// conflicting ones) were supplied.
+func expectedVersion(c *gin.Context, camel, snake int64) int64 {
+	var header int64
+	if raw := strings.Trim(strings.TrimSpace(c.GetHeader("If-Match")), `"`); raw != "" {
+		header, _ = strconv.ParseInt(strings.TrimPrefix(raw, "W/"), 10, 64)
+		if header <= 0 {
+			return 0
+		}
+	}
+	resolved := int64(0)
+	for _, v := range []int64{camel, snake, header} {
+		if v == 0 {
+			continue
+		}
+		if resolved != 0 && v != resolved {
+			return 0
+		}
+		resolved = v
+	}
+	return resolved
 }
 
 func (h *Handler) suspend(c *gin.Context) {
@@ -273,11 +327,16 @@ func (h *Handler) memberStatus(c *gin.Context, apply func(tenant.Context, string
 		return
 	}
 	var body versionBody
-	if c.ShouldBindJSON(&body) != nil || body.ExpectedVersion < 1 {
-		respond.Error(c, apperrors.BadRequest("expected_version is required.", nil))
+	if c.Request.ContentLength != 0 && c.ShouldBindJSON(&body) != nil {
+		respond.Error(c, apperrors.BadRequest("Request body is invalid.", nil))
 		return
 	}
-	member, err := apply(t, c.Param("memberId"), body.ExpectedVersion)
+	version := expectedVersion(c, body.ExpectedVersion, body.LegacyExpectedVersion)
+	if version < 1 {
+		respond.Error(c, apperrors.BadRequest("expectedVersion is required (body expectedVersion, legacy expected_version, or If-Match), and every value given must agree.", nil))
+		return
+	}
+	member, err := apply(t, c.Param("memberId"), version)
 	write(c, member, err)
 }
 
@@ -333,8 +392,9 @@ func (h *Handler) listAssets(c *gin.Context) {
 }
 
 type assetStatusBody struct {
-	Status          string `json:"status"`
-	ExpectedVersion int64  `json:"expected_version"`
+	Status                string `json:"status"`
+	ExpectedVersion       int64  `json:"expectedVersion"`
+	LegacyExpectedVersion int64  `json:"expected_version"`
 }
 
 func (h *Handler) setAssetStatus(c *gin.Context) {
@@ -343,10 +403,15 @@ func (h *Handler) setAssetStatus(c *gin.Context) {
 		return
 	}
 	var body assetStatusBody
-	if c.ShouldBindJSON(&body) != nil || body.ExpectedVersion < 1 {
-		respond.Error(c, apperrors.BadRequest("expected_version is required.", nil))
+	if c.ShouldBindJSON(&body) != nil {
+		respond.Error(c, apperrors.BadRequest("Request body is invalid.", nil))
 		return
 	}
-	link, err := h.s.SetAssetLinkStatus(c, t, c.Param("linkId"), body.ExpectedVersion, body.Status)
+	version := expectedVersion(c, body.ExpectedVersion, body.LegacyExpectedVersion)
+	if version < 1 {
+		respond.Error(c, apperrors.BadRequest("expectedVersion is required (body expectedVersion, legacy expected_version, or If-Match), and every value given must agree.", nil))
+		return
+	}
+	link, err := h.s.SetAssetLinkStatus(c, t, c.Param("linkId"), version, body.Status)
 	write(c, link, err)
 }

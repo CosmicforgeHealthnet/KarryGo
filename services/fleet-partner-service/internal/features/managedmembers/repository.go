@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 )
 
 // MaxPageSize is the largest list page served (spec 36).
@@ -25,10 +27,23 @@ func clampPage(limit int) int {
 // Every query is organization-scoped in SQL, not by a caller remembering to
 // filter. Tenant isolation that depends on each call site passing the right
 // argument fails the first time somebody adds a call site.
-type Repository struct{ db *pgxpool.Pool }
+type Repository struct{ db database.Querier }
 
 // NewRepository builds the repository.
 func NewRepository(db *pgxpool.Pool) *Repository { return &Repository{db: db} }
+
+// with returns the same statements bound to a transaction, so a mutation, its
+// audit record and its outbox event commit together.
+func (r *Repository) with(q database.Querier) *Repository { return &Repository{db: q} }
+
+// pool returns the connection pool the repository was built over, if any.
+func (r *Repository) pool() *pgxpool.Pool {
+	if r == nil {
+		return nil
+	}
+	p, _ := r.db.(*pgxpool.Pool)
+	return p
+}
 
 const memberColumns = `id, organization_id, member_ref, display_name, status,
 	consent_status, suspended_at, ended_at, version, created_at, updated_at`
