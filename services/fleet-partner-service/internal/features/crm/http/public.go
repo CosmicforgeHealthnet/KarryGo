@@ -27,6 +27,11 @@ type PublicHandler struct {
 
 // NewPublicHandler builds the customer-facing handler.
 func NewPublicHandler(service UseCases, limiter ratelimit.Limiter) *PublicHandler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &PublicHandler{service: service, limiter: limiter}
 }
 
@@ -190,6 +195,11 @@ type InternalHandler struct {
 
 // NewInternalHandler builds the internal handler.
 func NewInternalHandler(service UseCases) *InternalHandler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &InternalHandler{service: service}
 }
 

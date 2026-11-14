@@ -45,6 +45,11 @@ type Handler struct {
 }
 
 func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer, store *idempotency.Store) *Handler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &Handler{service: service, authorizer: authorizer, idempotency: store}
 }
 

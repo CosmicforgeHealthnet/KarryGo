@@ -19,6 +19,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -41,6 +42,11 @@ type Handler struct {
 // that never exercise a write route.
 func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer,
 	idempotencyStore *idempotency.Store) *Handler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &Handler{service: service, authorizer: authorizer, idempotency: idempotencyStore}
 }
 
@@ -226,11 +232,13 @@ type ShipmentView struct {
 	TemperatureRequirements   map[string]any `json:"temperatureRequirements"`
 	DeclaredValueAmountMinor  int64          `json:"declaredValueAmountMinor"`
 	DeclaredValueCurrency     string         `json:"declaredValueCurrency"`
-	PackageCount              int            `json:"packageCount"`
-	Status                    string         `json:"status"`
-	Version                   int64          `json:"version"`
-	CreatedAt                 string         `json:"createdAt"`
-	UpdatedAt                 string         `json:"updatedAt"`
+	// DeclaredValueAmount is the standard Money object (FLEET-6.1).
+	DeclaredValueAmount money.Money `json:"declaredValueAmount"`
+	PackageCount        int         `json:"packageCount"`
+	Status              string      `json:"status"`
+	Version             int64       `json:"version"`
+	CreatedAt           string      `json:"createdAt"`
+	UpdatedAt           string      `json:"updatedAt"`
 }
 
 // NewShipmentView projects the domain model to the wire shape.
@@ -242,7 +250,8 @@ func NewShipmentView(s models.Shipment) ShipmentView {
 		RequiredVehicleClass: s.RequiredVehicleClass, RequiredServiceCapability: s.RequiredServiceCapability,
 		TemperatureRequirements:  map[string]any(s.TemperatureRequirements),
 		DeclaredValueAmountMinor: s.DeclaredValueAmountMinor, DeclaredValueCurrency: s.DeclaredValueCurrency,
-		PackageCount: s.PackageCount, Status: s.Status, Version: s.Version,
+		DeclaredValueAmount: money.Money{AmountMinor: s.DeclaredValueAmountMinor, Currency: s.DeclaredValueCurrency},
+		PackageCount:        s.PackageCount, Status: s.Status, Version: s.Version,
 		CreatedAt: s.CreatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 		UpdatedAt: s.UpdatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 	}
@@ -272,8 +281,10 @@ type CargoItemView struct {
 	TemperatureUnit          string  `json:"temperatureUnit,omitempty"`
 	DeclaredValueAmountMinor int64   `json:"declaredValueAmountMinor"`
 	DeclaredValueCurrency    string  `json:"declaredValueCurrency"`
-	RestrictedItemStatus     string  `json:"restrictedItemStatus"`
-	Version                  int64   `json:"version"`
+	// DeclaredValueAmount is the standard Money object (FLEET-6.1).
+	DeclaredValueAmount  money.Money `json:"declaredValueAmount"`
+	RestrictedItemStatus string      `json:"restrictedItemStatus"`
+	Version              int64       `json:"version"`
 }
 
 // NewCargoItemView projects the domain model to the wire shape.
@@ -283,6 +294,7 @@ func NewCargoItemView(c models.CargoItem) CargoItemView {
 		HandlingCategory: c.HandlingCategory, HazardousClassification: c.HazardousClassification,
 		TemperatureMin: c.TemperatureMin, TemperatureMax: c.TemperatureMax, TemperatureUnit: c.TemperatureUnit,
 		DeclaredValueAmountMinor: c.DeclaredValueAmountMinor, DeclaredValueCurrency: c.DeclaredValueCurrency,
+		DeclaredValueAmount:  money.Money{AmountMinor: c.DeclaredValueAmountMinor, Currency: c.DeclaredValueCurrency},
 		RestrictedItemStatus: c.RestrictedItemStatus, Version: c.Version,
 	}
 }

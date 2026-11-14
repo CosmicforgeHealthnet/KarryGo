@@ -14,6 +14,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/securitysettings/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -32,6 +33,11 @@ type Handler struct {
 
 // NewHandler builds the handler.
 func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer) *Handler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &Handler{service: service, authorizer: authorizer}
 }
 
@@ -74,22 +80,36 @@ func roleVersionFrom(c *gin.Context) int64 {
 
 // SettingsView is the wire response shape.
 type SettingsView struct {
-	MFARequiredForSensitiveActions   bool   `json:"mfaRequiredForSensitiveActions"`
-	StepUpFreshnessSeconds           int    `json:"stepUpFreshnessSeconds"`
-	SessionRevocationPolicy          string `json:"sessionRevocationPolicy"`
-	AllowedProviderAccessPolicy      string `json:"allowedProviderAccessPolicy"`
-	SensitiveExportThresholdKobo     int64  `json:"sensitiveExportThresholdKobo"`
-	RestrictedDocumentStepUpRequired bool   `json:"restrictedDocumentStepUpRequired"`
-	AuditCapturePolicy               string `json:"auditCapturePolicy"`
-	RetentionPreferenceDays          int    `json:"retentionPreferenceDays"`
-	Version                          int64  `json:"version"`
+	MFARequiredForSensitiveActions bool   `json:"mfaRequiredForSensitiveActions"`
+	StepUpFreshnessSeconds         int    `json:"stepUpFreshnessSeconds"`
+	SessionRevocationPolicy        string `json:"sessionRevocationPolicy"`
+	AllowedProviderAccessPolicy    string `json:"allowedProviderAccessPolicy"`
+	SensitiveExportThresholdKobo   int64  `json:"sensitiveExportThresholdKobo"`
+	// SensitiveExportThresholdMinor is the conventional name for the same
+	// amount and SensitiveExportThreshold the standard Money object
+	// (FLEET-6.1). The ...Kobo name stays for compatibility.
+	SensitiveExportThresholdMinor    int64       `json:"sensitiveExportThresholdMinor"`
+	SensitiveExportThreshold         money.Money `json:"sensitiveExportThreshold"`
+	RestrictedDocumentStepUpRequired bool        `json:"restrictedDocumentStepUpRequired"`
+	AuditCapturePolicy               string      `json:"auditCapturePolicy"`
+	RetentionPreferenceDays          int         `json:"retentionPreferenceDays"`
+	Version                          int64       `json:"version"`
 }
+
+// sensitiveExportThresholdCurrency is the currency the ...Kobo threshold has
+// always been denominated in: kobo are minor units of the naira.
+const sensitiveExportThresholdCurrency = "NGN"
 
 func newSettingsView(s models.Settings) SettingsView {
 	return SettingsView{
 		MFARequiredForSensitiveActions: s.MFARequiredForSensitiveActions, StepUpFreshnessSeconds: s.StepUpFreshnessSeconds,
 		SessionRevocationPolicy: s.SessionRevocationPolicy, AllowedProviderAccessPolicy: s.AllowedProviderAccessPolicy,
-		SensitiveExportThresholdKobo: s.SensitiveExportThresholdKobo, RestrictedDocumentStepUpRequired: s.RestrictedDocumentStepUpRequired,
+		SensitiveExportThresholdKobo:  s.SensitiveExportThresholdKobo,
+		SensitiveExportThresholdMinor: s.SensitiveExportThresholdKobo,
+		SensitiveExportThreshold: money.Money{AmountMinor: s.SensitiveExportThresholdKobo,
+			Currency: sensitiveExportThresholdCurrency},
+		RestrictedDocumentStepUpRequired: s.RestrictedDocumentStepUpRequired,
+
 		AuditCapturePolicy: s.AuditCapturePolicy, RetentionPreferenceDays: s.RetentionPreferenceDays, Version: s.Version,
 	}
 }

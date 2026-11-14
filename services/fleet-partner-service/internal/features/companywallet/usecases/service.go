@@ -30,6 +30,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
@@ -196,15 +197,20 @@ func fingerprint(parts ...string) string {
 // when the authoritative read fails: a zero balance is a claim, and Fleet is
 // not entitled to make it.
 type WalletView struct {
-	WalletID         string     `json:"walletId"`
-	Currency         string     `json:"currency,omitempty"`
-	AvailableBalance *int64     `json:"availableBalanceMinor,omitempty"`
-	PendingBalance   *int64     `json:"pendingBalanceMinor,omitempty"`
-	ReservedBalance  *int64     `json:"reservedBalanceMinor,omitempty"`
-	Status           string     `json:"status"`
-	SourceVersion    int64      `json:"sourceVersion"`
-	SyncedAt         *time.Time `json:"syncedAt,omitempty"`
-	FreshnessState   string     `json:"freshnessState"`
+	WalletID         string `json:"walletId"`
+	Currency         string `json:"currency,omitempty"`
+	AvailableBalance *int64 `json:"availableBalanceMinor,omitempty"`
+	PendingBalance   *int64 `json:"pendingBalanceMinor,omitempty"`
+	ReservedBalance  *int64 `json:"reservedBalanceMinor,omitempty"`
+	// Standard Money objects (FLEET-6.1) beside the flat balances. Like the
+	// flat fields they are absent, not zero, when the balance is unknown.
+	AvailableBalanceMoney *money.Money `json:"availableBalance,omitempty"`
+	PendingBalanceMoney   *money.Money `json:"pendingBalance,omitempty"`
+	ReservedBalanceMoney  *money.Money `json:"reservedBalance,omitempty"`
+	Status                string       `json:"status"`
+	SourceVersion         int64        `json:"sourceVersion"`
+	SyncedAt              *time.Time   `json:"syncedAt,omitempty"`
+	FreshnessState        string       `json:"freshnessState"`
 }
 
 // GetWallet returns the organization wallet projection.
@@ -213,6 +219,26 @@ type WalletView struct {
 // link. A caller that only wants to render a dashboard passes false; a caller
 // about to move money does not use this method at all — it uses the gates.
 func (s *Service) GetWallet(ctx context.Context, t tenant.Context, authoritative bool) (WalletView, error) {
+	view, err := s.getWallet(ctx, t, authoritative)
+	if err != nil {
+		return view, err
+	}
+	view.AvailableBalanceMoney = optionalMoney(view.AvailableBalance, view.Currency)
+	view.PendingBalanceMoney = optionalMoney(view.PendingBalance, view.Currency)
+	view.ReservedBalanceMoney = optionalMoney(view.ReservedBalance, view.Currency)
+	return view, nil
+}
+
+// optionalMoney builds the Money object for a balance that may be unknown.
+func optionalMoney(amountMinor *int64, currency string) *money.Money {
+	if amountMinor == nil {
+		return nil
+	}
+	return &money.Money{AmountMinor: *amountMinor, Currency: currency}
+}
+
+func (s *Service) getWallet(ctx context.Context, t tenant.Context, authoritative bool) (WalletView, error) {
+
 	if !s.opts.Flags.WalletReadEnabled {
 		return WalletView{}, notFound("Wallet")
 	}
