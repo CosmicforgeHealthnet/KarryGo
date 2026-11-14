@@ -171,3 +171,29 @@ found and fixed 26 defects (listed in its commits `57676e4`..`b0d37c8`).
 - Payment-wallet 11, Dispatch 42, Taxi 45, Hauling 37, shared/go 57 packages
   ok on the merged tree.
 - web/fleet: `tsc` clean, 43/43 tests, production build, CI lint set.
+
+
+## Phase 3 (2026-11-14): Sections 5 and 6, exceptions, staging evidence
+
+- Section 5: 13 flat features re-layered (assets `c76b920`, warehouse
+  `e01d54e`, proof `feeec10`, compliance `eadced1`, specialized `8bdf68b`,
+  dispatch/routes/tracking `e59c45d`, engagement/communications `cf9275d`,
+  financeops `8b43fb7`, finance `ee94f29`, integrations `457dac8`,
+  fleetpartner `299b72b`, managedmembers `efa4bcb`, workforce `d4e40f4`);
+  handler and use-case interfaces on the layered features (`0f9aadd`,
+  `1db4bcb`); audit and worker-operations handler interfaces and the
+  boundary-marker guard (`bc5f703`); shared plumbing in `platform/tenantcmd`
+  (`dec534d`, `99503e3`).
+- Section 6: cursor paging (`931fd5f`, `d4e40f4`, `c76b920`, `e61a619`),
+  internal envelopes with tolerant callers first (`582481f`, `80c5804`),
+  Money objects (`51b31db`, `8b43fb7`, `c76b920`).
+- 7h.c: media private-object encryption at rest (`299177a`), key generated
+  on the server by a new KEYGEN pairing directive (`29c23c6`/`a30403a`),
+  deployed in two steps so media never started without its key.
+- 8.3: passwordless supersession pinned by contract test (`34512a7`).
+- Defects fixed: fulfilment lines never saved (`0ab199d`); engagement
+  support event `$6` type error (`8b43fb7`).
+- Staging evidence: read-only "Platform staging evidence" workflow
+  (`7b9b87a`, `35073a3`, `43109ba`) reporting settings ownership (never
+  contents), running revisions, migration heads and media at-rest status.
+- Final Fleet suite at `bc5f703`: 99 packages ok, 0 failures.
