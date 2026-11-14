@@ -105,6 +105,58 @@ func TestFeaturesDoNotImportOtherFeatureHTTPOrRepositories(t *testing.T) {
 	}
 }
 
+// TestFeaturesDoNotImportOtherFeatureHandlerPackages closes the gap the
+// http/repositories path rule leaves for flat features (FLEET-5f): a
+// feature's root package that still contains gin handlers is an HTTP package
+// whatever its path, so another feature may not import it. Every imported
+// package of another feature is resolved to its directory, and any non-test
+// file there that imports gin fails the import. accesscontrol is the shared
+// authorization feature handlers are built on; it serves no routes.
+func TestFeaturesDoNotImportOtherFeatureHandlerPackages(t *testing.T) {
+	const featurePrefix = "cosmicforge/logistics/services/fleet-partner-service/internal/features/"
+	handlerPackage := map[string]bool{}
+	containsHandlers := func(rest string) bool {
+		if v, ok := handlerPackage[rest]; ok {
+			return v
+		}
+		found := false
+		dir := filepath.Join(serviceRoot, "internal", "features", filepath.FromSlash(rest))
+		entries, _ := os.ReadDir(dir)
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			for _, imported := range importsOf(t, filepath.Join(dir, name)) {
+				if imported == "github.com/gin-gonic/gin" {
+					found = true
+				}
+			}
+		}
+		handlerPackage[rest] = found
+		return found
+	}
+	featureDirs, _ := filepath.Glob(filepath.Join(serviceRoot, "internal", "features", "*"))
+	for _, dir := range featureDirs {
+		feature := filepath.Base(dir)
+		for _, file := range collectGoFiles(t, dir, false) {
+			for _, imported := range importsOf(t, file) {
+				if !strings.HasPrefix(imported, featurePrefix) {
+					continue
+				}
+				rest := strings.TrimPrefix(imported, featurePrefix)
+				owner := strings.Split(rest, "/")[0]
+				if owner == feature || owner == "accesscontrol" {
+					continue
+				}
+				if containsHandlers(rest) {
+					t.Errorf("feature %s imports %s, a package of feature %s that contains gin handlers (%s)", feature, rest, owner, file)
+				}
+			}
+		}
+	}
+}
+
 // TestPartnerAPINotImported: the api-gateway Partner API must stay separate
 // from corporate authentication and clients.
 func TestPartnerAPINotImported(t *testing.T) {

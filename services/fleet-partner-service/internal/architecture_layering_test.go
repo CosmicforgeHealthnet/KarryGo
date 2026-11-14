@@ -35,14 +35,10 @@ var layeringPendingFeatures = map[string]bool{
 	"assets":       true,
 	"warehouse":    true,
 	"proof":        true,
-	"dispatch":     true,
-	"compliance":   true,
-	"specialized":  true,
 	"engagement":   true,
 	"finance":      true,
 	"financeops":   true,
 	"integrations": true,
-	"dashboard":    true,
 }
 
 // layeringStructCache maps an import path to the struct type names it declares.

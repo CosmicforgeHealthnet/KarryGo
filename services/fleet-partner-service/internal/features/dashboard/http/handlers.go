@@ -1,23 +1,31 @@
 package http
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/usecases"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
 )
 
+// Service is the use-case surface the dashboard handler calls.
+type Service interface {
+	GetDashboard(ctx context.Context, t tenant.Context) (*models.DashboardResponse, error)
+}
+
 // Handler serves the dashboard HTTP endpoints.
 type Handler struct {
-	service    *usecases.Service
+	service    Service
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler creates a new dashboard handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(service Service, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{
 		service:    service,
 		authorizer: authorizer,
