@@ -25,12 +25,17 @@ const (
 )
 
 type Handler struct {
-	s *usecases.Service
+	s UseCases
 	a *accesscontrol.Authorizer
 	i *idempotency.Store
 }
 
-func NewHandler(s *usecases.Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := s.(*usecases.Service); ok && typed == nil {
+		s = nil
+	}
 	return &Handler{s, a, i}
 }
 func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {

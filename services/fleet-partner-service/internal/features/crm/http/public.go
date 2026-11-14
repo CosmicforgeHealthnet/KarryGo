@@ -21,12 +21,17 @@ import (
 // link rather than a session, so the token is the whole authorization decision
 // and everything else about the request is untrusted input.
 type PublicHandler struct {
-	service *usecases.Service
+	service UseCases
 	limiter ratelimit.Limiter
 }
 
 // NewPublicHandler builds the customer-facing handler.
-func NewPublicHandler(service *usecases.Service, limiter ratelimit.Limiter) *PublicHandler {
+func NewPublicHandler(service UseCases, limiter ratelimit.Limiter) *PublicHandler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &PublicHandler{service: service, limiter: limiter}
 }
 
@@ -185,11 +190,16 @@ func (h *PublicHandler) rejectQuotation(c *gin.Context) {
 
 // InternalHandler serves the HMAC-authenticated CRM routes.
 type InternalHandler struct {
-	service *usecases.Service
+	service UseCases
 }
 
 // NewInternalHandler builds the internal handler.
-func NewInternalHandler(service *usecases.Service) *InternalHandler {
+func NewInternalHandler(service UseCases) *InternalHandler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &InternalHandler{service: service}
 }
 

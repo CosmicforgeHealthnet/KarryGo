@@ -111,9 +111,36 @@ var permanentDeliveryCodes = map[string]bool{
 }
 
 // ingestResponse is the consumer's reply contract.
+//
+// Fleet answers with its standard envelopes: success carries the receipt in
+// data ({"data":{"status":...,"code":...}}) and a rejection carries
+// error.code. Before FLEET-6h the same fields were bare at the top level, and
+// Fleet still repeats them there as deprecated aliases, so both shapes are
+// read; the envelope wins whenever it is present.
 type ingestResponse struct {
 	Status string `json:"status"`
 	Code   string `json:"code"`
+	Data   *struct {
+		Status string `json:"status"`
+		Code   string `json:"code"`
+	} `json:"data"`
+	Error *struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
+// decodeIngestResponse extracts status and code from either response shape.
+func decodeIngestResponse(raw []byte) (status, code string) {
+	var decoded ingestResponse
+	_ = json.Unmarshal(raw, &decoded)
+	status, code = decoded.Status, decoded.Code
+	if decoded.Data != nil {
+		status, code = decoded.Data.Status, decoded.Data.Code
+	}
+	if decoded.Error != nil && strings.TrimSpace(decoded.Error.Code) != "" {
+		code = decoded.Error.Code
+	}
+	return status, strings.TrimSpace(code)
 }
 
 // Deliver posts one envelope and classifies the response.
@@ -149,16 +176,14 @@ func (d *HTTPEventDeliverer) Deliver(ctx context.Context, envelope Envelope) (De
 	defer resp.Body.Close()
 
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
-	var decoded ingestResponse
-	_ = json.Unmarshal(raw, &decoded)
 	// Only the code is retained. The consumer's message text is free-form and
 	// may quote payload content back at us; it does not belong in our rows.
-	code := strings.TrimSpace(decoded.Code)
+	status, code := decodeIngestResponse(raw)
 
 	switch {
 	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated ||
 		resp.StatusCode == http.StatusAccepted:
-		if strings.EqualFold(decoded.Status, "DUPLICATE") {
+		if strings.EqualFold(status, "DUPLICATE") {
 			return DeliveryResult{Outcome: DeliveryDuplicate, Code: code}, nil
 		}
 		return DeliveryResult{Outcome: DeliveryAccepted, Code: code}, nil

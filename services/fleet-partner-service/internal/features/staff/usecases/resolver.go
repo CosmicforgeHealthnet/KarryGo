@@ -20,12 +20,12 @@ import (
 // inferred, so it reports ErrMembershipNotFound and the caller must select an
 // organization explicitly through /auth/select-organization.
 type MembershipResolver struct {
-	members       *staffrepos.MemberRepository
+	members       MemberStore
 	organizations OrganizationReader
 }
 
 // NewMembershipResolver builds the resolver.
-func NewMembershipResolver(members *staffrepos.MemberRepository, organizations OrganizationReader) *MembershipResolver {
+func NewMembershipResolver(members MemberStore, organizations OrganizationReader) *MembershipResolver {
 	return &MembershipResolver{members: members, organizations: organizations}
 }
 

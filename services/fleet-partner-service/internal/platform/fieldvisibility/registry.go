@@ -140,7 +140,7 @@ var Declarations = []ForbiddenFieldSet{
 		Resource:  "workforce.Profile (bank/payroll fields)",
 		Forbidden: []string{"bankReference", "payrollAmount"},
 		Mechanism: MechanismShapedView,
-		Evidence:  "internal/features/workforce/domain.go:12-17 Profile struct carries no bank/payroll field at all -- structurally absent, not merely unreached",
+		Evidence:  "internal/features/workforce/models/domain.go:11-16 Profile struct carries no bank/payroll field at all -- structurally absent, not merely unreached",
 	},
 
 	// --- Finance: permission-table-only for incidents/support; documents

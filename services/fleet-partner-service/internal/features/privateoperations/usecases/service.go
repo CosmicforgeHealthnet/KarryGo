@@ -55,7 +55,7 @@ type EventPublisher interface {
 type Flags struct{ Enabled, WritesEnabled, WorkerEnabled, DispatchEnabled, TaxiEnabled, HaulingEnabled, KillSwitch bool }
 type Options struct {
 	Pool        *pgxpool.Pool
-	Repository  *repositories.Repository
+	Repository  Store
 	Work        WorkPort
 	Eligibility EligibilityPort
 	Progress    WorkProgressPort

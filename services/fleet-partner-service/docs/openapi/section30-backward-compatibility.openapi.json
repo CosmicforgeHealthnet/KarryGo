@@ -14,7 +14,7 @@
         "responses": {
           "200": {
             "description": "providerMode is always derived fresh from the authoritative membership row -- never trusted from the caller. Every field beyond providerMode is additive and omitted entirely (not null) when providerMode is INDEPENDENT.",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MembershipSummary"}}}
+            "content": {"application/json": {"schema": {"description": "Standard success envelope. The summary fields are also repeated at the top level as deprecated aliases for execution-service binaries built before the envelope (shared/go/providercompat reads data first); remove them once taxi, dispatch, hauling and support-dispute run the tolerant decoder.", "allOf": [{"type": "object", "required": ["data"], "properties": {"data": {"$ref": "#/components/schemas/MembershipSummary"}, "meta": {"type": "object", "properties": {"requestId": {"type": "string"}}}}}, {"$ref": "#/components/schemas/MembershipSummary", "deprecated": true}]}}}
           },
           "400": {"description": "Missing providerService or providerId path parameter."},
           "403": {"description": "Caller not on the PROVIDER_MEMBERSHIP_ALLOWED_CALLERS allowlist."}

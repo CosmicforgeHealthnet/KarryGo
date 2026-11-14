@@ -22,7 +22,7 @@ import (
 	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
 	shipmentsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/models"
 	shipmentsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/repositories"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 )
 
@@ -154,7 +154,7 @@ func privateExecutionPayload(pickup, dropoff ordersmodels.OrderStop, shipment sh
 
 type privateEligibilityAdapter struct {
 	service      *eligibilityusecases.Service
-	workforce    *workforcefeature.Service
+	workforce    *workforceusecases.Service
 	assets       *assetsfeature.Service
 	restrictions interface {
 		Restricted(context.Context, string, string, string) (bool, error)
@@ -206,7 +206,7 @@ func (a privateEligibilityAdapter) Validate(ctx context.Context, organizationID,
 	return true, nil
 }
 
-func BuildPrivateOperationsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, metrics *observability.Metrics, workforce *workforcefeature.Service, assets *assetsfeature.Service, restrictions interface {
+func BuildPrivateOperationsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, metrics *observability.Metrics, workforce *workforceusecases.Service, assets *assetsfeature.Service, restrictions interface {
 	Restricted(context.Context, string, string, string) (bool, error)
 }) *privateusecases.Service {
 	dispatchConfigured := cfg.DispatchServiceURL != "" && len(cfg.DispatchServiceSecret) > 0

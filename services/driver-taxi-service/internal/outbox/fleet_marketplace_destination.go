@@ -100,11 +100,21 @@ func (d FleetMarketplaceEventDestination) Deliver(ctx context.Context, record Re
 	case response.StatusCode >= 200 && response.StatusCode < 300:
 		return nil
 	case response.StatusCode == http.StatusBadRequest:
+		// Fleet's standard error envelope carries the code in error.code;
+		// before FLEET-6h it was bare at the top level (Fleet still repeats it
+		// there as a deprecated alias). Read the envelope first.
 		var rejection struct {
-			Code string `json:"code"`
+			Code  string `json:"code"`
+			Error *struct {
+				Code string `json:"code"`
+			} `json:"error"`
 		}
 		_ = json.Unmarshal(responseBody, &rejection)
-		return &TerminalDeliveryError{Code: codeOr(rejection.Code, "fleet_rejected")}
+		code := rejection.Code
+		if rejection.Error != nil && rejection.Error.Code != "" {
+			code = rejection.Error.Code
+		}
+		return &TerminalDeliveryError{Code: codeOr(code, "fleet_rejected")}
 	default:
 		return fmt.Errorf("fleet event ingestion returned %d", response.StatusCode)
 	}

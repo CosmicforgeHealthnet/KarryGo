@@ -286,11 +286,20 @@ func (s *Service) ReplaceRoleBindings(ctx context.Context, guard PermissionGuard
 	})
 }
 
-// Roles exposes the role repository for read paths.
-func (s *Service) Roles() *staffrepos.RoleRepository { return s.opts.Roles }
+// ListPermissions returns the permission catalogue for read paths.
+func (s *Service) ListPermissions(ctx context.Context) ([]models.Permission, error) {
+	return s.opts.Roles.ListPermissions(ctx)
+}
 
-// Members exposes the member repository for read paths.
-func (s *Service) Members() *staffrepos.MemberRepository { return s.opts.Members }
+// ListRoles returns the organization's roles for read paths.
+func (s *Service) ListRoles(ctx context.Context, organizationID string) ([]models.Role, error) {
+	return s.opts.Roles.ListRoles(ctx, organizationID)
+}
+
+// GetRole returns one organization role for read paths.
+func (s *Service) GetRole(ctx context.Context, organizationID string, roleID string) (*models.Role, error) {
+	return s.opts.Roles.GetRole(ctx, organizationID, roleID)
+}
 
 // StaffDirectory lists staff with verified contacts and current roles.
 func (s *Service) StaffDirectory(ctx context.Context, organizationID string, page StaffDirectoryPage) (*StaffDirectoryResult, error) {

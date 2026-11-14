@@ -167,7 +167,7 @@ func (s *Service) RunWorkerPass(ctx context.Context, cfg WorkerConfig) (WorkerRe
 	return result, nil
 }
 
-func startBulkHeartbeat(ctx context.Context, repo *repositories.Repository, owner, id string,
+func startBulkHeartbeat(ctx context.Context, repo Store, owner, id string,
 	lease time.Duration) func() {
 	stop := make(chan struct{})
 	done := make(chan struct{})

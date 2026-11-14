@@ -3,7 +3,6 @@ package usecases
 import (
 	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/models"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"fmt"
 	"time"
@@ -87,7 +86,7 @@ func (s *Service) RunGenerationPass(ctx context.Context, c WorkerConfig) (Worker
 	return result, nil
 }
 
-func startRecurringHeartbeat(ctx context.Context, repo *repositories.Repository, owner, id string,
+func startRecurringHeartbeat(ctx context.Context, repo Store, owner, id string,
 	lease time.Duration) func() {
 	stop := make(chan struct{})
 	done := make(chan struct{})

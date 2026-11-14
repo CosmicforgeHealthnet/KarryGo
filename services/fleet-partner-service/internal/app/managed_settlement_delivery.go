@@ -11,7 +11,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
 	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -30,10 +30,10 @@ func NewFinancePostingAdapter(wallet, accounting *platformclients.Client) financ
 // fleetpartner money-authority port.
 type ManagedSettlementSubmitter struct{ Finance *financeopsusecases.Service }
 
-// SubmitManagedSettlement implements fleetpartner.SettlementSubmitter.
-func (a ManagedSettlementSubmitter) SubmitManagedSettlement(ctx context.Context, in fleetpartner.SettlementSubmission) (fleetpartner.SettlementOutcome, error) {
+// SubmitManagedSettlement implements fleetpartnerusecases.SettlementSubmitter.
+func (a ManagedSettlementSubmitter) SubmitManagedSettlement(ctx context.Context, in fleetpartnermodels.SettlementSubmission) (fleetpartnermodels.SettlementOutcome, error) {
 	if a.Finance == nil {
-		return fleetpartner.SettlementOutcome{Disposition: fleetpartner.SettlementUnavailable, ErrorCode: "posting_unavailable"},
+		return fleetpartnermodels.SettlementOutcome{Disposition: fleetpartnermodels.SettlementUnavailable, ErrorCode: "posting_unavailable"},
 			financeopsmodels.ErrManagedSettlementUnavailable
 	}
 	t := tenant.Context{
@@ -53,7 +53,7 @@ func (a ManagedSettlementSubmitter) SubmitManagedSettlement(ctx context.Context,
 		CompensationResolutionVersion: in.CompensationResolutionVersion,
 		CorrelationID:                 in.CorrelationID, IdempotencyKey: in.IdempotencyKey,
 	})
-	return fleetpartner.SettlementOutcome{
+	return fleetpartnermodels.SettlementOutcome{
 		OperationID: result.OperationID, Disposition: result.Disposition,
 		Reference: result.Reference, ConfirmedVersion: result.ConfirmedVersion, ErrorCode: result.ErrorCode,
 	}, err

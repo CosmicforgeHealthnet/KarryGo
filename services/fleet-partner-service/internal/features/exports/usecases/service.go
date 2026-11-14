@@ -76,7 +76,7 @@ type Flags struct {
 // Options configure the export service.
 type Options struct {
 	Pool       *pgxpool.Pool
-	Repository *repositories.Repository
+	Repository Store
 	// Exporters is keyed by export type. A type recognized by
 	// models.ValidExportType with no registered adapter here still refuses
 	// at request time — recognizing the type and having wired an adapter for

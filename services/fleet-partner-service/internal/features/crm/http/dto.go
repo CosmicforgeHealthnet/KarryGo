@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 )
 
 func formatTime(value time.Time) string {
@@ -76,11 +77,10 @@ func maskReference(value string) string {
 }
 
 // MoneyView is the canonical money shape: integer minor units and an ISO 4217
-// code. There is no float anywhere in a CRM response.
-type MoneyView struct {
-	AmountMinor int64  `json:"amountMinor"`
-	Currency    string `json:"currency"`
-}
+// code. There is no float anywhere in a CRM response. It is the platform
+// Money object (FLEET-6.1), so CRM money serializes exactly as every other
+// feature's does.
+type MoneyView = money.Money
 
 // ---------------------------------------------------------------------------
 // Customers
@@ -421,16 +421,20 @@ func NewOpportunityHistoryView(entry models.OpportunityHistory) OpportunityHisto
 
 // LineItemView is one manually priced quotation line.
 type LineItemView struct {
-	ID                       string `json:"id"`
-	Description              string `json:"description"`
-	Quantity                 string `json:"quantity"`
-	UnitType                 string `json:"unitType,omitempty"`
-	UnitAmountMinor          int64  `json:"unitAmountMinor"`
-	LineAmountMinor          int64  `json:"lineAmountMinor"`
-	Currency                 string `json:"currency"`
-	ExternalPricingReference string `json:"externalPricingReference,omitempty"`
-	ManualReason             string `json:"manualReason,omitempty"`
-	Sequence                 int    `json:"sequence"`
+	ID              string `json:"id"`
+	Description     string `json:"description"`
+	Quantity        string `json:"quantity"`
+	UnitType        string `json:"unitType,omitempty"`
+	UnitAmountMinor int64  `json:"unitAmountMinor"`
+	LineAmountMinor int64  `json:"lineAmountMinor"`
+	Currency        string `json:"currency"`
+	// UnitAmount and LineAmount are the canonical money shape (FLEET-6.1)
+	// beside the flat fields, which stay for compatibility.
+	UnitAmount               MoneyView `json:"unitAmount"`
+	LineAmount               MoneyView `json:"lineAmount"`
+	ExternalPricingReference string    `json:"externalPricingReference,omitempty"`
+	ManualReason             string    `json:"manualReason,omitempty"`
+	Sequence                 int       `json:"sequence"`
 }
 
 // NewLineItemView builds the line projection.
@@ -439,6 +443,9 @@ func NewLineItemView(item models.LineItem) LineItemView {
 		ID: item.ID, Description: item.Description, Quantity: item.Quantity,
 		UnitType: item.UnitType, UnitAmountMinor: item.UnitAmountMinor,
 		LineAmountMinor: item.LineAmountMinor, Currency: item.Currency,
+		UnitAmount: MoneyView{AmountMinor: item.UnitAmountMinor, Currency: item.Currency},
+		LineAmount: MoneyView{AmountMinor: item.LineAmountMinor, Currency: item.Currency},
+
 		ExternalPricingReference: item.ExternalPricingReference,
 		ManualReason:             item.ManualReason, Sequence: item.Sequence,
 	}

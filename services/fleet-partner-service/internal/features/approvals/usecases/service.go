@@ -83,7 +83,7 @@ type SubjectVersionReader interface {
 // Options configure the approval service.
 type Options struct {
 	Pool        *pgxpool.Pool
-	Approvals   *repositories.Repository
+	Approvals   Store
 	Eligibility *eligibilityusecases.Service
 	Roles       RoleReader
 	// Permissions defaults to Roles when Roles also implements it (the staff
