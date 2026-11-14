@@ -9,6 +9,24 @@
     "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
   },
   {
+    "table": "fleet_partner_approval_requests",
+    "column": "amount_currency",
+    "category": "FINANCIAL",
+    "sourceFile": "000090_approval_policies_delegations_structure.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_approval_requests",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000090_approval_policies_delegations_structure.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
     "table": "fleet_partner_asset_cost_entries",
     "column": "amount_minor",
     "category": "FINANCIAL",
@@ -358,6 +376,24 @@
     "auditRedacted": false,
     "disposition": "APPROVED_PLAINTEXT",
     "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
+    "table": "fleet_partner_operating_locations",
+    "column": "latitude",
+    "category": "LOCATION",
+    "sourceFile": "000090_approval_policies_delegations_structure.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
+  },
+  {
+    "table": "fleet_partner_operating_locations",
+    "column": "longitude",
+    "category": "LOCATION",
+    "sourceFile": "000090_approval_policies_delegations_structure.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "GPS coordinates required in plaintext for real-time routing, dispatch and proof-of-delivery -- encrypting a value every routing query must read would make the routing engine itself a decryption client for every request. Transactional/operational data retained under the OPERATIONAL or TRIP_EXECUTION retention class, not a standing personal-location profile."
   },
   {
     "table": "fleet_partner_order_stops",
