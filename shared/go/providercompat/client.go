@@ -142,9 +142,9 @@ func (c *Client) ReadMembershipSummary(ctx context.Context, providerService, pro
 	if resp.StatusCode != http.StatusOK {
 		return Summary{}, fmt.Errorf("membership-summary response status %d", resp.StatusCode)
 	}
-	var summary Summary
-	if err := json.Unmarshal(body, &summary); err != nil {
-		return Summary{}, fmt.Errorf("decode membership-summary response: %w", err)
+	summary, err := decodeMembershipSummary(body)
+	if err != nil {
+		return Summary{}, err
 	}
 	if summary.ProviderMode != ModeIndependent && summary.ProviderMode != ModeOrganizationManaged {
 		return Summary{}, fmt.Errorf("membership-summary returned unsupported providerMode %q", summary.ProviderMode)
@@ -159,6 +159,28 @@ func (c *Client) ReadMembershipSummary(ctx context.Context, providerService, pro
 		summary.Membership = nil
 		summary.AssignmentPolicy = nil
 		summary.FieldVisibilityPolicy = ""
+	}
+	return summary, nil
+}
+
+// decodeMembershipSummary accepts Fleet's standard success envelope
+// ({"data": {...}, "meta": {...}}) and the bare summary object Fleet answered
+// with before FLEET-6h. The envelope wins whenever a data object is present,
+// so the deprecated top-level aliases Fleet keeps during the transition are
+// never what this client reads.
+func decodeMembershipSummary(body []byte) (Summary, error) {
+	var envelope struct {
+		Data *Summary `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return Summary{}, fmt.Errorf("decode membership-summary response: %w", err)
+	}
+	if envelope.Data != nil {
+		return *envelope.Data, nil
+	}
+	var summary Summary
+	if err := json.Unmarshal(body, &summary); err != nil {
+		return Summary{}, fmt.Errorf("decode membership-summary response: %w", err)
 	}
 	return summary, nil
 }
