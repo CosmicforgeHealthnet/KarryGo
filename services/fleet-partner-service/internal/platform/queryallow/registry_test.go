@@ -147,8 +147,8 @@ var nonTenantFiles = map[string]bool{
 	"backgroundops/http/internal.go":        true,
 	"marketplace/http/internal_handlers.go": true,
 	"crm/http/public.go":                    true,
-	"finance/http.go":                       true,
-	"integrations/auth.go":                  true,
+	"finance/http/internal.go":              true,
+	"integrations/http/client_auth.go":      true,
 }
 
 // TestRegistryCoversEveryQueryNameReadByHandlers is the drift guard: a handler
