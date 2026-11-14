@@ -120,7 +120,7 @@ func TestWarehouse_ObjectAuthorization(t *testing.T) {
 	if status != http.StatusCreated {
 		t.Fatalf("create status = %d body=%v, want 201", status, created)
 	}
-	warehouseID, _ := created["ID"].(string)
+	warehouseID, _ := created["id"].(string)
 	if warehouseID == "" {
 		t.Fatalf("create response carries no ID: %v", created)
 	}
@@ -165,14 +165,14 @@ func TestFulfilment_ObjectAuthorization(t *testing.T) {
 	_, whA := warehouseIDORCall(t, router, http.MethodPost, "/fleet-partner/v1/warehouses", orgA.ID, owner,
 		map[string]any{"BranchID": branchA, "Code": "WH-200", "Name": "Org A DC", "AddressReference": "addr-200", "Timezone": "Africa/Lagos"},
 		map[string]string{"Idempotency-Key": "wh-a"})
-	warehouseAID, _ := whA["ID"].(string)
+	warehouseAID, _ := whA["id"].(string)
 	if warehouseAID == "" {
 		t.Fatalf("orgA warehouse create carries no ID: %v", whA)
 	}
 	_, whB := warehouseIDORCall(t, router, http.MethodPost, "/fleet-partner/v1/warehouses", orgB.ID, crossOrgOwner,
 		map[string]any{"BranchID": branchB, "Code": "WH-201", "Name": "Org B DC", "AddressReference": "addr-201", "Timezone": "Africa/Lagos"},
 		map[string]string{"Idempotency-Key": "wh-b"})
-	warehouseBID, _ := whB["ID"].(string)
+	warehouseBID, _ := whB["id"].(string)
 	if warehouseBID == "" {
 		t.Fatalf("orgB warehouse create carries no ID: %v", whB)
 	}

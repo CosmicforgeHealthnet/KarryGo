@@ -345,10 +345,13 @@ func (s *Service) ListTracking(ctx context.Context, t tenant.Context, f PageFilt
 }
 
 type CreateGeofenceInput struct {
-	BranchID, Name, GeometryType, GeometryReference string
-	Geometry                                        Geometry
-	EventRules                                      []string
-	IdempotencyKey                                  string
+	BranchID          string   `json:"branchId"`
+	Name              string   `json:"name"`
+	GeometryType      string   `json:"geometryType"`
+	GeometryReference string   `json:"geometryReference"`
+	Geometry          Geometry `json:"geometry"`
+	EventRules        []string `json:"eventRules"`
+	IdempotencyKey    string   `json:"idempotencyKey"`
 }
 
 func (s *Service) CreateGeofence(ctx context.Context, t tenant.Context, in CreateGeofenceInput) (Geofence, error) {

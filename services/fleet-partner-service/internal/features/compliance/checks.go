@@ -18,15 +18,21 @@ import (
 // every active requirement that applies to a subject, evaluated together.
 // The strictest result governs (spec 49.2).
 type Check struct {
-	ID, OrganizationID, SubjectType, SubjectReference string
-	SourceType, SourceReference                       string
-	SourceVersion                                     int64
-	OverallState, GoverningRequirementID              string
-	RequirementCount                                  int
-	Results                                           []CheckResult
-	RestrictionReferences                             []string
-	RequestedBy, CorrelationID                        string
-	CreatedAt                                         time.Time
+	ID                     string        `json:"id"`
+	OrganizationID         string        `json:"organizationId"`
+	SubjectType            string        `json:"subjectType"`
+	SubjectReference       string        `json:"subjectReference"`
+	SourceType             string        `json:"sourceType"`
+	SourceReference        string        `json:"sourceReference"`
+	SourceVersion          int64         `json:"sourceVersion"`
+	OverallState           string        `json:"overallState"`
+	GoverningRequirementID string        `json:"governingRequirementId"`
+	RequirementCount       int           `json:"requirementCount"`
+	Results                []CheckResult `json:"results"`
+	RestrictionReferences  []string      `json:"restrictionReferences"`
+	RequestedBy            string        `json:"requestedBy"`
+	CorrelationID          string        `json:"correlationId"`
+	CreatedAt              time.Time     `json:"createdAt"`
 }
 
 // CheckResult links one requirement to the evaluation the check produced.
@@ -42,8 +48,11 @@ type CheckResult struct {
 
 // CheckInput requests a compliance check of one subject.
 type CheckInput struct {
-	SubjectType, SubjectReference, SourceType, SourceReference string
-	SourceVersion                                              int64
+	SubjectType      string `json:"subjectType"`
+	SubjectReference string `json:"subjectReference"`
+	SourceType       string `json:"sourceType"`
+	SourceReference  string `json:"sourceReference"`
+	SourceVersion    int64  `json:"sourceVersion"`
 }
 
 // stateRank orders evaluation states from least to most restrictive, so the
@@ -219,8 +228,8 @@ type Propagation struct {
 // RestrictionView is a restriction with its propagation state.
 type RestrictionView struct {
 	Restriction
-	Propagation     []Propagation
-	FullyPropagated bool
+	Propagation     []Propagation `json:"propagation"`
+	FullyPropagated bool          `json:"fullyPropagated"`
 }
 
 // RestrictionDetail reads a restriction and where it has been confirmed.

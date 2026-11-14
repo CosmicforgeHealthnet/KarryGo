@@ -21,51 +21,89 @@ type Flags struct {
 }
 
 type Requirement struct {
-	ID, OrganizationID, Code, Name, SubjectType, ServiceType, AssetType     string
-	JurisdictionReference, LocationReference, RequirementType               string
-	RequiredDocumentType, RequiredQualificationID, RequiredTrainingCourseID string
-	ValidityRules                                                           json.RawMessage
-	Severity                                                                string
-	BlocksOperation                                                         bool
-	EffectiveFrom                                                           time.Time
-	EffectiveUntil                                                          *time.Time
-	Status, CreatedBy                                                       string
-	Version                                                                 int64
-	CreatedAt, UpdatedAt                                                    time.Time
+	ID                       string          `json:"id"`
+	OrganizationID           string          `json:"organizationId"`
+	Code                     string          `json:"code"`
+	Name                     string          `json:"name"`
+	SubjectType              string          `json:"subjectType"`
+	ServiceType              string          `json:"serviceType"`
+	AssetType                string          `json:"assetType"`
+	JurisdictionReference    string          `json:"jurisdictionReference"`
+	LocationReference        string          `json:"locationReference"`
+	RequirementType          string          `json:"requirementType"`
+	RequiredDocumentType     string          `json:"requiredDocumentType"`
+	RequiredQualificationID  string          `json:"requiredQualificationId"`
+	RequiredTrainingCourseID string          `json:"requiredTrainingCourseId"`
+	ValidityRules            json.RawMessage `json:"validityRules"`
+	Severity                 string          `json:"severity"`
+	BlocksOperation          bool            `json:"blocksOperation"`
+	EffectiveFrom            time.Time       `json:"effectiveFrom"`
+	EffectiveUntil           *time.Time      `json:"effectiveUntil"`
+	Status                   string          `json:"status"`
+	CreatedBy                string          `json:"createdBy"`
+	Version                  int64           `json:"version"`
+	CreatedAt                time.Time       `json:"createdAt"`
+	UpdatedAt                time.Time       `json:"updatedAt"`
 }
 
 type Status struct {
-	ID, OrganizationID, SubjectType, SubjectReference, RequirementID, State string
-	DueAt, ExpiresAt                                                        *time.Time
-	SourceType, SourceReference                                             string
-	SourceVersion                                                           int64
-	EvaluatedAt                                                             time.Time
-	ReasonCodes                                                             json.RawMessage
-	RestrictionReference                                                    string
-	Version                                                                 int64
-	CreatedAt, UpdatedAt                                                    time.Time
+	ID                   string          `json:"id"`
+	OrganizationID       string          `json:"organizationId"`
+	SubjectType          string          `json:"subjectType"`
+	SubjectReference     string          `json:"subjectReference"`
+	RequirementID        string          `json:"requirementId"`
+	State                string          `json:"state"`
+	DueAt                *time.Time      `json:"dueAt"`
+	ExpiresAt            *time.Time      `json:"expiresAt"`
+	SourceType           string          `json:"sourceType"`
+	SourceReference      string          `json:"sourceReference"`
+	SourceVersion        int64           `json:"sourceVersion"`
+	EvaluatedAt          time.Time       `json:"evaluatedAt"`
+	ReasonCodes          json.RawMessage `json:"reasonCodes"`
+	RestrictionReference string          `json:"restrictionReference"`
+	Version              int64           `json:"version"`
+	CreatedAt            time.Time       `json:"createdAt"`
+	UpdatedAt            time.Time       `json:"updatedAt"`
 }
 
 type Restriction struct {
-	ID, OrganizationID, SubjectType, SubjectReference, ReasonCode string
-	SourceType, SourceReference, Severity, State                  string
-	RequiredAuthorities                                           json.RawMessage
-	EffectiveAt                                                   time.Time
-	ClearedAt                                                     *time.Time
-	Version                                                       int64
-	CreatedBy, ClearedBy, ClearanceReason                         string
-	CreatedAt, UpdatedAt                                          time.Time
+	ID                  string          `json:"id"`
+	OrganizationID      string          `json:"organizationId"`
+	SubjectType         string          `json:"subjectType"`
+	SubjectReference    string          `json:"subjectReference"`
+	ReasonCode          string          `json:"reasonCode"`
+	SourceType          string          `json:"sourceType"`
+	SourceReference     string          `json:"sourceReference"`
+	Severity            string          `json:"severity"`
+	State               string          `json:"state"`
+	RequiredAuthorities json.RawMessage `json:"requiredAuthorities"`
+	EffectiveAt         time.Time       `json:"effectiveAt"`
+	ClearedAt           *time.Time      `json:"clearedAt"`
+	Version             int64           `json:"version"`
+	CreatedBy           string          `json:"createdBy"`
+	ClearedBy           string          `json:"clearedBy"`
+	ClearanceReason     string          `json:"clearanceReason"`
+	CreatedAt           time.Time       `json:"createdAt"`
+	UpdatedAt           time.Time       `json:"updatedAt"`
 }
 
 type EvaluateInput struct {
-	SubjectType, SubjectReference, RequirementID string
-	SourceType, SourceReference                  string
-	SourceVersion                                int64
+	SubjectType      string `json:"subjectType"`
+	SubjectReference string `json:"subjectReference"`
+	RequirementID    string `json:"requirementId"`
+	SourceType       string `json:"sourceType"`
+	SourceReference  string `json:"sourceReference"`
+	SourceVersion    int64  `json:"sourceVersion"`
 }
 
 type RestrictInput struct {
-	SubjectType, SubjectReference, ReasonCode, SourceType, SourceReference, Severity string
-	ExpectedVersion                                                                  int64
+	SubjectType      string `json:"subjectType"`
+	SubjectReference string `json:"subjectReference"`
+	ReasonCode       string `json:"reasonCode"`
+	SourceType       string `json:"sourceType"`
+	SourceReference  string `json:"sourceReference"`
+	Severity         string `json:"severity"`
+	ExpectedVersion  int64  `json:"expectedVersion"`
 }
 
 type Eligibility struct {

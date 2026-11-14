@@ -29,7 +29,7 @@ func TestBranchScopedRoleCannotBeWidenedByQueryParameter(t *testing.T) {
 		if status != http.StatusCreated {
 			t.Fatalf("create %s = %d %v", code, status, created)
 		}
-		return created["ID"].(string)
+		return created["id"].(string)
 	}
 	assetA := create(branchA, "SCOPE-A")
 	assetB := create(branchB, "SCOPE-B")
@@ -65,7 +65,7 @@ func TestBranchScopedRoleCannotBeWidenedByQueryParameter(t *testing.T) {
 	}
 	if items, ok := list["data"].([]any); ok {
 		for _, item := range items {
-			if item.(map[string]any)["BranchID"] == branchB {
+			if item.(map[string]any)["branchId"] == branchB {
 				t.Fatal("branch B asset listed for a branch-A-only member")
 			}
 		}
@@ -79,7 +79,7 @@ func TestBranchScopedRoleCannotBeWidenedByQueryParameter(t *testing.T) {
 	sawA := false
 	if items, ok := list["data"].([]any); ok {
 		for _, item := range items {
-			switch item.(map[string]any)["BranchID"] {
+			switch item.(map[string]any)["branchId"] {
 			case branchB:
 				t.Fatal("branch B asset in the unfiltered list of a branch-A-only member")
 			case branchA:

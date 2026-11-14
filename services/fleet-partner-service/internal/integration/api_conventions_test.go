@@ -272,7 +272,7 @@ func TestOffsetListsServeValidPagesAfterValidation(t *testing.T) {
 		t.Fatalf("pages = %d + %d, want 2 + 1", len(a), len(b))
 	}
 	for _, x := range a {
-		if x.(map[string]any)["ID"] == b[0].(map[string]any)["ID"] {
+		if x.(map[string]any)["id"] == b[0].(map[string]any)["id"] {
 			t.Fatal("offset page repeated a row")
 		}
 	}
@@ -403,7 +403,7 @@ func TestProviderHistoryPagesWithCursor(t *testing.T) {
 			t.Fatalf("history page %d = %d %s", page, code, raw)
 		}
 		for _, item := range body["data"].([]any) {
-			id := item.(map[string]any)["ID"].(string)
+			id := item.(map[string]any)["id"].(string)
 			if seen[id] {
 				t.Fatalf("history entry %s repeated", id)
 			}

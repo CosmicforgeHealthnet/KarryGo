@@ -28,19 +28,31 @@ type TemplateData struct {
 	DurationMinutes     int            `json:"durationMinutes"`
 }
 type Template struct {
-	ID, OrganizationID, BranchID, CustomerID, ServiceCatalogItemID, ContractID string
-	Data                                                                       TemplateData
-	RecurrenceType, NormalizedRRule, Timezone                                  string
-	StartDate                                                                  time.Time
-	EndDate                                                                    *time.Time
-	NextRunAt                                                                  time.Time
-	MissedRunPolicy, GeneratedOrderInitialState, Status                        string
-	Version                                                                    int64
-	Attempts                                                                   int
-	LastErrorCode                                                              string
-	CreatedBy, UpdatedBy                                                       string
-	CreatedAt, UpdatedAt                                                       time.Time
-	ActivatedAt, DeactivatedAt                                                 *time.Time
+	ID                         string       `json:"id"`
+	OrganizationID             string       `json:"organizationId"`
+	BranchID                   string       `json:"branchId"`
+	CustomerID                 string       `json:"customerId"`
+	ServiceCatalogItemID       string       `json:"serviceCatalogItemId"`
+	ContractID                 string       `json:"contractId"`
+	Data                       TemplateData `json:"data"`
+	RecurrenceType             string       `json:"recurrenceType"`
+	NormalizedRRule            string       `json:"normalizedRrule"`
+	Timezone                   string       `json:"timezone"`
+	StartDate                  time.Time    `json:"startDate"`
+	EndDate                    *time.Time   `json:"endDate"`
+	NextRunAt                  time.Time    `json:"nextRunAt"`
+	MissedRunPolicy            string       `json:"missedRunPolicy"`
+	GeneratedOrderInitialState string       `json:"generatedOrderInitialState"`
+	Status                     string       `json:"status"`
+	Version                    int64        `json:"version"`
+	Attempts                   int          `json:"attempts"`
+	LastErrorCode              string       `json:"lastErrorCode"`
+	CreatedBy                  string       `json:"createdBy"`
+	UpdatedBy                  string       `json:"updatedBy"`
+	CreatedAt                  time.Time    `json:"createdAt"`
+	UpdatedAt                  time.Time    `json:"updatedAt"`
+	ActivatedAt                *time.Time   `json:"activatedAt"`
+	DeactivatedAt              *time.Time   `json:"deactivatedAt"`
 }
 type Occurrence struct {
 	ID, OrganizationID, TemplateID, OccurrenceKey string

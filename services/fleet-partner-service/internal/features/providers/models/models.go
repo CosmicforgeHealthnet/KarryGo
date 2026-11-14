@@ -242,18 +242,18 @@ type SubWalletLink struct {
 
 // HistoryEntry is one append-only membership transition.
 type HistoryEntry struct {
-	ID             string
-	OrganizationID string
-	MembershipID   string
-	FromStatus     string
-	ToStatus       string
-	ActorType      string
-	ActorID        string
-	ReasonCode     string
-	ReasonText     *string
-	RequestID      string
-	CorrelationID  string
-	OccurredAt     time.Time
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organizationId"`
+	MembershipID   string    `json:"membershipId"`
+	FromStatus     string    `json:"fromStatus"`
+	ToStatus       string    `json:"toStatus"`
+	ActorType      string    `json:"actorType"`
+	ActorID        string    `json:"actorId"`
+	ReasonCode     string    `json:"reasonCode"`
+	ReasonText     *string   `json:"reasonText"`
+	RequestID      string    `json:"requestId"`
+	CorrelationID  string    `json:"correlationId"`
+	OccurredAt     time.Time `json:"occurredAt"`
 }
 
 // AllowedTransitions defines the managed-provider membership state machine.

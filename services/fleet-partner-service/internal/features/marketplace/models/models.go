@@ -143,25 +143,25 @@ const (
 
 // Offer is the organization's opportunity on a marketplace request.
 type Offer struct {
-	ID                  string
-	OrganizationID      string
-	RequestProjectionID string
-	OperatingMode       string
-	Status              string
-	OfferedAt           time.Time
-	ExpiresAt           time.Time
-	ReservedAt          *time.Time
-	AcceptedAt          *time.Time
-	DeclinedAt          *time.Time
-	CancelledAt         *time.Time
-	ResolvedActorType   *string
-	ResolvedActorID     *string
-	SourceReservationID *string
-	ReasonCode          *string
-	ReasonText          *string
-	Version             int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID                  string     `json:"id"`
+	OrganizationID      string     `json:"organizationId"`
+	RequestProjectionID string     `json:"requestProjectionId"`
+	OperatingMode       string     `json:"operatingMode"`
+	Status              string     `json:"status"`
+	OfferedAt           time.Time  `json:"offeredAt"`
+	ExpiresAt           time.Time  `json:"expiresAt"`
+	ReservedAt          *time.Time `json:"reservedAt"`
+	AcceptedAt          *time.Time `json:"acceptedAt"`
+	DeclinedAt          *time.Time `json:"declinedAt"`
+	CancelledAt         *time.Time `json:"cancelledAt"`
+	ResolvedActorType   *string    `json:"resolvedActorType"`
+	ResolvedActorID     *string    `json:"resolvedActorId"`
+	SourceReservationID *string    `json:"sourceReservationId"`
+	ReasonCode          *string    `json:"reasonCode"`
+	ReasonText          *string    `json:"reasonText"`
+	Version             int64      `json:"version"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
 // Actionable reports whether the offer can still be accepted or declined.
@@ -249,41 +249,41 @@ const (
 
 // Assignment is a provider's offered piece of work.
 type Assignment struct {
-	ID                   string
-	OrganizationID       string
-	RequestProjectionID  string
-	OfferID              *string
-	MembershipID         string
-	ExecutingProviderID  string
-	SourceService        string
-	AssetReference       *string
-	AssignedByType       string
-	AssignedByID         string
-	Status               string
-	ResponseDeadline     time.Time
-	AcceptedAt           *time.Time
-	DeclinedAt           *time.Time
-	ExpiredAt            *time.Time
-	CancelledAt          *time.Time
-	ReadyForExecutionAt  *time.Time
-	StartedAt            *time.Time
-	CompletedAt          *time.Time
-	RootAssignmentID     *string
-	ReplacesAssignmentID *string
-	ReassignmentAttempt  int
-	ReassignmentReason   *string
-	ExecutionStartStatus string
-	SourceExecutionID    *string
+	ID                   string     `json:"id"`
+	OrganizationID       string     `json:"organizationId"`
+	RequestProjectionID  string     `json:"requestProjectionId"`
+	OfferID              *string    `json:"offerId"`
+	MembershipID         string     `json:"membershipId"`
+	ExecutingProviderID  string     `json:"executingProviderId"`
+	SourceService        string     `json:"sourceService"`
+	AssetReference       *string    `json:"assetReference"`
+	AssignedByType       string     `json:"assignedByType"`
+	AssignedByID         string     `json:"assignedById"`
+	Status               string     `json:"status"`
+	ResponseDeadline     time.Time  `json:"responseDeadline"`
+	AcceptedAt           *time.Time `json:"acceptedAt"`
+	DeclinedAt           *time.Time `json:"declinedAt"`
+	ExpiredAt            *time.Time `json:"expiredAt"`
+	CancelledAt          *time.Time `json:"cancelledAt"`
+	ReadyForExecutionAt  *time.Time `json:"readyForExecutionAt"`
+	StartedAt            *time.Time `json:"startedAt"`
+	CompletedAt          *time.Time `json:"completedAt"`
+	RootAssignmentID     *string    `json:"rootAssignmentId"`
+	ReplacesAssignmentID *string    `json:"replacesAssignmentId"`
+	ReassignmentAttempt  int        `json:"reassignmentAttempt"`
+	ReassignmentReason   *string    `json:"reassignmentReason"`
+	ExecutionStartStatus string     `json:"executionStartStatus"`
+	SourceExecutionID    *string    `json:"sourceExecutionId"`
 	// AcknowledgementState records whether the assigned party has confirmed
 	// receipt of the work. It is deliberately separate from Status: an
 	// acknowledgement is not a decision, and no value here may ever imply one.
-	AcknowledgementState    string
-	AcknowledgedAt          *time.Time
-	AcknowledgedByActorType *string
-	AcknowledgedByActorID   *string
-	Version                 int64
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
+	AcknowledgementState    string     `json:"acknowledgementState"`
+	AcknowledgedAt          *time.Time `json:"acknowledgedAt"`
+	AcknowledgedByActorType *string    `json:"acknowledgedByActorType"`
+	AcknowledgedByActorID   *string    `json:"acknowledgedByActorId"`
+	Version                 int64      `json:"version"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	UpdatedAt               time.Time  `json:"updatedAt"`
 }
 
 // Acknowledgement states.
@@ -461,18 +461,18 @@ const (
 
 // StateHistoryEntry is one append-only assignment transition.
 type StateHistoryEntry struct {
-	ID             string
-	OrganizationID string
-	AssignmentID   string
-	FromStatus     string
-	ToStatus       string
-	ActorType      string
-	ActorID        string
-	ReasonCode     *string
-	Metadata       map[string]any
-	RequestID      string
-	CorrelationID  string
-	OccurredAt     time.Time
+	ID             string         `json:"id"`
+	OrganizationID string         `json:"organizationId"`
+	AssignmentID   string         `json:"assignmentId"`
+	FromStatus     string         `json:"fromStatus"`
+	ToStatus       string         `json:"toStatus"`
+	ActorType      string         `json:"actorType"`
+	ActorID        string         `json:"actorId"`
+	ReasonCode     *string        `json:"reasonCode"`
+	Metadata       map[string]any `json:"metadata"`
+	RequestID      string         `json:"requestId"`
+	CorrelationID  string         `json:"correlationId"`
+	OccurredAt     time.Time      `json:"occurredAt"`
 }
 
 // Reservation resource types.

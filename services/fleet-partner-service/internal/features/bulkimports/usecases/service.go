@@ -243,8 +243,24 @@ func parse(data []byte, format string) ([]models.OrderRow, error) {
 	}
 	return out, nil
 }
+
+// orderRowFingerprintV1 is models.OrderRow without json tags: the stored
+// row fingerprint (UNIQUE per import) was defined over the Go field names,
+// and tagging the API type must not change it for in-flight imports.
+type orderRowFingerprintV1 struct {
+	RowReference         string
+	CustomerID           string
+	CustomerReference    string
+	ServiceCatalogItemID string
+	ContractID           string
+	Timezone             string
+	Priority             string
+	SpecialInstructions  string
+	ServiceFields        map[string]any
+}
+
 func rowFingerprint(r models.OrderRow) string {
-	b, _ := json.Marshal(r)
+	b, _ := json.Marshal(orderRowFingerprintV1(r))
 	x := sha256.Sum256(b)
 	return hex.EncodeToString(x[:])
 }

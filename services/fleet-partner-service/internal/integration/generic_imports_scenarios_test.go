@@ -467,7 +467,7 @@ func TestGenericImports_HTTPCreateRequiresIdempotencyKeyAndEnforcesPermissions(t
 	// convention (see http/handlers.go's create/get/list, all untouched by
 	// this change) this suite matches rather than silently changes: the
 	// wire field is the exported Go name "ID", not "id".
-	importID, _ := created["ID"].(string)
+	importID, _ := created["id"].(string)
 	if importID == "" {
 		t.Fatalf("create response carries no id: %v", created)
 	}

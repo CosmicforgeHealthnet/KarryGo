@@ -108,12 +108,19 @@ func VisibilityPolicyFromMap(values map[string]bool) ProviderFinancialVisibility
 }
 
 type CompensationPlan struct {
-	ID, OrganizationID, Name, Description, Currency, Status string
-	Version                                                 int64
-	EffectiveFrom                                           time.Time
-	EffectiveTo                                             *time.Time
-	CreatedBy, ApprovedBy                                   string
-	CreatedAt, UpdatedAt                                    time.Time
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organizationId"`
+	Name           string     `json:"name"`
+	Description    string     `json:"description"`
+	Currency       string     `json:"currency"`
+	Status         string     `json:"status"`
+	Version        int64      `json:"version"`
+	EffectiveFrom  time.Time  `json:"effectiveFrom"`
+	EffectiveTo    *time.Time `json:"effectiveTo"`
+	CreatedBy      string     `json:"createdBy"`
+	ApprovedBy     string     `json:"approvedBy"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
 }
 
 type RuleConfig struct {
@@ -133,23 +140,37 @@ type RuleConfig struct {
 }
 
 type CompensationRule struct {
-	ID, OrganizationID, PlanID, RuleType, Status string
-	PlanVersion, Version                         int64
-	ApplicableRoles, ApplicableServices          []string
-	Config                                       RuleConfig
-	EffectiveFrom                                time.Time
-	EffectiveTo                                  *time.Time
-	CreatedAt, UpdatedAt                         time.Time
+	ID                 string     `json:"id"`
+	OrganizationID     string     `json:"organizationId"`
+	PlanID             string     `json:"planId"`
+	RuleType           string     `json:"ruleType"`
+	Status             string     `json:"status"`
+	PlanVersion        int64      `json:"planVersion"`
+	Version            int64      `json:"version"`
+	ApplicableRoles    []string   `json:"applicableRoles"`
+	ApplicableServices []string   `json:"applicableServices"`
+	Config             RuleConfig `json:"config"`
+	EffectiveFrom      time.Time  `json:"effectiveFrom"`
+	EffectiveTo        *time.Time `json:"effectiveTo"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
 }
 
 type MembershipCompensationAssignment struct {
-	ID, MembershipID, OrganizationID, CompensationPlanID string
-	CompensationPlanVersion                              int64
-	ServiceContext, Currency, Status                     string
-	EffectiveFrom                                        time.Time
-	EffectiveTo                                          *time.Time
-	AssignedBy, ApprovedBy                               string
-	CreatedAt, UpdatedAt                                 time.Time
+	ID                      string     `json:"id"`
+	MembershipID            string     `json:"membershipId"`
+	OrganizationID          string     `json:"organizationId"`
+	CompensationPlanID      string     `json:"compensationPlanId"`
+	CompensationPlanVersion int64      `json:"compensationPlanVersion"`
+	ServiceContext          string     `json:"serviceContext"`
+	Currency                string     `json:"currency"`
+	Status                  string     `json:"status"`
+	EffectiveFrom           time.Time  `json:"effectiveFrom"`
+	EffectiveTo             *time.Time `json:"effectiveTo"`
+	AssignedBy              string     `json:"assignedBy"`
+	ApprovedBy              string     `json:"approvedBy"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	UpdatedAt               time.Time  `json:"updatedAt"`
 }
 
 type CompletedWorkRecord struct {

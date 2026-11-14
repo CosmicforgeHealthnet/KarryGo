@@ -67,30 +67,66 @@ type Package struct {
 }
 
 type History struct {
-	ID, OrganizationID, PackageID, PreviousStatus, NewStatus string
-	ReasonCode, SafeNote, ActorType, ActorReference, Source  string
-	RequestID, CorrelationID                                 string
-	OccurredAt, CreatedAt                                    time.Time
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organizationId"`
+	PackageID      string    `json:"packageId"`
+	PreviousStatus string    `json:"previousStatus"`
+	NewStatus      string    `json:"newStatus"`
+	ReasonCode     string    `json:"reasonCode"`
+	SafeNote       string    `json:"safeNote"`
+	ActorType      string    `json:"actorType"`
+	ActorReference string    `json:"actorReference"`
+	Source         string    `json:"source"`
+	RequestID      string    `json:"requestId"`
+	CorrelationID  string    `json:"correlationId"`
+	OccurredAt     time.Time `json:"occurredAt"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type Scan struct {
-	ID, OrganizationID, PackageID, ScanType, BarcodeValue, QRValue       string
-	LocationReference, DeviceReference, ClientScanID, RequestFingerprint string
-	Disposition, ActorType, ActorReference                               string
-	OccurredAt, ReceivedAt                                               time.Time
+	ID                 string    `json:"id"`
+	OrganizationID     string    `json:"organizationId"`
+	PackageID          string    `json:"packageId"`
+	ScanType           string    `json:"scanType"`
+	BarcodeValue       string    `json:"barcodeValue"`
+	QRValue            string    `json:"qrValue"`
+	LocationReference  string    `json:"locationReference"`
+	DeviceReference    string    `json:"deviceReference"`
+	ClientScanID       string    `json:"clientScanId"`
+	RequestFingerprint string    `json:"requestFingerprint"`
+	Disposition        string    `json:"disposition"`
+	ActorType          string    `json:"actorType"`
+	ActorReference     string    `json:"actorReference"`
+	OccurredAt         time.Time `json:"occurredAt"`
+	ReceivedAt         time.Time `json:"receivedAt"`
 }
 
 type CustodyEvent struct {
-	ID, OrganizationID, PackageID, ShipmentID, ManifestID                  string
-	FromActorType, FromActorReference, ToActorType, ToActorReference       string
-	FromLocationReference, ToLocationReference, Condition, EvidenceMediaID string
-	CorrectionOfEventID, Source, CorrelationID                             string
-	OccurredAt, ReceivedAt, CreatedAt                                      time.Time
+	ID                    string    `json:"id"`
+	OrganizationID        string    `json:"organizationId"`
+	PackageID             string    `json:"packageId"`
+	ShipmentID            string    `json:"shipmentId"`
+	ManifestID            string    `json:"manifestId"`
+	FromActorType         string    `json:"fromActorType"`
+	FromActorReference    string    `json:"fromActorReference"`
+	ToActorType           string    `json:"toActorType"`
+	ToActorReference      string    `json:"toActorReference"`
+	FromLocationReference string    `json:"fromLocationReference"`
+	ToLocationReference   string    `json:"toLocationReference"`
+	Condition             string    `json:"condition"`
+	EvidenceMediaID       string    `json:"evidenceMediaId"`
+	CorrectionOfEventID   string    `json:"correctionOfEventId"`
+	Source                string    `json:"source"`
+	CorrelationID         string    `json:"correlationId"`
+	OccurredAt            time.Time `json:"occurredAt"`
+	ReceivedAt            time.Time `json:"receivedAt"`
+	CreatedAt             time.Time `json:"createdAt"`
 	// SubjectType and SubjectReference name what changed hands. A package
 	// event reports PACKAGE and its package ID; the generic chain (Section
 	// 19.12) also covers shipments, orders, assets and specialized records.
-	SubjectType, SubjectReference string
-	EvidenceMediaIDs              []string
+	SubjectType      string   `json:"subjectType"`
+	SubjectReference string   `json:"subjectReference"`
+	EvidenceMediaIDs []string `json:"evidenceMediaIds"`
 }
 
 // Custody subject types accepted by the generic chain of custody.

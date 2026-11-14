@@ -68,26 +68,40 @@ const (
 )
 
 type Import struct {
-	ID, OrganizationID, BranchID, MediaFileID, FileName, FileFormat, ContentType, Status string
-	SizeBytes                                                                            int64
-	TotalRows, ValidRows, InvalidRows, ImportedRows, FailedRows                          int
-	ErrorReportMediaID, RequestFingerprint                                               string
-	Version                                                                              int64
-	CreatedBy                                                                            string
-	CreatedAt, UpdatedAt                                                                 time.Time
-	CompletedAt, CancelledAt                                                             *time.Time
-	Attempts                                                                             int
+	ID                 string     `json:"id"`
+	OrganizationID     string     `json:"organizationId"`
+	BranchID           string     `json:"branchId"`
+	MediaFileID        string     `json:"mediaFileId"`
+	FileName           string     `json:"fileName"`
+	FileFormat         string     `json:"fileFormat"`
+	ContentType        string     `json:"contentType"`
+	Status             string     `json:"status"`
+	SizeBytes          int64      `json:"sizeBytes"`
+	TotalRows          int        `json:"totalRows"`
+	ValidRows          int        `json:"validRows"`
+	InvalidRows        int        `json:"invalidRows"`
+	ImportedRows       int        `json:"importedRows"`
+	FailedRows         int        `json:"failedRows"`
+	ErrorReportMediaID string     `json:"errorReportMediaId"`
+	RequestFingerprint string     `json:"requestFingerprint"`
+	Version            int64      `json:"version"`
+	CreatedBy          string     `json:"createdBy"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
+	CompletedAt        *time.Time `json:"completedAt"`
+	CancelledAt        *time.Time `json:"cancelledAt"`
+	Attempts           int        `json:"attempts"`
 
 	// Section 25C generic-engine fields. Zero-valued (empty string / 0) on
 	// every legacy-engine row.
-	ImportType        string
-	Engine            string
-	Mode              string
-	SchemaVersion     int
-	FileFingerprint   string
-	ExternalReference string
-	CommittedRows     int
-	ValidationVersion int
+	ImportType        string `json:"importType"`
+	Engine            string `json:"engine"`
+	Mode              string `json:"mode"`
+	SchemaVersion     int    `json:"schemaVersion"`
+	FileFingerprint   string `json:"fileFingerprint"`
+	ExternalReference string `json:"externalReference"`
+	CommittedRows     int    `json:"committedRows"`
+	ValidationVersion int    `json:"validationVersion"`
 }
 
 // Terminal reports whether the job has reached a state no further worker
@@ -103,25 +117,33 @@ func (i Import) Terminal() bool {
 }
 
 type Row struct {
-	ID, OrganizationID, ImportID                                                            string
-	RowNumber                                                                               int
-	RowReference, RowFingerprint, Status, GeneratedOrderID, SafeErrorCode, SafeErrorMessage string
-	Data                                                                                    OrderRow
-	CreatedAt, UpdatedAt                                                                    time.Time
+	ID               string    `json:"id"`
+	OrganizationID   string    `json:"organizationId"`
+	ImportID         string    `json:"importId"`
+	RowNumber        int       `json:"rowNumber"`
+	RowReference     string    `json:"rowReference"`
+	RowFingerprint   string    `json:"rowFingerprint"`
+	Status           string    `json:"status"`
+	GeneratedOrderID string    `json:"generatedOrderId"`
+	SafeErrorCode    string    `json:"safeErrorCode"`
+	SafeErrorMessage string    `json:"safeErrorMessage"`
+	Data             OrderRow  `json:"data"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 
 	// Section 25C generic-engine fields.
-	ExternalReference         string
-	SchemaVersion             int
-	CommitStatus              string
-	GeneratedSubjectReference string
-	RowVersion                int
-	ReplacesRowID             string
+	ExternalReference         string `json:"externalReference"`
+	SchemaVersion             int    `json:"schemaVersion"`
+	CommitStatus              string `json:"commitStatus"`
+	GeneratedSubjectReference string `json:"generatedSubjectReference"`
+	RowVersion                int    `json:"rowVersion"`
+	ReplacesRowID             string `json:"replacesRowId"`
 	// GenericData is the normalized row payload for a generic-engine row. The
 	// legacy Data field stays typed to OrderRow and is never populated for a
 	// generic row — the two engines' rows are read through separate
 	// repository methods (ListRows for legacy, ListGenericRows for generic)
 	// precisely so one is never accidentally unmarshalled as the other.
-	GenericData map[string]any
+	GenericData map[string]any `json:"genericData"`
 }
 
 // Row commit statuses (generic engine only).
@@ -144,6 +166,13 @@ const (
 )
 
 type OrderRow struct {
-	RowReference, CustomerID, CustomerReference, ServiceCatalogItemID, ContractID, Timezone, Priority, SpecialInstructions string
-	ServiceFields                                                                                                          map[string]any
+	RowReference         string         `json:"rowReference"`
+	CustomerID           string         `json:"customerId"`
+	CustomerReference    string         `json:"customerReference"`
+	ServiceCatalogItemID string         `json:"serviceCatalogItemId"`
+	ContractID           string         `json:"contractId"`
+	Timezone             string         `json:"timezone"`
+	Priority             string         `json:"priority"`
+	SpecialInstructions  string         `json:"specialInstructions"`
+	ServiceFields        map[string]any `json:"serviceFields"`
 }

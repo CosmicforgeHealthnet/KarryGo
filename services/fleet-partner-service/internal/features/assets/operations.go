@@ -164,9 +164,12 @@ func (s *Service) ListWorkOrders(ctx context.Context, t tenant.Context) ([]WorkO
 }
 
 type WorkAction struct {
-	ExpectedVersion                         int64 `json:"expectedVersion"`
-	Diagnosis, RequiredWork, Reason, Status string
-	EvidenceMediaIDs                        []string `json:"evidenceMediaIds"`
+	ExpectedVersion  int64    `json:"expectedVersion"`
+	Diagnosis        string   `json:"diagnosis"`
+	RequiredWork     string   `json:"requiredWork"`
+	Reason           string   `json:"reason"`
+	Status           string   `json:"status"`
+	EvidenceMediaIDs []string `json:"evidenceMediaIds"`
 }
 
 func (s *Service) UpdateWorkOrder(ctx context.Context, t tenant.Context, id, action string, in WorkAction) (WorkOrder, error) {

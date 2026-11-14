@@ -136,7 +136,7 @@ func TestAssets_ObjectAuthorization(t *testing.T) {
 	if status != http.StatusCreated {
 		t.Fatalf("create status = %d body=%v, want 201", status, created)
 	}
-	assetID, _ := created["ID"].(string)
+	assetID, _ := created["id"].(string)
 	if assetID == "" {
 		t.Fatalf("create response carries no ID: %v", created)
 	}
@@ -187,14 +187,14 @@ func TestMaintenance_ObjectAuthorization(t *testing.T) {
 	_, created := assetsIDORCall(t, router, http.MethodPost, "/fleet-partner/v1/assets", orgA.ID, owner,
 		map[string]any{"BranchID": branchA, "AssetCode": "AST-200", "AssetType": "TRUCK"},
 		map[string]string{"Idempotency-Key": "create-asset-a"})
-	assetAID, _ := created["ID"].(string)
+	assetAID, _ := created["id"].(string)
 	if assetAID == "" {
 		t.Fatalf("orgA asset create carries no ID: %v", created)
 	}
 	_, createdB := assetsIDORCall(t, router, http.MethodPost, "/fleet-partner/v1/assets", orgB.ID, crossOrgOwner,
 		map[string]any{"BranchID": branchB, "AssetCode": "AST-201", "AssetType": "TRUCK"},
 		map[string]string{"Idempotency-Key": "create-asset-b"})
-	assetBID, _ := createdB["ID"].(string)
+	assetBID, _ := createdB["id"].(string)
 	if assetBID == "" {
 		t.Fatalf("orgB asset create carries no ID: %v", createdB)
 	}
@@ -214,7 +214,7 @@ func TestMaintenance_ObjectAuthorization(t *testing.T) {
 	if status != http.StatusCreated {
 		t.Fatalf("create work order status = %d body=%v, want 201", status, wo)
 	}
-	workOrderID, _ := wo["ID"].(string)
+	workOrderID, _ := wo["id"].(string)
 	if workOrderID == "" {
 		t.Fatalf("work order create carries no ID: %v", wo)
 	}

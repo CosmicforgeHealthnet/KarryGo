@@ -7,32 +7,70 @@ import (
 
 type OperationsFlags struct{ Reports, Incidents, Workers, KillSwitch bool }
 type Report struct {
-	ID, OrganizationID, BranchID, ReporterType, ReporterReference                                                string
-	Anonymous                                                                                                    bool
-	ReportType, Severity, LocationReference, RouteID, AssignmentID, TripReference, ProviderMembershipID, AssetID string
-	Description, ImmediateAction, Status, OwnerUserID, ResolutionAction, ResolutionReason                        string
-	Version                                                                                                      int64
-	CreatedAt, UpdatedAt                                                                                         time.Time
-	ClosedAt                                                                                                     *time.Time
+	ID                   string     `json:"id"`
+	OrganizationID       string     `json:"organizationId"`
+	BranchID             string     `json:"branchId"`
+	ReporterType         string     `json:"reporterType"`
+	ReporterReference    string     `json:"reporterReference"`
+	Anonymous            bool       `json:"anonymous"`
+	ReportType           string     `json:"reportType"`
+	Severity             string     `json:"severity"`
+	LocationReference    string     `json:"locationReference"`
+	RouteID              string     `json:"routeId"`
+	AssignmentID         string     `json:"assignmentId"`
+	TripReference        string     `json:"tripReference"`
+	ProviderMembershipID string     `json:"providerMembershipId"`
+	AssetID              string     `json:"assetId"`
+	Description          string     `json:"description"`
+	ImmediateAction      string     `json:"immediateAction"`
+	Status               string     `json:"status"`
+	OwnerUserID          string     `json:"ownerUserId"`
+	ResolutionAction     string     `json:"resolutionAction"`
+	ResolutionReason     string     `json:"resolutionReason"`
+	Version              int64      `json:"version"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	UpdatedAt            time.Time  `json:"updatedAt"`
+	ClosedAt             *time.Time `json:"closedAt"`
 }
 type Incident struct {
-	ID, OrganizationID, BranchID, IncidentType, Severity, Status                                string
-	OccurredAt                                                                                  time.Time
-	LocationReference, RouteID, AssignmentID, TripReference                                     string
-	PeopleReferences, AssetReferences, ShipmentReferences                                       json.RawMessage
-	ExternalReference, Description, ReportedBy, OwnerUserID, ResolutionAction, ResolutionReason string
-	Version                                                                                     int64
-	CreatedAt, UpdatedAt                                                                        time.Time
-	ClosedAt                                                                                    *time.Time
+	ID                 string          `json:"id"`
+	OrganizationID     string          `json:"organizationId"`
+	BranchID           string          `json:"branchId"`
+	IncidentType       string          `json:"incidentType"`
+	Severity           string          `json:"severity"`
+	Status             string          `json:"status"`
+	OccurredAt         time.Time       `json:"occurredAt"`
+	LocationReference  string          `json:"locationReference"`
+	RouteID            string          `json:"routeId"`
+	AssignmentID       string          `json:"assignmentId"`
+	TripReference      string          `json:"tripReference"`
+	PeopleReferences   json.RawMessage `json:"peopleReferences"`
+	AssetReferences    json.RawMessage `json:"assetReferences"`
+	ShipmentReferences json.RawMessage `json:"shipmentReferences"`
+	ExternalReference  string          `json:"externalReference"`
+	Description        string          `json:"description"`
+	ReportedBy         string          `json:"reportedBy"`
+	OwnerUserID        string          `json:"ownerUserId"`
+	ResolutionAction   string          `json:"resolutionAction"`
+	ResolutionReason   string          `json:"resolutionReason"`
+	Version            int64           `json:"version"`
+	CreatedAt          time.Time       `json:"createdAt"`
+	UpdatedAt          time.Time       `json:"updatedAt"`
+	ClosedAt           *time.Time      `json:"closedAt"`
 	// Lifecycle facts recorded by the spec 58.11 transitions.
-	ImmediateActions, TriagedBy                              string
-	TriagedAt                                                *time.Time
-	ContainmentSummary, ContainedBy                          string
-	ContainedAt                                              *time.Time
-	EscalationReason, EscalationTrigger, PreEscalationStatus string
-	EscalatedBy                                              string
-	EscalatedAt                                              *time.Time
-	ClosureReason, ClosedBy                                  string
+	ImmediateActions    string     `json:"immediateActions"`
+	TriagedBy           string     `json:"triagedBy"`
+	TriagedAt           *time.Time `json:"triagedAt"`
+	ContainmentSummary  string     `json:"containmentSummary"`
+	ContainedBy         string     `json:"containedBy"`
+	ContainedAt         *time.Time `json:"containedAt"`
+	EscalationReason    string     `json:"escalationReason"`
+	EscalationTrigger   string     `json:"escalationTrigger"`
+	PreEscalationStatus string     `json:"preEscalationStatus"`
+	EscalatedBy         string     `json:"escalatedBy"`
+	EscalatedAt         *time.Time `json:"escalatedAt"`
+	ClosureReason       string     `json:"closureReason"`
+	ClosedBy            string     `json:"closedBy"`
 }
 
 // Incident statuses (spec 58.11). OPEN is "reported", INVESTIGATING is
@@ -50,34 +88,51 @@ const (
 
 // Investigation is the organization's own investigation of one incident.
 type Investigation struct {
-	ID, OrganizationID, IncidentID, InvestigatorUserID, Scope, EvidencePreservation string
-	Status, Findings, RootCause                                                     string
-	ContributingFactors                                                             json.RawMessage
-	FindingsSubmittedAt                                                             *time.Time
-	ApprovedBy                                                                      string
-	ApprovedAt, ClosedAt                                                            *time.Time
-	OpenedBy                                                                        string
-	Version                                                                         int64
-	CreatedAt, UpdatedAt                                                            time.Time
+	ID                   string          `json:"id"`
+	OrganizationID       string          `json:"organizationId"`
+	IncidentID           string          `json:"incidentId"`
+	InvestigatorUserID   string          `json:"investigatorUserId"`
+	Scope                string          `json:"scope"`
+	EvidencePreservation string          `json:"evidencePreservation"`
+	Status               string          `json:"status"`
+	Findings             string          `json:"findings"`
+	RootCause            string          `json:"rootCause"`
+	ContributingFactors  json.RawMessage `json:"contributingFactors"`
+	FindingsSubmittedAt  *time.Time      `json:"findingsSubmittedAt"`
+	ApprovedBy           string          `json:"approvedBy"`
+	ApprovedAt           *time.Time      `json:"approvedAt"`
+	ClosedAt             *time.Time      `json:"closedAt"`
+	OpenedBy             string          `json:"openedBy"`
+	Version              int64           `json:"version"`
+	CreatedAt            time.Time       `json:"createdAt"`
+	UpdatedAt            time.Time       `json:"updatedAt"`
 }
 type Evidence struct {
-	ID, OrganizationID, IncidentID, MediaFileID string
-	HashMetadata                                json.RawMessage
-	CapturedBy                                  string
-	CapturedAt                                  time.Time
-	SourceTime                                  *time.Time
-	SafeMetadata                                json.RawMessage
-	CreatedAt                                   time.Time
+	ID             string          `json:"id"`
+	OrganizationID string          `json:"organizationId"`
+	IncidentID     string          `json:"incidentId"`
+	MediaFileID    string          `json:"mediaFileId"`
+	HashMetadata   json.RawMessage `json:"hashMetadata"`
+	CapturedBy     string          `json:"capturedBy"`
+	CapturedAt     time.Time       `json:"capturedAt"`
+	SourceTime     *time.Time      `json:"sourceTime"`
+	SafeMetadata   json.RawMessage `json:"safeMetadata"`
+	CreatedAt      time.Time       `json:"createdAt"`
 }
 type CorrectiveAction struct {
-	ID, OrganizationID, IncidentID, ActionType, OwnerUserID string
-	DueAt                                                   time.Time
-	Status                                                  string
-	VerificationRequirements                                json.RawMessage
-	CompletionNotes                                         string
-	CompletedAt                                             *time.Time
-	VerifiedBy                                              string
-	VerifiedAt                                              *time.Time
-	Version                                                 int64
-	CreatedAt, UpdatedAt                                    time.Time
+	ID                       string          `json:"id"`
+	OrganizationID           string          `json:"organizationId"`
+	IncidentID               string          `json:"incidentId"`
+	ActionType               string          `json:"actionType"`
+	OwnerUserID              string          `json:"ownerUserId"`
+	DueAt                    time.Time       `json:"dueAt"`
+	Status                   string          `json:"status"`
+	VerificationRequirements json.RawMessage `json:"verificationRequirements"`
+	CompletionNotes          string          `json:"completionNotes"`
+	CompletedAt              *time.Time      `json:"completedAt"`
+	VerifiedBy               string          `json:"verifiedBy"`
+	VerifiedAt               *time.Time      `json:"verifiedAt"`
+	Version                  int64           `json:"version"`
+	CreatedAt                time.Time       `json:"createdAt"`
+	UpdatedAt                time.Time       `json:"updatedAt"`
 }

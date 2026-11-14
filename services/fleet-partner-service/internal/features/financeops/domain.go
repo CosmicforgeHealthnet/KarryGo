@@ -13,17 +13,25 @@ type Flags struct {
 }
 
 type InvoiceLineInput struct {
-	SourceType, SourceReference, Description string
-	Quantity                                 int64
-	UnitAmountMinor, TaxAmountMinor          int64
-	TaxReference, AdjustmentReference        string
+	SourceType          string `json:"sourceType"`
+	SourceReference     string `json:"sourceReference"`
+	Description         string `json:"description"`
+	Quantity            int64  `json:"quantity"`
+	UnitAmountMinor     int64  `json:"unitAmountMinor"`
+	TaxAmountMinor      int64  `json:"taxAmountMinor"`
+	TaxReference        string `json:"taxReference"`
+	AdjustmentReference string `json:"adjustmentReference"`
 }
 
 type InvoiceInput struct {
-	BranchID, CustomerID, ContractID, QuotationID, Currency string
-	DueDate                                                 time.Time
-	Lines                                                   []InvoiceLineInput
-	ExpectedVersion                                         int64
+	BranchID        string             `json:"branchId"`
+	CustomerID      string             `json:"customerId"`
+	ContractID      string             `json:"contractId"`
+	QuotationID     string             `json:"quotationId"`
+	Currency        string             `json:"currency"`
+	DueDate         time.Time          `json:"dueDate"`
+	Lines           []InvoiceLineInput `json:"lines"`
+	ExpectedVersion int64              `json:"expectedVersion"`
 }
 
 type CreditNoteInput struct {
@@ -39,53 +47,79 @@ type PaymentEvent struct {
 }
 
 type ExpenseInput struct {
-	BranchID, Category, CostCentre, AssetID, ProviderMembershipID string
-	OrderID, ShipmentID, WorkOrderID, IncidentID                  string
-	AmountMinor                                                   int64
-	Currency, ReceiptMediaID, Description                         string
-	ExpectedVersion                                               int64
+	BranchID             string `json:"branchId"`
+	Category             string `json:"category"`
+	CostCentre           string `json:"costCentre"`
+	AssetID              string `json:"assetId"`
+	ProviderMembershipID string `json:"providerMembershipId"`
+	OrderID              string `json:"orderId"`
+	ShipmentID           string `json:"shipmentId"`
+	WorkOrderID          string `json:"workOrderId"`
+	IncidentID           string `json:"incidentId"`
+	AmountMinor          int64  `json:"amountMinor"`
+	Currency             string `json:"currency"`
+	ReceiptMediaID       string `json:"receiptMediaId"`
+	Description          string `json:"description"`
+	ExpectedVersion      int64  `json:"expectedVersion"`
 }
 
 type BudgetInput struct {
-	CostCentre, Category, Currency string
-	PeriodStart, PeriodEnd         time.Time
-	ApprovedAmountMinor            int64
-	ExpectedVersion                int64
+	CostCentre          string    `json:"costCentre"`
+	Category            string    `json:"category"`
+	Currency            string    `json:"currency"`
+	PeriodStart         time.Time `json:"periodStart"`
+	PeriodEnd           time.Time `json:"periodEnd"`
+	ApprovedAmountMinor int64     `json:"approvedAmountMinor"`
+	ExpectedVersion     int64     `json:"expectedVersion"`
 }
 
 type CompensationRuleInput struct {
-	Name, RuleType, Currency            string
-	ApplicableRoles, ApplicableServices json.RawMessage
-	CalculationConfiguration            json.RawMessage
-	EffectiveFrom                       time.Time
-	EffectiveUntil                      *time.Time
-	ExpectedVersion                     int64
+	Name                     string          `json:"name"`
+	RuleType                 string          `json:"ruleType"`
+	Currency                 string          `json:"currency"`
+	ApplicableRoles          json.RawMessage `json:"applicableRoles"`
+	ApplicableServices       json.RawMessage `json:"applicableServices"`
+	CalculationConfiguration json.RawMessage `json:"calculationConfiguration"`
+	EffectiveFrom            time.Time       `json:"effectiveFrom"`
+	EffectiveUntil           *time.Time      `json:"effectiveUntil"`
+	ExpectedVersion          int64           `json:"expectedVersion"`
 }
 
 type PayrollPeriodInput struct {
-	BranchID, Currency     string
-	PeriodStart, PeriodEnd time.Time
-	ExpectedVersion        int64
+	BranchID        string    `json:"branchId"`
+	Currency        string    `json:"currency"`
+	PeriodStart     time.Time `json:"periodStart"`
+	PeriodEnd       time.Time `json:"periodEnd"`
+	ExpectedVersion int64     `json:"expectedVersion"`
 }
 
 type SettlementInput struct {
-	SupplierReference, ProviderOrCarrierReference, Currency string
-	PeriodStart, PeriodEnd                                  time.Time
-	JobReferences                                           []string
-	AmountMinor                                             int64
-	ExpectedVersion                                         int64
+	SupplierReference          string    `json:"supplierReference"`
+	ProviderOrCarrierReference string    `json:"providerOrCarrierReference"`
+	Currency                   string    `json:"currency"`
+	PeriodStart                time.Time `json:"periodStart"`
+	PeriodEnd                  time.Time `json:"periodEnd"`
+	JobReferences              []string  `json:"jobReferences"`
+	AmountMinor                int64     `json:"amountMinor"`
+	ExpectedVersion            int64     `json:"expectedVersion"`
 }
 
 type ClaimInput struct {
-	ClaimType, IncidentID, AssetID, ShipmentID, PackageID string
-	PolicyReference                                       string
-	AmountReferenceMinor                                  *int64
-	Currency                                              string
-	EvidenceMediaIDs                                      []string
-	ExternalClaimReference, SettlementReference           string
-	ApprovedAmountMinor                                   *int64
-	OwnerUserID, Status                                   string
-	ExpectedVersion                                       int64
+	ClaimType              string   `json:"claimType"`
+	IncidentID             string   `json:"incidentId"`
+	AssetID                string   `json:"assetId"`
+	ShipmentID             string   `json:"shipmentId"`
+	PackageID              string   `json:"packageId"`
+	PolicyReference        string   `json:"policyReference"`
+	AmountReferenceMinor   *int64   `json:"amountReferenceMinor"`
+	Currency               string   `json:"currency"`
+	EvidenceMediaIDs       []string `json:"evidenceMediaIds"`
+	ExternalClaimReference string   `json:"externalClaimReference"`
+	SettlementReference    string   `json:"settlementReference"`
+	ApprovedAmountMinor    *int64   `json:"approvedAmountMinor"`
+	OwnerUserID            string   `json:"ownerUserId"`
+	Status                 string   `json:"status"`
+	ExpectedVersion        int64    `json:"expectedVersion"`
 }
 
 type PostingOutcome struct {

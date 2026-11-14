@@ -37,13 +37,30 @@ func SafetyProtected(v string) bool       { return marketmodels.SafetyProtected(
 func RequiresNote(v string) bool          { return marketmodels.RequiresNote(v) }
 
 type Assignment struct {
-	ID, OrganizationID, BranchID, WorkOrigin, PrivateOrderID, ShipmentID, RouteStopID, ProviderMembershipID, ProviderID, VehicleOrTruckReference, ExecutionService, Status string
-	ResponseDeadline                                                                                                                                                       time.Time
-	AcceptedAt, DeclinedAt, ExpiredAt, CancelledAt                                                                                                                         *time.Time
-	DeclineReason, DeclineNote, ReplacementAssignmentID                                                                                                                    string
-	Version                                                                                                                                                                int64
-	CreatedBy                                                                                                                                                              string
-	CreatedAt, UpdatedAt                                                                                                                                                   time.Time
+	ID                      string     `json:"id"`
+	OrganizationID          string     `json:"organizationId"`
+	BranchID                string     `json:"branchId"`
+	WorkOrigin              string     `json:"workOrigin"`
+	PrivateOrderID          string     `json:"privateOrderId"`
+	ShipmentID              string     `json:"shipmentId"`
+	RouteStopID             string     `json:"routeStopId"`
+	ProviderMembershipID    string     `json:"providerMembershipId"`
+	ProviderID              string     `json:"providerId"`
+	VehicleOrTruckReference string     `json:"vehicleOrTruckReference"`
+	ExecutionService        string     `json:"executionService"`
+	Status                  string     `json:"status"`
+	ResponseDeadline        time.Time  `json:"responseDeadline"`
+	AcceptedAt              *time.Time `json:"acceptedAt"`
+	DeclinedAt              *time.Time `json:"declinedAt"`
+	ExpiredAt               *time.Time `json:"expiredAt"`
+	CancelledAt             *time.Time `json:"cancelledAt"`
+	DeclineReason           string     `json:"declineReason"`
+	DeclineNote             string     `json:"declineNote"`
+	ReplacementAssignmentID string     `json:"replacementAssignmentId"`
+	Version                 int64      `json:"version"`
+	CreatedBy               string     `json:"createdBy"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	UpdatedAt               time.Time  `json:"updatedAt"`
 }
 type Decision struct {
 	ID, OrganizationID, AssignmentID, ProviderID, Decision, ReasonCode, SafeNote string
@@ -52,36 +69,37 @@ type Decision struct {
 	DecidedAt                                                                    time.Time
 }
 type ExecutionOperation struct {
-	ID                        string
-	OrganizationID            string
-	SettlementOrganizationID  string
-	ExecutingProviderID       string
-	OrganizationMembershipID  string
-	PrivateOrderID            string
-	ShipmentID                string
-	AssignmentID              string
-	ProviderResponseID        string
-	VehicleOrTruckReference   string
-	ContractReference         string
-	QuotationReference        string
-	ExecutionService          string
-	Status                    string
-	IdempotencyKey            string
-	RequestFingerprint        string
-	CanonicalRequestReference string
-	CanonicalTripReference    string
-	CorrelationID             string
-	CausationID               string
-	Payload                   ExecutionPayload
-	SourceVersion             int64
-	Attempts                  int
-	LastErrorCode             string
-	NextAttemptAt             time.Time
-	LeaseHeartbeatAt          *time.Time
-	CompletedAt               *time.Time
-	DeadLetteredAt            *time.Time
-	Version                   int64
-	CreatedAt, UpdatedAt      time.Time
+	ID                        string           `json:"id"`
+	OrganizationID            string           `json:"organizationId"`
+	SettlementOrganizationID  string           `json:"settlementOrganizationId"`
+	ExecutingProviderID       string           `json:"executingProviderId"`
+	OrganizationMembershipID  string           `json:"organizationMembershipId"`
+	PrivateOrderID            string           `json:"privateOrderId"`
+	ShipmentID                string           `json:"shipmentId"`
+	AssignmentID              string           `json:"assignmentId"`
+	ProviderResponseID        string           `json:"providerResponseId"`
+	VehicleOrTruckReference   string           `json:"vehicleOrTruckReference"`
+	ContractReference         string           `json:"contractReference"`
+	QuotationReference        string           `json:"quotationReference"`
+	ExecutionService          string           `json:"executionService"`
+	Status                    string           `json:"status"`
+	IdempotencyKey            string           `json:"idempotencyKey"`
+	RequestFingerprint        string           `json:"requestFingerprint"`
+	CanonicalRequestReference string           `json:"canonicalRequestReference"`
+	CanonicalTripReference    string           `json:"canonicalTripReference"`
+	CorrelationID             string           `json:"correlationId"`
+	CausationID               string           `json:"causationId"`
+	Payload                   ExecutionPayload `json:"payload"`
+	SourceVersion             int64            `json:"sourceVersion"`
+	Attempts                  int              `json:"attempts"`
+	LastErrorCode             string           `json:"lastErrorCode"`
+	NextAttemptAt             time.Time        `json:"nextAttemptAt"`
+	LeaseHeartbeatAt          *time.Time       `json:"leaseHeartbeatAt"`
+	CompletedAt               *time.Time       `json:"completedAt"`
+	DeadLetteredAt            *time.Time       `json:"deadLetteredAt"`
+	Version                   int64            `json:"version"`
+	CreatedAt                 time.Time        `json:"createdAt"`
+	UpdatedAt                 time.Time        `json:"updatedAt"`
 }
 
 type ExecutionPayload struct {

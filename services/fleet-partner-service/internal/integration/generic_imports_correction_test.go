@@ -166,14 +166,14 @@ func TestGenericImports_CorrectionHTTPTenantIsolationAndIdempotency(t *testing.T
 	if status != http.StatusCreated {
 		t.Fatalf("correction status = %d body=%v, want 201", status, response)
 	}
-	correctedID, _ := documentData(t, response)["ID"].(string)
+	correctedID, _ := documentData(t, response)["id"].(string)
 	if correctedID == "" {
 		t.Fatalf("correction response carries no id: %v", response)
 	}
 
 	// Identical retry replays the same result.
 	status, replay := documentCall(t, router, http.MethodPost, path, body, map[string]string{"Idempotency-Key": "corr-key-1"})
-	if status != http.StatusCreated || documentData(t, replay)["ID"] != correctedID {
+	if status != http.StatusCreated || documentData(t, replay)["id"] != correctedID {
 		t.Fatalf("retry status=%d body=%v, want the same corrected row replayed", status, replay)
 	}
 

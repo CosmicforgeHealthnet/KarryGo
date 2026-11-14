@@ -13,27 +13,50 @@ type Flags struct {
 	Communications, NotificationRules, Support, Quality, SLA, Escalations bool
 	Workers, KillSwitch                                                   bool
 }
-type ParticipantInput struct{ ParticipantType, ParticipantReference, AccessLevel string }
+type ParticipantInput struct {
+	ParticipantType      string `json:"participantType"`
+	ParticipantReference string `json:"participantReference"`
+	AccessLevel          string `json:"accessLevel"`
+}
 type ThreadInput struct {
-	BranchID, SubjectType, SubjectReference, Title, Visibility, OwnerUserID, Status string
-	Participants                                                                    []ParticipantInput
-	ExpectedVersion                                                                 int64
+	BranchID         string             `json:"branchId"`
+	SubjectType      string             `json:"subjectType"`
+	SubjectReference string             `json:"subjectReference"`
+	Title            string             `json:"title"`
+	Visibility       string             `json:"visibility"`
+	OwnerUserID      string             `json:"ownerUserId"`
+	Status           string             `json:"status"`
+	Participants     []ParticipantInput `json:"participants"`
+	ExpectedVersion  int64              `json:"expectedVersion"`
 }
 type MessageInput struct {
-	Channel, Text, ReplyToMessageID string
-	MediaFileIDs                    []string
-	SourceTimestamp                 time.Time
+	Channel          string    `json:"channel"`
+	Text             string    `json:"text"`
+	ReplyToMessageID string    `json:"replyToMessageId"`
+	MediaFileIDs     []string  `json:"mediaFileIds"`
+	SourceTimestamp  time.Time `json:"sourceTimestamp"`
 }
 type NotificationRuleInput struct {
-	EventType, RecipientScope, Timezone, SeverityThreshold string
-	Channels, QuietHours, EscalationPolicy                 json.RawMessage
-	Enabled                                                *bool
-	ExpectedVersion                                        int64
+	EventType         string          `json:"eventType"`
+	RecipientScope    string          `json:"recipientScope"`
+	Timezone          string          `json:"timezone"`
+	SeverityThreshold string          `json:"severityThreshold"`
+	Channels          json.RawMessage `json:"channels"`
+	QuietHours        json.RawMessage `json:"quietHours"`
+	EscalationPolicy  json.RawMessage `json:"escalationPolicy"`
+	Enabled           *bool           `json:"enabled"`
+	ExpectedVersion   int64           `json:"expectedVersion"`
 }
 type SupportCreateInput struct {
-	CaseType, Priority, Subject, Description            string
-	CustomerReference, ProviderReference, TripReference string
-	OrderReference, AssignmentReference                 string
+	CaseType            string `json:"caseType"`
+	Priority            string `json:"priority"`
+	Subject             string `json:"subject"`
+	Description         string `json:"description"`
+	CustomerReference   string `json:"customerReference"`
+	ProviderReference   string `json:"providerReference"`
+	TripReference       string `json:"tripReference"`
+	OrderReference      string `json:"orderReference"`
+	AssignmentReference string `json:"assignmentReference"`
 }
 type SupportProjection struct {
 	CaseID, Status, Priority, OwnerReference string
@@ -45,10 +68,18 @@ type SupportEvent struct {
 	SafePayload                                                                  json.RawMessage
 }
 type QualityInput struct {
-	BranchID, Category, Severity, SourceType, SourceReference string
-	CustomerReference, ProviderReference, OwnerUserID         string
-	Status, RootCause, CorrectiveActionSummary                string
-	ExpectedVersion                                           int64
+	BranchID                string `json:"branchId"`
+	Category                string `json:"category"`
+	Severity                string `json:"severity"`
+	SourceType              string `json:"sourceType"`
+	SourceReference         string `json:"sourceReference"`
+	CustomerReference       string `json:"customerReference"`
+	ProviderReference       string `json:"providerReference"`
+	OwnerUserID             string `json:"ownerUserId"`
+	Status                  string `json:"status"`
+	RootCause               string `json:"rootCause"`
+	CorrectiveActionSummary string `json:"correctiveActionSummary"`
+	ExpectedVersion         int64  `json:"expectedVersion"`
 }
 type MeasurementInput struct {
 	OrganizationID, AgreementReference, ContractID, CustomerID, MetricCode, Unit string

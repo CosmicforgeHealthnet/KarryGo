@@ -103,8 +103,13 @@ func history(ctx context.Context, tx pgx.Tx, t tenant.Context, kind, id, from, t
 }
 
 type CreateProfileInput struct {
-	BranchID, MembershipID, EmployeeNumber, RelationshipType, Role, SupervisorMembershipID string
-	StartDate                                                                              time.Time
+	BranchID               string    `json:"branchId"`
+	MembershipID           string    `json:"membershipId"`
+	EmployeeNumber         string    `json:"employeeNumber"`
+	RelationshipType       string    `json:"relationshipType"`
+	Role                   string    `json:"role"`
+	SupervisorMembershipID string    `json:"supervisorMembershipId"`
+	StartDate              time.Time `json:"startDate"`
 }
 
 func (s *Service) CreateProfile(ctx context.Context, t tenant.Context, in CreateProfileInput) (Profile, error) {
@@ -209,9 +214,13 @@ func (s *Service) UpdateProfile(ctx context.Context, t tenant.Context, id string
 }
 
 type CreateShiftInput struct {
-	BranchID, Name, Role, Timezone string
-	StartAt, EndAt                 time.Time
-	RequiredCapacity               int
+	BranchID         string    `json:"branchId"`
+	Name             string    `json:"name"`
+	Role             string    `json:"role"`
+	Timezone         string    `json:"timezone"`
+	StartAt          time.Time `json:"startAt"`
+	EndAt            time.Time `json:"endAt"`
+	RequiredCapacity int       `json:"requiredCapacity"`
 }
 
 const shiftCols = `id,organization_id,branch_id,name,role,start_at,end_at,timezone,required_capacity,status,planner_user_id,version,created_at,updated_at`
@@ -309,8 +318,10 @@ func (s *Service) UpdateShift(ctx context.Context, t tenant.Context, id string, 
 }
 
 type AssignShiftInput struct {
-	MembershipID, AssignmentType string
-	ExpectedStart, ExpectedEnd   time.Time
+	MembershipID   string    `json:"membershipId"`
+	AssignmentType string    `json:"assignmentType"`
+	ExpectedStart  time.Time `json:"expectedStart"`
+	ExpectedEnd    time.Time `json:"expectedEnd"`
 }
 
 const assignmentCols = `id,organization_id,shift_id,membership_id,assignment_type,status,expected_start,expected_end,checked_in_at,checked_out_at,check_in_source,check_out_source,version,created_at,updated_at`
@@ -410,8 +421,11 @@ func (s *Service) AssignmentAction(ctx context.Context, t tenant.Context, id, to
 }
 
 type CreateLeaveInput struct {
-	MembershipID, LeaveType, Reason string
-	StartAt, EndAt                  time.Time
+	MembershipID string    `json:"membershipId"`
+	LeaveType    string    `json:"leaveType"`
+	Reason       string    `json:"reason"`
+	StartAt      time.Time `json:"startAt"`
+	EndAt        time.Time `json:"endAt"`
 }
 
 const leaveCols = `id,organization_id,membership_id,leave_type,start_at,end_at,reason,status,approved_by,approved_at,version,created_at,updated_at`

@@ -59,11 +59,11 @@ func (f *rows20) enable(t *testing.T, actor rowsActor, code string) map[string]a
 
 func (f *rows20) create(t *testing.T, actor rowsActor, code string, body map[string]any) rowsResponse {
 	t.Helper()
-	if _, ok := body["SubjectType"]; !ok {
-		body["SubjectType"] = "SHIPMENT"
+	if _, ok := body["subjectType"]; !ok {
+		body["subjectType"] = "SHIPMENT"
 	}
-	if _, ok := body["SubjectReference"]; !ok {
-		body["SubjectReference"] = "shp-" + ids.New("x")
+	if _, ok := body["subjectReference"]; !ok {
+		body["subjectReference"] = "shp-" + ids.New("x")
 	}
 	return rowsDo(t, f.router, actor, "POST", "/fleet-partner/v1/specialized/"+code+"/records", body, nil)
 }
@@ -79,16 +79,16 @@ func TestRow20_1b_CapabilityList(t *testing.T) {
 	courier := f.enable(t, f.A, specialized.Courier)
 	f.enable(t, f.B, specialized.Moving)
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", "/fleet-partner/v1/specialized/capabilities/COURIER_LAST_MILE/disable",
-		map[string]any{"expectedVersion": courier["Version"], "reason": "paused"}, nil), 200, "disable courier")
+		map[string]any{"expectedVersion": courier["version"], "reason": "paused"}, nil), 200, "disable courier")
 
 	items := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 200, "list").Items(t)
-	if len(items) != 2 || items[0]["CapabilityCode"] != specialized.ColdChain || items[1]["CapabilityCode"] != specialized.Courier {
+	if len(items) != 2 || items[0]["capabilityCode"] != specialized.ColdChain || items[1]["capabilityCode"] != specialized.Courier {
 		t.Fatalf("capabilities ordered by code: %v", items)
 	}
-	if items[0]["Status"] != "ENABLED" || items[1]["Status"] != "DISABLED" || items[1]["DisabledAt"] == nil {
+	if items[0]["status"] != "ENABLED" || items[1]["status"] != "DISABLED" || items[1]["disabledAt"] == nil {
 		t.Fatalf("capability states: %v", items)
 	}
-	if b := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 200, "other org").Items(t); len(b) != 1 || b[0]["CapabilityCode"] != specialized.Moving {
+	if b := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 200, "other org").Items(t); len(b) != 1 || b[0]["capabilityCode"] != specialized.Moving {
 		t.Fatalf("other organization's capabilities: %v", b)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 403, "no permission")
@@ -110,17 +110,17 @@ func TestRow20_2_CourierRecordGetPatch(t *testing.T) {
 	f.enable(t, f.B, specialized.Courier)
 	created := rowsExpect(t, f.create(t, f.A, specialized.Courier, map[string]any{"BranchID": f.branchA, "RecordType": "DELIVERY_ATTEMPT",
 		"Payload": map[string]any{"packageId": "pkg-1", "attemptNumber": 1, "outcome": "FAILED", "failureReasonCode": "CUSTOMER_ABSENT"}}), 201, "create").Object(t)
-	id := created["ID"].(string)
+	id := created["id"].(string)
 	path := f.recordPath(specialized.Courier, id)
 	got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", path, nil, nil), 200, "get").Object(t)
-	payload, _ := got["Payload"].(map[string]any)
-	if got["RecordType"] != "DELIVERY_ATTEMPT" || got["Status"] != "DRAFT" || payload["failureReasonCode"] != "CUSTOMER_ABSENT" || got["SchemaID"] != "COURIER_LAST_MILE.v2" {
+	payload, _ := got["payload"].(map[string]any)
+	if got["recordType"] != "DELIVERY_ATTEMPT" || got["status"] != "DRAFT" || payload["failureReasonCode"] != "CUSTOMER_ABSENT" || got["schemaId"] != "COURIER_LAST_MILE.v2" {
 		t.Fatalf("courier record: %v", got)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.B, "GET", path, nil, nil), 404, "cross-tenant get")
 	rowsExpect(t, rowsDo(t, f.router, rowsActor{Org: f.A.Org, Member: f.A.Member, Branch: f.branchX}, "GET", path, nil, nil), 404, "cross-branch get")
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", path, nil, nil), 403, "no permission")
-	if list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/specialized/COURIER_LAST_MILE/records", nil, nil), 200, "list").Items(t); len(list) != 1 || list[0]["ID"] != id {
+	if list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/specialized/COURIER_LAST_MILE/records", nil, nil), 200, "list").Items(t); len(list) != 1 || list[0]["id"] != id {
 		t.Fatalf("courier list: %v", list)
 	}
 
@@ -132,8 +132,8 @@ func TestRow20_2_CourierRecordGetPatch(t *testing.T) {
 	// Financial values are external references only.
 	rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", path, map[string]any{"Version": 1, "Payload": map[string]any{"packageId": "pkg-1", "attemptNumber": 2, "amountMinor": 5000}}, nil), 400, "finance field")
 	patched := rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", path, map[string]any{"Version": 1, "Payload": newPayload, "ExternalFinancialReference": "inv-77"}, nil), 200, "patch").Object(t)
-	p2, _ := patched["Payload"].(map[string]any)
-	if patched["Version"] != float64(2) || p2["outcome"] != "DELIVERED" || patched["ExternalFinancialReference"] != "inv-77" || patched["RecordType"] != "DELIVERY_ATTEMPT" {
+	p2, _ := patched["payload"].(map[string]any)
+	if patched["version"] != float64(2) || p2["outcome"] != "DELIVERED" || patched["externalFinancialReference"] != "inv-77" || patched["recordType"] != "DELIVERY_ATTEMPT" {
 		t.Fatalf("patched courier record: %v", patched)
 	}
 	if rowsOutboxCount(t, f.pool, id, "specialized_record.updated.v1") != 1 {
@@ -197,8 +197,8 @@ func TestRow20_4_To_20_11_SpecializedModulesPersistAndIsolate(t *testing.T) {
 		rowsExpect(t, f.create(t, f.A, tc.code, map[string]any{"BranchID": f.branchA, "RecordType": "NOT_A_TYPE", "Payload": tc.payload}), 400, tc.row+" unknown record type")
 
 		created := rowsExpect(t, f.create(t, f.A, tc.code, map[string]any{"BranchID": f.branchA, "RecordType": tc.recordType, "Payload": tc.payload}), 201, tc.row+" create "+tc.recordType).Object(t)
-		id := created["ID"].(string)
-		if created["CapabilityCode"] != tc.code || created["SchemaID"] != tc.code+".v2" || created["RestrictedVisibility"] != tc.restricted {
+		id := created["id"].(string)
+		if created["capabilityCode"] != tc.code || created["schemaId"] != tc.code+".v2" || created["restrictedVisibility"] != tc.restricted {
 			t.Fatalf("%s created: %v", tc.row, created)
 		}
 		var org, capability, recordType string
@@ -206,12 +206,12 @@ func TestRow20_4_To_20_11_SpecializedModulesPersistAndIsolate(t *testing.T) {
 			t.Fatalf("%s persisted row: %s %s %s %v", tc.row, org, capability, recordType, err)
 		}
 		got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", f.recordPath(tc.code, id), nil, nil), 200, tc.row+" get").Object(t)
-		payload, _ := got["Payload"].(map[string]any)
+		payload, _ := got["payload"].(map[string]any)
 		if mustMarshal(t, payload[tc.check]) != mustMarshal(t, tc.payload[tc.check]) {
 			t.Fatalf("%s read back %s=%v, want %v", tc.row, tc.check, payload[tc.check], tc.payload[tc.check])
 		}
 		list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/specialized/"+tc.code+"/records", nil, nil), 200, tc.row+" list")
-		if !rowsIDs(list.Items(t), "ID")[id] {
+		if !rowsIDs(list.Items(t), "id")[id] {
 			t.Fatalf("%s: record missing from list", tc.row)
 		}
 		if tc.restricted {
@@ -227,7 +227,7 @@ func TestRow20_4_To_20_11_SpecializedModulesPersistAndIsolate(t *testing.T) {
 		// Tenant isolation: organization B has the same module enabled but
 		// can neither read nor list A's record.
 		rowsExpect(t, rowsDo(t, f.router, f.B, "GET", f.recordPath(tc.code, id), nil, nil), 404, tc.row+" cross-tenant get")
-		if rowsIDs(rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/specialized/"+tc.code+"/records", nil, nil), 200, tc.row+" other org list").Items(t), "ID")[id] {
+		if rowsIDs(rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/specialized/"+tc.code+"/records", nil, nil), 200, tc.row+" other org list").Items(t), "id")[id] {
 			t.Fatalf("%s: record visible to another organization", tc.row)
 		}
 		rowsExpect(t, rowsDo(t, f.router, rowsActor{Org: f.A.Org, Member: f.A.Member, Branch: f.branchX}, "GET", f.recordPath(tc.code, id), nil, nil), 404, tc.row+" cross-branch get")
@@ -251,7 +251,7 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 	f.enable(t, f.B, specialized.ColdChain)
 	mk := func(recordType string, payload map[string]any) string {
 		created := rowsExpect(t, f.create(t, f.A, specialized.ColdChain, map[string]any{"BranchID": f.branchA, "RecordType": recordType, "Payload": payload}), 201, "create "+recordType).Object(t)
-		return created["ID"].(string)
+		return created["id"].(string)
 	}
 	vaccines := mk("TEMPERATURE_REQUIREMENT", map[string]any{"minimumTemperature": 2, "maximumTemperature": 8, "unit": "C"})
 	produce := mk("TEMPERATURE_REQUIREMENT", map[string]any{"minimumTemperature": 0, "maximumTemperature": 4, "unit": "C"})
@@ -265,30 +265,30 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.B, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 5, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 404, "cross-tenant")
 
 	inRange := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 5, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 201, "in range").Object(t)
-	if inRange["Excursion"] != false || inRange["RecordID"] != vaccines {
+	if inRange["excursion"] != false || inRange["recordId"] != vaccines {
 		t.Fatalf("in-range event: %v", inRange)
 	}
 	// A different value under the same source version is a conflict, not a
 	// silent replay; the identical reading replays to the stored event.
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 30, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 409, "changed reading")
 	replay := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 5, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 201, "replay").Object(t)
-	if replay["ID"] != inRange["ID"] || replay["Excursion"] != false {
+	if replay["id"] != inRange["id"] || replay["excursion"] != false {
 		t.Fatalf("replay must return the stored event: %v", replay)
 	}
 	// One sensor may serve several records, so the same (sensor, version)
 	// against another record is that record's own reading (migration 000096).
 	// It must never hand back the first record's event.
 	shared := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(produce), map[string]any{"SensorReference": "s-1", "Temperature": 3, "Unit": "C", "SourceVersion": 1, "SourceTime": at}, nil), 201, "sensor version on another record").Object(t)
-	if shared["RecordID"] != produce || shared["ID"] == inRange["ID"] {
+	if shared["recordId"] != produce || shared["id"] == inRange["id"] {
 		t.Fatalf("shared sensor reading must belong to its own record: %v", shared)
 	}
 
 	excursion := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 11.5, "Unit": "C", "SourceVersion": 2, "SourceTime": at}, nil), 201, "excursion").Object(t)
-	if excursion["Excursion"] != true {
+	if excursion["excursion"] != true {
 		t.Fatalf("excursion event: %v", excursion)
 	}
 	quarantined := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", f.recordPath(specialized.ColdChain, vaccines), nil, nil), 200, "reread").Object(t)
-	if quarantined["Status"] != "QUARANTINED" {
+	if quarantined["status"] != "QUARANTINED" {
 		t.Fatalf("excursion must quarantine the record: %v", quarantined)
 	}
 	if rowsOutboxCount(t, f.pool, vaccines, "cold_chain.excursion.v1") != 1 || rowsOutboxCount(t, f.pool, vaccines, "cold_chain.quarantined.v1") != 1 {
@@ -297,14 +297,14 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 	if n := countWhere(t, f.pool, `SELECT count(*) FROM fleet_partner_temperature_events WHERE record_id=$1`, vaccines); n != 2 {
 		t.Fatalf("temperature events stored = %d", n)
 	}
-	version := quarantined["Version"]
+	version := quarantined["version"]
 	// Quarantined goods cannot be completed without an authorized release.
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/complete", map[string]any{"expectedVersion": version}, nil), 409, "complete while quarantined")
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": version}, nil), 400, "release without evidence")
 	withEvidence := rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", f.recordPath(specialized.ColdChain, vaccines), map[string]any{"Version": version,
 		"Payload": map[string]any{"minimumTemperature": 2, "maximumTemperature": 8, "unit": "C", "releaseEvidenceReference": "lab-report-4", "authorizedBy": f.A.Member}}, nil), 200, "attach release evidence").Object(t)
-	released := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": withEvidence["Version"]}, nil), 200, "release").Object(t)
-	if released["Status"] != "RELEASED" || rowsOutboxCount(t, f.pool, vaccines, "specialized_record.released.v1") != 1 {
+	released := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": withEvidence["version"]}, nil), 200, "release").Object(t)
+	if released["status"] != "RELEASED" || rowsOutboxCount(t, f.pool, vaccines, "specialized_record.released.v1") != 1 {
 		t.Fatalf("release: %v", released)
 	}
 }
@@ -317,7 +317,7 @@ func TestRow20_12_RecordMilestonesAndCommands(t *testing.T) {
 	f.enable(t, f.B, specialized.Courier)
 	created := rowsExpect(t, f.create(t, f.A, specialized.Courier, map[string]any{"BranchID": f.branchA, "RecordType": "DELIVERY_WAVE",
 		"Payload": map[string]any{"waveReference": "WAVE-1"}}), 201, "create").Object(t)
-	id := created["ID"].(string)
+	id := created["id"].(string)
 	path := f.recordPath(specialized.Courier, id)
 
 	milestones := path + "/milestones"
@@ -327,11 +327,11 @@ func TestRow20_12_RecordMilestonesAndCommands(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "POST", milestones, map[string]any{"MilestoneType": "LOADED", "Status": "DONE"}, nil), 403, "no permission")
 	key := map[string]string{"Idempotency-Key": "wave-loaded-1"}
 	first := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", milestones, map[string]any{"MilestoneType": "LOADED", "Status": "DONE", "SafeMetadata": map[string]any{"bay": "3"}}, key), 201, "milestone").Object(t)
-	if first["RecordID"] != id || first["ActorReference"] != f.A.Member || first["CorrelationID"] != "wave-loaded-1" {
+	if first["recordId"] != id || first["actorReference"] != f.A.Member || first["correlationId"] != "wave-loaded-1" {
 		t.Fatalf("milestone: %v", first)
 	}
 	again := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", milestones, map[string]any{"MilestoneType": "LOADED", "Status": "DONE", "SafeMetadata": map[string]any{"bay": "3"}}, key), 201, "milestone replay").Object(t)
-	if again["ID"] != first["ID"] {
+	if again["id"] != first["id"] {
 		t.Fatalf("milestone replay created a second row: %v", again)
 	}
 	if n := countWhere(t, f.pool, `SELECT count(*) FROM fleet_partner_specialized_milestones WHERE record_id=$1`, id); n != 1 {
@@ -348,7 +348,7 @@ func TestRow20_12_RecordMilestonesAndCommands(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", commands+"complete", map[string]any{"expectedVersion": 3}, nil), 409, "command stale")
 	rowsExpect(t, rowsDo(t, f.router, f.B, "POST", commands+"complete", map[string]any{"expectedVersion": 1}, nil), 404, "cross-tenant command")
 	completed := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", commands+"complete", map[string]any{"expectedVersion": 1}, nil), 200, "complete").Object(t)
-	if completed["Status"] != "COMPLETED" || completed["CompletedAt"] == nil || completed["Version"] != float64(2) {
+	if completed["status"] != "COMPLETED" || completed["completedAt"] == nil || completed["version"] != float64(2) {
 		t.Fatalf("completed: %v", completed)
 	}
 	// A completed record is terminal.

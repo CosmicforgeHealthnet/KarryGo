@@ -30,38 +30,64 @@ type Flags struct {
 	Modules                      map[string]bool
 }
 type Capability struct {
-	ID, OrganizationID, CapabilityCode, Status string
-	Configuration                              json.RawMessage
-	EnabledAt, DisabledAt                      *time.Time
-	Version                                    int64
-	CreatedAt, UpdatedAt                       time.Time
+	ID             string          `json:"id"`
+	OrganizationID string          `json:"organizationId"`
+	CapabilityCode string          `json:"capabilityCode"`
+	Status         string          `json:"status"`
+	Configuration  json.RawMessage `json:"configuration"`
+	EnabledAt      *time.Time      `json:"enabledAt"`
+	DisabledAt     *time.Time      `json:"disabledAt"`
+	Version        int64           `json:"version"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 type Record struct {
-	ID, OrganizationID, BranchID, CapabilityCode, RecordType, SubjectType, SubjectReference, Status string
-	RestrictedVisibility                                                                            bool
-	Payload                                                                                         json.RawMessage
-	ExternalFinancialReference, SourceAuthority, SourceReference, IdempotencyKey                    string
-	Version                                                                                         int64
-	CreatedBy                                                                                       string
-	CreatedAt, UpdatedAt                                                                            time.Time
-	CompletedAt                                                                                     *time.Time
+	ID                         string          `json:"id"`
+	OrganizationID             string          `json:"organizationId"`
+	BranchID                   string          `json:"branchId"`
+	CapabilityCode             string          `json:"capabilityCode"`
+	RecordType                 string          `json:"recordType"`
+	SubjectType                string          `json:"subjectType"`
+	SubjectReference           string          `json:"subjectReference"`
+	Status                     string          `json:"status"`
+	RestrictedVisibility       bool            `json:"restrictedVisibility"`
+	Payload                    json.RawMessage `json:"payload"`
+	ExternalFinancialReference string          `json:"externalFinancialReference"`
+	SourceAuthority            string          `json:"sourceAuthority"`
+	SourceReference            string          `json:"sourceReference"`
+	IdempotencyKey             string          `json:"idempotencyKey"`
+	Version                    int64           `json:"version"`
+	CreatedBy                  string          `json:"createdBy"`
+	CreatedAt                  time.Time       `json:"createdAt"`
+	UpdatedAt                  time.Time       `json:"updatedAt"`
+	CompletedAt                *time.Time      `json:"completedAt"`
 	// SchemaVersion is the extension schema version the payload was
 	// validated against; SchemaID names it (e.g. COLD_CHAIN.v2).
-	SchemaVersion int
-	SchemaID      string
+	SchemaVersion int    `json:"schemaVersion"`
+	SchemaID      string `json:"schemaId"`
 }
 type Milestone struct {
-	ID, OrganizationID, RecordID, MilestoneType, Status string
-	SafeMetadata                                        json.RawMessage
-	SourceTime, ReceivedAt                              time.Time
-	ActorReference, CorrelationID                       string
+	ID             string          `json:"id"`
+	OrganizationID string          `json:"organizationId"`
+	RecordID       string          `json:"recordId"`
+	MilestoneType  string          `json:"milestoneType"`
+	Status         string          `json:"status"`
+	SafeMetadata   json.RawMessage `json:"safeMetadata"`
+	SourceTime     time.Time       `json:"sourceTime"`
+	ReceivedAt     time.Time       `json:"receivedAt"`
+	ActorReference string          `json:"actorReference"`
+	CorrelationID  string          `json:"correlationId"`
 }
 type TemperatureEvent struct {
-	ID, OrganizationID, RecordID, SensorReference string
-	Temperature                                   float64
-	Unit                                          string
-	SourceVersion                                 int64
-	SourceTime, ReceivedAt                        time.Time
-	Excursion                                     bool
-	SafeMetadata                                  json.RawMessage
+	ID              string          `json:"id"`
+	OrganizationID  string          `json:"organizationId"`
+	RecordID        string          `json:"recordId"`
+	SensorReference string          `json:"sensorReference"`
+	Temperature     float64         `json:"temperature"`
+	Unit            string          `json:"unit"`
+	SourceVersion   int64           `json:"sourceVersion"`
+	SourceTime      time.Time       `json:"sourceTime"`
+	ReceivedAt      time.Time       `json:"receivedAt"`
+	Excursion       bool            `json:"excursion"`
+	SafeMetadata    json.RawMessage `json:"safeMetadata"`
 }

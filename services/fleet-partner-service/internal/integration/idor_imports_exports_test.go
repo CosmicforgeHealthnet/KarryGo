@@ -152,7 +152,7 @@ func TestImports_ObjectAuthorization(t *testing.T) {
 	if status != http.StatusAccepted {
 		t.Fatalf("create status = %d body=%v, want 202", status, created)
 	}
-	importID, _ := created["ID"].(string)
+	importID, _ := created["id"].(string)
 	if importID == "" {
 		t.Fatalf("create response carries no ID: %v", created)
 	}
@@ -185,7 +185,7 @@ func TestImports_ObjectAuthorization(t *testing.T) {
 	_, created2 := importsIDORCall(t, router, http.MethodPost, "/fleet-partner/v1/imports", orgA.ID, owner,
 		map[string]any{"branchId": branchA, "importType": bulkmodels.TypeAsset, "mediaFileId": "med_fake_2", "fileFormat": "CSV"},
 		map[string]string{"Idempotency-Key": "create-2"})
-	otherImportID, _ := created2["ID"].(string)
+	otherImportID, _ := created2["id"].(string)
 	if otherImportID == "" {
 		t.Fatalf("second create carries no ID: %v", created2)
 	}

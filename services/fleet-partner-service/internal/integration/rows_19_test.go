@@ -102,30 +102,30 @@ func TestRow19_1_And_19_3_ComplianceStatusProviderAndAssetCompliance(t *testing.
 	}
 
 	all := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/compliance/status", nil, nil), 200, "status").Items(t)
-	if ids := rowsIDs(all, "ID"); len(all) != 2 || !ids[assetStatus.ID] || !ids[providerStatus.ID] {
+	if ids := rowsIDs(all, "id"); len(all) != 2 || !ids[assetStatus.ID] || !ids[providerStatus.ID] {
 		t.Fatalf("compliance status: %v", ids)
 	}
 	byType := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/compliance/status?subjectType=asset", nil, nil), 200, "by type").Items(t)
-	if len(byType) != 1 || byType[0]["ID"] != assetStatus.ID {
+	if len(byType) != 1 || byType[0]["id"] != assetStatus.ID {
 		t.Fatalf("subjectType filter: %v", byType)
 	}
 	byRef := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/compliance/status?subjectReference=mem-19", nil, nil), 200, "by ref").Items(t)
-	if len(byRef) != 1 || byRef[0]["ID"] != providerStatus.ID {
+	if len(byRef) != 1 || byRef[0]["id"] != providerStatus.ID {
 		t.Fatalf("subjectReference filter: %v", byRef)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/compliance/status", nil, nil), 403, "no permission")
 
 	asset := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/assets/ast-19/compliance", nil, nil), 200, "asset compliance").Items(t)
-	if len(asset) != 1 || asset[0]["ID"] != assetStatus.ID || asset[0]["State"] != compliance.StateNonCompliant {
+	if len(asset) != 1 || asset[0]["id"] != assetStatus.ID || asset[0]["state"] != compliance.StateNonCompliant {
 		t.Fatalf("asset compliance: %v", asset)
 	}
 	var reasons []string
-	_ = json.Unmarshal([]byte(mustMarshal(t, asset[0]["ReasonCodes"])), &reasons)
+	_ = json.Unmarshal([]byte(mustMarshal(t, asset[0]["reasonCodes"])), &reasons)
 	if len(reasons) != 1 || reasons[0] != "REQUIRED_EVIDENCE_MISSING" {
-		t.Fatalf("asset compliance reasons: %v", asset[0]["ReasonCodes"])
+		t.Fatalf("asset compliance reasons: %v", asset[0]["reasonCodes"])
 	}
 	provider := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/providers/mem-19/compliance", nil, nil), 200, "provider compliance").Items(t)
-	if len(provider) != 1 || provider[0]["ID"] != providerStatus.ID || provider[0]["State"] != compliance.StateUnknown {
+	if len(provider) != 1 || provider[0]["id"] != providerStatus.ID || provider[0]["state"] != compliance.StateUnknown {
 		t.Fatalf("provider compliance: %v", provider)
 	}
 	// The provider path never returns an asset status with the same reference.
@@ -134,7 +134,7 @@ func TestRow19_1_And_19_3_ComplianceStatusProviderAndAssetCompliance(t *testing.
 	}
 	// Organization B evaluated the same subject reference; A never sees it
 	// and B never sees A's.
-	if b := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/assets/ast-19/compliance", nil, nil), 200, "other org").Items(t); len(b) != 1 || b[0]["ID"] == assetStatus.ID {
+	if b := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/assets/ast-19/compliance", nil, nil), 200, "other org").Items(t); len(b) != 1 || b[0]["id"] == assetStatus.ID {
 		t.Fatalf("cross-tenant asset compliance: %v", b)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/assets/ast-19/compliance", nil, nil), 403, "no permission asset")
@@ -157,11 +157,11 @@ func TestRow19_2b_ComplianceRequirementListGet(t *testing.T) {
 	second := f.requirement(t, f.tenantA(), "LICENCE", "PROVIDER", "")
 	foreign := f.requirement(t, f.tenantB(), "INSURANCE", "ASSET", "INSURANCE")
 	list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/compliance/requirements", nil, nil), 200, "list").Items(t)
-	if len(list) != 2 || list[0]["ID"] != second.ID || list[1]["ID"] != first.ID {
-		t.Fatalf("requirements newest first: %v", rowsIDs(list, "ID"))
+	if len(list) != 2 || list[0]["id"] != second.ID || list[1]["id"] != first.ID {
+		t.Fatalf("requirements newest first: %v", rowsIDs(list, "id"))
 	}
 	got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/compliance/requirements/"+first.ID, nil, nil), 200, "get").Object(t)
-	if got["Code"] != "INSURANCE" || got["Status"] != "DRAFT" || got["SubjectType"] != "ASSET" || got["RequiredDocumentType"] != "INSURANCE" {
+	if got["code"] != "INSURANCE" || got["status"] != "DRAFT" || got["subjectType"] != "ASSET" || got["requiredDocumentType"] != "INSURANCE" {
 		t.Fatalf("requirement: %v", got)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/compliance/requirements/"+foreign.ID, nil, nil), 404, "cross-tenant get")
@@ -189,26 +189,26 @@ func TestRow19_6b_SafetyReportListGetPatchResolve(t *testing.T) {
 	}
 	list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/safety/reports", nil, nil), 200, "list")
 	items := list.Items(t)
-	if ids := rowsIDs(items, "ID"); len(items) != 2 || !ids[anonymous.ID] || !ids[other.ID] || ids[foreign.ID] {
+	if ids := rowsIDs(items, "id"); len(items) != 2 || !ids[anonymous.ID] || !ids[other.ID] || ids[foreign.ID] {
 		t.Fatalf("reports: %v", ids)
 	}
 	// An anonymous reporter is never disclosed, even to the organization
 	// owner; a named reporter is.
 	for _, item := range items {
-		if item["ID"] == anonymous.ID && item["ReporterReference"] != "" {
+		if item["id"] == anonymous.ID && item["reporterReference"] != "" {
 			t.Fatalf("anonymous reporter reference leaked in the report list: %v", item)
 		}
-		if item["ID"] == other.ID && item["ReporterReference"] != f.A.Member {
+		if item["id"] == other.ID && item["reporterReference"] != f.A.Member {
 			t.Fatalf("named reporter missing: %v", item)
 		}
 	}
 	confined := rowsActor{Org: f.A.Org, Member: f.A.Member, Branch: f.branchA}
-	if c := rowsExpect(t, rowsDo(t, f.router, confined, "GET", "/fleet-partner/v1/safety/reports", nil, nil), 200, "confined").Items(t); len(c) != 1 || c[0]["ID"] != anonymous.ID {
-		t.Fatalf("confined reports: %v", rowsIDs(c, "ID"))
+	if c := rowsExpect(t, rowsDo(t, f.router, confined, "GET", "/fleet-partner/v1/safety/reports", nil, nil), 200, "confined").Items(t); len(c) != 1 || c[0]["id"] != anonymous.ID {
+		t.Fatalf("confined reports: %v", rowsIDs(c, "id"))
 	}
 	path := "/fleet-partner/v1/safety/reports/" + anonymous.ID
 	got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", path, nil, nil), 200, "get").Object(t)
-	if got["ReporterReference"] != "" || got["Anonymous"] != true || got["Severity"] != "HIGH" {
+	if got["reporterReference"] != "" || got["anonymous"] != true || got["severity"] != "HIGH" {
 		t.Fatalf("anonymous report: %v", got)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.B, "GET", path, nil, nil), 404, "cross-tenant get")
@@ -222,17 +222,17 @@ func TestRow19_6b_SafetyReportListGetPatchResolve(t *testing.T) {
 	// Resolution needs its own command and its action + reason.
 	rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", path, map[string]any{"Version": 1, "Status": "RESOLVED"}, nil), 409, "resolve through PATCH")
 	patched := rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", path, map[string]any{"Version": 1, "Status": "UNDER_REVIEW", "OwnerUserID": f.A.Member}, nil), 200, "patch").Object(t)
-	if patched["Status"] != "UNDER_REVIEW" || patched["OwnerUserID"] != f.A.Member || patched["Version"] != float64(2) {
+	if patched["status"] != "UNDER_REVIEW" || patched["ownerUserId"] != f.A.Member || patched["version"] != float64(2) {
 		t.Fatalf("patched report: %v", patched)
 	}
-	if patched["ReporterReference"] != "" {
+	if patched["reporterReference"] != "" {
 		t.Fatalf("PATCH response disclosed the anonymous reporter: %v", patched)
 	}
 	resolvePath := path + "/resolve"
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", resolvePath, map[string]any{"expectedVersion": 2, "resolutionAction": "Spill cleaned"}, nil), 400, "resolve without reason")
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", resolvePath, map[string]any{"expectedVersion": 1, "resolutionAction": "a", "resolutionReason": "b"}, nil), 409, "resolve stale")
 	resolved := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", resolvePath, map[string]any{"expectedVersion": 2, "resolutionAction": "Spill cleaned", "resolutionReason": "Hazard removed"}, nil), 200, "resolve").Object(t)
-	if resolved["Status"] != "RESOLVED" || resolved["ClosedAt"] == nil || resolved["ResolutionReason"] != "Hazard removed" || resolved["ReporterReference"] != "" {
+	if resolved["status"] != "RESOLVED" || resolved["closedAt"] == nil || resolved["resolutionReason"] != "Hazard removed" || resolved["reporterReference"] != "" {
 		t.Fatalf("resolved report: %v", resolved)
 	}
 	// A resolved report is closed.
@@ -262,16 +262,16 @@ func TestRow19_7b_IncidentListGetPatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/incidents", nil, nil), 200, "list").Items(t)
-	if len(list) != 2 || list[0]["ID"] != newer.ID || list[1]["ID"] != older.ID {
-		t.Fatalf("incidents newest occurrence first: %v", rowsIDs(list, "ID"))
+	if len(list) != 2 || list[0]["id"] != newer.ID || list[1]["id"] != older.ID {
+		t.Fatalf("incidents newest occurrence first: %v", rowsIDs(list, "id"))
 	}
 	confined := rowsActor{Org: f.A.Org, Member: f.A.Member, Branch: f.branchA}
-	if c := rowsExpect(t, rowsDo(t, f.router, confined, "GET", "/fleet-partner/v1/incidents", nil, nil), 200, "confined").Items(t); len(c) != 1 || c[0]["ID"] != older.ID {
-		t.Fatalf("confined incidents: %v", rowsIDs(c, "ID"))
+	if c := rowsExpect(t, rowsDo(t, f.router, confined, "GET", "/fleet-partner/v1/incidents", nil, nil), 200, "confined").Items(t); len(c) != 1 || c[0]["id"] != older.ID {
+		t.Fatalf("confined incidents: %v", rowsIDs(c, "id"))
 	}
 	path := "/fleet-partner/v1/incidents/" + older.ID
 	got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", path, nil, nil), 200, "get").Object(t)
-	if got["IncidentType"] != "ACCIDENT" || got["Status"] != safety.IncidentOpen || got["ReportedBy"] != f.A.Member {
+	if got["incidentType"] != "ACCIDENT" || got["status"] != safety.IncidentOpen || got["reportedBy"] != f.A.Member {
 		t.Fatalf("incident: %v", got)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.B, "GET", path, nil, nil), 404, "cross-tenant get")
@@ -283,7 +283,7 @@ func TestRow19_7b_IncidentListGetPatch(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.B, "PATCH", path, map[string]any{"Version": 1, "OwnerUserID": f.B.Member}, nil), 404, "cross-tenant patch")
 	rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", path, map[string]any{"Version": 1, "Status": "CLOSED"}, nil), 409, "status through PATCH")
 	patched := rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", path, map[string]any{"Version": 1, "OwnerUserID": f.A.Member}, nil), 200, "patch").Object(t)
-	if patched["OwnerUserID"] != f.A.Member || patched["Status"] != safety.IncidentOpen || patched["Version"] != float64(2) {
+	if patched["ownerUserId"] != f.A.Member || patched["status"] != safety.IncidentOpen || patched["version"] != float64(2) {
 		t.Fatalf("patched incident: %v", patched)
 	}
 	if n := countWhere(t, f.pool, `SELECT count(*) FROM fleet_partner_incident_history WHERE incident_id=$1 AND action='UPDATED'`, older.ID); n != 1 {
@@ -311,10 +311,10 @@ func TestRow19_8_IncidentEvidence(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, rowsActor{Org: f.A.Org, Member: f.A.Member, Branch: f.branchX}, "POST", path, map[string]any{"MediaFileID": "a-photo"}, nil), 404, "cross-branch")
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "POST", path, map[string]any{"MediaFileID": "a-photo"}, nil), 403, "no permission")
 	evidence := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", path, map[string]any{"MediaFileID": "a-photo", "SourceTime": source, "HashMetadata": map[string]any{"sha256": "abc"}}, nil), 201, "attach").Object(t)
-	if evidence["IncidentID"] != inc.ID || evidence["CapturedBy"] != f.A.Member || evidence["MediaFileID"] != "a-photo" {
+	if evidence["incidentId"] != inc.ID || evidence["capturedBy"] != f.A.Member || evidence["mediaFileId"] != "a-photo" {
 		t.Fatalf("evidence: %v", evidence)
 	}
-	id := evidence["ID"].(string)
+	id := evidence["id"].(string)
 	if n := countWhere(t, f.pool, `SELECT count(*) FROM fleet_partner_incident_evidence WHERE id=$1 AND organization_id=$2 AND incident_id=$3`, id, f.A.Org, inc.ID); n != 1 {
 		t.Fatalf("evidence rows = %d", n)
 	}
@@ -371,10 +371,10 @@ func TestRow19_9_CorrectiveActions(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.B, "POST", createPath, map[string]any{"ActionType": "TRAINING", "OwnerUserID": f.B.Member, "DueAt": due}, nil), 404, "cross-tenant create")
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "POST", createPath, map[string]any{"ActionType": "TRAINING", "OwnerUserID": f.A.Member, "DueAt": due}, nil), 403, "no permission")
 	created := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", createPath, map[string]any{"ActionType": "TRAINING", "OwnerUserID": f.A.Member, "DueAt": due}, nil), 201, "create").Object(t)
-	if created["Status"] != "OPEN" || created["IncidentID"] != inc.ID {
+	if created["status"] != "OPEN" || created["incidentId"] != inc.ID {
 		t.Fatalf("corrective action: %v", created)
 	}
-	actionID := created["ID"].(string)
+	actionID := created["id"].(string)
 	if rowsOutboxCount(t, f.pool, actionID, "corrective_action.created.v1") != 1 {
 		t.Fatal("corrective_action.created event missing")
 	}
@@ -387,11 +387,11 @@ func TestRow19_9_CorrectiveActions(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.B, "POST", completePath, map[string]any{"expectedVersion": 1, "notes": "done"}, nil), 404, "cross-tenant complete")
 	rowsExpect(t, rowsDo(t, f.router, rowsActor{Org: f.A.Org, Member: f.A.Member, Branch: f.branchX}, "POST", completePath, map[string]any{"expectedVersion": 1, "notes": "done"}, nil), 404, "cross-branch complete")
 	completed := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", completePath, map[string]any{"expectedVersion": 1, "notes": "Staff trained"}, nil), 200, "complete").Object(t)
-	if completed["Status"] != "COMPLETED" || completed["CompletionNotes"] != "Staff trained" || completed["CompletedAt"] == nil {
+	if completed["status"] != "COMPLETED" || completed["completionNotes"] != "Staff trained" || completed["completedAt"] == nil {
 		t.Fatalf("completed: %v", completed)
 	}
 	verified := rowsExpect(t, rowsDo(t, f.router, rowsActor{Org: f.A.Org, Member: investigatorID}, "POST", verifyPath, map[string]any{"expectedVersion": 2}, nil), 200, "verify").Object(t)
-	if verified["Status"] != "VERIFIED" || verified["VerifiedBy"] != investigatorID {
+	if verified["status"] != "VERIFIED" || verified["verifiedBy"] != investigatorID {
 		t.Fatalf("verified: %v", verified)
 	}
 	// A verified action cannot be pushed back to COMPLETED.
@@ -415,11 +415,11 @@ func TestRow19_10b_ProofPolicyListGet(t *testing.T) {
 		t.Fatal(err)
 	}
 	list := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/proof-policies", nil, nil), 200, "list").Items(t)
-	if len(list) != 1 || list[0]["ID"] != policy.ID {
+	if len(list) != 1 || list[0]["id"] != policy.ID {
 		t.Fatalf("policies: %v", list)
 	}
 	got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/proof-policies/"+policy.ID, nil, nil), 200, "get").Object(t)
-	if got["MinimumCount"] != float64(2) || got["FailurePolicy"] != "BLOCK" || got["PolicyScope"] != "ORGANIZATION" {
+	if got["minimumCount"] != float64(2) || got["failurePolicy"] != "BLOCK" || got["policyScope"] != "ORGANIZATION" {
 		t.Fatalf("policy: %v", got)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/proof-policies/"+foreign.ID, nil, nil), 404, "cross-tenant get")

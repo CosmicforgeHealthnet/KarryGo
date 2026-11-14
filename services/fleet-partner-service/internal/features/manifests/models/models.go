@@ -18,20 +18,43 @@ func CanTransition(from, to string) bool { return transitions[from][to] }
 func Editable(status string) bool        { return status == StatusDraft || status == StatusOpen }
 
 type Manifest struct {
-	ID, OrganizationID, BranchID, ManifestReference, RouteReference, FutureRoutePlanID, VehicleReference, ProviderMembershipID, SealNumber, Status string
-	Version                                                                                                                                        int64
-	CreatedBy, UpdatedBy                                                                                                                           string
-	CreatedAt, UpdatedAt                                                                                                                           time.Time
-	ClosedAt, DispatchedAt, CompletedAt, CancelledAt                                                                                               *time.Time
+	ID                   string     `json:"id"`
+	OrganizationID       string     `json:"organizationId"`
+	BranchID             string     `json:"branchId"`
+	ManifestReference    string     `json:"manifestReference"`
+	RouteReference       string     `json:"routeReference"`
+	FutureRoutePlanID    string     `json:"futureRoutePlanId"`
+	VehicleReference     string     `json:"vehicleReference"`
+	ProviderMembershipID string     `json:"providerMembershipId"`
+	SealNumber           string     `json:"sealNumber"`
+	Status               string     `json:"status"`
+	Version              int64      `json:"version"`
+	CreatedBy            string     `json:"createdBy"`
+	UpdatedBy            string     `json:"updatedBy"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	UpdatedAt            time.Time  `json:"updatedAt"`
+	ClosedAt             *time.Time `json:"closedAt"`
+	DispatchedAt         *time.Time `json:"dispatchedAt"`
+	CompletedAt          *time.Time `json:"completedAt"`
+	CancelledAt          *time.Time `json:"cancelledAt"`
 }
 type Item struct {
-	ID, OrganizationID, ManifestID, ItemType, ItemID, ShipmentID, AddedBy string
-	CreatedAt                                                             time.Time
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organizationId"`
+	ManifestID     string    `json:"manifestId"`
+	ItemType       string    `json:"itemType"`
+	ItemID         string    `json:"itemId"`
+	ShipmentID     string    `json:"shipmentId"`
+	AddedBy        string    `json:"addedBy"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 type Snapshot struct {
-	ID, OrganizationID, ManifestID string
-	ManifestVersion                int64
-	Snapshot                       map[string]any
-	RequestFingerprint, CreatedBy  string
-	CreatedAt                      time.Time
+	ID                 string         `json:"id"`
+	OrganizationID     string         `json:"organizationId"`
+	ManifestID         string         `json:"manifestId"`
+	ManifestVersion    int64          `json:"manifestVersion"`
+	Snapshot           map[string]any `json:"snapshot"`
+	RequestFingerprint string         `json:"requestFingerprint"`
+	CreatedBy          string         `json:"createdBy"`
+	CreatedAt          time.Time      `json:"createdAt"`
 }

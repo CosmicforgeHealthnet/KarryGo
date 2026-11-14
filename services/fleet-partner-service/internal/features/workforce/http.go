@@ -199,17 +199,23 @@ func output(c *gin.Context, v any, e error) {
 }
 
 type versionBody struct {
-	ExpectedVersion           int64 `json:"expectedVersion"`
-	Reason, Source, Reference string
+	ExpectedVersion int64  `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+	Source          string `json:"source"`
+	Reference       string `json:"reference"`
 }
 type profilePatch struct {
-	ExpectedVersion                      int64
-	Role, SupervisorMembershipID, Status string
+	ExpectedVersion        int64  `json:"expectedVersion"`
+	Role                   string `json:"role"`
+	SupervisorMembershipID string `json:"supervisorMembershipId"`
+	Status                 string `json:"status"`
 }
 type shiftPatch struct {
-	ExpectedVersion int64
-	Name, Status    string
-	StartAt, EndAt  *time.Time
+	ExpectedVersion int64      `json:"expectedVersion"`
+	Name            string     `json:"name"`
+	Status          string     `json:"status"`
+	StartAt         *time.Time `json:"startAt"`
+	EndAt           *time.Time `json:"endAt"`
 }
 
 func (h *Handler) handle(c *gin.Context, r Route) {

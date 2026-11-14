@@ -316,7 +316,7 @@ func TestRow11_2_DispatcherAcceptsOfferForOrganization(t *testing.T) {
 	key := map[string]string{"Idempotency-Key": ids.New("idem")}
 	accepted := rowsExpect(t, w.do(t, w.dispatcher, http.MethodPost, path, body, key),
 		http.StatusOK, "accept").Object(t)
-	if accepted["Status"] != mktmodels.OfferAccepted {
+	if accepted["status"] != mktmodels.OfferAccepted {
 		t.Fatalf("accepted offer = %v", accepted)
 	}
 	if current := projectionFor(t, w.pool, w.orgs.A.Org, projection.PlatformRequestID); current.ProjectionStatus != mktmodels.ProjectionOrganizationAccepted {
@@ -336,7 +336,7 @@ func TestRow11_2_DispatcherAcceptsOfferForOrganization(t *testing.T) {
 
 	// The same command replays its stored outcome and commits nothing twice.
 	replay := rowsExpect(t, w.do(t, w.dispatcher, http.MethodPost, path, body, key), http.StatusOK, "replay")
-	if replay.Object(t)["ID"] != accepted["ID"] || w.execution.reserveCount() != 1 ||
+	if replay.Object(t)["id"] != accepted["id"] || w.execution.reserveCount() != 1 ||
 		countWhere(t, w.pool, acceptances, w.orgs.A.Org, offer.ID, w.dispatcher.Member) != 1 {
 		t.Fatalf("replay re-ran the acceptance: %s (reserves %d)", replay.Raw, w.execution.reserveCount())
 	}
@@ -533,9 +533,9 @@ func TestRow11_5_AssignRequestToProvider(t *testing.T) {
 	key := map[string]string{"Idempotency-Key": ids.New("idem")}
 	created := rowsExpect(t, w.do(t, w.dispatcher, http.MethodPost, path, body, key),
 		http.StatusCreated, "assign").Object(t)
-	assignmentID, _ := created["ID"].(string)
-	if assignmentID == "" || created["Status"] != mktmodels.AssignmentPendingProviderResponse ||
-		created["MembershipID"] != provider.ID {
+	assignmentID, _ := created["id"].(string)
+	if assignmentID == "" || created["status"] != mktmodels.AssignmentPendingProviderResponse ||
+		created["membershipId"] != provider.ID {
 		t.Fatalf("assignment = %v", created)
 	}
 	if p := projectionFor(t, w.pool, org, projection.PlatformRequestID); p.ProjectionStatus != mktmodels.ProjectionAssignmentPending {
@@ -553,7 +553,7 @@ func TestRow11_5_AssignRequestToProvider(t *testing.T) {
 	}
 
 	replay := rowsExpect(t, w.do(t, w.dispatcher, http.MethodPost, path, body, key), http.StatusCreated, "replay").Object(t)
-	if replay["ID"] != assignmentID || countWhere(t, w.pool, assignments, projection.ID) != 1 {
+	if replay["id"] != assignmentID || countWhere(t, w.pool, assignments, projection.ID) != 1 {
 		t.Fatalf("replay created another assignment: %v", replay)
 	}
 	s11ExpectError(t, w.do(t, w.dispatcher, http.MethodPost, path,
@@ -592,12 +592,12 @@ func TestRow11_6_ListAndReadAssignments(t *testing.T) {
 	other := s11Assignment(t, w.pool, w.orgs.B.Org, "")
 
 	list := rowsIDs(rowsExpect(t, w.do(t, w.dispatcher, http.MethodGet, "/marketplace/assignments", nil, nil),
-		http.StatusOK, "list").Items(t), "ID")
+		http.StatusOK, "list").Items(t), "id")
 	if !list[inA.ID] || !list[inB.ID] || !list[cancelled.ID] || list[other.ID] || len(list) != 3 {
 		t.Fatalf("org A list = %v", list)
 	}
 	pending := rowsIDs(rowsExpect(t, w.do(t, w.dispatcher, http.MethodGet,
-		"/marketplace/assignments?status=pending_provider_response", nil, nil), http.StatusOK, "status filter").Items(t), "ID")
+		"/marketplace/assignments?status=pending_provider_response", nil, nil), http.StatusOK, "status filter").Items(t), "id")
 	if !pending[inA.ID] || !pending[inB.ID] || pending[cancelled.ID] || len(pending) != 2 {
 		t.Fatalf("pending list = %v", pending)
 	}
@@ -607,12 +607,12 @@ func TestRow11_6_ListAndReadAssignments(t *testing.T) {
 		t.Fatalf("limit=1 returned %d rows", len(limited))
 	}
 	if b := rowsIDs(rowsExpect(t, w.do(t, w.orgs.B, http.MethodGet, "/marketplace/assignments", nil, nil),
-		http.StatusOK, "org B list").Items(t), "ID"); !b[other.ID] || len(b) != 1 {
+		http.StatusOK, "org B list").Items(t), "id"); !b[other.ID] || len(b) != 1 {
 		t.Fatalf("org B list = %v", b)
 	}
 	branchDispatcher := s11BranchDispatcher(t, w.pool, org, branchA)
 	if scoped := rowsIDs(rowsExpect(t, w.do(t, branchDispatcher, http.MethodGet,
-		"/marketplace/assignments?branchId="+branchB, nil, nil), http.StatusOK, "branch list").Items(t), "ID"); !scoped[inA.ID] ||
+		"/marketplace/assignments?branchId="+branchB, nil, nil), http.StatusOK, "branch list").Items(t), "id"); !scoped[inA.ID] ||
 		scoped[inB.ID] || !scoped[cancelled.ID] || len(scoped) != 2 {
 		t.Fatalf("branch-A dispatcher list = %v, want branch A + unbranched only", scoped)
 	}
@@ -621,12 +621,12 @@ func TestRow11_6_ListAndReadAssignments(t *testing.T) {
 
 	detail := rowsExpect(t, w.do(t, w.dispatcher, http.MethodGet, "/marketplace/assignments/"+inA.ID, nil, nil),
 		http.StatusOK, "detail").Object(t)
-	if detail["ID"] != inA.ID || detail["Status"] != mktmodels.AssignmentPendingProviderResponse {
+	if detail["id"] != inA.ID || detail["status"] != mktmodels.AssignmentPendingProviderResponse {
 		t.Fatalf("detail = %v", detail)
 	}
 	history := rowsExpect(t, w.do(t, w.dispatcher, http.MethodGet, "/marketplace/assignments/"+cancelled.ID+"/history", nil, nil),
 		http.StatusOK, "history").Items(t)
-	if len(history) < 2 || history[0]["ToStatus"] != mktmodels.AssignmentCancelled {
+	if len(history) < 2 || history[0]["toStatus"] != mktmodels.AssignmentCancelled {
 		t.Fatalf("history = %v", history)
 	}
 	s11ExpectError(t, w.do(t, w.orgs.B, http.MethodGet, "/marketplace/assignments/"+inA.ID, nil, nil),

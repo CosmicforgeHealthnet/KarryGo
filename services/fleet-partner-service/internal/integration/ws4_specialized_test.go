@@ -149,10 +149,10 @@ func TestWS4OrderSpecializedDataAndPassengerRecords(t *testing.T) {
 	manifest := map[string]any{"capabilityCode": "TAXI_PASSENGER", "recordType": "PASSENGER_MANIFEST", "payload": map[string]any{
 		"passengers": []any{map[string]any{"passengerReference": "pax-1", "seatNumber": "1"}, map[string]any{"passengerReference": "pax-2"}}, "seatCapacity": 3}}
 	code, created := post("manifest-1", manifest)
-	if code != http.StatusCreated || created["SchemaID"] != "TAXI_PASSENGER.v2" || created["RestrictedVisibility"] != true || created["SubjectType"] != "ORDER" || created["BranchID"] != branch {
+	if code != http.StatusCreated || created["schemaId"] != "TAXI_PASSENGER.v2" || created["restrictedVisibility"] != true || created["subjectType"] != "ORDER" || created["branchId"] != branch {
 		t.Fatalf("manifest = %d %v", code, created)
 	}
-	if code, replay := post("manifest-1", manifest); code != http.StatusCreated || replay["ID"] != created["ID"] {
+	if code, replay := post("manifest-1", manifest); code != http.StatusCreated || replay["id"] != created["id"] {
 		t.Fatalf("idempotent replay = %d %v", code, replay)
 	}
 
@@ -202,10 +202,10 @@ func TestWS4OrderSpecializedDataAndPassengerRecords(t *testing.T) {
 	// when pinned to version 1 and keeps validating under it on update.
 	legacy := map[string]any{"capabilityCode": "TAXI_PASSENGER", "recordType": "PASSENGER_MANIFEST", "schemaVersion": 1, "payload": map[string]any{"passengers": []any{"opaque-1"}, "seatCapacity": 2, "legacyNote": "x"}}
 	code, legacyRecord := post("manifest-legacy", legacy)
-	if code != http.StatusCreated || legacyRecord["SchemaID"] != "TAXI_PASSENGER.v1" {
+	if code != http.StatusCreated || legacyRecord["schemaId"] != "TAXI_PASSENGER.v1" {
 		t.Fatalf("legacy manifest = %d %v", code, legacyRecord)
 	}
-	updated, err := service.UpdateRecord(ctx, scope, specialized.Taxi, legacyRecord["ID"].(string), 1, specialized.Record{Payload: json.RawMessage(`{"passengers":["opaque-1","opaque-2"],"seatCapacity":2,"legacyNote":"y"}`)}, "")
+	updated, err := service.UpdateRecord(ctx, scope, specialized.Taxi, legacyRecord["id"].(string), 1, specialized.Record{Payload: json.RawMessage(`{"passengers":["opaque-1","opaque-2"],"seatCapacity":2,"legacyNote":"y"}`)}, "")
 	if err != nil || updated.SchemaVersion != 1 {
 		t.Fatalf("legacy update = %+v %v", updated, err)
 	}

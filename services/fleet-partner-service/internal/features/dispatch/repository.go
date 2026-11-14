@@ -218,11 +218,22 @@ func (r *Repository) History(ctx context.Context, q database.Querier, org, kind,
 }
 
 type OptimizationRequest struct {
-	ID, OrganizationID, RoutePlanID, Status, ProviderReference, ProviderJobReference, InputFingerprint, IdempotencyKey, RequestFingerprint string
-	RouteVersion, OptimizationVersion, ResultVersion                                                                                       int64
-	InputSnapshot, ResultSnapshot                                                                                                          json.RawMessage
-	EstimatedDistance                                                                                                                      float64
-	EstimatedDurationSeconds                                                                                                               int
+	ID                       string          `json:"id"`
+	OrganizationID           string          `json:"organizationId"`
+	RoutePlanID              string          `json:"routePlanId"`
+	Status                   string          `json:"status"`
+	ProviderReference        string          `json:"providerReference"`
+	ProviderJobReference     string          `json:"providerJobReference"`
+	InputFingerprint         string          `json:"inputFingerprint"`
+	IdempotencyKey           string          `json:"idempotencyKey"`
+	RequestFingerprint       string          `json:"requestFingerprint"`
+	RouteVersion             int64           `json:"routeVersion"`
+	OptimizationVersion      int64           `json:"optimizationVersion"`
+	ResultVersion            int64           `json:"resultVersion"`
+	InputSnapshot            json.RawMessage `json:"inputSnapshot"`
+	ResultSnapshot           json.RawMessage `json:"resultSnapshot"`
+	EstimatedDistance        float64         `json:"estimatedDistance"`
+	EstimatedDurationSeconds int             `json:"estimatedDurationSeconds"`
 }
 
 func (r *Repository) CreateOptimization(ctx context.Context, q database.Querier, o OptimizationRequest) error {
