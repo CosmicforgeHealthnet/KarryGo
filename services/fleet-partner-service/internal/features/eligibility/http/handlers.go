@@ -234,8 +234,7 @@ func (h *Handler) evaluate(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": newDecisionView(decision, nowUnix(c)),
-		"meta": gin.H{"requestId": c.GetHeader("X-Request-ID")}})
+	respond.OK(c, newDecisionView(decision, nowUnix(c)))
 }
 
 // listDecisions returns the organization's recorded decisions.
@@ -474,7 +473,7 @@ func (h *Handler) publishPolicy(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": newPolicyView(policy)})
+	respond.JSON(c, http.StatusCreated, newPolicyView(policy))
 }
 
 func orEmpty(values []string) []string {

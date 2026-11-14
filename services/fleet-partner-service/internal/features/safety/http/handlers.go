@@ -197,9 +197,7 @@ func (h *Handler) recordReference(c *gin.Context) {
 	if result.Replayed {
 		status = http.StatusOK
 	}
-	c.JSON(status, gin.H{"data": view, "meta": gin.H{
-		"requestId": c.GetHeader("X-Request-ID"),
-	}})
+	respond.JSON(c, status, view)
 }
 
 // listReferences returns the organization's references.

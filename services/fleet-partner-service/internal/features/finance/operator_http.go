@@ -329,7 +329,7 @@ func (h *OperatorHandler) requestSettlement(c *gin.Context) {
 		failFinance(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"data": operationAccepted(operation)})
+	respond.JSON(c, http.StatusAccepted, operationAccepted(operation))
 }
 
 func (h *OperatorHandler) requestRefund(c *gin.Context) {
@@ -368,7 +368,7 @@ func (h *OperatorHandler) requestRefund(c *gin.Context) {
 		failFinance(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"data": operationAccepted(operation)})
+	respond.JSON(c, http.StatusAccepted, operationAccepted(operation))
 }
 
 func (h *OperatorHandler) requestReversal(c *gin.Context) {
@@ -407,7 +407,7 @@ func (h *OperatorHandler) requestReversal(c *gin.Context) {
 		failFinance(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"data": operationAccepted(operation)})
+	respond.JSON(c, http.StatusAccepted, operationAccepted(operation))
 }
 
 // branchPermitted refuses a write aimed at a branch the caller has no authority

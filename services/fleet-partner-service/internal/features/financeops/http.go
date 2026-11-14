@@ -341,7 +341,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			respond.Error(c, err)
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": value, "meta": gin.H{"requestId": httpx.GetRequestID(c)}})
+		respond.JSON(c, http.StatusOK, value)
 		return
 	}
 	h.command(c, t, r, run)

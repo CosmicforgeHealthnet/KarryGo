@@ -203,7 +203,7 @@ func (h *Handler) execute(c *gin.Context, t tenant.Context, r Route) {
 	if strings.HasPrefix(r.OperationID, "create") || strings.HasPrefix(r.OperationID, "add") {
 		status = http.StatusCreated
 	}
-	c.JSON(status, gin.H{"data": v})
+	respond.JSON(c, status, v)
 }
 func jsonMarshal(v any) ([]byte, error) {
 	if v == nil {

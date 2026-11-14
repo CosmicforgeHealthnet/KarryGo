@@ -109,7 +109,7 @@ func (h *Handler) putPolicy(c *gin.Context) {
 			respond.Error(c, e)
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": gin.H{"policy": v, "snapshot": s}})
+		respond.JSON(c, http.StatusOK, gin.H{"policy": v, "snapshot": s})
 	})
 }
 
@@ -154,7 +154,7 @@ func (h *Handler) createRecord(c *gin.Context) {
 			respond.Error(c, e)
 			return
 		}
-		c.JSON(http.StatusCreated, gin.H{"data": view(v)})
+		respond.JSON(c, http.StatusCreated, view(v))
 	})
 }
 func (h *Handler) listRecords(c *gin.Context) {
@@ -221,6 +221,6 @@ func (h *Handler) decide(c *gin.Context, decision string) {
 			respond.Error(c, e)
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": detail(d)})
+		respond.JSON(c, http.StatusOK, detail(d))
 	})
 }

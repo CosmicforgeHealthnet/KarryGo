@@ -305,7 +305,7 @@ func (h *Handler) requestUpload(c *gin.Context) {
 	}
 	// The upload token is returned once, here. It is not stored on the fleet
 	// side and never appears in a log line.
-	c.JSON(status, gin.H{"data": gin.H{
+	respond.JSON(c, status, gin.H{
 		"document":         newDocumentView(ticket.Document),
 		"uploadToken":      ticket.UploadToken,
 		"uploadPath":       ticket.UploadPath,
@@ -313,7 +313,7 @@ func (h *Handler) requestUpload(c *gin.Context) {
 		"maxSizeBytes":     ticket.MaxSizeBytes,
 		"allowedMimeTypes": ticket.AllowedMIME,
 		"replayed":         ticket.Replayed,
-	}, "meta": gin.H{"requestId": c.GetHeader("X-Request-ID")}})
+	})
 }
 
 func (h *Handler) listDocuments(c *gin.Context) {
@@ -625,14 +625,14 @@ func (h *Handler) replace(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": gin.H{
+	respond.JSON(c, http.StatusCreated, gin.H{
 		"document":         newDocumentView(ticket.Document),
 		"uploadToken":      ticket.UploadToken,
 		"uploadPath":       ticket.UploadPath,
 		"expiresAt":        ticket.ExpiresAt.UTC().Format(time.RFC3339),
 		"maxSizeBytes":     ticket.MaxSizeBytes,
 		"allowedMimeTypes": ticket.AllowedMIME,
-	}, "meta": gin.H{"requestId": c.GetHeader("X-Request-ID")}})
+	})
 }
 
 type revokeBody struct {
@@ -800,8 +800,7 @@ func (h *Handler) scheduleDeletion(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"data": deletionView(request),
-		"meta": gin.H{"requestId": c.GetHeader("X-Request-ID")}})
+	respond.JSON(c, http.StatusAccepted, deletionView(request))
 }
 
 func (h *Handler) readDeletion(c *gin.Context) {
