@@ -63,6 +63,7 @@ import (
 	"cosmicforge/logistics/services/taxi-service/internal/features/managedexec"
 	"cosmicforge/logistics/services/taxi-service/internal/features/organizationproviders"
 	"cosmicforge/logistics/services/taxi-service/internal/features/privateexecution"
+	"cosmicforge/logistics/services/taxi-service/internal/features/restrictions"
 	"cosmicforge/logistics/services/taxi-service/internal/movement"
 
 	identityhttp "cosmicforge/logistics/services/taxi-service/internal/features/identity/http"
@@ -513,6 +514,12 @@ func main() {
 		goodsMedia = goods.NewMediaAdapter(taxiMediaClient)
 		uploadService = provideruploadsusecases.NewUploadService(taxiMediaClient)
 	}
+	// Fleet compliance restrictions propagated to Taxi. Fleet writes them
+	// through /internal/restrictions (mounted below behind the Fleet
+	// boundary); managed and private execution consult them so a restricted
+	// driver, vehicle or organization is never given that organization's work.
+	restrictionService := restrictions.New(db)
+
 	// Fleet's private-execution authority (Section 8 TAX-012/013/014). The
 	// engine and binder are the SAME booking service and repository every
 	// independent ride uses, which is what keeps corporate work on the normal
@@ -525,6 +532,7 @@ func main() {
 		Vehicles:         vehicleRepo,
 		Corporate:        fleetProviderContext,
 		AdminGate:        adminInterventionGate,
+		Restrictions:     restrictionService,
 		ReservationTTL:   cfg.TaxiFleetReservationTTL,
 	})
 
@@ -544,7 +552,7 @@ func main() {
 		taxiZoneResolver{repo: marketRepo},
 		cfg.TaxiFleetPrivateExecutionEnabled,
 		cfg.TaxiFleetKillSwitch,
-	)
+	).WithRestrictions(restrictionService)
 
 	goodsNotifier := goods.NewRedisNotificationAdapter(notifications.RedisPublisher{Client: notificationRedis})
 	goodsService := goods.NewService(goods.Options{
@@ -755,6 +763,11 @@ func main() {
 					KillSwitch: cfg.TaxiOrganizationProvidersKillSwitch || cfg.TaxiFleetKillSwitch,
 				}))
 			organizationproviders.RegisterInternal(group.Group("/internal/organization-providers"), orgProviders,
+				organizationproviders.Boundary(opsVerifier, cfg.TaxiFleetExecutionCallers, orgProviderRepo)...)
+			// Fleet compliance-restriction authority: the same Fleet
+			// boundary (HMAC v2, caller allowlist, durable nonce). Unmounted
+			// when no internal caller is trusted.
+			restrictions.Register(group.Group("/internal/restrictions"), restrictionService,
 				organizationproviders.Boundary(opsVerifier, cfg.TaxiFleetExecutionCallers, orgProviderRepo)...)
 			organizationproviders.RegisterProvider(group.Group("/provider/organization-associations"), orgProviders,
 				organizationproviders.ClaimsProviderID,
