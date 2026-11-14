@@ -36,11 +36,11 @@ type DisplayStatus = "Due" | "Overdue" | "Scheduled" | "Paused" | "Completed" | 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function displayStatus(s: MaintenanceScheduleRecord, today: number): DisplayStatus {
-  if (s.Status === "PAUSED") return "Paused";
-  if (s.Status === "COMPLETED") return "Completed";
-  if (s.Status === "CANCELLED") return "Cancelled";
-  if (s.NextDueDate && today > 0) {
-    const due = new Date(s.NextDueDate).getTime();
+  if (s.status === "PAUSED") return "Paused";
+  if (s.status === "COMPLETED") return "Completed";
+  if (s.status === "CANCELLED") return "Cancelled";
+  if (s.nextDueDate && today > 0) {
+    const due = new Date(s.nextDueDate).getTime();
     if (due < today) return "Overdue";
     if (due - today <= 7 * DAY_MS) return "Due";
   }
@@ -49,9 +49,9 @@ function displayStatus(s: MaintenanceScheduleRecord, today: number): DisplayStat
 
 function nextDueLabel(s: MaintenanceScheduleRecord): string {
   const parts: string[] = [];
-  if (s.NextDueDate) parts.push(formatDate(s.NextDueDate));
-  if (s.NextDueOdometer != null) parts.push(`${formatNumber(s.NextDueOdometer)} km`);
-  if (s.NextDueHours != null) parts.push(`${formatNumber(s.NextDueHours)} h`);
+  if (s.nextDueDate) parts.push(formatDate(s.nextDueDate));
+  if (s.nextDueOdometer != null) parts.push(`${formatNumber(s.nextDueOdometer)} km`);
+  if (s.nextDueHours != null) parts.push(`${formatNumber(s.nextDueHours)} h`);
   return parts.length ? parts.join(" · ") : "—";
 }
 
@@ -100,19 +100,19 @@ export default function MaintenanceSchedulesPage() {
     structureService.listBranches().then(setBranches).catch(() => setBranches([]));
   }, []);
 
-  const assetOf = (id: string) => assets.find((a) => a.ID === id);
+  const assetOf = (id: string) => assets.find((a) => a.id === id);
   const branchName = (id?: string) => (id ? branches.find((b) => b.id === id)?.name ?? id : "All branches");
 
   const filteredData = data.filter((item) => {
-    const asset = assetOf(item.AssetID);
+    const asset = assetOf(item.assetId);
     const q = search.trim().toLowerCase();
     const matchesSearch =
       q === "" ||
-      item.ID.toLowerCase().includes(q) ||
-      item.AssetID.toLowerCase().includes(q) ||
-      (asset ? `${asset.AssetCode} ${asset.Manufacturer} ${asset.Model}`.toLowerCase().includes(q) : false);
+      item.id.toLowerCase().includes(q) ||
+      item.assetId.toLowerCase().includes(q) ||
+      (asset ? `${asset.assetCode} ${asset.manufacturer} ${asset.model}`.toLowerCase().includes(q) : false);
 
-    const matchesBranch = selectedBranch === ALL_BRANCHES || asset?.BranchID === selectedBranch;
+    const matchesBranch = selectedBranch === ALL_BRANCHES || asset?.branchId === selectedBranch;
     const matchesStatus = selectedStatus === "All" || displayStatus(item, today) === selectedStatus;
 
     return matchesSearch && matchesBranch && matchesStatus;
@@ -306,17 +306,17 @@ export default function MaintenanceSchedulesPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredData.map((item) => {
             const status = displayStatus(item, today);
-            const priority = item.Critical ? "Critical" : "Standard";
+            const priority = item.critical ? "Critical" : "Standard";
             const statusStyle = STATUS_STYLES[status] || STATUS_STYLES.Scheduled;
             const priorityStyle = PRIORITY_STYLES[priority];
             const isOverdue = status === "Overdue";
             const isDue = status === "Due";
-            const asset = assetOf(item.AssetID);
+            const asset = assetOf(item.assetId);
 
             return (
               <Link
-                href={`/fleet/maintenance/schedules/${item.ID}`}
-                key={item.ID}
+                href={`/fleet/maintenance/schedules/${item.id}`}
+                key={item.id}
                 className={`group block rounded-lg border p-4 transition-colors cursor-pointer ${
                   isOverdue
                     ? "border-red/30 bg-red-bg/10 hover:border-red/50 hover:bg-red-bg/20"
@@ -340,10 +340,10 @@ export default function MaintenanceSchedulesPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-semibold text-ink-950">{asset?.AssetCode || item.AssetID}</span>
-                        <span className="font-mono text-[10px] text-ink-400">{item.ID}</span>
+                        <span className="text-sm font-semibold text-ink-950">{asset?.assetCode || item.assetId}</span>
+                        <span className="font-mono text-[10px] text-ink-400">{item.id}</span>
                       </div>
-                      <div className="text-xs text-ink-500">{asset ? [asset.Manufacturer, asset.Model].filter(Boolean).join(" ") || "—" : "—"}</div>
+                      <div className="text-xs text-ink-500">{asset ? [asset.manufacturer, asset.model].filter(Boolean).join(" ") || "—" : "—"}</div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-0.5">
@@ -362,13 +362,13 @@ export default function MaintenanceSchedulesPage() {
                 <div className="mt-3 grid grid-cols-2 gap-1.5">
                   <div className="flex items-center gap-1.5 text-xs text-ink-500">
                     <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{asset ? branchName(asset.BranchID) : "—"}</span>
+                    <span>{asset ? branchName(asset.branchId) : "—"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-ink-500">
                     <Clock className="h-3.5 w-3.5 flex-shrink-0" />
                     <span>
-                      {triggerTypeLabel(item.TriggerType)}
-                      {item.IntervalValue != null ? ` · every ${formatNumber(item.IntervalValue)}` : ""}
+                      {triggerTypeLabel(item.triggerType)}
+                      {item.intervalValue != null ? ` · every ${formatNumber(item.intervalValue)}` : ""}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-ink-500 col-span-2">
@@ -378,7 +378,7 @@ export default function MaintenanceSchedulesPage() {
                 </div>
 
                 <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
-                  <div className="text-[10px] text-ink-400 truncate max-w-[180px]">{triggerTypeLabel(item.TriggerType)}</div>
+                  <div className="text-[10px] text-ink-400 truncate max-w-[180px]">{triggerTypeLabel(item.triggerType)}</div>
                   <div className="flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors group-hover:text-primary">
                     View <ArrowRight className="h-3.5 w-3.5" />
                   </div>

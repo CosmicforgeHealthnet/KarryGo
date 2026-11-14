@@ -114,8 +114,8 @@ function badgeClass(status: string): string {
 }
 
 function actorLabel(entry: StateHistoryEntry): string {
-  const type = entry.ActorType || "";
-  const id = entry.ActorID || "";
+  const type = entry.actorType || "";
+  const id = entry.actorId || "";
   if (type === "PROVIDER") {
     return `Provider ${id}`.trim();
   }
@@ -143,15 +143,15 @@ function formatTimestamp(iso: string): string {
 function transitionLabel(entry: StateHistoryEntry): string {
   // A transition from X to X is an in-place event (e.g. acknowledgement);
   // the "to" status alone would read oddly, so use a dedicated label.
-  if (entry.FromStatus === entry.ToStatus) {
-    switch (entry.ToStatus) {
+  if (entry.fromStatus === entry.toStatus) {
+    switch (entry.toStatus) {
       case "PENDING_PROVIDER_RESPONSE":
         return "Receipt acknowledged";
       default:
-        return statusLabel(entry.ToStatus);
+        return statusLabel(entry.toStatus);
     }
   }
-  return statusLabel(entry.ToStatus);
+  return statusLabel(entry.toStatus);
 }
 
 // ---------------------------------------------------------------------------
@@ -256,13 +256,13 @@ export default function AssignmentHistoryPage() {
       <div className="rounded-lg border border-line bg-surface p-5">
         <div className="flex flex-col gap-0">
           {ordered.map((ev, i) => {
-            const { Icon, bg, color } = iconForStatus(ev.ToStatus);
+            const { Icon, bg, color } = iconForStatus(ev.toStatus);
             const isFirst = i === 0;
             const isLast = i === ordered.length - 1;
 
             return (
               <div
-                key={ev.ID}
+                key={ev.id}
                 className={`relative flex gap-4 ${!isLast ? "pb-6" : "pb-0"}`}
               >
                 {/* Timeline line */}
@@ -290,11 +290,11 @@ export default function AssignmentHistoryPage() {
                     <span className="font-semibold text-ink-950">
                       {transitionLabel(ev)}
                     </span>
-                    {ev.ReasonCode && (
+                    {ev.reasonCode && (
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${badgeClass(ev.ToStatus)}`}
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${badgeClass(ev.toStatus)}`}
                       >
-                        {ev.ReasonCode}
+                        {ev.reasonCode}
                       </span>
                     )}
                   </div>
@@ -306,13 +306,13 @@ export default function AssignmentHistoryPage() {
                     <span className="text-ink-400">·</span>
                     <div className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" />
-                      {formatTimestamp(ev.OccurredAt)}
+                      {formatTimestamp(ev.occurredAt)}
                     </div>
-                    {ev.FromStatus && ev.FromStatus !== ev.ToStatus && (
+                    {ev.fromStatus && ev.fromStatus !== ev.toStatus && (
                       <>
                         <span className="text-ink-400">·</span>
                         <span className="text-xs text-ink-500">
-                          from {statusLabel(ev.FromStatus)}
+                          from {statusLabel(ev.fromStatus)}
                         </span>
                       </>
                     )}

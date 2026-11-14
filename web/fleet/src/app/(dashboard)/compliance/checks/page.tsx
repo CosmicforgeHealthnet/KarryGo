@@ -59,12 +59,12 @@ export default function ComplianceChecksPage() {
     setNotice(null);
     try {
       const check = await complianceService.runCheck(
-        { SubjectType: form.subjectType, SubjectReference: form.subjectReference.trim(), SourceType: "MANUAL_REVIEW", SourceVersion: 0 },
+        { subjectType: form.subjectType, subjectReference: form.subjectReference.trim(), sourceType: "MANUAL_REVIEW", sourceVersion: 0 },
         key,
       );
       setKey(newIdempotencyKey());
       setSelected(check);
-      setNotice(`Check complete: ${humanize(check.OverallState)}.`);
+      setNotice(`Check complete: ${humanize(check.overallState)}.`);
       await load();
     } catch (err) {
       setRunError(describeApiError(err, "The check could not be run."));
@@ -75,7 +75,7 @@ export default function ComplianceChecksPage() {
 
   const open = async (c: ComplianceCheck) => {
     try {
-      setSelected(await complianceService.getCheck(c.ID));
+      setSelected(await complianceService.getCheck(c.id));
     } catch (e) {
       setError(describeApiError(e, "The check could not be loaded."));
     }
@@ -124,19 +124,19 @@ export default function ComplianceChecksPage() {
       </Panel>
 
       {selected && (
-        <Panel title={`Check ${selected.ID}`} description={`${humanize(selected.SubjectType)} ${selected.SubjectReference}`} onClose={() => setSelected(null)}>
+        <Panel title={`Check ${selected.id}`} description={`${humanize(selected.subjectType)} ${selected.subjectReference}`} onClose={() => setSelected(null)}>
           <KeyValueGrid
             items={[
-              ["Overall", <StatusPill key="s" status={selected.OverallState} />],
-              ["Requirements evaluated", selected.RequirementCount],
-              ["Restrictions raised", (selected.RestrictionReferences ?? []).length],
-              ["Run", formatWhen(selected.CreatedAt)],
+              ["Overall", <StatusPill key="s" status={selected.overallState} />],
+              ["Requirements evaluated", selected.requirementCount],
+              ["Restrictions raised", (selected.restrictionReferences ?? []).length],
+              ["Run", formatWhen(selected.createdAt)],
             ]}
           />
-          {(selected.Results ?? []).length > 0 && (
+          {(selected.results ?? []).length > 0 && (
             <DataTable
               minWidth={600}
-              rows={selected.Results ?? []}
+              rows={selected.results ?? []}
               rowKey={(r) => r.requirementId}
               columns={[
                 { header: "Requirement", cell: (r) => r.requirementCode },
@@ -154,14 +154,14 @@ export default function ComplianceChecksPage() {
       ) : (
         <DataTable
           rows={rows}
-          rowKey={(c) => c.ID}
+          rowKey={(c) => c.id}
           onRowClick={open}
           columns={[
-            { header: "Subject", cell: (c) => <><div className="text-ink-950">{humanize(c.SubjectType)}</div><div className="font-mono text-[10px] text-ink-500">{c.SubjectReference}</div></> },
-            { header: "Source", cell: (c) => humanize(c.SourceType) },
-            { header: "Requirements", cell: (c) => c.RequirementCount },
-            { header: "Result", cell: (c) => <StatusPill status={c.OverallState} /> },
-            { header: "Run", cell: (c) => formatWhen(c.CreatedAt) },
+            { header: "Subject", cell: (c) => <><div className="text-ink-950">{humanize(c.subjectType)}</div><div className="font-mono text-[10px] text-ink-500">{c.subjectReference}</div></> },
+            { header: "Source", cell: (c) => humanize(c.sourceType) },
+            { header: "Requirements", cell: (c) => c.requirementCount },
+            { header: "Result", cell: (c) => <StatusPill status={c.overallState} /> },
+            { header: "Run", cell: (c) => formatWhen(c.createdAt) },
           ]}
         />
       )}

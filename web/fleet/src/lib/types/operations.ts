@@ -279,23 +279,23 @@ export const CUSTODY_SUBJECTS = ['PACKAGE', 'SHIPMENT', 'ORDER', 'ASSET', 'SPECI
 
 // Serialized with Go field names.
 export interface CustodyEvent {
-  ID: string;
-  SubjectType: string;
-  SubjectReference: string;
-  PackageID?: string;
-  ShipmentID?: string;
-  FromActorType: string;
-  FromActorReference: string;
-  ToActorType: string;
-  ToActorReference: string;
-  FromLocationReference?: string;
-  ToLocationReference?: string;
-  Condition?: string;
-  CorrectionOfEventID?: string;
-  Source?: string;
-  OccurredAt: string;
-  ReceivedAt?: string;
-  EvidenceMediaIDs?: string[] | null;
+  id: string;
+  subjectType: string;
+  subjectReference: string;
+  packageId?: string;
+  shipmentId?: string;
+  fromActorType: string;
+  fromActorReference: string;
+  toActorType: string;
+  toActorReference: string;
+  fromLocationReference?: string;
+  toLocationReference?: string;
+  condition?: string;
+  correctionOfEventId?: string;
+  source?: string;
+  occurredAt: string;
+  receivedAt?: string;
+  evidenceMediaIds?: string[] | null;
 }
 
 export interface CustodyEventInput {
@@ -336,18 +336,18 @@ export interface CapabilitySchema {
 
 // Serialized with Go field names.
 export interface SpecializedRecord {
-  ID: string;
-  CapabilityCode: string;
-  RecordType: string;
-  SubjectType: string;
-  SubjectReference: string;
-  Status: string;
-  RestrictedVisibility: boolean;
-  Payload: Record<string, unknown> | null;
-  SchemaVersion: number;
-  SchemaID: string;
-  Version: number;
-  CreatedAt: string;
+  id: string;
+  capabilityCode: string;
+  recordType: string;
+  subjectType: string;
+  subjectReference: string;
+  status: string;
+  restrictedVisibility: boolean;
+  payload: Record<string, unknown> | null;
+  schemaVersion: number;
+  schemaId: string;
+  version: number;
+  createdAt: string;
 }
 
 // ── Rescue and geofence events ───────────────────────────────────────────
@@ -472,35 +472,35 @@ export const MANIFEST_ITEM_TYPES = ['SHIPMENT', 'PACKAGE', 'ORDER_STOP'] as cons
 export const MANIFEST_STATUSES = ['DRAFT', 'OPEN', 'CLOSED', 'DISPATCHED', 'COMPLETED', 'CANCELLED'] as const;
 
 export interface Manifest {
-  ID: string;
-  OrganizationID: string;
-  BranchID: string;
-  ManifestReference: string;
-  RouteReference: string;
-  FutureRoutePlanID: string;
-  VehicleReference: string;
-  ProviderMembershipID: string;
-  SealNumber: string;
-  Status: string;
-  Version: number;
-  CreatedBy: string;
-  UpdatedBy: string;
-  CreatedAt: string;
-  UpdatedAt: string;
-  ClosedAt: string | null;
-  DispatchedAt: string | null;
-  CompletedAt: string | null;
-  CancelledAt: string | null;
+  id: string;
+  organizationId: string;
+  branchId: string;
+  manifestReference: string;
+  routeReference: string;
+  futureRoutePlanId: string;
+  vehicleReference: string;
+  providerMembershipId: string;
+  sealNumber: string;
+  status: string;
+  version: number;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  dispatchedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
 }
 
 export interface ManifestItem {
-  ID: string;
-  ManifestID: string;
-  ItemType: string;
-  ItemID: string;
-  ShipmentID: string;
-  AddedBy: string;
-  CreatedAt: string;
+  id: string;
+  manifestId: string;
+  itemType: string;
+  itemId: string;
+  shipmentId: string;
+  addedBy: string;
+  createdAt: string;
 }
 
 export interface ManifestDetail {
@@ -537,29 +537,29 @@ export interface RecurringTemplateData {
 }
 
 export interface RecurringOrderTemplate {
-  ID: string;
-  OrganizationID: string;
-  BranchID: string;
-  CustomerID: string;
-  ServiceCatalogItemID: string;
-  ContractID: string;
-  Data: RecurringTemplateData;
-  RecurrenceType: string;
-  NormalizedRRule: string;
-  Timezone: string;
-  StartDate: string;
-  EndDate: string | null;
-  NextRunAt: string;
-  MissedRunPolicy: string;
-  GeneratedOrderInitialState: string;
-  Status: string;
-  Version: number;
-  Attempts: number;
-  LastErrorCode: string;
-  CreatedAt: string;
-  UpdatedAt: string;
-  ActivatedAt: string | null;
-  DeactivatedAt: string | null;
+  id: string;
+  organizationId: string;
+  branchId: string;
+  customerId: string;
+  serviceCatalogItemId: string;
+  contractId: string;
+  data: RecurringTemplateData;
+  recurrenceType: string;
+  normalizedRrule: string;
+  timezone: string;
+  startDate: string;
+  endDate: string | null;
+  nextRunAt: string;
+  missedRunPolicy: string;
+  generatedOrderInitialState: string;
+  status: string;
+  version: number;
+  attempts: number;
+  lastErrorCode: string;
+  createdAt: string;
+  updatedAt: string;
+  activatedAt: string | null;
+  deactivatedAt: string | null;
 }
 
 export interface RecurringOrderInput {
@@ -582,41 +582,41 @@ export interface RecurringOrderInput {
 // ── Order imports, legacy engine (serialized with Go field names) ────────
 
 export interface OrderImport {
-  ID: string;
-  OrganizationID: string;
-  BranchID: string;
-  MediaFileID: string;
-  FileName: string;
-  FileFormat: string;
-  ContentType: string;
-  Status: string;
-  SizeBytes: number;
-  TotalRows: number;
-  ValidRows: number;
-  InvalidRows: number;
-  ImportedRows: number;
-  FailedRows: number;
-  ErrorReportMediaID: string;
-  Version: number;
-  CreatedBy: string;
-  CreatedAt: string;
-  UpdatedAt: string;
-  CompletedAt: string | null;
-  CancelledAt: string | null;
-  Attempts: number;
+  id: string;
+  organizationId: string;
+  branchId: string;
+  mediaFileId: string;
+  fileName: string;
+  fileFormat: string;
+  contentType: string;
+  status: string;
+  sizeBytes: number;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  importedRows: number;
+  failedRows: number;
+  errorReportMediaId: string;
+  version: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  attempts: number;
 }
 
 export interface OrderImportRow {
-  ID: string;
-  ImportID: string;
-  RowNumber: number;
-  RowReference: string;
-  Status: string;
-  GeneratedOrderID: string;
-  SafeErrorCode: string;
-  SafeErrorMessage: string;
-  Data: { CustomerID: string; CustomerReference: string; ServiceCatalogItemID: string; Priority: string } | null;
-  CreatedAt: string;
+  id: string;
+  importId: string;
+  rowNumber: number;
+  rowReference: string;
+  status: string;
+  generatedOrderId: string;
+  safeErrorCode: string;
+  safeErrorMessage: string;
+  data: { customerId: string; customerReference: string; serviceCatalogItemId: string; priority: string } | null;
+  createdAt: string;
 }
 
 export interface OrderImportDetail {
@@ -627,25 +627,25 @@ export interface OrderImportDetail {
 // ── Private assignments (serialized with Go field names) ─────────────────
 
 export interface PrivateAssignment {
-  ID: string;
-  BranchID: string;
-  WorkOrigin: string;
-  PrivateOrderID: string;
-  ShipmentID: string;
-  RouteStopID: string;
-  ProviderMembershipID: string;
-  ProviderID: string;
-  VehicleOrTruckReference: string;
-  ExecutionService: string;
-  Status: string;
-  ResponseDeadline: string;
-  AcceptedAt: string | null;
-  DeclinedAt: string | null;
-  ExpiredAt: string | null;
-  CancelledAt: string | null;
-  DeclineReason: string;
-  ReplacementAssignmentID: string;
-  Version: number;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  branchId: string;
+  workOrigin: string;
+  privateOrderId: string;
+  shipmentId: string;
+  routeStopId: string;
+  providerMembershipId: string;
+  providerId: string;
+  vehicleOrTruckReference: string;
+  executionService: string;
+  status: string;
+  responseDeadline: string;
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  expiredAt: string | null;
+  cancelledAt: string | null;
+  declineReason: string;
+  replacementAssignmentId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }

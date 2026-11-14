@@ -23,16 +23,16 @@ export const SPECIALIZED_CAPABILITY_CODES = [
 // serialized with Go field names. Only capabilities the organization has
 // configured at least once appear in the list.
 export interface Capability {
-  ID: string;
-  OrganizationID: string;
-  CapabilityCode: string;
-  Status: 'ENABLED' | 'DISABLED' | string;
-  Configuration: Record<string, unknown> | null;
-  EnabledAt: string | null;
-  DisabledAt: string | null;
-  Version: number;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  organizationId: string;
+  capabilityCode: string;
+  status: 'ENABLED' | 'DISABLED' | string;
+  configuration: Record<string, unknown> | null;
+  enabledAt: string | null;
+  disabledAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const specializedService = {

@@ -151,23 +151,23 @@ export function CustodyPanel({ subjectType, subjectReference }: { subjectType: s
         <DataTable
           minWidth={720}
           rows={events}
-          rowKey={(e) => e.ID}
-          onRowClick={(e) => open(e.ID)}
+          rowKey={(e) => e.id}
+          onRowClick={(e) => open(e.id)}
           columns={[
-            { header: "When", cell: (e) => formatWhen(e.OccurredAt) },
-            { header: "From", cell: (e) => `${humanize(e.FromActorType)} ${e.FromActorReference}` },
-            { header: "To", cell: (e) => `${humanize(e.ToActorType)} ${e.ToActorReference}` },
-            { header: "Condition", cell: (e) => humanize(e.Condition) },
-            { header: "Source", cell: (e) => humanize(e.Source) },
+            { header: "When", cell: (e) => formatWhen(e.occurredAt) },
+            { header: "From", cell: (e) => `${humanize(e.fromActorType)} ${e.fromActorReference}` },
+            { header: "To", cell: (e) => `${humanize(e.toActorType)} ${e.toActorReference}` },
+            { header: "Condition", cell: (e) => humanize(e.condition) },
+            { header: "Source", cell: (e) => humanize(e.source) },
           ]}
         />
       )}
       {selected && (
         <div className="rounded-xl border border-line bg-surface-2/40 p-3 text-xs text-ink-700">
-          <div className="font-mono text-ink-950">{selected.ID}</div>
-          <div>Received {formatWhen(selected.ReceivedAt)}{selected.ToLocationReference ? ` · at ${selected.ToLocationReference}` : ""}</div>
-          {selected.CorrectionOfEventID && <div>Corrects {selected.CorrectionOfEventID}</div>}
-          {(selected.EvidenceMediaIDs ?? []).length > 0 && <div>Evidence: {(selected.EvidenceMediaIDs ?? []).join(", ")}</div>}
+          <div className="font-mono text-ink-950">{selected.id}</div>
+          <div>Received {formatWhen(selected.receivedAt)}{selected.toLocationReference ? ` · at ${selected.toLocationReference}` : ""}</div>
+          {selected.correctionOfEventId && <div>Corrects {selected.correctionOfEventId}</div>}
+          {(selected.evidenceMediaIds ?? []).length > 0 && <div>Evidence: {(selected.evidenceMediaIds ?? []).join(", ")}</div>}
         </div>
       )}
     </Panel>

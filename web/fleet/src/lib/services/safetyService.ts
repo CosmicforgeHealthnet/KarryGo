@@ -24,7 +24,7 @@ export const incidentService = {
     return (await apiClient.get<{ data: Incident }>(`/incidents/${enc(incidentId)}`)).data.data;
   },
   async create(
-    input: { IncidentType: string; Severity: string; Description: string; OccurredAt: string; LocationReference?: string; BranchID?: string; TripReference?: string },
+    input: { incidentType: string; severity: string; description: string; occurredAt: string; locationReference?: string; branchId?: string; tripReference?: string },
     idempotencyKey: string,
   ): Promise<Incident> {
     return (await apiClient.post<{ data: Incident }>('/incidents', input, commandHeaders({ idempotencyKey }))).data.data;
@@ -108,7 +108,7 @@ export const proofService = {
 // Compliance checks (evaluate one subject) and the restrictions they raise.
 export const complianceService = {
   async runCheck(
-    input: { SubjectType: string; SubjectReference: string; SourceType: string; SourceReference?: string; SourceVersion?: number },
+    input: { subjectType: string; subjectReference: string; sourceType: string; sourceReference?: string; sourceVersion?: number },
     idempotencyKey: string,
   ): Promise<ComplianceCheck> {
     return (await apiClient.post<{ data: ComplianceCheck }>('/compliance/checks', input, commandHeaders({ idempotencyKey }))).data.data;

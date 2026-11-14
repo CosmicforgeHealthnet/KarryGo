@@ -69,7 +69,7 @@ export default function OrderImportsPage() {
         key,
       );
       setKey(newIdempotencyKey());
-      router.push(`/private-ops/orders/import/${created.ID}`);
+      router.push(`/private-ops/orders/import/${created.id}`);
     } catch (err) {
       setFormError(describeApiError(err, "The import could not be started."));
     } finally {
@@ -110,9 +110,9 @@ export default function OrderImportsPage() {
       <StatGrid
         items={[
           { label: "Loaded", value: rows.length },
-          { label: "In progress", value: rows.filter((i) => ["UPLOADED", "VALIDATING", "READY", "IMPORTING"].includes(i.Status)).length, tone: "amber" },
-          { label: "Completed", value: rows.filter((i) => i.Status === "COMPLETED" || i.Status === "PARTIALLY_COMPLETED").length, tone: "green" },
-          { label: "Failed", value: rows.filter((i) => i.Status === "FAILED" || i.Status === "VALIDATION_FAILED").length, tone: "red" },
+          { label: "In progress", value: rows.filter((i) => ["UPLOADED", "VALIDATING", "READY", "IMPORTING"].includes(i.status)).length, tone: "amber" },
+          { label: "Completed", value: rows.filter((i) => i.status === "COMPLETED" || i.status === "PARTIALLY_COMPLETED").length, tone: "green" },
+          { label: "Failed", value: rows.filter((i) => i.status === "FAILED" || i.status === "VALIDATION_FAILED").length, tone: "red" },
         ]}
       />
 
@@ -149,15 +149,15 @@ export default function OrderImportsPage() {
       ) : (
         <DataTable
           rows={rows}
-          rowKey={(i) => i.ID}
-          onRowClick={(i) => router.push(`/private-ops/orders/import/${i.ID}`)}
+          rowKey={(i) => i.id}
+          onRowClick={(i) => router.push(`/private-ops/orders/import/${i.id}`)}
           columns={[
-            { header: "Import", cell: (i) => <span className="font-mono text-ink-950">{i.FileName || i.ID}</span> },
-            { header: "Branch", cell: (i) => branchName(i.BranchID) },
-            { header: "Format", cell: (i) => i.FileFormat },
-            { header: "Rows", cell: (i) => `${i.ImportedRows} imported · ${i.InvalidRows + i.FailedRows} failed · ${i.TotalRows} total` },
-            { header: "Status", cell: (i) => <StatusPill status={i.Status} /> },
-            { header: "Created", cell: (i) => formatWhen(i.CreatedAt) },
+            { header: "Import", cell: (i) => <span className="font-mono text-ink-950">{i.fileName || i.id}</span> },
+            { header: "Branch", cell: (i) => branchName(i.branchId) },
+            { header: "Format", cell: (i) => i.fileFormat },
+            { header: "Rows", cell: (i) => `${i.importedRows} imported · ${i.invalidRows + i.failedRows} failed · ${i.totalRows} total` },
+            { header: "Status", cell: (i) => <StatusPill status={i.status} /> },
+            { header: "Created", cell: (i) => formatWhen(i.createdAt) },
           ]}
         />
       )}

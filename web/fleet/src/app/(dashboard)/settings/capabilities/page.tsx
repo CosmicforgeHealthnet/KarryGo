@@ -55,11 +55,11 @@ export default function CapabilityConfigurationPage() {
 
   const rows: Row[] = SPECIALIZED_CAPABILITY_CODES.map((code) => ({
     code,
-    capability: capabilities.find((c) => c.CapabilityCode === code),
+    capability: capabilities.find((c) => c.capabilityCode === code),
   }));
 
   const open = (row: Row, enable: boolean) => {
-    setPending({ code: row.code, enable, version: row.capability?.Version });
+    setPending({ code: row.code, enable, version: row.capability?.version });
     setReason("");
     setKey(newIdempotencyKey());
     setFormError(null);
@@ -72,7 +72,7 @@ export default function CapabilityConfigurationPage() {
     setFormError(null);
     try {
       const updated = await specializedService.setCapability(pending.code, pending.enable, reason.trim(), pending.version, key);
-      setCapabilities((list) => [...list.filter((c) => c.CapabilityCode !== updated.CapabilityCode), updated]);
+      setCapabilities((list) => [...list.filter((c) => c.capabilityCode !== updated.capabilityCode), updated]);
       setNotice(`${humanize(pending.code)} ${pending.enable ? "enabled" : "disabled"}.`);
       setPending(null);
     } catch (err) {
@@ -101,8 +101,8 @@ export default function CapabilityConfigurationPage() {
 
       <StatGrid
         items={[
-          { label: "Enabled", value: capabilities.filter((c) => c.Status === "ENABLED").length, tone: "green" },
-          { label: "Disabled", value: capabilities.filter((c) => c.Status === "DISABLED").length },
+          { label: "Enabled", value: capabilities.filter((c) => c.status === "ENABLED").length, tone: "green" },
+          { label: "Disabled", value: capabilities.filter((c) => c.status === "DISABLED").length },
           { label: "Never configured", value: rows.filter((r) => !r.capability).length },
         ]}
       />
@@ -139,14 +139,14 @@ export default function CapabilityConfigurationPage() {
           { header: "Capability", cell: (r) => <span className="font-medium text-ink-950">{humanize(r.code)}</span> },
           {
             header: "Status",
-            cell: (r) => (r.capability ? <StatusPill status={r.capability.Status} tone={r.capability.Status === "ENABLED" ? "green" : "gray"} /> : <StatusPill label="Not configured" tone="gray" />),
+            cell: (r) => (r.capability ? <StatusPill status={r.capability.status} tone={r.capability.status === "ENABLED" ? "green" : "gray"} /> : <StatusPill label="Not configured" tone="gray" />),
           },
-          { header: "Enabled", cell: (r) => formatWhen(r.capability?.EnabledAt) },
-          { header: "Disabled", cell: (r) => formatWhen(r.capability?.DisabledAt) },
+          { header: "Enabled", cell: (r) => formatWhen(r.capability?.enabledAt) },
+          { header: "Disabled", cell: (r) => formatWhen(r.capability?.disabledAt) },
           {
             header: "Action",
             cell: (r) =>
-              r.capability?.Status === "ENABLED" ? (
+              r.capability?.status === "ENABLED" ? (
                 <SecondaryButton onClick={() => open(r, false)}>
                   <PowerOff className="h-3 w-3" /> Disable
                 </SecondaryButton>

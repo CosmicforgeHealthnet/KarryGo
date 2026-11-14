@@ -81,7 +81,7 @@ export default function ManifestsPage() {
         key,
       );
       setKey(newIdempotencyKey());
-      router.push(`/private-ops/manifests/${manifest.ID}`);
+      router.push(`/private-ops/manifests/${manifest.id}`);
     } catch (err) {
       setFormError(describeApiError(err, "The manifest could not be created."));
     } finally {
@@ -93,7 +93,7 @@ export default function ManifestsPage() {
     const q = search.trim().toLowerCase();
     return q === ""
       ? rows
-      : rows.filter((m) => [m.ManifestReference, m.RouteReference, m.VehicleReference, m.SealNumber].join(" ").toLowerCase().includes(q));
+      : rows.filter((m) => [m.manifestReference, m.routeReference, m.vehicleReference, m.sealNumber].join(" ").toLowerCase().includes(q));
   }, [rows, search]);
 
   if (loading && rows.length === 0 && !error) return <Loading label="Loading manifests..." />;
@@ -126,9 +126,9 @@ export default function ManifestsPage() {
       <StatGrid
         items={[
           { label: "Loaded", value: rows.length },
-          { label: "Draft or open", value: rows.filter((m) => m.Status === "DRAFT" || m.Status === "OPEN").length, tone: "amber" },
-          { label: "Closed", value: rows.filter((m) => m.Status === "CLOSED").length, tone: "green" },
-          { label: "Dispatched", value: rows.filter((m) => m.Status === "DISPATCHED").length, tone: "primary" },
+          { label: "Draft or open", value: rows.filter((m) => m.status === "DRAFT" || m.status === "OPEN").length, tone: "amber" },
+          { label: "Closed", value: rows.filter((m) => m.status === "CLOSED").length, tone: "green" },
+          { label: "Dispatched", value: rows.filter((m) => m.status === "DISPATCHED").length, tone: "primary" },
         ]}
       />
 
@@ -183,16 +183,16 @@ export default function ManifestsPage() {
       ) : (
         <DataTable
           rows={filtered}
-          rowKey={(m) => m.ID}
-          onRowClick={(m) => router.push(`/private-ops/manifests/${m.ID}`)}
+          rowKey={(m) => m.id}
+          onRowClick={(m) => router.push(`/private-ops/manifests/${m.id}`)}
           columns={[
-            { header: "Manifest", cell: (m) => <span className="font-mono text-ink-950">{m.ManifestReference}</span> },
-            { header: "Branch", cell: (m) => branchName(m.BranchID) },
-            { header: "Route", cell: (m) => m.RouteReference || "—" },
-            { header: "Vehicle", cell: (m) => m.VehicleReference || "—" },
-            { header: "Seal", cell: (m) => m.SealNumber || "—" },
-            { header: "Status", cell: (m) => <StatusPill status={m.Status} /> },
-            { header: "Updated", cell: (m) => formatWhen(m.UpdatedAt) },
+            { header: "Manifest", cell: (m) => <span className="font-mono text-ink-950">{m.manifestReference}</span> },
+            { header: "Branch", cell: (m) => branchName(m.branchId) },
+            { header: "Route", cell: (m) => m.routeReference || "—" },
+            { header: "Vehicle", cell: (m) => m.vehicleReference || "—" },
+            { header: "Seal", cell: (m) => m.sealNumber || "—" },
+            { header: "Status", cell: (m) => <StatusPill status={m.status} /> },
+            { header: "Updated", cell: (m) => formatWhen(m.updatedAt) },
           ]}
         />
       )}

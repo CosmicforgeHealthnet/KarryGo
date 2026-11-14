@@ -64,7 +64,7 @@ export default function OrderImportDetailPage() {
     setBusy("cancel");
     setActionError(null);
     try {
-      setJob(await orderImportService.cancel(job.ID, job.Version, keys.cancel));
+      setJob(await orderImportService.cancel(job.id, job.version, keys.cancel));
       setKeys((k) => ({ ...k, cancel: newIdempotencyKey() }));
       setNotice("Import cancelled.");
     } catch (err) {
@@ -79,7 +79,7 @@ export default function OrderImportDetailPage() {
     setBusy("replay");
     setActionError(null);
     try {
-      await orderImportService.replay(job.ID, keys.replay);
+      await orderImportService.replay(job.id, keys.replay);
       setKeys((k) => ({ ...k, replay: newIdempotencyKey() }));
       setNotice("Import queued again.");
       await load();
@@ -90,7 +90,7 @@ export default function OrderImportDetailPage() {
     }
   };
 
-  const filtered = useMemo(() => (rowFilter === "ALL" ? rows : rows.filter((r) => r.Status === rowFilter)), [rows, rowFilter]);
+  const filtered = useMemo(() => (rowFilter === "ALL" ? rows : rows.filter((r) => r.status === rowFilter)), [rows, rowFilter]);
 
   if (loading) return <Loading label="Loading import..." />;
   if (!job) {
@@ -102,13 +102,13 @@ export default function OrderImportDetailPage() {
     );
   }
 
-  const terminal = TERMINAL.includes(job.Status);
+  const terminal = TERMINAL.includes(job.status);
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
-        title={`Import ${job.FileName || job.ID}`}
-        description={`Started ${formatWhen(job.CreatedAt)} · ${job.FileFormat}`}
+        title={`Import ${job.fileName || job.id}`}
+        description={`Started ${formatWhen(job.createdAt)} · ${job.fileFormat}`}
         actions={
           <>
             <SecondaryButton onClick={load}>
@@ -126,32 +126,32 @@ export default function OrderImportDetailPage() {
 
       <StatGrid
         items={[
-          { label: "Total rows", value: job.TotalRows },
-          { label: "Imported", value: job.ImportedRows, tone: "green" },
-          { label: "Invalid", value: job.InvalidRows, tone: "amber" },
-          { label: "Failed", value: job.FailedRows, tone: "red" },
+          { label: "Total rows", value: job.totalRows },
+          { label: "Imported", value: job.importedRows, tone: "green" },
+          { label: "Invalid", value: job.invalidRows, tone: "amber" },
+          { label: "Failed", value: job.failedRows, tone: "red" },
         ]}
       />
 
       <KeyValueGrid
         items={[
-          ["Status", <StatusPill key="s" status={job.Status} />],
-          ["Branch", job.BranchID],
-          ["Media file", job.MediaFileID],
-          ["Valid rows", job.ValidRows],
-          ["Attempts", job.Attempts],
-          ["Completed", formatWhen(job.CompletedAt)],
-          ["Cancelled", formatWhen(job.CancelledAt)],
-          ["Error report", job.ErrorReportMediaID || "—"],
-          ["Version", job.Version],
+          ["Status", <StatusPill key="s" status={job.status} />],
+          ["Branch", job.branchId],
+          ["Media file", job.mediaFileId],
+          ["Valid rows", job.validRows],
+          ["Attempts", job.attempts],
+          ["Completed", formatWhen(job.completedAt)],
+          ["Cancelled", formatWhen(job.cancelledAt)],
+          ["Error report", job.errorReportMediaId || "—"],
+          ["Version", job.version],
         ]}
       />
 
-      {(!terminal || job.Status === "FAILED") && (
+      {(!terminal || job.status === "FAILED") && (
         <Panel title="Actions">
           <ApiErrorNotice error={actionError} />
           <div className="flex flex-wrap gap-2">
-            {job.Status === "FAILED" && (
+            {job.status === "FAILED" && (
               <SecondaryButton onClick={replay} disabled={busy !== null}>
                 <RotateCcw className="h-3.5 w-3.5" /> {busy === "replay" ? "Queueing..." : "Replay import"}
               </SecondaryButton>
@@ -179,16 +179,16 @@ export default function OrderImportDetailPage() {
           <DataTable
             minWidth={720}
             rows={filtered}
-            rowKey={(r) => r.ID}
+            rowKey={(r) => r.id}
             onRowClick={(r) => {
-              if (r.GeneratedOrderID) router.push(`/private-ops/orders/${r.GeneratedOrderID}`);
+              if (r.generatedOrderId) router.push(`/private-ops/orders/${r.generatedOrderId}`);
             }}
             columns={[
-              { header: "Row", cell: (r) => r.RowNumber },
-              { header: "Reference", cell: (r) => <span className="font-mono">{r.RowReference || "—"}</span> },
-              { header: "Status", cell: (r) => <StatusPill status={r.Status} /> },
-              { header: "Order", cell: (r) => <span className="font-mono">{r.GeneratedOrderID || "—"}</span> },
-              { header: "Problem", cell: (r) => (r.SafeErrorMessage ? `${r.SafeErrorMessage}${r.SafeErrorCode ? ` (${r.SafeErrorCode})` : ""}` : "—") },
+              { header: "Row", cell: (r) => r.rowNumber },
+              { header: "Reference", cell: (r) => <span className="font-mono">{r.rowReference || "—"}</span> },
+              { header: "Status", cell: (r) => <StatusPill status={r.status} /> },
+              { header: "Order", cell: (r) => <span className="font-mono">{r.generatedOrderId || "—"}</span> },
+              { header: "Problem", cell: (r) => (r.safeErrorMessage ? `${r.safeErrorMessage}${r.safeErrorCode ? ` (${r.safeErrorCode})` : ""}` : "—") },
             ]}
           />
         )}

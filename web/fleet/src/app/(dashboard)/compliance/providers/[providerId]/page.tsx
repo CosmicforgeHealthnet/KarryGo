@@ -53,18 +53,18 @@ const reasonList = (value: unknown): string[] => {
 };
 
 const toRow = (status: ComplianceStatus, requirement?: ComplianceRequirement): RequirementRow => ({
-  id: status.ID,
-  name: requirement ? requirement.Name || requirement.Code : status.RequirementID,
-  reference: requirement?.Code || status.RequirementID,
-  category: requirement?.RequirementType || "",
-  status: status.State,
-  dueDate: status.ExpiresAt ?? status.DueAt,
-  source: status.SourceType,
-  sourceReference: status.SourceReference,
-  restrictionReference: status.RestrictionReference,
-  restrictionImpact: Boolean(status.RestrictionReference) || Boolean(requirement?.BlocksOperation && status.State !== "COMPLIANT"),
-  reasons: reasonList(status.ReasonCodes),
-  evaluatedAt: status.EvaluatedAt,
+  id: status.id,
+  name: requirement ? requirement.name || requirement.code : status.requirementId,
+  reference: requirement?.code || status.requirementId,
+  category: requirement?.requirementType || "",
+  status: status.state,
+  dueDate: status.expiresAt ?? status.dueAt,
+  source: status.sourceType,
+  sourceReference: status.sourceReference,
+  restrictionReference: status.restrictionReference,
+  restrictionImpact: Boolean(status.restrictionReference) || Boolean(requirement?.blocksOperation && status.state !== "COMPLIANT"),
+  reasons: reasonList(status.reasonCodes),
+  evaluatedAt: status.evaluatedAt,
 });
 
 const NEEDS_ACTION = ["NON_COMPLIANT", "RESTRICTED"];
@@ -171,7 +171,7 @@ export default function ProviderCompliancePage() {
         complianceStatusService.forProvider(providerId),
         complianceStatusService.requirements().catch(() => [] as ComplianceRequirement[]),
       ]);
-      setRequirements(statuses.map((st) => toRow(st, definitions.find((d) => d.ID === st.RequirementID))));
+      setRequirements(statuses.map((st) => toRow(st, definitions.find((d) => d.id === st.requirementId))));
       setError(null);
     } catch (e) {
       setError(describeApiError(e, "Provider compliance could not be loaded."));
@@ -441,7 +441,7 @@ export default function ProviderCompliancePage() {
               <div>
                 <span className="font-semibold text-ink-950">Active Restrictions</span>
                 <span className="ml-2 rounded-full bg-red-bg px-2 py-0.5 text-[10px] font-semibold text-red">
-                  {data.restrictions.filter((r) => r.State === "ACTIVE").length} active
+                  {data.restrictions.filter((r) => r.state === "ACTIVE").length} active
                 </span>
               </div>
             </div>
@@ -456,37 +456,37 @@ export default function ProviderCompliancePage() {
             <div className="border-t border-line p-4">
               <div className="space-y-3">
                 {data.restrictions.map((restriction) => {
-                  const severityStyle = RESTRICTION_SEVERITY_STYLES[restriction.Severity] || RESTRICTION_SEVERITY_STYLES.MEDIUM;
-                  const clearanceStyle = RESTRICTION_CLEARANCE_STYLES[restriction.State] || RESTRICTION_CLEARANCE_STYLES.ACTIVE;
+                  const severityStyle = RESTRICTION_SEVERITY_STYLES[restriction.severity] || RESTRICTION_SEVERITY_STYLES.MEDIUM;
+                  const clearanceStyle = RESTRICTION_CLEARANCE_STYLES[restriction.state] || RESTRICTION_CLEARANCE_STYLES.ACTIVE;
 
                   return (
                     <div
-                      key={restriction.ID}
+                      key={restriction.id}
                       className="rounded-xl border border-line p-4 hover:bg-surface-2 transition-colors"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${severityStyle.bg} ${severityStyle.text}`}>
-                              {humanize(restriction.Severity)}
+                              {humanize(restriction.severity)}
                             </span>
                             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${clearanceStyle.bg} ${clearanceStyle.text}`}>
-                              {humanize(restriction.State)}
+                              {humanize(restriction.state)}
                             </span>
-                            <span className="text-[10px] text-ink-500">{humanize(restriction.SourceType)}</span>
+                            <span className="text-[10px] text-ink-500">{humanize(restriction.sourceType)}</span>
                           </div>
-                          <div className="mt-1 font-medium text-ink-950">{humanize(restriction.ReasonCode)}</div>
+                          <div className="mt-1 font-medium text-ink-950">{humanize(restriction.reasonCode)}</div>
                           <div className="mt-0.5 text-xs text-ink-500">
-                            Source: {restriction.SourceReference || humanize(restriction.SourceType)} · Effective: {formatDate(restriction.EffectiveAt)}
+                            Source: {restriction.sourceReference || humanize(restriction.sourceType)} · Effective: {formatDate(restriction.effectiveAt)}
                           </div>
-                          {restriction.ClearanceReason && (
+                          {restriction.clearanceReason && (
                             <div className="mt-2 flex items-start gap-1.5 text-xs text-amber">
                               <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-                              <span>{restriction.ClearanceReason}</span>
+                              <span>{restriction.clearanceReason}</span>
                             </div>
                           )}
                         </div>
-                        {restriction.State === "ACTIVE" && (
+                        {restriction.state === "ACTIVE" && (
                           <button
                             onClick={() => router.push("/compliance/restrictions")}
                             className="flex-shrink-0 rounded-lg border border-line px-3 py-1.5 text-[11px] font-medium text-ink-700 hover:bg-white transition-colors"

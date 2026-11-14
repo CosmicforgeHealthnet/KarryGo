@@ -79,10 +79,10 @@ export default function ManifestDetailPage() {
     setActionError(null);
     if (next === "edit") {
       setEdit({
-        routeReference: manifest.RouteReference,
-        vehicleReference: manifest.VehicleReference,
-        providerMembershipId: manifest.ProviderMembershipID,
-        sealNumber: manifest.SealNumber,
+        routeReference: manifest.routeReference,
+        vehicleReference: manifest.vehicleReference,
+        providerMembershipId: manifest.providerMembershipId,
+        sealNumber: manifest.sealNumber,
       });
     }
     if (next === "seal") setSeal({ sealNumber: "", reasonCode: "" });
@@ -111,14 +111,14 @@ export default function ManifestDetailPage() {
     act(
       () =>
         manifestService.update(
-          manifest.ID,
+          manifest.id,
           {
             routeReference: edit.routeReference.trim(),
             vehicleReference: edit.vehicleReference.trim(),
             providerMembershipId: edit.providerMembershipId.trim(),
             sealNumber: edit.sealNumber.trim(),
           },
-          manifest.Version,
+          manifest.version,
         ),
       "Manifest updated.",
     );
@@ -127,18 +127,18 @@ export default function ManifestDetailPage() {
   const amendSeal = (e: FormEvent) => {
     e.preventDefault();
     if (!manifest) return;
-    act(() => manifestService.amendSeal(manifest.ID, seal.sealNumber.trim(), seal.reasonCode.trim(), manifest.Version, keys.seal), "Seal amended.", "seal");
+    act(() => manifestService.amendSeal(manifest.id, seal.sealNumber.trim(), seal.reasonCode.trim(), manifest.version, keys.seal), "Seal amended.", "seal");
   };
 
   const cancel = (e: FormEvent) => {
     e.preventDefault();
     if (!manifest) return;
-    act(() => manifestService.cancel(manifest.ID, cancelReason.trim(), manifest.Version, keys.cancel), "Manifest cancelled.", "cancel");
+    act(() => manifestService.cancel(manifest.id, cancelReason.trim(), manifest.version, keys.cancel), "Manifest cancelled.", "cancel");
   };
 
   const close = () => {
     if (!manifest) return;
-    act(() => manifestService.close(manifest.ID, manifest.Version, keys.close), "Manifest closed. Its contents are now locked.", "close");
+    act(() => manifestService.close(manifest.id, manifest.version, keys.close), "Manifest closed. Its contents are now locked.", "close");
   };
 
   const addItem = async (e: FormEvent) => {
@@ -147,7 +147,7 @@ export default function ManifestDetailPage() {
     setAddingItem(true);
     setItemError(null);
     try {
-      await manifestService.addItem(manifest.ID, item.itemType, item.itemId.trim(), keys.item);
+      await manifestService.addItem(manifest.id, item.itemType, item.itemId.trim(), keys.item);
       renew("item");
       setItem({ ...item, itemId: "" });
       setNotice("Item added to the manifest.");
@@ -169,14 +169,14 @@ export default function ManifestDetailPage() {
     );
   }
 
-  const editable = manifest.Status === "DRAFT" || manifest.Status === "OPEN";
-  const cancellable = editable || manifest.Status === "CLOSED";
+  const editable = manifest.status === "DRAFT" || manifest.status === "OPEN";
+  const cancellable = editable || manifest.status === "CLOSED";
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
-        title={`Manifest ${manifest.ManifestReference}`}
-        description={`Created ${formatWhen(manifest.CreatedAt)}`}
+        title={`Manifest ${manifest.manifestReference}`}
+        description={`Created ${formatWhen(manifest.createdAt)}`}
         actions={
           <>
             {editable && mode !== "edit" && (
@@ -196,15 +196,15 @@ export default function ManifestDetailPage() {
 
       <KeyValueGrid
         items={[
-          ["Status", <StatusPill key="s" status={manifest.Status} />],
-          ["Branch", manifest.BranchID],
-          ["Route", manifest.RouteReference || "—"],
-          ["Vehicle", manifest.VehicleReference || "—"],
-          ["Provider membership", manifest.ProviderMembershipID || "—"],
-          ["Seal number", manifest.SealNumber || "—"],
-          ["Closed", formatWhen(manifest.ClosedAt)],
-          ["Dispatched", formatWhen(manifest.DispatchedAt)],
-          ["Version", manifest.Version],
+          ["Status", <StatusPill key="s" status={manifest.status} />],
+          ["Branch", manifest.branchId],
+          ["Route", manifest.routeReference || "—"],
+          ["Vehicle", manifest.vehicleReference || "—"],
+          ["Provider membership", manifest.providerMembershipId || "—"],
+          ["Seal number", manifest.sealNumber || "—"],
+          ["Closed", formatWhen(manifest.closedAt)],
+          ["Dispatched", formatWhen(manifest.dispatchedAt)],
+          ["Version", manifest.version],
         ]}
       />
 
@@ -217,7 +217,7 @@ export default function ManifestDetailPage() {
                 <Lock className="h-3.5 w-3.5" /> {busy && mode === "none" ? "Closing..." : "Close manifest"}
               </PrimaryButton>
             )}
-            {manifest.Status === "CLOSED" && (
+            {manifest.status === "CLOSED" && (
               <SecondaryButton onClick={() => openMode("seal")} disabled={busy}>
                 <ShieldCheck className="h-3.5 w-3.5" /> Amend seal
               </SecondaryButton>
@@ -316,16 +316,16 @@ export default function ManifestDetailPage() {
           <DataTable
             minWidth={640}
             rows={items}
-            rowKey={(i) => i.ID}
+            rowKey={(i) => i.id}
             onRowClick={(i) => {
-              if (i.ItemType === "SHIPMENT") router.push(`/private-ops/shipments/${i.ItemID}`);
-              else if (i.ItemType === "PACKAGE") router.push(`/private-ops/packages/${i.ItemID}`);
+              if (i.itemType === "SHIPMENT") router.push(`/private-ops/shipments/${i.itemId}`);
+              else if (i.itemType === "PACKAGE") router.push(`/private-ops/packages/${i.itemId}`);
             }}
             columns={[
-              { header: "Type", cell: (i) => humanize(i.ItemType) },
-              { header: "Item", cell: (i) => <span className="font-mono">{i.ItemID}</span> },
-              { header: "Shipment", cell: (i) => <span className="font-mono">{i.ShipmentID || "—"}</span> },
-              { header: "Added", cell: (i) => formatWhen(i.CreatedAt) },
+              { header: "Type", cell: (i) => humanize(i.itemType) },
+              { header: "Item", cell: (i) => <span className="font-mono">{i.itemId}</span> },
+              { header: "Shipment", cell: (i) => <span className="font-mono">{i.shipmentId || "—"}</span> },
+              { header: "Added", cell: (i) => formatWhen(i.createdAt) },
             ]}
           />
         )}

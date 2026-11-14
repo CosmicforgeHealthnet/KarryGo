@@ -61,21 +61,21 @@ export default function ComplianceOverviewPage() {
 
   if (loading) return <Loading label="Loading compliance data..." />;
 
-  const applied = restrictions.filter((r) => r.State !== "CLEARED");
-  const openIncidents = incidents.filter((i) => i.Status !== "CLOSED" && i.Status !== "RESOLVED");
-  const compliantChecks = checks.filter((c) => c.OverallState === "COMPLIANT" || c.OverallState === "NOT_APPLICABLE").length;
+  const applied = restrictions.filter((r) => r.state !== "CLEARED");
+  const openIncidents = incidents.filter((i) => i.status !== "CLOSED" && i.status !== "RESOLVED");
+  const compliantChecks = checks.filter((c) => c.overallState === "COMPLIANT" || c.overallState === "NOT_APPLICABLE").length;
   const rate = checks.length ? Math.round((compliantChecks / checks.length) * 100) : null;
 
   const cards = [
     { label: "Active Restrictions", value: applied.length, sub: `${restrictions.length} recorded in total`, tone: "text-red", bg: "bg-red-bg", icon: AlertCircle },
-    { label: "Open Incidents", value: openIncidents.length, sub: `${openIncidents.filter((i) => i.Severity === "CRITICAL").length} critical`, tone: "text-amber", bg: "bg-amber-bg", icon: AlertTriangle },
+    { label: "Open Incidents", value: openIncidents.length, sub: `${openIncidents.filter((i) => i.severity === "CRITICAL").length} critical`, tone: "text-amber", bg: "bg-amber-bg", icon: AlertTriangle },
     { label: "Checks Run", value: checks.length, sub: "Most recent 200", tone: "text-primary", bg: "bg-primary-bg", icon: ShieldCheck },
     { label: "Compliance Rate", value: rate == null ? "—" : `${rate}%`, sub: "Of recent checks", tone: "text-green", bg: "bg-green-bg", icon: Shield },
   ];
 
   const recent = [
-    ...applied.map((r) => ({ id: r.ID, kind: "Restriction", title: `${humanize(r.ReasonCode)} · ${humanize(r.SubjectType)} ${r.SubjectReference}`, severity: r.Severity, at: r.EffectiveAt, path: "/compliance/restrictions" })),
-    ...openIncidents.map((i) => ({ id: i.ID, kind: "Incident", title: `${humanize(i.IncidentType)} · ${i.Description}`, severity: i.Severity, at: i.OccurredAt, path: `/compliance/incidents/${i.ID}` })),
+    ...applied.map((r) => ({ id: r.id, kind: "Restriction", title: `${humanize(r.reasonCode)} · ${humanize(r.subjectType)} ${r.subjectReference}`, severity: r.severity, at: r.effectiveAt, path: "/compliance/restrictions" })),
+    ...openIncidents.map((i) => ({ id: i.id, kind: "Incident", title: `${humanize(i.incidentType)} · ${i.description}`, severity: i.severity, at: i.occurredAt, path: `/compliance/incidents/${i.id}` })),
   ]
     .sort((a, b) => (a.at < b.at ? 1 : -1))
     .slice(0, 8);
@@ -155,11 +155,11 @@ export default function ComplianceOverviewPage() {
           ) : (
             <ul className="space-y-2">
               {checks.slice(0, 6).map((c) => (
-                <li key={c.ID} className="flex items-center justify-between gap-2 text-sm">
+                <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
                   <span className="truncate text-ink-700">
-                    {humanize(c.SubjectType)} <span className="font-mono text-[11px]">{c.SubjectReference}</span>
+                    {humanize(c.subjectType)} <span className="font-mono text-[11px]">{c.subjectReference}</span>
                   </span>
-                  <StatusPill status={c.OverallState} />
+                  <StatusPill status={c.overallState} />
                 </li>
               ))}
             </ul>

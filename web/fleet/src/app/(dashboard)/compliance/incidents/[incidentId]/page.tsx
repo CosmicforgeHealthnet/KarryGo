@@ -28,7 +28,7 @@ type KeyName = IncidentCommand | "investigate" | "findings" | "approve";
 
 // The stage of an incident: its status, or for an escalated incident the
 // status it was escalated from (escalation does not skip the lifecycle).
-const stageOf = (i: Incident) => (i.Status === "ESCALATED" ? i.PreEscalationStatus : i.Status);
+const stageOf = (i: Incident) => (i.status === "ESCALATED" ? i.preEscalationStatus : i.status);
 
 export default function IncidentDetailPage() {
   const params = useParams();
@@ -72,7 +72,7 @@ export default function IncidentDetailPage() {
     try {
       const i = await incidentService.get(incidentId);
       setIncident(i);
-      setTriage((t) => ({ ...t, severity: t.severity || i.Severity, locationReference: t.locationReference || i.LocationReference }));
+      setTriage((t) => ({ ...t, severity: t.severity || i.severity, locationReference: t.locationReference || i.locationReference }));
       setError(null);
       loadInvestigations();
     } catch (e) {
@@ -93,7 +93,7 @@ export default function IncidentDetailPage() {
     setActionError(null);
     setNotice(null);
     try {
-      setIncident(await incidentService.command(incident.ID, cmd, body, incident.Version, keys[cmd]));
+      setIncident(await incidentService.command(incident.id, cmd, body, incident.version, keys[cmd]));
       renew(cmd);
       setNotice(message);
     } catch (e) {
@@ -130,15 +130,15 @@ export default function IncidentDetailPage() {
   }
 
   const stage = stageOf(incident);
-  const finished = incident.Status === "CLOSED";
-  const current = investigations.find((v) => v.Status !== "APPROVED" && v.Status !== "CLOSED");
+  const finished = incident.status === "CLOSED";
+  const current = investigations.find((v) => v.status !== "APPROVED" && v.status !== "CLOSED");
   const staffName = (id: string) => staff.find((s) => s.id === id)?.fullName ?? id;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
-        title={`Incident ${incident.ID}`}
-        description={`${humanize(incident.IncidentType)} · occurred ${formatWhen(incident.OccurredAt)}`}
+        title={`Incident ${incident.id}`}
+        description={`${humanize(incident.incidentType)} · occurred ${formatWhen(incident.occurredAt)}`}
         actions={
           <SecondaryButton onClick={() => router.push("/compliance/incidents")}>
             <ArrowLeft className="h-3.5 w-3.5" /> Back
@@ -150,20 +150,20 @@ export default function IncidentDetailPage() {
 
       <KeyValueGrid
         items={[
-          ["Status", <StatusPill key="s" status={incident.Status} />],
-          ["Severity", <StatusPill key="v" status={incident.Severity} />],
-          ["Location", incident.LocationReference || "—"],
-          ["Trip", incident.TripReference || "—"],
-          ["Triaged", formatWhen(incident.TriagedAt)],
-          ["Contained", formatWhen(incident.ContainedAt)],
-          ["Escalated", incident.EscalatedAt ? `${formatWhen(incident.EscalatedAt)} (${humanize(incident.EscalationTrigger)})` : "—"],
-          ["Resolution", incident.ResolutionAction || "—"],
-          ["Version", incident.Version],
+          ["Status", <StatusPill key="s" status={incident.status} />],
+          ["Severity", <StatusPill key="v" status={incident.severity} />],
+          ["Location", incident.locationReference || "—"],
+          ["Trip", incident.tripReference || "—"],
+          ["Triaged", formatWhen(incident.triagedAt)],
+          ["Contained", formatWhen(incident.containedAt)],
+          ["Escalated", incident.escalatedAt ? `${formatWhen(incident.escalatedAt)} (${humanize(incident.escalationTrigger)})` : "—"],
+          ["Resolution", incident.resolutionAction || "—"],
+          ["Version", incident.version],
         ]}
       />
-      <p className="rounded-xl border border-line bg-white p-4 text-sm text-ink-700">{incident.Description}</p>
-      {incident.ImmediateActions && <p className="text-sm text-ink-600">Immediate actions: {incident.ImmediateActions}</p>}
-      {incident.ContainmentSummary && <p className="text-sm text-ink-600">Containment: {incident.ContainmentSummary}</p>}
+      <p className="rounded-xl border border-line bg-white p-4 text-sm text-ink-700">{incident.description}</p>
+      {incident.immediateActions && <p className="text-sm text-ink-600">Immediate actions: {incident.immediateActions}</p>}
+      {incident.containmentSummary && <p className="text-sm text-ink-600">Containment: {incident.containmentSummary}</p>}
 
       {!finished && stage === "OPEN" && (
         <Panel title="Triage" description="Confirm severity, location and what was done immediately.">
@@ -223,9 +223,9 @@ export default function IncidentDetailPage() {
                 "investigate",
                 async () => {
                   const r = await incidentService.openInvestigation(
-                    incident.ID,
+                    incident.id,
                     { investigatorUserId: investigation.investigatorUserId, scope: investigation.scope.trim(), evidencePreservation: investigation.evidencePreservation.trim() },
-                    incident.Version,
+                    incident.version,
                     keys.investigate,
                   );
                   setIncident(r.incident);
@@ -239,8 +239,8 @@ export default function IncidentDetailPage() {
         </Panel>
       )}
 
-      {current && current.Status === "OPEN" && (
-        <Panel title="Submit findings" description={`Investigator: ${staffName(current.InvestigatorUserID)} · scope: ${current.Scope}`}>
+      {current && current.status === "OPEN" && (
+        <Panel title="Submit findings" description={`Investigator: ${staffName(current.investigatorUserId)} · scope: ${current.scope}`}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Findings" required>
               <textarea rows={3} value={findings.findings} onChange={(e) => setFindings({ ...findings, findings: e.target.value })} className={INPUT} />
@@ -255,7 +255,7 @@ export default function IncidentDetailPage() {
               investigationStep(
                 "findings",
                 async () => {
-                  await incidentService.submitFindings(current.ID, { findings: findings.findings.trim(), rootCause: findings.rootCause.trim() }, current.Version, keys.findings);
+                  await incidentService.submitFindings(current.id, { findings: findings.findings.trim(), rootCause: findings.rootCause.trim() }, current.version, keys.findings);
                 },
                 "Findings submitted for approval.",
               )
@@ -266,9 +266,9 @@ export default function IncidentDetailPage() {
         </Panel>
       )}
 
-      {current && current.Status === "FINDINGS_SUBMITTED" && (
-        <Panel title="Approve findings" description={current.Findings}>
-          <p className="text-sm text-ink-600">Root cause: {current.RootCause}</p>
+      {current && current.status === "FINDINGS_SUBMITTED" && (
+        <Panel title="Approve findings" description={current.findings}>
+          <p className="text-sm text-ink-600">Root cause: {current.rootCause}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Corrective action" required>
               <input value={corrective.actionType} onChange={(e) => setCorrective({ ...corrective, actionType: e.target.value })} placeholder="DRIVER_RETRAINING" className={INPUT} />
@@ -290,9 +290,9 @@ export default function IncidentDetailPage() {
                 "approve",
                 async () => {
                   const r = await incidentService.approveFindings(
-                    current.ID,
-                    [{ ActionType: corrective.actionType.trim(), OwnerUserID: corrective.ownerUserId, DueAt: new Date(corrective.dueAt).toISOString() }],
-                    current.Version,
+                    current.id,
+                    [{ actionType: corrective.actionType.trim(), ownerUserId: corrective.ownerUserId, dueAt: new Date(corrective.dueAt).toISOString() }],
+                    current.version,
                     keys.approve,
                   );
                   setIncident(r.incident);
@@ -322,7 +322,7 @@ export default function IncidentDetailPage() {
         </Panel>
       )}
 
-      {incident.Status === "RESOLVED" && (
+      {incident.status === "RESOLVED" && (
         <Panel title="Close">
           <Field label="Closure note">
             <input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} className={INPUT} />
@@ -333,7 +333,7 @@ export default function IncidentDetailPage() {
         </Panel>
       )}
 
-      {!finished && ["OPEN", "TRIAGED", "CONTAINED", "INVESTIGATING", "CORRECTIVE_ACTION_REQUIRED"].includes(incident.Status) && (
+      {!finished && ["OPEN", "TRIAGED", "CONTAINED", "INVESTIGATING", "CORRECTIVE_ACTION_REQUIRED"].includes(incident.status) && (
         <Panel title="Escalate" description="Escalation keeps the incident at its current stage and flags it for senior attention.">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Trigger">
@@ -357,15 +357,15 @@ export default function IncidentDetailPage() {
         ) : (
           <ul className="space-y-3">
             {investigations.map((v) => (
-              <li key={v.ID} className="rounded-xl border border-line p-3 text-sm">
+              <li key={v.id} className="rounded-xl border border-line p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-ink-950">{v.ID}</span>
-                  <StatusPill status={v.Status} />
-                  <span className="text-xs text-ink-500">opened {formatWhen(v.CreatedAt)}</span>
+                  <span className="font-mono text-ink-950">{v.id}</span>
+                  <StatusPill status={v.status} />
+                  <span className="text-xs text-ink-500">opened {formatWhen(v.createdAt)}</span>
                 </div>
-                <div className="mt-1 text-xs text-ink-600">Investigator {staffName(v.InvestigatorUserID)} · scope {v.Scope}</div>
-                {v.Findings && <div className="mt-1 text-xs text-ink-700">Findings: {v.Findings}</div>}
-                {v.RootCause && <div className="text-xs text-ink-700">Root cause: {v.RootCause}</div>}
+                <div className="mt-1 text-xs text-ink-600">Investigator {staffName(v.investigatorUserId)} · scope {v.scope}</div>
+                {v.findings && <div className="mt-1 text-xs text-ink-700">Findings: {v.findings}</div>}
+                {v.rootCause && <div className="text-xs text-ink-700">Root cause: {v.rootCause}</div>}
               </li>
             ))}
           </ul>

@@ -53,53 +53,53 @@ export interface CorporateCandidate {
 // here (absent from JSON when nil).
 
 export interface Assignment {
-  ID: string;
-  OrganizationID: string;
-  RequestProjectionID: string;
-  OfferID?: string;
-  MembershipID: string;
-  ExecutingProviderID: string;
-  SourceService: string;
-  AssetReference?: string;
-  AssignedByType: string;
-  AssignedByID: string;
-  Status: string;
-  ResponseDeadline: string;
-  AcceptedAt?: string;
-  DeclinedAt?: string;
-  ExpiredAt?: string;
-  CancelledAt?: string;
-  ReadyForExecutionAt?: string;
-  StartedAt?: string;
-  CompletedAt?: string;
-  RootAssignmentID?: string;
-  ReplacesAssignmentID?: string;
-  ReassignmentAttempt: number;
-  ReassignmentReason?: string;
-  ExecutionStartStatus: string;
-  SourceExecutionID?: string;
-  AcknowledgementState: string;
-  AcknowledgedAt?: string;
-  AcknowledgedByActorType?: string;
-  AcknowledgedByActorID?: string;
-  Version: number;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  organizationId: string;
+  requestProjectionId: string;
+  offerId?: string;
+  membershipId: string;
+  executingProviderId: string;
+  sourceService: string;
+  assetReference?: string;
+  assignedByType: string;
+  assignedById: string;
+  status: string;
+  responseDeadline: string;
+  acceptedAt?: string;
+  declinedAt?: string;
+  expiredAt?: string;
+  cancelledAt?: string;
+  readyForExecutionAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  rootAssignmentId?: string;
+  replacesAssignmentId?: string;
+  reassignmentAttempt: number;
+  reassignmentReason?: string;
+  executionStartStatus: string;
+  sourceExecutionId?: string;
+  acknowledgementState: string;
+  acknowledgedAt?: string;
+  acknowledgedByActorType?: string;
+  acknowledgedByActorId?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StateHistoryEntry {
-  ID: string;
-  OrganizationID: string;
-  AssignmentID: string;
-  FromStatus: string;
-  ToStatus: string;
-  ActorType: string;
-  ActorID: string;
-  ReasonCode?: string;
-  Metadata?: Record<string, unknown>;
-  RequestID: string;
-  CorrelationID: string;
-  OccurredAt: string;
+  id: string;
+  organizationId: string;
+  assignmentId: string;
+  fromStatus: string;
+  toStatus: string;
+  actorType: string;
+  actorId: string;
+  reasonCode?: string;
+  metadata?: Record<string, unknown>;
+  requestId: string;
+  correlationId: string;
+  occurredAt: string;
 }
 
 // Write inputs.

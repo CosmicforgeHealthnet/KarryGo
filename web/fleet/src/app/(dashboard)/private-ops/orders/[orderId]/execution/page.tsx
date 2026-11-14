@@ -54,7 +54,7 @@ export default function OrderExecutionPage() {
     privateAssignmentService
       .list()
       .then((all) => {
-        setAssignments(all.filter((a) => a.PrivateOrderID === orderId));
+        setAssignments(all.filter((a) => a.privateOrderId === orderId));
         setAssignmentError(null);
       })
       .catch((e) => {
@@ -165,14 +165,14 @@ export default function OrderExecutionPage() {
           <DataTable
             minWidth={760}
             rows={assignments}
-            rowKey={(a) => a.ID}
+            rowKey={(a) => a.id}
             columns={[
-              { header: "Assignment", cell: (a) => <span className="font-mono">{a.ID}</span> },
-              { header: "Provider", cell: (a) => <span className="font-mono">{a.ProviderMembershipID || "—"}</span> },
-              { header: "Vehicle", cell: (a) => a.VehicleOrTruckReference || "—" },
-              { header: "Service", cell: (a) => humanize(a.ExecutionService) },
-              { header: "Status", cell: (a) => <StatusPill status={a.Status} /> },
-              { header: "Accepted", cell: (a) => formatWhen(a.AcceptedAt) },
+              { header: "Assignment", cell: (a) => <span className="font-mono">{a.id}</span> },
+              { header: "Provider", cell: (a) => <span className="font-mono">{a.providerMembershipId || "—"}</span> },
+              { header: "Vehicle", cell: (a) => a.vehicleOrTruckReference || "—" },
+              { header: "Service", cell: (a) => humanize(a.executionService) },
+              { header: "Status", cell: (a) => <StatusPill status={a.status} /> },
+              { header: "Accepted", cell: (a) => formatWhen(a.acceptedAt) },
             ]}
           />
         )}

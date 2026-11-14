@@ -102,7 +102,7 @@ export default function ReassignPage() {
       .then((a) => {
         if (cancelled) return null;
         setAssignment(a);
-        return marketplaceService.listCandidates(a.RequestProjectionID);
+        return marketplaceService.listCandidates(a.requestProjectionId);
       })
       .then((list) => {
         if (cancelled || !list) return;
@@ -111,7 +111,7 @@ export default function ReassignPage() {
         // reassignment case's excluded set; we mirror the exclusion in the
         // UI so the list is honest about who can actually be selected.
         const currentMembershipId =
-          assignment?.MembershipID ?? "";
+          assignment?.membershipId ?? "";
         const eligibleReplacements = list.filter(
           (c) => c.eligible && c.membershipId !== currentMembershipId,
         );
@@ -137,7 +137,7 @@ export default function ReassignPage() {
     return () => {
       cancelled = true;
     };
-  }, [assignmentId, assignment?.MembershipID]);
+  }, [assignmentId, assignment?.membershipId]);
 
   const handleReassign = async () => {
     if (!assignment || !selected || reason.trim() === "") {
@@ -149,7 +149,7 @@ export default function ReassignPage() {
 
     try {
       await marketplaceService.reassignAssignment(
-        assignment.ID,
+        assignment.id,
         {
           membershipId: selected,
           reason: reason.trim(),
@@ -201,10 +201,10 @@ export default function ReassignPage() {
 
   // ---- Not reassignable ----
   const reassignable =
-    assignment.Status === "DECLINED" ||
-    assignment.Status === "EXPIRED" ||
-    assignment.Status === "CANCELLED" ||
-    assignment.Status === "PENDING_PROVIDER_RESPONSE";
+    assignment.status === "DECLINED" ||
+    assignment.status === "EXPIRED" ||
+    assignment.status === "CANCELLED" ||
+    assignment.status === "PENDING_PROVIDER_RESPONSE";
 
   if (!reassignable) {
     return (

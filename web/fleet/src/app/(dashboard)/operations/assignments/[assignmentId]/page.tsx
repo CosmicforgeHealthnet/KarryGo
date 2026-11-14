@@ -110,8 +110,8 @@ function deadlineCountdown(deadlineIso: string): {
 // not yet started canonical execution. The backend refuses otherwise; this
 // mirrors the same rule so we don't show a button the API will reject.
 function canCancel(a: Assignment): boolean {
-  if (a.SourceExecutionID) return false;
-  switch (a.Status) {
+  if (a.sourceExecutionId) return false;
+  switch (a.status) {
     case "CREATED":
     case "PENDING_PROVIDER_RESPONSE":
     case "ACCEPTED":
@@ -189,12 +189,12 @@ export default function AssignmentOverviewPage() {
 
     try {
       await marketplaceService.cancelAssignment(
-        assignment.ID,
-        { reason: cancelReason.trim(), expectedVersion: assignment.Version },
+        assignment.id,
+        { reason: cancelReason.trim(), expectedVersion: assignment.version },
         cancelIdempotencyKey,
       );
       // Refetch so the page reflects the cancelled state the backend returned.
-      const updated = await marketplaceService.getAssignment(assignment.ID);
+      const updated = await marketplaceService.getAssignment(assignment.id);
       setAssignment(updated);
       setCancelOpen(false);
       setCancelReason("");
@@ -255,9 +255,9 @@ export default function AssignmentOverviewPage() {
   }
 
   const a = assignment;
-  const status = statusStyle(a.Status);
-  const isPending = a.Status === "PENDING_PROVIDER_RESPONSE";
-  const deadline = isPending ? deadlineCountdown(a.ResponseDeadline) : null;
+  const status = statusStyle(a.status);
+  const isPending = a.status === "PENDING_PROVIDER_RESPONSE";
+  const deadline = isPending ? deadlineCountdown(a.responseDeadline) : null;
   const showCancel = canCancel(a);
 
   return (
@@ -274,13 +274,13 @@ export default function AssignmentOverviewPage() {
               <div className="text-[15px] font-semibold text-ink-950">
                 Assignment Details
               </div>
-              {a.OfferID ? (
+              {a.offerId ? (
                 <div className="text-[12px] text-ink-500">
-                  Offer: <span className="font-mono">{a.OfferID}</span>
+                  Offer: <span className="font-mono">{a.offerId}</span>
                 </div>
               ) : (
                 <div className="text-[12px] text-ink-500">
-                  <span className="font-mono">{a.ID}</span>
+                  <span className="font-mono">{a.id}</span>
                 </div>
               )}
             </div>
@@ -288,7 +288,7 @@ export default function AssignmentOverviewPage() {
               className={`ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ${status.bg} ${status.text}`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-              {statusLabel(a.Status)}
+              {statusLabel(a.status)}
             </span>
           </div>
 
@@ -300,7 +300,7 @@ export default function AssignmentOverviewPage() {
               <div className="mt-1 flex items-center gap-2">
                 <User className="h-4 w-4 text-ink-400" />
                 <span className="font-mono text-[14px] font-medium text-ink-950">
-                  {a.MembershipID}
+                  {a.membershipId}
                 </span>
               </div>
             </div>
@@ -312,7 +312,7 @@ export default function AssignmentOverviewPage() {
               <div className="mt-1 flex items-center gap-2">
                 <Truck className="h-4 w-4 text-ink-400" />
                 <span className="font-mono text-[14px] font-medium text-ink-950">
-                  {a.AssetReference || "—"}
+                  {a.assetReference || "—"}
                 </span>
               </div>
             </div>
@@ -324,7 +324,7 @@ export default function AssignmentOverviewPage() {
               <div className="mt-1 flex items-center gap-2">
                 <Package className="h-4 w-4 text-ink-400" />
                 <span className="text-[14px] font-medium text-ink-950">
-                  {a.SourceService || "—"}
+                  {a.sourceService || "—"}
                 </span>
               </div>
             </div>
@@ -336,7 +336,7 @@ export default function AssignmentOverviewPage() {
               <div className="mt-1 flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-ink-400" />
                 <span className="text-[14px] font-medium text-ink-950">
-                  {formatTimestamp(a.CreatedAt)}
+                  {formatTimestamp(a.createdAt)}
                 </span>
               </div>
             </div>
@@ -355,12 +355,12 @@ export default function AssignmentOverviewPage() {
                       {deadline.text}
                     </span>
                     <span className="text-[12px] text-ink-500">
-                      Provider must respond by {formatTimestamp(a.ResponseDeadline)}
+                      Provider must respond by {formatTimestamp(a.responseDeadline)}
                     </span>
                   </>
                 ) : (
                   <span className="text-[14px] font-medium text-ink-950">
-                    {formatTimestamp(a.ResponseDeadline)}
+                    {formatTimestamp(a.responseDeadline)}
                   </span>
                 )}
               </div>
@@ -395,10 +395,10 @@ export default function AssignmentOverviewPage() {
                 </p>
               </div>
             </div>
-          ) : a.Status === "ACCEPTED" ||
-            a.Status === "READY_FOR_EXECUTION" ||
-            a.Status === "IN_PROGRESS" ||
-            a.Status === "COMPLETED" ? (
+          ) : a.status === "ACCEPTED" ||
+            a.status === "READY_FOR_EXECUTION" ||
+            a.status === "IN_PROGRESS" ||
+            a.status === "COMPLETED" ? (
             <div className="flex items-start gap-3 rounded-xl bg-green-bg/40 p-3.5">
               <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-green" />
               <div>
@@ -406,13 +406,13 @@ export default function AssignmentOverviewPage() {
                   Provider accepted
                 </div>
                 <p className="mt-0.5 text-[13px] text-ink-600">
-                  {a.AcceptedAt
-                    ? `Accepted ${formatTimestamp(a.AcceptedAt)}.`
+                  {a.acceptedAt
+                    ? `Accepted ${formatTimestamp(a.acceptedAt)}.`
                     : "The provider accepted this assignment."}
                 </p>
               </div>
             </div>
-          ) : a.Status === "DECLINED" ? (
+          ) : a.status === "DECLINED" ? (
             <div className="flex items-start gap-3 rounded-xl bg-red-bg/30 p-3.5">
               <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red" />
               <div>
@@ -420,16 +420,16 @@ export default function AssignmentOverviewPage() {
                   Provider declined
                 </div>
                 <p className="mt-0.5 text-[13px] text-ink-600">
-                  {a.DeclinedAt
-                    ? `Declined ${formatTimestamp(a.DeclinedAt)}.`
+                  {a.declinedAt
+                    ? `Declined ${formatTimestamp(a.declinedAt)}.`
                     : "The provider declined this assignment."}{" "}
-                  {a.ReassignmentReason
-                    ? `Reason: ${a.ReassignmentReason}.`
+                  {a.reassignmentReason
+                    ? `Reason: ${a.reassignmentReason}.`
                     : ""}
                 </p>
               </div>
             </div>
-          ) : a.Status === "EXPIRED" ? (
+          ) : a.status === "EXPIRED" ? (
             <div className="flex items-start gap-3 rounded-xl bg-surface-2 p-3.5">
               <Clock className="mt-0.5 h-5 w-5 flex-shrink-0 text-ink-400" />
               <div>
@@ -438,11 +438,11 @@ export default function AssignmentOverviewPage() {
                 </div>
                 <p className="mt-0.5 text-[13px] text-ink-600">
                   The provider did not respond in time.
-                  {a.ExpiredAt ? ` Expired ${formatTimestamp(a.ExpiredAt)}.` : ""}
+                  {a.expiredAt ? ` Expired ${formatTimestamp(a.expiredAt)}.` : ""}
                 </p>
               </div>
             </div>
-          ) : a.Status === "CANCELLED" ? (
+          ) : a.status === "CANCELLED" ? (
             <div className="flex items-start gap-3 rounded-xl bg-red-bg/30 p-3.5">
               <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red" />
               <div>
@@ -450,8 +450,8 @@ export default function AssignmentOverviewPage() {
                   Assignment cancelled
                 </div>
                 <p className="mt-0.5 text-[13px] text-ink-600">
-                  {a.CancelledAt
-                    ? `Cancelled ${formatTimestamp(a.CancelledAt)}.`
+                  {a.cancelledAt
+                    ? `Cancelled ${formatTimestamp(a.cancelledAt)}.`
                     : "This assignment was cancelled."}
                 </p>
               </div>
@@ -547,9 +547,9 @@ export default function AssignmentOverviewPage() {
             Quick Actions
           </div>
           <div className="flex flex-col gap-2">
-            {a.OfferID && (
+            {a.offerId && (
               <Link
-                href={`/operations/marketplace/${a.OfferID}`}
+                href={`/operations/marketplace/${a.offerId}`}
                 className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-medium text-ink-700 transition hover:bg-surface-2"
               >
                 <span className="flex items-center gap-2">

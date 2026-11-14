@@ -69,17 +69,17 @@ export default function IncidentsPage() {
     try {
       const created = await incidentService.create(
         {
-          IncidentType: form.incidentType,
-          Severity: form.severity,
-          Description: form.description.trim(),
-          OccurredAt: new Date(form.occurredAt).toISOString(),
-          LocationReference: form.locationReference.trim() || undefined,
-          TripReference: form.tripReference.trim() || undefined,
+          incidentType: form.incidentType,
+          severity: form.severity,
+          description: form.description.trim(),
+          occurredAt: new Date(form.occurredAt).toISOString(),
+          locationReference: form.locationReference.trim() || undefined,
+          tripReference: form.tripReference.trim() || undefined,
         },
         key,
       );
       setKey(newIdempotencyKey());
-      router.push(`/compliance/incidents/${created.ID}`);
+      router.push(`/compliance/incidents/${created.id}`);
     } catch (err) {
       setFormError(describeApiError(err, "The incident could not be reported."));
     } finally {
@@ -90,13 +90,13 @@ export default function IncidentsPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter(
-      (i) => (status === "" || i.Status === status) && (q === "" || [i.ID, i.IncidentType, i.Description, i.LocationReference, i.TripReference].join(" ").toLowerCase().includes(q)),
+      (i) => (status === "" || i.status === status) && (q === "" || [i.id, i.incidentType, i.description, i.locationReference, i.tripReference].join(" ").toLowerCase().includes(q)),
     );
   }, [rows, search, status]);
 
   if (loading) return <Loading label="Loading incidents..." />;
 
-  const open = rows.filter((i) => i.Status !== "CLOSED" && i.Status !== "RESOLVED");
+  const open = rows.filter((i) => i.status !== "CLOSED" && i.status !== "RESOLVED");
 
   return (
     <div className="space-y-5">
@@ -126,9 +126,9 @@ export default function IncidentsPage() {
       <StatGrid
         items={[
           { label: "Open", value: open.length, tone: "amber" },
-          { label: "Critical open", value: open.filter((i) => i.Severity === "CRITICAL").length, tone: "red" },
-          { label: "Investigating", value: rows.filter((i) => i.Status === "INVESTIGATING").length, tone: "primary" },
-          { label: "Closed", value: rows.filter((i) => i.Status === "CLOSED").length, tone: "green" },
+          { label: "Critical open", value: open.filter((i) => i.severity === "CRITICAL").length, tone: "red" },
+          { label: "Investigating", value: rows.filter((i) => i.status === "INVESTIGATING").length, tone: "primary" },
+          { label: "Closed", value: rows.filter((i) => i.status === "CLOSED").length, tone: "green" },
         ]}
       />
 
@@ -185,15 +185,15 @@ export default function IncidentsPage() {
       ) : (
         <DataTable
           rows={filtered}
-          rowKey={(i) => i.ID}
-          onRowClick={(i) => router.push(`/compliance/incidents/${i.ID}`)}
+          rowKey={(i) => i.id}
+          onRowClick={(i) => router.push(`/compliance/incidents/${i.id}`)}
           columns={[
-            { header: "Incident", cell: (i) => <span className="font-mono text-ink-950">{i.ID}</span> },
-            { header: "Type", cell: (i) => humanize(i.IncidentType) },
-            { header: "Severity", cell: (i) => <StatusPill status={i.Severity} /> },
-            { header: "Description", cell: (i) => <span className="line-clamp-1">{i.Description}</span> },
-            { header: "Status", cell: (i) => <StatusPill status={i.Status} /> },
-            { header: "Occurred", cell: (i) => formatWhen(i.OccurredAt) },
+            { header: "Incident", cell: (i) => <span className="font-mono text-ink-950">{i.id}</span> },
+            { header: "Type", cell: (i) => humanize(i.incidentType) },
+            { header: "Severity", cell: (i) => <StatusPill status={i.severity} /> },
+            { header: "Description", cell: (i) => <span className="line-clamp-1">{i.description}</span> },
+            { header: "Status", cell: (i) => <StatusPill status={i.status} /> },
+            { header: "Occurred", cell: (i) => formatWhen(i.occurredAt) },
           ]}
         />
       )}

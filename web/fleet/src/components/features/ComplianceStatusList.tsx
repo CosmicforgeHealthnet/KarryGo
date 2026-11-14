@@ -66,8 +66,8 @@ export function ComplianceStatusList({ subject, subjectId }: { subject: "PROVIDE
 
   const requirementName = useCallback(
     (id: string) => {
-      const r = requirements.find((x) => x.ID === id);
-      return r ? r.Name || r.Code : id;
+      const r = requirements.find((x) => x.id === id);
+      return r ? r.name || r.code : id;
     },
     [requirements],
   );
@@ -75,16 +75,16 @@ export function ComplianceStatusList({ subject, subjectId }: { subject: "PROVIDE
   const filtered = useMemo(
     () =>
       statuses.filter((s) => {
-        const matchesSearch = search.trim() === "" || requirementName(s.RequirementID).toLowerCase().includes(search.trim().toLowerCase());
-        const matchesState = selectedState === "All" || s.State === selectedState;
+        const matchesSearch = search.trim() === "" || requirementName(s.requirementId).toLowerCase().includes(search.trim().toLowerCase());
+        const matchesState = selectedState === "All" || s.state === selectedState;
         return matchesSearch && matchesState;
       }),
     [statuses, search, selectedState, requirementName],
   );
 
-  const compliantCount = statuses.filter((s) => s.State === "COMPLIANT").length;
-  const dueCount = statuses.filter((s) => s.State === "DUE_SOON" || s.State === "PENDING").length;
-  const attentionCount = statuses.filter((s) => ATTENTION.includes(s.State)).length;
+  const compliantCount = statuses.filter((s) => s.state === "COMPLIANT").length;
+  const dueCount = statuses.filter((s) => s.state === "DUE_SOON" || s.state === "PENDING").length;
+  const attentionCount = statuses.filter((s) => ATTENTION.includes(s.state)).length;
 
   const hasFilters = selectedState !== "All" || search !== "";
   const clearFilters = () => {
@@ -205,33 +205,33 @@ export function ComplianceStatusList({ subject, subjectId }: { subject: "PROVIDE
       ) : (
         <div className="space-y-2.5">
           {filtered.map((s) => {
-            const style = STATE_STYLES[s.State] ?? STATE_STYLES.UNKNOWN;
+            const style = STATE_STYLES[s.state] ?? STATE_STYLES.UNKNOWN;
             return (
               <div
-                key={s.ID}
+                key={s.id}
                 className="flex flex-col gap-2 rounded-lg border border-line bg-white p-3.5 transition-colors hover:bg-surface-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-ink-950">{requirementName(s.RequirementID)}</span>
+                    <span className="text-sm font-medium text-ink-950">{requirementName(s.requirementId)}</span>
                     <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${style.bg} ${style.text}`}>
                       {style.icon}
-                      {humanize(s.State)}
+                      {humanize(s.state)}
                     </span>
-                    {s.SourceType && (
-                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-600">{humanize(s.SourceType)}</span>
+                    {s.sourceType && (
+                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-ink-600">{humanize(s.sourceType)}</span>
                     )}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-3 text-[10px] text-ink-500">
-                    {s.ExpiresAt && (
+                    {s.expiresAt && (
                       <span className="flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5" />
-                        Expires: {formatWhen(s.ExpiresAt)}
+                        Expires: {formatWhen(s.expiresAt)}
                       </span>
                     )}
-                    {s.DueAt && <span>Due: {formatWhen(s.DueAt)}</span>}
-                    <span>Evaluated: {formatWhen(s.EvaluatedAt)}</span>
-                    {s.RestrictionReference && <span>Restriction: {s.RestrictionReference}</span>}
+                    {s.dueAt && <span>Due: {formatWhen(s.dueAt)}</span>}
+                    <span>Evaluated: {formatWhen(s.evaluatedAt)}</span>
+                    {s.restrictionReference && <span>Restriction: {s.restrictionReference}</span>}
                   </div>
                 </div>
               </div>

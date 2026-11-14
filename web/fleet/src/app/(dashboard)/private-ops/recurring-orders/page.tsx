@@ -145,18 +145,18 @@ export default function RecurringOrdersPage() {
   };
 
   const runCommand = async (template: RecurringOrderTemplate, command: RowCommand) => {
-    const slot = `${template.ID}:${command}`;
+    const slot = `${template.id}:${command}`;
     const idem = rowKeys[slot] ?? newIdempotencyKey();
     setRowKeys((k) => ({ ...k, [slot]: idem }));
     setBusy(slot);
     setRowError(null);
     try {
       if (command === "replay") {
-        await recurringOrderService.replay(template.ID, idem);
+        await recurringOrderService.replay(template.id, idem);
         setNotice("The failed occurrence was queued again.");
       } else {
-        const updated = await recurringOrderService.setActive(template.ID, command === "activate", template.Version, idem);
-        setRows((r) => r.map((x) => (x.ID === updated.ID ? updated : x)));
+        const updated = await recurringOrderService.setActive(template.id, command === "activate", template.version, idem);
+        setRows((r) => r.map((x) => (x.id === updated.id ? updated : x)));
         setNotice(command === "activate" ? "Recurring order resumed." : "Recurring order paused.");
       }
       setRowKeys((k) => {
@@ -203,9 +203,9 @@ export default function RecurringOrdersPage() {
       <StatGrid
         items={[
           { label: "Loaded", value: rows.length },
-          { label: "Draft", value: rows.filter((t) => t.Status === "DRAFT").length, tone: "amber" },
-          { label: "Active", value: rows.filter((t) => t.Status === "ACTIVE").length, tone: "green" },
-          { label: "Paused", value: rows.filter((t) => t.Status === "INACTIVE").length },
+          { label: "Draft", value: rows.filter((t) => t.status === "DRAFT").length, tone: "amber" },
+          { label: "Active", value: rows.filter((t) => t.status === "ACTIVE").length, tone: "green" },
+          { label: "Paused", value: rows.filter((t) => t.status === "INACTIVE").length },
         ]}
       />
 
@@ -287,30 +287,30 @@ export default function RecurringOrdersPage() {
       ) : (
         <DataTable
           rows={rows}
-          rowKey={(t) => t.ID}
+          rowKey={(t) => t.id}
           minWidth={980}
           columns={[
-            { header: "Customer", cell: (t) => <span className="text-ink-950">{customerName(t.CustomerID)}</span> },
-            { header: "Service", cell: (t) => serviceName(t.ServiceCatalogItemID) },
-            { header: "Schedule", cell: (t) => `${humanize(t.RecurrenceType)} · ${t.NormalizedRRule}` },
-            { header: "Next run", cell: (t) => formatWhen(t.NextRunAt) },
-            { header: "Last error", cell: (t) => t.LastErrorCode || "—" },
-            { header: "Status", cell: (t) => <StatusPill status={t.Status} /> },
+            { header: "Customer", cell: (t) => <span className="text-ink-950">{customerName(t.customerId)}</span> },
+            { header: "Service", cell: (t) => serviceName(t.serviceCatalogItemId) },
+            { header: "Schedule", cell: (t) => `${humanize(t.recurrenceType)} · ${t.normalizedRrule}` },
+            { header: "Next run", cell: (t) => formatWhen(t.nextRunAt) },
+            { header: "Last error", cell: (t) => t.lastErrorCode || "—" },
+            { header: "Status", cell: (t) => <StatusPill status={t.status} /> },
             {
               header: "Actions",
               cell: (t) => (
                 <div className="flex flex-wrap gap-1.5">
-                  {(t.Status === "DRAFT" || t.Status === "INACTIVE") && (
+                  {(t.status === "DRAFT" || t.status === "INACTIVE") && (
                     <SecondaryButton onClick={() => runCommand(t, "activate")} disabled={busy !== null}>
-                      <Play className="h-3 w-3" /> {t.Status === "DRAFT" ? "Activate" : "Resume"}
+                      <Play className="h-3 w-3" /> {t.status === "DRAFT" ? "Activate" : "Resume"}
                     </SecondaryButton>
                   )}
-                  {t.Status === "ACTIVE" && (
+                  {t.status === "ACTIVE" && (
                     <SecondaryButton onClick={() => runCommand(t, "deactivate")} disabled={busy !== null}>
                       <Pause className="h-3 w-3" /> Pause
                     </SecondaryButton>
                   )}
-                  {t.LastErrorCode && (
+                  {t.lastErrorCode && (
                     <SecondaryButton onClick={() => runCommand(t, "replay")} disabled={busy !== null} title="Queue the failed occurrence again">
                       <RotateCcw className="h-3 w-3" /> Replay
                     </SecondaryButton>

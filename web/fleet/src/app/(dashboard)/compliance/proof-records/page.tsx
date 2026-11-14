@@ -143,10 +143,10 @@ export default function ProofRecordsPage() {
           />
           <Timeline
             entries={(detail.verifications ?? []).map((v) => ({
-              id: v.ID,
-              title: `${humanize(v.Status)} by ${humanize(v.AuthorityType)} ${v.AuthorityReference}`,
-              detail: (v.ReasonCodes ?? []).join(", ") || undefined,
-              at: v.VerifiedAt,
+              id: v.id,
+              title: `${humanize(v.status)} by ${humanize(v.authorityType)} ${v.authorityReference}`,
+              detail: (v.reasonCodes ?? []).join(", ") || undefined,
+              at: v.verifiedAt,
             }))}
           />
           <div className="flex flex-wrap items-end gap-2">

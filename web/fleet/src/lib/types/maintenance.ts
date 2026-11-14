@@ -93,27 +93,27 @@ export interface WorkActionInput {
 // names; the domain struct carries no JSON tags). Statuses: ACTIVE, PAUSED,
 // COMPLETED, CANCELLED. Trigger types: DATE, MILEAGE, OPERATING_HOURS, COMBINED.
 export interface MaintenanceScheduleRecord {
-  ID: string;
-  OrganizationID: string;
-  AssetID: string;
-  TriggerType: string;
-  IntervalValue: number | null;
-  NextDueDate: string | null;
-  NextDueOdometer: number | null;
-  NextDueHours: number | null;
-  Critical: boolean;
-  Status: string;
-  Version: number;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  organizationId: string;
+  assetId: string;
+  triggerType: string;
+  intervalValue: number | null;
+  nextDueDate: string | null;
+  nextDueOdometer: number | null;
+  nextDueHours: number | null;
+  critical: boolean;
+  status: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // The asset fields a schedule list needs to label its rows (GET /assets,
 // Go field names).
 export interface AssetReference {
-  ID: string;
-  BranchID: string;
-  AssetCode: string;
-  Manufacturer: string;
-  Model: string;
+  id: string;
+  branchId: string;
+  assetCode: string;
+  manufacturer: string;
+  model: string;
 }

@@ -6,59 +6,59 @@ export const INCIDENT_SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as cons
 export const ESCALATION_TRIGGERS = ['SEVERITY', 'REGULATORY', 'CUSTOMER', 'SAFETY_CRITICAL', 'OTHER'] as const;
 
 export interface Incident {
-  ID: string;
-  BranchID: string;
-  IncidentType: string;
-  Severity: string;
-  Status: string;
-  OccurredAt: string;
-  LocationReference: string;
-  RouteID: string;
-  AssignmentID: string;
-  TripReference: string;
-  ExternalReference: string;
-  Description: string;
-  ReportedBy: string;
-  OwnerUserID: string;
-  ResolutionAction: string;
-  ResolutionReason: string;
-  Version: number;
-  CreatedAt: string;
-  UpdatedAt: string;
-  ClosedAt: string | null;
-  ImmediateActions: string;
-  TriagedAt: string | null;
-  ContainmentSummary: string;
-  ContainedAt: string | null;
-  EscalationReason: string;
-  EscalationTrigger: string;
-  PreEscalationStatus: string;
-  EscalatedAt: string | null;
-  ClosureReason: string;
+  id: string;
+  branchId: string;
+  incidentType: string;
+  severity: string;
+  status: string;
+  occurredAt: string;
+  locationReference: string;
+  routeId: string;
+  assignmentId: string;
+  tripReference: string;
+  externalReference: string;
+  description: string;
+  reportedBy: string;
+  ownerUserId: string;
+  resolutionAction: string;
+  resolutionReason: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  immediateActions: string;
+  triagedAt: string | null;
+  containmentSummary: string;
+  containedAt: string | null;
+  escalationReason: string;
+  escalationTrigger: string;
+  preEscalationStatus: string;
+  escalatedAt: string | null;
+  closureReason: string;
 }
 
 export interface Investigation {
-  ID: string;
-  IncidentID: string;
-  InvestigatorUserID: string;
-  Scope: string;
-  EvidencePreservation: string;
-  Status: string;
-  Findings: string;
-  RootCause: string;
-  FindingsSubmittedAt: string | null;
-  ApprovedBy: string;
-  ApprovedAt: string | null;
-  OpenedBy: string;
-  Version: number;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  incidentId: string;
+  investigatorUserId: string;
+  scope: string;
+  evidencePreservation: string;
+  status: string;
+  findings: string;
+  rootCause: string;
+  findingsSubmittedAt: string | null;
+  approvedBy: string;
+  approvedAt: string | null;
+  openedBy: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CorrectiveActionSpec {
-  ActionType: string;
-  OwnerUserID: string;
-  DueAt: string;
+  actionType: string;
+  ownerUserId: string;
+  dueAt: string;
 }
 
 export interface ProofRecord {
@@ -83,12 +83,12 @@ export interface ProofRecord {
 }
 
 export interface ProofVerification {
-  ID: string;
-  Status: string;
-  AuthorityType: string;
-  AuthorityReference: string;
-  ReasonCodes: string[] | null;
-  VerifiedAt: string;
+  id: string;
+  status: string;
+  authorityType: string;
+  authorityReference: string;
+  reasonCodes: string[] | null;
+  verifiedAt: string;
 }
 
 export interface ProofRecordDetail {
@@ -110,67 +110,67 @@ export interface ComplianceCheckResult {
 }
 
 export interface ComplianceCheck {
-  ID: string;
-  SubjectType: string;
-  SubjectReference: string;
-  SourceType: string;
-  SourceReference: string;
-  SourceVersion: number;
-  OverallState: string;
-  GoverningRequirementID: string;
-  RequirementCount: number;
-  Results: ComplianceCheckResult[] | null;
-  RestrictionReferences: string[] | null;
-  RequestedBy: string;
-  CreatedAt: string;
+  id: string;
+  subjectType: string;
+  subjectReference: string;
+  sourceType: string;
+  sourceReference: string;
+  sourceVersion: number;
+  overallState: string;
+  governingRequirementId: string;
+  requirementCount: number;
+  results: ComplianceCheckResult[] | null;
+  restrictionReferences: string[] | null;
+  requestedBy: string;
+  createdAt: string;
 }
 
 export interface Restriction {
-  ID: string;
-  SubjectType: string;
-  SubjectReference: string;
-  ReasonCode: string;
-  SourceType: string;
-  SourceReference: string;
-  Severity: string;
-  State: string;
-  EffectiveAt: string;
-  ClearedAt: string | null;
-  Version: number;
-  CreatedBy: string;
-  ClearedBy: string;
-  ClearanceReason: string;
-  CreatedAt: string;
+  id: string;
+  subjectType: string;
+  subjectReference: string;
+  reasonCode: string;
+  sourceType: string;
+  sourceReference: string;
+  severity: string;
+  state: string;
+  effectiveAt: string;
+  clearedAt: string | null;
+  version: number;
+  createdBy: string;
+  clearedBy: string;
+  clearanceReason: string;
+  createdAt: string;
 }
 
 // Compliance status of one subject against one requirement (serialized with
 // Go field names). States: UNKNOWN, PENDING, COMPLIANT, DUE_SOON, EXPIRED,
 // NON_COMPLIANT, RESTRICTED.
 export interface ComplianceStatus {
-  ID: string;
-  SubjectType: string;
-  SubjectReference: string;
-  RequirementID: string;
-  State: string;
-  DueAt: string | null;
-  ExpiresAt: string | null;
-  SourceType: string;
-  SourceReference: string;
-  SourceVersion: number;
-  EvaluatedAt: string;
-  ReasonCodes: unknown;
-  RestrictionReference: string;
-  Version: number;
+  id: string;
+  subjectType: string;
+  subjectReference: string;
+  requirementId: string;
+  state: string;
+  dueAt: string | null;
+  expiresAt: string | null;
+  sourceType: string;
+  sourceReference: string;
+  sourceVersion: number;
+  evaluatedAt: string;
+  reasonCodes: unknown;
+  restrictionReference: string;
+  version: number;
 }
 
 export interface ComplianceRequirement {
-  ID: string;
-  Code: string;
-  Name: string;
-  SubjectType: string;
-  RequirementType: string;
-  RequiredDocumentType: string;
-  Severity: string;
-  BlocksOperation: boolean;
-  Status: string;
+  id: string;
+  code: string;
+  name: string;
+  subjectType: string;
+  requirementType: string;
+  requiredDocumentType: string;
+  severity: string;
+  blocksOperation: boolean;
+  status: string;
 }

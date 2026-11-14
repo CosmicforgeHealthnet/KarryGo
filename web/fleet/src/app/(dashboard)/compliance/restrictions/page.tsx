@@ -36,7 +36,7 @@ export default function RestrictionsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q === "" ? rows : rows.filter((r) => [r.SubjectReference, r.ReasonCode, r.SourceType, r.SourceReference].join(" ").toLowerCase().includes(q));
+    return q === "" ? rows : rows.filter((r) => [r.subjectReference, r.reasonCode, r.sourceType, r.sourceReference].join(" ").toLowerCase().includes(q));
   }, [rows, search]);
 
   if (loading) return <Loading label="Loading restrictions..." />;
@@ -62,9 +62,9 @@ export default function RestrictionsPage() {
       <StatGrid
         items={[
           { label: "Shown", value: rows.length },
-          { label: "Applied", value: rows.filter((r) => r.State === "APPLIED").length, tone: "red" },
-          { label: "Clearance pending", value: rows.filter((r) => r.State === "CLEAR_PENDING").length, tone: "amber" },
-          { label: "Cleared", value: rows.filter((r) => r.State === "CLEARED").length, tone: "green" },
+          { label: "Applied", value: rows.filter((r) => r.state === "APPLIED").length, tone: "red" },
+          { label: "Clearance pending", value: rows.filter((r) => r.state === "CLEAR_PENDING").length, tone: "amber" },
+          { label: "Cleared", value: rows.filter((r) => r.state === "CLEARED").length, tone: "green" },
         ]}
       />
       <div className="flex flex-wrap items-center gap-2">
@@ -86,14 +86,14 @@ export default function RestrictionsPage() {
       ) : (
         <DataTable
           rows={filtered}
-          rowKey={(r) => r.ID}
+          rowKey={(r) => r.id}
           columns={[
-            { header: "Subject", cell: (r) => <><div className="text-ink-950">{humanize(r.SubjectType)}</div><div className="font-mono text-[10px] text-ink-500">{r.SubjectReference}</div></> },
-            { header: "Reason", cell: (r) => humanize(r.ReasonCode) },
-            { header: "Source", cell: (r) => `${humanize(r.SourceType)}${r.SourceReference ? ` · ${r.SourceReference}` : ""}` },
-            { header: "Severity", cell: (r) => <StatusPill status={r.Severity} /> },
-            { header: "State", cell: (r) => <StatusPill status={r.State} /> },
-            { header: "Since", cell: (r) => formatWhen(r.EffectiveAt) },
+            { header: "Subject", cell: (r) => <><div className="text-ink-950">{humanize(r.subjectType)}</div><div className="font-mono text-[10px] text-ink-500">{r.subjectReference}</div></> },
+            { header: "Reason", cell: (r) => humanize(r.reasonCode) },
+            { header: "Source", cell: (r) => `${humanize(r.sourceType)}${r.sourceReference ? ` · ${r.sourceReference}` : ""}` },
+            { header: "Severity", cell: (r) => <StatusPill status={r.severity} /> },
+            { header: "State", cell: (r) => <StatusPill status={r.state} /> },
+            { header: "Since", cell: (r) => formatWhen(r.effectiveAt) },
           ]}
         />
       )}

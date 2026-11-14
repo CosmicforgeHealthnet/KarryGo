@@ -87,15 +87,15 @@ function deadlineDisplay(a: Assignment): {
   minutes: number;
   isPending: boolean;
 } {
-  const isPending = a.Status === "PENDING_PROVIDER_RESPONSE";
+  const isPending = a.status === "PENDING_PROVIDER_RESPONSE";
   if (!isPending) {
-    if (a.AcceptedAt) return { text: "Accepted", minutes: -1, isPending: false };
-    if (a.DeclinedAt) return { text: "Declined", minutes: -1, isPending: false };
-    if (a.ExpiredAt) return { text: "Expired", minutes: -1, isPending: false };
-    if (a.CancelledAt) return { text: "Cancelled", minutes: -1, isPending: false };
+    if (a.acceptedAt) return { text: "Accepted", minutes: -1, isPending: false };
+    if (a.declinedAt) return { text: "Declined", minutes: -1, isPending: false };
+    if (a.expiredAt) return { text: "Expired", minutes: -1, isPending: false };
+    if (a.cancelledAt) return { text: "Cancelled", minutes: -1, isPending: false };
     return { text: "—", minutes: -1, isPending: false };
   }
-  const t = new Date(a.ResponseDeadline).getTime();
+  const t = new Date(a.responseDeadline).getTime();
   if (!Number.isFinite(t)) return { text: "—", minutes: -1, isPending: true };
   const minutes = Math.max(0, Math.floor((t - Date.now()) / 60_000));
   if (minutes <= 0) return { text: "Closed", minutes: 0, isPending: true };
@@ -199,10 +199,10 @@ export default function AssignmentsListPage() {
     let declined = 0;
     let closed = 0;
     for (const a of assignments) {
-      if (isPendingBucket(a.Status)) pending++;
-      else if (isActiveBucket(a.Status)) active++;
-      else if (isDeclinedBucket(a.Status)) declined++;
-      else if (isClosedBucket(a.Status)) closed++;
+      if (isPendingBucket(a.status)) pending++;
+      else if (isActiveBucket(a.status)) active++;
+      else if (isDeclinedBucket(a.status)) declined++;
+      else if (isClosedBucket(a.status)) closed++;
     }
     return { pending, active, declined, closed };
   }, [assignments]);
@@ -210,7 +210,7 @@ export default function AssignmentsListPage() {
   const statuses = useMemo(() => {
     const set = new Set<string>();
     assignments.forEach((a) => {
-      if (a.Status) set.add(a.Status);
+      if (a.status) set.add(a.status);
     });
     return ["All", ...Array.from(set)];
   }, [assignments]);
@@ -218,9 +218,9 @@ export default function AssignmentsListPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return assignments.filter((a) => {
-      if (selectedStatus !== "All" && a.Status !== selectedStatus) return false;
+      if (selectedStatus !== "All" && a.status !== selectedStatus) return false;
       if (q === "") return true;
-      const haystack = [a.ID, a.OfferID ?? "", a.MembershipID]
+      const haystack = [a.id, a.offerId ?? "", a.membershipId]
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
@@ -439,7 +439,7 @@ export default function AssignmentsListPage() {
             </thead>
             <tbody>
               {filtered.map((a) => {
-                const pill = statusStyle(a.Status);
+                const pill = statusStyle(a.status);
                 const deadline = deadlineDisplay(a);
                 const isUrgent =
                   deadline.isPending &&
@@ -448,38 +448,38 @@ export default function AssignmentsListPage() {
 
                 return (
                   <tr
-                    key={a.ID}
+                    key={a.id}
                     className="border-b border-line transition-colors hover:bg-surface-2"
                   >
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <Link
-                        href={`/operations/assignments/${a.ID}`}
+                        href={`/operations/assignments/${a.id}`}
                         className="font-mono text-sm font-semibold text-ink-950 hover:text-primary transition-colors"
                       >
-                        {a.ID}
+                        {a.id}
                       </Link>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
-                      {a.OfferID ? (
+                      {a.offerId ? (
                         <Link
-                          href={`/operations/marketplace/${a.OfferID}`}
+                          href={`/operations/marketplace/${a.offerId}`}
                           className="font-mono text-xs text-ink-600 hover:text-primary transition-colors"
                         >
-                          {a.OfferID}
+                          {a.offerId}
                         </Link>
                       ) : (
                         <span className="text-ink-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3.5 font-mono text-xs text-ink-700 whitespace-nowrap">
-                      {a.MembershipID}
+                      {a.membershipId}
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${pill.bg} ${pill.text}`}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${pill.dot}`} />
-                        {statusLabel(a.Status)}
+                        {statusLabel(a.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
@@ -498,15 +498,15 @@ export default function AssignmentsListPage() {
                     <td className="px-4 py-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
                         <Link
-                          href={`/operations/assignments/${a.ID}`}
+                          href={`/operations/assignments/${a.id}`}
                           className="inline-flex items-center gap-1 rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-600 hover:bg-surface-2 transition-colors"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           View
                         </Link>
-                        {canReassign(a.Status) && (
+                        {canReassign(a.status) && (
                           <Link
-                            href={`/operations/assignments/${a.ID}/reassign`}
+                            href={`/operations/assignments/${a.id}/reassign`}
                             className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover transition-colors"
                           >
                             <RefreshCw className="h-3.5 w-3.5" />

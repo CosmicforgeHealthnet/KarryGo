@@ -65,7 +65,7 @@ export function SpecializedDataPanel({ orderId }: { orderId: string }) {
     Promise.resolve().then(load);
     specializedService
       .listCapabilities()
-      .then((caps) => setCapabilities(caps.filter((c) => c.Status === "ENABLED")))
+      .then((caps) => setCapabilities(caps.filter((c) => c.status === "ENABLED")))
       .catch(() => setCapabilities([]));
   }, [load]);
 
@@ -133,7 +133,7 @@ export function SpecializedDataPanel({ orderId }: { orderId: string }) {
             <Field label="Capability" required>
               <select required value={capability} onChange={(e) => chooseCapability(e.target.value)} className={INPUT}>
                 <option value="">Choose a capability</option>
-                {capabilities.map((c) => <option key={c.CapabilityCode} value={c.CapabilityCode}>{humanize(c.CapabilityCode)}</option>)}
+                {capabilities.map((c) => <option key={c.capabilityCode} value={c.capabilityCode}>{humanize(c.capabilityCode)}</option>)}
               </select>
             </Field>
             {schema && (
@@ -183,13 +183,13 @@ export function SpecializedDataPanel({ orderId }: { orderId: string }) {
         <DataTable
           minWidth={640}
           rows={records}
-          rowKey={(r) => r.ID}
+          rowKey={(r) => r.id}
           columns={[
-            { header: "Capability", cell: (r) => humanize(r.CapabilityCode) },
-            { header: "Record", cell: (r) => humanize(r.RecordType) },
-            { header: "Schema", cell: (r) => r.SchemaID || `v${r.SchemaVersion}` },
-            { header: "Status", cell: (r) => <StatusPill status={r.Status} /> },
-            { header: "Recorded", cell: (r) => formatWhen(r.CreatedAt) },
+            { header: "Capability", cell: (r) => humanize(r.capabilityCode) },
+            { header: "Record", cell: (r) => humanize(r.recordType) },
+            { header: "Schema", cell: (r) => r.schemaId || `v${r.schemaVersion}` },
+            { header: "Status", cell: (r) => <StatusPill status={r.status} /> },
+            { header: "Recorded", cell: (r) => formatWhen(r.createdAt) },
           ]}
         />
       )}

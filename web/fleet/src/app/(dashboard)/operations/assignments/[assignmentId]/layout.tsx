@@ -133,9 +133,9 @@ export default function AssignmentDetailLayout({
               <span className="h-6 w-24 rounded-full bg-surface-2" />
             ) : assignment ? (
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusPillClass(assignment.Status)}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusPillClass(assignment.status)}`}
               >
-                {statusLabel(assignment.Status)}
+                {statusLabel(assignment.status)}
               </span>
             ) : error ? (
               <span className="rounded-full bg-red-bg px-2.5 py-1 text-xs font-semibold text-red">
@@ -145,18 +145,18 @@ export default function AssignmentDetailLayout({
           </div>
           {assignment && (
             <p className="mt-0.5 text-sm text-ink-500">
-              {assignment.OfferID ? (
+              {assignment.offerId ? (
                 <>
                   Offer{" "}
                   <span className="font-mono text-ink-700">
-                    {assignment.OfferID}
+                    {assignment.offerId}
                   </span>
                   {" · "}
                 </>
               ) : null}
               Provider{" "}
               <span className="font-mono text-ink-700">
-                {assignment.MembershipID}
+                {assignment.membershipId}
               </span>
             </p>
           )}
