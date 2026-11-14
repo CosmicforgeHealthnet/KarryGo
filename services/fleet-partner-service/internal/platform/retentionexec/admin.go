@@ -52,11 +52,10 @@ type Administrator struct {
 	recorder       *audit.Recorder
 }
 
-// NewAdministrator builds the administrator. stepUp/securityPolicy may be
-// nil, matching every other optional-dependency convention in this
-// service -- step-up is then recorded if a reference is supplied but never
-// actually verified, same disclosed posture legalhold/securitysettings
-// already document.
+// NewAdministrator builds the administrator. securityPolicy may be nil, in
+// which case step-up is treated as required. stepUp may be nil only where
+// step-up is never required: when it is required and no verifier is wired,
+// execution is refused (fail closed).
 func NewAdministrator(pool *pgxpool.Pool, runner *Runner, queue *jobs.Queue,
 	stepUp stepup.Verifier, securityPolicy SecurityPolicyReader, recorder *audit.Recorder) *Administrator {
 	if recorder == nil {
@@ -75,8 +74,11 @@ func (a *Administrator) verifyStepUp(ctx context.Context, identityID, organizati
 			required = r
 		}
 	}
-	if !required || a.stepUp == nil {
+	if !required {
 		return nil
+	}
+	if a.stepUp == nil {
+		return stepup.Unconfigured()
 	}
 	return a.stepUp.Verify(ctx, reference, identityID, sessionID, organizationID, ActionClassExecute)
 }

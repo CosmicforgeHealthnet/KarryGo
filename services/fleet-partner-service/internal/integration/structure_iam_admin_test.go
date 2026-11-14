@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 )
 
 // TestOrganizationStructureAndAccessAdministration drives the production
@@ -17,9 +19,12 @@ func TestOrganizationStructureAndAccessAdministration(t *testing.T) {
 	if code, body := onboardCall(t, router, owner, "POST", "/organizations", company, 0); code != 201 {
 		t.Fatal(body)
 	}
+	// Role and permission changes require step-up (spec 64.1); the owner
+	// confirms once and the grant covers this test's access changes.
+	ownerGrant := obtainStepUp(t, router, h, owner, stepup.ActionAccessManage)
 	call := func(method, path string, payload any, version, want int) map[string]any {
 		t.Helper()
-		code, body := onboardCall(t, router, owner, method, path, payload, version)
+		code, body := onboardCallStepUp(t, router, owner, ownerGrant, method, path, payload, version)
 		if code != want {
 			t.Fatalf("%s %s = %d, want %d: %v", method, path, code, want, body)
 		}
@@ -141,7 +146,8 @@ func TestOrganizationStructureAndAccessAdministration(t *testing.T) {
 	if code, _ := onboardCall(t, router, other, "PATCH", "/branches/"+ikejaID, map[string]any{"name": "Taken"}, 0); code != 404 {
 		t.Fatalf("cross-tenant branch write = %d", code)
 	}
-	if code, _ := onboardCall(t, router, other, "PUT", staffPath+"/roles", map[string]any{"roleIds": []string{"rol_system_operations"}}, 0); code != 404 {
+	otherGrant := obtainStepUp(t, router, h, other, stepup.ActionAccessManage)
+	if code, _ := onboardCallStepUp(t, router, other, otherGrant, "PUT", staffPath+"/roles", map[string]any{"roleIds": []string{"rol_system_operations"}}, 0); code != 404 {
 		t.Fatalf("cross-tenant role binding = %d", code)
 	}
 

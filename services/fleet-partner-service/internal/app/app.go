@@ -22,6 +22,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ratelimit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	platformserviceauth "cosmicforge/logistics/services/fleet-partner-service/internal/platform/serviceauth"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -77,7 +78,12 @@ type Options struct {
 	// or correct onboarding, but cannot use other state-changing routes (see
 	// middleware.RequireOperationalOrganization). Production always sets it.
 	OrganizationStatus middleware.OrganizationStatusFunc
-	ReadyChecks        []ReadyCheck
+	// StepUp verifies step-up grants for the high-risk routes listed in
+	// internal/platform/stepup. The check is mounted on every tenant route
+	// regardless; a nil verifier makes protected routes answer
+	// "unavailable" instead of running unverified.
+	StepUp      stepup.Verifier
+	ReadyChecks []ReadyCheck
 	// WorkerReady reports in-process worker readiness (nil when the worker
 	// runs as a separate process).
 	WorkerReady func() bool
@@ -284,6 +290,10 @@ func BuildRouter(opts Options) *gin.Engine {
 		// Spec 6: list routes accept only their declared filters and reject
 		// malformed paging values before a handler or SQL ever sees them.
 		tenantScoped.Use(middleware.QueryAllowlist())
+		// Step-up runs after tenant resolution (it binds the grant to the
+		// resolved organization) and after the lifecycle gate, so an
+		// inactive organization is told so before being asked to verify.
+		tenantScoped.Use(middleware.RequireStepUp(opts.StepUp))
 		if opts.TenantRoutes != nil {
 			opts.TenantRoutes(tenantScoped)
 		}

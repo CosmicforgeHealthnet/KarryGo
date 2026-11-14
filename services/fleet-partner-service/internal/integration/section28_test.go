@@ -26,7 +26,7 @@ func TestSection28LegalHold_LifecycleAndTenantIsolation(t *testing.T) {
 	orgA := createOrganization(t, pool, "Hold Org A", "RC-HOLD-A")
 	orgB := createOrganization(t, pool, "Hold Org B", "RC-HOLD-B")
 
-	svc := legalholdusecases.NewService(pool, nil, nil)
+	svc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil)
 	actorA := legalholdusecases.Actor{OrganizationID: orgA.ID, ActorType: "organization_user", ActorID: "ou_1"}
 
 	hold, err := svc.Create(ctx, legalholdusecases.CreateInput{
@@ -91,7 +91,7 @@ func TestSection28LegalHold_RejectsInvalidScopeAndMissingReason(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	org := createOrganization(t, pool, "Hold Org Validation", "RC-HOLD-VAL")
-	svc := legalholdusecases.NewService(pool, nil, nil)
+	svc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil)
 	actor := legalholdusecases.Actor{OrganizationID: org.ID, ActorType: "organization_user", ActorID: "ou_1"}
 
 	if _, err := svc.Create(ctx, legalholdusecases.CreateInput{
@@ -121,7 +121,7 @@ func TestSection28SecuritySettings_DefaultsCreateUpdateAndVersionGuard(t *testin
 	pool := testPool(t)
 	ctx := context.Background()
 	org := createOrganization(t, pool, "Settings Org", "RC-SET-1")
-	svc := securitysettingsusecases.NewService(pool, nil)
+	svc := securitysettingsusecases.NewService(pool, acceptingStepUp{})
 	actor := securitysettingsusecases.Actor{OrganizationID: org.ID, ActorType: "organization_user", ActorID: "ou_1"}
 
 	defaults, err := svc.Get(ctx, org.ID)
@@ -349,6 +349,17 @@ func (f *fakeStepUpVerifier) Verify(_ context.Context, reference, identityID, se
 
 var errStepUpDenied = fmt.Errorf("fake step-up: denied")
 
+// acceptingStepUp is a test double for tests about something other than
+// step-up (retention, legal-hold lifecycle, settings validation). Step-up is
+// mandatory and fails closed without a verifier, so those tests must supply
+// one; step-up refusal itself is covered by the fakeStepUpVerifier tests below
+// and by the real-verifier HTTP tests in step_up_http_test.go.
+type acceptingStepUp struct{}
+
+func (acceptingStepUp) Verify(context.Context, string, string, string, string, string) error {
+	return nil
+}
+
 // TestSection28LegalHold_StepUpEnforcedWhenOrgRequiresMFA proves that once a
 // stepup.Verifier is wired AND the organization's own security settings say
 // MFA is required, legal-hold create/release actually calls it with the
@@ -359,7 +370,7 @@ func TestSection28LegalHold_StepUpEnforcedWhenOrgRequiresMFA(t *testing.T) {
 	ctx := context.Background()
 	org := createOrganization(t, pool, "StepUp Org", "RC-STEPUP-1")
 
-	settingsSvc := securitysettingsusecases.NewService(pool, nil)
+	settingsSvc := securitysettingsusecases.NewService(pool, acceptingStepUp{})
 	// MFARequiredForSensitiveActions defaults to true even before any
 	// explicit override is written -- see models.Defaults -- so no setup
 	// write is needed to exercise the "required" path.

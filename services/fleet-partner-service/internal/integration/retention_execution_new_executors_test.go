@@ -45,7 +45,7 @@ import (
 func newExecutorTestRunner(pool *pgxpool.Pool, media retentionexec.ExportMediaDeleter,
 	projectionAuthority retentionexec.ProjectionAuthorityReader,
 	supportAuthority retentionexec.SupportCaseAuthorityReader) (*retentionexec.Runner, *legalholdusecases.Service) {
-	legalSvc := legalholdusecases.NewService(pool, nil, nil)
+	legalSvc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil)
 	policySvc := retentionpolicyusecases.NewService(pool)
 	runner := retentionexec.NewRunner(pool, []retentionexec.ClassExecutor{
 		retentionexec.NewOrgContactExecutor(),
@@ -216,7 +216,7 @@ func supportCaseReferences(t *testing.T, pool *pgxpool.Pool, id string) (custome
 
 func runDryRunOnce(t *testing.T, runner *retentionexec.Runner, pool *pgxpool.Pool, orgID, class string, key string) retentionexec.Run {
 	t.Helper()
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: class, Mode: retentionexec.ModeDryRun, IdempotencyKey: key,
@@ -230,7 +230,7 @@ func runDryRunOnce(t *testing.T, runner *retentionexec.Runner, pool *pgxpool.Poo
 func runExecuteOnce(t *testing.T, runner *retentionexec.Runner, pool *pgxpool.Pool, orgID, class, key string) retentionexec.Run {
 	t.Helper()
 	queue := jobs.NewQueue(pool)
-	admin := retentionexec.NewAdministrator(pool, runner, queue, nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, queue, acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: class, Mode: retentionexec.ModeExecute, IdempotencyKey: key,
@@ -497,7 +497,7 @@ func TestSupersededProjectionExecutor_LegalHoldBlocksAndConcurrentHoldPreserves(
 	org2, _ := closedOrgWithRepresentative(t, pool, "Retention Projection Concurrent Co", "RC-RET-PROJ-3B", 0)
 	projection2 := seedSynchronizationProjectionForRetention(t, pool, org2, "svc-c", "type-c", "subject-concurrent", 1, 1830)
 	authority.versions["subject-concurrent"] = 4
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run2, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: org2, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassCompanyConfidential, Mode: retentionexec.ModeDryRun, IdempotencyKey: "proj-concurrent-1",
@@ -633,7 +633,7 @@ func TestSupportMetadataExecutor_BatchLimitEnforced(t *testing.T) {
 	pool := testPool(t)
 	orgID, _ := closedOrgWithRepresentative(t, pool, "Retention Support Batch Co", "RC-RET-SUP-3", 0)
 	authority := newFakeSupportAuthority()
-	legalSvc := legalholdusecases.NewService(pool, nil, nil)
+	legalSvc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil)
 	policySvc := retentionpolicyusecases.NewService(pool)
 	limitedRunner := retentionexec.NewRunner(pool, []retentionexec.ClassExecutor{
 		retentionexec.NewSupportMetadataExecutor(authority),
@@ -644,7 +644,7 @@ func TestSupportMetadataExecutor_BatchLimitEnforced(t *testing.T) {
 	authority.statuses["case-batch-1"] = "CLOSED"
 	authority.statuses["case-batch-2"] = "CLOSED"
 
-	admin := retentionexec.NewAdministrator(pool, limitedRunner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, limitedRunner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassSupport, Mode: retentionexec.ModeExecute, IdempotencyKey: "support-batch-1",

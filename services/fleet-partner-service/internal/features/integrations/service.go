@@ -129,6 +129,18 @@ func (s *Service) verifyStepUp(ctx context.Context, actor Actor, action string) 
 	if !required {
 		return nil
 	}
+	return s.requireStepUp(ctx, actor, action)
+}
+
+// verifySecretStepUp guards actions that issue, rotate or revoke an API or
+// webhook secret. Spec 56.2 and 64.1 make step-up mandatory for secret
+// changes, so the organization's mfaRequiredForSensitiveActions setting does
+// not waive it (it still governs webhook updates and delivery replays).
+func (s *Service) verifySecretStepUp(ctx context.Context, actor Actor, action string) error {
+	return s.requireStepUp(ctx, actor, action)
+}
+
+func (s *Service) requireStepUp(ctx context.Context, actor Actor, action string) error {
 	if s.stepUp == nil {
 		return apperrors.Unavailable("Step-up verification is not configured.", nil)
 	}
@@ -156,7 +168,7 @@ func (s *Service) CreateAPIClient(ctx context.Context, actor Actor, in CreateAPI
 	if !s.cfg.OrganizationAPIClientsEnabled || s.cfg.IntegrationsKillSwitch {
 		return APIClient{}, "", false, apperrors.Unavailable("Organization API clients are disabled.", nil)
 	}
-	if err := s.verifyStepUp(ctx, actor, actionAPIClientManage); err != nil {
+	if err := s.verifySecretStepUp(ctx, actor, actionAPIClientManage); err != nil {
 		return APIClient{}, "", false, err
 	}
 	name, scopes, cidrs, err := validateAPIClientInput(in)
@@ -269,7 +281,7 @@ func (s *Service) RotateAPIClient(ctx context.Context, actor Actor, id string, e
 	if !s.cfg.OrganizationAPIClientsEnabled || s.cfg.IntegrationsKillSwitch {
 		return APIClient{}, "", false, apperrors.Unavailable("Organization API clients are disabled.", nil)
 	}
-	if err := s.verifyStepUp(ctx, actor, actionAPIClientManage); err != nil {
+	if err := s.verifySecretStepUp(ctx, actor, actionAPIClientManage); err != nil {
 		return APIClient{}, "", false, err
 	}
 	if expected < 1 || overlap < 0 || overlap > s.cfg.WebhookRotationOverlapMax {
@@ -340,7 +352,7 @@ func (s *Service) RevokeAPIClient(ctx context.Context, actor Actor, id string, e
 	if !s.cfg.OrganizationAPIClientsEnabled || s.cfg.IntegrationsKillSwitch {
 		return APIClient{}, false, apperrors.Unavailable("Organization API clients are disabled.", nil)
 	}
-	if err := s.verifyStepUp(ctx, actor, actionAPIClientManage); err != nil {
+	if err := s.verifySecretStepUp(ctx, actor, actionAPIClientManage); err != nil {
 		return APIClient{}, false, err
 	}
 	if expected < 1 {
@@ -389,7 +401,7 @@ func (s *Service) CreateWebhook(ctx context.Context, actor Actor, in CreateWebho
 	if !s.cfg.WebhooksEnabled || s.cfg.IntegrationsKillSwitch {
 		return WebhookSubscription{}, "", false, apperrors.Unavailable("Webhooks are disabled.", nil)
 	}
-	if err := s.verifyStepUp(ctx, actor, actionWebhookManage); err != nil {
+	if err := s.verifySecretStepUp(ctx, actor, actionWebhookManage); err != nil {
 		return WebhookSubscription{}, "", false, err
 	}
 	endpoint, eventsList, err := s.validateWebhookConfig(ctx, in.EndpointURL, in.EventTypes)
@@ -510,7 +522,7 @@ func (s *Service) RotateWebhookSecret(ctx context.Context, actor Actor, id strin
 	if !s.cfg.WebhooksEnabled || s.cfg.IntegrationsKillSwitch {
 		return WebhookSubscription{}, "", false, apperrors.Unavailable("Webhooks are disabled.", nil)
 	}
-	if err := s.verifyStepUp(ctx, actor, actionWebhookManage); err != nil {
+	if err := s.verifySecretStepUp(ctx, actor, actionWebhookManage); err != nil {
 		return WebhookSubscription{}, "", false, err
 	}
 	if expected < 1 || overlap < 0 || overlap > s.cfg.WebhookRotationOverlapMax {

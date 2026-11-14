@@ -26,6 +26,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -176,6 +177,9 @@ func (s *Service) RequestExport(ctx context.Context, in RequestExportInput) (mod
 		return models.Job{}, errorcodes.Unavailable(errorcodes.ExportTypeInvalid,
 			"This export type is recognized but not yet available in this deployment.")
 	}
+	if err := requireSensitiveStepUp(ctx, exportType); err != nil {
+		return models.Job{}, err
+	}
 
 	fingerprint := exportFingerprint(in.Actor.OrganizationID, in.BranchID, exportType, format, in.Filters, in.RequestedColumns)
 	if replay, err := s.findReplay(ctx, in.Actor.OrganizationID, key, fingerprint); err != nil {
@@ -259,6 +263,16 @@ func (s *Service) Replay(ctx context.Context, organizationID, id string) error {
 	if err := s.writesAllowed(); err != nil {
 		return err
 	}
+	// Replaying regenerates the dataset, so a sensitive category needs the
+	// same step-up as requesting it. An unknown id keeps its existing
+	// refusal from the repository below.
+	if job, err := s.opts.Repository.Get(ctx, nil, organizationID, id); err == nil {
+		if err := requireSensitiveStepUp(ctx, job.ExportType); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, repositories.ErrNotFound) {
+		return err
+	}
 	err := s.opts.Repository.Replay(ctx, organizationID, id)
 	if errors.Is(err, repositories.ErrConflict) {
 		return errorcodes.Conflict(errorcodes.ExportNotReplayable,
@@ -277,6 +291,9 @@ func (s *Service) RequestDownloadURL(ctx context.Context, t tenant.Context, id s
 	if err != nil {
 		return DownloadGrant{}, err
 	}
+	if err := requireSensitiveStepUp(ctx, job.ExportType); err != nil {
+		return DownloadGrant{}, err
+	}
 	if !job.Downloadable(s.opts.Now()) {
 		return DownloadGrant{}, s.downloadRefusal(job)
 	}
@@ -291,6 +308,16 @@ func (s *Service) RequestDownloadURL(ctx context.Context, t tenant.Context, id s
 	s.opts.Metrics.IncCounter("fleet_partner_export_downloads_total",
 		map[string]string{"exportType": job.ExportType}, 1)
 	return grant, nil
+}
+
+// requireSensitiveStepUp demands a fresh step-up grant before a sensitive
+// export category is generated or released. The proof comes from the request
+// context (internal/middleware.RequireStepUp); a call without one is refused.
+func requireSensitiveStepUp(ctx context.Context, exportType string) error {
+	if !models.SensitiveExportType(exportType) {
+		return nil
+	}
+	return stepup.Require(ctx, stepup.ActionSensitiveExport)
 }
 
 func (s *Service) downloadRefusal(job models.Job) error {

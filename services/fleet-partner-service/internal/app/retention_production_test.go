@@ -194,7 +194,7 @@ func TestRetentionProduction_EnabledModeReachesRealRegisteredExecutor(t *testing
 		_, _ = pool.Exec(context.Background(), `DELETE FROM fleet_partner_organizations WHERE id = $1`, orgID)
 	})
 
-	admin := retentionexec.NewAdministrator(pool, components.RetentionRunner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, components.RetentionRunner, jobs.NewQueue(pool), acceptAnyStepUp{}, nil, nil)
 	run, err := admin.Initiate(ctx, retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassTemporary, Mode: retentionexec.ModeDryRun,
@@ -206,4 +206,13 @@ func TestRetentionProduction_EnabledModeReachesRealRegisteredExecutor(t *testing
 	if run.RecordsArchived != 1 {
 		t.Fatalf("recordsArchived = %d, want 1 -- the real registered ExpiredExportExecutor must have previewed the seeded export", run.RecordsArchived)
 	}
+}
+
+// acceptAnyStepUp stands in for the step-up verifier in tests about
+// retention execution itself. Step-up is required by default and fails
+// closed without a verifier; refusal is covered by the integration suite.
+type acceptAnyStepUp struct{}
+
+func (acceptAnyStepUp) Verify(context.Context, string, string, string, string, string) error {
+	return nil
 }

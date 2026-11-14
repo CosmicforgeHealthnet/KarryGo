@@ -81,15 +81,64 @@ either. A missing/wrong reference fails closed (`step_up_required`/
 `step_up_expired`, propagated straight through from
 `VerifyStepUpGrant` — no exceptions, no fallback-to-allow path).
 
-An unwired verifier (`stepUp == nil`) still degrades to record-only, same as
-every other optional dependency in this composition root — but in this
-service's actual `cmd/main.go` wiring it is never nil. Verified against
+An unwired verifier (`stepUp == nil`) now **refuses** the action
+(`stepup.Unconfigured()`, 503) whenever step-up is required. It used to
+degrade to record-only, which made legal-hold create/release, retention
+execution and security-settings updates succeed unverified in any
+composition that forgot the verifier (FLEET-9.14). Verified against
 real Postgres: `TestSection28LegalHold_StepUpEnforcedWhenOrgRequiresMFA`
 (missing/wrong/valid reference, correct identity/session/org/action-class
 asserted on every call, separate action classes for create vs release) and
 `TestSection28LegalHold_StepUpSkippedWhenOrgDisablesMFA` (disabling MFA is
 itself gated by step-up; once disabled, a subsequent hold create genuinely
 never calls the verifier).
+
+### Mandatory step-up for high-risk routes (FLEET-9.14)
+
+Spec 64.1 makes step-up **mandatory** (not organization-configurable) for
+role/permission changes, approval decisions, wallet allocations/withdrawals,
+payroll finalization, API secret rotation, sensitive exports and
+organization closure; spec 56.2 repeats the rule. Those actions do not
+consult `MFARequiredForSensitiveActions`:
+
+- `internal/platform/stepup` holds a route registry (`stepup.Routes()`)
+  mapping each protected `METHOD path` to one action class:
+  `iam.access.manage` (POST/PATCH/archive `/roles`, PUT `/staff/:id/roles`,
+  `/staff/:id/suspend`, `/staff/:id/reactivate`), `organization.closure`
+  (close-request, closure approve/execute), `wallet.allocation` and
+  `wallet.withdrawal` (create/approve), `payroll.finalize` (approve/post),
+  `providers.remove`.
+- `middleware.RequireStepUp`, mounted once on the tenant route group in
+  `app.BuildRouter` after tenant resolution and the lifecycle gate, enforces
+  the registry and attaches a per-request proof to the request context. The
+  client sends the grant from `POST /auth/step-up/verify` in the
+  `X-Step-Up-Reference` header. Identity, session and organization come from
+  the verified token and the resolved tenant only.
+- Data-dependent checks call `stepup.Require(ctx, class)`: exports of the
+  sensitive categories (PROVIDERS_WORKFORCE, INVOICES_RECEIVABLES,
+  COMPLIANCE_INCIDENTS, SUPPORT_CASE_PROJECTIONS) require
+  `exports.sensitive` to create, replay or download.
+- API client create/rotate/revoke and webhook create/secret-rotation require
+  step-up regardless of the organization setting.
+- Refusals are 403 `step_up_required` / `step_up_expired` with a
+  `details` entry `{"field": "actionClass", "message": "<class>"}` naming the
+  class to start a challenge for. Every check fails closed: no proof, no
+  verifier or no reference refuses.
+- `audit.Recorder` fills `step_up_reference` from the grant the request
+  proved, so the protected actions' audit rows cite their step-up evidence.
+- `POST /auth/step-up/start` is an identity route; it now binds the grant
+  to the organization the tenant middleware resolves for the session
+  (`app.StepUpOrganizationScope`). Before, it bound to an empty organization
+  and no organization-scoped check could ever accept an HTTP-issued grant.
+
+Ordering note: the middleware runs before the handler's permission check,
+so a caller without the permission is asked for step-up before being told
+they lack the permission. Neither response reveals whether the target
+object exists.
+
+Tests: `internal/integration/step_up_http_test.go` (production router, real
+auth service and grants), `internal/middleware/step_up_test.go`,
+`internal/app/step_up_router_test.go`.
 
 **Retention-policy updates remain step-up-free** — Section 9 lists
 "Data-retention *execution*" as requiring step-up, meaning actually running

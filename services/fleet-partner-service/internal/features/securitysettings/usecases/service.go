@@ -33,9 +33,9 @@ type Service struct {
 	stepUp   stepup.Verifier
 }
 
-// NewService builds the service. stepUp may be nil (same optional-dependency
-// convention as every other feature this pass touched) — see
-// docs/section28-security-privacy-audit.md.
+// NewService builds the service. stepUp may be nil only where step-up is
+// never required: when the organization's current settings require it and no
+// verifier is wired, the update is refused (fail closed).
 func NewService(pool *pgxpool.Pool, stepUp stepup.Verifier) *Service {
 	return &Service{pool: pool, reads: repositories.NewRepository(pool), recorder: audit.NewRecorder(), stepUp: stepUp}
 }
@@ -85,21 +85,22 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Setting
 		return models.Settings{}, errs, nil
 	}
 
-	if s.stepUp != nil {
-		current, err := s.reads.Get(ctx, input.Actor.OrganizationID)
-		if err != nil {
-			return models.Settings{}, nil, err
+	current, err := s.reads.Get(ctx, input.Actor.OrganizationID)
+	if err != nil {
+		return models.Settings{}, nil, err
+	}
+	if current.MFARequiredForSensitiveActions {
+		if s.stepUp == nil {
+			return models.Settings{}, nil, stepup.Unconfigured()
 		}
-		if current.MFARequiredForSensitiveActions {
-			if err := s.stepUp.Verify(ctx, input.StepUpReference, input.IdentityID, input.SessionID,
-				input.Actor.OrganizationID, ActionClassUpdate); err != nil {
-				return models.Settings{}, nil, err
-			}
+		if err := s.stepUp.Verify(ctx, input.StepUpReference, input.IdentityID, input.SessionID,
+			input.Actor.OrganizationID, ActionClassUpdate); err != nil {
+			return models.Settings{}, nil, err
 		}
 	}
 
 	var updated models.Settings
-	err := database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
+	err = database.WithinTx(ctx, s.pool, func(tx pgx.Tx) error {
 		txRepo := repositories.NewRepository(tx)
 		result, err := txRepo.Upsert(ctx, input.Settings, input.ExpectedVersion)
 		if err != nil {

@@ -11,13 +11,13 @@
 // mechanism itself.
 //
 // CausationID/ApprovalReference/IdempotencyKeyReference/StepUpReference are
-// new, optional fields: only internal/features/legalhold and
-// internal/features/securitysettings populate StepUpReference today (the
-// two features with a step-up reference actually in scope). Every other
-// existing caller of Record leaves them empty, which is valid (the columns
-// are nullable) — populating them everywhere a domain feature has the
-// relevant reference is real, disclosed follow-up work, not done in this
-// pass.
+// new, optional fields. StepUpReference is set explicitly by
+// internal/features/legalhold and internal/features/securitysettings, and
+// filled in automatically for every other caller from the step-up grant the
+// request proved (internal/platform/stepup.VerifiedReference), so a
+// step-up-protected route's audit rows cite their step-up evidence without
+// each feature threading the reference through. The other fields stay empty
+// unless a caller sets them, which is valid (the columns are nullable).
 package audit
 
 import (
@@ -32,6 +32,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/redact"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -130,6 +131,9 @@ func (r *Recorder) record(ctx context.Context, q database.Querier, entry Entry) 
 	}
 	if entry.ActorType == "" || entry.ActorID == "" {
 		return fmt.Errorf("audit: actor is required")
+	}
+	if entry.StepUpReference == "" {
+		entry.StepUpReference = stepup.VerifiedReference(ctx)
 	}
 
 	previousValues := Redact(entry.PreviousValues)

@@ -28,7 +28,7 @@ import (
 // for production, just assembled directly here rather than through the
 // composition root.
 func newTestRunner(pool *pgxpool.Pool) (*retentionexec.Runner, *legalholdusecases.Service, *retentionpolicyusecases.Service) {
-	legalSvc := legalholdusecases.NewService(pool, nil, nil)
+	legalSvc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil)
 	policySvc := retentionpolicyusecases.NewService(pool)
 	runner := retentionexec.NewRunner(pool,
 		[]retentionexec.ClassExecutor{retentionexec.NewOrgContactExecutor()},
@@ -132,7 +132,7 @@ func TestRetentionExecution_DryRunNeverMutates(t *testing.T) {
 	runner, _, _ := newTestRunner(pool)
 	orgID, repID := closedOrgWithRepresentative(t, pool, "Retention DryRun Co", "RC-RET-1", 120)
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeDryRun,
@@ -163,7 +163,7 @@ func TestRetentionExecution_ExecuteAnonymizesThroughJobHandler(t *testing.T) {
 	orgID, repID := closedOrgWithRepresentative(t, pool, "Retention Execute Co", "RC-RET-2", 120)
 
 	queue := jobs.NewQueue(pool)
-	admin := retentionexec.NewAdministrator(pool, runner, queue, nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, queue, acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeExecute,
@@ -227,7 +227,7 @@ func TestRetentionExecution_IdempotentReplaySkipsAlreadyAnonymized(t *testing.T)
 	runner, _, _ := newTestRunner(pool)
 	orgID, repID := closedOrgWithRepresentative(t, pool, "Retention Replay Co", "RC-RET-3", 120)
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeDryRun,
@@ -279,7 +279,7 @@ func TestRetentionExecution_LegalHoldBlocksExecution(t *testing.T) {
 		t.Fatalf("create legal hold: %v", err)
 	}
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeDryRun,
@@ -313,7 +313,7 @@ func TestRetentionExecution_MinimumRetentionBlocksExecution(t *testing.T) {
 	runner, _, _ := newTestRunner(pool)
 	orgID, repID := closedOrgWithRepresentative(t, pool, "Retention MinRetention Co", "RC-RET-5", 0)
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeDryRun,
@@ -347,7 +347,7 @@ func TestRetentionExecution_UnregisteredClassRefused(t *testing.T) {
 	runner, _, _ := newTestRunner(pool)
 	org := createOrganization(t, pool, "Retention Unregistered Co", "RC-RET-6")
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	_, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: org.ID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassAudit, Mode: retentionexec.ModeDryRun,
@@ -366,7 +366,7 @@ func TestRetentionExecution_InitiateIsIdempotentByKey(t *testing.T) {
 	runner, _, _ := newTestRunner(pool)
 	orgID, _ := closedOrgWithRepresentative(t, pool, "Retention IdempotentInitiate Co", "RC-RET-7", 120)
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	input := retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: orgID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeDryRun,
@@ -405,7 +405,7 @@ func TestRetentionExecution_OpenOrganizationNeverEligible(t *testing.T) {
 		t.Fatal("newly created organization must not already be CLOSED")
 	}
 
-	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), nil, nil, nil)
+	admin := retentionexec.NewAdministrator(pool, runner, jobs.NewQueue(pool), acceptingStepUp{}, nil, nil)
 	run, err := admin.Initiate(t.Context(), retentionexec.InitiateInput{
 		Actor:          retentionexec.Actor{OrganizationID: org.ID, ActorType: "organization_user", ActorID: "test_owner"},
 		RetentionClass: retentionpolicymodels.ClassOperational, Mode: retentionexec.ModeDryRun,

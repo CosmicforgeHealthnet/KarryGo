@@ -13,6 +13,7 @@ import (
 	orghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/http"
 	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	orgusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/usecases"
+	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	providerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
@@ -23,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -55,6 +57,14 @@ func TestOnboardingRepresentativeWireContract(t *testing.T) {
 // the real HMAC-signed media client against a test authority. No runtime bypass.
 func buildOnboardingRouter(t *testing.T, configureMedia ...func(*mediaTestServer)) (*gin.Engine, *authHarness) {
 	t.Helper()
+	return buildOnboardingRouterWith(t, nil, configureMedia...)
+}
+
+// buildOnboardingRouterWith is buildOnboardingRouter with extra tenant routes
+// mounted on the same production tenant group (tenant resolution, lifecycle
+// gate, step-up), for features the organizations handler does not serve.
+func buildOnboardingRouterWith(t *testing.T, extraTenantRoutes func(*pgxpool.Pool, *gin.RouterGroup), configureMedia ...func(*mediaTestServer)) (*gin.Engine, *authHarness) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	var org *orgusecases.Service
 	var staff *staffusecases.Service
@@ -71,9 +81,20 @@ func buildOnboardingRouter(t *testing.T, configureMedia ...func(*mediaTestServer
 		opts.Memberships = staff
 		opts.Invitations = staff
 	})
-	ah := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test", "http://127.0.0.1:3417"}})
-	oh := orghttp.NewHandler(org, staff, providerusecases.NewService(providerusecases.Options{Pool: h.pool}), accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(h.pool), nil, 0), nil)
-	return app.BuildRouter(app.Options{Metrics: observability.NewMetrics(), Config: config.Config{AppEnv: "test", MaxRequestBodyBytes: 32 << 20}, TokenSigner: auth.NewTokenSigner([]byte("test-access-secret")), Resolver: staffusecases.NewMembershipResolver(staffrepos.NewMemberRepository(h.pool), org), SessionStatus: authrepos.NewSessionRepository(h.pool), OrganizationStatus: app.OrganizationStatusFromPool(h.pool), PublicAuthRoutes: ah.RegisterPublicRoutes, IdentityRoutes: func(g *gin.RouterGroup) { ah.RegisterAuthenticatedRoutes(g); oh.RegisterOnboardingRoutes(g) }, TenantRoutes: oh.RegisterTenantRoutes}), h
+	resolver := staffusecases.NewMembershipResolver(staffrepos.NewMemberRepository(h.pool), org)
+	sessions := authrepos.NewSessionRepository(h.pool)
+	// Step-up is wired exactly as production wires it: grants bind to the
+	// organization the tenant middleware resolves, and protected routes are
+	// checked against the real auth service's grants.
+	ah := authhttp.NewHandler(h.service, []byte("test-contact-secret"), browserauth.Policy{Name: "karrygo_fleet_refresh", Path: "/fleet-partner/v1/auth", Secure: true, SameSite: http.SameSiteLaxMode, Origins: []string{"https://fleet.example.test", "http://127.0.0.1:3417"}}).
+		WithOrganizationScope(app.StepUpOrganizationScope(sessions, resolver))
+	oh := orghttp.NewHandler(org, staff, providerusecases.NewService(providerusecases.Options{Pool: h.pool, Providers: providerrepos.NewRepository(h.pool)}), accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(h.pool), nil, 0), nil)
+	return app.BuildRouter(app.Options{Metrics: observability.NewMetrics(), Config: config.Config{AppEnv: "test", MaxRequestBodyBytes: 32 << 20}, TokenSigner: auth.NewTokenSigner([]byte("test-access-secret")), Resolver: resolver, SessionStatus: sessions, OrganizationStatus: app.OrganizationStatusFromPool(h.pool), StepUp: authStepUpVerifier{service: h.service}, PublicAuthRoutes: ah.RegisterPublicRoutes, IdentityRoutes: func(g *gin.RouterGroup) { ah.RegisterAuthenticatedRoutes(g); oh.RegisterOnboardingRoutes(g) }, TenantRoutes: func(g *gin.RouterGroup) {
+		oh.RegisterTenantRoutes(g)
+		if extraTenantRoutes != nil {
+			extraTenantRoutes(h.pool, g)
+		}
+	}}), h
 }
 
 func onboardingLogin(t *testing.T, router http.Handler, h *authHarness, email, phone string) string {

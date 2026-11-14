@@ -69,11 +69,10 @@ type Service struct {
 
 // NewService builds the service. pool is required for transactional writes;
 // reads use the same pool directly (no transaction needed for a read).
-// stepUp and securityPolicy may both be nil — matching every other optional
-// dependency in this service's composition root — in which case step-up is
-// recorded (if a reference is supplied) but never actually verified. See
-// docs/section28-security-privacy-audit.md for why that is disclosed rather
-// than silently claimed as enforcement.
+// securityPolicy may be nil, in which case step-up is treated as required.
+// stepUp may be nil only where step-up is never required: when the
+// organization's policy requires it and no verifier is wired, the action is
+// refused (fail closed), never let through unverified.
 func NewService(pool *pgxpool.Pool, stepUp stepup.Verifier, securityPolicy SecurityPolicyReader) *Service {
 	return &Service{
 		pool: pool, reads: repositories.NewRepository(pool), recorder: audit.NewRecorder(),
@@ -81,12 +80,10 @@ func NewService(pool *pgxpool.Pool, stepUp stepup.Verifier, securityPolicy Secur
 	}
 }
 
-// verifyStepUp enforces step-up for a sensitive action when both the
+// verifyStepUp enforces step-up for a sensitive action whenever the
 // organization's own policy requires it (or no policy signal is available,
-// which defaults to "required") and a verifier is actually wired. It never
-// weakens enforcement based on a missing dependency — an unwired verifier
-// means the check cannot run at all, which is a deployment-configuration
-// fact, not a policy decision to skip it.
+// which defaults to "required"). An unwired verifier refuses the action: a
+// missing dependency is a deployment fault, not a reason to skip the check.
 //
 // identityID is the raw auth identity (claims.Subject) a step-up challenge
 // was originally verified against — deliberately NOT Actor.ActorID, which
@@ -100,8 +97,11 @@ func (s *Service) verifyStepUp(ctx context.Context, identityID, organizationID, 
 			required = r
 		}
 	}
-	if !required || s.stepUp == nil {
+	if !required {
 		return nil
+	}
+	if s.stepUp == nil {
+		return stepup.Unconfigured()
 	}
 	return s.stepUp.Verify(ctx, reference, identityID, sessionID, organizationID, actionClass)
 }

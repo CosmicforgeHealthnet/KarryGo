@@ -47,6 +47,25 @@ var validExportTypes = map[string]bool{
 // the type does not by itself mean an adapter is wired to serve it.
 func ValidExportType(exportType string) bool { return validExportTypes[exportType] }
 
+// sensitiveExportTypes are the categories spec 55.2/56.2/64.1 call "sensitive
+// exports": creating, replaying or downloading one requires a fresh step-up.
+// The spec does not enumerate them, so the rule applied is the data each
+// dataset carries: personal data about the organization's own people
+// (PROVIDERS_WORKFORCE), financial records (INVOICES_RECEIVABLES), safety and
+// compliance case records (COMPLIANCE_INCIDENTS) and customer support cases
+// (SUPPORT_CASE_PROJECTIONS). Operational datasets (orders, shipments,
+// assets, inventory, fulfilment orders) are not sensitive categories; they
+// still require the export permission.
+var sensitiveExportTypes = map[string]bool{
+	TypeProvidersWorkforce:  true,
+	TypeInvoicesReceivables: true,
+	TypeComplianceIncidents: true,
+	TypeSupportCases:        true,
+}
+
+// SensitiveExportType reports whether exporting the type requires step-up.
+func SensitiveExportType(exportType string) bool { return sensitiveExportTypes[exportType] }
+
 // Formats. CSV is the only one implemented; the column is future-proofed for
 // a second format without a schema change.
 const FormatCSV = "CSV"

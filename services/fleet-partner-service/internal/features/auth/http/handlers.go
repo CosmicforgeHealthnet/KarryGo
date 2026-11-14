@@ -4,6 +4,7 @@
 package http
 
 import (
+	"context"
 	"net/http"
 	"os"
 
@@ -26,6 +27,36 @@ type Handler struct {
 	contactSecret []byte
 	cookie        browserauth.Policy
 	sessionMarker browserauth.Policy
+	// organizationScope derives the organization a step-up grant binds to
+	// on these identity-scoped routes, where no tenant context exists. See
+	// WithOrganizationScope.
+	organizationScope func(ctx context.Context, identityID, sessionID string) (string, error)
+}
+
+// WithOrganizationScope sets how step-up start and phone change find the
+// caller's organization. It must resolve the same organization the tenant
+// middleware resolves for the session's protected requests (the composition
+// root passes app.StepUpOrganizationScope); otherwise a grant can never match
+// an organization-scoped check. Without it the organization comes only from
+// a tenant context, which these identity routes never have.
+func (h *Handler) WithOrganizationScope(scope func(ctx context.Context, identityID, sessionID string) (string, error)) *Handler {
+	h.organizationScope = scope
+	return h
+}
+
+// stepUpOrganization returns the trusted organization for step-up binding:
+// the resolved tenant when present, else the configured session scope. It
+// never reads an organization from the request.
+func (h *Handler) stepUpOrganization(c *gin.Context, claims auth.Claims) (string, error) {
+	if value, ok := c.Get(middleware.TenantOrganizationIDKey); ok {
+		if organizationID, _ := value.(string); organizationID != "" {
+			return organizationID, nil
+		}
+	}
+	if h.organizationScope == nil {
+		return "", nil
+	}
+	return h.organizationScope(c.Request.Context(), claims.Subject, claims.SessionID)
 }
 
 // NewHandler builds the handler.
@@ -334,8 +365,11 @@ func (h *Handler) stepUpStart(c *gin.Context) {
 		return
 	}
 	claims, _ := auth.ClaimsFromContext(c)
-	organizationID, _ := c.Get(middleware.TenantOrganizationIDKey)
-	organization, _ := organizationID.(string)
+	organization, err := h.stepUpOrganization(c, claims)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
 
 	identity, err := h.service.IdentityByID(c.Request.Context(), claims.Subject)
 	if err != nil {
@@ -401,8 +435,11 @@ func (h *Handler) changePhone(c *gin.Context) {
 		return
 	}
 	claims, _ := auth.ClaimsFromContext(c)
-	organization, _ := c.Get(middleware.TenantOrganizationIDKey)
-	organizationID, _ := organization.(string)
+	organizationID, err := h.stepUpOrganization(c, claims)
+	if err != nil {
+		respond.Error(c, err)
+		return
+	}
 	if err := h.service.ChangePhone(c.Request.Context(), claims.Subject, claims.SessionID, organizationID, request.Phone, request.StepUpReference); err != nil {
 		respond.Error(c, err)
 		return

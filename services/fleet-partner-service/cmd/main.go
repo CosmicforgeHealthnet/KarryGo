@@ -440,6 +440,7 @@ func main() {
 		Resolver:              components.Resolver,
 		SessionStatus:         components.Sessions,
 		OrganizationStatus:    app.OrganizationStatusFromPool(pool),
+		StepUp:                components.StepUpVerifier(),
 		ReadyChecks:           readyChecks,
 		WorkerReady:           workerReady,
 		PublicAuthRoutes:      publicRoutes,
