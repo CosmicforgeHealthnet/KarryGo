@@ -82,8 +82,8 @@ const (
 	// ActionSensitiveExport covers creating, replaying and downloading an
 	// export of a sensitive category (see the exports feature).
 	ActionSensitiveExport = "exports.sensitive"
-	// ActionApprovalDecide is reserved for approval decisions. The approvals
-	// feature does not consume it yet.
+	// ActionApprovalDecide covers approving or rejecting an approval request
+	// (spec 64.1: step-up is mandatory for approval decisions).
 	ActionApprovalDecide = "approvals.decide"
 )
 
@@ -118,6 +118,10 @@ var routes = map[string]string{
 
 	// Provider removal.
 	"POST /fleet-partner/v1/providers/:membershipId/remove": ActionProviderRemove,
+
+	// Approval decisions.
+	"POST /fleet-partner/v1/approvals/requests/:approvalId/approve": ActionApprovalDecide,
+	"POST /fleet-partner/v1/approvals/requests/:approvalId/reject":  ActionApprovalDecide,
 }
 
 // RouteActionClass reports the action class a route requires, if any.

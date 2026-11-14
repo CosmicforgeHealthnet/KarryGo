@@ -14,6 +14,7 @@ package usecases
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -478,6 +479,9 @@ func (s *Service) Decide(ctx context.Context, input DecideInput) (*models.Reques
 			RequestVersion:      request.Version,
 			ApprovedFingerprint: request.RequestFingerprint,
 			CorrelationID:       input.CorrelationID,
+			// Evidence of the step-up this request proved (spec 64.1); taken
+			// from the verified grant, never from the request body.
+			StepUpReference: verifiedStepUp(ctx),
 		}
 		if input.ClientDecisionID != "" {
 			clientID := input.ClientDecisionID
@@ -1457,4 +1461,11 @@ func EligibilityOperationFor(action string) string {
 	default:
 		return ""
 	}
+}
+
+func verifiedStepUp(ctx context.Context) *string {
+	if reference := stepup.VerifiedReference(ctx); reference != "" {
+		return &reference
+	}
+	return nil
 }
