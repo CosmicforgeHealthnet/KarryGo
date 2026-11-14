@@ -9,6 +9,7 @@ import (
 // The latest migrations, newest first. Each down file is exercised in
 // reverse order and must remove exactly what its up file added; re-applying
 // must restore it:
+//   - 000099 owner grants for the operating-mode permissions
 //   - 000098 TAXI as a restriction propagation authority
 //   - 000097 payment source reference on completed work and settlement
 //     instructions
@@ -27,7 +28,7 @@ import (
 //     one; rolling it back keeps the branches (other records may reference
 //     them) and re-applying it never duplicates them.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
-	if replayMigrationTip(t) != "000098_restriction_taxi_authority" {
+	if replayMigrationTip(t) != "000099_operating_mode_owner_grants" {
 		t.Fatal("review latest migration retention assertions")
 	}
 	pool := isolatedTestDatabase(t, "fleet_partner_onboarding_tip")
@@ -36,19 +37,22 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A marker is a table, a column, or -- with check set -- a CHECK
-	// constraint on the table whose definition contains check.
-	type marker struct{ migration, table, column, check string }
+	// constraint on the table whose definition contains check, or -- with
+	// grant set -- the owner role holding that permission (table names the
+	// role-permission table for the failure message).
+	type marker struct{ migration, table, column, check, grant string }
 	markers := []marker{
-		{"000098", "fleet_partner_restriction_operations", "", "TAXI"},
-		{"000097", "fleet_partner_managed_work_settlement_instructions", "payment_source_reference", ""},
-		{"000096", "fleet_partner_managed_work_settlement_instructions", "wallet_posting_operation_id", ""},
-		{"000095", "fleet_partner_provider_provisioning_sagas", "association_id", ""},
-		{"000094", "fleet_partner_provider_invitations", "resend_count", ""},
-		{"000093", "fleet_partner_incident_investigations", "", ""},
-		{"000092", "fleet_partner_rescue_cases", "", ""},
-		{"000091", "fleet_partner_sales_leads", "", ""},
-		{"000090", "fleet_partner_cost_centres", "", ""},
-		{"000089", "fleet_partner_shift_templates", "", ""},
+		{"000099", "fleet_partner_role_permissions", "", "", "fleet_partner_foundation.manage"},
+		{"000098", "fleet_partner_restriction_operations", "", "TAXI", ""},
+		{"000097", "fleet_partner_managed_work_settlement_instructions", "payment_source_reference", "", ""},
+		{"000096", "fleet_partner_managed_work_settlement_instructions", "wallet_posting_operation_id", "", ""},
+		{"000095", "fleet_partner_provider_provisioning_sagas", "association_id", "", ""},
+		{"000094", "fleet_partner_provider_invitations", "resend_count", "", ""},
+		{"000093", "fleet_partner_incident_investigations", "", "", ""},
+		{"000092", "fleet_partner_rescue_cases", "", "", ""},
+		{"000091", "fleet_partner_sales_leads", "", "", ""},
+		{"000090", "fleet_partner_cost_centres", "", "", ""},
+		{"000089", "fleet_partner_shift_templates", "", "", ""},
 	}
 	present := func(m marker) bool {
 		t.Helper()
@@ -56,6 +60,9 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 		query := `SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1`
 		args := []any{m.table}
 		switch {
+		case m.grant != "":
+			query = `SELECT count(*) FROM fleet_partner_role_permissions WHERE role_id = 'rol_system_owner' AND permission_code = $1`
+			args = []any{m.grant}
 		case m.check != "":
 			query = `SELECT count(*) FROM pg_constraint WHERE conrelid = to_regclass($1::text) AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%' || $2 || '%'`
 			args = append(args, m.check)

@@ -262,7 +262,8 @@ func (s *Service) ListCorporateCandidates(ctx context.Context, t tenant.Context,
 	}
 
 	rows, err := s.opts.Pool.Query(ctx, `
-		SELECT id, COALESCE(provider_id, ''), provider_service, service_category, status
+		SELECT id, COALESCE(provider_id, ''), provider_service, service_category, status,
+			COALESCE(home_branch_id, '')
 		FROM fleet_partner_organization_provider_memberships
 		WHERE organization_id = $1 AND status = 'ACTIVE'
 		ORDER BY created_at DESC`, t.OrganizationID)
@@ -274,11 +275,18 @@ func (s *Service) ListCorporateCandidates(ctx context.Context, t tenant.Context,
 	out := make([]CorporateCandidate, 0, 16)
 	for rows.Next() {
 		var c CorporateCandidate
+		var homeBranch string
 		if err := rows.Scan(&c.MembershipID, &c.ProviderID, &c.SourceService,
-			&c.ServiceCategory, &c.Status); err != nil {
+			&c.ServiceCategory, &c.Status, &homeBranch); err != nil {
 			return nil, fmt.Errorf("marketplace: scan candidate: %w", err)
 		}
 		if c.ServiceCategory != projection.SourceService {
+			continue
+		}
+		// Branch scope (spec 7b), matching Assign and the assignment list: a
+		// provider homed outside the caller's granted branches is neither
+		// assignable nor listed. Unbranched providers stay visible.
+		if homeBranch != "" && !t.BranchPermitted(homeBranch) {
 			continue
 		}
 		eligible, reason := s.probeCorporateCandidate(ctx, projection, c)

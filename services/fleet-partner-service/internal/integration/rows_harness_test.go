@@ -44,7 +44,9 @@ func rowsRouter(t *testing.T, pool *pgxpool.Pool, register rowsRegistrar) http.H
 			permitted = []string{restrict}
 		}
 		member := c.GetHeader("X-Test-Member")
-		c.Set(middleware.TenantContextKey, tenant.Context{
+		// SetTenant, as the production session middleware does, so handlers
+		// that read the tenant from the request context see it too.
+		middleware.SetTenant(c, tenant.Context{
 			OrganizationID: c.GetHeader("X-Test-Org"), OrganizationUserID: member,
 			ActorType: tenant.ActorTypeOrganizationUser, ActorID: member,
 			PermittedBranchIDs: permitted, CorrelationID: "rows-test",

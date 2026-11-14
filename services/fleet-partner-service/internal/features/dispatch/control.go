@@ -533,6 +533,36 @@ func (s *Service) CreateSystemAlert(ctx context.Context, organizationID, kind, s
 		return err
 	})
 }
+
+// MarketplaceAssignmentExpired is the narrow cross-feature port the
+// marketplace assignment expiry worker uses (FLEET-11.11c). It raises the same
+// ASSIGNMENT_EXPIRED alert the private route-stop expiry raises, inside the
+// caller's expiry transaction, through the shared Section 16 path (dedupe,
+// audit, operational_alert.created.v1 with its notification intent, SLA
+// escalation).
+//
+// It is idempotent per assignment for the life of the alert, not only while
+// it is open: a replayed expiry finds the alert it already raised, even if a
+// dispatcher has since resolved it, and raises nothing new. When operational
+// alerts are switched off it does nothing rather than failing, because an
+// alert sink being disabled must never block releasing an unresponsive
+// provider.
+func (s *Service) MarketplaceAssignmentExpired(ctx context.Context, tx pgx.Tx, organizationID, branchID, assignmentID string) error {
+	if s.o.Flags.KillSwitch || !s.o.Flags.OperationalAlerts {
+		return nil
+	}
+	condition := "marketplace-assignment-expired:" + assignmentID
+	var exists bool
+	if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fleet_partner_operational_alerts WHERE organization_id=$1 AND condition_fingerprint=$2)`, organizationID, condition).Scan(&exists); e != nil {
+		return e
+	}
+	if exists {
+		return nil
+	}
+	t := tenant.Context{OrganizationID: organizationID, ActorType: tenant.ActorTypeSystem, ActorID: "assignment-expiry", CorrelationID: assignmentID}
+	_, e := s.createAlert(ctx, tx, t, "ASSIGNMENT_EXPIRED", "HIGH", "MARKETPLACE_ASSIGNMENT", assignmentID, branchID, "", assignmentID, "", condition)
+	return e
+}
 func (s *Service) GetAlert(ctx context.Context, t tenant.Context, id string) (OperationalAlert, error) {
 	if x := s.gate(s.o.Flags.OperationalAlerts, false, "operational_alerts_disabled"); x != nil {
 		return OperationalAlert{}, x
