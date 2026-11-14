@@ -1,18 +1,17 @@
 package section19_21contract
 
 import (
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
 )
 
 type route struct {
@@ -87,7 +86,7 @@ func check(t *testing.T, name string, routes []route) {
 
 func TestSection19BidirectionalRouteParity(t *testing.T) {
 	var rs []route
-	for _, r := range compliance.TenantRoutes() {
+	for _, r := range compliancehttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	for _, r := range safety.OperationsTenantRoutes() {

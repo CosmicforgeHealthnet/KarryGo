@@ -1,8 +1,21 @@
-package compliance
+// Package models holds the compliance domain: requirements, evaluation
+// states, restrictions, checks and the pure rules over them.
+package models
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"time"
+)
+
+// ErrNotFound is returned by the repository when a scoped row is absent.
+var ErrNotFound = errors.New("compliance: not found")
+
+// Job types run by the Section 19 workers.
+const (
+	JobComplianceSweep      = "section19.compliance_sweep"
+	JobRestrictionReconcile = "section19.restriction_reconcile"
 )
 
 const (
@@ -128,4 +141,106 @@ func RequiredAuthorities(subject string) []string {
 	default:
 		return nil
 	}
+}
+
+// NormalizeRequirement canonicalizes a requirement before it is stored.
+func NormalizeRequirement(v *Requirement) {
+	v.Code = strings.ToUpper(strings.TrimSpace(v.Code))
+	v.SubjectType = strings.ToUpper(strings.TrimSpace(v.SubjectType))
+	v.RequirementType = strings.ToUpper(strings.TrimSpace(v.RequirementType))
+	v.Severity = strings.ToUpper(strings.TrimSpace(v.Severity))
+	if v.Status == "" {
+		v.Status = "DRAFT"
+	}
+	if v.EffectiveFrom.IsZero() {
+		v.EffectiveFrom = time.Now().UTC()
+	}
+	if len(v.ValidityRules) == 0 {
+		v.ValidityRules = json.RawMessage(`{}`)
+	}
+}
+
+// ValidSubject reports whether v is a supported compliance subject type.
+func ValidSubject(v string) bool {
+	switch v {
+	case "ORGANIZATION", "PROVIDER", "ASSET", "ORDER", "SHIPMENT", "CARGO", "WAREHOUSE", "LOCATION":
+		return true
+	}
+	return false
+}
+
+// Check is one immutable compliance check run (spec 49.1 compliance_checks):
+// every active requirement that applies to a subject, evaluated together.
+// The strictest result governs (spec 49.2).
+type Check struct {
+	ID                     string        `json:"id"`
+	OrganizationID         string        `json:"organizationId"`
+	SubjectType            string        `json:"subjectType"`
+	SubjectReference       string        `json:"subjectReference"`
+	SourceType             string        `json:"sourceType"`
+	SourceReference        string        `json:"sourceReference"`
+	SourceVersion          int64         `json:"sourceVersion"`
+	OverallState           string        `json:"overallState"`
+	GoverningRequirementID string        `json:"governingRequirementId"`
+	RequirementCount       int           `json:"requirementCount"`
+	Results                []CheckResult `json:"results"`
+	RestrictionReferences  []string      `json:"restrictionReferences"`
+	RequestedBy            string        `json:"requestedBy"`
+	CorrelationID          string        `json:"correlationId"`
+	CreatedAt              time.Time     `json:"createdAt"`
+}
+
+// CheckResult links one requirement to the evaluation the check produced.
+type CheckResult struct {
+	RequirementID        string `json:"requirementId"`
+	RequirementCode      string `json:"requirementCode"`
+	Severity             string `json:"severity"`
+	BlocksOperation      bool   `json:"blocksOperation"`
+	ComplianceStatusID   string `json:"complianceStatusId"`
+	State                string `json:"state"`
+	RestrictionReference string `json:"restrictionReference,omitempty"`
+}
+
+// CheckInput requests a compliance check of one subject.
+type CheckInput struct {
+	SubjectType      string `json:"subjectType"`
+	SubjectReference string `json:"subjectReference"`
+	SourceType       string `json:"sourceType"`
+	SourceReference  string `json:"sourceReference"`
+	SourceVersion    int64  `json:"sourceVersion"`
+}
+
+// StateRank orders evaluation states from least to most restrictive, so the
+// strictest applicable requirement governs the overall result.
+var StateRank = map[string]int{
+	StateNotApplicable: 0, StateCompliant: 1, StateDueSoon: 2, StatePending: 3,
+	StateUnknown: 4, StateExpired: 5, StateNonCompliant: 6, StateRestricted: 7,
+}
+
+// Propagation is the confirmation state of one restriction at one execution
+// authority (spec 19.1: confirmed everywhere by reconciliation).
+type Propagation struct {
+	Authority        string     `json:"authority"`
+	Action           string     `json:"action"`
+	Status           string     `json:"status"`
+	Attempts         int        `json:"attempts"`
+	LastErrorCode    string     `json:"lastErrorCode"`
+	NextAttemptAt    time.Time  `json:"nextAttemptAt"`
+	ConfirmedAt      *time.Time `json:"confirmedAt"`
+	AuthorityVersion int64      `json:"authorityVersion"`
+}
+
+// RestrictionView is a restriction with its propagation state.
+type RestrictionView struct {
+	Restriction
+	Propagation     []Propagation `json:"propagation"`
+	FullyPropagated bool          `json:"fullyPropagated"`
+}
+
+// RestrictionOperation is one pending propagation of a restriction to one
+// execution authority.
+type RestrictionOperation struct {
+	ID, Authority, Action, IdempotencyKey, Status string
+	ExpectedVersion                               int64
+	Attempts                                      int
 }

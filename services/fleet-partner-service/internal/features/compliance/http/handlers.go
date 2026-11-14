@@ -1,7 +1,10 @@
-package compliance
+// Package http serves the Section 19 compliance routes. Handlers parse the
+// request and call the use cases through the Service port.
+package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
@@ -48,13 +52,30 @@ func TenantRoutes() []Route {
 }
 func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
 
+// Service is the use-case surface the compliance handlers call.
+type Service interface {
+	ListStatuses(ctx context.Context, t tenant.Context, typ, ref string) ([]models.Status, error)
+	ListRequirements(ctx context.Context, t tenant.Context) ([]models.Requirement, error)
+	GetRequirement(ctx context.Context, t tenant.Context, id string) (models.Requirement, error)
+	CreateRequirement(ctx context.Context, t tenant.Context, v models.Requirement) (models.Requirement, error)
+	UpdateRequirement(ctx context.Context, t tenant.Context, id string, expected int64, in models.Requirement, action string) (models.Requirement, error)
+	Evaluate(ctx context.Context, t tenant.Context, in models.EvaluateInput) (models.Status, error)
+	ApplyRestriction(ctx context.Context, t tenant.Context, in models.RestrictInput) (models.Restriction, error)
+	RestrictionDetail(ctx context.Context, t tenant.Context, id string) (models.RestrictionView, error)
+	ListRestrictions(ctx context.Context, t tenant.Context, typ, ref, state string) ([]models.Restriction, error)
+	ListChecks(ctx context.Context, t tenant.Context, typ, ref string) ([]models.Check, error)
+	GetCheck(ctx context.Context, t tenant.Context, id string) (models.Check, error)
+	RunCheck(ctx context.Context, t tenant.Context, in models.CheckInput) (models.Check, error)
+	ClearRestriction(ctx context.Context, t tenant.Context, id, reason string, expected int64) (models.Restriction, error)
+}
+
 type Handler struct {
-	s    *Service
+	s    Service
 	a    *accesscontrol.Authorizer
 	idem *idempotency.Store
 }
 
-func NewHandler(s *Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
 	return &Handler{s: s, a: a, idem: i}
 }
 func (h *Handler) TenantRoutes() []Route { return TenantRoutes() }
@@ -166,13 +187,13 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getComplianceRequirement":
 			return h.s.GetRequirement(c, t, c.Param("requirementId"))
 		case "createComplianceRequirement":
-			var b Requirement
+			var b models.Requirement
 			if !bindCompliance(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.CreateRequirement(c, t, b)
 		case "updateComplianceRequirement":
-			var b Requirement
+			var b models.Requirement
 			if !bindCompliance(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -186,9 +207,9 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if r.OperationID == "deactivateComplianceRequirement" {
 				a = "DEACTIVATE"
 			}
-			return h.s.UpdateRequirement(c, t, c.Param("requirementId"), expected(c, b.ExpectedVersion), Requirement{}, a)
+			return h.s.UpdateRequirement(c, t, c.Param("requirementId"), expected(c, b.ExpectedVersion), models.Requirement{}, a)
 		case "evaluateCompliance":
-			var b EvaluateInput
+			var b models.EvaluateInput
 			if !bindCompliance(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -198,7 +219,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getAssetCompliance":
 			return h.s.ListStatuses(c, t, "ASSET", c.Param("assetId"))
 		case "applyRestriction":
-			var b RestrictInput
+			var b models.RestrictInput
 			if !bindCompliance(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -212,7 +233,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "getComplianceCheck":
 			return h.s.GetCheck(c, t, c.Param("checkId"))
 		case "createComplianceCheck":
-			var b CheckInput
+			var b models.CheckInput
 			if !bindCompliance(c, &b) {
 				return nil, errors.New("bound")
 			}

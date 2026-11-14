@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	compliancerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/repositories"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -11,7 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
+	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
@@ -84,12 +86,12 @@ func TestSection19AmbiguousRestrictionUsesReadBackWithoutResubmission(t *testing
 	pool := testPool(t)
 	scope, _ := section1921Scope(t, pool)
 	authority := &ambiguousRestrictionAuthority{}
-	svc := compliance.NewService(compliance.Options{
-		Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+	svc := complianceusecases.NewService(complianceusecases.Options{
+		Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Dispatch: authority, Hauling: authority,
-		Flags: compliance.Flags{Compliance: true, Restrictions: true},
+		Flags: compliancemodels.Flags{Compliance: true, Restrictions: true},
 	})
-	restriction, err := svc.ApplyRestriction(context.Background(), scope, compliance.RestrictInput{
+	restriction, err := svc.ApplyRestriction(context.Background(), scope, compliancemodels.RestrictInput{
 		SubjectType: "PROVIDER", SubjectReference: "membership-ambiguous", ReasonCode: "SAFETY_BLOCK",
 		SourceType: "INCIDENT", SourceReference: "incident-ambiguous", Severity: "CRITICAL",
 	})
@@ -121,20 +123,20 @@ func TestSection19ComplianceRestrictionSafetyAndProof(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	authority := restrictionAuthority{}
-	c := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: authority, Hauling: authority, Flags: compliance.Flags{Compliance: true, Restrictions: true}, Now: func() time.Time { return now }})
-	req, err := c.CreateRequirement(ctx, scope, compliance.Requirement{Code: "ORG_ACTIVE", Name: "Organization active", SubjectType: "ORGANIZATION", RequirementType: "PLATFORM_STATUS", Severity: "CRITICAL", BlocksOperation: true, EffectiveFrom: now.Add(-time.Hour)})
+	c := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: authority, Hauling: authority, Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}, Now: func() time.Time { return now }})
+	req, err := c.CreateRequirement(ctx, scope, compliancemodels.Requirement{Code: "ORG_ACTIVE", Name: "Organization active", SubjectType: "ORGANIZATION", RequirementType: "PLATFORM_STATUS", Severity: "CRITICAL", BlocksOperation: true, EffectiveFrom: now.Add(-time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, err = c.UpdateRequirement(ctx, scope, req.ID, req.Version, compliance.Requirement{}, "ACTIVATE")
+	req, err = c.UpdateRequirement(ctx, scope, req.ID, req.Version, compliancemodels.Requirement{}, "ACTIVATE")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE fleet_partner_organizations SET status='SUSPENDED' WHERE id=$1`, scope.OrganizationID); err != nil {
 		t.Fatal(err)
 	}
-	status, err := c.Evaluate(ctx, scope, compliance.EvaluateInput{SubjectType: "ORGANIZATION", SubjectReference: scope.OrganizationID, RequirementID: req.ID, SourceType: "PLATFORM", SourceReference: "org-state", SourceVersion: 1})
-	if err != nil || status.State != compliance.StateRestricted {
+	status, err := c.Evaluate(ctx, scope, compliancemodels.EvaluateInput{SubjectType: "ORGANIZATION", SubjectReference: scope.OrganizationID, RequirementID: req.ID, SourceType: "PLATFORM", SourceReference: "org-state", SourceVersion: 1})
+	if err != nil || status.State != compliancemodels.StateRestricted {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
 	gate, err := c.CheckSubject(ctx, scope.OrganizationID, "ORGANIZATION", scope.OrganizationID)

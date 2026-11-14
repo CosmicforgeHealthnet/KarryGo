@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	compliancerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/repositories"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -12,7 +13,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
+	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
+	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -27,7 +30,7 @@ import (
 
 type rows19 struct {
 	rowsOrgs
-	compliance *compliance.Service
+	compliance *complianceusecases.Service
 	safety     *safety.OperationsService
 	proof      *proof.Service
 	router     http.Handler
@@ -47,24 +50,24 @@ func newRows19(t *testing.T) *rows19 {
 		"b-photo":      {FileID: "b-photo", OwnerID: orgs.B.Org, UploadState: "COMPLETED", ScanState: "CLEAN"},
 	}}
 	f := &rows19{rowsOrgs: orgs, now: now}
-	f.compliance = compliance.NewService(compliance.Options{Pool: orgs.pool, Events: publisher, Flags: compliance.Flags{Compliance: true}, Now: func() time.Time { return now }})
+	f.compliance = complianceusecases.NewService(complianceusecases.Options{Pool: orgs.pool, Repository: compliancerepos.NewRepository(orgs.pool), Events: publisher, Flags: compliancemodels.Flags{Compliance: true}, Now: func() time.Time { return now }})
 	f.safety = safety.NewOperationsService(safety.OperationsOptions{Pool: orgs.pool, Events: publisher, Media: media, Flags: safety.OperationsFlags{Reports: true, Incidents: true}, Now: func() time.Time { return now }})
 	f.proof = proof.NewService(proof.Options{Pool: orgs.pool, Events: publisher, HashSecret: []byte("0123456789abcdef0123456789abcdef"), Flags: proof.Flags{Policies: true, Records: true}, Now: func() time.Time { return now }})
 	f.NoPermission = rowsActor{Org: orgs.A.Org, Member: seedApprovalMember(t, orgs.pool, orgs.A.Org, "", "no-role")}
 	f.branchA = seedBranch(t, orgs.pool, orgs.A.Org, "Rows19 Main")
 	f.branchX = seedBranch(t, orgs.pool, orgs.A.Org, "Rows19 Other")
 	f.router = rowsRouter(t, orgs.pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
-		compliance.NewHandler(f.compliance, a, s).RegisterTenantRoutes(g)
+		compliancehttp.NewHandler(f.compliance, a, s).RegisterTenantRoutes(g)
 		safety.NewOperationsHandler(f.safety, a, s).RegisterTenantRoutes(g)
 		proof.NewHandler(f.proof, a, s).RegisterTenantRoutes(g)
 	})
 	return f
 }
 
-func (f *rows19) requirement(t *testing.T, scope tenant.Context, code, subject, docType string) compliance.Requirement {
+func (f *rows19) requirement(t *testing.T, scope tenant.Context, code, subject, docType string) compliancemodels.Requirement {
 	t.Helper()
 	ctx := context.Background()
-	r, err := f.compliance.CreateRequirement(ctx, scope, compliance.Requirement{Code: code, Name: code + " requirement", SubjectType: subject,
+	r, err := f.compliance.CreateRequirement(ctx, scope, compliancemodels.Requirement{Code: code, Name: code + " requirement", SubjectType: subject,
 		RequirementType: "DOCUMENT", RequiredDocumentType: docType, Severity: "HIGH", EffectiveFrom: f.now.Add(-time.Hour)})
 	if err != nil {
 		t.Fatal(err)
@@ -80,24 +83,24 @@ func TestRow19_1_And_19_3_ComplianceStatusProviderAndAssetCompliance(t *testing.
 	ctx := context.Background()
 	assetReq := f.requirement(t, f.tenantA(), "ROADWORTHY", "ASSET", "ROADWORTHINESS")
 	providerReq := f.requirement(t, f.tenantA(), "PROVIDER_CHECK", "PROVIDER", "")
-	for _, r := range []compliance.Requirement{assetReq, providerReq} {
-		if _, err := f.compliance.UpdateRequirement(ctx, f.tenantA(), r.ID, r.Version, compliance.Requirement{}, "ACTIVATE"); err != nil {
+	for _, r := range []compliancemodels.Requirement{assetReq, providerReq} {
+		if _, err := f.compliance.UpdateRequirement(ctx, f.tenantA(), r.ID, r.Version, compliancemodels.Requirement{}, "ACTIVATE"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	assetStatus, err := f.compliance.Evaluate(ctx, f.tenantA(), compliance.EvaluateInput{SubjectType: "ASSET", SubjectReference: "ast-19", RequirementID: assetReq.ID, SourceType: "MANUAL", SourceVersion: 1})
-	if err != nil || assetStatus.State != compliance.StateNonCompliant {
+	assetStatus, err := f.compliance.Evaluate(ctx, f.tenantA(), compliancemodels.EvaluateInput{SubjectType: "ASSET", SubjectReference: "ast-19", RequirementID: assetReq.ID, SourceType: "MANUAL", SourceVersion: 1})
+	if err != nil || assetStatus.State != compliancemodels.StateNonCompliant {
 		t.Fatalf("asset evaluation = %+v %v", assetStatus, err)
 	}
-	providerStatus, err := f.compliance.Evaluate(ctx, f.tenantA(), compliance.EvaluateInput{SubjectType: "PROVIDER", SubjectReference: "mem-19", RequirementID: providerReq.ID, SourceType: "MANUAL", SourceVersion: 1})
-	if err != nil || providerStatus.State != compliance.StateUnknown {
+	providerStatus, err := f.compliance.Evaluate(ctx, f.tenantA(), compliancemodels.EvaluateInput{SubjectType: "PROVIDER", SubjectReference: "mem-19", RequirementID: providerReq.ID, SourceType: "MANUAL", SourceVersion: 1})
+	if err != nil || providerStatus.State != compliancemodels.StateUnknown {
 		t.Fatalf("provider evaluation = %+v %v", providerStatus, err)
 	}
 	foreignReq := f.requirement(t, f.tenantB(), "ROADWORTHY", "ASSET", "ROADWORTHINESS")
-	if _, err = f.compliance.UpdateRequirement(ctx, f.tenantB(), foreignReq.ID, foreignReq.Version, compliance.Requirement{}, "ACTIVATE"); err != nil {
+	if _, err = f.compliance.UpdateRequirement(ctx, f.tenantB(), foreignReq.ID, foreignReq.Version, compliancemodels.Requirement{}, "ACTIVATE"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.compliance.Evaluate(ctx, f.tenantB(), compliance.EvaluateInput{SubjectType: "ASSET", SubjectReference: "ast-19", RequirementID: foreignReq.ID, SourceType: "MANUAL", SourceVersion: 1}); err != nil {
+	if _, err = f.compliance.Evaluate(ctx, f.tenantB(), compliancemodels.EvaluateInput{SubjectType: "ASSET", SubjectReference: "ast-19", RequirementID: foreignReq.ID, SourceType: "MANUAL", SourceVersion: 1}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -116,7 +119,7 @@ func TestRow19_1_And_19_3_ComplianceStatusProviderAndAssetCompliance(t *testing.
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/compliance/status", nil, nil), 403, "no permission")
 
 	asset := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/assets/ast-19/compliance", nil, nil), 200, "asset compliance").Items(t)
-	if len(asset) != 1 || asset[0]["id"] != assetStatus.ID || asset[0]["state"] != compliance.StateNonCompliant {
+	if len(asset) != 1 || asset[0]["id"] != assetStatus.ID || asset[0]["state"] != compliancemodels.StateNonCompliant {
 		t.Fatalf("asset compliance: %v", asset)
 	}
 	var reasons []string
@@ -125,7 +128,7 @@ func TestRow19_1_And_19_3_ComplianceStatusProviderAndAssetCompliance(t *testing.
 		t.Fatalf("asset compliance reasons: %v", asset[0]["reasonCodes"])
 	}
 	provider := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/providers/mem-19/compliance", nil, nil), 200, "provider compliance").Items(t)
-	if len(provider) != 1 || provider[0]["id"] != providerStatus.ID || provider[0]["state"] != compliance.StateUnknown {
+	if len(provider) != 1 || provider[0]["id"] != providerStatus.ID || provider[0]["state"] != compliancemodels.StateUnknown {
 		t.Fatalf("provider compliance: %v", provider)
 	}
 	// The provider path never returns an asset status with the same reference.

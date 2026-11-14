@@ -29,7 +29,7 @@ import (
 	auditrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
 	backgroundopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/backgroundops/http"
 	bulkimportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
-	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
 	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
@@ -220,7 +220,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	complianceH := compliancefeature.NewHandler(nil, nil, nil)
+	complianceH := compliancehttp.NewHandler(nil, nil, nil)
 	for _, r := range complianceH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

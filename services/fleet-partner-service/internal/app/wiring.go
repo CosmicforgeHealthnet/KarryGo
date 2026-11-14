@@ -30,7 +30,10 @@ import (
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
 	wallethttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/http"
 	walletusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/usecases"
-	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
+	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
+	compliancerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/repositories"
+	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
 	crmusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/usecases"
 	dashboardhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dashboard/http"
@@ -169,7 +172,7 @@ type Components struct {
 	DispatchControl   *dispatchfeature.Service
 	Workforce         *workforcefeature.Service
 	Assets            *assetsfeature.Service
-	Compliance        *compliancefeature.Service
+	Compliance        *complianceusecases.Service
 	SafetyOperations  *safetyfeature.OperationsService
 	Proof             *prooffeature.Service
 	Specialized       *specializedfeature.Service
@@ -432,7 +435,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 			taxiRestrictions = platformclients.NewRestrictionClient(platformclients.New(platformclients.Options{ServiceName: "driver-taxi-service", BaseURL: tc.BaseURL, Secret: tc.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}}), TaxiRestrictionsPath)
 		}
 	}
-	complianceService := compliancefeature.NewService(compliancefeature.Options{Pool: pool, Events: publisher, Dispatch: dispatchRestrictions, Hauling: haulingRestrictions, Taxi: taxiRestrictions, Flags: compliancefeature.Flags{Compliance: cfg.ComplianceEnabled, Restrictions: cfg.RestrictionPropagationEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	complianceService := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: dispatchRestrictions, Hauling: haulingRestrictions, Taxi: taxiRestrictions, Flags: compliancemodels.Flags{Compliance: cfg.ComplianceEnabled, Restrictions: cfg.RestrictionPropagationEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	financeService := BuildFinanceService(cfg, pool, metrics).WithEligibility(eligibilityService)
 	restrictionGate := complianceRestrictionGate{service: complianceService}
 	workforceService := workforcefeature.NewService(workforcefeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: workforcefeature.Flags{Workforce: cfg.WorkforceEnabled, Shifts: cfg.ShiftsEnabled, Leave: cfg.LeaveEnabled, Qualifications: cfg.QualificationsEnabled, Training: cfg.TrainingEnabled, Performance: cfg.PerformanceSnapshotsEnabled, Workers: cfg.Section17WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
@@ -561,7 +564,7 @@ func (r fleetPartnerMembershipReader) FindLiveByProvider(ctx context.Context, pr
 	}, nil
 }
 
-type complianceRestrictionGate struct{ service *compliancefeature.Service }
+type complianceRestrictionGate struct{ service *complianceusecases.Service }
 
 func (g complianceRestrictionGate) Restricted(ctx context.Context, org, typ, ref string) (bool, error) {
 	if g.service == nil {
@@ -675,7 +678,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	dispatchHandler := dispatchfeature.NewHandler(c.DispatchControl, c.Authorizer, c.Idempotency)
 	workforceHandler := workforcefeature.NewHandler(c.Workforce, c.Authorizer, c.Idempotency)
 	assetsHandler := assetsfeature.NewHandler(c.Assets, c.Authorizer, c.Idempotency)
-	complianceHandler := compliancefeature.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
+	complianceHandler := compliancehttp.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
 	safetyOperationsHandler := safetyfeature.NewOperationsHandler(c.SafetyOperations, c.Authorizer, c.Idempotency)
 	proofHandler := prooffeature.NewHandler(c.Proof, c.Authorizer, c.Idempotency)
 	specializedHandler := specializedfeature.NewHandler(c.Specialized, c.Authorizer, c.Idempotency)
