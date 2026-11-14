@@ -18,7 +18,9 @@ import (
 	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
 	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	safetyfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
+	warehouserepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/repositories"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -72,9 +74,9 @@ func TestExports_WarehouseInventoryAdapterGeneratesRealCSV(t *testing.T) {
 
 	metrics := observability.NewMetrics()
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
-	warehouseService := warehousefeature.NewService(warehousefeature.Options{
-		Pool: pool, Events: publisher,
-		Flags: warehousefeature.Flags{Warehouses: true, Inventory: true},
+	warehouseService := warehouseusecases.NewService(warehouseusecases.Options{
+		Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: publisher,
+		Flags: warehousemodels.Flags{Warehouses: true, Inventory: true},
 	})
 
 	// The real adapter (internal/app.NewWarehouseInventoryExporter), wired
@@ -187,7 +189,7 @@ func TestSection25RemainingExportAdaptersAreScopedBoundedAndMinimized(t *testing
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	safetyService := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Flags: safetyfeature.OperationsFlags{Incidents: true}})
 	financeService := financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Events: publisher, Flags: financeopsmodels.Flags{Invoices: true, Receivables: true}})
-	warehouseService := warehousefeature.NewService(warehousefeature.Options{Pool: pool, Events: publisher, Flags: warehousefeature.Flags{Warehouses: true, Fulfilment: true}})
+	warehouseService := warehouseusecases.NewService(warehouseusecases.Options{Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: publisher, Flags: warehousemodels.Flags{Warehouses: true, Fulfilment: true}})
 	engagementService := engagementusecases.NewService(engagementusecases.Options{Store: engagementrepos.NewRepository(pool), Events: publisher, Flags: engagementmodels.Flags{Support: true}})
 	actor := tenant.Context{OrganizationID: org.ID, PermittedBranchIDs: []string{}}
 	exporters := []exportsusecases.Exporter{

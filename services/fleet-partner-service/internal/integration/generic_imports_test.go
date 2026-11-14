@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"errors"
 	"net/http"
 	"strconv"
@@ -15,13 +16,15 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
 	bulkhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
 	bulkmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/models"
 	bulkrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/repositories"
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
+	warehouserepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/repositories"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
 	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
@@ -34,7 +37,7 @@ import (
 // ---------------------------------------------------------------------------
 // Section 25C generic import framework — fixture.
 //
-// A real workforceusecases.Service, assets.Service and warehouse.Service back the
+// A real workforceusecases.Service, assets use-case service and warehouseusecases.Service back the
 // three new adapters, exactly as internal/app/bulkimports_wiring.go wires
 // the real ones — a commit in these tests is a real domain write, not a
 // simulation of one. PRIVATE_ORDER uses the same lightweight OrdersPort
@@ -73,22 +76,22 @@ func newGenericImportsFixture(t *testing.T, name, registration string) *genericI
 
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	workforceSvc := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: pool, Events: publisher, Flags: workforceusecases.Flags{Workforce: true, Workers: true}})
-	assetsSvc := assets.NewService(assets.Options{Pool: pool, Events: publisher, Flags: assets.Flags{Assets: true, Workers: true}})
-	warehouseSvc := warehouse.NewService(warehouse.Options{Pool: pool, Events: publisher, Restrictions: unrestrictedWarehouseGate{}, Flags: warehouse.Flags{Warehouses: true, Inventory: true}})
+	assetsSvc := newSection18(app.Section18Options{Pool: pool, Events: publisher, Flags: assetsmodels.Flags{Assets: true, Workers: true}})
+	warehouseSvc := warehouseusecases.NewService(warehouseusecases.Options{Pool: pool, Repository: warehouserepos.NewRepository(pool), Events: publisher, Restrictions: unrestrictedWarehouseGate{}, Flags: warehousemodels.Flags{Warehouses: true, Inventory: true}})
 
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: membership, ActorType: tenant.ActorTypeOrganizationUser, ActorID: membership}
-	wh, err := warehouseSvc.CreateWarehouse(ctx, scope, warehouse.Warehouse{BranchID: branch, Code: "WH-GEN", Name: "Generic Warehouse", AddressReference: "addr", Timezone: "Africa/Lagos"})
+	wh, err := warehouseSvc.CreateWarehouse(ctx, scope, warehousemodels.Warehouse{BranchID: branch, Code: "WH-GEN", Name: "Generic Warehouse", AddressReference: "addr", Timezone: "Africa/Lagos"})
 	if err != nil {
 		t.Fatalf("create warehouse: %v", err)
 	}
 	// A freshly created warehouse does not default to ACTIVE — Receipt
 	// refuses against anything else, matching how a real warehouse must be
 	// deliberately activated before it accepts stock.
-	wh, err = warehouseSvc.UpdateWarehouse(ctx, scope, wh.ID, wh.Version, warehouse.Warehouse{Status: "ACTIVE"}, false)
+	wh, err = warehouseSvc.UpdateWarehouse(ctx, scope, wh.ID, wh.Version, warehousemodels.Warehouse{Status: "ACTIVE"}, false)
 	if err != nil {
 		t.Fatalf("activate warehouse: %v", err)
 	}
-	loc, err := warehouseSvc.CreateLocation(ctx, scope, wh.ID, warehouse.Location{Code: "A1", Name: "Bin 1", LocationType: "BIN"})
+	loc, err := warehouseSvc.CreateLocation(ctx, scope, wh.ID, warehousemodels.Location{Code: "A1", Name: "Bin 1", LocationType: "BIN"})
 	if err != nil {
 		t.Fatalf("create location: %v", err)
 	}
@@ -266,7 +269,7 @@ func (a workforceImportAdapterForTest) Commit(ctx context.Context, t tenant.Cont
 	return p.ID, nil
 }
 
-type assetImportAdapterForTest struct{ assets *assets.Service }
+type assetImportAdapterForTest struct{ assets *section18Svc }
 
 func (assetImportAdapterForTest) Type() string       { return bulkmodels.TypeAsset }
 func (assetImportAdapterForTest) SchemaVersion() int { return 1 }
@@ -285,7 +288,7 @@ func (assetImportAdapterForTest) ValidateRow(raw map[string]string) bulkusecases
 }
 
 func (a assetImportAdapterForTest) Commit(ctx context.Context, t tenant.Context, _ string, data map[string]any) (string, error) {
-	out, err := a.assets.CreateAsset(ctx, t, assets.Asset{
+	out, err := a.assets.CreateAsset(ctx, t, assetsmodels.Asset{
 		BranchID: branchOfTest(t), AssetCode: data["assetCode"].(string), AssetType: data["assetType"].(string),
 	})
 	if err != nil {
@@ -294,7 +297,7 @@ func (a assetImportAdapterForTest) Commit(ctx context.Context, t tenant.Context,
 	return out.ID, nil
 }
 
-type warehouseImportAdapterForTest struct{ warehouse *warehouse.Service }
+type warehouseImportAdapterForTest struct{ warehouse *warehouseusecases.Service }
 
 func (warehouseImportAdapterForTest) Type() string       { return bulkmodels.TypeWarehouseInventory }
 func (warehouseImportAdapterForTest) SchemaVersion() int { return 1 }
@@ -319,7 +322,7 @@ func (warehouseImportAdapterForTest) ValidateRow(raw map[string]string) bulkusec
 }
 
 func (a warehouseImportAdapterForTest) Commit(ctx context.Context, t tenant.Context, correlationID string, data map[string]any) (string, error) {
-	item, err := a.warehouse.Receipt(ctx, t, warehouse.ReceiptInput{
+	item, err := a.warehouse.Receipt(ctx, t, warehousemodels.ReceiptInput{
 		WarehouseID: data["warehouseId"].(string), LocationID: data["locationId"].(string), OwnerType: data["ownerType"].(string),
 		OwnerReference: data["ownerReference"].(string), SKU: data["sku"].(string), Quantity: numericForTest(data["quantity"]),
 		CorrelationID: correlationID,

@@ -4,14 +4,14 @@ import (
 	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	assetsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
+	assetsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/usecases"
 	bulkmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/models"
 	bulkrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/repositories"
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
 	ordersmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/models"
 	ordersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
 	searchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
+	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
 	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -78,8 +78,8 @@ func (a bulkMediaAdapter) WriteErrorReport(ctx context.Context, t tenant.Context
 // exactly as those features' own HTTP handlers do, never a duplicate or
 // parallel code path.
 func BuildBulkImportsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher,
-	metrics *observability.Metrics, workforceSvc *workforceusecases.Service, assetsSvc *assetsfeature.Service,
-	warehouseSvc *warehouse.Service, search *searchusecases.Service) *bulkusecases.Service {
+	metrics *observability.Metrics, workforceSvc *workforceusecases.Service, assetsSvc *assetsusecases.Service,
+	warehouseSvc *warehouseusecases.Service, search *searchusecases.Service) *bulkusecases.Service {
 	var mp bulkusecases.MediaPort
 	mediaCfg := cfg.Clients["media-file-service"]
 	if !cfg.IntegrationsKillSwitch && mediaCfg.Configured() {

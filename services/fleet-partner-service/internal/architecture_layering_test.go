@@ -32,9 +32,6 @@ const layeringModulePath = "cosmicforge/logistics/services/fleet-partner-service
 // until that work merges; the coordinator empties this list afterwards.
 // Do not add a feature to this list to silence a new violation.
 var layeringPendingFeatures = map[string]bool{
-	"assets":      true,
-	"warehouse":   true,
-	"proof":       true,
 	"dispatch":    true,
 	"compliance":  true,
 	"specialized": true,

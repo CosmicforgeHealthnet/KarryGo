@@ -41,7 +41,7 @@
 
     {"id":"71.7.1","group":"functional_safety_finance","check":"Unsafe, expired, or restricted providers/assets cannot accept or be assigned work.","status":"PASS","evidence":["internal/features/compliance/service.go","docs/section31-test-coverage.json"]},
     {"id":"71.7.2","group":"functional_safety_finance","check":"Safety decline cannot trigger automatic punishment or deduction.","status":"PASS","evidence":["internal/features/marketplace/usecases/offer_response.go","docs/section31-test-coverage.json"]},
-    {"id":"71.7.3","group":"functional_safety_finance","check":"Return-to-service requires independently completed gates.","status":"PASS","evidence":["internal/features/assets/service.go","docs/section31-test-coverage.json"]},
+    {"id":"71.7.3","group":"functional_safety_finance","check":"Return-to-service requires independently completed gates.","status":"PASS","evidence":["internal/features/assets/usecases/service.go","docs/section31-test-coverage.json"]},
     {"id":"71.7.4","group":"functional_safety_finance","check":"payment-wallet-service remains authoritative and Fleet cannot edit balances.","status":"PASS","evidence":["docs/fleet-wallet-integration.md","internal/features/companywallet/usecases/service.go"]},
     {"id":"71.7.5","group":"functional_safety_finance","check":"Every active managed provider has a sub-wallet and trip earnings do not auto-credit it.","status":"PASS","evidence":["docs/company-wallets.md","docs/section31-test-coverage.json"]},
 
