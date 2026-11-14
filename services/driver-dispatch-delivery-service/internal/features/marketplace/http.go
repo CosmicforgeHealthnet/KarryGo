@@ -74,6 +74,7 @@ func RegisterInternalRoutes(group *gin.RouterGroup, handler *Handler,
 	group.GET("/executions/by-idempotency/:idempotencyKey", handler.GetExecutionByIdempotency)
 	group.GET("/executions/by-assignment/:fleetAssignmentId", handler.GetExecutionByAssignment)
 	group.GET("/trips/:tripId", handler.GetTrip)
+	group.POST("/trips/:tripId/cancel", handler.CancelTrip)
 }
 
 type providerEligibilityBody struct {

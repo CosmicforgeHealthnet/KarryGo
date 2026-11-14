@@ -93,6 +93,8 @@ type Service struct {
 	responder      FleetResponder
 	relayAttempts  int
 	providerReader ProviderReader
+	// tripCanceller cancels an organization-managed canonical trip for Fleet.
+	tripCanceller TripCanceller
 }
 
 // WithRestrictionGate installs Dispatch's local projection gate. It is kept as

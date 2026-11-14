@@ -755,6 +755,9 @@ func registerMarketplaceRoutes(engine *gin.Engine, cfg config.Config, db *pgxpoo
 		"fleet-partner-service": cfg.FleetServiceSecret,
 	}, 5*time.Minute)
 	service.WithRestrictionGate(restrictionService)
+	if tripService != nil {
+		service.WithTripCanceller(organizationTripCanceller{trips: tripService})
+	}
 	marketplace.RegisterInternalRoutes(engine.Group("/api/v1/internal/marketplace"),
 		marketplace.NewHandler(service, flags), internalVerifier, []string{"fleet-partner-service"})
 
@@ -1207,4 +1210,14 @@ func startPolicyReconcileWorker(ctx context.Context, cfg config.Config, db *pgxp
 		cancel()
 		<-done
 	}
+}
+
+// organizationTripCanceller adapts the trip feature's organization-cancel
+// authority to the marketplace port, so Fleet can cancel an
+// organization-managed trip through the internal marketplace API.
+type organizationTripCanceller struct{ trips *tripfeature.Service }
+
+func (a organizationTripCanceller) CancelOrganizationTrip(ctx context.Context, tripID, reason, correlationID string) error {
+	_, err := a.trips.CancelOrganizationTrip(ctx, tripID, reason, correlationID)
+	return err
 }
