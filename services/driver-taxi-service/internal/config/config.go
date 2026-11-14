@@ -204,6 +204,11 @@ type Config struct {
 	// stops the writes.
 	TaxiOrganizationProvidersEnabled    bool
 	TaxiOrganizationProvidersKillSwitch bool
+	// TaxiFleetMarketplaceFeedEnabled publishes open ride requests to Fleet as
+	// marketplace opportunities and the lifecycle of organization-run trips
+	// (Sections 11-12) through the existing taxi outbox. Requires the Fleet
+	// client (FLEET_PARTNER_SERVICE_URL/SECRET).
+	TaxiFleetMarketplaceFeedEnabled bool
 	// TaxiManagedSettlementEnabled isolates corporate settlement from the
 	// legacy direct-to-provider wallet path (Section 8 TAX-020A). Default
 	// false until Section 12 exists; turning it on stops corporate work
@@ -373,6 +378,7 @@ func Load() Config {
 		TaxiFleetKillSwitch:                 getEnvBool("TAXI_FLEET_KILL_SWITCH", false),
 		TaxiOrganizationProvidersEnabled:    getEnvBool("TAXI_ORGANIZATION_PROVIDERS_ENABLED", false),
 		TaxiOrganizationProvidersKillSwitch: getEnvBool("TAXI_ORGANIZATION_PROVIDERS_KILL_SWITCH", false),
+		TaxiFleetMarketplaceFeedEnabled:     getEnvBool("TAXI_FLEET_MARKETPLACE_FEED_ENABLED", false),
 		TaxiManagedSettlementEnabled:        getEnvBool("TAXI_MANAGED_SETTLEMENT_ENABLED", false),
 		TaxiFleetExecutionCallers:           splitCSV(getEnv("TAXI_FLEET_EXECUTION_CALLERS", "fleet-partner-service")),
 		TaxiFleetReservationTTL:             time.Duration(getEnvInt("TAXI_FLEET_RESERVATION_TTL_SECONDS", 300)) * time.Second,
@@ -408,6 +414,12 @@ func Load() Config {
 // Validate rejects unsafe partial enablement. Disabled integrations require no
 // downstream credentials, while enabled ones require explicit secrets and
 // identities; there are no development secret fallbacks.
+// FleetMarketplaceFeedActive reports whether ride requests and organization
+// trips are published to Fleet: the feed on and the Fleet surface not killed.
+func (c Config) FleetMarketplaceFeedActive() bool {
+	return c.TaxiFleetMarketplaceFeedEnabled && !c.TaxiFleetKillSwitch
+}
+
 func (c Config) Validate() error {
 	var problems []string
 	if c.ReferralFeedEnabled && (c.ReferralServiceURL == "" || len(c.ReferralServiceSecret) == 0 || len(c.ReferralIdentityPepper) == 0) {
@@ -536,6 +548,14 @@ func (c Config) Validate() error {
 			problems = append(problems,
 				"TAXI_SERVICE_SECRETS must carry a secret for fleet-partner-service when TAXI_FLEET_PRIVATE_EXECUTION_ENABLED is true")
 		}
+	}
+	// The marketplace feed writes rows only a Fleet client can deliver;
+	// switching it on without one would grow an undeliverable backlog.
+	if c.TaxiFleetMarketplaceFeedEnabled && !c.TaxiFleetKillSwitch &&
+		(strings.TrimSpace(c.FleetServiceURL) == "" || strings.TrimSpace(c.FleetServiceCaller) == "" ||
+			len(c.FleetServiceSecret) == 0) {
+		problems = append(problems,
+			"FLEET_PARTNER_SERVICE_URL, TAXI_FLEET_SERVICE_CALLER and FLEET_PARTNER_SERVICE_SECRET are required when TAXI_FLEET_MARKETPLACE_FEED_ENABLED is true")
 	}
 
 	if len(problems) > 0 {

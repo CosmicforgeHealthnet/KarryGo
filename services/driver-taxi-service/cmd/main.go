@@ -129,7 +129,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	db, err := database.NewPool(ctx, cfg.DatabaseURL)
+	var poolOptions []database.PoolOption
+	if cfg.FleetMarketplaceFeedActive() {
+		// Switches the taxi_bookings -> Fleet feed triggers (migration 029) on
+		// for this service's own connections only.
+		poolOptions = append(poolOptions, database.WithSessionSetting(database.FleetMarketplaceFeedSetting, "on"))
+		logging.Notice("taxi-fleet", "Fleet marketplace request and trip feed enabled")
+	}
+	db, err := database.NewPool(ctx, cfg.DatabaseURL, poolOptions...)
 	if err != nil {
 		logging.Fatal("database", "create taxi database pool: %v", err)
 	}
@@ -576,6 +583,15 @@ func main() {
 			Client:  fleetCompletedWorkClient,
 			Enabled: cfg.TaxiFleetCompletedWorkEnabled && fleetCompletedWorkClient != nil,
 		},
+		// Sections 11-12: open ride requests and organization-trip lifecycle
+		// to Fleet's marketplace event ingestion. Rows exist only when the
+		// feed is on; a disabled destination leaves any row queued rather
+		// than dead-lettered.
+		taxioutbox.TargetFleetMarketplace: taxioutbox.FleetMarketplaceEventDestination{
+			BaseURL: cfg.FleetServiceURL, ServiceName: cfg.FleetServiceCaller, Secret: cfg.FleetServiceSecret,
+			HTTPClient: &http.Client{Timeout: cfg.FleetServiceTimeout},
+			Enabled:    cfg.FleetMarketplaceFeedActive(),
+		},
 		// Customer movement rows share the same durable outbox, worker,
 		// leasing and backoff as the Vendor lifecycle and Fleet completed
 		// work; the target is what keeps the three from ever being delivered
@@ -816,8 +832,10 @@ func main() {
 				//
 				// Section 13/14: analytics and recovery-notification rows ride
 				// the same worker, so either of those flags needs it too.
+				// Sections 11-12: the Fleet marketplace feed rides it too.
 				if cfg.TaxiGoodsDeliveryEnabled || cfg.TaxiFleetCompletedWorkEnabled ||
-					cfg.AnalyticsEventsEnabled || cfg.RecoveryNotificationsEnabled {
+					cfg.AnalyticsEventsEnabled || cfg.RecoveryNotificationsEnabled ||
+					cfg.FleetMarketplaceFeedActive() {
 					goodsOutboxPublisher.Run(ctx, time.Second)
 				}
 				return nil
