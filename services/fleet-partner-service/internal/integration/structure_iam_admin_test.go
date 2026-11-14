@@ -24,6 +24,9 @@ func TestOrganizationStructureAndAccessAdministration(t *testing.T) {
 	ownerGrant := obtainStepUp(t, router, h, owner, stepup.ActionAccessManage)
 	call := func(method, path string, payload any, version, want int) map[string]any {
 		t.Helper()
+		if version == 0 {
+			version = currentVersionFor(t, router, owner, ownerGrant, method, path)
+		}
 		code, body := onboardCallStepUp(t, router, owner, ownerGrant, method, path, payload, version)
 		if code != want {
 			t.Fatalf("%s %s = %d, want %d: %v", method, path, code, want, body)
@@ -54,6 +57,11 @@ func TestOrganizationStructureAndAccessAdministration(t *testing.T) {
 		t.Fatalf("branch update: %v", updated)
 	}
 	call("PATCH", "/branches/"+ikejaID, map[string]any{"name": "Stale"}, 1, 409)
+	// A missing If-Match is refused (FLEET-6k), never applied to whatever
+	// version is current.
+	if code, _ := onboardCallStepUp(t, router, owner, ownerGrant, "PATCH", "/branches/"+ikejaID, map[string]any{"name": "Blind"}, 0); code != 400 {
+		t.Fatalf("branch edit without If-Match = %d, want 400", code)
+	}
 
 	// --- Departments: create under the branch, nest, refuse cycles.
 	ops := documentData(t, call("POST", "/departments", map[string]any{"code": "OPS", "name": "Operations", "branchId": ikejaID}, 0, 201))
@@ -143,7 +151,7 @@ func TestOrganizationStructureAndAccessAdministration(t *testing.T) {
 			t.Fatalf("cross-tenant read %s = %d, want 404", path, code)
 		}
 	}
-	if code, _ := onboardCall(t, router, other, "PATCH", "/branches/"+ikejaID, map[string]any{"name": "Taken"}, 0); code != 404 {
+	if code, _ := onboardCall(t, router, other, "PATCH", "/branches/"+ikejaID, map[string]any{"name": "Taken"}, 1); code != 404 {
 		t.Fatalf("cross-tenant branch write = %d", code)
 	}
 	otherGrant := obtainStepUp(t, router, h, other, stepup.ActionAccessManage)

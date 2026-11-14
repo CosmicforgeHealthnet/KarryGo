@@ -1338,7 +1338,7 @@ func (h *Handler) changeStaffStatus(c *gin.Context, status string, permission st
 	if !h.authorize(c, tenantCtx, permission) {
 		return
 	}
-	expectedVersion, err := expectedVersionFrom(c)
+	expectedVersion, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return

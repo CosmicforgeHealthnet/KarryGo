@@ -123,7 +123,7 @@ func (h *Handler) updateCostCentre(c *gin.Context) {
 	if !ok || !h.visibleCostCentre(c, tenantCtx) {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -147,7 +147,7 @@ func (h *Handler) archiveCostCentre(c *gin.Context) {
 	if !ok || !h.visibleCostCentre(c, tenantCtx) {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -252,7 +252,7 @@ func (h *Handler) updateTeam(c *gin.Context) {
 	if !ok || !h.visibleTeam(c, tenantCtx) {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -277,7 +277,7 @@ func (h *Handler) archiveTeam(c *gin.Context) {
 	if !ok || !h.visibleTeam(c, tenantCtx) {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -389,7 +389,7 @@ func (h *Handler) updateLocation(c *gin.Context) {
 	if !ok || !h.visibleLocation(c, tenantCtx) {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -415,7 +415,7 @@ func (h *Handler) archiveLocation(c *gin.Context) {
 	if !ok || !h.visibleLocation(c, tenantCtx) {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return

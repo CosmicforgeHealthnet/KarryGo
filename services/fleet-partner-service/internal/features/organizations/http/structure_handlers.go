@@ -198,7 +198,7 @@ func (h *Handler) updateBranch(c *gin.Context) {
 		respond.Error(c, apperrors.NotFound("Branch not found.", nil))
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -228,7 +228,7 @@ func (h *Handler) archiveBranch(c *gin.Context) {
 		respond.Error(c, apperrors.NotFound("Branch not found.", nil))
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -312,7 +312,7 @@ func (h *Handler) updateDepartment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -336,7 +336,7 @@ func (h *Handler) archiveDepartment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -374,7 +374,7 @@ func (h *Handler) updateSettings(c *gin.Context) {
 	if !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -408,7 +408,7 @@ func (h *Handler) updateStaff(c *gin.Context) {
 	if !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -582,7 +582,7 @@ func (h *Handler) updateRole(c *gin.Context) {
 	if !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -607,7 +607,7 @@ func (h *Handler) archiveRole(c *gin.Context) {
 	if !ok {
 		return
 	}
-	expected, err := expectedVersionFrom(c)
+	expected, err := requiredExpectedVersion(c)
 	if err != nil {
 		respond.Error(c, err)
 		return

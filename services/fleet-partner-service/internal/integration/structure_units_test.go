@@ -20,6 +20,9 @@ func TestOrganizationStructureUnits(t *testing.T) {
 	}
 	call := func(method, path string, payload any, version, want int) map[string]any {
 		t.Helper()
+		if version == 0 {
+			version = currentVersionFor(t, router, owner, "", method, path)
+		}
 		code, body := onboardCall(t, router, owner, method, path, payload, version)
 		if code != want {
 			t.Fatalf("%s %s = %d, want %d: %v", method, path, code, want, body)
@@ -132,7 +135,7 @@ func TestOrganizationStructureUnits(t *testing.T) {
 		if code, _ := onboardCall(t, router, other, "GET", path, nil, 0); code != 404 {
 			t.Fatalf("cross-tenant read %s = %d, want 404", path, code)
 		}
-		if code, _ := onboardCall(t, router, other, "PATCH", path, map[string]any{"name": "Taken"}, 0); code != 404 {
+		if code, _ := onboardCall(t, router, other, "PATCH", path, map[string]any{"name": "Taken"}, 1); code != 404 {
 			t.Fatalf("cross-tenant write %s = %d, want 404", path, code)
 		}
 	}
