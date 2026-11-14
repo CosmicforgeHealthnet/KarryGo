@@ -5,7 +5,15 @@
 #   SET  <service> NAME=true|false
 #   URL  <service> NAME=http://karrygo-<container>:<port>
 #   CALLERS <service> NAME_CALLERS=<known service>,<known service>
+#   KEYGEN <service> NAME <bytes>       random keyId:base64 key generated on the
+#                                       server only when NAME is absent; never
+#                                       rotated or printed
 # No secret is ever written here.
+
+# Private media objects (Fleet exports, documents, proof files) are encrypted
+# at rest (FLEET-7h.c). Media refuses to boot in staging without this key once
+# its private API is on, so this runs before (or with) that media deploy.
+KEYGEN media-file-service MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS 32
 
 # Company activation (Fleet ADR-006): Fleet submits companies to Verification
 # and reads decisions back; Verification delivers decisions to Fleet.
