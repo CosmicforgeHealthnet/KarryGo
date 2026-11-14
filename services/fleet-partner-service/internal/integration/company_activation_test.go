@@ -161,6 +161,51 @@ func TestCompanyActivationFromVerificationDecision(t *testing.T) {
 	if code, _ := onboardCall(t, router, owner, "POST", "/providers", map[string]any{}, 0); code != 422 {
 		t.Fatalf("active company still gated: %d", code)
 	}
+
+	// FLEET-8.13: Verification suspends the company; operational writes stop.
+	result, err = service.ApplyVerificationOutcome(ctx, orgusecases.VerificationOutcomeInput{
+		OrganizationID: orgID, SubmissionID: submission, Status: "SUSPENDED", SourceVersion: 4, EventID: "evt-4",
+	})
+	if err != nil || !result.Applied {
+		t.Fatalf("suspension: %+v %v", result, err)
+	}
+	if org, _ := status(); org != "SUSPENDED" {
+		t.Fatalf("after suspension: %s", org)
+	}
+	if code, _ := onboardCall(t, router, owner, "POST", "/providers", map[string]any{}, 0); code == 422 {
+		t.Fatal("suspended company still passes the lifecycle gate")
+	}
+	// A later VERIFIED decision lifts the suspension Verification imposed.
+	result, err = service.ApplyVerificationOutcome(ctx, orgusecases.VerificationOutcomeInput{
+		OrganizationID: orgID, SubmissionID: submission, Status: "VERIFIED", SourceVersion: 5, EventID: "evt-5",
+	})
+	if err != nil || !result.Applied {
+		t.Fatalf("reinstatement: %+v %v", result, err)
+	}
+	if org, _ := status(); org != "ACTIVE" {
+		t.Fatalf("after reinstatement: %s, want ACTIVE", org)
+	}
+	if code, _ := onboardCall(t, router, owner, "POST", "/providers", map[string]any{}, 0); code != 422 {
+		t.Fatalf("reinstated company still gated: %d", code)
+	}
+
+	// A suspension imposed by someone else is not Verification's to lift.
+	if _, err := h.pool.Exec(ctx, `UPDATE fleet_partner_organizations SET status='SUSPENDED', version=version+1 WHERE id=$1`, orgID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO fleet_partner_organization_status_history(id,organization_id,previous_status,new_status,actor_type,actor_id,reason_code,request_id,correlation_id)
+		VALUES('osh_operator_'||$1,$1,'ACTIVE','SUSPENDED','PLATFORM_OPERATOR','opr_1','operator_review','req-op','cor-op')`, orgID); err != nil {
+		t.Fatal(err)
+	}
+	result, err = service.ApplyVerificationOutcome(ctx, orgusecases.VerificationOutcomeInput{
+		OrganizationID: orgID, SubmissionID: submission, Status: "VERIFIED", SourceVersion: 6, EventID: "evt-6",
+	})
+	if err != nil {
+		t.Fatalf("verified over operator suspension: %v", err)
+	}
+	if org, _ := status(); org != "SUSPENDED" {
+		t.Fatalf("operator suspension lifted by verification: %s", org)
+	}
 }
 
 // TestVerificationStatusMapping pins ADR-006's vocabulary mapping.

@@ -133,6 +133,21 @@ func (s *Service) ApplyVerificationOutcome(ctx context.Context, input Verificati
 			if organization.Status == models.OrganizationStatusBusinessSubmitted {
 				target = models.OrganizationStatusUnderReview
 			}
+			// FLEET-8.13: a later VERIFIED decision lifts a suspension that
+			// verification itself imposed. A suspension imposed by anyone else
+			// (an operator, closure review) is not verification's to undo.
+			if mapped == models.VerificationStatusApproved && organization.Status == models.OrganizationStatusSuspended {
+				var actor string
+				err := tx.QueryRow(ctx, `SELECT actor_id FROM fleet_partner_organization_status_history
+					WHERE organization_id = $1 AND new_status = $2 ORDER BY occurred_at DESC, id DESC LIMIT 1`,
+					input.OrganizationID, models.OrganizationStatusSuspended).Scan(&actor)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					return err
+				}
+				if actor == "verification-outcome" {
+					target = models.OrganizationStatusActive
+				}
+			}
 		case models.VerificationStatusChangesRequired, models.VerificationStatusRejected:
 			switch organization.Status {
 			case models.OrganizationStatusBusinessSubmitted, models.OrganizationStatusUnderReview:
