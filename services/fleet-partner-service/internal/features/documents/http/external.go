@@ -174,7 +174,7 @@ func newExternalDocumentView(document models.Document) externalDocumentView {
 }
 
 func respondExternal(c *gin.Context, status int, data any) {
-	c.JSON(status, gin.H{"data": data, "meta": gin.H{"requestId": c.GetHeader("X-Request-ID")}})
+	respond.JSON(c, status, data)
 }
 
 // --- provider handlers -----------------------------------------------------

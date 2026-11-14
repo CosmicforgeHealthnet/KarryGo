@@ -101,6 +101,7 @@ func TestWorkerOperations_RequiresAllowlistedCallerAndStaysPlatformScoped(t *tes
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("non-allowlisted caller status = %d body=%s, want 403", recorder.Code, recorder.Body.String())
 	}
+	assertInternalErrorEnvelope(t, recorder, "caller_not_allowed")
 
 	// Allowlisted caller, platform-scoped job -> visible.
 	req = signedInternalRequest(t, http.MethodGet,
@@ -110,10 +111,7 @@ func TestWorkerOperations_RequiresAllowlistedCallerAndStaysPlatformScoped(t *tes
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("allowlisted caller platform job status = %d body=%s, want 200", recorder.Code, recorder.Body.String())
 	}
-	var view map[string]any
-	if err := json.Unmarshal(recorder.Body.Bytes(), &view); err != nil {
-		t.Fatal(err)
-	}
+	view := internalEnvelopeData(t, recorder)
 	if view["id"] != platformJobID {
 		t.Fatalf("job id = %v, want %s", view["id"], platformJobID)
 	}
@@ -156,6 +154,7 @@ func TestWorkerOperations_ScheduledTaskEnableRequiresExpectedVersion(t *testing.
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("stale-version disable status = %d body=%s, want 409", recorder.Code, recorder.Body.String())
 	}
+	assertInternalErrorEnvelope(t, recorder, "version_conflict")
 
 	body, _ = json.Marshal(map[string]any{"expectedVersion": task.Version})
 	req = signedInternalRequest(t, http.MethodPost,
@@ -218,10 +217,7 @@ func TestWorkerOperations_BacklogsAndOutboxReplay(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("GET backlogs status = %d body=%s, want 200", recorder.Code, recorder.Body.String())
 	}
-	var backlogs map[string]any
-	if err := json.Unmarshal(recorder.Body.Bytes(), &backlogs); err != nil {
-		t.Fatal(err)
-	}
+	backlogs := internalEnvelopeData(t, recorder)
 	if _, ok := backlogs["jobs"]; !ok {
 		t.Fatalf("backlogs response missing jobs section: %s", recorder.Body.String())
 	}
@@ -237,6 +233,7 @@ func TestWorkerOperations_BacklogsAndOutboxReplay(t *testing.T) {
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("replay unknown record status = %d body=%s, want 404", recorder.Code, recorder.Body.String())
 	}
+	assertInternalErrorEnvelope(t, recorder, "not_dead_lettered")
 
 	// Replaying the real dead-lettered record succeeds and moves it back to PENDING.
 	body, _ = json.Marshal(map[string]string{"recordId": recordID})
@@ -245,6 +242,9 @@ func TestWorkerOperations_BacklogsAndOutboxReplay(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("replay dead-lettered record status = %d body=%s, want 200", recorder.Code, recorder.Body.String())
+	}
+	if replayed := internalEnvelopeData(t, recorder); replayed["status"] != "REPLAYED" || replayed["recordId"] != recordID {
+		t.Fatalf("replay data = %v, want REPLAYED %s", replayed, recordID)
 	}
 	var status string
 	if err := pool.QueryRow(ctx, `SELECT status FROM fleet_partner_outbox WHERE id=$1`, recordID).Scan(&status); err != nil {
@@ -260,5 +260,43 @@ func TestWorkerOperations_BacklogsAndOutboxReplay(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("non-allowlisted backlogs status = %d, want 403", recorder.Code)
+	}
+}
+
+// internalEnvelopeData asserts the FLEET-6h standard success envelope
+// ({"data": {...}, "meta": {"requestId": ...}}) and returns data.
+func internalEnvelopeData(t *testing.T, recorder *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var envelope struct {
+		Data map[string]any `json:"data"`
+		Meta struct {
+			RequestID string `json:"requestId"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v body=%s", err, recorder.Body.String())
+	}
+	if envelope.Data == nil || envelope.Meta.RequestID == "" {
+		t.Fatalf("response is not the standard success envelope: %s", recorder.Body.String())
+	}
+	return envelope.Data
+}
+
+// assertInternalErrorEnvelope asserts the FLEET-6h standard error envelope
+// carrying the route's stable machine code.
+func assertInternalErrorEnvelope(t *testing.T, recorder *httptest.ResponseRecorder, code string) {
+	t.Helper()
+	var envelope struct {
+		Error *struct {
+			Code      string `json:"code"`
+			Message   string `json:"message"`
+			RequestID string `json:"requestId"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode error envelope: %v body=%s", err, recorder.Body.String())
+	}
+	if envelope.Error == nil || envelope.Error.Code != code || envelope.Error.Message == "" || envelope.Error.RequestID == "" {
+		t.Fatalf("want standard error envelope with code %q, got %s", code, recorder.Body.String())
 	}
 }

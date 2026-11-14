@@ -272,7 +272,7 @@ func (h *InternalHandler) supportEvent(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"accepted": true}})
+	respond.JSON(c, http.StatusAccepted, gin.H{"accepted": true})
 }
 func (h *InternalHandler) measurement(c *gin.Context) {
 	var in MeasurementInput
@@ -285,5 +285,5 @@ func (h *InternalHandler) measurement(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": v})
+	respond.Created(c, v)
 }

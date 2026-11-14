@@ -11,6 +11,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
 // providerServiceTokens maps the asserted provider service onto the source
@@ -203,9 +204,7 @@ func respondOffer(c *gin.Context, status int, result *usecases.OfferResponseResu
 	if result.Assignment != nil {
 		view.AssignmentID = result.Assignment.ID
 	}
-	c.JSON(status, gin.H{"data": view, "meta": gin.H{
-		"requestId": c.GetHeader("X-Request-ID"),
-	}})
+	respond.JSON(c, status, view)
 }
 
 // resolveProviderActor validates the asserted provider identity.
@@ -400,14 +399,10 @@ func (h *InternalHandler) ProviderAcknowledgeAssignment(c *gin.Context) {
 		view.Status = result.Assignment.Status
 		view.Version = result.Assignment.Version
 	}
-	c.JSON(http.StatusOK, gin.H{"data": view, "meta": gin.H{
-		"requestId": c.GetHeader("X-Request-ID"),
-	}})
+	respond.JSON(c, http.StatusOK, view)
 }
 
 // respondProvider writes the canonical envelope for a provider-safe view.
 func respondProvider(c *gin.Context, status int, view ProviderAssignmentView) {
-	c.JSON(status, gin.H{"data": view, "meta": gin.H{
-		"requestId": c.GetHeader("X-Request-ID"),
-	}})
+	respond.JSON(c, status, view)
 }

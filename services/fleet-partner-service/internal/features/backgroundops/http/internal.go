@@ -7,9 +7,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/scheduler"
 )
 
@@ -110,7 +113,7 @@ func (h *InternalHandler) dispatch(operationID string) gin.HandlerFunc {
 func (h *InternalHandler) requireAllowedCaller(c *gin.Context) bool {
 	caller := c.GetString(middleware.ServiceCallerKey)
 	if !h.allowed[caller] {
-		c.JSON(http.StatusForbidden, gin.H{"status": "REJECTED", "code": "caller_not_allowed"})
+		respond.Error(c, opError(http.StatusForbidden, "caller_not_allowed", "Service is not allowed to call this endpoint."))
 		return false
 	}
 	return true
@@ -130,14 +133,14 @@ func (h *InternalHandler) listJobs(c *gin.Context) {
 		Status: c.Query("status"), JobType: c.Query("jobType"), Limit: limit,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
 	views := make([]JobView, 0, len(items))
 	for _, item := range items {
 		views = append(views, newJobView(item))
 	}
-	c.JSON(http.StatusOK, gin.H{"jobs": views})
+	respond.OK(c, gin.H{"jobs": views})
 }
 
 func (h *InternalHandler) getJob(c *gin.Context) {
@@ -146,10 +149,10 @@ func (h *InternalHandler) getJob(c *gin.Context) {
 	}
 	item, err := h.jobs.Get(c.Request.Context(), "", c.Param("jobId"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "NOT_FOUND"})
+		respond.Error(c, apperrors.NotFound("Not found.", err))
 		return
 	}
-	c.JSON(http.StatusOK, newJobView(item))
+	respond.OK(c, newJobView(item))
 }
 
 func (h *InternalHandler) listJobAttempts(c *gin.Context) {
@@ -158,14 +161,14 @@ func (h *InternalHandler) listJobAttempts(c *gin.Context) {
 	}
 	attempts, err := h.jobs.ListAttempts(c.Request.Context(), "", c.Param("jobId"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
 	views := make([]AttemptView, 0, len(attempts))
 	for _, attempt := range attempts {
 		views = append(views, newAttemptView(attempt))
 	}
-	c.JSON(http.StatusOK, gin.H{"attempts": views})
+	respond.OK(c, gin.H{"attempts": views})
 }
 
 func (h *InternalHandler) retryJob(c *gin.Context) {
@@ -173,15 +176,15 @@ func (h *InternalHandler) retryJob(c *gin.Context) {
 		return
 	}
 	if err := h.jobs.Replay(c.Request.Context(), "", c.Param("jobId")); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "NOT_FOUND", "code": "not_dead_lettered"})
+		respond.Error(c, opError(http.StatusNotFound, "not_dead_lettered", "The record is not dead-lettered."))
 		return
 	}
 	item, err := h.jobs.Get(c.Request.Context(), "", c.Param("jobId"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
-	c.JSON(http.StatusOK, newJobView(item))
+	respond.OK(c, newJobView(item))
 }
 
 func (h *InternalHandler) cancelJob(c *gin.Context) {
@@ -189,15 +192,15 @@ func (h *InternalHandler) cancelJob(c *gin.Context) {
 		return
 	}
 	if err := h.jobs.Cancel(c.Request.Context(), "", c.Param("jobId")); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"status": "REJECTED", "code": "not_cancellable"})
+		respond.Error(c, opError(http.StatusConflict, "not_cancellable", "The job cannot be cancelled in its current state."))
 		return
 	}
 	item, err := h.jobs.Get(c.Request.Context(), "", c.Param("jobId"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
-	c.JSON(http.StatusOK, newJobView(item))
+	respond.OK(c, newJobView(item))
 }
 
 func (h *InternalHandler) listScheduledTasks(c *gin.Context) {
@@ -212,14 +215,14 @@ func (h *InternalHandler) listScheduledTasks(c *gin.Context) {
 	}
 	tasks, err := h.scheduler.List(c.Request.Context(), "", limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
 	views := make([]TaskView, 0, len(tasks))
 	for _, task := range tasks {
 		views = append(views, newTaskView(task))
 	}
-	c.JSON(http.StatusOK, gin.H{"scheduledTasks": views})
+	respond.OK(c, gin.H{"scheduledTasks": views})
 }
 
 func (h *InternalHandler) getScheduledTask(c *gin.Context) {
@@ -228,10 +231,10 @@ func (h *InternalHandler) getScheduledTask(c *gin.Context) {
 	}
 	task, err := h.scheduler.Get(c.Request.Context(), "", c.Param("taskId"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "NOT_FOUND"})
+		respond.Error(c, apperrors.NotFound("Not found.", err))
 		return
 	}
-	c.JSON(http.StatusOK, newTaskView(task))
+	respond.OK(c, newTaskView(task))
 }
 
 func (h *InternalHandler) listScheduledTaskRuns(c *gin.Context) {
@@ -246,14 +249,14 @@ func (h *InternalHandler) listScheduledTaskRuns(c *gin.Context) {
 	}
 	runs, err := h.scheduler.ListRuns(c.Request.Context(), "", c.Param("taskId"), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
 	views := make([]RunView, 0, len(runs))
 	for _, run := range runs {
 		views = append(views, newRunView(run))
 	}
-	c.JSON(http.StatusOK, gin.H{"runs": views})
+	respond.OK(c, gin.H{"runs": views})
 }
 
 type internalExpectedVersionBody struct {
@@ -274,16 +277,16 @@ func (h *InternalHandler) setEnabled(c *gin.Context, enabled bool) {
 	}
 	var body internalExpectedVersionBody
 	if err := c.ShouldBindJSON(&body); err != nil || body.ExpectedVersion < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "expected_version_required"})
+		respond.Error(c, opError(http.StatusBadRequest, "expected_version_required", "expectedVersion is required."))
 		return
 	}
 	task, err := h.scheduler.SetEnabled(c.Request.Context(), "", c.Param("taskId"), enabled,
 		body.ExpectedVersion, c.GetString(middleware.ServiceCallerKey))
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"status": "REJECTED", "code": "version_conflict"})
+		respond.Error(c, opError(http.StatusConflict, "version_conflict", "The scheduled task changed elsewhere. Reload it before retrying."))
 		return
 	}
-	c.JSON(http.StatusOK, newTaskView(task))
+	respond.OK(c, newTaskView(task))
 }
 
 func (h *InternalHandler) runScheduledTaskNow(c *gin.Context) {
@@ -292,21 +295,21 @@ func (h *InternalHandler) runScheduledTaskNow(c *gin.Context) {
 	}
 	var body internalExpectedVersionBody
 	if err := c.ShouldBindJSON(&body); err != nil || body.ExpectedVersion < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "expected_version_required"})
+		respond.Error(c, opError(http.StatusBadRequest, "expected_version_required", "expectedVersion is required."))
 		return
 	}
 	task, err := h.scheduler.RunNow(c.Request.Context(), "", c.Param("taskId"),
 		body.ExpectedVersion, c.GetString(middleware.ServiceCallerKey))
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"status": "REJECTED", "code": "version_conflict"})
+		respond.Error(c, opError(http.StatusConflict, "version_conflict", "The scheduled task changed elsewhere. Reload it before retrying."))
 		return
 	}
-	c.JSON(http.StatusOK, newTaskView(task))
+	respond.OK(c, newTaskView(task))
 }
 
 func (h *InternalHandler) requireOutbox(c *gin.Context) bool {
 	if h.outbox == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "UNAVAILABLE", "code": "outbox_not_configured"})
+		respond.Error(c, opError(http.StatusServiceUnavailable, "outbox_not_configured", "The outbox is not configured."))
 		return false
 	}
 	return true
@@ -326,12 +329,12 @@ func (h *InternalHandler) getBacklogs(c *gin.Context) {
 	if h.jobs != nil {
 		counts, err := h.jobs.Counts(ctx)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+			respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 			return
 		}
 		deadLetter, err := h.jobs.DeadLetterCount(ctx)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+			respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 			return
 		}
 		body["jobs"] = gin.H{"byStatus": counts, "deadLettered": deadLetter}
@@ -339,17 +342,17 @@ func (h *InternalHandler) getBacklogs(c *gin.Context) {
 	if h.outbox != nil {
 		pending, err := h.outbox.PendingCount(ctx)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+			respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 			return
 		}
 		oldestAge, err := h.outbox.OldestPendingAge(ctx)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+			respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 			return
 		}
 		body["outbox"] = gin.H{"pending": pending, "oldestPendingAgeSeconds": oldestAge.Seconds()}
 	}
-	c.JSON(http.StatusOK, body)
+	respond.OK(c, body)
 }
 
 type replayOutboxRequestBody struct {
@@ -365,16 +368,25 @@ func (h *InternalHandler) replayOutboxRecord(c *gin.Context) {
 	}
 	var body replayOutboxRequestBody
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.RecordID) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "record_id_required"})
+		respond.Error(c, opError(http.StatusBadRequest, "record_id_required", "recordId is required."))
 		return
 	}
 	if err := h.outbox.ReplayDeadLettered(c.Request.Context(), body.RecordID); err != nil {
 		if err == events.ErrOutboxRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"status": "NOT_FOUND", "code": "not_dead_lettered"})
+			respond.Error(c, opError(http.StatusNotFound, "not_dead_lettered", "The record is not dead-lettered."))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "ERROR"})
+		respond.Error(c, apperrors.Internal("The worker operation failed.", err))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "REPLAYED", "recordId": body.RecordID})
+	respond.OK(c, gin.H{"status": "REPLAYED", "recordId": body.RecordID})
+}
+
+// opError builds a standard error carrying the route's stable machine code.
+// The worker-operations surface has no service caller in the monorepo, so it
+// keeps no deprecated top-level alias (FLEET-6h).
+func opError(status int, code, message string) *apperrors.Error {
+	appErr := apperrors.New(status, apperrors.Code(code), message, nil)
+	appErr.Retryable = status == http.StatusServiceUnavailable
+	return appErr
 }

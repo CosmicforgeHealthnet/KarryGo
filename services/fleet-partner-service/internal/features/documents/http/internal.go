@@ -8,8 +8,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
 // The media event ingestion route.
@@ -52,13 +55,15 @@ func RegisterInternalRoutes(group *gin.RouterGroup, handler *InternalHandler) {
 func (h *InternalHandler) ingestMediaEvent(c *gin.Context) {
 	caller := c.GetString(middleware.ServiceCallerKey)
 	if !h.allowed[caller] {
-		c.JSON(http.StatusForbidden, gin.H{"status": "REJECTED", "code": "caller_not_allowed"})
+		respond.Error(c, apperrors.New(http.StatusForbidden, "caller_not_allowed",
+			"Service is not allowed to call this endpoint.", nil))
 		return
 	}
 
 	raw, err := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "invalid_envelope"})
+		respond.Error(c, apperrors.New(http.StatusBadRequest, "invalid_envelope",
+			"The event body could not be read.", nil))
 		return
 	}
 
@@ -66,15 +71,22 @@ func (h *InternalHandler) ingestMediaEvent(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, usecases.ErrEventConflict):
-			c.JSON(http.StatusConflict, gin.H{"status": "REJECTED", "code": "payload_conflict"})
+			respond.Error(c, apperrors.New(http.StatusConflict, "payload_conflict",
+				"This event ID was already received with a different payload.", nil))
 		case errors.Is(err, usecases.ErrEventInvalid):
-			c.JSON(http.StatusUnprocessableEntity, gin.H{"status": "REJECTED", "code": "invalid_envelope"})
+			respond.Error(c, apperrors.New(http.StatusUnprocessableEntity, "invalid_envelope",
+				"The event envelope is invalid.", nil))
 		default:
 			// An internal failure is retryable: the publisher should redeliver
 			// rather than treat the event as consumed.
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "RETRY", "code": "ingestion_unavailable"})
+			unavailable := apperrors.New(http.StatusServiceUnavailable, "ingestion_unavailable",
+				"Media event ingestion is temporarily unavailable.", err)
+			unavailable.Retryable = true
+			respond.Error(c, unavailable)
 		}
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": outcome})
+	// No top-level alias: media-file-service's publisher classifies the
+	// delivery by HTTP status alone and discards the body.
+	respond.OK(c, gin.H{"status": outcome})
 }

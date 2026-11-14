@@ -81,6 +81,14 @@ func Error(c *gin.Context, err error) {
 	if c.Writer.Written() {
 		return
 	}
+	status, body := errorBody(c, err)
+	c.AbortWithStatusJSON(status, errorEnvelope{Error: body})
+}
+
+// errorBody resolves err into its HTTP status and wire body, logging 5xx
+// causes server-side. Shared by Error and ErrorWithAliases so both report
+// identical codes, messages and request IDs.
+func errorBody(c *gin.Context, err error) (int, ErrorBody) {
 	if errors.Is(err, concurrency.ErrVersionMismatch) {
 		err = apperrors.Conflict("This record changed elsewhere. Reload the saved record before retrying.", nil)
 	}
@@ -93,15 +101,13 @@ func Error(c *gin.Context, err error) {
 	if details == nil {
 		details = []apperrors.FieldViolation{}
 	}
-	c.AbortWithStatusJSON(appErr.Status, errorEnvelope{
-		Error: ErrorBody{
-			Code:      appErr.Code,
-			Message:   appErr.Message,
-			Retryable: appErr.Retryable,
-			Details:   details,
-			RequestID: requestID,
-		},
-	})
+	return appErr.Status, ErrorBody{
+		Code:      appErr.Code,
+		Message:   appErr.Message,
+		Retryable: appErr.Retryable,
+		Details:   details,
+		RequestID: requestID,
+	}
 }
 
 // ErrorHandler is the terminal middleware that converts errors attached to

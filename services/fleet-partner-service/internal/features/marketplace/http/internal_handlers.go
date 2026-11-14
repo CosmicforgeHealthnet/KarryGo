@@ -18,6 +18,7 @@ import (
 	"cosmicforge/logistics/shared/go/providerreceipt"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
 // InternalHandler serves service-to-service marketplace routes.
@@ -84,7 +85,7 @@ func (h *InternalHandler) GetProviderDecisionReceipt(c *gin.Context) {
 		httpx.Abort(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": receipt})
+	respond.OK(c, receipt)
 }
 
 // requireAllowedCaller enforces the per-endpoint service allowlist.
@@ -112,9 +113,7 @@ func (h *InternalHandler) GetProviderAcceptance(c *gin.Context) {
 		httpx.Abort(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": view, "meta": gin.H{
-		"requestId": c.GetHeader("X-Request-ID"),
-	}})
+	respond.JSON(c, http.StatusOK, view)
 }
 
 // RegisterProviderReadRoutes mounts the read-only provider views used by an
@@ -271,7 +270,5 @@ func (h *InternalHandler) ListProviderMemberships(c *gin.Context) {
 
 // respondInternal writes the canonical envelope.
 func respondInternal(c *gin.Context, status int, data any) {
-	c.JSON(status, gin.H{"data": data, "meta": gin.H{
-		"requestId": c.GetHeader("X-Request-ID"),
-	}})
+	respond.JSON(c, status, data)
 }
