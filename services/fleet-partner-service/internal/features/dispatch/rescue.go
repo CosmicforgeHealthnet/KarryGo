@@ -14,6 +14,7 @@ import (
 	privateusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/privateoperations/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
 )
@@ -284,7 +285,7 @@ func (s *Service) ListRescueCases(ctx context.Context, t tenant.Context, f Rescu
 	if f.BranchID != "" && !t.BranchPermitted(f.BranchID) {
 		return []RescueCase{}, nil
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+rescueColumns+rescueFrom+` WHERE rc.organization_id=$1 AND ($2='' OR rc.branch_id=$2) AND ($3='' OR rc.status=$3) AND ($4='' OR rc.trigger_type=$4) ORDER BY rc.created_at DESC,rc.id LIMIT $5 OFFSET $6`, t.OrganizationID, f.BranchID, strings.ToUpper(f.Status), strings.ToUpper(f.TriggerType), bounded(f.Limit), max(f.Offset, 0))
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+rescueColumns+rescueFrom+` WHERE rc.organization_id=$1 AND ($2='' OR rc.branch_id=$2) AND ($3='' OR rc.status=$3) AND ($4='' OR rc.trigger_type=$4) ORDER BY rc.created_at DESC,rc.id LIMIT $5 OFFSET $6`, t.OrganizationID, f.BranchID, strings.ToUpper(f.Status), strings.ToUpper(f.TriggerType), bounded(f.Limit), pagination.ClampOffset(pagination.ClampOffset(f.Offset)))
 	if e != nil {
 		return nil, e
 	}

@@ -13,6 +13,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -147,7 +148,7 @@ func (s *Service) ListAssets(ctx context.Context, t tenant.Context, f Page) ([]A
 	if e := s.gate(s.o.Flags.Assets, false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)ORDER BY created_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), f.Offset)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)ORDER BY created_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
 	}
@@ -405,7 +406,7 @@ func (s *Service) ListInspections(ctx context.Context, t tenant.Context, f Page)
 	if e := s.gate(s.o.Flags.Inspections, false); e != nil {
 		return nil, e
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+inspectionCols+` FROM fleet_partner_inspections WHERE organization_id=$1 AND($2=''OR status=$2)ORDER BY created_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.Status, lim(f.Limit), f.Offset)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+inspectionCols+` FROM fleet_partner_inspections WHERE organization_id=$1 AND($2=''OR status=$2)ORDER BY created_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.Status, lim(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
 	}

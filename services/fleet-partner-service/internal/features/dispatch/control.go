@@ -14,6 +14,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
 )
@@ -409,7 +410,7 @@ func (s *Service) ListGeofences(ctx context.Context, t tenant.Context, f PageFil
 	if x := s.gate(s.o.Flags.Geofences, false, "geofences_disabled"); x != nil {
 		return nil, x
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT id,organization_id,COALESCE(branch_id,''),name,geometry_type,geometry,geometry_reference,event_rules,active_status,version,created_by,created_at,updated_at FROM fleet_partner_geofences WHERE organization_id=$1 AND ($2='' OR branch_id=$2) ORDER BY created_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.BranchID, bounded(f.Limit), f.Offset)
+	rows, e := s.o.Pool.Query(ctx, `SELECT id,organization_id,COALESCE(branch_id,''),name,geometry_type,geometry,geometry_reference,event_rules,active_status,version,created_by,created_at,updated_at FROM fleet_partner_geofences WHERE organization_id=$1 AND ($2='' OR branch_id=$2) ORDER BY created_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.BranchID, bounded(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
 	}
@@ -546,7 +547,7 @@ func (s *Service) ListAlerts(ctx context.Context, t tenant.Context, f PageFilter
 	if x := s.gate(s.o.Flags.OperationalAlerts, false, "operational_alerts_disabled"); x != nil {
 		return nil, x
 	}
-	rows, e := s.o.Pool.Query(ctx, `SELECT `+alertColumns+` FROM fleet_partner_operational_alerts WHERE organization_id=$1 AND ($2='' OR branch_id=$2) AND ($3='' OR status=$3) AND ($4='' OR alert_type=$4) ORDER BY created_at DESC LIMIT $5 OFFSET $6`, t.OrganizationID, f.BranchID, f.Status, f.AlertType, bounded(f.Limit), f.Offset)
+	rows, e := s.o.Pool.Query(ctx, `SELECT `+alertColumns+` FROM fleet_partner_operational_alerts WHERE organization_id=$1 AND ($2='' OR branch_id=$2) AND ($3='' OR status=$3) AND ($4='' OR alert_type=$4) ORDER BY created_at DESC LIMIT $5 OFFSET $6`, t.OrganizationID, f.BranchID, f.Status, f.AlertType, bounded(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
 	}

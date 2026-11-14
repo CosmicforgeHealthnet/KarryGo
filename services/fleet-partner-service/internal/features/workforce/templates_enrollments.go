@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
 )
@@ -152,7 +153,7 @@ func (s *Service) ListShiftTemplates(ctx context.Context, t tenant.Context, f Pa
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+templateCols+` FROM fleet_partner_shift_templates WHERE organization_id=$1 AND($2=''OR branch_id=$2) AND($3=''OR status=$3) ORDER BY name,id LIMIT $4 OFFSET $5`,
-		t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), f.Offset)
+		t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
 	}
@@ -418,7 +419,7 @@ func (s *Service) ListEnrollments(ctx context.Context, t tenant.Context, members
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+enrollmentCols+` FROM fleet_partner_training_enrollments
 		WHERE organization_id=$1 AND($2=''OR membership_id=$2) AND($3=''OR status=$3) ORDER BY assigned_at DESC,id LIMIT $4 OFFSET $5`,
-		t.OrganizationID, membershipID, f.Status, limit(f.Limit), f.Offset)
+		t.OrganizationID, membershipID, f.Status, limit(f.Limit), pagination.ClampOffset(f.Offset))
 	if e != nil {
 		return nil, e
 	}

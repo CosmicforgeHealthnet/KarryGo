@@ -14,6 +14,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -170,9 +171,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 	run := func() (any, error) {
 		switch r.OperationID {
 		case "listAssets":
-			l, _ := strconv.Atoi(c.Query("limit"))
-			o, _ := strconv.Atoi(c.Query("offset"))
-			return h.s.ListAssets(c, t, Page{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Limit: l, Offset: o})
+			p, e := pagination.Parse(c.Query("limit"), c.Query("offset"))
+			if e != nil {
+				return nil, e
+			}
+			return h.s.ListAssets(c, t, Page{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Limit: p.Limit, Offset: p.Offset})
 		case "getAsset":
 			return h.s.GetAsset(c, t, id)
 		case "createAsset":

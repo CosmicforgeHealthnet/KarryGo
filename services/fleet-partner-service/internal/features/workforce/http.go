@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -130,10 +131,15 @@ func expected(c *gin.Context, v int64) int64 {
 	n, _ := strconv.ParseInt(strings.Trim(strings.TrimSpace(c.GetHeader("If-Match")), `"`), 10, 64)
 	return n
 }
-func page(c *gin.Context) Page {
-	l, _ := strconv.Atoi(c.Query("limit"))
-	o, _ := strconv.Atoi(c.Query("offset"))
-	return Page{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Limit: l, Offset: o}
+
+// page reads the list filter. Malformed, negative or oversized limit/offset
+// values are a validation error rather than a SQL failure.
+func page(c *gin.Context) (Page, error) {
+	p, e := pagination.Parse(c.Query("limit"), c.Query("offset"))
+	if e != nil {
+		return Page{}, e
+	}
+	return Page{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Limit: p.Limit, Offset: p.Offset}, nil
 }
 func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, body any, run func() (any, error)) {
 	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
@@ -239,7 +245,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 	run := func() (any, error) {
 		switch r.OperationID {
 		case "listWorkforceProfiles":
-			return h.s.ListProfiles(c, t, page(c))
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			return h.s.ListProfiles(c, t, p)
 		case "getWorkforceProfile":
 			return h.s.GetProfile(c, t, id)
 		case "createWorkforceProfile":
@@ -261,7 +271,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.UpdateProfile(c, t, id, expected(c, b.ExpectedVersion), "", "", "ARCHIVED")
 		case "listShifts":
-			return h.s.ListShifts(c, t, page(c))
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			return h.s.ListShifts(c, t, p)
 		case "getShift":
 			return h.s.GetShift(c, t, id)
 		case "createShift":
@@ -308,7 +322,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.AssignmentAction(c, t, id, to, b.Source, expected(c, b.ExpectedVersion))
 		case "listLeave":
-			return h.s.ListLeave(c, t, page(c))
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			return h.s.ListLeave(c, t, p)
 		case "getLeave":
 			return h.s.GetLeave(c, t, id)
 		case "createLeave":
@@ -378,7 +396,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.CompleteCourse(c, t, id, b)
 		case "listShiftTemplates":
-			return h.s.ListShiftTemplates(c, t, page(c))
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			return h.s.ListShiftTemplates(c, t, p)
 		case "getShiftTemplate":
 			return h.s.GetShiftTemplate(c, t, id)
 		case "createShiftTemplate":
@@ -400,7 +422,11 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.GenerateShifts(c, t, id, b)
 		case "listTrainingEnrollments":
-			return h.s.ListEnrollments(c, t, c.Query("membershipId"), page(c))
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			return h.s.ListEnrollments(c, t, c.Query("membershipId"), p)
 		case "createTrainingEnrollment":
 			var b EnrollInput
 			if !bindJSON(c, &b) {

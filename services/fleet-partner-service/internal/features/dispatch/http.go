@@ -13,6 +13,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -144,10 +145,15 @@ func (h *Handler) gate(c *gin.Context, permission string) (tenant.Context, bool)
 	middleware.SetTenant(c, scoped)
 	return scoped, true
 }
-func parseFilter(c *gin.Context) PageFilter {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	offset, _ := strconv.Atoi(c.Query("offset"))
-	return PageFilter{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Service: strings.ToUpper(c.Query("service")), ProviderID: c.Query("providerId"), VehicleReference: c.Query("vehicleOrTruckReference"), AlertType: strings.ToUpper(c.Query("alertType")), Limit: limit, Offset: offset}
+
+// parseFilter reads the shared list filter. Malformed, negative or oversized
+// limit/offset values are a validation error rather than a SQL failure.
+func parseFilter(c *gin.Context) (PageFilter, error) {
+	page, e := pagination.Parse(c.Query("limit"), c.Query("offset"))
+	if e != nil {
+		return PageFilter{}, e
+	}
+	return PageFilter{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Service: strings.ToUpper(c.Query("service")), ProviderID: c.Query("providerId"), VehicleReference: c.Query("vehicleOrTruckReference"), AlertType: strings.ToUpper(c.Query("alertType")), Limit: page.Limit, Offset: page.Offset}, nil
 }
 func version(c *gin.Context, body int64) int64 {
 	if body > 0 {
@@ -212,7 +218,12 @@ func (h *Handler) board(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.Board(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.Board(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) controlTower(c *gin.Context) {
@@ -220,7 +231,12 @@ func (h *Handler) controlTower(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.ControlTower(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ControlTower(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) unassigned(c *gin.Context) {
@@ -228,7 +244,12 @@ func (h *Handler) unassigned(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.Unassigned(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.Unassigned(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) candidates(c *gin.Context) {
@@ -267,7 +288,12 @@ func (h *Handler) listPlans(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.ListPlans(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ListPlans(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) getPlan(c *gin.Context) {
@@ -355,7 +381,12 @@ func (h *Handler) listRoutes(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.ListRoutes(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ListRoutes(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) getRoute(c *gin.Context) {
@@ -492,7 +523,12 @@ func (h *Handler) listTracking(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.ListTracking(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ListTracking(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) getTracking(c *gin.Context) {
@@ -508,7 +544,12 @@ func (h *Handler) listGeofences(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.ListGeofences(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ListGeofences(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) createGeofence(c *gin.Context) {
@@ -565,7 +606,12 @@ func (h *Handler) listAlerts(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, e := h.s.ListAlerts(c, t, parseFilter(c))
+	f, e := parseFilter(c)
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ListAlerts(c, t, f)
 	write(c, v, e)
 }
 func (h *Handler) getAlert(c *gin.Context) {
@@ -650,8 +696,12 @@ func (h *Handler) listGeofenceEvents(c *gin.Context) {
 		return
 	}
 	f := GeofenceEventFilter{GeofenceID: c.Query("geofenceId"), CanonicalTripReference: c.Query("canonicalTripReference"), EventRule: strings.ToUpper(c.Query("eventRule")), BranchID: c.Query("branchId")}
-	f.Limit, _ = strconv.Atoi(c.Query("limit"))
-	f.Offset, _ = strconv.Atoi(c.Query("offset"))
+	page, e := pagination.Parse(c.Query("limit"), c.Query("offset"))
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	f.Limit, f.Offset = page.Limit, page.Offset
 	for name, target := range map[string]**time.Time{"from": &f.From, "to": &f.To} {
 		if raw := c.Query(name); raw != "" {
 			parsed, e := time.Parse(time.RFC3339, raw)
@@ -670,9 +720,12 @@ func (h *Handler) listRescueCases(c *gin.Context) {
 	if !ok {
 		return
 	}
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	offset, _ := strconv.Atoi(c.Query("offset"))
-	v, e := h.s.ListRescueCases(c, t, RescueFilter{BranchID: c.Query("branchId"), Status: c.Query("status"), TriggerType: c.Query("triggerType"), Limit: limit, Offset: offset})
+	page, e := pagination.Parse(c.Query("limit"), c.Query("offset"))
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	v, e := h.s.ListRescueCases(c, t, RescueFilter{BranchID: c.Query("branchId"), Status: c.Query("status"), TriggerType: c.Query("triggerType"), Limit: page.Limit, Offset: page.Offset})
 	write(c, v, e)
 }
 func (h *Handler) getRescueCase(c *gin.Context) {

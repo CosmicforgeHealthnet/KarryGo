@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -45,7 +46,7 @@ func (s *Service) ListGeofenceEvents(ctx context.Context, t tenant.Context, f Ge
 FROM fleet_partner_geofence_events e JOIN fleet_partner_geofences g ON g.organization_id=e.organization_id AND g.id=e.geofence_id
 WHERE e.organization_id=$1 AND ($2='' OR e.geofence_id=$2) AND ($3='' OR e.canonical_trip_reference=$3) AND ($4='' OR e.event_rule=$4) AND ($5='' OR g.branch_id=$5)
 AND ($6::timestamptz IS NULL OR e.occurred_at>=$6) AND ($7::timestamptz IS NULL OR e.occurred_at<$7)
-ORDER BY e.occurred_at DESC,e.id LIMIT $8 OFFSET $9`, t.OrganizationID, f.GeofenceID, f.CanonicalTripReference, f.EventRule, f.BranchID, f.From, f.To, bounded(f.Limit), max(f.Offset, 0))
+ORDER BY e.occurred_at DESC,e.id LIMIT $8 OFFSET $9`, t.OrganizationID, f.GeofenceID, f.CanonicalTripReference, f.EventRule, f.BranchID, f.From, f.To, bounded(f.Limit), pagination.ClampOffset(pagination.ClampOffset(f.Offset)))
 	if e != nil {
 		return nil, e
 	}

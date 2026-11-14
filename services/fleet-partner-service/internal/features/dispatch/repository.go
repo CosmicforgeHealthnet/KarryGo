@@ -12,6 +12,7 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 )
 
 var ErrNotFound = errors.New("section16: not found")
@@ -57,7 +58,7 @@ func (r *Repository) ListPlans(ctx context.Context, org string, f PageFilter) ([
 		where += fmt.Sprintf(` AND status=$%d`, len(args))
 	}
 	limit := bounded(f.Limit)
-	args = append(args, limit, f.Offset)
+	args = append(args, limit, pagination.ClampOffset(f.Offset))
 	rows, e := r.pool.Query(ctx, `SELECT `+planColumns+` FROM fleet_partner_dispatch_plans WHERE`+where+fmt.Sprintf(` ORDER BY plan_date DESC,id LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
 	if e != nil {
 		return nil, e
@@ -118,7 +119,7 @@ func (r *Repository) ListRoutes(ctx context.Context, org string, f PageFilter) (
 			where += fmt.Sprintf(` AND %s=$%d`, x.c, len(args))
 		}
 	}
-	args = append(args, bounded(f.Limit), f.Offset)
+	args = append(args, bounded(f.Limit), pagination.ClampOffset(f.Offset))
 	rows, e := r.pool.Query(ctx, `SELECT `+routeColumns+` FROM fleet_partner_route_plans WHERE`+where+fmt.Sprintf(` ORDER BY created_at DESC,id LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
 	if e != nil {
 		return nil, e
@@ -281,7 +282,7 @@ func (r *Repository) ListTracking(ctx context.Context, org string, f PageFilter)
 		args = append(args, f.VehicleReference)
 		where += fmt.Sprintf(` AND vehicle_or_truck_reference=$%d`, len(args))
 	}
-	args = append(args, bounded(f.Limit), f.Offset)
+	args = append(args, bounded(f.Limit), pagination.ClampOffset(f.Offset))
 	rows, e := r.pool.Query(ctx, `SELECT organization_id,source_service,canonical_trip_reference,assignment_id,COALESCE(route_plan_id,''),provider_id,vehicle_or_truck_reference,latitude,longitude,heading,speed,accuracy,operational_status,source_timestamp,received_at,source_version,freshness_status,gap_status,last_reconciled_at FROM fleet_partner_tracking_projections WHERE `+where+fmt.Sprintf(` ORDER BY received_at DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
 	if e != nil {
 		return nil, e
