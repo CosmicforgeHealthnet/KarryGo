@@ -9,6 +9,8 @@ import (
 // The latest migrations, newest first. Each down file is exercised in
 // reverse order and must remove exactly what its up file added; re-applying
 // must restore it:
+//   - 000097 payment source reference on completed work and settlement
+//     instructions
 //   - 000096 managed settlement delivery columns, per-record temperature replay
 //   - 000095 provider association read-back columns on provisioning sagas
 //   - 000094 provider invitation resend counters
@@ -24,7 +26,7 @@ import (
 //     one; rolling it back keeps the branches (other records may reference
 //     them) and re-applying it never duplicates them.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
-	if replayMigrationTip(t) != "000096_settlement_delivery_and_temperature_replay" {
+	if replayMigrationTip(t) != "000097_settlement_payment_reference" {
 		t.Fatal("review latest migration retention assertions")
 	}
 	pool := isolatedTestDatabase(t, "fleet_partner_onboarding_tip")
@@ -34,6 +36,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	}
 	type marker struct{ migration, table, column string }
 	markers := []marker{
+		{"000097", "fleet_partner_managed_work_settlement_instructions", "payment_source_reference"},
 		{"000096", "fleet_partner_managed_work_settlement_instructions", "wallet_posting_operation_id"},
 		{"000095", "fleet_partner_provider_provisioning_sagas", "association_id"},
 		{"000094", "fleet_partner_provider_invitations", "resend_count"},
