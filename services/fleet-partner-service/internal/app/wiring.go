@@ -47,7 +47,6 @@ import (
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
-
 	fleetpartnerhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/http"
 	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
@@ -55,7 +54,6 @@ import (
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
-
 	managedmembershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/http"
 	managedmembersrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/repositories"
 	managedmembersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/usecases"
@@ -101,7 +99,9 @@ import (
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
 	warehousefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/http"
+	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
@@ -174,7 +174,7 @@ type Components struct {
 	BulkImports       *bulkusecases.Service
 	PrivateOperations *privateusecases.Service
 	DispatchControl   *dispatchfeature.Service
-	Workforce         *workforcefeature.Service
+	Workforce         *workforceusecases.Service
 	Assets            *assetsfeature.Service
 	Compliance        *compliancefeature.Service
 	SafetyOperations  *safetyfeature.OperationsService
@@ -442,7 +442,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	complianceService := compliancefeature.NewService(compliancefeature.Options{Pool: pool, Events: publisher, Dispatch: dispatchRestrictions, Hauling: haulingRestrictions, Taxi: taxiRestrictions, Flags: compliancefeature.Flags{Compliance: cfg.ComplianceEnabled, Restrictions: cfg.RestrictionPropagationEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	financeService := BuildFinanceService(cfg, pool, metrics).WithEligibility(eligibilityService)
 	restrictionGate := complianceRestrictionGate{service: complianceService}
-	workforceService := workforcefeature.NewService(workforcefeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: workforcefeature.Flags{Workforce: cfg.WorkforceEnabled, Shifts: cfg.ShiftsEnabled, Leave: cfg.LeaveEnabled, Qualifications: cfg.QualificationsEnabled, Training: cfg.TrainingEnabled, Performance: cfg.PerformanceSnapshotsEnabled, Workers: cfg.Section17WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	workforceService := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: workforceusecases.Flags{Workforce: cfg.WorkforceEnabled, Shifts: cfg.ShiftsEnabled, Leave: cfg.LeaveEnabled, Qualifications: cfg.QualificationsEnabled, Training: cfg.TrainingEnabled, Performance: cfg.PerformanceSnapshotsEnabled, Workers: cfg.Section17WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	assetsService := assetsfeature.NewService(assetsfeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Restrictions: restrictionGate, Flags: assetsfeature.Flags{Assets: cfg.AssetsEnabled, Assignments: cfg.AssetAssignmentsEnabled, Inspections: cfg.InspectionsEnabled, Maintenance: cfg.MaintenanceEnabled, Breakdowns: cfg.BreakdownsEnabled, Inventory: cfg.PartsInventoryEnabled, Fuel: cfg.FuelRecordsEnabled, Workers: cfg.Section18WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	privateOperations := BuildPrivateOperationsService(cfg, pool, publisher, metrics, workforceService, assetsService, restrictionGate)
 	dispatchControl := BuildSection16Service(cfg, pool, publisher, privateOperations, eligibilityService, workforceService, assetsService, restrictionGate)
@@ -680,7 +680,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	bulkHandler := bulkhttp.NewHandler(c.BulkImports, c.Authorizer, c.Idempotency)
 	privateHandler := privatehttp.NewHandler(c.PrivateOperations, c.Authorizer, c.Idempotency)
 	dispatchHandler := dispatchfeature.NewHandler(c.DispatchControl, c.Authorizer, c.Idempotency)
-	workforceHandler := workforcefeature.NewHandler(c.Workforce, c.Authorizer, c.Idempotency)
+	workforceHandler := workforcehttp.NewHandler(c.Workforce, c.Authorizer, c.Idempotency)
 	assetsHandler := assetsfeature.NewHandler(c.Assets, c.Authorizer, c.Idempotency)
 	complianceHandler := compliancefeature.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
 	safetyOperationsHandler := safetyfeature.NewOperationsHandler(c.SafetyOperations, c.Authorizer, c.Idempotency)
@@ -1023,7 +1023,7 @@ func (c *Components) InternalProviderSelfServiceRoutes(cfg config.Config) RouteR
 			wallethttp.NewHandler(c.CompanyWallet, c.Authorizer).RegisterProviderRoutes(group, resolver)
 		}
 		if c.Workforce != nil {
-			workforcefeature.RegisterInternalProviderRoutes(group, workforcefeature.NewInternalProviderHandler(c.Workforce, resolver))
+			workforcehttp.RegisterInternalProviderRoutes(group, workforcehttp.NewInternalProviderHandler(c.Workforce, resolver))
 		}
 	}
 }

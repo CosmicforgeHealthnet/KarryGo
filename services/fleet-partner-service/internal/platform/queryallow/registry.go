@@ -243,14 +243,15 @@ var declared = map[string][]string{
 	"/marketplace/requests/:projectionId/candidates": {},
 	"/marketplace/trips":                             {"status", "sourceService", "membershipId", offsetPage},
 
-	// Workforce.
-	"/workforce/profiles":   {"branchId", "status", offsetPage},
-	"/shifts":               {"branchId", "status", offsetPage},
-	"/shift-templates":      {"branchId", "status", offsetPage},
-	"/leave":                {"status", offsetPage},
-	"/qualifications":       {},
-	"/training/courses":     {},
-	"/training/enrollments": {"membershipId", "status", offsetPage},
+	// Workforce. Offset lists also continue by cursor (FLEET-6f); the
+	// qualification and course catalogues page only when asked to.
+	"/workforce/profiles":   {"branchId", "status", offsetPage, "cursor"},
+	"/shifts":               {"branchId", "status", offsetPage, "cursor"},
+	"/shift-templates":      {"branchId", "status", offsetPage, "cursor"},
+	"/leave":                {"status", offsetPage, "cursor"},
+	"/qualifications":       {cursorPage},
+	"/training/courses":     {cursorPage},
+	"/training/enrollments": {"membershipId", "status", offsetPage, "cursor"},
 
 	// Assets and maintenance.
 	"/assets":                         {"branchId", "status", offsetPage},

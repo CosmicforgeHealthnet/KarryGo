@@ -5,10 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/providercompat"
+
+	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 )
 
 // Section 20 / IAM-006 / IAM-007: one execution service must never be able to

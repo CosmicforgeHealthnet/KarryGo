@@ -16,7 +16,6 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
-
 	fleetpartnerhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/http"
 	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
 	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"

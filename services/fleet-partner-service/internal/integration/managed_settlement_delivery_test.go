@@ -22,7 +22,6 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
-
 	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
 	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"

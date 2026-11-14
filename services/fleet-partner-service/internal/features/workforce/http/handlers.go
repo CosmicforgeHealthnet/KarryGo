@@ -1,7 +1,10 @@
-package workforce
+// Package http serves the workforce tenant routes and the internal provider
+// self-view routes.
+package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,14 +15,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/pagination"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
-	"cosmicforge/logistics/shared/go/apperrors"
-	"cosmicforge/logistics/shared/go/httpx"
 )
 
 type Route struct {
@@ -78,13 +85,58 @@ func TenantRoutes() []Route {
 	}
 }
 
+// UseCases is the workforce use-case surface the tenant handler needs.
+// *usecases.Service satisfies it; the composition root passes the concrete
+// service.
+type UseCases interface {
+	ListProfilesPage(ctx context.Context, t tenant.Context, f usecases.Page) ([]models.Profile, bool, error)
+	GetProfile(ctx context.Context, t tenant.Context, id string) (models.Profile, error)
+	CreateProfile(ctx context.Context, t tenant.Context, in usecases.CreateProfileInput) (models.Profile, error)
+	UpdateProfile(ctx context.Context, t tenant.Context, id string, expected int64, role, supervisor, status string) (models.Profile, error)
+	ListShiftsPage(ctx context.Context, t tenant.Context, f usecases.Page) ([]models.Shift, bool, error)
+	GetShift(ctx context.Context, t tenant.Context, id string) (models.Shift, error)
+	CreateShift(ctx context.Context, t tenant.Context, in usecases.CreateShiftInput) (models.Shift, error)
+	UpdateShift(ctx context.Context, t tenant.Context, id string, expected int64, name string, start, end *time.Time, to string) (models.Shift, error)
+	AssignShift(ctx context.Context, t tenant.Context, shiftID string, in usecases.AssignShiftInput) (models.ShiftAssignment, error)
+	GetAssignment(ctx context.Context, t tenant.Context, id string) (models.ShiftAssignment, error)
+	AssignmentAction(ctx context.Context, t tenant.Context, id, to, source string, expected int64) (models.ShiftAssignment, error)
+	ListLeavePage(ctx context.Context, t tenant.Context, f usecases.Page) ([]models.Leave, bool, error)
+	GetLeave(ctx context.Context, t tenant.Context, id string) (models.Leave, error)
+	CreateLeave(ctx context.Context, t tenant.Context, in usecases.CreateLeaveInput) (models.Leave, error)
+	LeaveAction(ctx context.Context, t tenant.Context, id, to string, expected int64) (models.Leave, error)
+	ListQualifications(ctx context.Context, t tenant.Context) ([]models.Qualification, error)
+	ListQualificationsPage(ctx context.Context, t tenant.Context, f usecases.Page) ([]models.Qualification, bool, error)
+	GetQualification(ctx context.Context, t tenant.Context, id string) (models.Qualification, error)
+	CreateQualification(ctx context.Context, t tenant.Context, v models.Qualification) (models.Qualification, error)
+	UpdateQualification(ctx context.Context, t tenant.Context, id string, expected int64, p models.QualificationPatch) (models.Qualification, error)
+	ListProviderQualifications(ctx context.Context, t tenant.Context, membership string) ([]models.ProviderQualification, error)
+	AddProviderQualification(ctx context.Context, t tenant.Context, membership string, v models.ProviderQualification) (models.ProviderQualification, error)
+	QualificationAction(ctx context.Context, t tenant.Context, id, to, reference string, expected int64) (models.ProviderQualification, error)
+	ListCourses(ctx context.Context, t tenant.Context) ([]models.Course, error)
+	ListCoursesPage(ctx context.Context, t tenant.Context, f usecases.Page) ([]models.Course, bool, error)
+	GetCourse(ctx context.Context, t tenant.Context, id string) (models.Course, error)
+	CreateCourse(ctx context.Context, t tenant.Context, v models.Course) (models.Course, error)
+	UpdateCourse(ctx context.Context, t tenant.Context, id string, expected int64, p models.CoursePatch) (models.Course, error)
+	CompleteCourse(ctx context.Context, t tenant.Context, courseID string, v models.Completion) (models.Completion, error)
+	ListShiftTemplatesPage(ctx context.Context, t tenant.Context, f usecases.Page) ([]models.ShiftTemplate, bool, error)
+	GetShiftTemplate(ctx context.Context, t tenant.Context, id string) (models.ShiftTemplate, error)
+	CreateShiftTemplate(ctx context.Context, t tenant.Context, v models.ShiftTemplate) (models.ShiftTemplate, error)
+	UpdateShiftTemplate(ctx context.Context, t tenant.Context, id string, expected int64, p usecases.TemplatePatch) (models.ShiftTemplate, error)
+	GenerateShifts(ctx context.Context, t tenant.Context, id string, in usecases.GenerateInput) (models.GeneratedShifts, error)
+	ListEnrollmentsPage(ctx context.Context, t tenant.Context, membershipID string, f usecases.Page) ([]models.Enrollment, bool, error)
+	Enroll(ctx context.Context, t tenant.Context, in usecases.EnrollInput) (models.Enrollment, error)
+	CompleteEnrollment(ctx context.Context, t tenant.Context, id string, c models.Completion) (models.Enrollment, error)
+	CancelEnrollment(ctx context.Context, t tenant.Context, id string) (models.Enrollment, error)
+	ListPerformance(ctx context.Context, t tenant.Context, membership string) ([]models.PerformanceSnapshot, error)
+}
+
 type Handler struct {
-	s    *Service
+	s    UseCases
 	a    *accesscontrol.Authorizer
 	idem *idempotency.Store
 }
 
-func NewHandler(s *Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
 	return &Handler{s: s, a: a, idem: i}
 }
 func (h *Handler) TenantRoutes() []Route { return TenantRoutes() }
@@ -134,13 +186,65 @@ func expected(c *gin.Context, v int64) int64 {
 
 // page reads the list filter. Malformed, negative or oversized limit/offset
 // values are a validation error rather than a SQL failure.
-func page(c *gin.Context) (Page, error) {
+//
+// FLEET-6f: without offset the list is served by keyset and the response
+// carries meta.nextCursor while more rows exist; ?cursor= continues it. An
+// explicit offset keeps the backward-compatible offset page. Sending both is
+// refused, because the two describe different positions.
+func page(c *gin.Context) (usecases.Page, error) {
 	p, e := pagination.Parse(c.Query("limit"), c.Query("offset"))
 	if e != nil {
-		return Page{}, e
+		return usecases.Page{}, e
 	}
-	return Page{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Limit: p.Limit, Offset: p.Offset}, nil
+	out := usecases.Page{BranchID: c.Query("branchId"), Status: strings.ToUpper(c.Query("status")), Limit: p.Limit, Offset: p.Offset}
+	_, hasOffset := c.GetQuery("offset")
+	rawCursor := c.Query("cursor")
+	if hasOffset && rawCursor != "" {
+		return usecases.Page{}, apperrors.Validation("Use either cursor or offset, not both.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Cannot be combined with offset."}})
+	}
+	if hasOffset {
+		return out, nil
+	}
+	position, hasCursor, err := cursor.Decode(rawCursor)
+	if err != nil {
+		return usecases.Page{}, apperrors.Validation("The cursor is not valid.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Malformed."}})
+	}
+	out.Keyset = true
+	if hasCursor {
+		after := position.SortTime()
+		out.After, out.AfterID = &after, position.LastID
+	}
+	return out, nil
 }
+
+// pagedRequested reports whether an unpaginated catalogue list (qualifications,
+// training courses) was asked for a page. Without limit or cursor those lists
+// keep returning every row, as they always have.
+func pagedRequested(c *gin.Context) bool {
+	return c.Query("limit") != "" || c.Query("cursor") != ""
+}
+
+// listResult is a list page with its continuation cursor.
+type listResult struct {
+	data any
+	next string
+}
+
+// keysetPage wraps rows with the cursor that continues after the last row.
+func keysetPage[T any](rows []T, more bool, err error, key func(T) (time.Time, string)) (any, error) {
+	if err != nil {
+		return nil, err
+	}
+	next := ""
+	if more && len(rows) > 0 {
+		sortedAt, id := key(rows[len(rows)-1])
+		next = cursor.EncodeTime(sortedAt, id)
+	}
+	return listResult{data: rows, next: next}, nil
+}
+
 func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, body any, run func() (any, error)) {
 	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
 	if key == "" {
@@ -193,6 +297,10 @@ func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, body any, r
 func output(c *gin.Context, v any, e error) {
 	if e != nil {
 		respond.Error(c, e)
+		return
+	}
+	if page, ok := v.(listResult); ok {
+		respond.List(c, page.data, page.next)
 		return
 	}
 	respond.OK(c, v)
@@ -255,11 +363,12 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if e != nil {
 				return nil, e
 			}
-			return h.s.ListProfiles(c, t, p)
+			rows, more, e := h.s.ListProfilesPage(c, t, p)
+			return keysetPage(rows, more, e, func(v models.Profile) (time.Time, string) { return v.CreatedAt, v.ID })
 		case "getWorkforceProfile":
 			return h.s.GetProfile(c, t, id)
 		case "createWorkforceProfile":
-			var b CreateProfileInput
+			var b usecases.CreateProfileInput
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -281,11 +390,12 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if e != nil {
 				return nil, e
 			}
-			return h.s.ListShifts(c, t, p)
+			rows, more, e := h.s.ListShiftsPage(c, t, p)
+			return keysetPage(rows, more, e, func(v models.Shift) (time.Time, string) { return v.StartAt, v.ID })
 		case "getShift":
 			return h.s.GetShift(c, t, id)
 		case "createShift":
-			var b CreateShiftInput
+			var b usecases.CreateShiftInput
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -307,7 +417,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			}
 			return h.s.UpdateShift(c, t, id, expected(c, b.ExpectedVersion), "", nil, nil, to)
 		case "assignShift":
-			var b AssignShiftInput
+			var b usecases.AssignShiftInput
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -332,11 +442,12 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if e != nil {
 				return nil, e
 			}
-			return h.s.ListLeave(c, t, p)
+			rows, more, e := h.s.ListLeavePage(c, t, p)
+			return keysetPage(rows, more, e, func(v models.Leave) (time.Time, string) { return v.StartAt, v.ID })
 		case "getLeave":
 			return h.s.GetLeave(c, t, id)
 		case "createLeave":
-			var b CreateLeaveInput
+			var b usecases.CreateLeaveInput
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -349,17 +460,25 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			to := map[string]string{"approveLeave": "APPROVED", "rejectLeave": "REJECTED", "cancelLeave": "CANCELLED"}[r.OperationID]
 			return h.s.LeaveAction(c, t, id, to, expected(c, b.ExpectedVersion))
 		case "listQualifications":
-			return h.s.ListQualifications(c, t)
+			if !pagedRequested(c) {
+				return h.s.ListQualifications(c, t)
+			}
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			rows, more, e := h.s.ListQualificationsPage(c, t, p)
+			return keysetPage(rows, more, e, func(v models.Qualification) (time.Time, string) { return v.CreatedAt, v.ID })
 		case "getQualification":
 			return h.s.GetQualification(c, t, id)
 		case "createQualification":
-			var b Qualification
+			var b models.Qualification
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.CreateQualification(c, t, b)
 		case "updateQualification":
-			var b QualificationPatch
+			var b models.QualificationPatch
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -367,7 +486,7 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		case "listProviderQualifications":
 			return h.s.ListProviderQualifications(c, t, c.Param("membershipId"))
 		case "addProviderQualification":
-			var b ProviderQualification
+			var b models.ProviderQualification
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -380,23 +499,31 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			to := map[string]string{"verifyProviderQualification": "VERIFIED", "rejectProviderQualification": "REJECTED", "revokeProviderQualification": "REVOKED"}[r.OperationID]
 			return h.s.QualificationAction(c, t, id, to, b.Reference, expected(c, b.ExpectedVersion))
 		case "listTrainingCourses":
-			return h.s.ListCourses(c, t)
+			if !pagedRequested(c) {
+				return h.s.ListCourses(c, t)
+			}
+			p, e := page(c)
+			if e != nil {
+				return nil, e
+			}
+			rows, more, e := h.s.ListCoursesPage(c, t, p)
+			return keysetPage(rows, more, e, func(v models.Course) (time.Time, string) { return v.CreatedAt, v.ID })
 		case "getTrainingCourse":
 			return h.s.GetCourse(c, t, id)
 		case "createTrainingCourse":
-			var b Course
+			var b models.Course
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.CreateCourse(c, t, b)
 		case "updateTrainingCourse":
-			var b CoursePatch
+			var b models.CoursePatch
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.UpdateCourse(c, t, id, expected(c, b.Version), b)
 		case "completeTrainingCourse":
-			var b Completion
+			var b models.Completion
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -406,23 +533,24 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if e != nil {
 				return nil, e
 			}
-			return h.s.ListShiftTemplates(c, t, p)
+			rows, more, e := h.s.ListShiftTemplatesPage(c, t, p)
+			return keysetPage(rows, more, e, func(v models.ShiftTemplate) (time.Time, string) { return v.CreatedAt, v.ID })
 		case "getShiftTemplate":
 			return h.s.GetShiftTemplate(c, t, id)
 		case "createShiftTemplate":
-			var b ShiftTemplate
+			var b models.ShiftTemplate
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.CreateShiftTemplate(c, t, b)
 		case "updateShiftTemplate":
-			var b TemplatePatch
+			var b usecases.TemplatePatch
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.UpdateShiftTemplate(c, t, id, expected(c, b.ExpectedVersion), b)
 		case "generateShiftsFromTemplate":
-			var b GenerateInput
+			var b usecases.GenerateInput
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
@@ -432,15 +560,16 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			if e != nil {
 				return nil, e
 			}
-			return h.s.ListEnrollments(c, t, c.Query("membershipId"), p)
+			rows, more, e := h.s.ListEnrollmentsPage(c, t, c.Query("membershipId"), p)
+			return keysetPage(rows, more, e, func(v models.Enrollment) (time.Time, string) { return v.AssignedAt, v.ID })
 		case "createTrainingEnrollment":
-			var b EnrollInput
+			var b usecases.EnrollInput
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}
 			return h.s.Enroll(c, t, b)
 		case "completeTrainingEnrollment":
-			var b Completion
+			var b models.Completion
 			if !bindJSON(c, &b) {
 				return nil, errors.New("bound")
 			}

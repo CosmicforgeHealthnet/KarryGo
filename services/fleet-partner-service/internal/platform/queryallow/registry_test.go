@@ -117,8 +117,11 @@ func TestPagingStylesAreExclusive(t *testing.T) {
 		schema, _ := Lookup("GET", strings.TrimPrefix(key, "GET "))
 		_, offset := schema.Fields["offset"]
 		_, cursor := schema.Fields["cursor"]
-		if offset && cursor {
-			t.Fatalf("%s declares both offset and cursor paging", key)
+		// An offset list may also continue by cursor while offset stays for
+		// compatibility (FLEET-6f); the handler refuses a request that sends
+		// both. The cursor must still be validated as a cursor.
+		if offset && cursor && schema.Fields["cursor"].Kind != filters.KindCursor {
+			t.Fatalf("%s: cursor is not validated as a cursor", key)
 		}
 		if offset && schema.Fields["offset"].Kind != filters.KindOffset {
 			t.Fatalf("%s: offset is not validated as an offset", key)

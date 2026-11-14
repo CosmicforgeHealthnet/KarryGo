@@ -1,13 +1,12 @@
-package workforce
+// Package models holds the workforce feature's domain types and pure rules:
+// profiles, shifts, attendance, leave, qualifications, training, performance
+// snapshots and the provider self-view projections.
+package models
 
 import (
 	"encoding/json"
 	"time"
 )
-
-type Flags struct {
-	Workforce, Shifts, Leave, Qualifications, Training, Performance, Workers, KillSwitch bool
-}
 
 type Profile struct {
 	ID                     string     `json:"id"`
@@ -174,10 +173,6 @@ type Eligibility struct {
 	HardBlocks []string `json:"hardBlocks"`
 	Warnings   []string `json:"warnings"`
 	Reasons    []string `json:"reasons"`
-}
-type Page struct {
-	BranchID, Status string
-	Limit, Offset    int
 }
 
 var profileTransitions = map[string]map[string]bool{"ACTIVE": {"INACTIVE": true, "ENDED": true, "ARCHIVED": true}, "INACTIVE": {"ACTIVE": true, "ENDED": true, "ARCHIVED": true}, "ENDED": {"ARCHIVED": true}}
