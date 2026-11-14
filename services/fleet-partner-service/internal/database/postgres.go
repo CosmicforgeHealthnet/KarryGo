@@ -9,6 +9,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,6 +19,14 @@ type PoolOptions struct {
 	MaxConns        int32
 	MinConns        int32
 	MaxConnLifetime time.Duration
+}
+
+// scanTimestampsInUTC makes every timestamptz this connection scans arrive in
+// UTC.
+func scanTimestampsInUTC(_ context.Context, conn *pgx.Conn) error {
+	conn.TypeMap().RegisterType(&pgtype.Type{Name: "timestamptz", OID: pgtype.TimestamptzOID,
+		Codec: &pgtype.TimestamptzCodec{ScanLocation: time.UTC}})
+	return nil
 }
 
 // NewPool creates the dedicated pgx pool and verifies connectivity with a ping.
@@ -36,6 +46,11 @@ func NewPool(ctx context.Context, databaseURL string, opts PoolOptions) (*pgxpoo
 		cfg.MaxConnLifetime = opts.MaxConnLifetime
 	}
 	cfg.MaxConnIdleTime = 10 * time.Minute
+	// Spec 6: the API speaks UTC ISO 8601. pgx returns timestamptz values in
+	// the process's local zone by default, which would leak a "+01:00" style
+	// offset into every response on a host not running in UTC. Scanning in
+	// UTC keeps the instant and fixes the zone, independent of the host.
+	cfg.AfterConnect = scanTimestampsInUTC
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

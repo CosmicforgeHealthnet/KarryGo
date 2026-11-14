@@ -106,7 +106,8 @@ type Service struct {
 // NewService validates options and builds the service.
 func NewService(opts Options) *Service {
 	if opts.Now == nil {
-		opts.Now = time.Now
+		// UTC regardless of the process zone (spec 6: UTC ISO 8601 timestamps).
+		opts.Now = func() time.Time { return time.Now().UTC() }
 	}
 	if opts.OTPLength <= 0 {
 		opts.OTPLength = auth.DefaultOTPLength
