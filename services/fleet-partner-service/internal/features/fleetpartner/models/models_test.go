@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 import (
 	"testing"
@@ -92,15 +92,6 @@ func TestVisibilityPolicies(t *testing.T) {
 	commission := CommissionVisibilityPolicy()
 	if !commission.ShowOwnEarning || !commission.ShowCommissionRate || !commission.ShowProviderShare || !commission.ShowPayroll {
 		t.Fatalf("commission visibility missing expected provider fields: %+v", commission)
-	}
-}
-
-func TestCallerOwnsSource(t *testing.T) {
-	if !callerOwnsSource("driver-dispatch-delivery-service", ServiceDispatch) {
-		t.Fatal("dispatch caller rejected for dispatch source")
-	}
-	if callerOwnsSource("driver-dispatch-delivery-service", ServiceTaxi) {
-		t.Fatal("dispatch caller accepted for taxi source")
 	}
 }
 

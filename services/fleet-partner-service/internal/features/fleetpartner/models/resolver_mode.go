@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 // CMP-001 / CMP-019: turning the compensation resolver on.
 //

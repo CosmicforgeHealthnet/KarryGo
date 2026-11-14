@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 // CMP-027 / CMP-027A: where each compensation component is actually paid.
 //

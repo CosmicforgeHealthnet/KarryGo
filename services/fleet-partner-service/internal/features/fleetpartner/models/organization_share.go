@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 // CMP-021 / CMP-033: what the organization's share means, and what happens when
 // one provider works across several services.

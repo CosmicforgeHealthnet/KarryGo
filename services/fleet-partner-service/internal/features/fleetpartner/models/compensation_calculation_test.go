@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 // Section 13: compensation resolution for one completed job.
 //

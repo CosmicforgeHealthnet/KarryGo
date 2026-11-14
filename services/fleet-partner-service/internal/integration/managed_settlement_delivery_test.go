@@ -22,7 +22,10 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+
+	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
+	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
+	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -141,15 +144,15 @@ type settlementHarness struct {
 	wallet      *fakeWallet
 	server      *httptest.Server
 	finance     *financeops.Service
-	fleet       *fleetpartner.Service
+	fleet       *fleetpartnerusecases.Service
 	orgID       string
-	instruction fleetpartner.ManagedWorkSettlementInstruction
+	instruction fleetpartnermodels.ManagedWorkSettlementInstruction
 }
 
-func settlementFlags() fleetpartner.Flags {
-	return fleetpartner.Flags{
+func settlementFlags() fleetpartnerusecases.Flags {
+	return fleetpartnerusecases.Flags{
 		OperatingModeEnforcement: true, CompletedWorkProjection: true,
-		ResolverMode: fleetpartner.ResolverOn, SettlementInstruction: true,
+		ResolverMode: fleetpartnermodels.ResolverOn, SettlementInstruction: true,
 		TypedFinancialVisibility: true,
 	}
 }
@@ -159,7 +162,7 @@ func settlementFlags() fleetpartner.Flags {
 // delivery job.
 func newSettlementHarness(t *testing.T, financeFlags financeops.Flags) *settlementHarness {
 	t.Helper()
-	return newSettlementHarnessFor(t, financeFlags, fleetpartner.ServiceTaxi, nil)
+	return newSettlementHarnessFor(t, financeFlags, fleetpartnermodels.ServiceTaxi, nil)
 }
 
 // newSettlementHarnessFor records the managed completion for the given
@@ -184,7 +187,7 @@ func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, catego
 		Pool: pool, Events: publisher,
 		Wallet: app.NewFinancePostingAdapter(client, nil), Flags: financeFlags,
 	})
-	h.fleet = fleetpartner.NewService(pool, fleetpartner.NewRepository(pool), membershipStub{},
+	h.fleet = fleetpartnerusecases.NewService(pool, fleetpartnerrepositories.NewRepository(pool), membershipStub{},
 		audit.NewRecorder(), publisher, settlementFlags())
 	h.fleet.SetSettlementSubmitter(app.ManagedSettlementSubmitter{Finance: h.finance})
 
@@ -194,18 +197,18 @@ func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, catego
 		t.Fatalf("seed settings: %v", err)
 	}
 	owner := tenant.Context{OrganizationID: orgID, ActorType: tenant.ActorTypeOrganizationUser, ActorID: "owner", OrganizationUserID: "owner"}
-	plan, err := h.fleet.CreateCompensationPlan(ctx, owner, fleetpartner.CompensationPlan{
-		Name: "Commission", Currency: "NGN", Status: fleetpartner.PlanActive,
+	plan, err := h.fleet.CreateCompensationPlan(ctx, owner, fleetpartnermodels.CompensationPlan{
+		Name: "Commission", Currency: "NGN", Status: fleetpartnermodels.PlanActive,
 		EffectiveFrom: time.Now().UTC().Add(-time.Hour),
-	}, []fleetpartner.CompensationRule{{
-		RuleType: fleetpartner.RuleCommission, Status: fleetpartner.PlanActive,
+	}, []fleetpartnermodels.CompensationRule{{
+		RuleType: fleetpartnermodels.RuleCommission, Status: fleetpartnermodels.PlanActive,
 		EffectiveFrom: time.Now().UTC().Add(-time.Hour),
-		Config:        fleetpartner.RuleConfig{RateBps: 1500, Basis: fleetpartner.CommissionBasisEligibleJobGross},
+		Config:        fleetpartnermodels.RuleConfig{RateBps: 1500, Basis: fleetpartnermodels.CommissionBasisEligibleJobGross},
 	}})
 	if err != nil {
 		t.Fatalf("create plan: %v", err)
 	}
-	if _, err := h.fleet.AssignCompensationPlan(ctx, owner, fleetpartner.MembershipCompensationAssignment{
+	if _, err := h.fleet.AssignCompensationPlan(ctx, owner, fleetpartnermodels.MembershipCompensationAssignment{
 		MembershipID: membershipID, CompensationPlanID: plan.ID, CompensationPlanVersion: plan.Version,
 		Currency: "NGN", EffectiveFrom: time.Now().UTC().Add(-time.Hour),
 	}); err != nil {
@@ -217,9 +220,9 @@ func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, catego
 		shape(&request)
 	}
 	caller := map[string]string{
-		fleetpartner.ServiceTaxi:     "driver-taxi-service",
-		fleetpartner.ServiceDispatch: "driver-dispatch-delivery-service",
-		fleetpartner.ServiceHauling:  "driver-hauling-service",
+		fleetpartnermodels.ServiceTaxi:     "driver-taxi-service",
+		fleetpartnermodels.ServiceDispatch: "driver-dispatch-delivery-service",
+		fleetpartnermodels.ServiceHauling:  "driver-hauling-service",
 	}[category]
 	_, _, instruction, err := h.fleet.RecordCompletedWork(ctx, caller, asInput(request))
 	if err != nil {
@@ -234,14 +237,14 @@ func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, catego
 
 func postingOn() financeops.Flags { return financeops.Flags{Posting: true} }
 
-func (h *settlementHarness) deliver(t *testing.T) (fleetpartner.ManagedWorkSettlementInstruction, error) {
+func (h *settlementHarness) deliver(t *testing.T) (fleetpartnermodels.ManagedWorkSettlementInstruction, error) {
 	t.Helper()
 	return h.fleet.DeliverSettlementInstruction(context.Background(), h.orgID, h.instruction.InstructionID, "corr-test")
 }
 
-func (h *settlementHarness) reload(t *testing.T) fleetpartner.ManagedWorkSettlementInstruction {
+func (h *settlementHarness) reload(t *testing.T) fleetpartnermodels.ManagedWorkSettlementInstruction {
 	t.Helper()
-	in, err := fleetpartner.NewRepository(h.pool).SettlementInstruction(context.Background(), h.pool, h.orgID, h.instruction.InstructionID, false)
+	in, err := fleetpartnerrepositories.NewRepository(h.pool).SettlementInstruction(context.Background(), h.pool, h.orgID, h.instruction.InstructionID, false)
 	if err != nil {
 		t.Fatalf("reload instruction: %v", err)
 	}
@@ -273,7 +276,7 @@ func jobClass(err error) jobs.ErrorClass {
 func TestManagedSettlementInstructionCommitsWithItsDeliveryJob(t *testing.T) {
 	h := newSettlementHarness(t, postingOn())
 	if got := h.count(t, `SELECT count(*) FROM fleet_partner_jobs WHERE organization_id=$1 AND job_type=$2 AND dedupe_key=$3 AND status='PENDING'`,
-		h.orgID, fleetpartner.JobManagedSettlementDelivery, "settlement-instruction:"+h.instruction.InstructionID); got != 1 {
+		h.orgID, fleetpartnermodels.JobManagedSettlementDelivery, "settlement-instruction:"+h.instruction.InstructionID); got != 1 {
 		t.Fatalf("delivery jobs = %d, want exactly 1 committed with the instruction", got)
 	}
 	if posts, _, _ := h.wallet.counts(); posts != 0 {
@@ -294,7 +297,7 @@ func TestManagedSettlementDeliverySuccessIsRecordedOnce(t *testing.T) {
 	}
 	var job jobs.Job
 	for _, j := range list {
-		if j.JobType == fleetpartner.JobManagedSettlementDelivery {
+		if j.JobType == fleetpartnermodels.JobManagedSettlementDelivery {
 			job = j
 		}
 	}
@@ -305,7 +308,7 @@ func TestManagedSettlementDeliverySuccessIsRecordedOnce(t *testing.T) {
 		t.Fatalf("delivery: %v", err)
 	}
 	got := h.reload(t)
-	if got.Status != fleetpartner.InstructionPosted || got.PostedAt == nil || got.WalletPostingOperationID == "" || got.WalletSettlementReference == "" {
+	if got.Status != fleetpartnermodels.InstructionPosted || got.PostedAt == nil || got.WalletPostingOperationID == "" || got.WalletSettlementReference == "" {
 		t.Fatalf("instruction after delivery = %+v", got)
 	}
 	posts, journals, _ := h.wallet.counts()
@@ -379,7 +382,7 @@ func TestManagedSettlementTransientFailureRetriesWithoutDuplicating(t *testing.T
 	if err == nil || jobClass(err) != jobs.ErrorClassTransient {
 		t.Fatalf("a Wallet outage must be a transient job failure, got %v (%s)", err, jobClass(err))
 	}
-	if got := h.reload(t); got.Status != fleetpartner.InstructionPendingWallet || got.DeliveryAttempts != 1 {
+	if got := h.reload(t); got.Status != fleetpartnermodels.InstructionPendingWallet || got.DeliveryAttempts != 1 {
 		t.Fatalf("after outage: status=%s attempts=%d", got.Status, got.DeliveryAttempts)
 	}
 
@@ -388,7 +391,7 @@ func TestManagedSettlementTransientFailureRetriesWithoutDuplicating(t *testing.T
 		t.Fatalf("retry after recovery: %v", err)
 	}
 	got := h.reload(t)
-	if got.Status != fleetpartner.InstructionPosted || got.DeliveryAttempts != 2 {
+	if got.Status != fleetpartnermodels.InstructionPosted || got.DeliveryAttempts != 2 {
 		t.Fatalf("after retry: status=%s attempts=%d", got.Status, got.DeliveryAttempts)
 	}
 	if _, journals, _ := h.wallet.counts(); journals != 1 {
@@ -407,7 +410,7 @@ func TestManagedSettlementLostResponseIsReadBackNotResent(t *testing.T) {
 	if _, err := h.deliver(t); err != nil {
 		t.Fatalf("a lost response that Wallet did post must resolve by read-back: %v", err)
 	}
-	if got := h.reload(t); got.Status != fleetpartner.InstructionPosted {
+	if got := h.reload(t); got.Status != fleetpartnermodels.InstructionPosted {
 		t.Fatalf("status = %s, want POSTED", got.Status)
 	}
 	posts, journals, reads := h.wallet.counts()
@@ -430,7 +433,7 @@ func TestManagedSettlementUnknownOutcomeReconcilesOnNextAttempt(t *testing.T) {
 	if err == nil || jobClass(err) != jobs.ErrorClassUnknownExternalOutcome {
 		t.Fatalf("want an unknown external outcome, got %v (%s)", err, jobClass(err))
 	}
-	if got := h.reload(t); got.Status != fleetpartner.InstructionReconciliationRequired {
+	if got := h.reload(t); got.Status != fleetpartnermodels.InstructionReconciliationRequired {
 		t.Fatalf("status = %s, want RECONCILIATION_REQUIRED", got.Status)
 	}
 	if h.events(t, "fleet.settlement_instruction.reconciliation_required.v1") != 1 {
@@ -450,7 +453,7 @@ func TestManagedSettlementUnknownOutcomeReconcilesOnNextAttempt(t *testing.T) {
 	if posts != postsBefore+1 || journals != 1 {
 		t.Fatalf("posts=%d (before %d) journals=%d", posts, postsBefore, journals)
 	}
-	if got := h.reload(t); got.Status != fleetpartner.InstructionPosted {
+	if got := h.reload(t); got.Status != fleetpartnermodels.InstructionPosted {
 		t.Fatalf("status = %s, want POSTED", got.Status)
 	}
 }
@@ -464,7 +467,7 @@ func TestManagedSettlementRefusalIsTerminal(t *testing.T) {
 		t.Fatalf("a Wallet refusal must stop the job, got %v (%s)", err, jobClass(err))
 	}
 	got := h.reload(t)
-	if got.Status != fleetpartner.InstructionFailedTerminal || got.LastErrorCode != "wallet_refused_conflict" {
+	if got.Status != fleetpartnermodels.InstructionFailedTerminal || got.LastErrorCode != "wallet_refused_conflict" {
 		t.Fatalf("after refusal: %+v", got)
 	}
 	if h.events(t, "fleet.settlement_instruction.failed_terminal.v1") != 1 {
@@ -506,7 +509,7 @@ func TestManagedSettlementConcurrentDeliveriesSendOnce(t *testing.T) {
 	if posts != 1 || journals != 1 {
 		t.Fatalf("concurrent deliveries: posts=%d journals=%d, want 1/1", posts, journals)
 	}
-	if got := h.reload(t); got.Status != fleetpartner.InstructionPosted {
+	if got := h.reload(t); got.Status != fleetpartnermodels.InstructionPosted {
 		t.Fatalf("status = %s", got.Status)
 	}
 	if h.events(t, "fleet.settlement_instruction.posted.v1") != 1 {
@@ -532,7 +535,7 @@ func TestManagedSettlementNeverPostsWhenDisabled(t *testing.T) {
 			if h.postingOperations(t) != 0 {
 				t.Fatal("a disabled delivery must not record a posting operation")
 			}
-			if got := h.reload(t); got.Status != fleetpartner.InstructionPendingWallet {
+			if got := h.reload(t); got.Status != fleetpartnermodels.InstructionPendingWallet {
 				t.Fatalf("status = %s, want PENDING_WALLET", got.Status)
 			}
 		})
@@ -541,7 +544,7 @@ func TestManagedSettlementNeverPostsWhenDisabled(t *testing.T) {
 	// The instruction stage itself switched off: delivery refuses before
 	// reading anything.
 	pool := testPool(t)
-	disabled := fleetpartner.NewService(pool, fleetpartner.NewRepository(pool), membershipStub{}, nil, nil, sectionsFlags())
+	disabled := fleetpartnerusecases.NewService(pool, fleetpartnerrepositories.NewRepository(pool), membershipStub{}, nil, nil, sectionsFlags())
 	disabled.SetSettlementSubmitter(app.ManagedSettlementSubmitter{})
 	if _, err := disabled.DeliverSettlementInstruction(context.Background(), "org", "inst", ""); jobClass(err) != jobs.ErrorClassDependencyUnavailable {
 		t.Fatalf("instruction stage off: want dependency unavailable, got %v", err)
@@ -554,7 +557,7 @@ func TestManagedSettlementRecoverySweepRestartsDeadDelivery(t *testing.T) {
 	// The original job exhausted its attempts during an outage (or the
 	// process died and the job was cancelled by an operator).
 	if _, err := h.pool.Exec(ctx, `UPDATE fleet_partner_jobs SET status='DEAD_LETTERED', dead_lettered_at=now() WHERE organization_id=$1 AND job_type=$2`,
-		h.orgID, fleetpartner.JobManagedSettlementDelivery); err != nil {
+		h.orgID, fleetpartnermodels.JobManagedSettlementDelivery); err != nil {
 		t.Fatal(err)
 	}
 	n, err := h.fleet.ScheduleSettlementDelivery(ctx, 1000)
@@ -565,7 +568,7 @@ func TestManagedSettlementRecoverySweepRestartsDeadDelivery(t *testing.T) {
 	if _, err := h.fleet.ScheduleSettlementDelivery(ctx, 1000); err != nil {
 		t.Fatal(err)
 	}
-	live := h.count(t, `SELECT count(*) FROM fleet_partner_jobs WHERE organization_id=$1 AND job_type=$2 AND status='PENDING'`, h.orgID, fleetpartner.JobManagedSettlementDelivery)
+	live := h.count(t, `SELECT count(*) FROM fleet_partner_jobs WHERE organization_id=$1 AND job_type=$2 AND status='PENDING'`, h.orgID, fleetpartnermodels.JobManagedSettlementDelivery)
 	if live != 1 {
 		t.Fatalf("live delivery jobs = %d, want 1", live)
 	}
@@ -574,13 +577,13 @@ func TestManagedSettlementRecoverySweepRestartsDeadDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, j := range list {
-		if j.JobType == fleetpartner.JobManagedSettlementDelivery {
+		if j.JobType == fleetpartnermodels.JobManagedSettlementDelivery {
 			if err := h.fleet.HandleSettlementDeliveryJob(ctx, j); err != nil {
 				t.Fatalf("recovered delivery: %v", err)
 			}
 		}
 	}
-	if got := h.reload(t); got.Status != fleetpartner.InstructionPosted {
+	if got := h.reload(t); got.Status != fleetpartnermodels.InstructionPosted {
 		t.Fatalf("status = %s, want POSTED", got.Status)
 	}
 	// A posted instruction is no longer swept.
@@ -612,7 +615,7 @@ func TestManagedSettlementJobRejectsForeignTenantPayload(t *testing.T) {
 // onto the wire, beside the canonical settlement identity it does not replace.
 func TestManagedSettlementCarriesDispatchsPaymentReferenceToWallet(t *testing.T) {
 	bookingID := ids.New("booking")
-	h := newSettlementHarnessFor(t, postingOn(), fleetpartner.ServiceDispatch, func(r *providercompat.CompletedWorkRequest) {
+	h := newSettlementHarnessFor(t, postingOn(), fleetpartnermodels.ServiceDispatch, func(r *providercompat.CompletedWorkRequest) {
 		r.PaymentSourceReference = bookingID
 	})
 	if h.instruction.PaymentSourceReference != bookingID {
@@ -627,7 +630,7 @@ func TestManagedSettlementCarriesDispatchsPaymentReferenceToWallet(t *testing.T)
 	}
 
 	got, err := h.deliver(t)
-	if err != nil || got.Status != fleetpartner.InstructionPosted {
+	if err != nil || got.Status != fleetpartnermodels.InstructionPosted {
 		t.Fatalf("delivery status=%s err=%v", got.Status, err)
 	}
 	body := h.wallet.bodies[0]
@@ -652,7 +655,7 @@ func TestManagedSettlementCarriesDispatchsPaymentReferenceToWallet(t *testing.T)
 		h.orgID, financeops.OperationManagedWorkSettlement); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := h.deliver(t); err != nil || got.Status != fleetpartner.InstructionPosted {
+	if got, err := h.deliver(t); err != nil || got.Status != fleetpartnermodels.InstructionPosted {
 		t.Fatalf("redelivery after unknown outcome status=%s err=%v", got.Status, err)
 	}
 	if len(h.wallet.bodies) != 2 || h.wallet.bodies[1]["payment_source_reference"] != bookingID ||
@@ -668,7 +671,7 @@ func TestManagedSettlementCarriesDispatchsPaymentReferenceToWallet(t *testing.T)
 // reference; their wire body stays exactly what it was, so operations and
 // Wallet postings recorded before the field existed keep matching.
 func TestManagedSettlementWithoutAPaymentReferenceSendsNoSuchField(t *testing.T) {
-	h := newSettlementHarnessFor(t, postingOn(), fleetpartner.ServiceHauling, nil)
+	h := newSettlementHarnessFor(t, postingOn(), fleetpartnermodels.ServiceHauling, nil)
 	if _, err := h.deliver(t); err != nil {
 		t.Fatalf("delivery: %v", err)
 	}
@@ -686,9 +689,9 @@ func TestManagedSettlementWithoutAPaymentReferenceSendsNoSuchField(t *testing.T)
 func TestCompletedWorkReplayCannotChangeThePaymentReference(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
-	service := newCompletedWorkService(t, pool, fleetpartner.Flags{CompletedWorkProjection: true})
-	orgID, membershipID, providerID := seedManagedMembership(t, pool, fleetpartner.ServiceDispatch)
-	request := canonicalRequest(orgID, membershipID, providerID, fleetpartner.ServiceDispatch, ids.New("trip"))
+	service := newCompletedWorkService(t, pool, fleetpartnerusecases.Flags{CompletedWorkProjection: true})
+	orgID, membershipID, providerID := seedManagedMembership(t, pool, fleetpartnermodels.ServiceDispatch)
+	request := canonicalRequest(orgID, membershipID, providerID, fleetpartnermodels.ServiceDispatch, ids.New("trip"))
 	request.PaymentSourceReference = ids.New("booking")
 
 	first, _, _, err := service.RecordCompletedWork(ctx, "driver-dispatch-delivery-service", asInput(request))

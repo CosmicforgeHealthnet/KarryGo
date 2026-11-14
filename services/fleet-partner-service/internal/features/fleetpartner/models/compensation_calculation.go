@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 // Section 13: how a compensation plan turns into money for one completed job.
 //

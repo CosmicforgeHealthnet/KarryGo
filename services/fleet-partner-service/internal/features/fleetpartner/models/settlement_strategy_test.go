@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 // CMP-027: a compensation component is paid in exactly one place.
 //

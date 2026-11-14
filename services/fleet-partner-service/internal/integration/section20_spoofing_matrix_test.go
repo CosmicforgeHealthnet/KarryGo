@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/providercompat"
@@ -28,18 +28,18 @@ func spoofCases() []struct {
 	return []struct {
 		name, caller, source string
 	}{
-		{"taxi caller claiming a dispatch job", "driver-taxi-service", fleetpartner.ServiceDispatch},
-		{"taxi caller claiming a hauling job", "driver-taxi-service", fleetpartner.ServiceHauling},
-		{"dispatch caller claiming a taxi job", "driver-dispatch-delivery-service", fleetpartner.ServiceTaxi},
-		{"dispatch caller claiming a hauling job", "driver-dispatch-delivery-service", fleetpartner.ServiceHauling},
-		{"hauling caller claiming a dispatch job", "driver-hauling-service", fleetpartner.ServiceDispatch},
-		{"hauling caller claiming a taxi job", "driver-hauling-service", fleetpartner.ServiceTaxi},
-		{"vendor claiming a dispatch job", "vendor-service", fleetpartner.ServiceDispatch},
-		{"vendor claiming a taxi job", "vendor-service", fleetpartner.ServiceTaxi},
-		{"vendor claiming a hauling job", "vendor-service", fleetpartner.ServiceHauling},
-		{"wallet claiming a dispatch job", "payment-wallet-service", fleetpartner.ServiceDispatch},
-		{"fleet claiming its own job", "fleet-partner-service", fleetpartner.ServiceDispatch},
-		{"an unknown caller", "attacker-service", fleetpartner.ServiceDispatch},
+		{"taxi caller claiming a dispatch job", "driver-taxi-service", fleetpartnermodels.ServiceDispatch},
+		{"taxi caller claiming a hauling job", "driver-taxi-service", fleetpartnermodels.ServiceHauling},
+		{"dispatch caller claiming a taxi job", "driver-dispatch-delivery-service", fleetpartnermodels.ServiceTaxi},
+		{"dispatch caller claiming a hauling job", "driver-dispatch-delivery-service", fleetpartnermodels.ServiceHauling},
+		{"hauling caller claiming a dispatch job", "driver-hauling-service", fleetpartnermodels.ServiceDispatch},
+		{"hauling caller claiming a taxi job", "driver-hauling-service", fleetpartnermodels.ServiceTaxi},
+		{"vendor claiming a dispatch job", "vendor-service", fleetpartnermodels.ServiceDispatch},
+		{"vendor claiming a taxi job", "vendor-service", fleetpartnermodels.ServiceTaxi},
+		{"vendor claiming a hauling job", "vendor-service", fleetpartnermodels.ServiceHauling},
+		{"wallet claiming a dispatch job", "payment-wallet-service", fleetpartnermodels.ServiceDispatch},
+		{"fleet claiming its own job", "fleet-partner-service", fleetpartnermodels.ServiceDispatch},
+		{"an unknown caller", "attacker-service", fleetpartnermodels.ServiceDispatch},
 	}
 }
 
@@ -79,9 +79,9 @@ func TestEachExecutionServiceOwnsItsOwnSource(t *testing.T) {
 	ctx := context.Background()
 
 	for caller, source := range map[string]string{
-		"driver-taxi-service":              fleetpartner.ServiceTaxi,
-		"driver-dispatch-delivery-service": fleetpartner.ServiceDispatch,
-		"driver-hauling-service":           fleetpartner.ServiceHauling,
+		"driver-taxi-service":              fleetpartnermodels.ServiceTaxi,
+		"driver-dispatch-delivery-service": fleetpartnermodels.ServiceDispatch,
+		"driver-hauling-service":           fleetpartnermodels.ServiceHauling,
 	} {
 		orgID, membershipID, providerID := seedManagedMembership(t, pool, source)
 		jobID := ids.New("job")
@@ -104,12 +104,12 @@ func TestClientSuppliedOrganizationCannotBeSpoofed(t *testing.T) {
 	service := newCompletedWorkService(t, pool, sectionsFlags())
 	ctx := context.Background()
 
-	_, victimMembership, victimProvider := seedManagedMembership(t, pool, fleetpartner.ServiceTaxi)
-	attackerOrg, _, _ := seedManagedMembership(t, pool, fleetpartner.ServiceTaxi)
+	_, victimMembership, victimProvider := seedManagedMembership(t, pool, fleetpartnermodels.ServiceTaxi)
+	attackerOrg, _, _ := seedManagedMembership(t, pool, fleetpartnermodels.ServiceTaxi)
 
 	jobID := ids.New("job")
 	request := canonicalRequest(attackerOrg, victimMembership, victimProvider,
-		fleetpartner.ServiceTaxi, jobID)
+		fleetpartnermodels.ServiceTaxi, jobID)
 
 	_, _, _, err := service.RecordCompletedWork(ctx, "driver-taxi-service", asInput(request))
 	if err == nil {
@@ -128,12 +128,12 @@ func TestClientSuppliedMembershipCannotBeSpoofed(t *testing.T) {
 	service := newCompletedWorkService(t, pool, sectionsFlags())
 	ctx := context.Background()
 
-	orgID, _, attackerProvider := seedManagedMembership(t, pool, fleetpartner.ServiceTaxi)
-	_, victimMembership, _ := seedManagedMembership(t, pool, fleetpartner.ServiceTaxi)
+	orgID, _, attackerProvider := seedManagedMembership(t, pool, fleetpartnermodels.ServiceTaxi)
+	_, victimMembership, _ := seedManagedMembership(t, pool, fleetpartnermodels.ServiceTaxi)
 
 	jobID := ids.New("job")
 	request := canonicalRequest(orgID, victimMembership, attackerProvider,
-		fleetpartner.ServiceTaxi, jobID)
+		fleetpartnermodels.ServiceTaxi, jobID)
 
 	_, _, _, err := service.RecordCompletedWork(ctx, "driver-taxi-service", asInput(request))
 	if err == nil {
@@ -161,9 +161,9 @@ func TestSuspensionDuringWorkStillRecordsTheCompletion(t *testing.T) {
 	service := newCompletedWorkService(t, pool, sectionsFlags())
 	ctx := context.Background()
 
-	orgID, membershipID, providerID := seedManagedMembership(t, pool, fleetpartner.ServiceTaxi)
+	orgID, membershipID, providerID := seedManagedMembership(t, pool, fleetpartnermodels.ServiceTaxi)
 	jobID := ids.New("job")
-	request := canonicalRequest(orgID, membershipID, providerID, fleetpartner.ServiceTaxi, jobID)
+	request := canonicalRequest(orgID, membershipID, providerID, fleetpartnermodels.ServiceTaxi, jobID)
 
 	// The organization suspends the provider while the trip is in progress.
 	if _, err := pool.Exec(ctx, `

@@ -1,6 +1,10 @@
-package fleetpartner
+// Package http serves the fleetpartner tenant routes and its internal
+// completed-work and corporate-context routes.
+package http
 
 import (
+	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +14,7 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -20,13 +25,24 @@ const (
 	PermissionManage = "fleet_partner_foundation.manage"
 )
 
+// UseCases is the use-case surface this handler needs. *usecases.Service
+// satisfies it; the composition root passes the concrete service.
+type UseCases interface {
+	ReadOperatingMode(ctx context.Context, organizationID string) (string, int64, error)
+	UpdateOperatingMode(ctx context.Context, t tenant.Context, mode string, expectedVersion int64) (int64, error)
+	CreateCompensationPlan(ctx context.Context, t tenant.Context, plan models.CompensationPlan, rules []models.CompensationRule) (models.CompensationPlan, error)
+	AssignCompensationPlan(ctx context.Context, t tenant.Context, in models.MembershipCompensationAssignment) (models.MembershipCompensationAssignment, error)
+	RecordCompletedWork(ctx context.Context, caller string, in usecases.CompletedWorkInput) (models.CompletedWorkRecord, models.CompensationResolution, models.ManagedWorkSettlementInstruction, error)
+	CorporateContext(ctx context.Context, providerID, service string) (models.CorporateContext, error)
+}
+
 type Handler struct {
-	service    *Service
+	service    UseCases
 	authorizer *accesscontrol.Authorizer
 	allowed    map[string]bool
 }
 
-func NewHandler(service *Service, authorizer *accesscontrol.Authorizer, allowedCallers []string) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer, allowedCallers []string) *Handler {
 	allowed := map[string]bool{}
 	for _, caller := range allowedCallers {
 		caller = strings.TrimSpace(caller)
@@ -110,13 +126,13 @@ func (h *Handler) updateOperatingMode(c *gin.Context) {
 }
 
 type createPlanRequest struct {
-	Name          string             `json:"name"`
-	Description   string             `json:"description"`
-	Currency      string             `json:"currency"`
-	Status        string             `json:"status"`
-	EffectiveFrom time.Time          `json:"effectiveFrom"`
-	EffectiveTo   *time.Time         `json:"effectiveTo"`
-	Rules         []CompensationRule `json:"rules"`
+	Name          string                    `json:"name"`
+	Description   string                    `json:"description"`
+	Currency      string                    `json:"currency"`
+	Status        string                    `json:"status"`
+	EffectiveFrom time.Time                 `json:"effectiveFrom"`
+	EffectiveTo   *time.Time                `json:"effectiveTo"`
+	Rules         []models.CompensationRule `json:"rules"`
 }
 
 func (h *Handler) createCompensationPlan(c *gin.Context) {
@@ -129,7 +145,7 @@ func (h *Handler) createCompensationPlan(c *gin.Context) {
 		respond.Error(c, apperrors.BadRequest("Invalid request body.", err))
 		return
 	}
-	plan, err := h.service.CreateCompensationPlan(c.Request.Context(), t, CompensationPlan{
+	plan, err := h.service.CreateCompensationPlan(c.Request.Context(), t, models.CompensationPlan{
 		Name: body.Name, Description: body.Description, Currency: body.Currency,
 		Status: body.Status, EffectiveFrom: body.EffectiveFrom.UTC(), EffectiveTo: body.EffectiveTo,
 	}, body.Rules)
@@ -161,7 +177,7 @@ func (h *Handler) assignCompensationPlan(c *gin.Context) {
 		respond.Error(c, apperrors.BadRequest("Invalid request body.", err))
 		return
 	}
-	out, err := h.service.AssignCompensationPlan(c.Request.Context(), t, MembershipCompensationAssignment{
+	out, err := h.service.AssignCompensationPlan(c.Request.Context(), t, models.MembershipCompensationAssignment{
 		MembershipID: c.Param("membershipId"), CompensationPlanID: body.CompensationPlanID,
 		CompensationPlanVersion: body.CompensationPlanVersion, ServiceContext: body.ServiceContext,
 		Currency: body.Currency, EffectiveFrom: body.EffectiveFrom.UTC(), EffectiveTo: body.EffectiveTo,
@@ -200,7 +216,7 @@ func (h *Handler) recordCompletedWork(c *gin.Context) {
 		respond.Error(c, apperrors.BadRequest("Invalid request body.", err))
 		return
 	}
-	record, resolution, instruction, err := h.service.RecordCompletedWork(c.Request.Context(), c.GetString(middleware.ServiceCallerKey), CompletedWorkInput{
+	record, resolution, instruction, err := h.service.RecordCompletedWork(c.Request.Context(), c.GetString(middleware.ServiceCallerKey), usecases.CompletedWorkInput{
 		SourceService: body.SourceService, SourceJobID: body.SourceJobID, SourceAssignmentID: body.SourceAssignmentID,
 		ProviderID: body.ProviderID, MembershipID: body.MembershipID, OrganizationID: body.OrganizationID,
 		CompletedAt: body.CompletedAt.UTC(), Currency: body.Currency, EligibleBasisMinor: body.EligibleBasisMinor,

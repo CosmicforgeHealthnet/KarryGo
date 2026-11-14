@@ -1,7 +1,8 @@
-package fleetpartner
+package repositories
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +14,6 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
-)
-
-var (
-	ErrNotFound               = errors.New("fleetpartner: not found")
-	ErrIdempotencyConflict    = errors.New("fleetpartner: idempotency conflict")
-	ErrDuplicateCompletedWork = errors.New("fleetpartner: duplicate completed work")
 )
 
 type Repository struct {
@@ -54,7 +49,7 @@ func (r *Repository) OrganizationStatus(ctx context.Context, organizationID stri
 	var status string
 	err := r.db.QueryRow(ctx, `SELECT status FROM fleet_partner_organizations WHERE id=$1`, organizationID).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
+		return "", models.ErrNotFound
 	}
 	if err != nil {
 		return "", fmt.Errorf("fleetpartner: read organization status: %w", err)
@@ -68,7 +63,7 @@ func (r *Repository) OperatingSettings(ctx context.Context, organizationID strin
 	var version int64
 	err := r.db.QueryRow(ctx, `SELECT operating_mode, financial_visibility_policy, version FROM fleet_partner_organization_settings WHERE organization_id=$1`, organizationID).Scan(&mode, &policyRaw, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", nil, 0, ErrNotFound
+		return "", nil, 0, models.ErrNotFound
 	}
 	if err != nil {
 		return "", nil, 0, fmt.Errorf("fleetpartner: read operating settings: %w", err)
@@ -88,18 +83,18 @@ func (r *Repository) VerifyMembership(ctx context.Context, organizationID, membe
 		WHERE organization_id=$1 AND id=$2 AND service_category=$3`,
 		organizationID, membershipID, service).Scan(&status, &relationship, &storedProvider, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", 0, ErrNotFound
+		return "", 0, models.ErrNotFound
 	}
 	if err != nil {
 		return "", 0, fmt.Errorf("fleetpartner: verify membership: %w", err)
 	}
 	if storedProvider == nil || *storedProvider != providerID {
-		return "", 0, ErrNotFound
+		return "", 0, models.ErrNotFound
 	}
 	return relationship, version, nil
 }
 
-func (r *Repository) CreatePlan(ctx context.Context, q database.Querier, plan CompensationPlan, rules []CompensationRule) (CompensationPlan, error) {
+func (r *Repository) CreatePlan(ctx context.Context, q database.Querier, plan models.CompensationPlan, rules []models.CompensationRule) (models.CompensationPlan, error) {
 	if plan.ID == "" {
 		plan.ID = ids.New("cplan")
 	}
@@ -107,7 +102,7 @@ func (r *Repository) CreatePlan(ctx context.Context, q database.Querier, plan Co
 		plan.Version = 1
 	}
 	if plan.Status == "" {
-		plan.Status = PlanDraft
+		plan.Status = models.PlanDraft
 	}
 	if plan.EffectiveFrom.IsZero() {
 		plan.EffectiveFrom = time.Now().UTC()
@@ -119,14 +114,14 @@ func (r *Repository) CreatePlan(ctx context.Context, q database.Querier, plan Co
 		plan.ID, plan.OrganizationID, plan.Name, plan.Description, plan.Currency, plan.Status,
 		plan.Version, plan.EffectiveFrom, plan.EffectiveTo, plan.CreatedBy, plan.ApprovedBy)
 	if err != nil {
-		return CompensationPlan{}, fmt.Errorf("fleetpartner: create plan: %w", err)
+		return models.CompensationPlan{}, fmt.Errorf("fleetpartner: create plan: %w", err)
 	}
-	snapshot := SnapshotJSON(map[string]any{"plan": plan, "rules": rules})
+	snapshot := models.SnapshotJSON(map[string]any{"plan": plan, "rules": rules})
 	if _, err = r.q(q).Exec(ctx, `
 		INSERT INTO fleet_partner_compensation_plan_versions(id,organization_id,plan_id,plan_version,snapshot,actor_reference)
 		VALUES($1,$2,$3,$4,$5,$6)`,
 		ids.New("cpv"), plan.OrganizationID, plan.ID, plan.Version, snapshot, plan.CreatedBy); err != nil {
-		return CompensationPlan{}, fmt.Errorf("fleetpartner: create plan version: %w", err)
+		return models.CompensationPlan{}, fmt.Errorf("fleetpartner: create plan version: %w", err)
 	}
 	for _, rule := range rules {
 		if rule.ID == "" {
@@ -136,7 +131,7 @@ func (r *Repository) CreatePlan(ctx context.Context, q database.Querier, plan Co
 		rule.PlanID = plan.ID
 		rule.PlanVersion = plan.Version
 		if rule.Status == "" {
-			rule.Status = PlanActive
+			rule.Status = models.PlanActive
 		}
 		if rule.EffectiveFrom.IsZero() {
 			rule.EffectiveFrom = plan.EffectiveFrom
@@ -150,7 +145,7 @@ func (r *Repository) CreatePlan(ctx context.Context, q database.Querier, plan Co
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1)`,
 			rule.ID, rule.OrganizationID, rule.PlanID, rule.PlanVersion, rule.RuleType,
 			roles, services, cfg, rule.Status, rule.EffectiveFrom, rule.EffectiveTo); err != nil {
-			return CompensationPlan{}, fmt.Errorf("fleetpartner: create rule: %w", err)
+			return models.CompensationPlan{}, fmt.Errorf("fleetpartner: create rule: %w", err)
 		}
 	}
 	return plan, nil
@@ -171,7 +166,7 @@ func (r *Repository) SetPlanStatus(ctx context.Context, q database.Querier, orga
 	return expectedVersion + 1, nil
 }
 
-func (r *Repository) AssignPlan(ctx context.Context, q database.Querier, a MembershipCompensationAssignment) (MembershipCompensationAssignment, error) {
+func (r *Repository) AssignPlan(ctx context.Context, q database.Querier, a models.MembershipCompensationAssignment) (models.MembershipCompensationAssignment, error) {
 	if a.ID == "" {
 		a.ID = ids.New("mca")
 	}
@@ -182,12 +177,12 @@ func (r *Repository) AssignPlan(ctx context.Context, q database.Querier, a Membe
 		a.ID, a.MembershipID, a.OrganizationID, a.CompensationPlanID, a.CompensationPlanVersion,
 		a.ServiceContext, a.Currency, a.EffectiveFrom, a.EffectiveTo, a.Status, a.AssignedBy, a.ApprovedBy)
 	if err != nil {
-		return MembershipCompensationAssignment{}, fmt.Errorf("fleetpartner: assign plan: %w", err)
+		return models.MembershipCompensationAssignment{}, fmt.Errorf("fleetpartner: assign plan: %w", err)
 	}
 	return a, nil
 }
 
-func (r *Repository) ResolveAssignment(ctx context.Context, membershipID, organizationID, service, currency string, at time.Time) (MembershipCompensationAssignment, error) {
+func (r *Repository) ResolveAssignment(ctx context.Context, membershipID, organizationID, service, currency string, at time.Time) (models.MembershipCompensationAssignment, error) {
 	row := r.db.QueryRow(ctx, `
 		SELECT id,membership_id,organization_id,compensation_plan_id,compensation_plan_version,service_context,currency,effective_from,effective_to,status,assigned_by,approved_by,created_at,updated_at
 		FROM fleet_partner_membership_compensation_assignments
@@ -196,20 +191,20 @@ func (r *Repository) ResolveAssignment(ctx context.Context, membershipID, organi
 		  AND effective_from <= $5 AND (effective_to IS NULL OR effective_to > $5)
 		ORDER BY CASE WHEN service_context=$4 THEN 0 ELSE 1 END, effective_from DESC
 		LIMIT 1`, membershipID, organizationID, currency, service, at)
-	var a MembershipCompensationAssignment
+	var a models.MembershipCompensationAssignment
 	err := row.Scan(&a.ID, &a.MembershipID, &a.OrganizationID, &a.CompensationPlanID,
 		&a.CompensationPlanVersion, &a.ServiceContext, &a.Currency, &a.EffectiveFrom,
 		&a.EffectiveTo, &a.Status, &a.AssignedBy, &a.ApprovedBy, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return MembershipCompensationAssignment{}, ErrNotFound
+		return models.MembershipCompensationAssignment{}, models.ErrNotFound
 	}
 	if err != nil {
-		return MembershipCompensationAssignment{}, fmt.Errorf("fleetpartner: resolve assignment: %w", err)
+		return models.MembershipCompensationAssignment{}, fmt.Errorf("fleetpartner: resolve assignment: %w", err)
 	}
 	return a, nil
 }
 
-func (r *Repository) RulesForPlan(ctx context.Context, organizationID, planID string, planVersion int64) ([]CompensationRule, error) {
+func (r *Repository) RulesForPlan(ctx context.Context, organizationID, planID string, planVersion int64) ([]models.CompensationRule, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id,organization_id,plan_id,plan_version,rule_type,applicable_roles,applicable_services,calculation_configuration,status,effective_from,effective_to,version,created_at,updated_at
 		FROM fleet_partner_compensation_plan_rules
@@ -219,9 +214,9 @@ func (r *Repository) RulesForPlan(ctx context.Context, organizationID, planID st
 		return nil, fmt.Errorf("fleetpartner: list rules: %w", err)
 	}
 	defer rows.Close()
-	var out []CompensationRule
+	var out []models.CompensationRule
 	for rows.Next() {
-		var rule CompensationRule
+		var rule models.CompensationRule
 		var roles, services, cfg []byte
 		if err := rows.Scan(&rule.ID, &rule.OrganizationID, &rule.PlanID, &rule.PlanVersion,
 			&rule.RuleType, &roles, &services, &cfg, &rule.Status, &rule.EffectiveFrom,
@@ -236,7 +231,7 @@ func (r *Repository) RulesForPlan(ctx context.Context, organizationID, planID st
 	return out, rows.Err()
 }
 
-func (r *Repository) InsertCompletedWork(ctx context.Context, q database.Querier, record CompletedWorkRecord) (CompletedWorkRecord, bool, error) {
+func (r *Repository) InsertCompletedWork(ctx context.Context, q database.Querier, record models.CompletedWorkRecord) (models.CompletedWorkRecord, bool, error) {
 	if record.ID == "" {
 		record.ID = ids.New("cwk")
 	}
@@ -264,24 +259,24 @@ func (r *Repository) InsertCompletedWork(ctx context.Context, q database.Querier
 	}
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
-		return CompletedWorkRecord{}, false, fmt.Errorf("fleetpartner: insert completed work: %w", err)
+		return models.CompletedWorkRecord{}, false, fmt.Errorf("fleetpartner: insert completed work: %w", err)
 	}
 	existing, loadErr := r.CompletedWorkByIdempotency(ctx, record.OrganizationID, record.IdempotencyKey)
 	if loadErr != nil {
-		return CompletedWorkRecord{}, false, ErrDuplicateCompletedWork
+		return models.CompletedWorkRecord{}, false, models.ErrDuplicateCompletedWork
 	}
 	if existing.RequestFingerprint != record.RequestFingerprint {
-		return CompletedWorkRecord{}, false, ErrIdempotencyConflict
+		return models.CompletedWorkRecord{}, false, models.ErrIdempotencyConflict
 	}
 	return existing, true, nil
 }
 
-func (r *Repository) CompletedWorkByIdempotency(ctx context.Context, organizationID, key string) (CompletedWorkRecord, error) {
+func (r *Repository) CompletedWorkByIdempotency(ctx context.Context, organizationID, key string) (models.CompletedWorkRecord, error) {
 	row := r.db.QueryRow(ctx, `SELECT id,organization_id,membership_id,provider_id,source_service,source_job_id,source_assignment_id,work_type,completed_at,currency,eligible_basis_minor,source_version,ingestion_status,request_fingerprint,idempotency_key,correlation_id,version,created_at,payment_source_reference FROM fleet_partner_completed_work_records WHERE organization_id=$1 AND idempotency_key=$2`, organizationID, key)
 	return scanCompletedWork(row)
 }
 
-func (r *Repository) InsertResolution(ctx context.Context, q database.Querier, res CompensationResolution) (CompensationResolution, error) {
+func (r *Repository) InsertResolution(ctx context.Context, q database.Querier, res models.CompensationResolution) (models.CompensationResolution, error) {
 	if res.ID == "" {
 		res.ID = ids.New("cres")
 	}
@@ -299,12 +294,12 @@ func (r *Repository) InsertResolution(ctx context.Context, q database.Querier, r
 		res.CompensationPlanVersion, matched, res.ProviderShareMinor, res.OrganizationShareMinor,
 		res.Currency, basis, visibility, res.ResolvedAt, res.ResolutionVersion, res.Status)
 	if err != nil {
-		return CompensationResolution{}, fmt.Errorf("fleetpartner: insert resolution: %w", err)
+		return models.CompensationResolution{}, fmt.Errorf("fleetpartner: insert resolution: %w", err)
 	}
 	return res, nil
 }
 
-func (r *Repository) InsertSettlementInstruction(ctx context.Context, q database.Querier, in ManagedWorkSettlementInstruction) (ManagedWorkSettlementInstruction, bool, error) {
+func (r *Repository) InsertSettlementInstruction(ctx context.Context, q database.Querier, in models.ManagedWorkSettlementInstruction) (models.ManagedWorkSettlementInstruction, bool, error) {
 	if in.InstructionID == "" {
 		in.InstructionID = ids.New("mwsi")
 	}
@@ -326,19 +321,19 @@ func (r *Repository) InsertSettlementInstruction(ctx context.Context, q database
 	}
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
-		return ManagedWorkSettlementInstruction{}, false, fmt.Errorf("fleetpartner: insert instruction: %w", err)
+		return models.ManagedWorkSettlementInstruction{}, false, fmt.Errorf("fleetpartner: insert instruction: %w", err)
 	}
-	return ManagedWorkSettlementInstruction{}, false, ErrIdempotencyConflict
+	return models.ManagedWorkSettlementInstruction{}, false, models.ErrIdempotencyConflict
 }
 
-func scanCompletedWork(row pgx.Row) (CompletedWorkRecord, error) {
-	var r CompletedWorkRecord
+func scanCompletedWork(row pgx.Row) (models.CompletedWorkRecord, error) {
+	var r models.CompletedWorkRecord
 	err := row.Scan(&r.ID, &r.OrganizationID, &r.MembershipID, &r.ProviderID, &r.SourceService,
 		&r.SourceJobID, &r.SourceAssignmentID, &r.WorkType, &r.CompletedAt, &r.Currency,
 		&r.EligibleBasisMinor, &r.SourceVersion, &r.IngestionStatus, &r.RequestFingerprint,
 		&r.IdempotencyKey, &r.CorrelationID, &r.Version, &r.CreatedAt, &r.PaymentSourceReference)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return CompletedWorkRecord{}, ErrNotFound
+		return models.CompletedWorkRecord{}, models.ErrNotFound
 	}
 	return r, err
 }
@@ -351,7 +346,7 @@ func scanCompletedWork(row pgx.Row) (CompletedWorkRecord, error) {
 // see that it was. The unique index makes a replayed resolution a no-op rather
 // than a second payment record.
 func (r *Repository) RecordWorkSettledComponents(
-	ctx context.Context, q database.Querier, components []WorkSettledComponent,
+	ctx context.Context, q database.Querier, components []models.WorkSettledComponent,
 ) error {
 	for _, component := range components {
 		if _, err := r.q(q).Exec(ctx, `
@@ -381,7 +376,7 @@ func (r *Repository) RecordWorkSettledComponents(
 // Payroll calls this before it calculates, and skips every component it names.
 func (r *Repository) WorkSettledComponentsInPeriod(
 	ctx context.Context, q database.Querier, organizationID, membershipID string, from, to time.Time,
-) ([]WorkSettledComponent, error) {
+) ([]models.WorkSettledComponent, error) {
 	rows, err := r.q(q).Query(ctx, `
 		SELECT organization_id,membership_id,source_service,source_job_id,source_assignment_id,
 		       completed_work_id,compensation_resolution_id,settlement_instruction_id,wallet_posting_operation_id,
@@ -395,9 +390,9 @@ func (r *Repository) WorkSettledComponentsInPeriod(
 		return nil, fmt.Errorf("fleetpartner: read work settled components: %w", err)
 	}
 	defer rows.Close()
-	var out []WorkSettledComponent
+	var out []models.WorkSettledComponent
 	for rows.Next() {
-		var component WorkSettledComponent
+		var component models.WorkSettledComponent
 		if err := rows.Scan(
 			&component.OrganizationID, &component.MembershipID,
 			&component.SourceService, &component.SourceJobID, &component.SourceAssignmentID,
@@ -421,9 +416,9 @@ func (r *Repository) WorkSettledComponentsInPeriod(
 // would miss it and pay it a second time.
 func (r *Repository) WorkSettledExclusionsForAssignments(
 	ctx context.Context, q database.Querier, organizationID string, assignmentIDs []string,
-) (map[string]WorkSettledComponent, error) {
+) (map[string]models.WorkSettledComponent, error) {
 	if organizationID == "" || len(assignmentIDs) == 0 {
-		return map[string]WorkSettledComponent{}, nil
+		return map[string]models.WorkSettledComponent{}, nil
 	}
 	rows, err := r.q(q).Query(ctx, `
 		SELECT organization_id,membership_id,source_service,source_job_id,source_assignment_id,
@@ -436,9 +431,9 @@ func (r *Repository) WorkSettledExclusionsForAssignments(
 		return nil, fmt.Errorf("fleetpartner: read work settled exclusions: %w", err)
 	}
 	defer rows.Close()
-	var settled []WorkSettledComponent
+	var settled []models.WorkSettledComponent
 	for rows.Next() {
-		var component WorkSettledComponent
+		var component models.WorkSettledComponent
 		if err := rows.Scan(
 			&component.OrganizationID, &component.MembershipID,
 			&component.SourceService, &component.SourceJobID, &component.SourceAssignmentID,
@@ -454,5 +449,5 @@ func (r *Repository) WorkSettledExclusionsForAssignments(
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return PayrollExclusions(settled), nil
+	return models.PayrollExclusions(settled), nil
 }

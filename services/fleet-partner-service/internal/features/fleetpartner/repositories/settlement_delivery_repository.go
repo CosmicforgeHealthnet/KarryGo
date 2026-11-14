@@ -1,10 +1,12 @@
-package fleetpartner
+package repositories
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,8 +20,8 @@ const settlementInstructionColumns = `instruction_id,organization_id,membership_
 	wallet_posting_operation_id,wallet_settlement_reference,delivery_attempts,last_error_code,posted_at,updated_at,
 	payment_source_reference`
 
-func scanSettlementInstruction(row pgx.Row) (ManagedWorkSettlementInstruction, error) {
-	var in ManagedWorkSettlementInstruction
+func scanSettlementInstruction(row pgx.Row) (models.ManagedWorkSettlementInstruction, error) {
+	var in models.ManagedWorkSettlementInstruction
 	var visibility []byte
 	err := row.Scan(&in.InstructionID, &in.OrganizationID, &in.MembershipID, &in.ProviderID,
 		&in.SourceService, &in.SourceJobID, &in.SourceAssignmentID, &in.CompensationPlanID,
@@ -29,10 +31,10 @@ func scanSettlementInstruction(row pgx.Row) (ManagedWorkSettlementInstruction, e
 		&in.WalletPostingOperationID, &in.WalletSettlementReference, &in.DeliveryAttempts,
 		&in.LastErrorCode, &in.PostedAt, &in.UpdatedAt, &in.PaymentSourceReference)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ManagedWorkSettlementInstruction{}, ErrNotFound
+		return models.ManagedWorkSettlementInstruction{}, models.ErrNotFound
 	}
 	if err != nil {
-		return ManagedWorkSettlementInstruction{}, fmt.Errorf("fleetpartner: scan settlement instruction: %w", err)
+		return models.ManagedWorkSettlementInstruction{}, fmt.Errorf("fleetpartner: scan settlement instruction: %w", err)
 	}
 	if len(visibility) > 0 {
 		_ = json.Unmarshal(visibility, &in.VisibilityPolicySnapshot)
@@ -42,7 +44,7 @@ func scanSettlementInstruction(row pgx.Row) (ManagedWorkSettlementInstruction, e
 
 // SettlementInstruction reads one instruction, always scoped to its
 // organization. forUpdate locks the row for the caller's transaction.
-func (r *Repository) SettlementInstruction(ctx context.Context, q database.Querier, organizationID, instructionID string, forUpdate bool) (ManagedWorkSettlementInstruction, error) {
+func (r *Repository) SettlementInstruction(ctx context.Context, q database.Querier, organizationID, instructionID string, forUpdate bool) (models.ManagedWorkSettlementInstruction, error) {
 	sql := `SELECT ` + settlementInstructionColumns + ` FROM fleet_partner_managed_work_settlement_instructions WHERE organization_id=$1 AND instruction_id=$2`
 	if forUpdate {
 		sql += ` FOR UPDATE`
@@ -55,7 +57,7 @@ func (r *Repository) SettlementInstruction(ctx context.Context, q database.Queri
 // The version column is NOT incremented: it is the instruction version Wallet
 // keys its posting on, and an instruction does not change by being delivered.
 // Bumping it would make a retry look like a different instruction.
-func (r *Repository) RecordSettlementDelivery(ctx context.Context, q database.Querier, current ManagedWorkSettlementInstruction, status, operationID, reference, errorCode string) (ManagedWorkSettlementInstruction, error) {
+func (r *Repository) RecordSettlementDelivery(ctx context.Context, q database.Querier, current models.ManagedWorkSettlementInstruction, status, operationID, reference, errorCode string) (models.ManagedWorkSettlementInstruction, error) {
 	return scanSettlementInstruction(r.q(q).QueryRow(ctx, `
 		UPDATE fleet_partner_managed_work_settlement_instructions
 		SET status=$3,
@@ -85,12 +87,9 @@ func (r *Repository) LinkWorkSettledComponentsToPosting(ctx context.Context, q d
 	return nil
 }
 
-// UndeliveredInstruction identifies one instruction the sweep must deliver.
-type UndeliveredInstruction struct{ OrganizationID, InstructionID string }
-
 // UndeliveredSettlementInstructions lists instructions that are not final and
 // have no live delivery job.
-func (r *Repository) UndeliveredSettlementInstructions(ctx context.Context, jobType string, limit int) ([]UndeliveredInstruction, error) {
+func (r *Repository) UndeliveredSettlementInstructions(ctx context.Context, jobType string, limit int) ([]models.UndeliveredInstruction, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT i.organization_id, i.instruction_id
 		FROM fleet_partner_managed_work_settlement_instructions i
@@ -106,13 +105,40 @@ func (r *Repository) UndeliveredSettlementInstructions(ctx context.Context, jobT
 		return nil, fmt.Errorf("fleetpartner: list undelivered instructions: %w", err)
 	}
 	defer rows.Close()
-	var out []UndeliveredInstruction
+	var out []models.UndeliveredInstruction
 	for rows.Next() {
-		var u UndeliveredInstruction
+		var u models.UndeliveredInstruction
 		if err := rows.Scan(&u.OrganizationID, &u.InstructionID); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+// LockSettlementDelivery takes a session advisory lock keyed on the
+// instruction, on a dedicated connection held for the delivery. The lock is
+// released explicitly and, if the process dies, with the connection.
+func (r *Repository) LockSettlementDelivery(ctx context.Context, instructionID string) (func(), bool, error) {
+	pool, ok := r.db.(*pgxpool.Pool)
+	if !ok {
+		return nil, false, errors.New("fleetpartner: settlement delivery lock needs a connection pool")
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	var held bool
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(hashtextextended('fleet-settlement-delivery:' || $1, 0))`, instructionID).Scan(&held); err != nil {
+		conn.Release()
+		return nil, false, err
+	}
+	if !held {
+		conn.Release()
+		return nil, false, nil
+	}
+	return func() {
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtextextended('fleet-settlement-delivery:' || $1, 0))`, instructionID)
+		conn.Release()
+	}, true, nil
 }

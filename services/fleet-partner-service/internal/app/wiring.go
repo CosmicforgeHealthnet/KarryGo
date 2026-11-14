@@ -47,7 +47,11 @@ import (
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
-	fleetpartnerfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+
+	fleetpartnerhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/http"
+	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
+	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
+	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
@@ -177,7 +181,7 @@ type Components struct {
 	FinanceOperations *financeops.Service
 	Engagement        *engagement.Service
 	Marketplace       *mktusecases.Service
-	FleetPartner      *fleetpartnerfeature.Service
+	FleetPartner      *fleetpartnerusecases.Service
 	// Search is the Section 25 (partial slice) full-text search projection.
 	// Always constructed; with the enablement flag off its route answers
 	// not-found. It is a read-side projection only — nothing else in this
@@ -471,12 +475,12 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		KillSwitch: cfg.SynchronizationKillSwitch || cfg.IntegrationsKillSwitch,
 	})
 	registerSection26Authorities(cfg, metrics, synchronizationService, supportCaseAdapter{client: supportHTTP})
-	fleetPartnerService := fleetpartnerfeature.NewService(pool,
-		fleetpartnerfeature.NewRepository(pool),
+	fleetPartnerService := fleetpartnerusecases.NewService(pool,
+		fleetpartnerrepositories.NewRepository(pool),
 		fleetPartnerMembershipReader{repo: providerrepos.NewRepository(pool)},
 		audit.NewRecorder(),
 		events.NewDomainPublisher(events.NewOutboxRepository(pool)),
-		fleetpartnerfeature.Flags{
+		fleetpartnerusecases.Flags{
 			OperatingModeEnforcement: cfg.FleetOperatingModeEnforcementEnabled,
 			CompensationResolver:     cfg.FleetCompensationResolverEnabled,
 			ResolverMode:             cfg.FleetCompensationResolverMode,
@@ -542,15 +546,15 @@ type fleetPartnerMembershipReader struct {
 	repo *providerrepos.Repository
 }
 
-func (r fleetPartnerMembershipReader) FindLiveByProvider(ctx context.Context, providerService, providerID string) (fleetpartnerfeature.ProviderMembership, error) {
+func (r fleetPartnerMembershipReader) FindLiveByProvider(ctx context.Context, providerService, providerID string) (fleetpartnermodels.ProviderMembership, error) {
 	membership, err := r.repo.FindLiveByProvider(ctx, nil, providerService, providerID)
 	if err != nil {
 		if errors.Is(err, providerrepos.ErrNotFound) {
-			return fleetpartnerfeature.ProviderMembership{}, fleetpartnerfeature.ErrNotFound
+			return fleetpartnermodels.ProviderMembership{}, fleetpartnermodels.ErrNotFound
 		}
-		return fleetpartnerfeature.ProviderMembership{}, err
+		return fleetpartnermodels.ProviderMembership{}, err
 	}
-	return fleetpartnerfeature.ProviderMembership{
+	return fleetpartnermodels.ProviderMembership{
 		ID:               membership.ID,
 		OrganizationID:   membership.OrganizationID,
 		ProviderService:  membership.ProviderService,
@@ -844,7 +848,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// is seeded.
 	// ============================================================
 	marketplaceHandler := marketplacehttp.NewHandler(c.Marketplace, c.Authorizer, c.Idempotency)
-	fleetPartnerHandler := fleetpartnerfeature.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
+	fleetPartnerHandler := fleetpartnerhttp.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
 
 	tenantScoped = func(group *gin.RouterGroup) {
 		corporateHandler.RegisterTenantRoutes(group)
@@ -1031,7 +1035,7 @@ func splitCallers(raw string) []string {
 }
 
 func (c *Components) InternalFleetPartnerRoutes(cfg config.Config) RouteRegistrar {
-	handler := fleetpartnerfeature.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
+	handler := fleetpartnerhttp.NewHandler(c.FleetPartner, c.Authorizer, allowedFleetPartnerCallers(cfg))
 	return func(group *gin.RouterGroup) {
 		handler.RegisterInternalRoutes(group)
 	}

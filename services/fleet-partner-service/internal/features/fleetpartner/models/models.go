@@ -1,7 +1,8 @@
-// Package fleetpartner implements the Section 7 corporate-provider control
+// Package models holds the domain types and pure rules of the fleetpartner
+// feature. The feature implements the Section 7 corporate-provider control
 // plane foundations. It deliberately does not own trip execution or wallet
 // ledger posting.
-package fleetpartner
+package models
 
 import (
 	"encoding/json"
@@ -10,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
+	orgmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 )
 
@@ -396,7 +397,7 @@ func SnapshotJSON(v any) []byte {
 }
 
 func OperatingModeValid(mode string) bool {
-	return models.ValidOperatingMode(mode)
+	return orgmodels.ValidOperatingMode(mode)
 }
 
 func containsOrEmpty(list []string, value string) bool {

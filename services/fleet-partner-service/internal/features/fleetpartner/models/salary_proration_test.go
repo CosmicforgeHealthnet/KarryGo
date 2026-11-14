@@ -1,4 +1,4 @@
-package fleetpartner
+package models
 
 import (
 	"testing"
