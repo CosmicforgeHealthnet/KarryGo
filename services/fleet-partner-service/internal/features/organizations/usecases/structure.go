@@ -268,6 +268,13 @@ func (s *Service) ArchiveBranch(ctx context.Context, tenantCtx tenant.Context, b
 		if departments > 0 {
 			return apperrors.Conflict("Archive or move this branch's departments first.", nil)
 		}
+		units, err := s.structureUnits().ActiveUnitsInBranch(ctx, tx, tenantCtx.OrganizationID, branchID)
+		if err != nil {
+			return err
+		}
+		if units > 0 {
+			return apperrors.Conflict("Archive or move this branch's teams, cost centres and locations first.", nil)
+		}
 		if err := s.opts.Branches.Archive(ctx, tenantCtx.OrganizationID, branchID, expectedVersion); err != nil {
 			return structureError(err, "Branch")
 		}
@@ -343,11 +350,19 @@ func (s *Service) CreateDepartment(ctx context.Context, input DepartmentInput) (
 	department := &models.Department{Code: code, Name: name, BranchID: emptyToNil(input.BranchID),
 		ParentID: emptyToNil(input.ParentID), CostCentreID: emptyToNil(input.CostCentreID)}
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		// The cost centre must be a live entry in this organization's register.
+		if department.CostCentreID != nil {
+			if err := s.structureUnits().CostCentreActive(ctx, tx, input.Tenant.OrganizationID,
+				*department.CostCentreID); err != nil {
+				return costCentreReferenceError(err)
+			}
+		}
 		if err := repo.Create(ctx, tx, input.Tenant.OrganizationID, department); err != nil {
 			return structureError(err, "Department")
 		}
 		entry := audit.EntryFromTenant(input.Tenant, "department.created", "department", department.ID)
-		entry.NewValues = map[string]any{"code": code, "name": name, "branchId": department.BranchID}
+		entry.NewValues = map[string]any{"code": code, "name": name, "branchId": department.BranchID,
+			"costCentreId": department.CostCentreID}
 		if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
 			return err
 		}
@@ -392,12 +407,23 @@ func (s *Service) UpdateDepartment(ctx context.Context, input DepartmentInput) (
 		expected = before.Version
 	}
 	err = database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		// A changed cost centre must be a live entry in this organization's
+		// register. An unchanged one is left alone, so a department written
+		// before the register existed can still be renamed.
+		if updated.CostCentreID != nil && (before.CostCentreID == nil || *before.CostCentreID != *updated.CostCentreID) {
+			if err := s.structureUnits().CostCentreActive(ctx, tx, input.Tenant.OrganizationID,
+				*updated.CostCentreID); err != nil {
+				return costCentreReferenceError(err)
+			}
+		}
 		if err := repo.Update(ctx, tx, input.Tenant.OrganizationID, &updated, expected); err != nil {
 			return structureError(err, "Department")
 		}
 		entry := audit.EntryFromTenant(input.Tenant, "department.updated", "department", before.ID)
-		entry.PreviousValues = map[string]any{"name": before.Name, "branchId": before.BranchID, "parentId": before.ParentID}
-		entry.NewValues = map[string]any{"name": updated.Name, "branchId": updated.BranchID, "parentId": updated.ParentID}
+		entry.PreviousValues = map[string]any{"name": before.Name, "branchId": before.BranchID, "parentId": before.ParentID,
+			"costCentreId": before.CostCentreID}
+		entry.NewValues = map[string]any{"name": updated.Name, "branchId": updated.BranchID, "parentId": updated.ParentID,
+			"costCentreId": updated.CostCentreID}
 		if err := s.opts.Audit.Record(ctx, tx, entry); err != nil {
 			return err
 		}
@@ -427,6 +453,13 @@ func (s *Service) ArchiveDepartment(ctx context.Context, tenantCtx tenant.Contex
 		expectedVersion = before.Version
 	}
 	return database.WithinTx(ctx, s.opts.Pool, func(tx pgx.Tx) error {
+		teams, err := s.structureUnits().ActiveTeamsInDepartment(ctx, tx, tenantCtx.OrganizationID, departmentID)
+		if err != nil {
+			return err
+		}
+		if teams > 0 {
+			return apperrors.Conflict("Archive or move this department's teams first.", nil)
+		}
 		if err := repo.Archive(ctx, tx, tenantCtx.OrganizationID, departmentID, expectedVersion); err != nil {
 			return structureError(err, "Department")
 		}

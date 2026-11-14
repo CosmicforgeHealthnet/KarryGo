@@ -34,6 +34,24 @@ func (h *Handler) registerStructureRoutes(group *gin.RouterGroup) {
 	group.PATCH("/departments/:departmentId", h.updateDepartment)
 	group.POST("/departments/:departmentId/archive", h.archiveDepartment)
 
+	group.GET("/cost-centres", h.listCostCentres)
+	group.POST("/cost-centres", h.createCostCentre)
+	group.GET("/cost-centres/:costCentreId", h.getCostCentre)
+	group.PATCH("/cost-centres/:costCentreId", h.updateCostCentre)
+	group.POST("/cost-centres/:costCentreId/archive", h.archiveCostCentre)
+
+	group.GET("/teams", h.listTeams)
+	group.POST("/teams", h.createTeam)
+	group.GET("/teams/:teamId", h.getTeam)
+	group.PATCH("/teams/:teamId", h.updateTeam)
+	group.POST("/teams/:teamId/archive", h.archiveTeam)
+
+	group.GET("/locations", h.listLocations)
+	group.POST("/locations", h.createLocation)
+	group.GET("/locations/:locationId", h.getLocation)
+	group.PATCH("/locations/:locationId", h.updateLocation)
+	group.POST("/locations/:locationId/archive", h.archiveLocation)
+
 	group.GET("/organization-settings", h.getSettings)
 	group.PATCH("/organization-settings", h.updateSettings)
 

@@ -90,6 +90,73 @@ type Department struct {
 	ArchivedAt     *time.Time
 }
 
+// Structure unit statuses. Cost centres and teams are ACTIVE or ARCHIVED;
+// operating locations may also be temporarily INACTIVE.
+const (
+	UnitStatusActive   = "ACTIVE"
+	UnitStatusInactive = "INACTIVE"
+	UnitStatusArchived = "ARCHIVED"
+)
+
+// OperatingLocationTypes is the closed vocabulary of an organization's own
+// operating sites.
+var OperatingLocationTypes = map[string]bool{
+	"OFFICE": true, "DEPOT": true, "YARD": true, "PARKING": true, "LOADING_BAY": true,
+	"PICKUP_POINT": true, "DROPOFF_POINT": true, "SERVICE_POINT": true,
+	"FUEL_STATION": true, "OTHER": true,
+}
+
+// CostCentre is an accounting unit costs and budgets are attributed to.
+type CostCentre struct {
+	ID                string
+	OrganizationID    string
+	BranchID          *string
+	Code              string
+	Name              string
+	BudgetOwnerUserID *string
+	Status            string
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	ArchivedAt        *time.Time
+}
+
+// Team is a working group, optionally inside a branch and department.
+type Team struct {
+	ID               string
+	OrganizationID   string
+	BranchID         *string
+	DepartmentID     *string
+	Code             string
+	Name             string
+	SupervisorUserID *string
+	Status           string
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ArchivedAt       *time.Time
+}
+
+// OperatingLocation is one of the organization's own operating sites. It is
+// distinct from a CRM customer location, which belongs to a customer.
+type OperatingLocation struct {
+	ID             string
+	OrganizationID string
+	BranchID       *string
+	Code           string
+	Name           string
+	LocationType   string
+	Address        map[string]any
+	Latitude       *float64
+	Longitude      *float64
+	OperatingHours map[string]any
+	Status         string
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	ArchivedAt     *time.Time
+}
+
 // Settings is the single current settings record of an organization.
 type Settings struct {
 	OrganizationID            string
